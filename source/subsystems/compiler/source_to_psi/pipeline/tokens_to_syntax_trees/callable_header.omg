@@ -1,15 +1,12 @@
-use representations\syntax_trees\Clause;
-use representations\syntax_trees\ClauseKind;
-use representations\syntax_trees\ClauseOwner;
-use representations\syntax_trees\Contract;
-use representations\syntax_trees\ContractKind;
-use representations\syntax_trees\ParseDiagnosticCode;
-use representations\syntax_trees\syntax_trees_clause;
-use representations\syntax_trees\syntax_trees_reject;
-use representations\tokens\KeywordKind;
-use representations\tokens\PunctuationKind;
-use representations\tokens\Token;
-use representations\tokens\TokenStream;
+use pipeline/tokens_to_syntax_trees/clause.omg;
+use pipeline/tokens_to_syntax_trees/generics.omg;
+use pipeline/tokens_to_syntax_trees/input.omg;
+use pipeline/tokens_to_syntax_trees/machine.omg as machine_file;
+use pipeline/tokens_to_syntax_trees/types.omg;
+use pipeline/tokens_to_syntax_trees/parser.omg;
+
+use representations/syntax_trees/syntax_trees.omg;
+use representations/tokens/tokens.omg;
 
 // Each frame owns its clauses and direct requirements. A child's semicolon
 // closes exactly that frame; the next token is parsed in the parent scope.
@@ -20,13 +17,13 @@ use representations\tokens\TokenStream;
 public data CallableHeaderFrame [copy]
 requires first_clause <= 2048, first_contract <= 256
 {
-    owner: ClauseOwner;
-    contract: Contract;
+    owner: |syntax_trees|::ClauseOwner;
+    contract: |syntax_trees|::Contract;
     first_clause: u64;
     first_contract: u64;
 }
 
-public machine parse_callable_header(parser: @mutable Parser, input: @TokenStream, owner: ClauseOwner)
+public machine parse_callable_header(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, owner: |syntax_trees|::ClauseOwner)
 crashes Trap
 {
     parser.header_depth = 1;
@@ -42,80 +39,81 @@ crashes Trap
     };
     transition { _ -> clauses(parser, input) }
 
-    machine clauses(parser: @mutable Parser, input: @TokenStream) {
+    machine clauses(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         let frame: CallableHeaderFrame = top_header_frame(parser);
-        parse_clauses(parser, input, frame.owner);
+        |clause|::parse_clauses(parser, input, frame.owner);
         transition parser.output.accepted {
             true -> stage_capacity(parser, input),
             _ -> done()
         }
     }
 
-    machine stage_capacity(parser: @mutable Parser, input: @TokenStream) {
+    machine stage_capacity(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         let total: u64 in Trapping =
             (parser.output.clause_count as +Trapping) + (parser.header_clause_count as +Trapping);
+        let clause_first: u64 in Trapping = parser.clause_first;
         transition total <= 2048 {
-            true -> stage_clause(parser, input, parser.clause_first),
-            _ -> reject(parser, input, ParseDiagnosticCode::ClauseCapacityExceeded)
+            true -> stage_clause(parser, input, clause_first),
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::ClauseCapacityExceeded)
         }
     }
 
-    machine stage_clause(parser: @mutable Parser, input: @TokenStream, index: u64 in Trapping) {
+    machine stage_clause(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, index: u64 in Trapping) {
         transition index < parser.output.clause_count {
             true -> clause_staged(parser, input, index),
             _ -> staged(parser, input)
         }
     }
 
-    machine clause_staged(parser: @mutable Parser, input: @TokenStream, index: u64 in Trapping) {
+    machine clause_staged(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, index: u64 in Trapping) {
         transition parser.header_clause_count < 2048 {
             true -> append_staged_clause(parser, input, index),
-            _ -> reject(parser, input, ParseDiagnosticCode::ClauseCapacityExceeded)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::ClauseCapacityExceeded)
         }
     }
 
-    machine append_staged_clause(parser: @mutable Parser, input: @TokenStream, index: u64 in Trapping) {
-        parser.header_clauses[parser.header_clause_count] = syntax_trees_clause(@parser.output, index);
+    machine append_staged_clause(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, index: u64 in Trapping) {
+        parser.header_clauses[parser.header_clause_count] = |syntax_trees|::syntax_trees_clause(@parser.output, index);
         parser.header_clause_count = parser.header_clause_count + 1;
         transition { _ -> stage_clause(parser, input, index + 1) }
     }
 
-    machine staged(parser: @mutable Parser, input: @TokenStream) {
+    machine staged(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         let count: u64 = parser.clause_first as u64;
         transition count <= 2048 {
             true -> reclaimed(parser, input, count),
-            _ -> reject(parser, input, ParseDiagnosticCode::ClauseCapacityExceeded)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::ClauseCapacityExceeded)
         }
     }
 
-    machine reclaimed(parser: @mutable Parser, input: @TokenStream, count: u64)
+    machine reclaimed(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, count: u64)
     requires count <= 2048
     {
         parser.output.clause_count = count;
-        let required: bool = at_word(parser, input, "requires")
-            && next_is_keyword(parser, input, KeywordKind::Machine);
+        let required: bool = |input|::at_word(parser, input, "requires")
+            && |input|::next_is_keyword(parser, input, |tokens|::KeywordKind::Machine);
         transition required {
             true -> requirement_capacity(parser, input),
             _ -> returned(parser, input)
         }
     }
 
-    machine requirement_capacity(parser: @mutable Parser, input: @TokenStream) {
+    machine requirement_capacity(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         let total: u64 in Trapping = (parser.output.contract_count as +Trapping)
             + (parser.header_contract_count as +Trapping) + (parser.header_depth as +Trapping);
         transition total <= 256 {
             true -> requirement(parser, input),
-            _ -> reject(parser, input, ParseDiagnosticCode::ContractCapacityExceeded)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::ContractCapacityExceeded)
         }
     }
 
-    machine requirement(parser: @mutable Parser, input: @TokenStream) {
-        let token: Token = input.tokens[parser.current_index];
+    machine requirement(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        let token: |tokens|::Token = input.tokens[parser.current_index];
         parser.contract_start = token.start;
-        take_current(parser, input);
-        take_current(parser, input);
+        |input|::take_current(parser, input);
+        |input|::take_current(parser, input);
         parser.contract_first_generic = parser.output.generic_parameter_count as +Trapping;
-        expect_name(parser, input, ParseDiagnosticCode::ExpectedContractName);
+        |input|::expect_name(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedContractName);
         parser.contract_name_start = parser.name_start;
         parser.contract_name_end = parser.name_end;
         transition parser.output.accepted {
@@ -124,16 +122,16 @@ crashes Trap
         }
     }
 
-    machine generics(parser: @mutable Parser, input: @TokenStream) {
-        let generic: bool = at_punctuation(parser, input, PunctuationKind::Less);
+    machine generics(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        let generic: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Less);
         transition generic {
             true -> generic_parameters(parser, input),
-            _ -> signature(parser, input, 0)
+            _ -> signature(parser, input, 0 as +Trapping)
         }
     }
 
-    machine generic_parameters(parser: @mutable Parser, input: @TokenStream) {
-        parse_generic_parameters(parser, input);
+    machine generic_parameters(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |generics|::parse_generic_parameters(parser, input);
         let count: u64 in Trapping =
             (parser.output.generic_parameter_count as +Trapping) - parser.contract_first_generic;
         transition parser.output.accepted {
@@ -142,17 +140,17 @@ crashes Trap
         }
     }
 
-    machine signature(parser: @mutable Parser, input: @TokenStream, generic_count: u64 in Trapping) {
-        parse_signature(parser, input);
+    machine signature(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, generic_count: u64 in Trapping) {
+        |machine_file|::parse_signature(parser, input);
         transition parser.output.accepted {
             true -> push(parser, input, generic_count),
             _ -> done()
         }
     }
 
-    machine push(parser: @mutable Parser, input: @TokenStream, generic_count: u64 in Trapping) {
+    machine push(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, generic_count: u64 in Trapping) {
         let frame: CallableHeaderFrame = CallableHeaderFrame {
-            owner: ClauseOwner::Contract,
+            owner: |syntax_trees|::ClauseOwner::Contract,
             contract: callable_contract(parser, parser.contract_start,
                 parser.contract_name_start, parser.contract_name_end,
                 parser.contract_first_generic, generic_count),
@@ -168,25 +166,25 @@ crashes Trap
 
     // The optional late return belongs to this exact signature, not the most
     // recently parsed child. A return arrow is not a clause separator.
-    machine returned(parser: @mutable Parser, input: @TokenStream) {
+    machine returned(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         let frame: CallableHeaderFrame = top_header_frame(parser);
-        let arrow: bool = at_punctuation(parser, input, PunctuationKind::Arrow);
+        let arrow: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Arrow);
         transition arrow && !frame.contract.has_return_type {
             true -> return_type(parser, input),
             _ -> end(parser, input)
         }
     }
 
-    machine return_type(parser: @mutable Parser, input: @TokenStream) {
-        take_current(parser, input);
-        parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedMachineReturnType);
+    machine return_type(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
+        |types|::parse_type_reference(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedMachineReturnType);
         transition parser.output.accepted {
             true -> return_retained(parser, input),
             _ -> done()
         }
     }
 
-    machine return_retained(parser: @mutable Parser, input: @TokenStream) {
+    machine return_retained(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         let mutable frame: CallableHeaderFrame = top_header_frame(parser);
         frame.contract.has_return_type = true;
         frame.contract.return_type = parser.type_result;
@@ -194,22 +192,22 @@ crashes Trap
         transition { _ -> clauses(parser, input) }
     }
 
-    machine end(parser: @mutable Parser, input: @TokenStream) {
+    machine end(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         transition parser.header_depth > 1 {
             true -> contract_end(parser, input),
             _ -> publish(parser, input)
         }
     }
 
-    machine contract_end(parser: @mutable Parser, input: @TokenStream) {
-        expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedContractEnd);
+    machine contract_end(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::expect_punctuation(parser, input, |tokens|::PunctuationKind::Semicolon, |syntax_trees|::ParseDiagnosticCode::ExpectedContractEnd);
         transition parser.output.accepted {
             true -> publish(parser, input),
             _ -> done()
         }
     }
 
-    machine publish(parser: @mutable Parser, input: @TokenStream) {
+    machine publish(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         let mutable frame: CallableHeaderFrame = top_header_frame(parser);
         frame.contract.first_clause = parser.output.clause_count as +Trapping;
         frame.contract.clause_count = (parser.header_clause_count as +Trapping)
@@ -224,64 +222,64 @@ crashes Trap
 
     // Each frame checks its own complete header, including clauses separated
     // by a child contract. An empty crash ceiling cannot coexist with a cause.
-    machine publish_clause(parser: @mutable Parser, input: @TokenStream, index: u64 in Trapping, seen_none: bool, seen_cause: bool) {
+    machine publish_clause(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, index: u64 in Trapping, seen_none: bool, seen_cause: bool) {
         transition index < parser.header_clause_count {
             true -> clause_published(parser, input, index, seen_none, seen_cause),
             _ -> publish_contracts(parser, input)
         }
     }
 
-    machine clause_published(parser: @mutable Parser, input: @TokenStream, index: u64 in Trapping, seen_none: bool, seen_cause: bool) {
-        let clause: Clause = parser.header_clauses[index];
-        let empty: bool = clause.kind == ClauseKind::CrashesNone;
-        let cause: bool = clause.kind == ClauseKind::Crashes;
+    machine clause_published(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, index: u64 in Trapping, seen_none: bool, seen_cause: bool) {
+        let clause: |syntax_trees|::Clause = parser.header_clauses[index as -Trapping];
+        let empty: bool = clause.kind == |syntax_trees|::ClauseKind::CrashesNone;
+        let cause: bool = clause.kind == |syntax_trees|::ClauseKind::Crashes;
         transition (seen_none && cause) || (seen_cause && empty) {
             true -> conflict(parser, clause),
             _ -> append_clause(parser, input, index, seen_none || empty, seen_cause || cause, clause)
         }
     }
 
-    machine conflict(parser: @mutable Parser, clause: Clause) {
-        syntax_trees_reject(@mutable parser.output, ParseDiagnosticCode::ConflictingCrashCeiling,
+    machine conflict(parser: @mutable |parser|::Parser, clause: |syntax_trees|::Clause) {
+        |syntax_trees|::syntax_trees_reject(@mutable parser.output, |syntax_trees|::ParseDiagnosticCode::ConflictingCrashCeiling,
             clause.source_span.source, clause.source_span.span.start, clause.source_span.span.end);
     }
 
-    machine append_clause(parser: @mutable Parser, input: @TokenStream, index: u64 in Trapping, seen_none: bool, seen_cause: bool, clause: Clause) {
+    machine append_clause(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, index: u64 in Trapping, seen_none: bool, seen_cause: bool, clause: |syntax_trees|::Clause) {
         transition parser.output.clause_count < 2048 {
             true -> append(parser, input, index, seen_none, seen_cause, clause),
-            _ -> reject(parser, input, ParseDiagnosticCode::ClauseCapacityExceeded)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::ClauseCapacityExceeded)
         }
     }
 
-    machine append(parser: @mutable Parser, input: @TokenStream, index: u64 in Trapping, seen_none: bool, seen_cause: bool, clause: Clause) {
+    machine append(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, index: u64 in Trapping, seen_none: bool, seen_cause: bool, clause: |syntax_trees|::Clause) {
         parser.output.clauses[parser.output.clause_count] = clause;
         parser.output.clause_count = parser.output.clause_count + 1;
         transition { _ -> publish_clause(parser, input, index + 1, seen_none, seen_cause) }
     }
 
-    machine publish_contracts(parser: @mutable Parser, input: @TokenStream) {
+    machine publish_contracts(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         let frame: CallableHeaderFrame = top_header_frame(parser);
         parser.header_clause_count = frame.first_clause;
         transition { _ -> publish_contract(parser, input, frame.first_contract as u64 +Trapping) }
     }
 
-    machine publish_contract(parser: @mutable Parser, input: @TokenStream, index: u64 in Trapping) {
+    machine publish_contract(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, index: u64 in Trapping) {
         transition index < parser.header_contract_count {
             true -> contract_published(parser, input, index),
             _ -> pop(parser, input)
         }
     }
 
-    machine contract_published(parser: @mutable Parser, input: @TokenStream, index: u64 in Trapping) {
-        let contract: Contract = parser.header_contracts[index];
-        retain_contract(parser, input, contract);
+    machine contract_published(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, index: u64 in Trapping) {
+        let contract: |syntax_trees|::Contract = parser.header_contracts[index as -Trapping];
+        |machine_file|::retain_contract(parser, input, contract);
         transition parser.output.accepted {
             true -> publish_contract(parser, input, index + 1),
             _ -> done()
         }
     }
 
-    machine pop(parser: @mutable Parser, input: @TokenStream) {
+    machine pop(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         let frame: CallableHeaderFrame = top_header_frame(parser);
         parser.header_contract_count = frame.first_contract;
         pop_header_frame(parser);
@@ -291,20 +289,20 @@ crashes Trap
         }
     }
 
-    machine parent(parser: @mutable Parser, input: @TokenStream, contract: Contract) {
+    machine parent(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, contract: |syntax_trees|::Contract) {
         transition parser.header_contract_count < 256 {
             true -> stage_parent(parser, input, contract),
-            _ -> reject(parser, input, ParseDiagnosticCode::ContractCapacityExceeded)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::ContractCapacityExceeded)
         }
     }
 
-    machine stage_parent(parser: @mutable Parser, input: @TokenStream, contract: Contract) {
+    machine stage_parent(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, contract: |syntax_trees|::Contract) {
         parser.header_contracts[parser.header_contract_count] = contract;
         parser.header_contract_count = parser.header_contract_count + 1;
         transition { _ -> clauses(parser, input) }
     }
 
-    machine root(parser: @mutable Parser, contract: Contract) {
+    machine root(parser: @mutable |parser|::Parser, contract: |syntax_trees|::Contract) {
         parser.machine_first_clause = contract.first_clause;
         parser.machine_clause_count = contract.clause_count;
         parser.machine_first_contract = contract.first_contract;
@@ -313,102 +311,103 @@ crashes Trap
         parser.machine_return_type = contract.return_type;
     }
 
-    machine reject(parser: @mutable Parser, input: @TokenStream, code: ParseDiagnosticCode) {
-        reject_current(parser, input, code);
+    machine reject(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, code: |syntax_trees|::ParseDiagnosticCode) {
+        |input|::reject_current(parser, input, code);
     }
 
     machine done() {}
 }
 
-machine header_child_first(parser: @Parser, count: u64 in Trapping) -> u64 in Trapping {
+machine header_child_first(parser: @|parser|::Parser, count: u64 in Trapping) -> u64 in Trapping {
     transition count == 0 {
         true -> empty(),
         _ -> present(parser)
     }
 
-    machine empty() -> u64 in Trapping { 0 }
-    machine present(parser: @Parser) -> u64 in Trapping {
+    machine empty() -> u64 in Trapping { 0 as +Trapping }
+    machine present(parser: @|parser|::Parser) -> u64 in Trapping {
         parser.output.contract_count as +Trapping
     }
 }
 
 machine callable_contract(
-    parser: @Parser,
+    parser: @|parser|::Parser,
     start: u64 in Trapping,
     name_start: u64 in Trapping,
     name_end: u64 in Trapping,
     first_generic: u64 in Trapping,
     generic_count: u64 in Trapping
-) -> Contract {
-    Contract {
-        kind: ContractKind::Machine,
-        name: identifier_span(parser, name_start, name_end),
+) -> |syntax_trees|::Contract {
+    |syntax_trees|::Contract {
+        kind: |syntax_trees|::ContractKind::Machine,
+        name: |parser|::identifier_span(parser, name_start, name_end),
         first_generic_parameter: first_generic,
         generic_parameter_count: generic_count,
         first_parameter: parser.signature_first_parameter,
         parameter_count: parser.signature_parameter_count,
         has_return_type: parser.signature_has_return_type,
         return_type: parser.signature_return_type,
-        first_clause: 0,
-        clause_count: 0,
-        first_contract: 0,
-        contract_count: 0,
-        source_span: parser_source_span(parser, start, parser.token_end)
+        first_clause: 0 as +Trapping,
+        clause_count: 0 as +Trapping,
+        first_contract: 0 as +Trapping,
+        contract_count: 0 as +Trapping,
+        source_span: |parser|::parser_source_span(parser, start, parser.token_end)
     }
 }
 
 // The same storage discipline as the type/expression stacks: a bounded
 // cursor is checked once at the access boundary and survives as an exact
 // argument to the array operation.
-machine top_header_frame(parser: @Parser) -> CallableHeaderFrame
+machine top_header_frame(parser: @|parser|::Parser) -> CallableHeaderFrame
 crashes Trap
 {
     transition parser.header_depth > 0 {
         true -> read(parser, parser.header_depth - 1),
         _ -> invalid()
     }
-    machine read(parser: @Parser, index: u64) -> CallableHeaderFrame
+    machine read(parser: @|parser|::Parser, index: u64) -> CallableHeaderFrame
     requires index <= 256
     { parser.header_frames[index] }
     machine invalid() -> CallableHeaderFrame { crash Trap; }
 }
 
-machine replace_header_frame(parser: @mutable Parser, frame: CallableHeaderFrame)
+machine replace_header_frame(parser: @mutable |parser|::Parser, frame: CallableHeaderFrame)
 crashes Trap
 {
-    transition parser.header_depth > 0 {
-        true -> replace(parser, frame, parser.header_depth - 1),
+    let header_depth: u64 = parser.header_depth;
+    transition header_depth > 0 {
+        true -> replace(parser, frame, header_depth - 1),
         _ -> invalid()
     }
-    machine replace(parser: @mutable Parser, frame: CallableHeaderFrame, index: u64)
+    machine replace(parser: @mutable |parser|::Parser, frame: CallableHeaderFrame, index: u64)
     requires index <= 256
     { parser.header_frames[index] = frame; }
     machine invalid() { crash Trap; }
 }
 
-machine push_header_frame(parser: @mutable Parser, input: @TokenStream, frame: CallableHeaderFrame)
+machine push_header_frame(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, frame: CallableHeaderFrame)
 crashes Trap
 {
     transition parser.header_depth < 257 {
         true -> append(parser, frame),
         _ -> full(parser, input)
     }
-    machine append(parser: @mutable Parser, frame: CallableHeaderFrame) {
+    machine append(parser: @mutable |parser|::Parser, frame: CallableHeaderFrame) {
         parser.header_frames[parser.header_depth] = frame;
         parser.header_depth = parser.header_depth + 1;
     }
-    machine full(parser: @mutable Parser, input: @TokenStream) {
-        reject_current(parser, input, ParseDiagnosticCode::ContractCapacityExceeded);
+    machine full(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::reject_current(parser, input, |syntax_trees|::ParseDiagnosticCode::ContractCapacityExceeded);
     }
 }
 
-machine pop_header_frame(parser: @mutable Parser)
+machine pop_header_frame(parser: @mutable |parser|::Parser)
 crashes Trap
 {
     transition parser.header_depth > 0 {
         true -> pop(parser),
         _ -> invalid()
     }
-    machine pop(parser: @mutable Parser) { parser.header_depth = parser.header_depth - 1; }
+    machine pop(parser: @mutable |parser|::Parser) { parser.header_depth = parser.header_depth - 1; }
     machine invalid() { crash Trap; }
 }

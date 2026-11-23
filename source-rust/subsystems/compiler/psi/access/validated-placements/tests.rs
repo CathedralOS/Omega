@@ -4,6 +4,105 @@ use crate::*;
 use layout_plans::test_support::*;
 use layout_plans::*;
 #[test]
+fn field_access_bit_positions_must_fit_the_logical_extent() {
+    let last_byte = u64::MAX / 8;
+    let read = |placement, width| {
+        let layout = layout_report(
+            vec![layout_field_entry("value", placement)],
+            None,
+            Some(last_byte + 3),
+            1,
+        );
+        let access = FieldAccess::External {
+            transfer_width_bits: width,
+            read: ExternalRead::Read,
+            write: false,
+            exposure: AccessExposure::Exported,
+        };
+        validate_access_fields(access_plan(&layout, &[("value", access)]), &layout)
+    };
+    let bits = |container, container_width, destination_lsb, width| LayoutPlacementReport::Bits {
+        container,
+        container_width,
+        destination_lsb,
+        source_lsb: 0,
+        width,
+    };
+    let edge = read(bits(last_byte, 8, 7, 1), 8).unwrap();
+    assert_eq!(
+        edge.field_descriptors()[0].logical_extent().fragments()[0].layout_bit_offset(),
+        u64::MAX
+    );
+    for (placement, transfer_width) in [
+        (
+            LayoutPlacementReport::At {
+                offset: last_byte + 1,
+            },
+            8,
+        ),
+        (
+            LayoutPlacementReport::IntegerAt {
+                offset: last_byte + 1,
+                stored_width: 8,
+                interpretation: IntegerInterpretation::Unsigned,
+            },
+            8,
+        ),
+        (bits(last_byte + 1, 8, 0, 1), 8),
+        (bits(last_byte, 16, 8, 1), 16),
+        (LayoutPlacementReport::At { offset: last_byte }, 16),
+    ] {
+        let error =
+            read(placement, transfer_width).expect_err("every bit must have a layout position");
+        assert!(error.0.contains("bit range overflows"), "{}", error.0);
+    }
+}
+
+#[test]
+fn region_projection_checks_the_last_layout_bit() {
+    let last_byte = u64::MAX / 8;
+    for start in [last_byte - 1, last_byte] {
+        let layout = layout_report(
+            vec![layout_field_entry(
+                "region",
+                LayoutPlacementReport::At { offset: start },
+            )],
+            None,
+            Some(start + 2),
+            2,
+        );
+        let access = FieldAccess::Region {
+            byte_length: 2,
+            byte_alignment: 2,
+            transfer_width_bits: 16,
+            observation: ObservationModel::External,
+            permissions: AccessPermissions {
+                read: true,
+                ..AccessPermissions::default()
+            },
+            exposure: AccessExposure::Exported,
+        };
+        let fields =
+            validate_access_fields(access_plan(&layout, &[("region", access)]), &layout).unwrap();
+        let projection = fields.validate_region_projection(field_key(&fields, "region"), start, 16);
+        if start == last_byte {
+            assert!(
+                projection
+                    .unwrap_err()
+                    .0
+                    .contains("region projection bit offset overflows")
+            );
+        } else {
+            let descriptor = projection.unwrap();
+            assert_eq!(
+                descriptor.logical_extent().fragments()[0].layout_bit_offset(),
+                u64::MAX - 15
+            );
+        }
+    }
+}
+
+#[test]
 fn stored_integer_geometry_uses_the_exact_encoded_width() {
     let layout = layout_report(
         vec![layout_field_entry(

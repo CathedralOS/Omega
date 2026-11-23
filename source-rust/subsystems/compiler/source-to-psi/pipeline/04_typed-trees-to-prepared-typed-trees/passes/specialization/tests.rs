@@ -2453,6 +2453,7 @@ fn closed_callback_requirements_are_retained_for_the_lowered_checker() {
                 right,
                 operator: BinaryOperator::Equal,
                 policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                negation: false,
             }));
         let predicate = if case == 3 {
             name(&mut source.program, source.forward.item, "item")

@@ -1117,6 +1117,7 @@ pub(crate) mod byte_buffers {
 
     use crate::boundary::effects::storage_inputs::BoundaryStorageInputs;
     use crate::boundary::errors::{TerminalInterpretError, malformed};
+    use crate::boundary::structural_inputs::case_membership::CaseSelections;
     use crate::boundary::values::StructuralByteSequenceRuntimeField;
     use crate::boundary::values::StructuralRuntimePlace;
     use crate::boundary::values::TerminalStructuralValue;
@@ -1191,10 +1192,7 @@ pub(crate) mod byte_buffers {
                 '_,
                 terminal_psi::StructuralTypeDeclaration,
             >,
-            cases: &std::collections::BTreeMap<
-                crate::boundary::values::StructuralRuntimePlace,
-                crate::boundary::structural_inputs::case_membership::StructuralCaseContents,
-            >,
+            cases: &impl CaseSelections,
             sources: Option<StructuralArgumentSources<'_, '_>>,
             account: Option<&EvaluationInvocationAccount>,
         ) -> Result<StructuralCallArguments, TerminalInterpretError> {
@@ -2479,7 +2477,7 @@ pub(crate) mod normal_qualifications {
                         .ok_or(malformed())?
                         .value;
                     let home = StructuralRuntimePlace::from(&carrier);
-                    let actual = self.structural_cases.require(&home)?;
+                    let actual = self.require_case(&home)?;
                     if actual.structural_type != carrier.structural_type {
                         return Err(malformed());
                     }
@@ -2539,9 +2537,7 @@ pub(crate) mod normal_qualifications {
                             )?
                             .ok_or(malformed())?
                             .value;
-                        let actual = self
-                            .structural_cases
-                            .get(&StructuralRuntimePlace::from(&carrier))
+                        let actual = self.case_at(&StructuralRuntimePlace::from(&carrier))
                             .ok_or(malformed())?;
                         if actual.structural_type != carrier.structural_type {
                             return Err(malformed());
@@ -4202,7 +4198,7 @@ pub(crate) mod scalar_loans {
             };
             let declaration = self.structural_declaration(parent_type)?;
             let fields = if cell.namespace == StructuralFieldNamespace::CasePayload {
-                let case = self.structural_cases.require(&cell.parent)?;
+                let case = self.require_case(&cell.parent)?;
                 if case.structural_type != declaration.id {
                     return Err(malformed());
                 }

@@ -724,8 +724,8 @@ mod tests {
             ),
             (
                 "bootstrap/omega/compiler/omega_compiler.epsilon.sources",
-                1198693,
-                "c3ccd816d4280a44a6eecd9c537f84546591dac966fcc83a7ccce15576fa1468",
+                1217811,
+                "27f6b21f00093fee1f0592a6571fe90fb0b34529742a5fb3448cc3fed17f7a2a",
                 None,
             ),
             (

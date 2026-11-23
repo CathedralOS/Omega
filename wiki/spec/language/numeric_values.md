@@ -689,9 +689,14 @@ rules.
 Named decision: `policy-operator-plain-operand`, confirmed 2026-11-13.
 Named decision: `policy-bitwise-and-shift-counts`, ratified 2026-11-16.
 
-`Wrapping`, `Saturating` and `Trapping` remain qualifications for a value's
-arithmetic policy. They are `omega\core` domains, not separately specified
-arithmetic. For each fixed integer carrier, core declares each unsuffixed
+Core declares `Wrapping`, `Saturating` and `Trapping` as ordinary domains.
+To name one from another file, import its declaring file and qualify the domain
+through that alias under the [ordinary import rules](modules.md#foreign-attached-declaration-paths).
+A bare domain name must resolve in its own scope. An unresolved name is an
+error, including when it has the same spelling as a core policy. The short
+policy names in the signatures below stand for the corresponding core declarations.
+
+For each fixed integer carrier, core declares each unsuffixed
 arithmetic operator (`+`, `-`, `*`, `/`, `%`) for two operands carrying the
 domain and for one such operand with a plain operand of the same carrier in
 either order, so `counter + 1` needs no cast. The operator is the corresponding suffixed

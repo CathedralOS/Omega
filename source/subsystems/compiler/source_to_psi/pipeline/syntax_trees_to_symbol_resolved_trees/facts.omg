@@ -1,29 +1,10 @@
-use representations\source_files\SourceSet;
-use representations\source_files\SourceSpan;
-use representations\source_files\span_spells;
-use representations\source_files\spans_equal;
-use representations\symbol_resolved_trees\ResolveDiagnosticCode;
-use representations\symbol_resolved_trees\ValueBinding;
-use representations\symbol_resolved_trees\name_resolution_reject;
-use representations\syntax_trees\Clause;
-use representations\syntax_trees\ClauseKind;
-use representations\syntax_trees\Contract;
-use representations\syntax_trees\DataField;
-use representations\syntax_trees\DataItem;
-use representations\syntax_trees\DomainItem;
-use representations\syntax_trees\Expression;
-use representations\syntax_trees\ExpressionKind;
-use representations\syntax_trees\GenericParameter;
-use representations\syntax_trees\MachineItem;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\machine_item;
-use representations\syntax_trees\syntax_trees_clause;
-use representations\syntax_trees\syntax_trees_contract;
-use representations\syntax_trees\syntax_trees_data_item;
-use representations\syntax_trees\syntax_trees_domain_item;
-use representations\syntax_trees\syntax_trees_expression;
-use representations\syntax_trees\syntax_trees_field;
-use representations\syntax_trees\syntax_trees_generic_parameter;
+use pipeline/syntax_trees_to_symbol_resolved_trees/resolution_state.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/pattern_binders.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/names.omg;
+
+use representations/source_files/source.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
 
 // Fact names. A machine's `requires` fact names that body's
 // parameters (and the machine's value binders) exactly as its statements
@@ -39,69 +20,69 @@ use representations\syntax_trees\syntax_trees_generic_parameter;
 // `requires P(x)`; inside a larger fact (`P(x) && x > 0`) it rejects as
 // unsupported (wiki/language_guide/chapter_10_compile_time_proofs.md). A
 // domain's `requires` predicates name its subject binder.
-public machine bind_fact_names(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
+public machine bind_fact_names(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> next_machine(resolver, sources, syntax, 0) }
+    transition { _ -> next_machine(resolver, sources, syntax, 0 as +Trapping) }
 
-    machine next_machine(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine next_machine(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count && resolver.output.accepted {
             true -> machine(resolver, sources, syntax, index),
-            _ -> next_data(resolver, sources, syntax, 0)
+            _ -> next_data(resolver, sources, syntax, 0 as +Trapping)
         }
     }
 
-    machine machine(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
-        let item: MachineItem = machine_item(syntax, index);
-        let scope: NameScope = fact_scope(true, index, item.first_parameter, item.parameter_count, ValueBinding::NotAName);
-        bind_clause_facts(resolver, sources, syntax, scope, item.first_clause, item.clause_count, ClauseKind::Requires);
-        let returning: NameScope = fact_scope(true, index, item.first_parameter, item.parameter_count, ValueBinding::ReturnedValue { machine: index });
-        bind_clause_facts(resolver, sources, syntax, returning, item.first_clause, item.clause_count, ClauseKind::Ensures);
-        transition { _ -> next_contract(resolver, sources, syntax, index, item, 0) }
+    machine machine(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, index);
+        let scope: |names|::NameScope = fact_scope(true, index, item.first_parameter, item.parameter_count, |symbol_resolved_trees|::ValueBinding::NotAName);
+        bind_clause_facts(resolver, sources, syntax, scope, item.first_clause, item.clause_count, |syntax_trees|::ClauseKind::Requires);
+        let returning: |names|::NameScope = fact_scope(true, index, item.first_parameter, item.parameter_count, |symbol_resolved_trees|::ValueBinding::ReturnedValue { machine: index });
+        bind_clause_facts(resolver, sources, syntax, returning, item.first_clause, item.clause_count, |syntax_trees|::ClauseKind::Ensures);
+        transition { _ -> next_contract(resolver, sources, syntax, index, item, 0 as +Trapping) }
     }
 
     // A callable contract's facts name its own parameters and result.
-    machine next_contract(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+    machine next_contract(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, item: |syntax_trees|::MachineItem, offset: u64 in Trapping) {
         transition offset < item.contract_count && resolver.output.accepted {
             true -> contract_facts(resolver, sources, syntax, index, item, offset),
             _ -> next_machine(resolver, sources, syntax, index + 1)
         }
     }
 
-    machine contract_facts(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
-        let written: Contract = syntax_trees_contract(syntax, item.first_contract + offset);
-        let scope: NameScope = fact_scope(true, index, written.first_parameter, written.parameter_count, ValueBinding::NotAName);
-        bind_clause_facts(resolver, sources, syntax, scope, written.first_clause, written.clause_count, ClauseKind::Requires);
-        let returning: NameScope = fact_scope(true, index, written.first_parameter, written.parameter_count, ValueBinding::ContractReturnedValue { contract: item.first_contract + offset });
-        bind_clause_facts(resolver, sources, syntax, returning, written.first_clause, written.clause_count, ClauseKind::Ensures);
+    machine contract_facts(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, item: |syntax_trees|::MachineItem, offset: u64 in Trapping) {
+        let written: |syntax_trees|::Contract = |syntax_trees|::syntax_trees_contract(syntax, item.first_contract + offset);
+        let scope: |names|::NameScope = fact_scope(true, index, written.first_parameter, written.parameter_count, |symbol_resolved_trees|::ValueBinding::NotAName);
+        bind_clause_facts(resolver, sources, syntax, scope, written.first_clause, written.clause_count, |syntax_trees|::ClauseKind::Requires);
+        let returning: |names|::NameScope = fact_scope(true, index, written.first_parameter, written.parameter_count, |symbol_resolved_trees|::ValueBinding::ContractReturnedValue { contract: item.first_contract + offset });
+        bind_clause_facts(resolver, sources, syntax, returning, written.first_clause, written.clause_count, |syntax_trees|::ClauseKind::Ensures);
         transition { _ -> next_contract(resolver, sources, syntax, index, item, offset + 1) }
     }
 
-    machine next_data(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine next_data(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.data_count && resolver.output.accepted {
             true -> data(resolver, sources, syntax, index),
-            _ -> next_domain(resolver, sources, syntax, 0)
+            _ -> next_domain(resolver, sources, syntax, 0 as +Trapping)
         }
     }
 
     // A domain's predicates name its subject binder
     // (wiki/spec/language/domains.md#declaration-and-membership).
-    machine next_domain(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine next_domain(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.domain_count && resolver.output.accepted {
             true -> domain(resolver, sources, syntax, index),
             _ -> done()
         }
     }
 
-    machine domain(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
-        let item: DomainItem = syntax_trees_domain_item(syntax, index);
-        let scope: NameScope = subject_scope(index);
-        bind_clause_facts(resolver, sources, syntax, scope, item.first_clause, item.clause_count, ClauseKind::Requires);
+    machine domain(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
+        let item: |syntax_trees|::DomainItem = |syntax_trees|::syntax_trees_domain_item(syntax, index);
+        let scope: |names|::NameScope = subject_scope(index);
+        bind_clause_facts(resolver, sources, syntax, scope, item.first_clause, item.clause_count, |syntax_trees|::ClauseKind::Requires);
         transition { _ -> next_domain(resolver, sources, syntax, index + 1) }
     }
 
-    machine data(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
-        let item: DataItem = syntax_trees_data_item(syntax, index);
+    machine data(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
+        let item: |syntax_trees|::DataItem = |syntax_trees|::syntax_trees_data_item(syntax, index);
         bind_data_facts(resolver, sources, syntax, index, item, item.first_clause, item.clause_count);
         transition { _ -> next_data(resolver, sources, syntax, index + 1) }
     }
@@ -116,47 +97,47 @@ machine fact_scope(
     machine: u64 in Trapping,
     first_parameter: u64 in Trapping,
     parameter_count: u64 in Trapping,
-    result_binding: ValueBinding
-) -> NameScope {
-    NameScope {
+    result_binding: |symbol_resolved_trees|::ValueBinding
+) -> |names|::NameScope {
+    |names|::NameScope {
         has_machine: has_machine,
         machine: machine,
         first_parameter: first_parameter,
         parameter_count: parameter_count,
-        first_statement: 0,
-        visible_statement_end: 0,
-        first_binder: 0,
-        binder_count: 0,
+        first_statement: 0 as +Trapping,
+        visible_statement_end: 0 as +Trapping,
+        first_binder: 0 as +Trapping,
+        binder_count: 0 as +Trapping,
         result_binding: result_binding,
         in_fact: false,
-        fact_root: 0,
+        fact_root: 0 as +Trapping,
         names_subject: false,
-        subject_domain: 0
+        subject_domain: 0 as +Trapping
     }
 }
 
 // Domain `domain`'s predicates: its subject binder and no machine.
-machine subject_scope(domain: u64 in Trapping) -> NameScope {
-    NameScope {
+machine subject_scope(domain: u64 in Trapping) -> |names|::NameScope {
+    |names|::NameScope {
         has_machine: false,
-        machine: 0,
-        first_parameter: 0,
-        parameter_count: 0,
-        first_statement: 0,
-        visible_statement_end: 0,
-        first_binder: 0,
-        binder_count: 0,
-        result_binding: ValueBinding::NotAName,
+        machine: 0 as +Trapping,
+        first_parameter: 0 as +Trapping,
+        parameter_count: 0 as +Trapping,
+        first_statement: 0 as +Trapping,
+        visible_statement_end: 0 as +Trapping,
+        first_binder: 0 as +Trapping,
+        binder_count: 0 as +Trapping,
+        result_binding: |symbol_resolved_trees|::ValueBinding::NotAName,
         in_fact: false,
-        fact_root: 0,
+        fact_root: 0 as +Trapping,
         names_subject: true,
         subject_domain: domain
     }
 }
 
 // `scope` within the fact rooted at `root`, where a proposition may apply.
-machine within_fact(scope: NameScope, root: u64 in Trapping) -> NameScope {
-    NameScope {
+machine within_fact(scope: |names|::NameScope, root: u64 in Trapping) -> |names|::NameScope {
+    |names|::NameScope {
         has_machine: scope.has_machine,
         machine: scope.machine,
         first_parameter: scope.first_parameter,
@@ -175,36 +156,36 @@ machine within_fact(scope: NameScope, root: u64 in Trapping) -> NameScope {
 
 // The facts of `kind` in a clause run, in `scope`.
 machine bind_clause_facts(
-    resolver: @mutable Resolver,
-    sources: @SourceSet,
-    syntax: @SyntaxTrees,
-    scope: NameScope,
+    resolver: @mutable |resolution_state|::Resolver,
+    sources: @|source|::SourceSet,
+    syntax: @|syntax_trees|::SyntaxTrees,
+    scope: |names|::NameScope,
     first_clause: u64 in Trapping,
     clause_count: u64 in Trapping,
-    kind: ClauseKind
+    kind: |syntax_trees|::ClauseKind
 )
 crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, scope, first_clause, first_clause + clause_count, kind) }
 
-    machine next(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind) {
+    machine next(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |names|::NameScope, index: u64 in Trapping, end: u64 in Trapping, kind: |syntax_trees|::ClauseKind) {
         transition index < end && resolver.output.accepted {
             true -> clause(resolver, sources, syntax, scope, index, end, kind),
             _ -> done()
         }
     }
 
-    machine clause(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind) {
-        let clause: Clause = syntax_trees_clause(syntax, index);
+    machine clause(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |names|::NameScope, index: u64 in Trapping, end: u64 in Trapping, kind: |syntax_trees|::ClauseKind) {
+        let clause: |syntax_trees|::Clause = |syntax_trees|::syntax_trees_clause(syntax, index);
         transition clause.kind == kind && clause.has_expression {
             true -> fact(resolver, sources, syntax, scope, index, end, kind, clause.expression),
             _ -> next(resolver, sources, syntax, scope, index + 1, end, kind)
         }
     }
 
-    machine fact(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind, root: u64 in Trapping) {
-        let within: NameScope = within_fact(scope, root);
-        bind_tree(resolver, sources, syntax, within, root);
+    machine fact(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |names|::NameScope, index: u64 in Trapping, end: u64 in Trapping, kind: |syntax_trees|::ClauseKind, root: u64 in Trapping) {
+        let within: |names|::NameScope = within_fact(scope, root);
+        |names|::bind_tree(resolver, sources, syntax, within, root);
         transition { _ -> next(resolver, sources, syntax, scope, index + 1, end, kind) }
     }
 
@@ -213,11 +194,11 @@ crashes Trap
 
 // The `requires` facts in a data declaration's clause run.
 machine bind_data_facts(
-    resolver: @mutable Resolver,
-    sources: @SourceSet,
-    syntax: @SyntaxTrees,
+    resolver: @mutable |resolution_state|::Resolver,
+    sources: @|source|::SourceSet,
+    syntax: @|syntax_trees|::SyntaxTrees,
     item_index: u64 in Trapping,
-    item: DataItem,
+    item: |syntax_trees|::DataItem,
     first_clause: u64 in Trapping,
     clause_count: u64 in Trapping
 )
@@ -225,33 +206,33 @@ crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, item_index, item, first_clause, first_clause + clause_count) }
 
-    machine next(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, item_index: u64 in Trapping, item: DataItem, index: u64 in Trapping, end: u64 in Trapping) {
+    machine next(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, item_index: u64 in Trapping, item: |syntax_trees|::DataItem, index: u64 in Trapping, end: u64 in Trapping) {
         transition index < end && resolver.output.accepted {
             true -> clause(resolver, sources, syntax, item_index, item, index, end),
             _ -> done()
         }
     }
 
-    machine clause(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, item_index: u64 in Trapping, item: DataItem, index: u64 in Trapping, end: u64 in Trapping) {
-        let clause: Clause = syntax_trees_clause(syntax, index);
-        let predicate: bool = clause.kind == ClauseKind::Requires;
+    machine clause(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, item_index: u64 in Trapping, item: |syntax_trees|::DataItem, index: u64 in Trapping, end: u64 in Trapping) {
+        let clause: |syntax_trees|::Clause = |syntax_trees|::syntax_trees_clause(syntax, index);
+        let predicate: bool = clause.kind == |syntax_trees|::ClauseKind::Requires;
         transition predicate && clause.has_expression {
             true -> fact(resolver, sources, syntax, item_index, item, index, end, clause.expression),
             _ -> next(resolver, sources, syntax, item_index, item, index + 1, end)
         }
     }
 
-    machine fact(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, item_index: u64 in Trapping, item: DataItem, index: u64 in Trapping, end: u64 in Trapping, root: u64 in Trapping) {
-        let expression: Expression = syntax_trees_expression(syntax, root);
+    machine fact(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, item_index: u64 in Trapping, item: |syntax_trees|::DataItem, index: u64 in Trapping, end: u64 in Trapping, root: u64 in Trapping) {
+        let expression: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, root);
         transition { _ -> node(resolver, sources, syntax, item_index, item, index, end, root, expression.first_row) }
     }
 
     machine node(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         item_index: u64 in Trapping,
-        item: DataItem,
+        item: |syntax_trees|::DataItem,
         index: u64 in Trapping,
         end: u64 in Trapping,
         root: u64 in Trapping,
@@ -264,17 +245,17 @@ crashes Trap
     }
 
     machine named(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         item_index: u64 in Trapping,
-        item: DataItem,
+        item: |syntax_trees|::DataItem,
         index: u64 in Trapping,
         end: u64 in Trapping,
         root: u64 in Trapping,
         handle: u64 in Trapping
     ) {
-        let expression: Expression = syntax_trees_expression(syntax, handle);
+        let expression: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, handle);
         bind_data_name(resolver, sources, syntax, item_index, item, root, handle, expression);
         transition { _ -> node(resolver, sources, syntax, item_index, item, index, end, root, handle + 1) }
     }
@@ -287,111 +268,111 @@ crashes Trap
 // proposition, which applies only as the whole fact; a path as anywhere
 // else.
 machine bind_data_name(
-    resolver: @mutable Resolver,
-    sources: @SourceSet,
-    syntax: @SyntaxTrees,
+    resolver: @mutable |resolution_state|::Resolver,
+    sources: @|source|::SourceSet,
+    syntax: @|syntax_trees|::SyntaxTrees,
     item_index: u64 in Trapping,
-    item: DataItem,
+    item: |syntax_trees|::DataItem,
     root: u64 in Trapping,
     handle: u64 in Trapping,
-    expression: Expression
+    expression: |syntax_trees|::Expression
 )
 crashes Trap
 {
-    let role: NameRole = resolver_role(resolver, handle);
+    let role: |resolution_state|::NameRole = |resolution_state|::resolver_role(resolver, handle);
     transition expression.kind {
-        ExpressionKind::Name -> single(resolver, sources, syntax, item_index, item, root, handle, expression, role),
-        ExpressionKind::Path -> path(resolver, sources, syntax, root, handle, expression, role),
+        |syntax_trees|::ExpressionKind::Name -> single(resolver, sources, syntax, item_index, item, root, handle, expression, role),
+        |syntax_trees|::ExpressionKind::Path -> path(resolver, sources, syntax, root, handle, expression, role),
         _ -> done()
     }
 
-    machine single(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, item_index: u64 in Trapping, item: DataItem, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression, role: NameRole) {
-        let marked: ValueBinding = pending_value_binding(resolver, handle);
+    machine single(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, item_index: u64 in Trapping, item: |syntax_trees|::DataItem, root: u64 in Trapping, handle: u64 in Trapping, expression: |syntax_trees|::Expression, role: |resolution_state|::NameRole) {
+        let marked: |symbol_resolved_trees|::ValueBinding = |pattern_binders|::pending_value_binding(resolver, handle);
         transition marked {
-            ValueBinding::MatchedSubject { subject as _ } -> scoped(resolver, sources, syntax, item_index, item, expression, role),
+            |symbol_resolved_trees|::ValueBinding::MatchedSubject { subject as _ } -> scoped(resolver, sources, syntax, item_index, item, expression, role),
             _ -> ordinary(resolver, sources, syntax, item_index, item, root, handle, expression, role)
         }
     }
-    machine scoped(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, item_index: u64 in Trapping, item: DataItem, expression: Expression, role: NameRole) {
-        transition role == NameRole::WholeSubjectBinder {
+    machine scoped(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, item_index: u64 in Trapping, item: |syntax_trees|::DataItem, expression: |syntax_trees|::Expression, role: |resolution_state|::NameRole) {
+        transition role == |resolution_state|::NameRole::WholeSubjectBinder {
             true -> binder(resolver, sources, syntax, item_index, item, expression),
             _ -> done()
         }
     }
-    machine binder(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, item_index: u64 in Trapping, item: DataItem, expression: Expression) {
-        let existing: ValueBinding = data_value_name(sources, syntax, item_index, item, expression.name.source_span);
+    machine binder(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, item_index: u64 in Trapping, item: |syntax_trees|::DataItem, expression: |syntax_trees|::Expression) {
+        let existing: |symbol_resolved_trees|::ValueBinding = data_value_name(sources, syntax, item_index, item, expression.name.source_span);
         transition existing {
-            ValueBinding::GenericParameter { parameter as _ } -> duplicate(resolver, expression),
+            |symbol_resolved_trees|::ValueBinding::GenericParameter { parameter as _ } -> duplicate(resolver, expression),
             _ -> done()
         }
     }
-    machine duplicate(resolver: @mutable Resolver, expression: Expression) {
-        name_resolution_reject(@mutable resolver.output, ResolveDiagnosticCode::DuplicateLocalBinding, expression.name.source_span);
+    machine duplicate(resolver: @mutable |resolution_state|::Resolver, expression: |syntax_trees|::Expression) {
+        |symbol_resolved_trees|::name_resolution_reject(@mutable resolver.output, |symbol_resolved_trees|::ResolveDiagnosticCode::DuplicateLocalBinding, expression.name.source_span);
     }
-    machine ordinary(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, item_index: u64 in Trapping, item: DataItem, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression, role: NameRole) {
+    machine ordinary(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, item_index: u64 in Trapping, item: |syntax_trees|::DataItem, root: u64 in Trapping, handle: u64 in Trapping, expression: |syntax_trees|::Expression, role: |resolution_state|::NameRole) {
         transition role {
-            NameRole::Value -> value(resolver, sources, syntax, item_index, item, root, handle, expression),
-            NameRole::Callee -> callee(resolver, sources, syntax, root, handle, expression),
-            _ -> bound(resolver, syntax, root, handle, expression, ValueBinding::Unresolved)
+            |resolution_state|::NameRole::Value -> value(resolver, sources, syntax, item_index, item, root, handle, expression),
+            |resolution_state|::NameRole::Callee -> callee(resolver, sources, syntax, root, handle, expression),
+            _ -> bound(resolver, syntax, root, handle, expression, |symbol_resolved_trees|::ValueBinding::Unresolved)
         }
     }
 
-    machine value(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, item_index: u64 in Trapping, item: DataItem, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression) {
-        let binding: ValueBinding = data_value_name(sources, syntax, item_index, item, expression.name.source_span);
+    machine value(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, item_index: u64 in Trapping, item: |syntax_trees|::DataItem, root: u64 in Trapping, handle: u64 in Trapping, expression: |syntax_trees|::Expression) {
+        let binding: |symbol_resolved_trees|::ValueBinding = data_value_name(sources, syntax, item_index, item, expression.name.source_span);
         transition { _ -> bound(resolver, syntax, root, handle, expression, binding) }
     }
 
-    machine callee(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression) {
-        let binding: ValueBinding = free_callee(@resolver.output, sources, syntax, expression.name.source_span);
+    machine callee(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping, expression: |syntax_trees|::Expression) {
+        let binding: |symbol_resolved_trees|::ValueBinding = |names|::free_callee(@resolver.output, sources, syntax, expression.name.source_span);
         transition { _ -> bound(resolver, syntax, root, handle, expression, binding) }
     }
 
-    machine path(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression, role: NameRole) {
-        let scope: NameScope = fact_scope(false, 0, 0, 0, ValueBinding::NotAName);
-        let binding: ValueBinding = name_binding(@resolver.output, sources, syntax, scope, expression, role);
+    machine path(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping, expression: |syntax_trees|::Expression, role: |resolution_state|::NameRole) {
+        let scope: |names|::NameScope = fact_scope(false, 0 as +Trapping, 0 as +Trapping, 0 as +Trapping, |symbol_resolved_trees|::ValueBinding::NotAName);
+        let binding: |symbol_resolved_trees|::ValueBinding = |names|::name_binding(@resolver.output, sources, syntax, scope, expression, role);
         transition { _ -> bound(resolver, syntax, root, handle, expression, binding) }
     }
 
-    machine bound(resolver: @mutable Resolver, syntax: @SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression, binding: ValueBinding) {
+    machine bound(resolver: @mutable |resolution_state|::Resolver, syntax: @|syntax_trees|::SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping, expression: |syntax_trees|::Expression, binding: |symbol_resolved_trees|::ValueBinding) {
         transition binding {
-            ValueBinding::Unresolved -> unresolved(resolver, expression),
-            ValueBinding::Ambiguous -> ambiguous(resolver, expression),
-            ValueBinding::Proposition { proposition } -> applied(resolver, syntax, root, handle, expression, binding),
+            |symbol_resolved_trees|::ValueBinding::Unresolved -> unresolved(resolver, expression),
+            |symbol_resolved_trees|::ValueBinding::Ambiguous -> ambiguous(resolver, expression),
+            |symbol_resolved_trees|::ValueBinding::Proposition { proposition } -> applied(resolver, syntax, root, handle, expression, binding),
             _ -> stored(resolver, handle, binding)
         }
     }
 
-    machine applied(resolver: @mutable Resolver, syntax: @SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression, binding: ValueBinding) {
-        let code: ResolveDiagnosticCode = proposition_site(syntax, true, root, handle);
-        transition code == ResolveDiagnosticCode::None {
+    machine applied(resolver: @mutable |resolution_state|::Resolver, syntax: @|syntax_trees|::SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping, expression: |syntax_trees|::Expression, binding: |symbol_resolved_trees|::ValueBinding) {
+        let code: |symbol_resolved_trees|::ResolveDiagnosticCode = |names|::proposition_site(syntax, true, root, handle);
+        transition code == |symbol_resolved_trees|::ResolveDiagnosticCode::None {
             true -> stored(resolver, handle, binding),
             _ -> misplaced(resolver, code, expression)
         }
     }
 
-    machine stored(resolver: @mutable Resolver, handle: u64 in Trapping, binding: ValueBinding) {
+    machine stored(resolver: @mutable |resolution_state|::Resolver, handle: u64 in Trapping, binding: |symbol_resolved_trees|::ValueBinding) {
         transition handle < 131072 {
             true -> store(resolver, handle, binding),
             _ -> invalid()
         }
     }
 
-    machine store(resolver: @mutable Resolver, handle: u64 in Trapping, binding: ValueBinding)
+    machine store(resolver: @mutable |resolution_state|::Resolver, handle: u64 in Trapping, binding: |symbol_resolved_trees|::ValueBinding)
     requires handle < 131072
     {
-        resolver.output.value_bindings[handle] = binding;
+        resolver.output.value_bindings[handle as -Trapping] = binding;
     }
 
-    machine unresolved(resolver: @mutable Resolver, expression: Expression) {
-        name_resolution_reject(@mutable resolver.output, ResolveDiagnosticCode::UnknownName, expression.source_span);
+    machine unresolved(resolver: @mutable |resolution_state|::Resolver, expression: |syntax_trees|::Expression) {
+        |symbol_resolved_trees|::name_resolution_reject(@mutable resolver.output, |symbol_resolved_trees|::ResolveDiagnosticCode::UnknownName, expression.source_span);
     }
 
-    machine ambiguous(resolver: @mutable Resolver, expression: Expression) {
-        name_resolution_reject(@mutable resolver.output, ResolveDiagnosticCode::AmbiguousName, expression.source_span);
+    machine ambiguous(resolver: @mutable |resolution_state|::Resolver, expression: |syntax_trees|::Expression) {
+        |symbol_resolved_trees|::name_resolution_reject(@mutable resolver.output, |symbol_resolved_trees|::ResolveDiagnosticCode::AmbiguousName, expression.source_span);
     }
 
-    machine misplaced(resolver: @mutable Resolver, code: ResolveDiagnosticCode, expression: Expression) {
-        name_resolution_reject(@mutable resolver.output, code, expression.source_span);
+    machine misplaced(resolver: @mutable |resolution_state|::Resolver, code: |symbol_resolved_trees|::ResolveDiagnosticCode, expression: |syntax_trees|::Expression) {
+        |symbol_resolved_trees|::name_resolution_reject(@mutable resolver.output, code, expression.source_span);
     }
 
     machine invalid() {
@@ -403,50 +384,50 @@ crashes Trap
 
 // A bare value name in a data fact: `self`, one of the declaration's own
 // fields, then one of its value binders.
-machine data_value_name(sources: @SourceSet, syntax: @SyntaxTrees, item_index: u64 in Trapping, item: DataItem, name: SourceSpan) -> ValueBinding
+machine data_value_name(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, item_index: u64 in Trapping, item: |syntax_trees|::DataItem, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding
 crashes Trap
 {
-    let subject: bool = span_spells(sources, name, "self");
+    let subject: bool = |source|::span_spells(sources, name, "self");
     transition subject {
-        true -> found(ValueBinding::DataSubject { item: item_index }),
-        _ -> field(sources, syntax, item, name, 0)
+        true -> found(|symbol_resolved_trees|::ValueBinding::DataSubject { item: item_index }),
+        _ -> field(sources, syntax, item, name, 0 as +Trapping)
     }
 
-    machine field(sources: @SourceSet, syntax: @SyntaxTrees, item: DataItem, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
+    machine field(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, item: |syntax_trees|::DataItem, name: |source|::SourceSpan, offset: u64 in Trapping) -> |symbol_resolved_trees|::ValueBinding {
         transition offset < item.field_count {
             true -> field_named(sources, syntax, item, name, offset),
-            _ -> binder(sources, syntax, item, name, 0)
+            _ -> binder(sources, syntax, item, name, 0 as +Trapping)
         }
     }
 
-    machine field_named(sources: @SourceSet, syntax: @SyntaxTrees, item: DataItem, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
-        let field: DataField = syntax_trees_field(syntax, item.first_field + offset);
-        let spelled: bool = spans_equal(sources, field.name.source_span, name);
+    machine field_named(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, item: |syntax_trees|::DataItem, name: |source|::SourceSpan, offset: u64 in Trapping) -> |symbol_resolved_trees|::ValueBinding {
+        let current_field: |syntax_trees|::DataField = |syntax_trees|::syntax_trees_field(syntax, item.first_field + offset);
+        let spelled: bool = |source|::spans_equal(sources, current_field.name.source_span, name);
         transition spelled {
-            true -> found(ValueBinding::Field { field: item.first_field + offset }),
+            true -> found(|symbol_resolved_trees|::ValueBinding::Field { field: item.first_field + offset }),
             _ -> field(sources, syntax, item, name, offset + 1)
         }
     }
 
-    machine binder(sources: @SourceSet, syntax: @SyntaxTrees, item: DataItem, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
+    machine binder(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, item: |syntax_trees|::DataItem, name: |source|::SourceSpan, offset: u64 in Trapping) -> |symbol_resolved_trees|::ValueBinding {
         transition offset < item.generic_parameter_count {
             true -> binder_named(sources, syntax, item, name, offset),
-            _ -> found(ValueBinding::Unresolved)
+            _ -> found(|symbol_resolved_trees|::ValueBinding::Unresolved)
         }
     }
 
-    machine binder_named(sources: @SourceSet, syntax: @SyntaxTrees, item: DataItem, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
+    machine binder_named(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, item: |syntax_trees|::DataItem, name: |source|::SourceSpan, offset: u64 in Trapping) -> |symbol_resolved_trees|::ValueBinding {
         let handle: u64 in Trapping = item.first_generic_parameter + offset;
-        let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, handle);
-        let spelled: bool = spans_equal(sources, parameter.name.source_span, name);
-        let value: bool = binder_names(parameter.kind, false);
+        let parameter: |syntax_trees|::GenericParameter = |syntax_trees|::syntax_trees_generic_parameter(syntax, handle);
+        let spelled: bool = |source|::spans_equal(sources, parameter.name.source_span, name);
+        let value: bool = |names|::binder_names(parameter.kind, false);
         transition spelled && value {
-            true -> found(ValueBinding::GenericParameter { parameter: handle }),
+            true -> found(|symbol_resolved_trees|::ValueBinding::GenericParameter { parameter: handle }),
             _ -> binder(sources, syntax, item, name, offset + 1)
         }
     }
 
-    machine found(binding: ValueBinding) -> ValueBinding {
+    machine found(binding: |symbol_resolved_trees|::ValueBinding) -> |symbol_resolved_trees|::ValueBinding {
         binding
     }
 }

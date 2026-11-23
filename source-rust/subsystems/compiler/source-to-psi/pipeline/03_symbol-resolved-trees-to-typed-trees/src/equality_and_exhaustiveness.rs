@@ -645,6 +645,7 @@ pub(crate) mod exhaustiveness {
                                     operator: BinaryOperator::Equal,
                                     right: expected,
                                     policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                                    negation: false,
                                 },
                             )))
                         }

@@ -561,7 +561,7 @@ fn encode_plan_content(
     );
     for field in &object.unresolved_normalized_foreign_calls {
         crate::codec_bytes::push_encoded(&mut output, field.symbol.get().to_le_bytes());
-        encode_normalized_foreign_resolution(&mut output, &field.resolution);
+        field.resolution.encode_identity(&mut output);
     }
     crate::codec_bytes::push_encoded(&mut output, object.relocation_record_count.to_le_bytes());
     output.push(match object.relocation_requirements {
@@ -640,95 +640,6 @@ fn decode_image_address(
         instruction_byte_count,
         fields,
     })
-}
-
-fn encode_normalized_foreign_resolution(
-    output: &mut Vec<u8>,
-    resolution: &PlacedNormalizedForeignCallResolution,
-) {
-    output.push(match resolution.kind {
-        NormalizedForeignCallResolutionKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1 => 1,
-        NormalizedForeignCallResolutionKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1 => 2,
-    });
-    output.push(match resolution.state {
-        NormalizedForeignCallResolutionState::UnresolvedImportFieldV1 => 1,
-    });
-    crate::codec_bytes::push_encoded(output, resolution.caller.get().to_le_bytes());
-    crate::codec_bytes::push_encoded(output, resolution.block.0.to_le_bytes());
-    crate::codec_bytes::push_encoded(output, resolution.instruction.0.to_le_bytes());
-    resolution.invocation_site.encode_identity(output);
-    crate::codec_bytes::push_encoded(output, resolution.boundary.get().to_le_bytes());
-    crate::codec_bytes::push_encoded(output, resolution.ordinal.to_le_bytes());
-    crate::codec_bytes::push_encoded(output, resolution.call_function_offset.to_le_bytes());
-    crate::codec_bytes::push_encoded(output, resolution.call_section_offset.to_le_bytes());
-    crate::codec_bytes::push_encoded(output, resolution.call_byte_count.to_le_bytes());
-    crate::codec_bytes::push_encoded(output, resolution.opcode_function_offset.to_le_bytes());
-    crate::codec_bytes::push_encoded(output, resolution.opcode_section_offset.to_le_bytes());
-    crate::codec_bytes::push_encoded(output, resolution.field_function_offset.to_le_bytes());
-    crate::codec_bytes::push_encoded(output, resolution.field_section_offset.to_le_bytes());
-    enc!(output => resolution.next_instruction_function_offset.to_le_bytes());
-    enc!(output => resolution.next_instruction_section_offset.to_le_bytes());
-    output.push(resolution.field_byte_width);
-    crate::codec_bytes::push_encoded(output, resolution.addend.to_le_bytes());
-    encode_placed_callback_materializations(output, &resolution.callback_materializations);
-}
-
-fn encode_machine_register(output: &mut Vec<u8>, register: MachineRegister) {
-    let (family, index) = register.wire_class_index();
-    output.push(family);
-    output.push(index);
-}
-
-fn encode_placed_callback_materializations(
-    output: &mut Vec<u8>,
-    materializations: &[PlacedCallbackAddressMaterialization],
-) {
-    crate::codec_bytes::push_count_u64(output, materializations.len());
-    for materialization in materializations {
-        match materialization.destination.clone() {
-            machine_code::CallbackAddressDestination::Register(register) => {
-                output.push(1);
-                encode_machine_register(output, register);
-            }
-            machine_code::CallbackAddressDestination::OutgoingStack { byte_offset } => {
-                output.push(2);
-                crate::codec_bytes::push_encoded(output, byte_offset.to_le_bytes());
-            }
-            machine_code::CallbackAddressDestination::RecordField {
-                root_register,
-                placements,
-            } => {
-                output.push(3);
-                encode_machine_register(output, root_register);
-                calling_conventions::encode_private_callback_placements(output, &placements);
-            }
-        }
-        enc!(output => materialization.code_function_offset.to_le_bytes());
-        crate::codec_bytes::push_encoded(output, materialization.code_section_offset.to_le_bytes());
-        crate::codec_bytes::push_encoded(output, materialization.code_byte_count.to_le_bytes());
-        match materialization.encoding {
-            PlacedCallbackAddressEncoding::X86_64Relative32 {
-                relocation_function_offset,
-                relocation_section_offset,
-            } => {
-                output.push(1);
-                crate::codec_bytes::push_encoded(output, relocation_function_offset.to_le_bytes());
-                crate::codec_bytes::push_encoded(output, relocation_section_offset.to_le_bytes());
-            }
-            PlacedCallbackAddressEncoding::Aarch64PageAddress {
-                page_relocation_function_offset,
-                page_relocation_section_offset,
-                page_offset_relocation_function_offset,
-                page_offset_relocation_section_offset,
-            } => {
-                output.push(2);
-                enc!(output => page_relocation_function_offset.to_le_bytes());
-                enc!(output => page_relocation_section_offset.to_le_bytes());
-                enc!(output => page_offset_relocation_function_offset.to_le_bytes());
-                enc!(output => page_offset_relocation_section_offset.to_le_bytes());
-            }
-        }
-    }
 }
 
 fn decode_plan_content(
@@ -1476,6 +1387,12 @@ mod tests {
             RelocationFreeObjectRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1;
         object.identity = object.recomputed_identity().unwrap();
         let mut container = encode_relocation_free_object(&object).unwrap().bytes;
+        // The v6 object envelope and split callback fields stay readable across
+        // the move to the placed import's shared identity encoder.
+        assert_eq!(
+            wire::digest_encoder::hex(&wire::digest_encoder::content_identity(&container)),
+            "0612dc674a5561ec0538554d82b2c96f1ae3547b49468160e76ee7c9d1dad47e",
+        );
         assert_eq!(decode_relocation_free_object(&container), Ok(object));
 
         let mut first_placement = 3_u64.to_le_bytes().to_vec();

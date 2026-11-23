@@ -1,0 +1,21 @@
+// Expected: native exit 0 and Psi exit 0, no output.
+// Every type name selects a declaration: `Pick` in the parameter, the
+// result, the local, the array element and the case payload.
+data Pick [copy] { v: u8; }
+data Choice [copy] { case Some(value: Pick); case Empty; }
+
+machine select(a: Pick) -> Pick { a }
+
+machine second(values: [Pick; 2]) -> Pick { values[1] }
+
+machine main() crashes Trap {
+    let picked: Pick = select(Pick { v: 7 });
+    let choice: Choice = Choice::Some { value: picked };
+    let last: Pick = second([picked, Pick { v: 9 }]);
+    transition picked.v == 7 && last.v == 9 && choice in Choice::Some {
+        true -> done(),
+        false -> bad(),
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

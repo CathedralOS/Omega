@@ -1,38 +1,23 @@
-use representations\source_files\SourceSet;
-use representations\source_files\SourceSpan;
-use representations\source_files\spans_equal;
-use representations\symbol_resolved_trees\ResolveDiagnosticCode;
-use representations\symbol_resolved_trees\TypeBinding;
-use representations\symbol_resolved_trees\TypeScope;
-use representations\symbol_resolved_trees\name_resolution_reject;
-use representations\syntax_trees\DataItem;
-use representations\syntax_trees\GenericParameter;
-use representations\syntax_trees\GenericParameterKind;
-use representations\syntax_trees\IdentifierSpan;
-use representations\syntax_trees\MachineItem;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\TypeReference;
-use representations\syntax_trees\machine_item;
-use representations\syntax_trees\syntax_trees_data_item;
-use representations\syntax_trees\syntax_trees_generic_parameter;
-use representations\syntax_trees\type_lifetime;
+use representations/symbol_resolved_trees/machine_declarations.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/resolution_state.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/declarations.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/type_names.omg;
+
+use representations/source_files/source.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
 
 // The generic and lifetime names admitted by a declaration and its enclosing declarations.
 
 // A data declaration's type scope: its own generic parameters.
-machine data_scope(item: DataItem) -> TypeScope {
+machine data_scope(item: |syntax_trees|::DataItem) -> |symbol_resolved_trees|::TypeScope {
     resolver_scope(item.first_generic_parameter, item.generic_parameter_count)
 }
 
 // A declaration's own generic parameters as a scope with no container.
-public machine resolver_scope(first: u64 in Trapping, count: u64 in Trapping) -> TypeScope {
-    TypeScope {
-        lexical_machine: 0,
-        first_generic_parameter: first,
-        generic_parameter_count: count,
-        first_outer_parameter: 0,
-        outer_parameter_count: 0
-    }
+public machine resolver_scope(first: u64 in Trapping, count: u64 in Trapping) -> |symbol_resolved_trees|::TypeScope
+{
+    |machine_declarations|::generic_scope(first, count)
 }
 
 // Signature-local parameters compare by position; inherited lexical binders
@@ -43,7 +28,7 @@ data GenericCoordinate [copy] {
     case Lexical(parameter: u64 in Trapping);
 }
 
-machine generic_coordinate(scope: TypeScope, parameter: u64 in Trapping) -> GenericCoordinate {
+machine generic_coordinate(scope: |symbol_resolved_trees|::TypeScope, parameter: u64 in Trapping) -> GenericCoordinate {
     transition parameter >= scope.first_generic_parameter
         && parameter - scope.first_generic_parameter < scope.generic_parameter_count {
         true -> own(parameter - scope.first_generic_parameter),
@@ -52,7 +37,7 @@ machine generic_coordinate(scope: TypeScope, parameter: u64 in Trapping) -> Gene
     machine own(position: u64 in Trapping) -> GenericCoordinate {
         GenericCoordinate::Declaration { position: position }
     }
-    machine outer(scope: TypeScope, parameter: u64 in Trapping) -> GenericCoordinate {
+    machine outer(scope: |symbol_resolved_trees|::TypeScope, parameter: u64 in Trapping) -> GenericCoordinate {
         transition parameter >= scope.first_outer_parameter && parameter - scope.first_outer_parameter < scope.outer_parameter_count {
             true -> container(parameter - scope.first_outer_parameter),
             false -> lexical(parameter)
@@ -90,48 +75,48 @@ machine same_generic_coordinate(left: GenericCoordinate, right: GenericCoordinat
 // declaration it may not use a builtin type spelling: `machine pick<u32>`
 // would otherwise make `u32` in its signature mean the binder. A value,
 // machine or proposition binder may, because it never competes with a type.
-public machine check_generic_names(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope)
+public machine check_generic_names(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope)
 crashes Trap
 {
-    transition { _ -> next(resolver, sources, syntax, scope, 0) }
+    transition { _ -> next(resolver, sources, syntax, scope, 0 as +Trapping) }
 
-    machine next(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping) {
+    machine next(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, offset: u64 in Trapping) {
         transition offset < scope.generic_parameter_count {
             true -> named(resolver, sources, syntax, scope, offset),
             _ -> done()
         }
     }
 
-    machine named(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping) {
-        let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, scope.first_generic_parameter + offset);
-        transition parameter.kind == GenericParameterKind::Type {
+    machine named(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, offset: u64 in Trapping) {
+        let parameter: |syntax_trees|::GenericParameter = |syntax_trees|::syntax_trees_generic_parameter(syntax, scope.first_generic_parameter + offset);
+        transition parameter.kind == |syntax_trees|::GenericParameterKind::Type {
             true -> type_binder(resolver, sources, syntax, scope, offset, parameter.name),
-            _ -> prior(resolver, sources, syntax, scope, offset, parameter.name, 0)
+            _ -> prior(resolver, sources, syntax, scope, offset, parameter.name, 0 as +Trapping)
         }
     }
 
-    machine type_binder(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, name: IdentifierSpan) {
-        let builtin: bool = builtin_type_spelling(sources, name.source_span);
+    machine type_binder(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, offset: u64 in Trapping, name: |syntax_trees|::IdentifierSpan) {
+        let builtin: bool = |type_names|::builtin_type_spelling(sources, name.source_span);
         transition builtin {
             true -> shadow(resolver, name),
-            _ -> prior(resolver, sources, syntax, scope, offset, name, 0)
+            _ -> prior(resolver, sources, syntax, scope, offset, name, 0 as +Trapping)
         }
     }
 
-    machine shadow(resolver: @mutable Resolver, name: IdentifierSpan) {
-        name_resolution_reject(@mutable resolver.output, ResolveDiagnosticCode::ShadowsBuiltin, name.source_span);
+    machine shadow(resolver: @mutable |resolution_state|::Resolver, name: |syntax_trees|::IdentifierSpan) {
+        |symbol_resolved_trees|::name_resolution_reject(@mutable resolver.output, |symbol_resolved_trees|::ResolveDiagnosticCode::ShadowsBuiltin, name.source_span);
     }
 
-    machine prior(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, name: IdentifierSpan, earlier: u64 in Trapping) {
+    machine prior(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, offset: u64 in Trapping, name: |syntax_trees|::IdentifierSpan, earlier: u64 in Trapping) {
         transition earlier < offset {
             true -> compare(resolver, sources, syntax, scope, offset, name, earlier),
             _ -> next(resolver, sources, syntax, scope, offset + 1)
         }
     }
 
-    machine compare(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, name: IdentifierSpan, earlier: u64 in Trapping) {
-        let earlier_parameter: GenericParameter = syntax_trees_generic_parameter(syntax, scope.first_generic_parameter + earlier);
-        let equal: bool = spans_equal(sources, name.source_span,
+    machine compare(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, offset: u64 in Trapping, name: |syntax_trees|::IdentifierSpan, earlier: u64 in Trapping) {
+        let earlier_parameter: |syntax_trees|::GenericParameter = |syntax_trees|::syntax_trees_generic_parameter(syntax, scope.first_generic_parameter + earlier);
+        let equal: bool = |source|::spans_equal(sources, name.source_span,
             earlier_parameter.name.source_span
         );
         transition equal {
@@ -140,8 +125,8 @@ crashes Trap
         }
     }
 
-    machine duplicate(resolver: @mutable Resolver, name: IdentifierSpan) {
-        name_resolution_reject(@mutable resolver.output, ResolveDiagnosticCode::DuplicateGenericParameter, name.source_span);
+    machine duplicate(resolver: @mutable |resolution_state|::Resolver, name: |syntax_trees|::IdentifierSpan) {
+        |symbol_resolved_trees|::name_resolution_reject(@mutable resolver.output, |symbol_resolved_trees|::ResolveDiagnosticCode::DuplicateGenericParameter, name.source_span);
     }
 
     machine done() {}
@@ -154,29 +139,29 @@ crashes Trap
 // type would reject the trait name and would also hide that the binder
 // selects code. Earlier binders of the same telescope are already in scope,
 // so `Reading<Value>` sees `Value` whether it was declared before `Reader`.
-public machine bind_generic_annotations(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, trait_parameters: bool)
+public machine bind_generic_annotations(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, trait_parameters: bool)
 crashes Trap
 {
-    transition { _ -> next(resolver, sources, syntax, scope, trait_parameters, 0) }
+    transition { _ -> next(resolver, sources, syntax, scope, trait_parameters, 0 as +Trapping) }
 
-    machine next(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, trait_parameters: bool, offset: u64 in Trapping) {
+    machine next(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, trait_parameters: bool, offset: u64 in Trapping) {
         transition offset < scope.generic_parameter_count && resolver.output.accepted {
             true -> annotation(resolver, sources, syntax, scope, trait_parameters, offset),
             _ -> done()
         }
     }
 
-    machine annotation(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, trait_parameters: bool, offset: u64 in Trapping) {
-        let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, scope.first_generic_parameter + offset);
+    machine annotation(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, trait_parameters: bool, offset: u64 in Trapping) {
+        let parameter: |syntax_trees|::GenericParameter = |syntax_trees|::syntax_trees_generic_parameter(syntax, scope.first_generic_parameter + offset);
         transition parameter.has_type_reference {
             true -> role(resolver, sources, syntax, scope, trait_parameters, offset, parameter),
             _ -> next(resolver, sources, syntax, scope, trait_parameters, offset + 1)
         }
     }
 
-    machine role(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, trait_parameters: bool, offset: u64 in Trapping, parameter: GenericParameter) {
-        let role: TypeRole = generic_annotation_role(parameter.kind, trait_parameters);
-        bind_type_reference(resolver, sources, syntax, scope, parameter.type_reference, role);
+    machine role(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, trait_parameters: bool, offset: u64 in Trapping, parameter: |syntax_trees|::GenericParameter) {
+        let role: |type_names|::TypeRole = generic_annotation_role(parameter.kind, trait_parameters);
+        |type_names|::bind_type_reference(resolver, sources, syntax, scope, parameter.type_reference, role);
         transition { _ -> next(resolver, sources, syntax, scope, trait_parameters, offset + 1) }
     }
 
@@ -185,74 +170,74 @@ crashes Trap
 
 // An ordinary trait's const annotation may name a value type or an
 // implementation contract. Name resolution decides which declaration it is.
-machine generic_annotation_role(kind: GenericParameterKind, trait_parameters: bool) -> TypeRole {
+machine generic_annotation_role(kind: |syntax_trees|::GenericParameterKind, trait_parameters: bool) -> |type_names|::TypeRole {
     transition {
-        kind == GenericParameterKind::Evidence -> evidence(),
-        trait_parameters && kind == GenericParameterKind::Const -> static_parameter(),
+        kind == |syntax_trees|::GenericParameterKind::Evidence -> evidence(),
+        trait_parameters && kind == |syntax_trees|::GenericParameterKind::Const -> static_parameter(),
         _ -> ordinary()
     }
-    machine evidence() -> TypeRole { TypeRole::Trait }
-    machine static_parameter() -> TypeRole { TypeRole::StaticParameter }
-    machine ordinary() -> TypeRole { TypeRole::Type }
+    machine evidence() -> |type_names|::TypeRole { |type_names|::TypeRole::Trait }
+    machine static_parameter() -> |type_names|::TypeRole { |type_names|::TypeRole::StaticParameter }
+    machine ordinary() -> |type_names|::TypeRole { |type_names|::TypeRole::Type }
 }
 
 // The generic parameter of `first..first + count` spelled `name`; a
 // lifetime names no type.
-machine generic_named(sources: @SourceSet, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan) -> Lookup
+machine generic_named(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: |source|::SourceSpan) -> |declarations|::Lookup
 crashes Trap
 {
-    transition { _ -> next(sources, syntax, first, count, name, 0) }
+    transition { _ -> next(sources, syntax, first, count, name, 0 as +Trapping) }
 
-    machine next(sources: @SourceSet, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan, offset: u64 in Trapping) -> Lookup {
+    machine next(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: |source|::SourceSpan, offset: u64 in Trapping) -> |declarations|::Lookup {
         transition offset < count {
             true -> candidate(sources, syntax, first, count, name, offset),
             _ -> absent()
         }
     }
 
-    machine candidate(sources: @SourceSet, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan, offset: u64 in Trapping) -> Lookup {
-        let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, first + offset);
-        let equal: bool = spans_equal(sources, name, parameter.name.source_span);
-        transition equal && parameter.kind != GenericParameterKind::Lifetime {
+    machine candidate(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: |source|::SourceSpan, offset: u64 in Trapping) -> |declarations|::Lookup {
+        let parameter: |syntax_trees|::GenericParameter = |syntax_trees|::syntax_trees_generic_parameter(syntax, first + offset);
+        let equal: bool = |source|::spans_equal(sources, name, parameter.name.source_span);
+        transition equal && parameter.kind != |syntax_trees|::GenericParameterKind::Lifetime {
             true -> found(first + offset),
             _ -> next(sources, syntax, first, count, name, offset + 1)
         }
     }
 
-    machine found(handle: u64 in Trapping) -> Lookup {
-        Lookup::Found { handle: handle }
+    machine found(handle: u64 in Trapping) -> |declarations|::Lookup {
+        |declarations|::Lookup::Found { handle: handle }
     }
 
-    machine absent() -> Lookup {
-        Lookup::Absent
+    machine absent() -> |declarations|::Lookup {
+        |declarations|::Lookup::Absent
     }
 }
 
-public machine empty_scope() -> TypeScope {
-    resolver_scope(0, 0)
+public machine empty_scope() -> |symbol_resolved_trees|::TypeScope {
+    resolver_scope(0 as +Trapping, 0 as +Trapping)
 }
 
 // Whether every lifetime tag a type row spells, its reference tag and its
 // applied name's lifetime arguments, names a lifetime binder of the
 // declaration or its container.
-machine lifetimes_declared(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, type_reference: TypeReference) -> bool
+machine lifetimes_declared(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, type_reference: |syntax_trees|::TypeReference) -> bool
 crashes Trap
 {
     let tagged: bool = lifetime_named(sources, syntax, scope, type_reference.lifetime.source_span);
     transition type_reference.has_lifetime && !tagged {
         true -> answer(false),
-        _ -> argument(sources, syntax, scope, type_reference, 0)
+        _ -> argument(sources, syntax, scope, type_reference, 0 as +Trapping)
     }
 
-    machine argument(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, type_reference: TypeReference, offset: u64 in Trapping) -> bool {
+    machine argument(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, type_reference: |syntax_trees|::TypeReference, offset: u64 in Trapping) -> bool {
         transition offset < type_reference.lifetime_count {
             true -> tag(sources, syntax, scope, type_reference, offset),
             _ -> answer(true)
         }
     }
 
-    machine tag(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, type_reference: TypeReference, offset: u64 in Trapping) -> bool {
-        let spelled: IdentifierSpan = type_lifetime(syntax, type_reference.first_lifetime + offset);
+    machine tag(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, type_reference: |syntax_trees|::TypeReference, offset: u64 in Trapping) -> bool {
+        let spelled: |syntax_trees|::IdentifierSpan = |syntax_trees|::type_lifetime(syntax, type_reference.first_lifetime + offset);
         let declared: bool = lifetime_named(sources, syntax, scope, spelled.source_span);
         transition declared {
             true -> argument(sources, syntax, scope, type_reference, offset + 1),
@@ -267,7 +252,7 @@ crashes Trap
 
 // Whether a lifetime binder spelled `name` is declared by the scope's own
 // declaration or its container.
-machine lifetime_named(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, name: SourceSpan) -> bool
+machine lifetime_named(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, name: |source|::SourceSpan) -> bool
 crashes Trap
 {
     let own: bool = lifetime_among(sources, syntax, scope.first_generic_parameter, scope.generic_parameter_count, name);
@@ -277,22 +262,22 @@ crashes Trap
 
 // Whether a lifetime binder spelled `name` lies in the generic parameters
 // `first..first + count`.
-machine lifetime_among(sources: @SourceSet, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan) -> bool
+machine lifetime_among(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: |source|::SourceSpan) -> bool
 crashes Trap
 {
-    transition { _ -> next(sources, syntax, first, count, name, 0) }
+    transition { _ -> next(sources, syntax, first, count, name, 0 as +Trapping) }
 
-    machine next(sources: @SourceSet, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan, offset: u64 in Trapping) -> bool {
+    machine next(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: |source|::SourceSpan, offset: u64 in Trapping) -> bool {
         transition offset < count {
             true -> candidate(sources, syntax, first, count, name, offset),
             _ -> answer(false)
         }
     }
 
-    machine candidate(sources: @SourceSet, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan, offset: u64 in Trapping) -> bool {
-        let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, first + offset);
-        let equal: bool = spans_equal(sources, name, parameter.name.source_span);
-        transition equal && parameter.kind == GenericParameterKind::Lifetime {
+    machine candidate(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: |source|::SourceSpan, offset: u64 in Trapping) -> bool {
+        let parameter: |syntax_trees|::GenericParameter = |syntax_trees|::syntax_trees_generic_parameter(syntax, first + offset);
+        let equal: bool = |source|::spans_equal(sources, name, parameter.name.source_span);
+        transition equal && parameter.kind == |syntax_trees|::GenericParameterKind::Lifetime {
             true -> answer(true),
             _ -> next(sources, syntax, first, count, name, offset + 1)
         }
@@ -305,29 +290,29 @@ crashes Trap
 
 // How many lifetime binders the declaration a type name binds declares:
 // data counts its lifetime parameters; any other binding declares none.
-machine lifetime_arity(syntax: @SyntaxTrees, binding: TypeBinding) -> u64 in Trapping
+machine lifetime_arity(syntax: @|syntax_trees|::SyntaxTrees, binding: |symbol_resolved_trees|::TypeBinding) -> u64 in Trapping
 crashes Trap
 {
     transition binding {
-        TypeBinding::Data { item } -> data(syntax, item),
-        _ -> answer(0)
+        |symbol_resolved_trees|::TypeBinding::Data { item } -> data(syntax, item),
+        _ -> answer(0 as +Trapping)
     }
 
-    machine data(syntax: @SyntaxTrees, item: u64 in Trapping) -> u64 in Trapping {
-        let declaration: DataItem = syntax_trees_data_item(syntax, item);
-        transition { _ -> next(syntax, declaration.first_generic_parameter, declaration.generic_parameter_count, 0, 0) }
+    machine data(syntax: @|syntax_trees|::SyntaxTrees, item: u64 in Trapping) -> u64 in Trapping {
+        let declaration: |syntax_trees|::DataItem = |syntax_trees|::syntax_trees_data_item(syntax, item);
+        transition { _ -> next(syntax, declaration.first_generic_parameter, declaration.generic_parameter_count, 0 as +Trapping, 0 as +Trapping) }
     }
 
-    machine next(syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping, found: u64 in Trapping) -> u64 in Trapping {
+    machine next(syntax: @|syntax_trees|::SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping, found: u64 in Trapping) -> u64 in Trapping {
         transition offset < count {
             true -> candidate(syntax, first, count, offset, found),
             _ -> answer(found)
         }
     }
 
-    machine candidate(syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping, found: u64 in Trapping) -> u64 in Trapping {
-        let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, first + offset);
-        transition parameter.kind == GenericParameterKind::Lifetime {
+    machine candidate(syntax: @|syntax_trees|::SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping, found: u64 in Trapping) -> u64 in Trapping {
+        let parameter: |syntax_trees|::GenericParameter = |syntax_trees|::syntax_trees_generic_parameter(syntax, first + offset);
+        transition parameter.kind == |syntax_trees|::GenericParameterKind::Lifetime {
             true -> next(syntax, first, count, offset + 1, found + 1),
             _ -> next(syntax, first, count, offset + 1, found)
         }
@@ -339,46 +324,46 @@ crashes Trap
 }
 
 // Walk retained lexical declarations before the root container's telescope.
-public machine scoped_generic_named(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, name: SourceSpan) -> Lookup
+public machine scoped_generic_named(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, name: |source|::SourceSpan) -> |declarations|::Lookup
 crashes Trap
 {
     transition { _ -> ancestor(sources, syntax, scope, name, scope_parent(syntax, scope)) }
-    machine ancestor(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, name: SourceSpan, parent: u64 in Trapping) -> Lookup {
+    machine ancestor(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, name: |source|::SourceSpan, parent: u64 in Trapping) -> |declarations|::Lookup {
         transition parent > 0 {
             true -> declared(sources, syntax, scope, name, parent - 1),
             false -> outer(sources, syntax, scope, name)
         }
     }
-    machine declared(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, name: SourceSpan, machine_handle: u64 in Trapping) -> Lookup {
-        let item: MachineItem = machine_item(syntax, machine_handle);
-        let named: Lookup = generic_named(sources, syntax, item.first_generic_parameter, item.generic_parameter_count, name);
+    machine declared(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, name: |source|::SourceSpan, machine_handle: u64 in Trapping) -> |declarations|::Lookup {
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, machine_handle);
+        let named: |declarations|::Lookup = generic_named(sources, syntax, item.first_generic_parameter, item.generic_parameter_count, name);
         transition named {
-            Lookup::Found { handle } -> static_parameter(sources, syntax, scope, name, item.parent, handle),
+            |declarations|::Lookup::Found { handle } -> static_parameter(sources, syntax, scope, name, item.parent, handle),
             _ -> ancestor(sources, syntax, scope, name, item.parent)
         }
     }
-    machine static_parameter(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, name: SourceSpan, parent: u64 in Trapping, handle: u64 in Trapping) -> Lookup {
-        let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, handle);
-        transition parameter.kind == GenericParameterKind::Value {
+    machine static_parameter(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, name: |source|::SourceSpan, parent: u64 in Trapping, handle: u64 in Trapping) -> |declarations|::Lookup {
+        let parameter: |syntax_trees|::GenericParameter = |syntax_trees|::syntax_trees_generic_parameter(syntax, handle);
+        transition parameter.kind == |syntax_trees|::GenericParameterKind::Value {
             true -> ancestor(sources, syntax, scope, name, parent),
-            false -> Lookup::Found { handle: handle }
+            false -> |declarations|::Lookup::Found { handle: handle }
         }
     }
 
-    machine outer(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, name: SourceSpan) -> Lookup {
+    machine outer(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, name: |source|::SourceSpan) -> |declarations|::Lookup {
         generic_named(sources, syntax, scope.first_outer_parameter, scope.outer_parameter_count, name)
     }
 }
 
-machine scoped_lifetime_named(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, name: SourceSpan, parent: u64 in Trapping) -> bool
+machine scoped_lifetime_named(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, name: |source|::SourceSpan, parent: u64 in Trapping) -> bool
 crashes Trap
 {
     transition parent > 0 {
         true -> declared(sources, syntax, scope, name, parent - 1),
         false -> lifetime_among(sources, syntax, scope.first_outer_parameter, scope.outer_parameter_count, name)
     }
-    machine declared(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, name: SourceSpan, handle: u64 in Trapping) -> bool {
-        let item: MachineItem = machine_item(syntax, handle);
+    machine declared(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, name: |source|::SourceSpan, handle: u64 in Trapping) -> bool {
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, handle);
         let present: bool = lifetime_among(sources, syntax, item.first_generic_parameter, item.generic_parameter_count, name);
         transition present {
             true -> true,
@@ -390,15 +375,15 @@ crashes Trap
 // The scope retains its exact declaration, including when it owns no binders.
 // Generic lookup already searched that declaration's own span; ancestry starts
 // at its parent. Non-machine scopes have no lexical declaration context.
-machine scope_parent(syntax: @SyntaxTrees, scope: TypeScope) -> u64 in Trapping
+machine scope_parent(syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope) -> u64 in Trapping
 crashes Trap
 {
     transition scope.lexical_machine > 0 {
         true -> declared(syntax, scope.lexical_machine - 1),
-        false -> 0
+        false -> 0 as +Trapping
     }
-    machine declared(syntax: @SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping {
-        let item: MachineItem = machine_item(syntax, handle);
+    machine declared(syntax: @|syntax_trees|::SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping {
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, handle);
         item.parent
     }
 }

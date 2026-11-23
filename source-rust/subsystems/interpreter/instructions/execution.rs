@@ -2012,7 +2012,7 @@ pub(crate) mod content_transformations {
                     crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
                         &self.structural_types(),
                         root,
-                        self.structural_cases.as_map(),
+                        &self.array_initialization.cases(&self.structural_cases),
                         path,
                     ) == Some(case)
                 },
@@ -2051,7 +2051,7 @@ pub(crate) mod content_transformations {
                             && crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
                                 &self.structural_types(),
                                 root,
-                                self.structural_cases.as_map(),
+                                &self.array_initialization.cases(&self.structural_cases),
                                 &path,
                             )
                             .is_some_and(|selected| selected != *case)
@@ -3105,17 +3105,16 @@ pub(crate) mod execution {
         pub(crate) fn final_structural_primitive_values(
             &self,
         ) -> Result<Vec<TerminalStructuralPrimitiveValue>, TerminalInterpretError> {
-            self.structural_primitive_entry_places
-                .iter()
-                .filter_map(|(argument_index, place)| {
-                    self.structural_primitive_storage.get(place).map(|cell| {
-                        cell.read().map(|value| TerminalStructuralPrimitiveValue {
-                            argument_index: *argument_index,
-                            value,
-                        })
-                    })
-                })
-                .collect()
+            let mut values = Vec::with_capacity(self.structural_primitive_entry_places.len());
+            for (argument_index, place) in &self.structural_primitive_entry_places {
+                if let Some(cell) = self.primitive_cell(place)? {
+                    values.push(TerminalStructuralPrimitiveValue {
+                        argument_index: *argument_index,
+                        value: cell.read()?,
+                    });
+                }
+            }
+            Ok(values)
         }
 
         pub fn live_affine_frontier(&self) -> impl Iterator<Item = &StructuralAffineDiscard> + '_ {

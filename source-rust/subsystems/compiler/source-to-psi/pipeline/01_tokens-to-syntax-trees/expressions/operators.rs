@@ -168,6 +168,7 @@ pub(crate) fn insert_binary_expression(
             .expressions
             .insert(ExpressionNode::Binary(TableBinaryExpression {
                 policy,
+                negation: false,
                 left,
                 operator,
                 right,
@@ -326,6 +327,7 @@ pub(crate) fn apply_unary_prefix(
                         .insert(ExpressionNode::Integer(IntegerLiteral::zero()));
                     ExpressionNode::Binary(TableBinaryExpression {
                         policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                        negation: true,
                         left: zero,
                         operator: BinaryOperator::Subtract,
                         right: expression,

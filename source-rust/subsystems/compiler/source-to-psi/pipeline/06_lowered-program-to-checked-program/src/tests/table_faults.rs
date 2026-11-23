@@ -774,7 +774,7 @@ fn zeroed_array_after(length: u64, dynamic: bool, bound: u128, preceding: &[u128
         "element",
         StorageShape::PrimitiveScalar {
             scalar_type: u32_type(),
-            policy: None,
+            qualification: Qualification::NONE,
         },
     ));
     types.push(record(

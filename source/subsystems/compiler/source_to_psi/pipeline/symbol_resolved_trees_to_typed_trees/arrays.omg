@@ -1,55 +1,49 @@
-use representations\syntax_trees\Expression;
-use representations\syntax_trees\JoinedValues;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\joined_values;
-use representations\syntax_trees\syntax_trees_expression;
-use representations\typed_trees\TypeDiagnosticCode;
-use representations\typed_trees\TypeKind;
-use representations\typed_trees\TypeRow;
-use representations\typed_trees\set_expression_type;
-use representations\typed_trees\type_row_of;
-use representations\typed_trees\type_table_intern;
-use representations\typed_trees\typing_reject;
+use pipeline/symbol_resolved_trees_to_typed_trees/landing.omg;
+use pipeline/symbol_resolved_trees_to_typed_trees/joins.omg;
+use pipeline/symbol_resolved_trees_to_typed_trees/typing_state.omg;
+
+use representations/syntax_trees/syntax_trees.omg;
+use representations/typed_trees/typed_trees.omg;
 
 // A fixed-array literal `[a, b, ...]` (wiki/spec/language/expressions.md:
 // elements evaluate in increasing index order) is an array of its elements'
 // joined type (joins.omg) whose extent is its element count. Elements of no
 // fixed type make an anonymous array, which lands element by element at its
 // destination (landing.omg); `[]` is an anonymous array of no elements.
-public machine type_array(typer: @mutable Typer, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression)
+public machine type_array(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, expression: |syntax_trees|::Expression)
 crashes Trap
 {
-    let values: JoinedValues = joined_values(expression);
-    let fixed: u64 in Trapping = fixed_join(typer, syntax, values);
-    let mutable extent_row: TypeRow = type_row_of(TypeKind::StaticInteger);
+    let values: |syntax_trees|::JoinedValues = |syntax_trees|::joined_values(expression);
+    let fixed: u64 in Trapping = |joins|::fixed_join(typer, syntax, values);
+    let mutable extent_row: |typed_trees|::TypeRow = |typed_trees|::type_row_of(|typed_trees|::TypeKind::StaticInteger);
     extent_row.length = expression.count;
-    let extent: u64 in Trapping = type_table_intern(@mutable typer.output.types, extent_row);
+    let extent: u64 in Trapping = |typed_trees|::type_table_intern(@mutable typer.output.types, extent_row);
     transition fixed > 0 {
         true -> typed(typer, syntax, index, values, fixed, extent),
         _ -> unfixed(typer, syntax, index, values, extent)
     }
 
-    machine unfixed(typer: @mutable Typer, syntax: @SyntaxTrees, index: u64 in Trapping, values: JoinedValues, extent: u64 in Trapping) {
+    machine unfixed(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, values: |syntax_trees|::JoinedValues, extent: u64 in Trapping) {
         transition values.count > 0 {
             true -> unlanded(typer, syntax, index, values, extent),
             _ -> empty(typer, index, extent)
         }
     }
 
-    machine empty(typer: @mutable Typer, index: u64 in Trapping, extent: u64 in Trapping) {
-        let choice_row: TypeRow = type_row_of(TypeKind::AnonymousChoice);
-        let choice: u64 in Trapping = type_table_intern(@mutable typer.output.types, choice_row);
-        transition { _ -> array(typer, index, TypeKind::AnonymousArray, choice, extent) }
+    machine empty(typer: @mutable |typing_state|::Typer, index: u64 in Trapping, extent: u64 in Trapping) {
+        let choice_row: |typed_trees|::TypeRow = |typed_trees|::type_row_of(|typed_trees|::TypeKind::AnonymousChoice);
+        let choice: u64 in Trapping = |typed_trees|::type_table_intern(@mutable typer.output.types, choice_row);
+        transition { _ -> array(typer, index, |typed_trees|::TypeKind::AnonymousArray, choice, extent) }
     }
 
-    machine typed(typer: @mutable Typer, syntax: @SyntaxTrees, index: u64 in Trapping, values: JoinedValues, element: u64 in Trapping, extent: u64 in Trapping) {
-        admit_joined(typer, syntax, values, element);
-        transition { _ -> array(typer, index, TypeKind::Array, element, extent) }
+    machine typed(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, values: |syntax_trees|::JoinedValues, element: u64 in Trapping, extent: u64 in Trapping) {
+        |joins|::admit_joined(typer, syntax, values, element);
+        transition { _ -> array(typer, index, |typed_trees|::TypeKind::Array, element, extent) }
     }
 
-    machine unlanded(typer: @mutable Typer, syntax: @SyntaxTrees, index: u64 in Trapping, values: JoinedValues, extent: u64 in Trapping) {
-        let join: UnlandedJoin = unlanded_join(typer, syntax, values);
-        let shaped: bool = typer_unlanded(typer, join.joined);
+    machine unlanded(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, values: |syntax_trees|::JoinedValues, extent: u64 in Trapping) {
+        let join: |joins|::UnlandedJoin = |joins|::unlanded_join(typer, syntax, values);
+        let shaped: bool = |landing|::typer_unlanded(typer, join.joined);
         transition join.mismatch > 0 {
             true -> mismatched(typer, syntax, join.mismatch - 1),
             _ -> joined(typer, index, join.joined, extent, shaped)
@@ -57,23 +51,23 @@ crashes Trap
     }
 
     // Elements that all end in `Never` make an array of `Never`.
-    machine joined(typer: @mutable Typer, index: u64 in Trapping, element: u64 in Trapping, extent: u64 in Trapping, shaped: bool) {
+    machine joined(typer: @mutable |typing_state|::Typer, index: u64 in Trapping, element: u64 in Trapping, extent: u64 in Trapping, shaped: bool) {
         transition shaped {
-            true -> array(typer, index, TypeKind::AnonymousArray, element, extent),
-            _ -> array(typer, index, TypeKind::Array, element, extent)
+            true -> array(typer, index, |typed_trees|::TypeKind::AnonymousArray, element, extent),
+            _ -> array(typer, index, |typed_trees|::TypeKind::Array, element, extent)
         }
     }
 
-    machine array(typer: @mutable Typer, index: u64 in Trapping, kind: TypeKind, element: u64 in Trapping, extent: u64 in Trapping) {
-        let mutable row: TypeRow = type_row_of(kind);
+    machine array(typer: @mutable |typing_state|::Typer, index: u64 in Trapping, kind: |typed_trees|::TypeKind, element: u64 in Trapping, extent: u64 in Trapping) {
+        let mutable row: |typed_trees|::TypeRow = |typed_trees|::type_row_of(kind);
         row.inner = element;
         row.length = extent;
-        let handle: u64 in Trapping = type_table_intern(@mutable typer.output.types, row);
-        set_expression_type(@mutable typer.output, index, handle);
+        let handle: u64 in Trapping = |typed_trees|::type_table_intern(@mutable typer.output.types, row);
+        |typed_trees|::set_expression_type(@mutable typer.output, index, handle);
     }
 
-    machine mismatched(typer: @mutable Typer, syntax: @SyntaxTrees, value: u64 in Trapping) {
-        let written: Expression = syntax_trees_expression(syntax, value);
-        typing_reject(@mutable typer.output, TypeDiagnosticCode::MismatchedTypes, written.source_span);
+    machine mismatched(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, value: u64 in Trapping) {
+        let written: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, value);
+        |typed_trees|::typing_reject(@mutable typer.output, |typed_trees|::TypeDiagnosticCode::MismatchedTypes, written.source_span);
     }
 }

@@ -164,12 +164,12 @@ public data DependencyRow [copy] {
 public data SourceSet
 requires
     unit_count <= 512,
-    byte_count <= 4194304,
+    byte_count <= 8388608,
     path_byte_count <= 16384,
     package_count <= 64,
     dependency_count <= 256,
 {
-    bytes: [u8; 4194304];
+    bytes: [u8; 8388608];
     byte_count: u64;
     path_bytes: [u8; 16384];
     path_byte_count: u64;
@@ -204,7 +204,7 @@ crashes Trap
 {
     transition sources.unit_count < 512
         && package < sources.package_count
-        && unit.length <= 4194304 - sources.byte_count
+        && unit.length <= 8388608 - sources.byte_count
         && module_path.length <= 16384 - sources.path_byte_count {
         true -> path(sources, unit, package, module_path),
         _ -> full()
@@ -225,7 +225,7 @@ crashes Trap
     machine unit_byte(sources: @mutable SourceSet, unit: @SourceUnit, package: u64 in Trapping, path: SourceRange, index: u64 in Trapping) -> bool {
         let at: u64 in Trapping = (sources.byte_count as +Trapping) + index;
         let byte: u8 = source_unit_byte_or_nul(unit, index);
-        transition at < 4194304 {
+        transition at < 8388608 {
             true -> store_unit_byte(sources, unit, package, path, index, at, byte),
             _ -> invalid()
         }
@@ -240,7 +240,7 @@ crashes Trap
         at: u64 in Trapping,
         byte: u8
     ) -> bool
-    requires at < 4194304
+    requires at < 8388608
     {
         sources.bytes[at as -Trapping] = byte;
         transition { _ -> bytes(sources, unit, package, path, index + 1) }
@@ -252,7 +252,7 @@ crashes Trap
         let unit_start: u64 in Trapping = sources.byte_count as +Trapping;
         let unit_length: u64 in Trapping = unit.length as +Trapping;
         let unit_end: u64 in Trapping = unit_start + unit_length;
-        transition unit_count < 512 && unit_end <= 4194304 {
+        transition unit_count < 512 && unit_end <= 8388608 {
             true -> store_ranges(sources, unit_count, unit_start, unit_length, unit_end, package, path),
             _ -> invalid()
         }
@@ -267,7 +267,7 @@ crashes Trap
         package: u64 in Trapping,
         path: SourceRange
     ) -> bool
-    requires unit_count < 512, unit_end <= 4194304
+    requires unit_count < 512, unit_end <= 8388608
     {
         sources.units[unit_count as -Trapping] = SourceRange { start: unit_start, length: unit_length };
         sources.paths[unit_count as -Trapping] = path;
@@ -453,14 +453,14 @@ crashes Trap
     }
 
     machine located(sources: @SourceSet, at: u64 in Trapping) -> u8 {
-        transition at < 4194304 {
+        transition at < 8388608 {
             true -> read(sources, at),
             _ -> absent()
         }
     }
 
     machine read(sources: @SourceSet, at: u64 in Trapping) -> u8
-    requires at < 4194304
+    requires at < 8388608
     {
         sources.bytes[at as -Trapping]
     }
@@ -470,15 +470,50 @@ crashes Trap
     }
 }
 
+// Empty spans at the end of a unit are valid. Invalid spans have no
+// spelling, even when their unreadable bytes would all fall back to NUL.
+machine source_span_within_unit(sources: @SourceSet, span: SourceSpan) -> bool
+crashes Trap
+{
+    let unit: u64 in Trapping = (span.source.value as -Trapping) as u64 +Trapping;
+    transition unit < sources.unit_count && unit < 512 && span.span.start <= span.span.end {
+        true -> within(sources, sources.units[unit as -Trapping], span.span.end),
+        _ -> invalid()
+    }
+
+    machine within(sources: @SourceSet, range: SourceRange, end: u64 in Trapping) -> bool {
+        let used: u64 in Trapping = sources.byte_count as +Trapping;
+        transition range.start <= used {
+            true -> fits(range, end, used),
+            _ -> invalid()
+        }
+    }
+
+    machine fits(range: SourceRange, end: u64 in Trapping, used: u64 in Trapping) -> bool
+    requires range.start <= used
+    {
+        end <= range.length && range.length <= used - range.start
+    }
+
+    machine invalid() -> bool { false }
+}
+
 // Whether two spans, of any units, spell the same bytes. Identifier
 // spellings are their source bytes under LEXICAL-PROFILE-V1 (no escapes), so
 // name comparison reads the units rather than a decoded copy.
 public machine spans_equal(sources: @SourceSet, left: SourceSpan, right: SourceSpan) -> bool
 crashes Trap
 {
-    transition left.span.end - left.span.start == right.span.end - right.span.start {
-        true -> scan(sources, left, right, 0 as +Trapping),
+    transition source_span_within_unit(sources, left) && source_span_within_unit(sources, right) {
+        true -> lengths(sources, left, right),
         _ -> different()
+    }
+
+    machine lengths(sources: @SourceSet, left: SourceSpan, right: SourceSpan) -> bool {
+        transition left.span.end - left.span.start == right.span.end - right.span.start {
+            true -> scan(sources, left, right, 0 as +Trapping),
+            _ -> different()
+        }
     }
 
     machine scan(sources: @SourceSet, left: SourceSpan, right: SourceSpan, offset: u64 in Trapping) -> bool {
@@ -510,9 +545,16 @@ crashes Trap
 public machine span_spells(sources: @SourceSet, span: SourceSpan, spelling: @[u8]) -> bool
 crashes Trap
 {
-    transition span.span.end - span.span.start == spelling.length {
-        true -> scan(sources, span, spelling, 0 as +Trapping),
+    transition source_span_within_unit(sources, span) {
+        true -> length(sources, span, spelling),
         _ -> different()
+    }
+
+    machine length(sources: @SourceSet, span: SourceSpan, spelling: @[u8]) -> bool {
+        transition span.span.end - span.span.start == spelling.length {
+            true -> scan(sources, span, spelling, 0 as +Trapping),
+            _ -> different()
+        }
     }
 
     machine scan(sources: @SourceSet, span: SourceSpan, spelling: @[u8], index: u64 in Trapping) -> bool {
@@ -617,6 +659,12 @@ public machine unit_package(sources: @SourceSet, unit: u64 in Trapping) -> u64 i
     machine none() -> u64 in Trapping {
         0 as +Trapping
     }
+}
+
+public machine same_package(sources: @SourceSet, left: u64 in Trapping, right: u64 in Trapping) -> bool {
+    let left_package: u64 in Trapping = unit_package(sources, left);
+    let right_package: u64 in Trapping = unit_package(sources, right);
+    left_package == right_package
 }
 
 // Package `package`'s row; an unnamed ordinary package for no package.

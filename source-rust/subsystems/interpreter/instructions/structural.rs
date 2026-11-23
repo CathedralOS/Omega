@@ -762,21 +762,39 @@ impl TerminalExecution<'_> {
         ))?;
         self.materialize_zeroed_leaves(source, value, &storage.leaves)?;
         for array in storage.arrays {
-            let mut element = value.clone();
-            element.path.extend_from_slice(&array.path);
-            self.array_initialization.establish_zero_record_fields(
-                StructuralRuntimePlace::from(&element),
-                array.array_type,
-            )?;
-            if !array.represented.is_empty() {
-                for index in 0..array.length {
-                    element.path.push(StructuralPathSegment::FixedIndex(index));
-                    self.materialize_zeroed_leaves(source, &element, &array.represented)?;
-                    element.path.pop();
-                }
-            }
+            let mut home = StructuralRuntimePlace::from(value);
+            home.path.extend(array.path);
+            self.array_initialization.establish_zeroed_elements(home, array.array_type)?;
         }
         Ok(())
+    }
+
+    pub(crate) fn primitive_cell(
+        &self,
+        home: &StructuralRuntimePlace,
+    ) -> Result<Option<crate::storage::scalar_storage::ScalarCell>, TerminalInterpretError> {
+        if let Some(cell) = self.structural_primitive_storage.get(home) {
+            return Ok(Some(cell.clone()));
+        }
+        Ok(self
+            .array_initialization
+            .zero_primitive(&self.structural_types(), home)?
+            .map(crate::storage::scalar_storage::ScalarCell::Local))
+    }
+
+    pub(crate) fn primitive_cell_mut(
+        &mut self,
+        home: &StructuralRuntimePlace,
+    ) -> Result<Option<&mut crate::storage::scalar_storage::ScalarCell>, TerminalInterpretError>
+    {
+        if !self.structural_primitive_storage.contains_key(home) {
+            let Some(cell) = self.primitive_cell(home)? else {
+                return Ok(None);
+            };
+            self.structural_primitive_storage
+                .insert_cell(home.clone(), cell)?;
+        }
+        Ok(self.structural_primitive_storage.get_mut(home))
     }
 
     pub(crate) fn scalar_field_contents(
@@ -797,7 +815,7 @@ impl TerminalExecution<'_> {
             return Ok(Some(cell.clone()));
         }
         self.array_initialization
-            .zero_record_field(&self.structural_types(), field)?
+            .zero_element_field(&self.structural_types(), &self.structural_cases, field)?
             .map(|scalar| {
                 TerminalScalarValue::zero(scalar)
                     .map(ScalarCell::Local)
@@ -1335,7 +1353,7 @@ impl TerminalExecution<'_> {
             &self.program.structural_types(),
             &self.structural_values,
             self.reference_referents.as_map(),
-            self.structural_cases.as_map(),
+            &self.array_initialization.cases(&self.structural_cases),
             &mut self.live_affine_frontier,
             &mut self.live_claims,
             subject,
@@ -1375,14 +1393,14 @@ impl TerminalExecution<'_> {
             crate::boundary::structural_inputs::case_membership::active_projected_qualifications(
                 &self.structural_types(),
                 &selected,
-                self.structural_cases.as_map(),
+                &self.array_initialization.cases(&self.structural_cases),
                 &result.projected_qualifications,
             )?;
         let available_projected =
             crate::boundary::structural_inputs::case_membership::active_projected_qualifications(
                 &self.structural_types(),
                 &selected,
-                self.structural_cases.as_map(),
+                &self.array_initialization.cases(&self.structural_cases),
                 &selected.projected_qualifications,
             )?;
         if result
@@ -2425,7 +2443,7 @@ impl TerminalExecution<'_> {
             path,
         ) {
             parent.path.extend(carrier.path);
-            let contents = self.structural_cases.require(&parent)?;
+            let contents = self.require_case(&parent)?;
             if contents.structural_type != carrier.sum || contents.case != carrier.case {
                 return Err(malformed());
             }

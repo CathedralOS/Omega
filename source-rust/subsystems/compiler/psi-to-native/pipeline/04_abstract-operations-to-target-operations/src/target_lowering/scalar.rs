@@ -1073,7 +1073,7 @@ pub(crate) mod element_views {
     use crate::target_lowering::LoweringError;
     use crate::target_lowering::scalar::expressions::{insert_value, unsigned_u64_endpoint};
     use crate::target_lowering::structural_layout::{
-        direct_scalar_field_geometry, runtime_projection, runtime_storage_projection,
+        direct_scalar_field_geometry, runtime_projection,
     };
     use crate::target_lowering::structural_type_lookup::StructuralTypeLookup;
     use abstract_operations::{AbstractFunction, AbstractOperation};
@@ -1096,6 +1096,7 @@ pub(crate) mod element_views {
 
     mod establishment {
         use super::*;
+        use legalized_operations::structural_inputs::structural_reference_input::projected_collection;
 
         pub(crate) fn source(
             function: &AbstractFunction,
@@ -1194,24 +1195,21 @@ pub(crate) mod element_views {
             {
                 return Err(invalid());
             }
-            let regions = crate::target_lowering::structural_layout::reference_projection_regions(
+            let collection = projected_collection(
                 root_structural_type,
+                function.arrival_parameter(source.place),
                 field_path,
-                structural_types,
+                &structural_types.projections,
             )
-            .filter(|regions| regions.readable)
             .ok_or_else(invalid)?;
-            let (projected_storage, projected_shape, source_byte_offset, runtime_elements) =
-                runtime_storage_projection(regions.root, regions.path, structural_types)?;
             let indices = crate::target_lowering::control_flow::scalar_sources::runtime_indices(
-                regions.selector_runs(runtime_elements),
+                collection.elements,
                 function,
                 &backings.selectors,
                 structural_types,
             )?;
-            let collection_shape = projected_storage
-                .shape(structural_types)
-                .ok_or_else(invalid)?;
+            let collection_shape = collection.shape;
+            let source_byte_offset = collection.offset;
             let geometry = terminal_semantics::element_view_shape_region_geometry(
                 structural_types.values().copied(),
                 &collection_shape,
@@ -1368,7 +1366,7 @@ pub(crate) mod element_views {
                                 terminal_semantics::CollectionExtent::StoredLength
                                 | terminal_semantics::CollectionExtent::Parameter { .. } => None,
                             }
-                        }) != Some(u64::from(projected_shape.byte_size))
+                        }) != Some(u64::from(collection.byte_size))
                     }
                     terminal_semantics::CollectionStorage::Borrowed => {
                         let carrier_size = match extent_kind {
@@ -1379,7 +1377,7 @@ pub(crate) mod element_views {
                                 return Err(invalid());
                             }
                         };
-                        projected_shape.byte_size != carrier_size || byte_window.is_some()
+                        collection.byte_size != carrier_size || byte_window.is_some()
                     }
                 }
             {

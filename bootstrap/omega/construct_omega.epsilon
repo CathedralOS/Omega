@@ -132,7 +132,7 @@ machine Main::construct_deployment(&mut self, deployment: &[u8], roots: &[u8]) {
         self.length = self.word();
         transition (packages > 0) && (packages <= 64) &&
             (self.compiler.parser.sources.dependency_count <= 256) &&
-            (self.compiler.parser.sources.unit_count <= 512) && (self.length <= 4194304) {
+            (self.compiler.parser.sources.unit_count <= 512) && (self.length <= 8388608) {
             true -> build_layout()
             _ -> self.console.exit_process(3)
         }

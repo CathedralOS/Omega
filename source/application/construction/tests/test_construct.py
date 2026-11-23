@@ -26,6 +26,26 @@ class BuildSourceTests(unittest.TestCase):
             build_sources=self.sources if sources is None else sources,
             build_entries=self.entries if entries is None else entries)[0]
 
+    def test_scoped_frame_accepts_eight_mib_and_rejects_one_more_byte(self):
+        paths = [f'unit_{i}.omg' for i in range(64)]
+        units = [(0, b'')] * len(paths)
+
+        def encode():
+            return construct.encode(self.packages, [], units, 0, b'entry', paths=paths,
+                                    build_sources=self.sources, build_entries=self.entries)[0]
+
+        metadata_size = struct.unpack_from('<I', encode(), 32)[0]
+        unit_size = 128 * 1024
+        full_unit = bytes(unit_size)
+        units[:-1] = [(0, full_unit)] * (len(units) - 1)
+        last_size = 8 * 1024 * 1024 - metadata_size - (len(units) - 1) * unit_size
+        units[-1] = (0, bytes(last_size))
+        self.assertEqual(struct.unpack_from('<I', encode(), 32)[0], 8 * 1024 * 1024)
+
+        units[-1] = (0, bytes(last_size + 1))
+        with self.assertRaisesRegex(ValueError, 'constructor byte capacity exceeded'):
+            encode()
+
     def test_v2_exact_build_bytes_and_scopes(self):
         wire = self.frame()
         (marker, version, packages, edges, units, entry, name_start, name_end,
@@ -58,7 +78,7 @@ class BuildSourceTests(unittest.TestCase):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 self.frame(**changes)
 
-    def test_fixture_packages_do_not_change_the_compiler_input(self):
+    def test_compiler_input_keeps_nested_build_sources(self):
         with tempfile.TemporaryDirectory() as temp, patch.object(construct, 'ROOT', Path(temp)):
             for _, package, _ in construct.PACKAGES:
                 root = Path(temp) / package
@@ -67,14 +87,25 @@ class BuildSourceTests(unittest.TestCase):
                 (root / 'main.omg').write_text('machine entry_start() {}')
             psi = Path(temp) / 'source/subsystems/compiler/source_to_psi'
             before = [construct.compiler_input(scoped)[0] for scoped in (False, True)]
-            fixture = psi / 'tests/fixtures/example'
-            fixture.mkdir(parents=True)
-            (fixture / 'build.omg').write_text('machine build(builder: @mutable Build) {}')
-            (fixture / 'main.omg').write_text('machine main() -> u8 { 42 }')
+            for directory in ('tests/fixtures/example', 'build', '.git', 'tools/.git'):
+                excluded = psi / directory
+                excluded.mkdir(parents=True)
+                (excluded / 'build.omg').write_text('machine build(builder: @mutable Build) {}')
+                (excluded / 'main.omg').write_text('machine main() -> u8 { 42 }')
+            nested = psi / 'tools/build/reader.omg'
+            nested.parent.mkdir(parents=True)
+            contents = b'machine read() -> u8 { 7 }'
+            nested.write_bytes(contents)
+            for scoped in (False, True):
+                with self.subTest(scoped=scoped):
+                    packet, manifest = construct.compiler_input(scoped)
+                    path = nested.relative_to(construct.ROOT).as_posix()
+                    unit, = (row for row in manifest['units'] if row['path'] == path)
+                    arena = packet[-struct.unpack_from('<I', packet, 32)[0]:]
+                    self.assertEqual(arena[unit['start']:unit['end']], contents)
+                    self.assertEqual(arena[unit['path_start']:unit['path_end']], b'tools/build/reader.omg')
+            nested.unlink()
             self.assertEqual(before, [construct.compiler_input(scoped)[0] for scoped in (False, True)])
-            (psi / 'main.omg').write_text('machine changed() {}')
-            for scoped, original in zip((False, True), before):
-                self.assertNotEqual(original, construct.compiler_input(scoped)[0])
 
     def test_complete_capture_preserves_product_coordinates(self):
         legacy, before = construct.compiler_input()

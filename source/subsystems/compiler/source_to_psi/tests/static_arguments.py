@@ -2,6 +2,7 @@
 
 import argparse
 import re
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -11,7 +12,6 @@ PACKAGE = Path(__file__).resolve().parents[1]
 RESOLVER = "pipeline/syntax_trees_to_symbol_resolved_trees/"
 TYPER = "pipeline/symbol_resolved_trees_to_typed_trees/"
 DECLARATIONS = {
-    "representations/tokens/numeric.omg": ["IntegerSuffix"],
     "representations/syntax_trees/syntax_trees.omg": [
         "GenericParameterKind", "TypeReferenceKind", "ReferenceAccess", "IntegerLiteral",
         "static_integer_is_valid", "same_type_form",
@@ -35,23 +35,53 @@ def main():
     args = parser.parse_args()
     fixture = PACKAGE / "tests/fixtures/generics/run/static_arguments"
     units = []
+    stage_files = {}
     for filename, names in DECLARATIONS.items():
         source = (PACKAGE / filename).read_text()
+        declarations = []
         for name in names:
             # A top-level declaration closes at the left margin. Nested machines
             # stay with their owner, exactly as compiled in the product package.
             match = re.search(rf"^(?:public )?(?:data|machine) {name}\b.*?^}}", source, re.M | re.S)
             if not match:
                 raise ValueError(f"missing declaration {name} in {filename}")
-            units.append(match[0])
+            declarations.append(match[0])
+        if filename.startswith((RESOLVER, TYPER)):
+            stage_files[filename] = declarations
+        else:
+            units.extend(declarations)
 
     with tempfile.TemporaryDirectory(prefix="omega-static-arguments-") as directory:
         root = Path(directory)
         (root / "build.omg").write_bytes((fixture / "build.omg").read_bytes())
+        numeric = Path("representations/tokens/numeric.omg")
+        (root / numeric).parent.mkdir(parents=True)
+        shutil.copyfile(PACKAGE / numeric, root / numeric)
+        for state in (Path(TYPER) / "typing_state.omg", Path(RESOLVER) / "resolution_state.omg"):
+            (root / state.parent).mkdir(parents=True)
+            shutil.copyfile(fixture / state.name, root / state)
+            units.insert(0, f"use {state.as_posix()};")
+        stage_paths = {Path(filename).stem: filename for filename in stage_files}
+        stage_paths["typing_state"] = TYPER + "typing_state.omg"
+        stage_paths["resolution_state"] = RESOLVER + "resolution_state.omg"
+        for filename, declarations in stage_files.items():
+            # The fixture supplies the tables and records which type and machine
+            # the binder selects. The queries under test retain their own files.
+            body = "\n\n".join(declarations) + "\n"
+            imports = []
+            for alias in sorted(set(re.findall(r"\|(\w+)\|::", body))):
+                if alias in {"syntax_trees", "symbol_resolved_trees", "typed_trees", "binders", "generics"}:
+                    imports.append(f"use main.omg as {alias};")
+                else:
+                    imports.append(f"use {stage_paths[alias]};")
+            (root / filename).write_text("\n".join(imports) + "\n\n" + body)
+            units.insert(0, f"use {filename};")
         program = root / "main.omg"
-        program.write_text("\n\n".join([*units, (fixture / "main.omg").read_text()]))
+        units.insert(0, "use representations/tokens/numeric.omg;")
+        units.append((fixture / "main.omg").read_text())
+        program.write_text("\n\n".join(units))
         result = subprocess.run(
-            [args.omega.resolve(), "run", "--both", program],
+            [args.omega.resolve(), "run", "--both", root / "build.omg"],
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,

@@ -102,6 +102,49 @@ impl CompletedProductSource {
         &self.terminal_publication
     }
 
+    /// An occurrence reviews every native decision its own Build made. A dependency's
+    /// Build has its own review, and only declarations present in this Product can use it.
+    pub(crate) fn retain_package_review_bindings(
+        &mut self,
+        package: semantic_vocabulary::PackageKeyIdentity,
+        target: &str,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.native_supplies
+            .retain(|supply| supply.selection.target.canonical_name() == target);
+        if self
+            .native_supplies
+            .iter()
+            .all(|supply| supply.selection.supplier_package == package)
+        {
+            return Ok(());
+        }
+        let accepted = self.terminal_publication.accepted()?;
+        let declared = accepted
+            .boundary_requirements_declared()
+            .map_err(|error| vec![error])?;
+        let mut retained = Vec::new();
+        for supply in std::mem::take(&mut self.native_supplies) {
+            if supply.selection.supplier_package == package {
+                retained.push(supply);
+                continue;
+            }
+            let slot = supply.selection.subject;
+            for requirement in declared.iter().filter(|row| row.slot == slot) {
+                if supply
+                    .selection
+                    .requirement_identity_for(accepted.source(), requirement.requirement)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?
+                    .is_some()
+                {
+                    retained.push(supply);
+                    break;
+                }
+            }
+        }
+        self.native_supplies = retained;
+        Ok(())
+    }
+
     /// Issue deployment facts from the same closed source and Build choices used for publication.
     pub fn prepare_provider_demand(
         &self,

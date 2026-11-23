@@ -95,10 +95,10 @@ pub use names::{
     section_name,
 };
 pub use object_plan::{
-    FunctionSymbolPlan, ImportRelocationError, NormalizedImportPlan, ObjectContainerOutput,
-    ObjectPlan, ObjectSymbolHandle, PlacedImportCall, RelocationKind, RelocationOrigin,
-    RelocationPlan, RelocationRecord, SectionKind, SectionPlan, SymbolKind, SymbolPlan,
-    SymbolSection, invocation_relocation_origin, relocation_kind_tag,
+    FunctionSymbolPlan, FunctionUnwindPlan, ImportRelocationError, NormalizedImportPlan,
+    ObjectContainerOutput, ObjectPlan, ObjectSymbolHandle, PlacedImportCall, RelocationKind,
+    RelocationOrigin, RelocationPlan, RelocationRecord, SectionKind, SectionPlan, SymbolKind,
+    SymbolPlan, SymbolSection, invocation_relocation_origin, relocation_kind_tag,
 };
 pub use relocation_free_object::publication;
 pub(crate) use relocation_free_object::publication::{

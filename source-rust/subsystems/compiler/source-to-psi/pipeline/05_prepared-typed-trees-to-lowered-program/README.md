@@ -1105,8 +1105,9 @@ its whole component in its own graph
   It is no call operation and gets no
   invocation row: the lowered form has no call there.
 
-A component of `k` machines is therefore lowered `k` times, once per
-machine. Nothing is shared between those graphs.
+Each member has its own entry and its own graph. When two entries produce
+identical checking tables for places or scalar values, the compiler stores
+one copy of that table. Updating one entry leaves the other entry's rows intact.
 
 **`requires` at a head.** A member's `requires` clauses, each formal
 replaced by the head's parameter, are the head's one row in the module's

@@ -1,118 +1,107 @@
-use representations\source_files\SourceSet;
-use representations\source_files\SourceSpan;
-use representations\source_files\spans_equal;
-use representations\symbol_resolved_trees\ResolveDiagnosticCode;
-use representations\symbol_resolved_trees\ValueBinding;
-use representations\symbol_resolved_trees\name_resolution_reject;
-use representations\symbol_resolved_trees\set_component_field;
-use representations\syntax_trees\DataField;
-use representations\syntax_trees\DataItem;
-use representations\syntax_trees\IdentifierSpan;
-use representations\syntax_trees\MachineContainer;
-use representations\syntax_trees\MachineItem;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\machine_item;
-use representations\syntax_trees\syntax_trees_data_item;
-use representations\syntax_trees\syntax_trees_field;
-use representations\syntax_trees\syntax_trees_member;
+use pipeline/syntax_trees_to_symbol_resolved_trees/resolution_state.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/names.omg;
+
+use representations/source_files/source.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
 
 // Declared measures (wiki/spec/language/termination.md#ranking): a computed
 // measure `measure Owner::Name(subject: T) -> R { body }` has one parameter,
 // a result type and a one-expression body; a lexicographic measure `measure
 // Owner::Name lexicographic { fields }` names a data declaration `Owner` and
 // fields of it, each recorded by member handle for the checker's ranking.
-public machine check_measures(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
+public machine check_measures(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> next(resolver, sources, syntax, 0) }
+    transition { _ -> next(resolver, sources, syntax, 0 as +Trapping) }
 
-    machine next(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine next(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count && resolver.output.accepted {
             true -> item(resolver, sources, syntax, index),
             _ -> done()
         }
     }
 
-    machine item(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
-        let declared: MachineItem = machine_item(syntax, index);
-        transition declared.container == MachineContainer::Measure {
+    machine item(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
+        let declared: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, index);
+        transition declared.container == |syntax_trees|::MachineContainer::Measure {
             true -> measure(resolver, sources, syntax, index, declared),
             _ -> next(resolver, sources, syntax, index + 1)
         }
     }
 
-    machine measure(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, declared: MachineItem) {
+    machine measure(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, declared: |syntax_trees|::MachineItem) {
         transition declared.component_count > 0 {
             true -> owner(resolver, sources, syntax, index, declared),
             _ -> computed(resolver, sources, syntax, index, declared)
         }
     }
 
-    machine computed(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, declared: MachineItem) {
+    machine computed(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, declared: |syntax_trees|::MachineItem) {
         let formed: bool = declared.parameter_count == 1 && declared.has_return_type && declared.has_body
             && declared.statement_count == 1;
         transition formed {
             true -> next(resolver, sources, syntax, index + 1),
-            _ -> reject(resolver, ResolveDiagnosticCode::MeasureForm, declared.source_span)
+            _ -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::MeasureForm, declared.source_span)
         }
     }
 
-    machine owner(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, declared: MachineItem) {
-        let binding: ValueBinding = data_name(sources, syntax, declared.owner.source_span);
+    machine owner(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, declared: |syntax_trees|::MachineItem) {
+        let binding: |symbol_resolved_trees|::ValueBinding = |names|::data_name(sources, syntax, declared.owner.source_span);
         transition binding {
-            ValueBinding::Data { item } -> component(resolver, sources, syntax, index, declared, item, 0),
-            _ -> reject(resolver, ResolveDiagnosticCode::MeasureForm, declared.owner.source_span)
+            |symbol_resolved_trees|::ValueBinding::Data { item } -> component(resolver, sources, syntax, index, declared, item, 0 as +Trapping),
+            _ -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::MeasureForm, declared.owner.source_span)
         }
     }
 
     machine component(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         index: u64 in Trapping,
-        declared: MachineItem,
+        declared: |syntax_trees|::MachineItem,
         item: u64 in Trapping,
         offset: u64 in Trapping
     ) {
         transition offset < declared.component_count && resolver.output.accepted {
-            true -> candidate(resolver, sources, syntax, index, declared, item, offset, 0),
+            true -> candidate(resolver, sources, syntax, index, declared, item, offset, 0 as +Trapping),
             _ -> next(resolver, sources, syntax, index + 1)
         }
     }
 
     machine candidate(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         index: u64 in Trapping,
-        declared: MachineItem,
+        declared: |syntax_trees|::MachineItem,
         item: u64 in Trapping,
         offset: u64 in Trapping,
         field_offset: u64 in Trapping
     ) {
-        let data: DataItem = syntax_trees_data_item(syntax, item);
-        let name: IdentifierSpan = syntax_trees_member(syntax, declared.first_component + offset);
+        let data: |syntax_trees|::DataItem = |syntax_trees|::syntax_trees_data_item(syntax, item);
+        let name: |syntax_trees|::IdentifierSpan = |syntax_trees|::syntax_trees_member(syntax, declared.first_component + offset);
         transition field_offset < data.field_count {
             true -> compare(resolver, sources, syntax, index, declared, item, offset, field_offset, data, name),
-            _ -> reject(resolver, ResolveDiagnosticCode::UnknownMeasureComponent, name.source_span)
+            _ -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::UnknownMeasureComponent, name.source_span)
         }
     }
 
     machine compare(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         index: u64 in Trapping,
-        declared: MachineItem,
+        declared: |syntax_trees|::MachineItem,
         item: u64 in Trapping,
         offset: u64 in Trapping,
         field_offset: u64 in Trapping,
-        data: DataItem,
-        name: IdentifierSpan
+        data: |syntax_trees|::DataItem,
+        name: |syntax_trees|::IdentifierSpan
     ) {
         let handle: u64 in Trapping = data.first_field + field_offset;
-        let candidate_field: DataField = syntax_trees_field(syntax, handle);
-        let same: bool = spans_equal(sources, candidate_field.name.source_span, name.source_span);
+        let candidate_field: |syntax_trees|::DataField = |syntax_trees|::syntax_trees_field(syntax, handle);
+        let same: bool = |source|::spans_equal(sources, candidate_field.name.source_span, name.source_span);
         transition same {
             true -> bound(resolver, sources, syntax, index, declared, item, offset, handle),
             _ -> candidate(resolver, sources, syntax, index, declared, item, offset, field_offset + 1)
@@ -120,21 +109,21 @@ crashes Trap
     }
 
     machine bound(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         index: u64 in Trapping,
-        declared: MachineItem,
+        declared: |syntax_trees|::MachineItem,
         item: u64 in Trapping,
         offset: u64 in Trapping,
         handle: u64 in Trapping
     ) {
-        set_component_field(@mutable resolver.output, declared.first_component + offset, handle + 1);
+        |symbol_resolved_trees|::set_component_field(@mutable resolver.output, declared.first_component + offset, handle + 1);
         transition { _ -> component(resolver, sources, syntax, index, declared, item, offset + 1) }
     }
 
-    machine reject(resolver: @mutable Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
-        name_resolution_reject(@mutable resolver.output, code, source_span);
+    machine reject(resolver: @mutable |resolution_state|::Resolver, code: |symbol_resolved_trees|::ResolveDiagnosticCode, source_span: |source|::SourceSpan) {
+        |symbol_resolved_trees|::name_resolution_reject(@mutable resolver.output, code, source_span);
     }
 
     machine done() {}

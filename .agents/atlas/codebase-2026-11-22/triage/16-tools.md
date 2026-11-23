@@ -1,0 +1,26 @@
+# Repository tools findings
+
+| Atlas finding | Disposition | Evidence |
+| --- | --- | --- |
+| Area 16 sections 5 and 6. A Git diff failure skipped file hygiene and measurement checks. | Fixed. Admission now returns the Git error when the comparison fails. An empty successful diff is still valid. | On Windows, setting Git’s diff.orderFile to a missing file made Git exit 128 while the old check-rules printed clean and exited 0. The repaired command reports the failing git diff and missing filename and returns nonzero. The fixture `rules::tests::unreadable_diff_cannot_pass_as_an_empty_change_set` compares the same two commits before and after setting the missing order file. |
+| Section 5 on sample project and oracle reads, and section 6 on directory discovery. | Input and directory errors now propagate through sample selection and qualification. Standalone samples still permit an absent build file, and a readable entry may still have no oracle. | The samples tests compare a missing discovery root with an empty directory, invalid UTF-8 in optional files with absent files, and an unreadable entry with a readable file lacking an exit expectation. |
+| Branch cleanup, lines 157 and 187. A failed Git link search left every branch unprotected by repository links. | Cleanup now stops with the Git error before classifying branches. Git exit 1 still means no tracked references matched. | The test scans a temporary Git repository with zero and one matching links, then a missing checkout. The old code returned an empty set in the missing-checkout case. |
+| Gamma evaluator exit codes, line 162. | Previously fixed by [#5234](https://github.com/CathedralOS/Omega/pull/5234). The Windows unit test covers 256, 257, 65536 and the maximum 32-bit status. | The separate stdin and stdout error paths remain open. |
+| The changed-program sweep discarded errors while collecting changed diagnostics. | Previously fixed. | The [area digest](../digests/16-tools.md) records the public CLI regression `changed_compiler_sweep_guards_programs_from_the_invocation_checkout`. |
+| Area 16 section 5. A failed Git read counted as an empty measurement summary. | Fixed. The rule reports the Git error and the filename. | The regression `measurement_checks_distinguish_empty_contents_from_a_failed_read` pins both a committed empty file and a missing file from the changed-files list. Only the missing file produces an error. |
+| Section 5 also observes that the 300-line rule applies only to additions. | Documented scope. | The [measurement policy](../../../../wiki/drafts/measurements/README.md) explicitly describes the check on files a pull request adds. |
+
+Other area 16 findings still need individual dispositions.
+
+## Original findings still under review
+
+Sections 5 and 6 contain 67 top-level observations. The linked ranges cover each observation once in this table. Individual dispositions above apply only to their stated conditions.
+
+| Subject | Digest lines | Evidence and open work |
+| --- | --- | --- |
+| Sample gates and command selection | [108–120](https://github.com/CathedralOS/Omega/blob/1ab250720c8cecccb704d7da49b5889af13138f8/.agents/atlas/codebase-2026-11-22/digests/16-tools.md#L108-L120) | 109, 110 and 177 concern sample input failures. #5287 retains standalone samples while propagating read failures. 113 and 115 are the changed-program sweep fixes. The remaining selection and run-evidence findings need separate dispositions. |
+| Repository admission | [123–132](https://github.com/CathedralOS/Omega/blob/1ab250720c8cecccb704d7da49b5889af13138f8/.agents/atlas/codebase-2026-11-22/digests/16-tools.md#L123-L132) | 123 and 124 are fixed by #5276 and #5281. 125 matches the documented scope of the measurement rule. The board reader at 126 now propagates a failed fallback Git read. Other textual checks remain to trace. |
+| Stage and repository boundary checks | [135–143](https://github.com/CathedralOS/Omega/blob/1ab250720c8cecccb704d7da49b5889af13138f8/.agents/atlas/codebase-2026-11-22/digests/16-tools.md#L135-L143) | Trace each skipped input or unsupported syntax against the audit’s stated coverage. |
+| Coordination and worktrees | [146–158](https://github.com/CathedralOS/Omega/blob/1ab250720c8cecccb704d7da49b5889af13138f8/.agents/atlas/codebase-2026-11-22/digests/16-tools.md#L146-L158) | Distinguish reporting defaults from loss of work or failed operations presented as successful. |
+| Tools and benchmarks | [161–172](https://github.com/CathedralOS/Omega/blob/1ab250720c8cecccb704d7da49b5889af13138f8/.agents/atlas/codebase-2026-11-22/digests/16-tools.md#L161-L172) | Check command status and the comparability of the underlying observations. |
+| Dropped inputs | [177–190](https://github.com/CathedralOS/Omega/blob/1ab250720c8cecccb704d7da49b5889af13138f8/.agents/atlas/codebase-2026-11-22/digests/16-tools.md#L177-L190) | 177 overlaps 109–110. 185 and 186 also appear in section 5. The remaining rows include filesystem errors and repeated coordination findings. |

@@ -51,11 +51,13 @@ impl ExternalDecisionPoint {
         {
             return Err(ExternalDecisionSchemaError::DuplicateCandidate);
         }
-        if let ExternalDecisionAction::Choose(candidate) = action
-            && !legal_candidates
+        let legal_action = match action {
+            ExternalDecisionAction::Choose(candidate) => legal_candidates
                 .iter()
-                .any(|legal| legal.candidate() == candidate)
-        {
+                .any(|legal| legal.candidate() == candidate),
+            ExternalDecisionAction::Skip(reason) => reason == OptimizationReasonCode::NotProfitable,
+        };
+        if !legal_action {
             return Err(ExternalDecisionSchemaError::IllegalAction);
         }
         let identity = point_identity(input, rule, &legal_candidates, action);

@@ -17,7 +17,7 @@ use super::ratchets::{
     compute_ratchet_counts, count_place_transport, ratchet_violations, read_baseline,
     semantic_id_names,
 };
-use super::{git, pr_diff_base, show_git_file};
+use super::{changed_paths, git, pr_diff_base, show_git_file};
 
 #[test]
 fn interior_state_scan_reports_an_unreadable_configured_root() {
@@ -217,17 +217,7 @@ impl ScratchRepository {
     }
 
     fn changes_since(&self, base: &str) -> Vec<(char, String)> {
-        git(
-            &self.root,
-            &["diff", "--name-status", "--no-renames", base, "HEAD"],
-        )
-        .unwrap()
-        .lines()
-        .map(|line| {
-            let (status, path) = line.split_once('\t').unwrap();
-            (status.chars().next().unwrap(), path.to_owned())
-        })
-        .collect()
+        changed_paths(&self.root, base).unwrap()
     }
 }
 
@@ -235,6 +225,39 @@ impl Drop for ScratchRepository {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.root);
     }
+}
+
+#[test]
+fn measurement_checks_distinguish_empty_contents_from_a_failed_read() {
+    let repo = ScratchRepository::new();
+    let summary = "wiki/drafts/measurements/empty.md";
+    repo.commit(&[(summary, Some(""))]);
+    assert!(
+        super::diff_hygiene::measurement_violations(&repo.root, &[('A', summary.into())])
+            .is_empty()
+    );
+    let missing = "wiki/drafts/measurements/missing.md";
+    let violations =
+        super::diff_hygiene::measurement_violations(&repo.root, &[('A', missing.into())]);
+    assert!(
+        violations.iter().any(|message| message.contains(missing)),
+        "{violations:?}"
+    );
+}
+
+#[test]
+fn unreadable_diff_cannot_pass_as_an_empty_change_set() {
+    let repo = ScratchRepository::new();
+    let base = repo.commit(&[("existing.md", Some("first"))]);
+    repo.commit(&[("new.md", Some("second"))]);
+    assert_eq!(repo.changes_since(&base), [('A', "new.md".to_owned())]);
+    git(
+        &repo.root,
+        &["config", "diff.orderFile", "missing-order-file"],
+    )
+    .unwrap();
+    let error = changed_paths(&repo.root, &base).unwrap_err();
+    assert!(error.contains("missing-order-file"), "{error}");
 }
 
 #[test]
@@ -288,7 +311,10 @@ fn pr_scope_preserves_ancestor_and_admission_merge_parent_diffs() {
     .unwrap();
     let parent = pr_diff_base(&repo.root, Some("HEAD^1")).unwrap();
     assert_eq!(repo.changes_since(&parent), [('A', "topic.md".to_owned())]);
-    assert_eq!(show_git_file(&repo.root, &main, "main.md"), "main change\n");
+    assert_eq!(
+        show_git_file(&repo.root, &main, "main.md").unwrap(),
+        "main change\n"
+    );
     // Admission checks a shallow checkout of GitHub's synthetic merge.
     git(
         &repo.root,

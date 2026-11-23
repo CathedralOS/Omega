@@ -232,6 +232,8 @@ data OmegaRelativeSpan {
 }
 
 data OmegaUseSyntax {
+    file_path: OmegaRelativeSpan;
+    package_root: OmegaRelativeSpan;
     first_member: i32;
     member_count: i32;
     start: i32;
@@ -254,6 +256,7 @@ data OmegaSourceDependency {
 }
 
 data OmegaSourceUnit {
+    has_file_import: i32;
     package: i32;
     start: i32;
     end: i32;
@@ -287,6 +290,7 @@ data OmegaImportBindingKind {
     case Service;
     case BoundaryMachine;
     case Implementation;
+    case File;
 }
 
 data OmegaImportBinding {
@@ -1154,6 +1158,8 @@ data OmegaSuspendedExpressionSlot {
 }
 
 data OmegaParser {
+    selector_alias: OmegaRelativeSpan;
+    selector_member: OmegaRelativeSpan;
     sources: OmegaSourceSet;
     unit_index: i32;
     scan: OmegaLexScan;

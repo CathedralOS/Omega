@@ -1,11 +1,13 @@
-use representations\source_files\SourceSpan;
-use representations\syntax_trees\ParseDiagnosticCode;
-use representations\syntax_trees\PropositionBody;
-use representations\syntax_trees\PropositionItem;
-use representations\syntax_trees\RootItem;
-use representations\syntax_trees\RootItemKind;
-use representations\tokens\PunctuationKind;
-use representations\tokens\TokenStream;
+use pipeline/tokens_to_syntax_trees/expression.omg;
+use pipeline/tokens_to_syntax_trees/generics.omg;
+use pipeline/tokens_to_syntax_trees/input.omg;
+use pipeline/tokens_to_syntax_trees/machine.omg as machine_file;
+use pipeline/tokens_to_syntax_trees/types.omg;
+use pipeline/tokens_to_syntax_trees/parser.omg;
+
+use representations/source_files/source.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/tokens/tokens.omg;
 
 // `[public] proposition Name [<generic parameters>] [(parameters)] body`,
 // entered at the `proposition` word. The body is `;` for a primitive
@@ -13,8 +15,8 @@ use representations\tokens\TokenStream;
 // a transparent one. The generic parameters and parameters share the data
 // and machine grammars; lifetime binders are a checking question.
 public machine parse_proposition(
-    parser: @mutable Parser,
-    input: @TokenStream,
+    parser: @mutable |parser|::Parser,
+    input: @|tokens|::TokenStream,
     item_start: u64 in Trapping,
     is_public: bool
 )
@@ -24,39 +26,39 @@ crashes Trap
     parser.declaration_is_public = is_public;
     transition parser.output.proposition_count < 256 {
         true -> keyword(parser, input),
-        _ -> reject(parser, input, ParseDiagnosticCode::PropositionCapacityExceeded)
+        _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::PropositionCapacityExceeded)
     }
 
-    machine keyword(parser: @mutable Parser, input: @TokenStream) {
-        take_current(parser, input);
+    machine keyword(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
         parser.declaration_first_generic = parser.output.generic_parameter_count as +Trapping;
-        expect_name(parser, input, ParseDiagnosticCode::ExpectedPropositionName);
+        |input|::expect_name(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedPropositionName);
         transition parser.output.accepted {
             true -> named(parser, input),
             _ -> done()
         }
     }
 
-    machine named(parser: @mutable Parser, input: @TokenStream) {
+    machine named(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         parser.declaration_name_start = parser.name_start;
         parser.declaration_name_end = parser.name_end;
-        let generic: bool = at_punctuation(parser, input, PunctuationKind::Less);
+        let generic: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Less);
         transition generic {
             true -> generics(parser, input),
             _ -> parameters(parser, input)
         }
     }
 
-    machine generics(parser: @mutable Parser, input: @TokenStream) {
-        parse_generic_parameters(parser, input);
+    machine generics(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |generics|::parse_generic_parameters(parser, input);
         transition parser.output.accepted {
             true -> parameters(parser, input),
             _ -> done()
         }
     }
 
-    machine parameters(parser: @mutable Parser, input: @TokenStream) {
-        parse_parameters(parser, input);
+    machine parameters(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |machine_file|::parse_parameters(parser, input);
         parser.declaration_first_parameter = parser.signature_first_parameter;
         parser.declaration_parameter_count = parser.signature_parameter_count;
         transition parser.output.accepted {
@@ -65,61 +67,63 @@ crashes Trap
         }
     }
 
-    machine declared_body(parser: @mutable Parser, input: @TokenStream) {
-        let ends: bool = at_punctuation(parser, input, PunctuationKind::Semicolon);
+    machine declared_body(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        let ends: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Semicolon);
         transition ends {
             true -> primitive_body(parser, input),
             _ -> evidence_word(parser, input)
         }
     }
 
-    machine evidence_word(parser: @mutable Parser, input: @TokenStream) {
-        let witnessed: bool = at_word(parser, input, "evidence");
+    machine evidence_word(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        let witnessed: bool = |input|::at_word(parser, input, "evidence");
         transition witnessed {
             true -> evidence_body(parser, input),
             _ -> transparent_word(parser, input)
         }
     }
 
-    machine transparent_word(parser: @mutable Parser, input: @TokenStream) {
-        let transparent: bool = at_punctuation(parser, input, PunctuationKind::Equal);
+    machine transparent_word(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        let transparent: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Equal);
         transition transparent {
             true -> fact_body(parser, input),
-            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedPropositionBody)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedPropositionBody)
         }
     }
 
-    machine primitive_body(parser: @mutable Parser, input: @TokenStream) {
-        take_current(parser, input);
-        transition { _ -> retain_capacity(parser, input, PropositionBody::Primitive, 0, 0) }
+    machine primitive_body(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
+        transition { _ -> retain_capacity(parser, input, |syntax_trees|::PropositionBody::Primitive, 0 as +Trapping, 0 as +Trapping) }
     }
 
-    machine evidence_body(parser: @mutable Parser, input: @TokenStream) {
-        take_current(parser, input);
-        parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedPropositionEvidence);
+    machine evidence_body(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
+        |types|::parse_type_reference(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedPropositionEvidence);
+        let type_result: u64 in Trapping = parser.type_result;
         transition parser.output.accepted {
-            true -> end(parser, input, PropositionBody::Evidence, parser.type_result, 0),
+            true -> end(parser, input, |syntax_trees|::PropositionBody::Evidence, type_result, 0 as +Trapping),
             _ -> done()
         }
     }
 
-    machine fact_body(parser: @mutable Parser, input: @TokenStream) {
-        take_current(parser, input);
-        parse_expression(parser, input, ParseDiagnosticCode::ExpectedPropositionFact, false, true);
+    machine fact_body(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
+        |expression|::parse_expression(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedPropositionFact, false, true);
+        let expression_result: u64 in Trapping = parser.expression_result;
         transition parser.output.accepted {
-            true -> end(parser, input, PropositionBody::Transparent, 0, parser.expression_result),
+            true -> end(parser, input, |syntax_trees|::PropositionBody::Transparent, 0 as +Trapping, expression_result),
             _ -> done()
         }
     }
 
     machine end(
-        parser: @mutable Parser,
-        input: @TokenStream,
-        body: PropositionBody,
+        parser: @mutable |parser|::Parser,
+        input: @|tokens|::TokenStream,
+        body: |syntax_trees|::PropositionBody,
         evidence: u64 in Trapping,
         fact: u64 in Trapping
     ) {
-        expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedPropositionEnd);
+        |input|::expect_punctuation(parser, input, |tokens|::PunctuationKind::Semicolon, |syntax_trees|::ParseDiagnosticCode::ExpectedPropositionEnd);
         transition parser.output.accepted {
             true -> retain_capacity(parser, input, body, evidence, fact),
             _ -> done()
@@ -127,36 +131,36 @@ crashes Trap
     }
 
     machine retain_capacity(
-        parser: @mutable Parser,
-        input: @TokenStream,
-        body: PropositionBody,
+        parser: @mutable |parser|::Parser,
+        input: @|tokens|::TokenStream,
+        body: |syntax_trees|::PropositionBody,
         evidence: u64 in Trapping,
         fact: u64 in Trapping
     ) {
         transition parser.output.proposition_count < 256 {
             true -> root_capacity(parser, input, body, evidence, fact),
-            _ -> reject(parser, input, ParseDiagnosticCode::PropositionCapacityExceeded)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::PropositionCapacityExceeded)
         }
     }
 
     machine root_capacity(
-        parser: @mutable Parser,
-        input: @TokenStream,
-        body: PropositionBody,
+        parser: @mutable |parser|::Parser,
+        input: @|tokens|::TokenStream,
+        body: |syntax_trees|::PropositionBody,
         evidence: u64 in Trapping,
         fact: u64 in Trapping
     ) {
         transition parser.output.root_count < 4096 {
             true -> retain(parser, body, evidence, fact),
-            _ -> reject(parser, input, ParseDiagnosticCode::RootCapacityExceeded)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::RootCapacityExceeded)
         }
     }
 
-    machine retain(parser: @mutable Parser, body: PropositionBody, evidence: u64 in Trapping, fact: u64 in Trapping) {
+    machine retain(parser: @mutable |parser|::Parser, body: |syntax_trees|::PropositionBody, evidence: u64 in Trapping, fact: u64 in Trapping) {
         let proposition: u64 in Trapping = parser.output.proposition_count as +Trapping;
-        let span: SourceSpan = parser_source_span(parser, parser.declaration_start, parser.token_end);
-        parser.output.propositions[parser.output.proposition_count] = PropositionItem {
-            name: identifier_span(parser, parser.declaration_name_start, parser.declaration_name_end),
+        let span: |source|::SourceSpan = |parser|::parser_source_span(parser, parser.declaration_start, parser.token_end);
+        parser.output.propositions[parser.output.proposition_count] = |syntax_trees|::PropositionItem {
+            name: |parser|::identifier_span(parser, parser.declaration_name_start, parser.declaration_name_end),
             first_generic_parameter: parser.declaration_first_generic,
             generic_parameter_count: (parser.output.generic_parameter_count as +Trapping) - parser.declaration_first_generic,
             first_parameter: parser.declaration_first_parameter,
@@ -168,16 +172,16 @@ crashes Trap
             source_span: span
         };
         parser.output.proposition_count = parser.output.proposition_count + 1;
-        parser.output.roots[parser.output.root_count] = RootItem {
-            kind: RootItemKind::Proposition,
+        parser.output.roots[parser.output.root_count] = |syntax_trees|::RootItem {
+            kind: |syntax_trees|::RootItemKind::Proposition,
             item_index: proposition,
             source_span: span
         };
         parser.output.root_count = parser.output.root_count + 1;
     }
 
-    machine reject(parser: @mutable Parser, input: @TokenStream, code: ParseDiagnosticCode) {
-        reject_current(parser, input, code);
+    machine reject(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, code: |syntax_trees|::ParseDiagnosticCode) {
+        |input|::reject_current(parser, input, code);
     }
 
     machine done() {}

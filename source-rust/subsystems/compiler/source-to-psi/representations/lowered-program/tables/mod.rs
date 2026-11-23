@@ -25,6 +25,9 @@ a scan or a map. The crate's own identities exist only where the lowered form
 has no identity for the concept.
 */
 
+mod shared_rows;
+pub use shared_rows::{CheckingRows, LoopCheckingRows};
+
 pub mod bindings;
 pub mod contracts;
 pub mod edges;
@@ -332,13 +335,13 @@ pub fn row<Id: NumericId, T>(
 /// "Claim identities stay machine-local"), so these tables are too.
 #[derive(Debug, Clone, Default)]
 pub struct MachineTables {
-    pub values: IdTable<ValueId, values::ValueRow>,
+    pub values: CheckingRows<ValueId, values::ValueRow>,
     pub knowledge: IdTable<KnowledgeId, values::KnowledgeRow>,
     /// The propositions knowledge rows state, minted by `push`. Machine-local
     /// like every other identity here: Terminal Psi keeps contract
     /// propositions inline and has no proposition table of its own.
     pub propositions: IdTable<PropositionId, semantic_vocabulary::Proposition>,
-    pub places: IdTable<ExactPlaceId, bindings::PlaceRow>,
+    pub places: CheckingRows<ExactPlaceId, bindings::PlaceRow>,
     /// The `ExactPlaceId` of each root `PlaceId`. Elaboration mints root
     /// `PlaceId`s densely too, so interning a root is one index.
     pub roots: IdTable<PlaceId, ExactPlaceId>,

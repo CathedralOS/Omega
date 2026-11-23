@@ -88,6 +88,7 @@ fn derive_write_frames(
             .get_mut(machine.id)
             .ok_or_else(|| WriteFrameError::at(machine.id, "write-frame owner disappeared"))? =
             frame;
+        analysis.release_storage_snapshots();
     }
     Ok(frames)
 }

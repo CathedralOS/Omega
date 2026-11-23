@@ -1,17 +1,13 @@
-use representations\source_files\SourceSet;
-use representations\symbol_resolved_trees\NameResolution;
-use representations\syntax_trees\ArmRange;
-use representations\syntax_trees\Expression;
-use representations\syntax_trees\JoinedValues;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\TransitionArm;
-use representations\syntax_trees\joined_values;
-use representations\syntax_trees\syntax_trees_expression;
-use representations\syntax_trees\syntax_trees_match_arm;
-use representations\typed_trees\TypeDiagnosticCode;
-use representations\typed_trees\set_expression_type;
-use representations\typed_trees\typing_expression_type;
-use representations\typed_trees\typing_reject;
+use pipeline/symbol_resolved_trees_to_typed_trees/coverage.omg;
+use pipeline/symbol_resolved_trees_to_typed_trees/landing.omg;
+use pipeline/symbol_resolved_trees_to_typed_trees/statements.omg;
+use pipeline/symbol_resolved_trees_to_typed_trees/joins.omg;
+use pipeline/symbol_resolved_trees_to_typed_trees/typing_state.omg;
+
+use representations/source_files/source.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/typed_trees/typed_trees.omg;
 
 // A value-position match (wiki/spec/language/patterns.md): `match subject {
 // pattern -> value, ... }` produces the value of its first arm whose pattern
@@ -24,34 +20,34 @@ use representations\typed_trees\typing_reject;
 // (landing.omg) and is no subject. The arms cover the subject
 // (coverage.omg).
 public machine type_match(
-    typer: @mutable Typer,
-    sources: @SourceSet,
-    syntax: @SyntaxTrees,
-    resolution: @NameResolution,
+    typer: @mutable |typing_state|::Typer,
+    sources: @|source|::SourceSet,
+    syntax: @|syntax_trees|::SyntaxTrees,
+    resolution: @|symbol_resolved_trees|::NameResolution,
     index: u64 in Trapping,
-    expression: Expression
+    expression: |syntax_trees|::Expression
 )
 crashes Trap
 {
-    let subject_type: u64 in Trapping = typing_expression_type(@typer.output, expression.left);
-    let joined: bool = unlanded_join_type(typer, subject_type);
+    let subject_type: u64 in Trapping = |typed_trees|::typing_expression_type(@typer.output, expression.left);
+    let joined: bool = |landing|::unlanded_join_type(typer, subject_type);
     transition subject_type == 0 || joined {
         true -> subject_absent(typer, syntax, expression),
-        _ -> pattern(typer, sources, syntax, resolution, index, expression, subject_type, 0)
+        _ -> pattern(typer, sources, syntax, resolution, index, expression, subject_type, 0 as +Trapping)
     }
 
-    machine subject_absent(typer: @mutable Typer, syntax: @SyntaxTrees, expression: Expression) {
-        let subject: Expression = syntax_trees_expression(syntax, expression.left);
-        typing_reject(@mutable typer.output, TypeDiagnosticCode::NotAValue, subject.source_span);
+    machine subject_absent(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, expression: |syntax_trees|::Expression) {
+        let subject: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, expression.left);
+        |typed_trees|::typing_reject(@mutable typer.output, |typed_trees|::TypeDiagnosticCode::NotAValue, subject.source_span);
     }
 
     machine pattern(
-        typer: @mutable Typer,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
+        typer: @mutable |typing_state|::Typer,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
         index: u64 in Trapping,
-        expression: Expression,
+        expression: |syntax_trees|::Expression,
         subject_type: u64 in Trapping,
         offset: u64 in Trapping
     ) {
@@ -62,78 +58,78 @@ crashes Trap
     }
 
     machine arm_pattern(
-        typer: @mutable Typer,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
+        typer: @mutable |typing_state|::Typer,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
         index: u64 in Trapping,
-        expression: Expression,
+        expression: |syntax_trees|::Expression,
         subject_type: u64 in Trapping,
         offset: u64 in Trapping
     ) {
-        let arm: TransitionArm = syntax_trees_match_arm(syntax, expression.first + offset);
-        let named: u64 in Trapping = pattern_head(typer, syntax, resolution, arm, subject_type);
+        let arm: |syntax_trees|::TransitionArm = |syntax_trees|::syntax_trees_match_arm(syntax, expression.first + offset);
+        let named: u64 in Trapping = |statements|::pattern_head(typer, syntax, resolution, arm, subject_type);
         transition { _ -> pattern(typer, sources, syntax, resolution, index, expression, subject_type, offset + 1) }
     }
 
     machine patterns_typed(
-        typer: @mutable Typer,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
+        typer: @mutable |typing_state|::Typer,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
         index: u64 in Trapping,
-        expression: Expression,
+        expression: |syntax_trees|::Expression,
         subject_type: u64 in Trapping
     ) {
-        let range: ArmRange = ArmRange { matched: true, first: expression.first, count: expression.count };
-        let covered: bool = covers(typer, sources, syntax, resolution, range, subject_type);
+        let range: |syntax_trees|::ArmRange = |syntax_trees|::ArmRange { matched: true, first: expression.first, count: expression.count };
+        let covered: bool = |coverage|::covers(typer, sources, syntax, resolution, range, subject_type);
         transition !typer.output.accepted {
             true -> done(),
             _ -> coverage(typer, syntax, index, expression, covered)
         }
     }
 
-    machine coverage(typer: @mutable Typer, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression, covered: bool) {
+    machine coverage(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, expression: |syntax_trees|::Expression, covered: bool) {
         transition covered {
             true -> values(typer, syntax, index, expression),
             _ -> uncovered(typer, expression)
         }
     }
 
-    machine uncovered(typer: @mutable Typer, expression: Expression) {
-        typing_reject(@mutable typer.output, TypeDiagnosticCode::UncoveredDispatch, expression.source_span);
+    machine uncovered(typer: @mutable |typing_state|::Typer, expression: |syntax_trees|::Expression) {
+        |typed_trees|::typing_reject(@mutable typer.output, |typed_trees|::TypeDiagnosticCode::UncoveredDispatch, expression.source_span);
     }
 
-    machine values(typer: @mutable Typer, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression) {
-        let values: JoinedValues = joined_values(expression);
-        let result_type: u64 in Trapping = fixed_join(typer, syntax, values);
+    machine values(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, expression: |syntax_trees|::Expression) {
+        let values: |syntax_trees|::JoinedValues = |syntax_trees|::joined_values(expression);
+        let result_type: u64 in Trapping = |joins|::fixed_join(typer, syntax, values);
         transition result_type > 0 {
             true -> fixed(typer, syntax, index, values, result_type),
             _ -> unfixed(typer, syntax, index, values)
         }
     }
 
-    machine fixed(typer: @mutable Typer, syntax: @SyntaxTrees, index: u64 in Trapping, values: JoinedValues, result_type: u64 in Trapping) {
-        set_expression_type(@mutable typer.output, index, result_type);
-        admit_joined(typer, syntax, values, result_type);
+    machine fixed(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, values: |syntax_trees|::JoinedValues, result_type: u64 in Trapping) {
+        |typed_trees|::set_expression_type(@mutable typer.output, index, result_type);
+        |joins|::admit_joined(typer, syntax, values, result_type);
     }
 
     // Arms of `Never` alone make the match `Never` too.
-    machine unfixed(typer: @mutable Typer, syntax: @SyntaxTrees, index: u64 in Trapping, values: JoinedValues) {
-        let join: UnlandedJoin = unlanded_join(typer, syntax, values);
+    machine unfixed(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, values: |syntax_trees|::JoinedValues) {
+        let join: |joins|::UnlandedJoin = |joins|::unlanded_join(typer, syntax, values);
         transition join.mismatch > 0 {
             true -> mismatched(typer, syntax, join.mismatch - 1),
             _ -> joined(typer, index, join.joined)
         }
     }
 
-    machine joined(typer: @mutable Typer, index: u64 in Trapping, joined: u64 in Trapping) {
-        set_expression_type(@mutable typer.output, index, joined);
+    machine joined(typer: @mutable |typing_state|::Typer, index: u64 in Trapping, joined: u64 in Trapping) {
+        |typed_trees|::set_expression_type(@mutable typer.output, index, joined);
     }
 
-    machine mismatched(typer: @mutable Typer, syntax: @SyntaxTrees, value: u64 in Trapping) {
-        let written: Expression = syntax_trees_expression(syntax, value);
-        typing_reject(@mutable typer.output, TypeDiagnosticCode::MismatchedTypes, written.source_span);
+    machine mismatched(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, value: u64 in Trapping) {
+        let written: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, value);
+        |typed_trees|::typing_reject(@mutable typer.output, |typed_trees|::TypeDiagnosticCode::MismatchedTypes, written.source_span);
     }
 
     machine done() {}

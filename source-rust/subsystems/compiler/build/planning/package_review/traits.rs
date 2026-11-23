@@ -2,32 +2,34 @@
 
 use super::declarations::{ContractScope, unavailable};
 use super::input::PolicySource;
+use super::telescope::SignatureScope;
 use diagnostics::Diagnostic;
 use review_evidence::record::{
-    PackagePolicyTermination, PackagePolicyTraitRequirement, PackagePolicyTraitShape,
-    PackageReviewBorrowOrigin, PackageReviewParameterQualification,
+    PackagePolicyConformanceShape, PackagePolicyTermination, PackagePolicyTraitRequirement,
+    PackagePolicyTraitShape, PackageReviewBorrowOrigin, PackageReviewEvidenceInterface,
+    PackageReviewEvidenceRequirement, PackageReviewParameterQualification,
     PackageReviewReturnedBorrowOrigin, PackageReviewSemanticDependencyExposure,
     PackageReviewSignatureParameter, PackageReviewTypeIdentity,
 };
 use semantic_vocabulary::PackageKeyIdentity;
+use source_compiler::representations::source_state::trait_definition::AppliedTraitScope;
 
 impl PolicySource<'_> {
     pub(super) fn public_conformances(
         &self,
         package: PackageKeyIdentity,
-    ) -> Result<Vec<review_evidence::record::PackagePolicyConformanceShape>, Vec<Diagnostic>> {
-        use review_evidence::record::{
-            PackagePolicyConformanceShape, PackageReviewEvidenceInterface,
-            PackageReviewEvidenceRequirement,
-        };
-        use source_compiler::representations::source_state::trait_definition::AppliedTraitScope;
+    ) -> Result<Vec<PackagePolicyConformanceShape>, Vec<Diagnostic>> {
         let program = self.typed();
         let mut rows = Vec::new();
-        for c in program.conformances().iter().filter(|c| c.is_public) {
-            if program.symbols.symbol_package_identity(c.symbol) != Some(package) {
+        for conformance in program
+            .conformances()
+            .iter()
+            .filter(|conformance| conformance.is_public)
+        {
+            if program.symbols.symbol_package_identity(conformance.symbol) != Some(package) {
                 continue;
             }
-            let root = AppliedTraitScope::from_conformance(program, c)
+            let root = AppliedTraitScope::from_conformance(program, conformance)
                 .ok_or_else(|| unavailable("a public conformance's checked schema application"))?;
             let mut scopes = Vec::new();
             root.try_visit(program, &mut |scope| {
@@ -35,56 +37,93 @@ impl PolicySource<'_> {
                 Ok(())
             })
             .map_err(unavailable)?;
-            let arguments = program
-                .type_reference_table
-                .type_reference_handles(c.arguments)
+            let binder_scope = SignatureScope::declaration(self, &[conformance.symbol])?;
+            let mut applications = scopes
                 .iter()
-                .map(|r| self.declared_type(c.symbol, *r))
-                .collect::<Result<Vec<_>, _>>()?;
-            let mut requirements = Vec::new();
-            for scope in scopes {
-                let is_root = scope.declaration.symbol == root.declaration.symbol;
-                if !is_root
-                    && (!scope.declaration.type_parameters.is_empty()
-                        || !scope.declaration.lifetime_parameters.is_empty())
-                {
-                    return Err(unavailable(
-                        "inherited evidence with forwarded generic arguments",
-                    ));
-                }
-                for signature in program.trait_machine_signatures(scope.declaration) {
-                    requirements.push(PackageReviewEvidenceRequirement {
-                        declaring_trait: self.nominal(scope.declaration.symbol)?,
-                        declaring_trait_lifetime_arguments: if is_root {
-                            c.trait_lifetime_arguments.clone()
-                        } else {
-                            Vec::new()
-                        },
-                        declaring_trait_arguments: if is_root {
-                            arguments.clone()
-                        } else {
-                            Vec::new()
-                        },
-                        requirement: self.nominal(signature.symbol)?,
-                    });
-                }
+                .map(|scope| self.conformance_interface(scope, &binder_scope));
+            let mut interface = applications
+                .next()
+                .ok_or_else(|| unavailable("the public conformance's target trait"))??;
+            for parent in applications {
+                interface.requirements.append(&mut parent?.requirements);
             }
-            requirements.sort();
-            requirements.dedup();
+            interface.requirements.sort();
+            interface.requirements.dedup();
             rows.push(PackagePolicyConformanceShape {
-                identity: self.nominal(c.symbol)?,
-                lifetime_parameter_count: c.lifetime_parameters.len(),
-                type_parameters: self.type_parameters(c.symbol)?,
-                interface: PackageReviewEvidenceInterface {
-                    trait_identity: self.nominal(c.trait_symbol)?,
-                    lifetime_arguments: c.trait_lifetime_arguments.clone(),
-                    arguments,
-                    requirements,
-                },
+                identity: self.nominal(conformance.symbol)?,
+                lifetime_parameter_count: conformance.lifetime_parameters.len(),
+                type_parameters: self.scoped_parameters(conformance.symbol, &binder_scope)?,
+                interface,
             });
         }
         rows.sort_by(|a, b| a.identity.cmp(&b.identity));
         Ok(rows)
+    }
+
+    fn conformance_interface(
+        &self,
+        scope: &AppliedTraitScope<'_>,
+        binders: &SignatureScope,
+    ) -> Result<PackageReviewEvidenceInterface, Vec<Diagnostic>> {
+        use source_compiler::representations::source_state::type_identity::{
+            LifetimeParameterIdentity, apply_resolved_lifetime_parameter_identity,
+        };
+        let program = self.typed();
+        scope.with_identity_scopes(program, |frames| {
+            let lifetime_arguments: Vec<u32> = (0..scope.declaration.lifetime_parameters.len())
+                .map(|ordinal| {
+                    let formal = LifetimeParameterIdentity {
+                        declaration: scope.declaration.symbol,
+                        ordinal,
+                    };
+                    apply_resolved_lifetime_parameter_identity(program, formal, frames)
+                        .filter(|(region, _)| region.declaration == scope.argument_owner)
+                        .and_then(|(region, _)| u32::try_from(region.ordinal).ok())
+                        .ok_or_else(|| unavailable("the checked conformance lifetime argument"))
+                })
+                .collect::<Result<_, _>>()?;
+            let arguments: Vec<_> = program
+                .trait_type_parameters(scope.declaration)
+                .iter()
+                .map(|parameter| {
+                    let (reference, outer) = scope
+                        .supplied_parameter_application(program, parameter.symbol)
+                        .ok_or_else(|| unavailable("the checked conformance static argument"))?;
+                    self.applied_scoped_type(
+                        scope.argument_owner,
+                        reference,
+                        binders,
+                        frames.get(..outer).ok_or_else(|| {
+                            unavailable("the conformance argument's supplying scope")
+                        })?,
+                    )
+                })
+                .collect::<Result<_, _>>()?;
+            let trait_identity = self.nominal(scope.declaration.symbol)?;
+            let signatures = program.trait_machine_signatures(scope.declaration);
+            if signatures.len() != scope.declaration.machines.len() {
+                return Err(unavailable(
+                    "the declaring trait's complete requirement roster",
+                ));
+            }
+            let requirements = signatures
+                .iter()
+                .map(|signature| {
+                    Ok(PackageReviewEvidenceRequirement {
+                        declaring_trait: trait_identity.clone(),
+                        declaring_trait_lifetime_arguments: lifetime_arguments.clone(),
+                        declaring_trait_arguments: arguments.clone(),
+                        requirement: self.nominal(signature.symbol)?,
+                    })
+                })
+                .collect::<Result<_, Vec<Diagnostic>>>()?;
+            Ok(PackageReviewEvidenceInterface {
+                trait_identity,
+                lifetime_arguments,
+                arguments,
+                requirements,
+            })
+        })
     }
 
     pub(super) fn public_traits(
@@ -253,13 +292,12 @@ impl PolicySource<'_> {
             .requirement_review(signature.symbol)
             .map_err(|reason| unavailable(&reason))?;
         if signature.is_default
-            || !signature.type_parameters.is_empty()
             || !signature.conformance_bounds.is_empty()
             || !signature.native_callback_parameters.is_empty()
             || signature.spelling.is_some()
         {
             return Err(unavailable(
-                "the requirement's complete static/default/callback contract",
+                "the requirement's complete conformance, spelling, default, or callback contract",
             ));
         }
         let exposure = if declaration.is_public {
@@ -270,12 +308,24 @@ impl PolicySource<'_> {
         let parameters =
             self.scoped_requirement_parameters(signature, &metadata.parameter_types, exposure)?;
         let formals = typed.state_signature_parameters(signature);
+        let scope = super::telescope::SignatureScope::declaration(
+            self,
+            &[declaration.symbol, signature.symbol],
+        )?;
+        let type_parameters = self.scoped_parameters(signature.symbol, &scope)?;
+        let mut statics = typed.trait_type_parameters(declaration).to_vec();
+        statics.extend(
+            typed
+                .state_signature_type_parameters(signature)
+                .iter()
+                .cloned(),
+        );
         let contracts = self.signature_contracts(
             typed.state_signature_contracts(signature),
             ContractScope {
                 owner: signature.symbol,
                 subject: None,
-                statics: Default::default(),
+                statics: statics.as_slice().into(),
                 parameters: formals,
                 result: None,
             },
@@ -312,7 +362,7 @@ impl PolicySource<'_> {
             spelling: None,
             has_default_realization: false,
             lifetime_parameter_count: metadata.lifetime_parameter_count,
-            type_parameters: Vec::new(),
+            type_parameters,
             conformance_bounds: Vec::new(),
             parameters,
             structural_parameter_positions: Some(metadata.structural_parameter_positions.clone()),

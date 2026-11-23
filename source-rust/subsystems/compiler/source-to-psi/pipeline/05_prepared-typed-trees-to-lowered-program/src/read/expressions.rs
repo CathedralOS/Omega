@@ -1323,17 +1323,9 @@ impl<'t> Program<'t> {
             earlier => earlier,
         };
         let value_type = match value.result {
-            // Every returning arm supplies the same arithmetic policy.
-            // Predicate-domain membership still needs its own arrival proof.
-            Some(value_type @ ValueType::Scalar(_, qualification))
-                if qualification.domains.is_empty() =>
-            {
-                value_type
-            }
-            Some(value_type @ ValueType::Record(..)) => value_type,
-            Some(ValueType::Scalar(..)) => {
-                return Err(unserved("match with a qualified result"));
-            }
+            // Every returning arm supplies the one result type, policy and
+            // domains included; the join's parameter carries that type.
+            Some(value_type @ (ValueType::Scalar(..) | ValueType::Record(..))) => value_type,
             Some(ValueType::Rigid(_)) => {
                 return Err(unserved("match with a result of a rigid type"));
             }

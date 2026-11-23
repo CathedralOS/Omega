@@ -627,7 +627,9 @@ fn infer_call(
         || omitted.iter().any(|parameter| {
             !matches!(
                 parameter.kind,
-                TypeParameterKind::Type | TypeParameterKind::Const { .. }
+                TypeParameterKind::Type
+                    | TypeParameterKind::Const { .. }
+                    | TypeParameterKind::Value { .. }
             )
         })
         || formals.len() != call.arguments.len()
@@ -1357,14 +1359,16 @@ fn call_result(
     for (parameter, argument) in parameters.iter().zip(&arguments) {
         if !matches!(
             parameter.kind,
-            TypeParameterKind::Type | TypeParameterKind::Const { .. }
+            TypeParameterKind::Type
+                | TypeParameterKind::Const { .. }
+                | TypeParameterKind::Value { .. }
         ) {
             return Ok(None);
         }
         let Ok(reference) = program.static_operand_type_reference(argument) else {
             return Ok(None);
         };
-        let reference = if matches!(parameter.kind, TypeParameterKind::Const { .. }) {
+        let reference = if parameter.kind.is_const_or_value() {
             let Some(value) = program
                 .static_const_literal_from_type_reference(reference)
                 .and_then(|literal| literal.value_u64())
@@ -1392,9 +1396,13 @@ mod tests {
     use crate::source_state::statement::{StatementNode, TransitionTargetNode};
     use crate::typing::qualified_operator_home_tests::checked;
 
+    /// `path[0..0]` on a `Marked` slice view selects the `[..]` declared over
+    /// that exact type, so typing replaces the range with a call of
+    /// `alternative` over the collection and both endpoints, and no builtin
+    /// range meaning remains for that occurrence.
     #[test]
     fn a_declared_qualified_range_keeps_its_exact_operand_selection() {
-        let mut program = checked(&[(
+        let program = checked(&[(
             "main.omg",
             r#"
             domain [u8]::Marked;
@@ -1407,42 +1415,34 @@ mod tests {
         "#,
         )])
         .unwrap();
-        let count = builtin(&mut program, BuiltinTypeAtom::U64).unwrap();
-        let owners = crate::source_state::references::collect_program_operand_owners(&program);
-        let mut observed = 0;
-        for (expression, node) in program.expression_table.expression_entries() {
-            let ExpressionNode::Indexed(indexed) = node else {
-                continue;
-            };
-            let owner = expression_owner(&program, &owners, expression).unwrap();
-            let collection = program
+        assert!(
+            !program
                 .expression_table
-                .constructed_value_type_reference(indexed.collection);
-            let operands = [Some(collection), Some(count), Some(count)];
-            let spelling = language_core::OperatorSpelling::Range;
-            let candidates = crate::source_state::operator::resolve_indexed_spelling_for_operands(
-                &program,
-                spelling,
-                &operands,
-                program.expression_table.source_span(expression),
-            );
-            assert_eq!(candidates.len(), 1);
-            assert_eq!(
+                .expression_entries()
+                .any(|(_, node)| matches!(node, ExpressionNode::Indexed(_)))
+        );
+        let calls = program
+            .expression_table
+            .expression_entries()
+            .filter_map(|(_, node)| match node {
+                ExpressionNode::Call(call) => Some(call),
+                _ => None,
+            })
+            .filter(|call| {
                 program
-                    .machine_by_symbol(candidates[0].operator.symbol)
-                    .unwrap()
-                    .name
-                    .as_str(),
-                "alternative"
-            );
-            assert!(
-                !crate::source_state::operator::has_builtin_spelled_expression_meaning(
-                    &program, owner, expression, spelling, &operands,
-                )
-            );
-            observed += 1;
-        }
-        assert_eq!(observed, 1);
+                    .machine_by_symbol(call.target_symbol)
+                    .is_some_and(|machine| machine.name.as_str() == "alternative")
+            })
+            .collect::<Vec<_>>();
+        let [call] = calls[..] else {
+            panic!("the range is one call of `alternative`: {calls:?}")
+        };
+        let arguments = program.expression_table.expression_handles(call.arguments);
+        let written = arguments
+            .iter()
+            .map(|argument| program.expression_table.display_name(*argument))
+            .collect::<Vec<_>>();
+        assert_eq!(written, ["path", "0", "0"]);
     }
 
     #[test]

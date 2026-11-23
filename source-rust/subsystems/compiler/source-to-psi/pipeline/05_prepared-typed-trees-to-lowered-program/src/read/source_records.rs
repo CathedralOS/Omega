@@ -194,7 +194,8 @@ pub(super) fn source_application_in_scope(
             }
             match parameter.kind {
                 TypeParameterKind::Type => {}
-                TypeParameterKind::Const { type_reference } => {
+                TypeParameterKind::Const { type_reference }
+                | TypeParameterKind::Value { type_reference } => {
                     let carrier = match typed.type_reference_table.type_reference(type_reference) {
                         TypeReferenceNode::Named { symbol, .. } => {
                             match typed.symbols.builtin_type_atom(*symbol) {
@@ -434,7 +435,7 @@ pub(super) fn same_application(
                         // Both source applications already checked this binder's
                         // carrier. Compare its value as an index, so evaluating a
                         // literal does not create a second record storage identity.
-                        TypeParameterKind::Const { .. } => {
+                        TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
                             let left = left.scope.index_identity(typed, *left_argument);
                             let right = right.scope.index_identity(typed, *right_argument);
                             left.is_some() && left == right

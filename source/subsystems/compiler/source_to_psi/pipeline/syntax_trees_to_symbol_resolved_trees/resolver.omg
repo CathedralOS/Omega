@@ -1,9 +1,22 @@
-use representations\source_files\SourceId;
-use representations\source_files\SourceSet;
-use representations\symbol_resolved_trees\NameResolution;
-use representations\symbol_resolved_trees\OverloadLinks;
-use representations\symbol_resolved_trees\name_resolution_clear;
-use representations\syntax_trees\SyntaxTrees;
+use pipeline/syntax_trees_to_symbol_resolved_trees/resolution_state.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/clauses.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/containers.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/contracts.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/declaration_names.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/domains.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/facts.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/forms.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/identities.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/imports.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/machine_signatures.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/measures.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/operators.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/overloads.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/type_reference_owners.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/names.omg;
+
+use representations/source_files/source.omg;
+use representations/syntax_trees/syntax_trees.omg;
 
 // Resolve one complete source set. This file owns pass order and the first
 // rejection. Each step below calls the machine that owns its part of the IR.
@@ -12,182 +25,175 @@ use representations\syntax_trees\SyntaxTrees;
 // type_names.omg binds its name using generic_scopes.omg. machine_signatures.omg
 // checks overload signatures; overloads.omg publishes visible candidates
 // after body, fact and clause names have been bound.
-public data Resolver {
-    output: NameResolution;
-    // Name-resolution scratch: what each expression's position lets it name.
-    name_roles: [NameRole; 131072];
-    overload_heads: [OverloadLinks; 10240];
+public machine resolver_initialize(resolver: @mutable |resolution_state|::Resolver) {
+    |resolution_state|::initialize(resolver);
 }
 
-public machine resolver_initialize(resolver: @mutable Resolver) {
-    name_resolution_clear(@mutable resolver.output, SourceId { value: 0 as +Trapping });
-}
-
-public machine resolve(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
+public machine resolve(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees)
 crashes Trap
 {
-    name_resolution_clear(@mutable resolver.output, SourceId { value: 0 as +Trapping });
-    place_machines(resolver, syntax);
-    check_declaration_forms(resolver, syntax);
+    |resolution_state|::initialize(resolver);
+    |containers|::place_machines(resolver, syntax);
+    |forms|::check_declaration_forms(resolver, syntax);
     transition resolver.output.accepted {
         true -> imports(resolver, sources, syntax),
         _ -> done()
     }
 
-    machine imports(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
-        check_imports(resolver, sources, syntax);
+    machine imports(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees) {
+        |imports|::check_imports(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> declarations(resolver, sources, syntax),
             _ -> done()
         }
     }
 
-    machine declarations(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
-        declare_roots(resolver, sources, syntax);
+    machine declarations(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees) {
+        |declaration_names|::declare_roots(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> members(resolver, sources, syntax),
             _ -> done()
         }
     }
 
-    machine members(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
-        check_members(resolver, sources, syntax);
+    machine members(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees) {
+        |declaration_names|::check_members(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> measures(resolver, sources, syntax),
             _ -> done()
         }
     }
 
-    machine measures(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
-        check_measures(resolver, sources, syntax);
+    machine measures(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees) {
+        |measures|::check_measures(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> declaration_generics(resolver, sources, syntax),
             _ -> done()
         }
     }
 
-    machine declaration_generics(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
-        check_declaration_namespaces(resolver, sources, syntax);
+    machine declaration_generics(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees) {
+        |declaration_names|::check_declaration_namespaces(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> contracts(resolver, sources, syntax),
             _ -> done()
         }
     }
 
-    machine contracts(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
-        bind_machine_contracts(resolver, sources, syntax);
+    machine contracts(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees) {
+        |contracts|::bind_machine_contracts(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> identities(resolver, sources, syntax),
             _ -> done()
         }
     }
 
-    machine identities(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
-        check_stable_identities(resolver, sources, syntax);
+    machine identities(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees) {
+        |identities|::check_stable_identities(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> domain_carriers(resolver, sources, syntax),
             _ -> done()
         }
     }
 
-    machine domain_carriers(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
-        bind_domain_carriers(resolver, sources, syntax);
+    machine domain_carriers(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees) {
+        |domains|::bind_domain_carriers(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> domains(resolver, sources, syntax),
             _ -> done()
         }
     }
 
-    machine domains(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
-        check_domains(resolver, sources, syntax);
+    machine domains(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees) {
+        |domains|::check_domains(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> references(resolver, sources, syntax),
             _ -> done()
         }
     }
 
-    machine references(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
-        bind_references(resolver, sources, syntax);
+    machine references(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees) {
+        |type_reference_owners|::bind_references(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> declaration_references(resolver, sources, syntax),
             _ -> done()
         }
     }
 
-    machine declaration_references(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
-        bind_declaration_references(resolver, sources, syntax);
+    machine declaration_references(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees) {
+        |type_reference_owners|::bind_declaration_references(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> machine_references(resolver, sources, syntax),
             _ -> done()
         }
     }
 
-    machine machine_references(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
-        bind_machine_references(resolver, sources, syntax);
+    machine machine_references(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees) {
+        |type_reference_owners|::bind_machine_references(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> body_references(resolver, sources, syntax),
             _ -> done()
         }
     }
 
-    machine body_references(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
-        bind_body_references(resolver, sources, syntax);
+    machine body_references(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees) {
+        |type_reference_owners|::bind_body_references(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> machines(resolver, sources, syntax),
             _ -> done()
         }
     }
 
-    machine machines(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
-        check_machines(resolver, sources, syntax);
+    machine machines(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees) {
+        |machine_signatures|::check_machines(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> operators(resolver, sources, syntax),
             _ -> done()
         }
     }
 
-    machine operators(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
-        bind_operator_homes(resolver, sources, syntax);
+    machine operators(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees) {
+        |operators|::bind_operator_homes(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> domain_paths(resolver, sources, syntax),
             _ -> done()
         }
     }
 
-    machine domain_paths(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
-        bind_domain_paths(resolver, sources, syntax);
+    machine domain_paths(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees) {
+        |domains|::bind_domain_paths(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> names(resolver, sources, syntax),
             _ -> done()
         }
     }
 
-    machine names(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
-        bind_body_names(resolver, sources, syntax);
+    machine names(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees) {
+        |names|::bind_body_names(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> facts(resolver, sources, syntax),
             _ -> done()
         }
     }
 
-    machine facts(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
-        bind_fact_names(resolver, sources, syntax);
+    machine facts(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees) {
+        |facts|::bind_fact_names(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> clauses(resolver, sources, syntax),
             _ -> done()
         }
     }
 
-    machine clauses(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
-        bind_clause_names(resolver, sources, syntax);
+    machine clauses(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees) {
+        |clauses|::bind_clause_names(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> publish(resolver, sources, syntax),
             _ -> done()
         }
     }
 
-    machine publish(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
-        bind_visible_overloads(resolver, sources, syntax);
+    machine publish(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees) {
+        |overloads|::bind_visible_overloads(resolver, sources, syntax);
         resolver.output.binding_count = syntax.type_reference_count;
         resolver.output.value_binding_count = syntax.expression_count;
         resolver.output.path_binding_count = syntax.name_path_count;

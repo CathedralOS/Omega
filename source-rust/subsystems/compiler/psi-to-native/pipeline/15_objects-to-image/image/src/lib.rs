@@ -277,15 +277,16 @@ mod symbols {
 pub use builder::{FinalImageInput, build_final_image};
 pub use final_image::{
     FinalDataRegion, FinalDataRegionOrigin, FinalExecutableRegion, FinalExecutableRegionOrigin,
-    FinalExecutableTextDigest, FinalImage, FinalImageImport, FinalImageImportPlan,
-    FinalImageLayout, FinalImageMemory, FinalImageRelocation, FinalImageRelocationTable,
-    FinalImageSection, FinalImageSymbol, FinalImageSymbolDigest, FinalImageSymbolHandle,
-    FinalInitializedDataDigest, PlacedDataGapBytesDigest, PlacedDataRegionBytesDigest,
-    PlacedDataRegionInventory, PlacedDataRegionInventoryDigest, PlacedExecutableGapBytesDigest,
-    PlacedExecutableRegion, PlacedExecutableRegionBytesDigest, PlacedExecutableRegionInventory,
-    PlacedExecutableRegionInventoryDigest, StateFootprintEvidenceDigest, final_image_symbol_digest,
-    place_data_extent, place_data_regions, place_executable_extent, place_executable_regions,
-    validate_placed_data_region_inventory, validate_placed_executable_region_inventory,
+    FinalExecutableTextDigest, FinalFunctionUnwind, FinalImage, FinalImageImport,
+    FinalImageImportPlan, FinalImageLayout, FinalImageMemory, FinalImageRelocation,
+    FinalImageRelocationTable, FinalImageSection, FinalImageSymbol, FinalImageSymbolDigest,
+    FinalImageSymbolHandle, FinalInitializedDataDigest, PlacedDataGapBytesDigest,
+    PlacedDataRegionBytesDigest, PlacedDataRegionInventory, PlacedDataRegionInventoryDigest,
+    PlacedExecutableGapBytesDigest, PlacedExecutableRegion, PlacedExecutableRegionBytesDigest,
+    PlacedExecutableRegionInventory, PlacedExecutableRegionInventoryDigest,
+    StateFootprintEvidenceDigest, final_image_symbol_digest, place_data_extent, place_data_regions,
+    place_executable_extent, place_executable_regions, validate_placed_data_region_inventory,
+    validate_placed_executable_region_inventory,
 };
 pub use output::{
     CompilerEntryFootprintBindingDigest, CompilerEntryRegionBindingDigest,

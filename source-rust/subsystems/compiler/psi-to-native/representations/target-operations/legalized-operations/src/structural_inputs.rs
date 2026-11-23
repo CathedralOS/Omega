@@ -204,7 +204,11 @@ pub mod structural_reference_input {
             formal,
             path,
             declarations,
-            |identity| std::borrow::Cow::Owned(StructuralFieldType::Structural(identity)),
+            |identity| {
+                Some(std::borrow::Cow::Owned(StructuralFieldType::Structural(
+                    identity,
+                )))
+            },
             |root, path| reference_formation_geometry(root, path, declarations),
         )
     }
@@ -215,14 +219,9 @@ pub mod structural_reference_input {
         path: &[StructuralPathSegment],
         declarations: &NativeGeometry<'_>,
     ) -> Option<ReferenceSourceGeometry> {
-        projection_at(
-            root,
-            formal,
-            path,
-            declarations,
-            |identity| identity,
-            |root, path| descriptor_source_geometry(root, path, declarations),
-        )
+        projection_at(root, formal, path, declarations, Some, |root, path| {
+            descriptor_source_geometry(root, path, declarations)
+        })
     }
 
     fn projection_at<Endpoint>(
@@ -230,7 +229,7 @@ pub mod structural_reference_input {
         formal: Option<&terminal_psi::StructuralParameterDeclaration>,
         path: &[StructuralPathSegment],
         declarations: &NativeGeometry<'_>,
-        direct: impl FnOnce(StructuralTypeId) -> Endpoint,
+        direct: impl FnOnce(StructuralTypeId) -> Option<Endpoint>,
         project: impl FnOnce(
             StructuralTypeId,
             &[StructuralPathSegment],
@@ -244,7 +243,7 @@ pub mod structural_reference_input {
                 region_root: root,
                 uses_borrowed_backing: false,
                 readable: true,
-                selected: direct(root),
+                selected: direct(root)?,
                 byte_offset: 0,
                 pointer_slots: Vec::new(),
                 elements: Vec::new(),
@@ -376,12 +375,15 @@ pub mod structural_reference_input {
         })
     }
 
-    pub fn owner_loan_geometry(
+    pub fn reference_source_geometry_at(
         root: StructuralTypeId,
+        formal: Option<&terminal_psi::StructuralParameterDeclaration>,
         path: &[StructuralPathSegment],
         declarations: &NativeGeometry<'_>,
     ) -> Option<ReferenceSourceGeometry> {
-        descriptor_source_geometry(root, path, declarations)
+        projection_at(root, formal, path, declarations, Some, |root, path| {
+            reference_source_geometry(root, path, declarations)
+        })
     }
 
     pub fn leaf_copy_geometry(
@@ -398,18 +400,11 @@ pub mod structural_reference_input {
             return None;
         }
         let expected = declarations.iter().find(|row| row.id == expected)?;
-        projection_at(
-            root,
-            formal,
-            path,
-            declarations,
-            |identity| identity,
-            |root, path| {
-                reference_source_geometry_with_leaf_type(root, path, declarations, |field| {
-                    field.leaf_copy_type(Some(expected))
-                })
-            },
-        )
+        projection_at(root, formal, path, declarations, Some, |root, path| {
+            reference_source_geometry_with_leaf_type(root, path, declarations, |field| {
+                field.leaf_copy_type(Some(expected))
+            })
+        })
     }
 
     fn reference_source_geometry_with_leaf_type(
@@ -1029,26 +1024,57 @@ pub mod structural_reference_input {
 
         pub fn projected_collection<'types>(
             root: StructuralTypeId,
+            formal: Option<&terminal_psi::StructuralParameterDeclaration>,
             path: &[StructuralPathSegment],
             declarations: &NativeGeometry<'types>,
         ) -> Option<ProjectedCollection<'types>> {
-            let regions = storage_projection_regions(root, path, declarations)?;
-            if !regions.readable {
+            if formal.is_some_and(|formal| {
+                formal.structural_type != root
+                    || formal.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
+            }) {
                 return None;
             }
-            let leaf_path = &path[regions.segment_start..];
-            let (shape, offset, leaf_elements) =
-                collection_projection(regions.root, leaf_path, declarations)?;
-            let (storage, _, _) =
-                runtime_storage_projection(regions.root, leaf_path, declarations)?;
-            let byte_size = field_shape(&storage, declarations, root)?.byte_size;
-            let mut elements = regions.elements;
-            elements.extend(leaf_elements);
-            Some(ProjectedCollection {
+            let geometry = projection_at(
+                root,
+                formal,
+                path,
+                declarations,
+                |root| {
+                    let shape = &find_structural_type(declarations, root)?.shape;
+                    let storage = declarations
+                        .formal_storage_shape(root, formal?.access)
+                        .ok()?;
+                    Some((std::borrow::Cow::Borrowed(shape), storage.byte_size))
+                },
+                |root, path| {
+                    reference_geometry(root, path, declarations, |root, path| {
+                        let (storage, offset, elements) =
+                            project_storage(root, path.iter().map(Projection::from), declarations)?;
+                        let shape = collection_shape(&storage, declarations)?;
+                        let size = match path.last() {
+                            Some(StructuralPathSegment::Field(_)) => {
+                                let field = terminal_semantics::runtime_structural_field(
+                                    declarations.iter(),
+                                    root,
+                                    path,
+                                )?;
+                                declarations
+                                    .field_storage_shape(field, root)
+                                    .ok()?
+                                    .byte_size
+                            }
+                            _ => field_shape(&storage, declarations, root)?.byte_size,
+                        };
+                        Some(((shape, size), offset, elements))
+                    })
+                },
+            )?;
+            let (shape, byte_size) = geometry.selected;
+            geometry.readable.then_some(ProjectedCollection {
                 shape,
-                offset,
-                elements,
-                pointer_slots: regions.pointer_slots,
+                offset: geometry.byte_offset,
+                elements: geometry.elements,
+                pointer_slots: geometry.pointer_slots,
                 byte_size,
             })
         }
@@ -1140,8 +1166,12 @@ pub mod structural_reference_input {
             ) {
                 return None;
             }
-            let collection =
-                projected_collection(source.structural_type, field_path, declarations)?;
+            let collection = projected_collection(
+                source.structural_type,
+                Some(source),
+                field_path,
+                declarations,
+            )?;
             let collection_shape = collection.shape;
             let offset = collection.offset;
             let elements = collection.elements;
@@ -1519,6 +1549,22 @@ pub mod structural_reference_input {
         .then_some((field_offset, capacity))
     }
 
+    pub fn projected_scalar_codec_at(
+        root: StructuralTypeId,
+        formal: Option<&terminal_psi::StructuralParameterDeclaration>,
+        path: &[StructuralPathSegment],
+        declarations: &NativeGeometry<'_>,
+    ) -> Option<runtime_abi::ScalarStorageCodec> {
+        if let Some(element) = borrowed_slice_element(root, formal, declarations) {
+            let selected = calling_conventions::terminal_layout::borrowed_element_index(
+                shape(element, declarations)?,
+                path,
+            )?;
+            return projected_scalar_codec(element, selected.remaining, declarations);
+        }
+        projected_scalar_codec(root, path, declarations)
+    }
+
     pub fn projected_scalar_codec(
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
@@ -1840,15 +1886,21 @@ pub mod structural_reference_input {
     )> {
         let (storage, offset, elements) =
             project_storage(root, path.iter().map(Projection::from), declarations)?;
-        let shape = match &*storage {
-            StructuralFieldType::Structural(identity) => {
-                std::borrow::Cow::Borrowed(&find_structural_type(declarations, *identity)?.shape)
-            }
-            field => std::borrow::Cow::Owned(StructuralTypeShape::ByteSequence(
-                field.byte_sequence_carrier()?,
+        Some((collection_shape(&storage, declarations)?, offset, elements))
+    }
+
+    fn collection_shape<'types>(
+        storage: &StructuralFieldType,
+        declarations: &NativeGeometry<'types>,
+    ) -> Option<std::borrow::Cow<'types, StructuralTypeShape>> {
+        match storage {
+            StructuralFieldType::Structural(identity) => Some(std::borrow::Cow::Borrowed(
+                &find_structural_type(declarations, *identity)?.shape,
             )),
-        };
-        Some((shape, offset, elements))
+            field => Some(std::borrow::Cow::Owned(StructuralTypeShape::ByteSequence(
+                field.byte_sequence_carrier()?,
+            ))),
+        }
     }
 
     pub fn runtime_projection_elements(

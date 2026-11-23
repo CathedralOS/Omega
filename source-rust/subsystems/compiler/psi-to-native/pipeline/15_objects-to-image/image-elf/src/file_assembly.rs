@@ -2492,6 +2492,7 @@ pub(crate) mod resolved_procedure_linkage {
                 relocation_table,
                 executable_regions: Vec::new(),
                 data_regions: Vec::new(),
+                function_unwinds: Vec::new(),
             };
             let final_layout = layout.final_image_layout();
             match layout.target() {

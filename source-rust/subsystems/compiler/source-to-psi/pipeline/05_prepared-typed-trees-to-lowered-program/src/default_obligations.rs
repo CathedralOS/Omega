@@ -52,9 +52,9 @@ pub(crate) fn install(
         refused.detail = format!("{}: {}", refused.detail, error.in_module(module));
         refused
     })?;
-    let mut references =
-        DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, &graph);
     for (machine, required) in module.machines.iter().zip(defaults) {
+        let mut references =
+            DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, &graph);
         let unavailable =
             |detail| refuse(machine.id, Construct::Machine, Unserved::Machine(detail));
         let tables = tables

@@ -22,6 +22,10 @@ fn refusal(build: &str) -> String {
     match judge_build(build) {
         Err(crate::checking::CompilationRefusal::Elaboration(refusal))
         | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
+        // A program the compiler rejects reads as its one violation.
+        Ok(RouteVerdict::Rejected { violations, .. }) if violations.len() == 1 => {
+            violations[0].statement.clone()
+        }
         other => panic!("{other:?}"),
     }
 }
@@ -173,7 +177,7 @@ data Session<'storage> { ready: bool; name: @'storage [u8]; }
 machine build_entry(session: @mutable Session, name: @[u8]) { session.name = name; }
 "#
         ),
-        "typing assigned value type while reading the body of `build_entry`"
+        "this view is of the region of another lifetime of the machine than the place it is assigned to names: nothing relates two lifetimes of one machine while reading the body of `build_entry`"
     );
     assert_eq!(
         refusal(

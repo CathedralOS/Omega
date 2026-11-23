@@ -1,0 +1,83 @@
+use representations/syntax_trees/syntax_trees.omg as syntax;
+
+// A match uses the same frame for its subject and for the pattern and value of each arm.
+public data ExpressionFrameKind [copy] {
+    case Group;
+    case Arguments;
+    case Index;
+    case Construct;
+    case MatchSubject;
+    case MatchPattern;
+    case MatchValue;
+    // A range slice's end inside an index's brackets.
+    case RangeEnd;
+    // A fixed-array literal's elements.
+    case Elements;
+}
+
+// An open bracket owns the operators above operator_base and the arguments,
+// fields or arms above pending_base. The callee is the expression being called,
+// indexed or constructed, or the subject of a match.
+public data ExpressionFrame [copy] {
+    kind: ExpressionFrameKind;
+    operator_base: u64 in Trapping;
+    pending_base: u64 in Trapping;
+    callee: u64 in Trapping;
+    field_start: u64 in Trapping;
+    field_end: u64 in Trapping;
+    start: u64 in Trapping;
+    arm_start: u64 in Trapping;
+    pattern: u64 in Trapping;
+    pattern_kind: |syntax|::ArmPatternKind;
+    // While reading a range end, callee holds its optional start expression.
+    // The flags record whether that expression exists and whether the end is inclusive.
+    range_start: bool;
+    range_inclusive: bool;
+}
+
+// A frame that remembers where its construct starts.
+machine started_frame(frame: ExpressionFrame, start: u64 in Trapping) -> ExpressionFrame {
+    let mutable next: ExpressionFrame = frame;
+    next.start = start;
+    next
+}
+
+// A match has no field name or range bounds. Keep its stack positions as it changes phases.
+machine next_match_frame(frame: ExpressionFrame, kind: ExpressionFrameKind) -> ExpressionFrame {
+    let mutable next: ExpressionFrame = frame;
+    next.kind = kind;
+    next.field_start = 0u64 as +Trapping;
+    next.field_end = 0u64 as +Trapping;
+    next.range_start = false;
+    next.range_inclusive = false;
+    next
+}
+
+machine match_frame(
+    frame: ExpressionFrame,
+    kind: ExpressionFrameKind,
+    subject: u64 in Trapping,
+    start: u64 in Trapping
+) -> ExpressionFrame {
+    let mutable next: ExpressionFrame = next_match_frame(frame, kind);
+    next.callee = subject;
+    next.start = start;
+    next
+}
+
+// A match frame reading the pattern of an arm starting at `arm_start`.
+machine match_arm_frame(frame: ExpressionFrame, arm_start: u64 in Trapping) -> ExpressionFrame {
+    let mutable next: ExpressionFrame = next_match_frame(frame, ExpressionFrameKind::MatchPattern);
+    next.arm_start = arm_start;
+    next.pattern = 0u64 as +Trapping;
+    next.pattern_kind = |syntax|::ArmPatternKind::Wildcard;
+    next
+}
+
+// A match frame reading the value of an arm whose pattern is complete.
+machine match_value_frame(frame: ExpressionFrame, kind: |syntax|::ArmPatternKind, pattern: u64 in Trapping) -> ExpressionFrame {
+    let mutable next: ExpressionFrame = next_match_frame(frame, ExpressionFrameKind::MatchValue);
+    next.pattern = pattern;
+    next.pattern_kind = kind;
+    next
+}

@@ -245,7 +245,6 @@ pub(in crate::resolution::declarations::generic_data) fn prepare_closed_applicat
             &base_name,
             &argument_handles,
             selection,
-            warnings,
         )?;
         if completed.len() != argument_handles.len() {
             let arguments = syntax

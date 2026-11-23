@@ -1,0 +1,35 @@
+use representations/source_files/source.omg as files;
+
+machine span(unit: u32 in Trapping, first: u64 in Trapping, last: u64 in Trapping) -> |files|::SourceSpan {
+    |files|::SourceSpan { source: |files|::SourceId { value: unit }, span: |files|::Span { start: first, end: last } }
+}
+
+machine start() crashes Trap {
+    let mutable sources: |files|::SourceSet;
+    |files|::source_set_clear(@mutable sources);
+    sources.bytes[0] = 0u8;
+    sources.byte_count = 1;
+    sources.units[0] = |files|::SourceRange { start: 0 as +Trapping, length: 1 as +Trapping };
+    sources.unit_count = 1;
+    let good = span(0 as +Trapping, 0 as +Trapping, 1 as +Trapping);
+    let past = span(0 as +Trapping, 1 as +Trapping, 2 as +Trapping);
+    let empty = span(0 as +Trapping, 1 as +Trapping, 1 as +Trapping);
+    let missing = span(1 as +Trapping, 0 as +Trapping, 0 as +Trapping);
+    let reversed = span(0 as +Trapping, 1 as +Trapping, 0 as +Trapping);
+    transition |files|::spans_equal(@sources, good, good)
+        && |files|::spans_equal(@sources, empty, empty)
+        && !|files|::spans_equal(@sources, good, past)
+        && !|files|::spans_equal(@sources, past, past)
+        && !|files|::spans_equal(@sources, empty, missing)
+        && !|files|::spans_equal(@sources, reversed, reversed)
+        && |files|::span_spells(@sources, good, "\x00")
+        && |files|::span_spells(@sources, empty, "")
+        && !|files|::span_spells(@sources, past, "\x00")
+        && !|files|::span_spells(@sources, missing, "")
+        && !|files|::span_spells(@sources, reversed, "") {
+        true -> done(),
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

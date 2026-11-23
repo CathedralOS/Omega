@@ -606,11 +606,6 @@ pub(super) struct MachineScope<'program> {
     pub(super) attached_machines: &'program AttachedMachines,
     /* Each callee's binder roles, which decide how a static argument reads. */
     pub(super) binder_roles: &'program BinderRoles,
-    /*
-        The program's owned position indexes — local-statement, parameter,
-        and data-definition positions resolve through these instead of
-        rescanning (or a thread-local side table).
-    */
     pub(super) resolution_indexes: &'program ResolvedIndexes,
     pub(super) type_parameters: &'program [crate::source_resolved::data::TypeParameter],
     pub(super) attached_data_symbol: SymbolHandle,

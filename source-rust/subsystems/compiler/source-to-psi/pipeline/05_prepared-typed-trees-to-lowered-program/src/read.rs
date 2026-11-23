@@ -295,6 +295,10 @@ pub(crate) struct Program<'t> {
     nominal_calls: Vec<nominal_applications::NominalCallSource>,
     const_scope: Vec<ConstBinding>,
     const_scopes: IdTable<MachineId, Vec<ConstBinding>>,
+    /// While a generic data declaration's template is read
+    /// (`subjects::generic_data`), the next input identity for a type
+    /// equation its rigid binders leave open. `None` everywhere else.
+    open_equation_inputs: Option<u64>,
     /// The generic machines a generic check form's entry calls at its own
     /// type parameters, each read once per tuple with its actual body. These
     /// applications also retain their independent template checks.
@@ -554,6 +558,7 @@ impl<'t> Program<'t> {
             nominal_calls: Vec::new(),
             const_scope: Vec::new(),
             const_scopes: IdTable::default(),
+            open_equation_inputs: None,
             applications: Vec::new(),
             applied: Vec::new(),
             alternative: None,
@@ -872,7 +877,7 @@ mod tests {
         });
         assert!(matches!(
             program
-                .zero_value(machine(), ValueType::record(empty), source)
+                .zero_value(machine(), ValueType::record(empty), None, source)
                 .unwrap()
                 .kind,
             ExpressionKind::Record { fields } if fields.is_empty()
@@ -903,14 +908,14 @@ mod tests {
                 ..plain_record()
             });
             let refusal = program
-                .zero_value(machine(), ValueType::record(record), source)
+                .zero_value(machine(), ValueType::record(record), None, source)
                 .unwrap_err();
             assert!(refusal.detail.contains(expected), "{}", refusal.detail);
         }
         let missing = semantic_vocabulary::StructuralTypeId::new(999).unwrap();
         assert!(
             program
-                .zero_value(machine(), ValueType::record(missing), source)
+                .zero_value(machine(), ValueType::record(missing), None, source)
                 .is_err()
         );
     }
@@ -1426,6 +1431,7 @@ mod tests {
             .insert(ExpressionNode::Boolean(false));
         let node = ExpressionNode::Binary(TableBinaryExpression {
             policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            negation: false,
             left,
             operator: BinaryOperator::CaseMembership,
             right,
@@ -1455,6 +1461,7 @@ mod tests {
                 .expression_table
                 .insert(ExpressionNode::Binary(TableBinaryExpression {
                     policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    negation: false,
                     left,
                     operator,
                     right,
@@ -1848,6 +1855,7 @@ mod tests {
                     operator: BinaryOperator::Add,
                     right: literal,
                     policy: numerics::arithmetic::ArithmeticDomain::Wrapping,
+                    negation: false,
                 }))
         };
         let computed = wrapped_sum(&mut typed, named);
@@ -1885,6 +1893,7 @@ mod tests {
                     operator: BinaryOperator::Equal,
                     right: named,
                     policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    negation: false,
                 }));
         let completion = crate::source_state::signature::SignatureContract {
             kind: crate::source_state::signature::SignatureContractKind::Ensures,
@@ -2853,6 +2862,7 @@ mod tests {
                 operator: crate::source_state::expression::BinaryOperator::Subtract,
                 right: initial,
                 policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                negation: false,
             },
         ));
         let borrowed = [Slot {
@@ -3165,6 +3175,7 @@ mod tests {
                 .expression_table
                 .insert(ExpressionNode::Binary(TableBinaryExpression {
                     policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    negation: false,
                     left,
                     operator,
                     right,

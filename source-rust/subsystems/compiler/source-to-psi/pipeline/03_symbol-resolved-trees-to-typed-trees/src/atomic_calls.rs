@@ -296,6 +296,7 @@ impl AtomicCall<'_> {
                 operator,
                 right,
                 policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                negation: false,
             }))
         };
         let value = match self.operation {

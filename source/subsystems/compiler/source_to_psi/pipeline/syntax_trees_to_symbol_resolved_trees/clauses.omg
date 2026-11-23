@@ -1,29 +1,14 @@
-use representations\source_files\SourceSet;
-use representations\source_files\SourceSpan;
-use representations\source_files\span_spells;
-use representations\symbol_resolved_trees\RankingView;
-use representations\symbol_resolved_trees\ResolveDiagnosticCode;
-use representations\symbol_resolved_trees\TypeBinding;
-use representations\symbol_resolved_trees\TypeScope;
-use representations\symbol_resolved_trees\ValueBinding;
-use representations\symbol_resolved_trees\name_resolution_reject;
-use representations\symbol_resolved_trees\set_ranking_measure;
-use representations\symbol_resolved_trees\set_ranking_view;
-use representations\syntax_trees\Clause;
-use representations\syntax_trees\ClauseKind;
-use representations\syntax_trees\Expression;
-use representations\syntax_trees\ExpressionKind;
-use representations\syntax_trees\IdentifierSpan;
-use representations\syntax_trees\MachineItem;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\TraitItem;
-use representations\syntax_trees\machine_item;
-use representations\syntax_trees\syntax_trees_argument;
-use representations\syntax_trees\syntax_trees_clause;
-use representations\syntax_trees\syntax_trees_expression;
-use representations\syntax_trees\syntax_trees_member;
-use representations\syntax_trees\trait_item;
-use representations\syntax_trees\type_argument;
+use pipeline/syntax_trees_to_symbol_resolved_trees/resolution_state.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/declarations.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/containers.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/facts.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/imports.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/names.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/type_names.omg;
+
+use representations/source_files/source.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
 
 // Clause names (wiki/spec/language/machines.md#supply). A `satisfies` clause
 // names one exact requirement of a visible trait, `Trait<arguments>::name`:
@@ -36,86 +21,86 @@ use representations\syntax_trees\type_argument;
 // parameters: its subjects and view bind as a `requires` fact's names do
 // (wiki/spec/language/termination.md). A trait reached through a module
 // path rejects as unsupported.
-public machine bind_clause_names(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
+public machine bind_clause_names(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees)
 crashes Trap
 {
     resolver.output.service_member_count = syntax.member_count;
     transition { _ -> clear(resolver, sources, syntax, 0) }
 
-    machine clear(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, member: u64) {
+    machine clear(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, member: u64) {
         transition member < syntax.member_count && member < 32000 {
             true -> cleared(resolver, sources, syntax, member),
-            _ -> next_machine(resolver, sources, syntax, 0)
+            _ -> next_machine(resolver, sources, syntax, 0 as +Trapping)
         }
     }
-    machine cleared(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, member: u64)
+    machine cleared(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, member: u64)
     requires member < 32000
     {
         resolver.output.service_traits[member] = 0;
         transition { _ -> clear(resolver, sources, syntax, member + 1) }
     }
 
-    machine next_machine(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine next_machine(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count && resolver.output.accepted {
             true -> machine(resolver, sources, syntax, index),
             _ -> done()
         }
     }
 
-    machine machine(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
-        let item: MachineItem = machine_item(syntax, index);
-        transition { _ -> next_clause(resolver, sources, syntax, index, item, 0) }
+    machine machine(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, index);
+        transition { _ -> next_clause(resolver, sources, syntax, index, item, 0 as +Trapping) }
     }
 
-    machine next_clause(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+    machine next_clause(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, item: |syntax_trees|::MachineItem, offset: u64 in Trapping) {
         transition offset < item.clause_count && resolver.output.accepted {
             true -> clause(resolver, sources, syntax, index, item, offset),
             _ -> next_machine(resolver, sources, syntax, index + 1)
         }
     }
 
-    machine clause(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+    machine clause(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, item: |syntax_trees|::MachineItem, offset: u64 in Trapping) {
         let handle: u64 in Trapping = item.first_clause + offset;
-        let clause: Clause = syntax_trees_clause(syntax, handle);
+        let clause: |syntax_trees|::Clause = |syntax_trees|::syntax_trees_clause(syntax, handle);
         transition clause.kind {
-            ClauseKind::Reaches -> reaches(resolver, sources, syntax, index, item, offset, clause),
-            ClauseKind::Satisfies -> satisfies(resolver, sources, syntax, index, item, offset, handle, clause),
-            ClauseKind::Terminates -> terminates(resolver, sources, syntax, index, item, offset, handle, clause),
+            |syntax_trees|::ClauseKind::Reaches -> reaches(resolver, sources, syntax, index, item, offset, clause),
+            |syntax_trees|::ClauseKind::Satisfies -> satisfies(resolver, sources, syntax, index, item, offset, handle, clause),
+            |syntax_trees|::ClauseKind::Terminates -> terminates(resolver, sources, syntax, index, item, offset, handle, clause),
             _ -> next_clause(resolver, sources, syntax, index, item, offset + 1)
         }
     }
 
-    machine reaches(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, clause: Clause) {
-        let scope: TypeScope = resolver_machine_scope(@resolver.output, syntax, index);
+    machine reaches(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, clause: |syntax_trees|::Clause) {
+        let scope: |symbol_resolved_trees|::TypeScope = |containers|::resolver_machine_scope(@resolver.output, syntax, index);
         bind_service_row(resolver, sources, syntax, scope, clause);
         transition { _ -> next_clause(resolver, sources, syntax, index, item, offset + 1) }
     }
 
     machine satisfies(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         index: u64 in Trapping,
-        item: MachineItem,
+        item: |syntax_trees|::MachineItem,
         offset: u64 in Trapping,
         handle: u64 in Trapping,
-        clause: Clause
+        clause: |syntax_trees|::Clause
     ) {
         bind_satisfied_requirement(resolver, sources, syntax, index, handle, clause);
         transition { _ -> next_clause(resolver, sources, syntax, index, item, offset + 1) }
     }
 
     machine terminates(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         index: u64 in Trapping,
-        item: MachineItem,
+        item: |syntax_trees|::MachineItem,
         offset: u64 in Trapping,
         handle: u64 in Trapping,
-        clause: Clause
+        clause: |syntax_trees|::Clause
     ) {
-        let scope: NameScope = fact_scope(true, index, item.first_parameter, item.parameter_count, ValueBinding::NotAName);
+        let scope: |names|::NameScope = |facts|::fact_scope(true, index, item.first_parameter, item.parameter_count, |symbol_resolved_trees|::ValueBinding::NotAName);
         bind_ranking(resolver, sources, syntax, scope, handle, clause);
         transition clause.argument_count > 0 {
             true -> ranked(resolver, sources, syntax, index, item, offset),
@@ -123,7 +108,7 @@ crashes Trap
         }
     }
 
-    machine ranked(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+    machine ranked(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, item: |syntax_trees|::MachineItem, offset: u64 in Trapping) {
         transition { _ -> next_clause(resolver, sources, syntax, index, item, offset + 1) }
     }
 
@@ -133,26 +118,26 @@ crashes Trap
 // A bare service must resolve in this machine's own type scope to one
 // monomorphic boundary trait. The clause's source members retain their
 // independent declaration identities, including across package aliases.
-machine bind_service_row(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, clause: Clause)
+machine bind_service_row(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, clause: |syntax_trees|::Clause)
 crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, scope, clause.first_member, clause.first_member + clause.member_count) }
-    machine next(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, member: u64 in Trapping, end: u64 in Trapping) {
+    machine next(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, member: u64 in Trapping, end: u64 in Trapping) {
         transition member < end && resolver.output.accepted {
             true -> bind(resolver, sources, syntax, scope, member, end),
             _ -> done()
         }
     }
-    machine bind(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, member: u64 in Trapping, end: u64 in Trapping) {
-        let name: IdentifierSpan = syntax_trees_member(syntax, member);
-        let binding: TypeBinding = type_binding(sources, syntax, scope, name.source_span);
+    machine bind(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, member: u64 in Trapping, end: u64 in Trapping) {
+        let name: |syntax_trees|::IdentifierSpan = |syntax_trees|::syntax_trees_member(syntax, member);
+        let binding: |symbol_resolved_trees|::TypeBinding = |type_names|::type_binding(sources, syntax, scope, name.source_span);
         let service: u16 = ground_service(resolver, syntax, binding, name.source_span);
         transition member < 32000 {
             true -> record(resolver, sources, syntax, scope, member, end, service),
             _ -> invalid()
         }
     }
-    machine record(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, member: u64 in Trapping, end: u64 in Trapping, service: u16)
+    machine record(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, member: u64 in Trapping, end: u64 in Trapping, service: u16)
     requires member < 32000
     {
         resolver.output.service_traits[member as -Trapping] = service;
@@ -162,39 +147,39 @@ crashes Trap
     machine done() {}
 }
 
-machine ground_service(resolver: @mutable Resolver, syntax: @SyntaxTrees, binding: TypeBinding, span: SourceSpan) -> u16
+machine ground_service(resolver: @mutable |resolution_state|::Resolver, syntax: @|syntax_trees|::SyntaxTrees, binding: |symbol_resolved_trees|::TypeBinding, span: |source|::SourceSpan) -> u16
 crashes Trap
 {
     transition binding {
-        TypeBinding::Trait { item } -> trait_binding(resolver, syntax, item, span),
-        TypeBinding::Unresolved -> reject(resolver, ResolveDiagnosticCode::UnknownName, span),
-        TypeBinding::Ambiguous -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, span),
-        _ -> reject(resolver, ResolveDiagnosticCode::ExpectedBoundaryService, span)
+        |symbol_resolved_trees|::TypeBinding::Trait { item } -> trait_binding(resolver, syntax, item, span),
+        |symbol_resolved_trees|::TypeBinding::Unresolved -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::UnknownName, span),
+        |symbol_resolved_trees|::TypeBinding::Ambiguous -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::AmbiguousName, span),
+        _ -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::ExpectedBoundaryService, span)
     }
-    machine trait_binding(resolver: @mutable Resolver, syntax: @SyntaxTrees, handle: u64 in Trapping, span: SourceSpan) -> u16 {
-        let item: TraitItem = trait_item(syntax, handle);
+    machine trait_binding(resolver: @mutable |resolution_state|::Resolver, syntax: @|syntax_trees|::SyntaxTrees, handle: u64 in Trapping, span: |source|::SourceSpan) -> u16 {
+        let item: |syntax_trees|::TraitItem = |syntax_trees|::trait_item(syntax, handle);
         transition item.is_boundary {
             true -> arity(resolver, handle, item, span),
-            _ -> reject(resolver, ResolveDiagnosticCode::ExpectedBoundaryService, span)
+            _ -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::ExpectedBoundaryService, span)
         }
     }
-    machine arity(resolver: @mutable Resolver, handle: u64 in Trapping, item: TraitItem, span: SourceSpan) -> u16 {
+    machine arity(resolver: @mutable |resolution_state|::Resolver, handle: u64 in Trapping, item: |syntax_trees|::TraitItem, span: |source|::SourceSpan) -> u16 {
         transition item.parent_count == 0 {
             true -> ground(resolver, handle, item, span),
-            _ -> reject(resolver, ResolveDiagnosticCode::UnsupportedClause, span)
+            _ -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::UnsupportedClause, span)
         }
     }
-    machine ground(resolver: @mutable Resolver, handle: u64 in Trapping, item: TraitItem, span: SourceSpan) -> u16 {
+    machine ground(resolver: @mutable |resolution_state|::Resolver, handle: u64 in Trapping, item: |syntax_trees|::TraitItem, span: |source|::SourceSpan) -> u16 {
         transition item.generic_parameter_count == 0 && handle < 256 {
             true -> bound(handle),
-            _ -> reject(resolver, ResolveDiagnosticCode::MissingServiceArguments, span)
+            _ -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::MissingServiceArguments, span)
         }
     }
     machine bound(handle: u64 in Trapping) -> u16
     requires handle < 256
     { ((handle + 1) as -Trapping) as u16 }
-    machine reject(resolver: @mutable Resolver, code: ResolveDiagnosticCode, span: SourceSpan) -> u16 {
-        name_resolution_reject(@mutable resolver.output, code, span);
+    machine reject(resolver: @mutable |resolution_state|::Resolver, code: |symbol_resolved_trees|::ResolveDiagnosticCode, span: |source|::SourceSpan) -> u16 {
+        |symbol_resolved_trees|::name_resolution_reject(@mutable resolver.output, code, span);
         0
     }
 }
@@ -202,26 +187,26 @@ crashes Trap
 // One `satisfies` clause of machine `machine`: its trait's static
 // arguments, its trait and requirement, then its `via` payload.
 machine bind_satisfied_requirement(
-    resolver: @mutable Resolver,
-    sources: @SourceSet,
-    syntax: @SyntaxTrees,
+    resolver: @mutable |resolution_state|::Resolver,
+    sources: @|source|::SourceSet,
+    syntax: @|syntax_trees|::SyntaxTrees,
     machine: u64 in Trapping,
     clause_handle: u64 in Trapping,
-    clause: Clause
+    clause: |syntax_trees|::Clause
 )
 crashes Trap
 {
-    let scope: TypeScope = resolver_machine_scope(@resolver.output, syntax, machine);
-    transition { _ -> argument(resolver, sources, syntax, machine, clause_handle, clause, scope, 0) }
+    let scope: |symbol_resolved_trees|::TypeScope = |containers|::resolver_machine_scope(@resolver.output, syntax, machine);
+    transition { _ -> argument(resolver, sources, syntax, machine, clause_handle, clause, scope, 0 as +Trapping) }
 
     machine argument(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         machine: u64 in Trapping,
         clause_handle: u64 in Trapping,
-        clause: Clause,
-        scope: TypeScope,
+        clause: |syntax_trees|::Clause,
+        scope: |symbol_resolved_trees|::TypeScope,
         offset: u64 in Trapping
     ) {
         transition offset < clause.argument_count && resolver.output.accepted {
@@ -231,29 +216,29 @@ crashes Trap
     }
 
     machine bind_argument(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         machine: u64 in Trapping,
         clause_handle: u64 in Trapping,
-        clause: Clause,
-        scope: TypeScope,
+        clause: |syntax_trees|::Clause,
+        scope: |symbol_resolved_trees|::TypeScope,
         offset: u64 in Trapping
     ) {
-        let row: u64 in Trapping = type_argument(syntax, clause.first_argument + offset);
-        bind_type_reference(resolver, sources, syntax, scope, row, TypeRole::StaticArgument);
+        let row: u64 in Trapping = |syntax_trees|::type_argument(syntax, clause.first_argument + offset);
+        |type_names|::bind_type_reference(resolver, sources, syntax, scope, row, |type_names|::TypeRole::StaticArgument);
         transition { _ -> argument(resolver, sources, syntax, machine, clause_handle, clause, scope, offset + 1) }
     }
 
     // The trait's path is one name: `Trait::requirement`.
     machine path(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         machine: u64 in Trapping,
         clause_handle: u64 in Trapping,
-        clause: Clause,
-        scope: TypeScope
+        clause: |syntax_trees|::Clause,
+        scope: |symbol_resolved_trees|::TypeScope
     ) {
         transition resolver.output.accepted && clause.member_count == 2 {
             true -> named(resolver, sources, syntax, machine, clause_handle, clause, scope),
@@ -262,51 +247,51 @@ crashes Trap
     }
 
     machine named(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         machine: u64 in Trapping,
         clause_handle: u64 in Trapping,
-        clause: Clause,
-        scope: TypeScope
+        clause: |syntax_trees|::Clause,
+        scope: |symbol_resolved_trees|::TypeScope
     ) {
-        let owner: IdentifierSpan = syntax_trees_member(syntax, clause.first_member);
-        let binding: TypeBinding = type_binding(sources, syntax, scope, owner.source_span);
+        let owner: |syntax_trees|::IdentifierSpan = |syntax_trees|::syntax_trees_member(syntax, clause.first_member);
+        let binding: |symbol_resolved_trees|::TypeBinding = |type_names|::type_binding(sources, syntax, scope, owner.source_span);
         transition binding {
-            TypeBinding::Trait { item } -> requirement(resolver, sources, syntax, machine, clause_handle, clause, item),
-            TypeBinding::Unresolved -> reject(resolver, ResolveDiagnosticCode::UnknownDataType, owner.source_span),
-            TypeBinding::Ambiguous -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, owner.source_span),
-            _ -> reject(resolver, ResolveDiagnosticCode::NotATrait, owner.source_span)
+            |symbol_resolved_trees|::TypeBinding::Trait { item } -> requirement(resolver, sources, syntax, machine, clause_handle, clause, item),
+            |symbol_resolved_trees|::TypeBinding::Unresolved -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::UnknownDataType, owner.source_span),
+            |symbol_resolved_trees|::TypeBinding::Ambiguous -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::AmbiguousName, owner.source_span),
+            _ -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::NotATrait, owner.source_span)
         }
     }
 
     machine requirement(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         machine: u64 in Trapping,
         clause_handle: u64 in Trapping,
-        clause: Clause,
+        clause: |syntax_trees|::Clause,
         trait_index: u64 in Trapping
     ) {
-        let name: IdentifierSpan = syntax_trees_member(syntax, clause.first_member + 1);
-        let member: Lookup = trait_member_named(sources, syntax, trait_index, name.source_span);
+        let name: |syntax_trees|::IdentifierSpan = |syntax_trees|::syntax_trees_member(syntax, clause.first_member + 1);
+        let member: |declarations|::Lookup = |containers|::trait_member_named(sources, syntax, trait_index, name.source_span);
         transition member {
-            Lookup::Found { handle } -> found(resolver, sources, syntax, machine, clause_handle, clause, handle),
-            _ -> reject(resolver, ResolveDiagnosticCode::NotARequirement, name.source_span)
+            |declarations|::Lookup::Found { handle } -> found(resolver, sources, syntax, machine, clause_handle, clause, handle),
+            _ -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::NotARequirement, name.source_span)
         }
     }
 
     machine found(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         machine: u64 in Trapping,
         clause_handle: u64 in Trapping,
-        clause: Clause,
+        clause: |syntax_trees|::Clause,
         requirement: u64 in Trapping
     ) {
-        set_requirement(resolver, clause_handle, ValueBinding::Machine { handle: requirement });
+        set_requirement(resolver, clause_handle, |symbol_resolved_trees|::ValueBinding::Machine { handle: requirement });
         transition clause.has_expression {
             true -> payload(resolver, sources, syntax, machine, clause),
             _ -> done()
@@ -315,20 +300,20 @@ crashes Trap
 
     // The payload sees the machine's binders and constants, not its
     // parameters.
-    machine payload(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, machine: u64 in Trapping, clause: Clause) {
-        let scope: NameScope = fact_scope(true, machine, 0, 0, ValueBinding::NotAName);
-        bind_tree(resolver, sources, syntax, scope, clause.expression);
+    machine payload(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, machine: u64 in Trapping, clause: |syntax_trees|::Clause) {
+        let scope: |names|::NameScope = |facts|::fact_scope(true, machine, 0 as +Trapping, 0 as +Trapping, |symbol_resolved_trees|::ValueBinding::NotAName);
+        |names|::bind_tree(resolver, sources, syntax, scope, clause.expression);
     }
 
-    machine qualified(resolver: @mutable Resolver, clause: Clause) {
+    machine qualified(resolver: @mutable |resolution_state|::Resolver, clause: |syntax_trees|::Clause) {
         transition resolver.output.accepted {
-            true -> reject(resolver, ResolveDiagnosticCode::UnsupportedClause, clause.source_span),
+            true -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::UnsupportedClause, clause.source_span),
             _ -> done()
         }
     }
 
-    machine reject(resolver: @mutable Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
-        name_resolution_reject(@mutable resolver.output, code, source_span);
+    machine reject(resolver: @mutable |resolution_state|::Resolver, code: |symbol_resolved_trees|::ResolveDiagnosticCode, source_span: |source|::SourceSpan) {
+        |symbol_resolved_trees|::name_resolution_reject(@mutable resolver.output, code, source_span);
     }
 
     machine done() {}
@@ -338,44 +323,44 @@ crashes Trap
 // names the compiler's ranking vocabulary by spelling rather than a
 // declaration (representations/symbol_resolved_trees/symbol_resolved_trees.omg, `RankingView`); `Nat::IncreasingTo`'s limit
 // binds as a subject does.
-machine bind_ranking(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, handle: u64 in Trapping, clause: Clause)
+machine bind_ranking(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |names|::NameScope, handle: u64 in Trapping, clause: |syntax_trees|::Clause)
 crashes Trap
 {
     transition clause.has_range {
         true -> range(resolver, sources, syntax, scope, handle, clause),
-        _ -> subject(resolver, sources, syntax, scope, handle, clause, 0)
+        _ -> subject(resolver, sources, syntax, scope, handle, clause, 0 as +Trapping)
     }
 
     // The rank range's endpoints bind as the subjects do
     // (wiki/spec/language/termination.md#ranking).
-    machine range(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, handle: u64 in Trapping, clause: Clause) {
-        bind_tree(resolver, sources, syntax, scope, clause.range);
-        transition { _ -> subject(resolver, sources, syntax, scope, handle, clause, 0) }
+    machine range(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |names|::NameScope, handle: u64 in Trapping, clause: |syntax_trees|::Clause) {
+        |names|::bind_tree(resolver, sources, syntax, scope, clause.range);
+        transition { _ -> subject(resolver, sources, syntax, scope, handle, clause, 0 as +Trapping) }
     }
 
-    machine subject(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, handle: u64 in Trapping, clause: Clause, offset: u64 in Trapping) {
+    machine subject(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |names|::NameScope, handle: u64 in Trapping, clause: |syntax_trees|::Clause, offset: u64 in Trapping) {
         transition offset < clause.argument_count && resolver.output.accepted {
             true -> bind_subject(resolver, sources, syntax, scope, handle, clause, offset),
             _ -> view(resolver, sources, syntax, scope, handle, clause)
         }
     }
 
-    machine bind_subject(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, handle: u64 in Trapping, clause: Clause, offset: u64 in Trapping) {
-        let root: u64 in Trapping = syntax_trees_argument(syntax, clause.first_argument + offset);
-        bind_tree(resolver, sources, syntax, scope, root);
+    machine bind_subject(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |names|::NameScope, handle: u64 in Trapping, clause: |syntax_trees|::Clause, offset: u64 in Trapping) {
+        let root: u64 in Trapping = |syntax_trees|::syntax_trees_argument(syntax, clause.first_argument + offset);
+        |names|::bind_tree(resolver, sources, syntax, scope, root);
         transition { _ -> subject(resolver, sources, syntax, scope, handle, clause, offset + 1) }
     }
 
-    machine view(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, handle: u64 in Trapping, clause: Clause) {
+    machine view(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |names|::NameScope, handle: u64 in Trapping, clause: |syntax_trees|::Clause) {
         transition clause.has_expression && resolver.output.accepted {
             true -> spelled(resolver, sources, syntax, scope, handle, clause),
-            _ -> chosen(resolver, handle, RankingView::Default)
+            _ -> chosen(resolver, handle, |symbol_resolved_trees|::RankingView::Default)
         }
     }
 
-    machine spelled(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, handle: u64 in Trapping, clause: Clause) {
+    machine spelled(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |names|::NameScope, handle: u64 in Trapping, clause: |syntax_trees|::Clause) {
         let spelling: ViewSpelling = spelled_view(sources, syntax, clause.expression);
-        let written: Expression = syntax_trees_expression(syntax, clause.expression);
+        let written: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, clause.expression);
         transition spelling.known {
             true -> known(resolver, sources, syntax, scope, handle, spelling.view, written),
             _ -> declared(resolver, sources, syntax, handle, written)
@@ -384,47 +369,47 @@ crashes Trap
 
     // Outside the vocabulary, a two-member path names a declared measure
     // (wiki/spec/language/termination.md#ranking).
-    machine declared(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, handle: u64 in Trapping, written: Expression) {
-        transition written.kind == ExpressionKind::Path && written.count == 2 {
+    machine declared(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, handle: u64 in Trapping, written: |syntax_trees|::Expression) {
+        transition written.kind == |syntax_trees|::ExpressionKind::Path && written.count == 2 {
             true -> measure(resolver, sources, syntax, handle, written),
             _ -> unsupported(resolver, written.source_span)
         }
     }
 
-    machine measure(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, handle: u64 in Trapping, written: Expression) {
-        let owner: IdentifierSpan = syntax_trees_member(syntax, written.first);
-        let name: IdentifierSpan = syntax_trees_member(syntax, written.first + 1);
-        let found: u64 in Trapping = measure_named(sources, syntax, owner.source_span, name.source_span);
+    machine measure(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, handle: u64 in Trapping, written: |syntax_trees|::Expression) {
+        let owner: |syntax_trees|::IdentifierSpan = |syntax_trees|::syntax_trees_member(syntax, written.first);
+        let name: |syntax_trees|::IdentifierSpan = |syntax_trees|::syntax_trees_member(syntax, written.first + 1);
+        let found: u64 in Trapping = |imports|::measure_named(sources, syntax, owner.source_span, name.source_span);
         transition found > 0 {
             true -> measured(resolver, handle, found - 1),
             _ -> unsupported(resolver, written.source_span)
         }
     }
 
-    machine measured(resolver: @mutable Resolver, handle: u64 in Trapping, measure: u64 in Trapping) {
-        set_ranking_view(@mutable resolver.output, handle, RankingView::Measure);
-        set_ranking_measure(@mutable resolver.output, handle, measure);
+    machine measured(resolver: @mutable |resolution_state|::Resolver, handle: u64 in Trapping, measure: u64 in Trapping) {
+        |symbol_resolved_trees|::set_ranking_view(@mutable resolver.output, handle, |symbol_resolved_trees|::RankingView::Measure);
+        |symbol_resolved_trees|::set_ranking_measure(@mutable resolver.output, handle, measure);
     }
 
-    machine known(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, handle: u64 in Trapping, view: RankingView, written: Expression) {
-        set_ranking_view(@mutable resolver.output, handle, view);
+    machine known(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |names|::NameScope, handle: u64 in Trapping, view: |symbol_resolved_trees|::RankingView, written: |syntax_trees|::Expression) {
+        |symbol_resolved_trees|::set_ranking_view(@mutable resolver.output, handle, view);
         transition view {
-            RankingView::IncreasingTo -> limit(resolver, sources, syntax, scope, written),
+            |symbol_resolved_trees|::RankingView::IncreasingTo -> limit(resolver, sources, syntax, scope, written),
             _ -> done()
         }
     }
 
-    machine limit(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, written: Expression) {
-        let root: u64 in Trapping = syntax_trees_argument(syntax, written.first);
-        bind_tree(resolver, sources, syntax, scope, root);
+    machine limit(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |names|::NameScope, written: |syntax_trees|::Expression) {
+        let root: u64 in Trapping = |syntax_trees|::syntax_trees_argument(syntax, written.first);
+        |names|::bind_tree(resolver, sources, syntax, scope, root);
     }
 
-    machine chosen(resolver: @mutable Resolver, handle: u64 in Trapping, view: RankingView) {
-        set_ranking_view(@mutable resolver.output, handle, view);
+    machine chosen(resolver: @mutable |resolution_state|::Resolver, handle: u64 in Trapping, view: |symbol_resolved_trees|::RankingView) {
+        |symbol_resolved_trees|::set_ranking_view(@mutable resolver.output, handle, view);
     }
 
-    machine unsupported(resolver: @mutable Resolver, source_span: SourceSpan) {
-        name_resolution_reject(@mutable resolver.output, ResolveDiagnosticCode::UnsupportedRankingView, source_span);
+    machine unsupported(resolver: @mutable |resolution_state|::Resolver, source_span: |source|::SourceSpan) {
+        |symbol_resolved_trees|::name_resolution_reject(@mutable resolver.output, |symbol_resolved_trees|::ResolveDiagnosticCode::UnsupportedRankingView, source_span);
     }
 
     machine done() {}
@@ -433,45 +418,45 @@ crashes Trap
 // A ranking view's spelling: whether it is one of the vocabulary's.
 data ViewSpelling [copy] {
     known: bool;
-    view: RankingView;
+    view: |symbol_resolved_trees|::RankingView;
 }
 
 // The view a `-> View` expression spells: a two-member path, or for
 // `Nat::IncreasingTo` a call of one with one argument.
-machine spelled_view(sources: @SourceSet, syntax: @SyntaxTrees, handle: u64 in Trapping) -> ViewSpelling
+machine spelled_view(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, handle: u64 in Trapping) -> ViewSpelling
 crashes Trap
 {
-    let written: Expression = syntax_trees_expression(syntax, handle);
+    let written: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, handle);
     transition written.kind {
-        ExpressionKind::Path -> path(sources, syntax, written, false),
-        ExpressionKind::Call -> call(sources, syntax, written),
+        |syntax_trees|::ExpressionKind::Path -> path(sources, syntax, written, false),
+        |syntax_trees|::ExpressionKind::Call -> call(sources, syntax, written),
         _ -> unknown()
     }
 
-    machine call(sources: @SourceSet, syntax: @SyntaxTrees, written: Expression) -> ViewSpelling {
-        let callee: Expression = syntax_trees_expression(syntax, written.left);
-        transition callee.kind == ExpressionKind::Path && written.count == 1 {
+    machine call(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, written: |syntax_trees|::Expression) -> ViewSpelling {
+        let callee: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, written.left);
+        transition callee.kind == |syntax_trees|::ExpressionKind::Path && written.count == 1 {
             true -> path(sources, syntax, callee, true),
             _ -> unknown()
         }
     }
 
-    machine path(sources: @SourceSet, syntax: @SyntaxTrees, path: Expression, argumented: bool) -> ViewSpelling {
+    machine path(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, path: |syntax_trees|::Expression, argumented: bool) -> ViewSpelling {
         transition path.count == 2 {
             true -> members(sources, syntax, path, argumented),
             _ -> unknown()
         }
     }
 
-    machine members(sources: @SourceSet, syntax: @SyntaxTrees, path: Expression, argumented: bool) -> ViewSpelling {
-        let owner: IdentifierSpan = syntax_trees_member(syntax, path.first);
-        let name: IdentifierSpan = syntax_trees_member(syntax, path.first + 1);
-        let nat: bool = span_spells(sources, owner.source_span, "Nat");
-        let slice: bool = span_spells(sources, owner.source_span, "Slice");
-        let descending: bool = span_spells(sources, name.source_span, "Descending");
-        let bounded: bool = span_spells(sources, name.source_span, "BoundedDistance");
-        let increasing: bool = span_spells(sources, name.source_span, "IncreasingTo");
-        let length: bool = span_spells(sources, name.source_span, "Length");
+    machine members(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, path: |syntax_trees|::Expression, argumented: bool) -> ViewSpelling {
+        let owner: |syntax_trees|::IdentifierSpan = |syntax_trees|::syntax_trees_member(syntax, path.first);
+        let name: |syntax_trees|::IdentifierSpan = |syntax_trees|::syntax_trees_member(syntax, path.first + 1);
+        let nat: bool = |source|::span_spells(sources, owner.source_span, "Nat");
+        let slice: bool = |source|::span_spells(sources, owner.source_span, "Slice");
+        let descending: bool = |source|::span_spells(sources, name.source_span, "Descending");
+        let bounded: bool = |source|::span_spells(sources, name.source_span, "BoundedDistance");
+        let increasing: bool = |source|::span_spells(sources, name.source_span, "IncreasingTo");
+        let length: bool = |source|::span_spells(sources, name.source_span, "Length");
         transition argumented {
             true -> argumented_view(nat && increasing),
             _ -> plain_view(nat && descending, nat && bounded, slice && length)
@@ -480,42 +465,42 @@ crashes Trap
 
     machine argumented_view(increasing: bool) -> ViewSpelling {
         transition increasing {
-            true -> known(RankingView::IncreasingTo),
+            true -> known(|symbol_resolved_trees|::RankingView::IncreasingTo),
             _ -> unknown()
         }
     }
 
     machine plain_view(descending: bool, bounded: bool, length: bool) -> ViewSpelling {
         transition descending {
-            true -> known(RankingView::Descending),
+            true -> known(|symbol_resolved_trees|::RankingView::Descending),
             _ -> distance(bounded, length)
         }
     }
 
     machine distance(bounded: bool, length: bool) -> ViewSpelling {
         transition bounded {
-            true -> known(RankingView::BoundedDistance),
+            true -> known(|symbol_resolved_trees|::RankingView::BoundedDistance),
             _ -> sliced(length)
         }
     }
 
     machine sliced(length: bool) -> ViewSpelling {
         transition length {
-            true -> known(RankingView::SliceLength),
+            true -> known(|symbol_resolved_trees|::RankingView::SliceLength),
             _ -> unknown()
         }
     }
 
-    machine known(view: RankingView) -> ViewSpelling {
+    machine known(view: |symbol_resolved_trees|::RankingView) -> ViewSpelling {
         ViewSpelling { known: true, view: view }
     }
 
     machine unknown() -> ViewSpelling {
-        ViewSpelling { known: false, view: RankingView::Default }
+        ViewSpelling { known: false, view: |symbol_resolved_trees|::RankingView::Default }
     }
 }
 
-machine set_requirement(resolver: @mutable Resolver, clause: u64 in Trapping, binding: ValueBinding)
+machine set_requirement(resolver: @mutable |resolution_state|::Resolver, clause: u64 in Trapping, binding: |symbol_resolved_trees|::ValueBinding)
 crashes Trap
 {
     transition clause < 2048 {
@@ -523,10 +508,10 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine store(resolver: @mutable Resolver, clause: u64 in Trapping, binding: ValueBinding)
+    machine store(resolver: @mutable |resolution_state|::Resolver, clause: u64 in Trapping, binding: |symbol_resolved_trees|::ValueBinding)
     requires clause < 2048
     {
-        resolver.output.requirements[clause] = binding;
+        resolver.output.requirements[clause as -Trapping] = binding;
     }
 
     machine invalid() {

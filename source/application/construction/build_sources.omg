@@ -1,33 +1,34 @@
-use omega\language\core\ProcessExit;
+use input.omg as input_packet;
+use {omega}/language/core/process_exit.omg;
 
 // Build entry selections follow the complete Product prefix. Their ordinals
 // address only the separate Build table.
-machine build_table_word(input: @ConstructionInput, selections: u32, units: u32, field: u32) -> u32
-reaches ProcessExit crashes Trap
+machine build_table_word(input: @|input_packet|::ConstructionInput, selections: u32, units: u32, field: u32) -> u32
+reaches |process_exit|::ProcessExit crashes Trap
 {
     let product_words: u64 = input.package_count as u64 * 3 + input.edge_count as u64 * 4
         + input.unit_count as u64 * 5;
     let offset: u64 = selections as u64 * 2 + units as u64 * 5 + field as u64;
-    row_word(input, product_words + offset)
+    |input_packet|::row_word(input, product_words + offset)
 }
 
-machine build_source_word(input: @ConstructionInput, unit: u32, field: u32) -> u32
-reaches ProcessExit crashes Trap
+machine build_source_word(input: @|input_packet|::ConstructionInput, unit: u32, field: u32) -> u32
+reaches |process_exit|::ProcessExit crashes Trap
 { build_table_word(input, input.package_count, unit, field) }
 
-machine build_source_path(input: @ConstructionInput, unit: u32) -> @[u8]
-reaches ProcessExit crashes Trap
+machine build_source_path(input: @|input_packet|::ConstructionInput, unit: u32) -> @[u8]
+reaches |process_exit|::ProcessExit crashes Trap
 {
     let start: u64 = build_source_word(input, unit, 3) as u64;
     let end: u64 = build_source_word(input, unit, 4) as u64;
-    transition start < end && end <= input.buffer_length as u64 && end <= 4194304 {
+    transition start < end && end <= input.buffer_length as u64 && end <= 8388608 {
         true -> view(input, start, end),
         _ -> empty(input)
     }
-    machine view(input: @ConstructionInput, start: u64, end: u64) -> @[u8]
-    requires start <= end && end <= 4194304
+    machine view(input: @|input_packet|::ConstructionInput, start: u64, end: u64) -> @[u8]
+    requires start <= end && end <= 8388608
     { @input.bytes[start..end] }
-    machine empty(input: @ConstructionInput) -> @[u8] { @input.bytes[0..0] }
+    machine empty(input: @|input_packet|::ConstructionInput) -> @[u8] { @input.bytes[0..0] }
 }
 
 machine same_build_path(left: @[u8], right: @[u8]) -> bool crashes Trap {
@@ -82,17 +83,17 @@ machine build_path_valid(path: @[u8]) -> bool crashes Trap {
     machine component(part: @[u8]) -> bool { part.length > 0 && !same_build_path(part, ".") && !same_build_path(part, "..") }
 }
 
-machine has_build_file(input: @ConstructionInput, limit: u32, supplier: u32, path: @[u8]) -> bool
-reaches ProcessExit crashes Trap
+machine has_build_file(input: @|input_packet|::ConstructionInput, limit: u32, supplier: u32, path: @[u8]) -> bool
+reaches |process_exit|::ProcessExit crashes Trap
 {
     transition { _ -> scan(input, limit, supplier, path, 0) }
-    machine scan(input: @ConstructionInput, limit: u32, supplier: u32, path: @[u8], unit: u32) -> bool {
+    machine scan(input: @|input_packet|::ConstructionInput, limit: u32, supplier: u32, path: @[u8], unit: u32) -> bool {
         transition unit < limit {
             true -> file(input, limit, supplier, path, unit),
             _ -> false
         }
     }
-    machine file(input: @ConstructionInput, limit: u32, supplier: u32, path: @[u8], unit: u32) -> bool
+    machine file(input: @|input_packet|::ConstructionInput, limit: u32, supplier: u32, path: @[u8], unit: u32) -> bool
     requires unit < limit
     {
         transition build_source_word(input, unit, 0) == supplier && same_build_path(build_source_path(input, unit), path) {
@@ -102,40 +103,40 @@ reaches ProcessExit crashes Trap
     }
 }
 
-machine unique_core(input: @ConstructionInput, supplier: u32) -> bool
-reaches ProcessExit crashes Trap
+machine unique_core(input: @|input_packet|::ConstructionInput, supplier: u32) -> bool
+reaches |process_exit|::ProcessExit crashes Trap
 {
-    transition row_word(input, supplier as u64 * 3 + 2) == 1 {
+    transition |input_packet|::row_word(input, supplier as u64 * 3 + 2) == 1 {
         true -> scan(input, supplier, 0),
         _ -> false
     }
-    machine scan(input: @ConstructionInput, supplier: u32, package: u32) -> bool {
+    machine scan(input: @|input_packet|::ConstructionInput, supplier: u32, package: u32) -> bool {
         transition package < input.package_count {
             true -> check(input, supplier, package),
             _ -> true
         }
     }
-    machine check(input: @ConstructionInput, supplier: u32, package: u32) -> bool
+    machine check(input: @|input_packet|::ConstructionInput, supplier: u32, package: u32) -> bool
     requires package < input.package_count
     {
-        transition package != supplier && row_word(input, package as u64 * 3 + 2) == 1 {
+        transition package != supplier && |input_packet|::row_word(input, package as u64 * 3 + 2) == 1 {
             true -> false,
             _ -> scan(input, supplier, package + 1)
         }
     }
 }
 
-machine build_evidence_valid(input: @ConstructionInput) -> bool
-reaches ProcessExit crashes Trap
+machine build_evidence_valid(input: @|input_packet|::ConstructionInput) -> bool
+reaches |process_exit|::ProcessExit crashes Trap
 {
     transition { _ -> sources(input, 0) }
-    machine sources(input: @ConstructionInput, unit: u32) -> bool {
+    machine sources(input: @|input_packet|::ConstructionInput, unit: u32) -> bool {
         transition unit < input.build_unit_count {
             true -> file(input, unit),
             _ -> entries(input, 0)
         }
     }
-    machine file(input: @ConstructionInput, unit: u32) -> bool
+    machine file(input: @|input_packet|::ConstructionInput, unit: u32) -> bool
     requires unit < input.build_unit_count
     {
         let supplier: u32 = build_source_word(input, unit, 0);
@@ -148,13 +149,13 @@ reaches ProcessExit crashes Trap
             _ -> false
         }
     }
-    machine entries(input: @ConstructionInput, requester: u32) -> bool {
+    machine entries(input: @|input_packet|::ConstructionInput, requester: u32) -> bool {
         transition requester < input.package_count {
             true -> entry(input, requester),
             _ -> true
         }
     }
-    machine entry(input: @ConstructionInput, requester: u32) -> bool
+    machine entry(input: @|input_packet|::ConstructionInput, requester: u32) -> bool
     requires requester < input.package_count
     {
         let owner: u32 = build_table_word(input, requester, 0, 0);
@@ -164,7 +165,7 @@ reaches ProcessExit crashes Trap
             _ -> false
         }
     }
-    machine selected(input: @ConstructionInput, requester: u32, unit: u32) -> bool
+    machine selected(input: @|input_packet|::ConstructionInput, requester: u32, unit: u32) -> bool
     requires requester < input.package_count
     {
         let supplier: u32 = build_source_word(input, unit, 0);
@@ -179,19 +180,19 @@ reaches ProcessExit crashes Trap
     }
 }
 
-// Capturing Build files supplies the inputs for replay. Until the compiler
-// checks them, the construction application must terminate before publication.
-machine check_build_input(input: @ConstructionInput) reaches ProcessExit crashes Trap {
+// A valid inventory identifies the Build files to execute. The constructor
+// stops before writing a tape until it can execute those files.
+machine check_build_input(input: @|input_packet|::ConstructionInput) reaches |process_exit|::ProcessExit crashes Trap {
     transition input.has_build_sources {
         true -> check(input),
         _ -> accepted()
     }
-    machine check(input: @ConstructionInput) {
+    machine check(input: @|input_packet|::ConstructionInput) {
         transition build_evidence_valid(input) {
             true -> pending(),
-            _ -> malformed()
+            _ -> |input_packet|::malformed()
         }
     }
-    machine pending() { ProcessExit::exit_process(246); }
+    machine pending() { |process_exit|::ProcessExit::exit_process(246); }
     machine accepted() {}
 }

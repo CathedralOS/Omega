@@ -1,0 +1,20 @@
+// Expected exit: 0
+use foundation/integers.omg as exact;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg as resolved;
+
+machine start() crashes Trap {
+    let minimum: |exact|::ExactInteger = |exact|::minimum(|resolved|::BuiltinType::I64);
+    let maximum: |exact|::ExactInteger = |exact|::maximum(|resolved|::BuiltinType::U64);
+    let one: |exact|::ExactInteger = |exact|::exact_integer_of(1 as +Wrapping);
+    let overflow: |exact|::ExactResult = |exact|::exact_integer_add(maximum, one);
+    let six: |exact|::ExactInteger = |exact|::exact_integer_of(6 as +Wrapping);
+    let reduced: |exact|::RationalResult = |exact|::rational_reduced(six, 8 as +Wrapping);
+    let invalid: |exact|::RationalResult = |exact|::rational_reduced(six, 0 as +Wrapping);
+    transition minimum.negative && minimum.magnitude == 9223372036854775808
+        && !maximum.negative && maximum.magnitude == 18446744073709551615
+        && !overflow.valid && overflow.value.magnitude == 0
+        && reduced.valid && reduced.value.numerator.magnitude == 3 && reduced.value.denominator == 4
+        && !invalid.valid && invalid.value.denominator == 1 { true -> done(), _ -> wrong() }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

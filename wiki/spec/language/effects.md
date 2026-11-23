@@ -230,6 +230,11 @@ For the standard library's [console](../build/platform_services.md#standard-stre
 reaches `StandardInput`. A write-only caller can therefore declare a ceiling
 that excludes input while calling through the same provider interface.
 
+The [network reach rules](../build/platform_services.md#network-reach) use one
+core parent, `Network`. For example, sending a datagram to a caller-selected
+destination reaches both `NetworkInitiateContact` and `NetworkSend`. Sending
+on an already connected stream reaches `NetworkSend`. Both include `Network`.
+
 A package can define its own boundary-trait identity and explicitly name it
 in an operation's row, including the containing trait itself:
 

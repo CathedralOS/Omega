@@ -1,26 +1,10 @@
-use foundation\ExactInteger;
-use foundation\exact_integer_fits;
-use representations\symbol_resolved_trees\BuiltinType;
-use representations\symbol_resolved_trees\DomainBinding;
-use representations\syntax_trees\Expression;
-use representations\syntax_trees\ExpressionKind;
-use representations\syntax_trees\OperatorKind;
-use representations\syntax_trees\ReferenceAccess;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\syntax_trees_expression;
-use representations\typed_trees\Adaptation;
-use representations\typed_trees\TypeDiagnosticCode;
-use representations\typed_trees\TypeKind;
-use representations\typed_trees\TypeRow;
-use representations\typed_trees\same_carrier;
-use representations\typed_trees\set_adaptation;
-use representations\typed_trees\set_expression_type;
-use representations\typed_trees\type_table_row;
-use representations\typed_trees\typing_denominator;
-use representations\typed_trees\typing_expression_type;
-use representations\typed_trees\typing_fractional_origin;
-use representations\typed_trees\typing_reject;
-use representations\typed_trees\typing_value;
+use pipeline/symbol_resolved_trees_to_typed_trees/landing.omg;
+use pipeline/symbol_resolved_trees_to_typed_trees/typing_state.omg;
+
+use foundation/integers.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/typed_trees/typed_trees.omg;
 
 // Admission preserves the exact declared domain set. Expected types choose
 // carriers for anonymous values; adding, retaining or removing a domain is an
@@ -44,90 +28,90 @@ public data Admission [copy] {
     case FractionalIntermediate;
 }
 
-public machine typer_admission(typer: @Typer, syntax: @SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> Admission
+public machine typer_admission(typer: @|typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> Admission
 crashes Trap
 {
-    let actual: u64 in Trapping = typing_expression_type(@typer.output, expression);
+    let actual: u64 in Trapping = |typed_trees|::typing_expression_type(@typer.output, expression);
     transition actual > 0 {
         true -> valued(typer, syntax, destination, expression, actual),
         _ -> not_a_value()
     }
 
-    machine valued(typer: @Typer, syntax: @SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, actual: u64 in Trapping) -> Admission {
+    machine valued(typer: @|typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, actual: u64 in Trapping) -> Admission {
         transition actual == destination {
             true -> exact(),
             _ -> different(typer, syntax, destination, expression, actual)
         }
     }
 
-    machine different(typer: @Typer, syntax: @SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, actual: u64 in Trapping) -> Admission {
-        let read: u64 in Trapping = typer_read_type(typer, actual);
+    machine different(typer: @|typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, actual: u64 in Trapping) -> Admission {
+        let read: u64 in Trapping = |typing_state|::typer_read_type(typer, actual);
         transition read != actual && read == destination {
             true -> reading(),
             _ -> kinds(typer, syntax, destination, expression, actual)
         }
     }
 
-    machine kinds(typer: @Typer, syntax: @SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, actual: u64 in Trapping) -> Admission {
-        let wanted: TypeRow = type_table_row(@typer.output.types, destination);
-        let given: TypeRow = type_table_row(@typer.output.types, actual);
+    machine kinds(typer: @|typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, actual: u64 in Trapping) -> Admission {
+        let wanted: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typer.output.types, destination);
+        let given: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typer.output.types, actual);
         transition given.kind {
-            TypeKind::AnonymousInteger -> literal(typer, expression, wanted),
-            TypeKind::AnonymousFloat -> literal(typer, expression, wanted),
-            TypeKind::AnonymousChoice -> unlanded(typer, syntax, destination, expression),
-            TypeKind::AnonymousArray -> unlanded(typer, syntax, destination, expression),
+            |typed_trees|::TypeKind::AnonymousInteger -> literal(typer, expression, wanted),
+            |typed_trees|::TypeKind::AnonymousFloat -> literal(typer, expression, wanted),
+            |typed_trees|::TypeKind::AnonymousChoice -> unlanded(typer, syntax, destination, expression),
+            |typed_trees|::TypeKind::AnonymousArray -> unlanded(typer, syntax, destination, expression),
             _ -> quoted(typer, syntax, wanted, given, actual, expression)
         }
     }
 
-    machine quoted(typer: @Typer, syntax: @SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
-        let written: Expression = syntax_trees_expression(syntax, expression);
-        transition written.kind == ExpressionKind::String && wanted.kind == TypeKind::Array {
+    machine quoted(typer: @|typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, wanted: |typed_trees|::TypeRow, given: |typed_trees|::TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
+        let written: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, expression);
+        transition written.kind == |syntax_trees|::ExpressionKind::String && wanted.kind == |typed_trees|::TypeKind::Array {
             true -> copied(typer, expression, wanted),
             _ -> typed(typer, syntax, wanted, given, actual, expression)
         }
     }
 
-    machine copied(typer: @Typer, expression: u64 in Trapping, wanted: TypeRow) -> Admission {
-        let element: TypeRow = type_table_row(@typer.output.types, wanted.inner);
-        let extent: TypeRow = type_table_row(@typer.output.types, wanted.length);
-        let length: ExactInteger = typing_value(@typer.output, expression);
-        let bytes: bool = element.kind == TypeKind::Builtin && element.builtin == BuiltinType::U8
-            && element.domain == DomainBinding::Unqualified;
-        let exact: bool = extent.kind == TypeKind::StaticInteger && extent.length == ((length.magnitude as -Wrapping) as +Trapping);
-        transition bytes && wanted.domain == DomainBinding::Unqualified && exact {
+    machine copied(typer: @|typing_state|::Typer, expression: u64 in Trapping, wanted: |typed_trees|::TypeRow) -> Admission {
+        let element: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typer.output.types, wanted.inner);
+        let extent: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typer.output.types, wanted.length);
+        let length: |integers|::ExactInteger = |typed_trees|::typing_value(@typer.output, expression);
+        let bytes: bool = element.kind == |typed_trees|::TypeKind::Builtin && element.builtin == |symbol_resolved_trees|::BuiltinType::U8
+            && element.domain == |symbol_resolved_trees|::DomainBinding::Unqualified;
+        let exact: bool = extent.kind == |typed_trees|::TypeKind::StaticInteger && extent.length == ((length.magnitude as -Wrapping) as +Trapping);
+        transition bytes && wanted.domain == |symbol_resolved_trees|::DomainBinding::Unqualified && exact {
             true -> landed(),
             _ -> rejected()
         }
     }
 
-    machine literal(typer: @Typer, expression: u64 in Trapping, wanted: TypeRow) -> Admission {
+    machine literal(typer: @|typing_state|::Typer, expression: u64 in Trapping, wanted: |typed_trees|::TypeRow) -> Admission {
         let admission: Admission = literal_admission(typer, expression, wanted);
         admission
     }
 
-    machine unlanded(typer: @Typer, syntax: @SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> Admission {
-        let landing: Landing = typer_landing(typer, syntax, destination, expression);
+    machine unlanded(typer: @|typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> Admission {
+        let landing: |landing|::Landing = |landing|::typer_landing(typer, syntax, destination, expression);
         landing.admission
     }
 
-    machine typed(typer: @Typer, syntax: @SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
-        transition given.kind == TypeKind::Builtin && given.builtin == BuiltinType::Never {
+    machine typed(typer: @|typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, wanted: |typed_trees|::TypeRow, given: |typed_trees|::TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
+        transition given.kind == |typed_trees|::TypeKind::Builtin && given.builtin == |symbol_resolved_trees|::BuiltinType::Never {
             true -> exact(),
             _ -> carried(typer, syntax, wanted, given, actual, expression)
         }
     }
 
-    machine carried(typer: @Typer, syntax: @SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
-        let same: bool = same_carrier(@typer.output.types, wanted, given);
+    machine carried(typer: @|typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, wanted: |typed_trees|::TypeRow, given: |typed_trees|::TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
+        let same: bool = |typed_trees|::same_carrier(@typer.output.types, wanted, given);
         transition same {
             true -> rejected(),
             _ -> lending(typer, syntax, wanted, given, actual, expression)
         }
     }
 
-    machine lending(typer: @Typer, syntax: @SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
-        transition wanted.kind == TypeKind::Reference {
+    machine lending(typer: @|typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, wanted: |typed_trees|::TypeRow, given: |typed_trees|::TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
+        transition wanted.kind == |typed_trees|::TypeKind::Reference {
             true -> referenced(typer, syntax, wanted, given, actual, expression),
             _ -> unapplied(syntax, wanted, given)
         }
@@ -135,9 +119,9 @@ crashes Trap
 
     // A reference to a whole array views it as a slice of its elements,
     // a shared view from either reference.
-    machine referenced(typer: @Typer, syntax: @SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
-        let expands_write_only: bool = given.kind == TypeKind::Reference && given.access == ReferenceAccess::WriteOnly
-            && wanted.access != ReferenceAccess::WriteOnly;
+    machine referenced(typer: @|typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, wanted: |typed_trees|::TypeRow, given: |typed_trees|::TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
+        let expands_write_only: bool = given.kind == |typed_trees|::TypeKind::Reference && given.access == |syntax_trees|::ReferenceAccess::WriteOnly
+            && wanted.access != |syntax_trees|::ReferenceAccess::WriteOnly;
         transition expands_write_only {
             true -> rejected(),
             false -> viewed(typer, wanted, given, actual)
@@ -146,7 +130,7 @@ crashes Trap
 
     // Access authority is settled before array/slice representation: a
     // write-only reference cannot acquire read authority through a view.
-    machine viewed(typer: @Typer, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping) -> Admission {
+    machine viewed(typer: @|typing_state|::Typer, wanted: |typed_trees|::TypeRow, given: |typed_trees|::TypeRow, actual: u64 in Trapping) -> Admission {
         let viewed: bool = views_array(typer, wanted, given);
         transition viewed {
             true -> reference_adaptation(wanted, given),
@@ -158,8 +142,8 @@ crashes Trap
     // subrange is written `@mutable items[start..end]`, and an expected
     // `@mutable [T]` never inserts the borrow
     // (wiki/spec/language/expressions.md#borrowed-range-access).
-    machine access(wanted: TypeRow, given: TypeRow, actual: u64 in Trapping) -> Admission {
-        transition wanted.access == ReferenceAccess::Shared {
+    machine access(wanted: |typed_trees|::TypeRow, given: |typed_trees|::TypeRow, actual: u64 in Trapping) -> Admission {
+        transition wanted.access == |syntax_trees|::ReferenceAccess::Shared {
             true -> shared(wanted, given, actual),
             _ -> attenuating(wanted, given)
         }
@@ -170,24 +154,24 @@ crashes Trap
     // the admission is bound (`typer_admit`), so a candidate taking it is
     // selected and its unspelled attenuation is named, not a missing
     // machine.
-    machine attenuating(wanted: TypeRow, given: TypeRow) -> Admission {
-        let is_mutable_reference: bool = given.kind == TypeKind::Reference && given.access == ReferenceAccess::Mutable
+    machine attenuating(wanted: |typed_trees|::TypeRow, given: |typed_trees|::TypeRow) -> Admission {
+        let is_mutable_reference: bool = given.kind == |typed_trees|::TypeKind::Reference && given.access == |syntax_trees|::ReferenceAccess::Mutable
             && given.inner == wanted.inner;
-        transition wanted.access == ReferenceAccess::WriteOnly && is_mutable_reference {
+        transition wanted.access == |syntax_trees|::ReferenceAccess::WriteOnly && is_mutable_reference {
             true -> exact(),
             _ -> rejected()
         }
     }
 
-    machine shared(wanted: TypeRow, given: TypeRow, actual: u64 in Trapping) -> Admission {
+    machine shared(wanted: |typed_trees|::TypeRow, given: |typed_trees|::TypeRow, actual: u64 in Trapping) -> Admission {
         transition actual == wanted.inner {
             true -> lend(),
             _ -> reborrow(wanted, given)
         }
     }
 
-    machine reborrow(wanted: TypeRow, given: TypeRow) -> Admission {
-        transition given.kind == TypeKind::Reference && given.inner == wanted.inner {
+    machine reborrow(wanted: |typed_trees|::TypeRow, given: |typed_trees|::TypeRow) -> Admission {
+        transition given.kind == |typed_trees|::TypeKind::Reference && given.inner == wanted.inner {
             true -> reference_adaptation(wanted, given),
             _ -> rejected()
         }
@@ -195,8 +179,8 @@ crashes Trap
 
     // Keep the selected shared access on the admitted value. The caller may
     // forward an existing descriptor, but this use lends its referent shared.
-    machine reference_adaptation(wanted: TypeRow, given: TypeRow) -> Admission {
-        transition wanted.access == ReferenceAccess::Shared && given.access == ReferenceAccess::Mutable {
+    machine reference_adaptation(wanted: |typed_trees|::TypeRow, given: |typed_trees|::TypeRow) -> Admission {
+        transition wanted.access == |syntax_trees|::ReferenceAccess::Shared && given.access == |syntax_trees|::ReferenceAccess::Mutable {
             true -> shared_reborrow(),
             false -> exact()
         }
@@ -204,16 +188,16 @@ crashes Trap
 
     machine shared_reborrow() -> Admission { Admission::SharedReborrow }
 
-    machine unapplied(syntax: @SyntaxTrees, wanted: TypeRow, given: TypeRow) -> Admission {
-        transition wanted.kind == TypeKind::Data && given.kind == TypeKind::Data && wanted.item == given.item
+    machine unapplied(syntax: @|syntax_trees|::SyntaxTrees, wanted: |typed_trees|::TypeRow, given: |typed_trees|::TypeRow) -> Admission {
+        transition wanted.kind == |typed_trees|::TypeKind::Data && given.kind == |typed_trees|::TypeKind::Data && wanted.item == given.item
             && given.argument_count == 0 {
             true -> generic_data(syntax, wanted),
             _ -> rejected()
         }
     }
 
-    machine generic_data(syntax: @SyntaxTrees, wanted: TypeRow) -> Admission {
-        let applied: u64 in Trapping = applied_parameter_count(syntax, wanted.item);
+    machine generic_data(syntax: @|syntax_trees|::SyntaxTrees, wanted: |typed_trees|::TypeRow) -> Admission {
+        let applied: u64 in Trapping = |syntax_trees|::applied_parameter_count(syntax, wanted.item);
         transition applied > 0 {
             true -> exact(),
             _ -> rejected()
@@ -252,25 +236,25 @@ crashes Trap
 // An anonymous number, `expression`, at a destination of row `wanted`: it
 // lands at a float format by one rounding, and an anonymous integer at a
 // fixed integer it fits.
-public machine literal_admission(typer: @Typer, expression: u64 in Trapping, wanted: TypeRow) -> Admission
+public machine literal_admission(typer: @|typing_state|::Typer, expression: u64 in Trapping, wanted: |typed_trees|::TypeRow) -> Admission
 crashes Trap
 {
-    let actual: u64 in Trapping = typing_expression_type(@typer.output, expression);
-    let float_destination: bool = wanted.kind == TypeKind::Builtin
-        && (wanted.builtin == BuiltinType::F32 || wanted.builtin == BuiltinType::F64);
-    transition wanted.domain == DomainBinding::Unqualified {
+    let actual: u64 in Trapping = |typed_trees|::typing_expression_type(@typer.output, expression);
+    let float_destination: bool = wanted.kind == |typed_trees|::TypeKind::Builtin
+        && (wanted.builtin == |symbol_resolved_trees|::BuiltinType::F32 || wanted.builtin == |symbol_resolved_trees|::BuiltinType::F64);
+    transition wanted.domain == |symbol_resolved_trees|::DomainBinding::Unqualified {
         true -> unqualified(typer, expression, wanted, actual, float_destination),
         _ -> rejected()
     }
 
-    machine unqualified(typer: @Typer, expression: u64 in Trapping, wanted: TypeRow, actual: u64 in Trapping, float_destination: bool) -> Admission {
+    machine unqualified(typer: @|typing_state|::Typer, expression: u64 in Trapping, wanted: |typed_trees|::TypeRow, actual: u64 in Trapping, float_destination: bool) -> Admission {
         transition float_destination {
             true -> landed(),
             _ -> integer_literal(typer, expression, wanted, actual)
         }
     }
 
-    machine integer_literal(typer: @Typer, expression: u64 in Trapping, wanted: TypeRow, actual: u64 in Trapping) -> Admission {
+    machine integer_literal(typer: @|typing_state|::Typer, expression: u64 in Trapping, wanted: |typed_trees|::TypeRow, actual: u64 in Trapping) -> Admission {
         transition actual == typer.output.anonymous {
             true -> anonymous(typer, expression, wanted),
             _ -> rejected()
@@ -279,13 +263,13 @@ crashes Trap
 
     // Integer landing requires an integral, in-range value
     // (wiki/spec/language/numeric_values.md).
-    machine anonymous(typer: @Typer, expression: u64 in Trapping, wanted: TypeRow) -> Admission {
-        let value: ExactInteger = typing_value(@typer.output, expression);
-        let denominator: u64 in Trapping = typing_denominator(@typer.output, expression);
-        let fixed: bool = fixed_integer(wanted.builtin);
-        let fits: bool = exact_integer_fits(wanted.builtin, value);
-        transition wanted.kind == TypeKind::Builtin && fixed {
-            true -> landing(fits, denominator == 1, typing_fractional_origin(@typer.output, expression)),
+    machine anonymous(typer: @|typing_state|::Typer, expression: u64 in Trapping, wanted: |typed_trees|::TypeRow) -> Admission {
+        let value: |integers|::ExactInteger = |typed_trees|::typing_value(@typer.output, expression);
+        let denominator: u64 in Trapping = |typed_trees|::typing_denominator(@typer.output, expression);
+        let fixed: bool = |symbol_resolved_trees|::fixed_integer(wanted.builtin);
+        let fits: bool = |integers|::exact_integer_fits(wanted.builtin, value);
+        transition wanted.kind == |typed_trees|::TypeKind::Builtin && fixed {
+            true -> landing(fits, denominator == 1, |typed_trees|::typing_fractional_origin(@typer.output, expression)),
             _ -> rejected()
         }
     }
@@ -334,28 +318,28 @@ crashes Trap
 // shared loan (only where `lend` allows one: a call argument), or reject at
 // the expression, or at an unlanded value's number that does not land.
 // Whether it was admitted.
-public machine typer_admit(typer: @mutable Typer, syntax: @SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, lend: bool) -> bool
+public machine typer_admit(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, lend: bool) -> bool
 crashes Trap
 {
     let admission: Admission = typer_admission(typer, syntax, destination, expression);
-    let actual: u64 in Trapping = typing_expression_type(@typer.output, expression);
-    let given: TypeRow = type_table_row(@typer.output.types, actual);
-    let chosen: bool = given.kind == TypeKind::AnonymousChoice || given.kind == TypeKind::AnonymousArray;
+    let actual: u64 in Trapping = |typed_trees|::typing_expression_type(@typer.output, expression);
+    let given: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typer.output.types, actual);
+    let chosen: bool = given.kind == |typed_trees|::TypeKind::AnonymousChoice || given.kind == |typed_trees|::TypeKind::AnonymousArray;
     let blamed: u64 in Trapping = blamed_value(typer, syntax, destination, expression, chosen && admission != Admission::Landed);
-    let written: Expression = syntax_trees_expression(syntax, blamed);
-    let wanted: TypeRow = type_table_row(@typer.output.types, destination);
-    let spelled: Expression = syntax_trees_expression(syntax, expression);
-    let write_only: bool = wanted.kind == TypeKind::Reference && wanted.access == ReferenceAccess::WriteOnly;
-    let attenuated: bool = spelled.kind == ExpressionKind::Unary && spelled.operator == OperatorKind::BorrowWrite;
+    let written: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, blamed);
+    let wanted: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typer.output.types, destination);
+    let spelled: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, expression);
+    let write_only: bool = wanted.kind == |typed_trees|::TypeKind::Reference && wanted.access == |syntax_trees|::ReferenceAccess::WriteOnly;
+    let attenuated: bool = spelled.kind == |syntax_trees|::ExpressionKind::Unary && spelled.operator == |syntax_trees|::OperatorKind::BorrowWrite;
     transition write_only && !attenuated {
-        true -> reject(typer, spelled, TypeDiagnosticCode::ImplicitAttenuation),
+        true -> reject(typer, spelled, |typed_trees|::TypeDiagnosticCode::ImplicitAttenuation),
         _ -> judged(typer, syntax, destination, expression, lend, admission, chosen, written, blamed)
     }
 
     // A `@write` destination is met only by a `@write` borrow: attenuation
     // from mutable access, and forwarding, are spelled at the argument
     // (wiki/spec/language/expressions.md#calls-places-and-temporaries).
-    machine judged(typer: @mutable Typer, syntax: @SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, lend: bool, admission: Admission, chosen: bool, written: Expression, blamed: u64 in Trapping) -> bool {
+    machine judged(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, lend: bool, admission: Admission, chosen: bool, written: |syntax_trees|::Expression, blamed: u64 in Trapping) -> bool {
         transition admission {
             Admission::Exact -> admitted(),
             Admission::Landed -> landing(typer, syntax, destination, expression, chosen),
@@ -363,75 +347,75 @@ crashes Trap
             Admission::SharedReborrow -> mark_lent(typer, expression),
             Admission::Qualified -> qualified(typer, expression),
             Admission::Read -> read(typer, expression),
-            Admission::OutOfRange -> reject(typer, written, TypeDiagnosticCode::LiteralOutOfRange),
-            Admission::Fraction -> reject(typer, written, TypeDiagnosticCode::AnonymousFraction),
+            Admission::OutOfRange -> reject(typer, written, |typed_trees|::TypeDiagnosticCode::LiteralOutOfRange),
+            Admission::Fraction -> reject(typer, written, |typed_trees|::TypeDiagnosticCode::AnonymousFraction),
             Admission::FractionalIntermediate -> fractional_origin(typer, syntax, blamed),
-            Admission::NotAValue -> reject(typer, written, TypeDiagnosticCode::NotAValue),
-            Admission::Rejected -> reject(typer, written, TypeDiagnosticCode::MismatchedTypes)
+            Admission::NotAValue -> reject(typer, written, |typed_trees|::TypeDiagnosticCode::NotAValue),
+            Admission::Rejected -> reject(typer, written, |typed_trees|::TypeDiagnosticCode::MismatchedTypes)
         }
     }
 
-    machine fractional_origin(typer: @mutable Typer, syntax: @SyntaxTrees, blamed: u64 in Trapping) -> bool {
-        let origin: u64 in Trapping = typing_fractional_origin(@typer.output, blamed);
+    machine fractional_origin(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, blamed: u64 in Trapping) -> bool {
+        let origin: u64 in Trapping = |typed_trees|::typing_fractional_origin(@typer.output, blamed);
         transition origin > 0 {
             true -> origin_span(typer, syntax, origin - 1),
             _ -> invalid_origin()
         }
     }
 
-    machine origin_span(typer: @mutable Typer, syntax: @SyntaxTrees, origin: u64 in Trapping) -> bool {
-        let written: Expression = syntax_trees_expression(syntax, origin);
-        transition { _ -> reject(typer, written, TypeDiagnosticCode::FractionalIntermediate) }
+    machine origin_span(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, origin: u64 in Trapping) -> bool {
+        let written: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, origin);
+        transition { _ -> reject(typer, written, |typed_trees|::TypeDiagnosticCode::FractionalIntermediate) }
     }
 
     machine invalid_origin() -> bool { crash Trap; }
 
-    machine landing(typer: @mutable Typer, syntax: @SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, chosen: bool) -> bool {
+    machine landing(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, chosen: bool) -> bool {
         transition chosen {
             true -> chosen_arms(typer, syntax, destination, expression),
             _ -> landed(typer, destination, expression)
         }
     }
 
-    machine landed(typer: @mutable Typer, destination: u64 in Trapping, expression: u64 in Trapping) -> bool {
-        set_expression_type(@mutable typer.output, expression, destination);
-        set_adaptation(@mutable typer.output, expression, Adaptation::Landed);
+    machine landed(typer: @mutable |typing_state|::Typer, destination: u64 in Trapping, expression: u64 in Trapping) -> bool {
+        |typed_trees|::set_expression_type(@mutable typer.output, expression, destination);
+        |typed_trees|::set_adaptation(@mutable typer.output, expression, |typed_trees|::Adaptation::Landed);
         transition { _ -> admitted() }
     }
 
-    machine chosen_arms(typer: @mutable Typer, syntax: @SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> bool {
-        typer_land(typer, syntax, destination, expression);
+    machine chosen_arms(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> bool {
+        |landing|::typer_land(typer, syntax, destination, expression);
         transition { _ -> admitted() }
     }
 
     // A call argument lends implicitly; elsewhere only a range slice, a
     // view of its collection.
-    machine lent(typer: @mutable Typer, syntax: @SyntaxTrees, written: Expression, expression: u64 in Trapping, lend: bool) -> bool {
-        let selector: Expression = syntax_trees_expression(syntax, written.right);
-        let sliced: bool = written.kind == ExpressionKind::Index && selector.kind == ExpressionKind::Range;
+    machine lent(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, written: |syntax_trees|::Expression, expression: u64 in Trapping, lend: bool) -> bool {
+        let selector: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, written.right);
+        let sliced: bool = written.kind == |syntax_trees|::ExpressionKind::Index && selector.kind == |syntax_trees|::ExpressionKind::Range;
         transition lend || sliced {
             true -> mark_lent(typer, expression),
-            _ -> reject(typer, written, TypeDiagnosticCode::MismatchedTypes)
+            _ -> reject(typer, written, |typed_trees|::TypeDiagnosticCode::MismatchedTypes)
         }
     }
 
-    machine qualified(typer: @mutable Typer, expression: u64 in Trapping) -> bool {
-        set_adaptation(@mutable typer.output, expression, Adaptation::Qualified);
+    machine qualified(typer: @mutable |typing_state|::Typer, expression: u64 in Trapping) -> bool {
+        |typed_trees|::set_adaptation(@mutable typer.output, expression, |typed_trees|::Adaptation::Qualified);
         transition { _ -> admitted() }
     }
 
-    machine read(typer: @mutable Typer, expression: u64 in Trapping) -> bool {
-        set_adaptation(@mutable typer.output, expression, Adaptation::Read);
+    machine read(typer: @mutable |typing_state|::Typer, expression: u64 in Trapping) -> bool {
+        |typed_trees|::set_adaptation(@mutable typer.output, expression, |typed_trees|::Adaptation::Read);
         transition { _ -> admitted() }
     }
 
-    machine mark_lent(typer: @mutable Typer, expression: u64 in Trapping) -> bool {
-        set_adaptation(@mutable typer.output, expression, Adaptation::SharedLend);
+    machine mark_lent(typer: @mutable |typing_state|::Typer, expression: u64 in Trapping) -> bool {
+        |typed_trees|::set_adaptation(@mutable typer.output, expression, |typed_trees|::Adaptation::SharedLend);
         transition { _ -> admitted() }
     }
 
-    machine reject(typer: @mutable Typer, written: Expression, code: TypeDiagnosticCode) -> bool {
-        typing_reject(@mutable typer.output, code, written.source_span);
+    machine reject(typer: @mutable |typing_state|::Typer, written: |syntax_trees|::Expression, code: |typed_trees|::TypeDiagnosticCode) -> bool {
+        |typed_trees|::typing_reject(@mutable typer.output, code, written.source_span);
         transition { _ -> refused() }
     }
 
@@ -446,7 +430,7 @@ crashes Trap
 
 // The value a refused admission names: an unlanded value's first number
 // that does not land, else the expression itself.
-machine blamed_value(typer: @Typer, syntax: @SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, chosen: bool) -> u64 in Trapping
+machine blamed_value(typer: @|typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, chosen: bool) -> u64 in Trapping
 crashes Trap
 {
     transition chosen {
@@ -454,8 +438,8 @@ crashes Trap
         _ -> found(expression)
     }
 
-    machine arm(typer: @Typer, syntax: @SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> u64 in Trapping {
-        let landing: Landing = typer_landing(typer, syntax, destination, expression);
+    machine arm(typer: @|typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> u64 in Trapping {
+        let landing: |landing|::Landing = |landing|::typer_landing(typer, syntax, destination, expression);
         transition { _ -> found(landing.value) }
     }
 
@@ -466,7 +450,7 @@ crashes Trap
 
 // Whether `expression` would be admitted at `destination`, lending allowed:
 // the test overload selection applies to each candidate.
-public machine admissible(typer: @Typer, syntax: @SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> bool
+public machine admissible(typer: @|typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> bool
 crashes Trap
 {
     let admission: Admission = typer_admission(typer, syntax, destination, expression);
@@ -492,19 +476,19 @@ crashes Trap
 // Whether a reference to an array meets a slice reference of its element
 // and qualifier, a shared one from either access and an exclusive one from
 // an exclusive reference.
-public machine views_array(typer: @Typer, wanted: TypeRow, given: TypeRow) -> bool
+public machine views_array(typer: @|typing_state|::Typer, wanted: |typed_trees|::TypeRow, given: |typed_trees|::TypeRow) -> bool
 crashes Trap
 {
-    let access: bool = given.access == wanted.access || wanted.access == ReferenceAccess::Shared;
-    transition given.kind == TypeKind::Reference && access {
+    let access: bool = given.access == wanted.access || wanted.access == |syntax_trees|::ReferenceAccess::Shared;
+    transition given.kind == |typed_trees|::TypeKind::Reference && access {
         true -> referents(typer, wanted, given),
         _ -> answer(false)
     }
 
-    machine referents(typer: @Typer, wanted: TypeRow, given: TypeRow) -> bool {
-        let array: TypeRow = type_table_row(@typer.output.types, given.inner);
-        let slice: TypeRow = type_table_row(@typer.output.types, wanted.inner);
-        let viewed: bool = array.kind == TypeKind::Array && slice.kind == TypeKind::Slice && array.inner == slice.inner
+    machine referents(typer: @|typing_state|::Typer, wanted: |typed_trees|::TypeRow, given: |typed_trees|::TypeRow) -> bool {
+        let array: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typer.output.types, given.inner);
+        let slice: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typer.output.types, wanted.inner);
+        let viewed: bool = array.kind == |typed_trees|::TypeKind::Array && slice.kind == |typed_trees|::TypeKind::Slice && array.inner == slice.inner
             && array.domain == slice.domain && array.domain_item == slice.domain_item;
         transition { _ -> answer(viewed) }
     }

@@ -1,20 +1,19 @@
-use representations\source_files\SourceId;
-use representations\source_files\SourceSpan;
-use representations\source_files\Span;
-use representations\tokens\IntegerSuffix;
+
+use representations/source_files/source.omg;
+use representations/tokens/numeric.omg;
 
 // Bounded source-shaped storage for the live product parser slices. Handles
 // are dense indices into owner-local tables; no symbol or package meaning is
 // assigned here.
 
 public data IdentifierSpan [copy] {
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 public data UseItem [copy] {
     first_member: u64 in Trapping;
     member_count: u64 in Trapping;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 public data TypeReferenceKind [copy] {
@@ -68,7 +67,7 @@ public data TypeReference [copy] {
     lifetime_count: u64 in Trapping;
     literal: u64 in Trapping;
     first_row: u64 in Trapping;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 // One integer literal as the lexer decoded it: its value `magnitude` when
@@ -80,12 +79,12 @@ public data IntegerLiteral [copy] {
     magnitude: u64 in Wrapping;
     exact: bool;
     empty_digits: bool;
-    suffix: IntegerSuffix;
+    suffix: |numeric|::IntegerSuffix;
 }
 
 // Type arguments and array lengths require an exact, unsuffixed integer.
 public machine static_integer_is_valid(value: IntegerLiteral) -> bool {
-    value.exact && !value.empty_digits && value.suffix == IntegerSuffix::None
+    value.exact && !value.empty_digits && value.suffix == |numeric|::IntegerSuffix::None
 }
 
 // Compare the syntax of one type row. The resolver compares the declarations
@@ -117,22 +116,22 @@ crashes Trap
 public data DataField [copy] {
     name: IdentifierSpan;
     has_identity: bool;
-    identity: SourceSpan;
+    identity: |source|::SourceSpan;
     identity_literal: u64 in Trapping;
     type_reference: u64 in Trapping;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 public data DataCase [copy] {
     name: IdentifierSpan;
     has_identity: bool;
-    identity: SourceSpan;
+    identity: |source|::SourceSpan;
     identity_literal: u64 in Trapping;
     first_payload_field: u64 in Trapping;
     payload_field_count: u64 in Trapping;
     first_clause: u64 in Trapping;
     clause_count: u64 in Trapping;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 public data DataMemberKind [copy] {
@@ -143,7 +142,7 @@ public data DataMemberKind [copy] {
 public data DataMember [copy] {
     kind: DataMemberKind;
     item_index: u64 in Trapping;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 // Retirement is schema history, never a live field/case or a runtime tag.
@@ -157,9 +156,9 @@ public data RetiredIdentityOwner [copy] {
 public data RetiredIdentity [copy] {
     owner_kind: RetiredIdentityOwner;
     owner: u64 in Trapping;
-    identity: SourceSpan;
+    identity: |source|::SourceSpan;
     identity_literal: u64 in Trapping;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 public data DataMultiplicity [copy] {
@@ -188,7 +187,7 @@ public data GenericParameter [copy] {
     has_type_reference: bool;
     type_reference: u64 in Trapping;
     bounds: DataMultiplicity;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 public data DataItem [copy] {
@@ -208,7 +207,7 @@ public data DataItem [copy] {
     // no members and no `requires` facts.
     is_boundary: bool;
     is_public: bool;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 // One typed parameter of a machine: `name: Type`.
@@ -226,7 +225,7 @@ public data ErasedBindingKind [copy] {
 public data ErasedBinding [copy] {
     kind: ErasedBindingKind;
     handle: u64 in Trapping;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 public data Parameter [copy] {
@@ -234,7 +233,7 @@ public data Parameter [copy] {
     type_reference: u64 in Trapping;
     // `mutable name: Type`: the body may assign the parameter.
     is_mutable: bool;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 // Expression syntax. Children are handles into `SyntaxTrees::expressions`;
@@ -324,14 +323,14 @@ public data Expression [copy] {
     type_reference: u64 in Trapping;
     first_row: u64 in Trapping;
     literal: u64 in Trapping;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 // One `name: value` field of a construction `Path { name: value, ... }`.
 public data ConstructField [copy] {
     name: IdentifierSpan;
     value: u64 in Trapping;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 public data CrashCause [copy] {
@@ -397,7 +396,7 @@ public data TransitionArm [copy] {
     guard: u64 in Trapping;
     target_kind: ArmTargetKind;
     target: u64 in Trapping;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 // One field of a case pattern: a binder (`keyword`), a renamed binder
@@ -411,7 +410,7 @@ public data PatternField [copy] {
     has_rename: bool;
     rename: IdentifierSpan;
     is_waived: bool;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 public data Statement [copy] {
@@ -425,7 +424,7 @@ public data Statement [copy] {
     cause: CrashCause;
     first_arm: u64 in Trapping;
     arm_count: u64 in Trapping;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 // One clause between a declaration's head and its body. `Reaches` names
@@ -484,7 +483,7 @@ public data Clause [copy] {
     // whose `flag` is its inclusiveness.
     has_range: bool;
     range: u64 in Trapping;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 // Where a machine declaration stands: at the root, or as a member of a
@@ -571,7 +570,7 @@ public data MachineItem [copy] {
     every_requirement: bool;
     first_component: u64 in Trapping;
     component_count: u64 in Trapping;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 // A declaration-site contract for a static binder of a machine or trait
@@ -602,7 +601,7 @@ public data Contract [copy] {
     // requirement binds in this signature's scope, never a neighboring one.
     first_contract: u64 in Trapping;
     contract_count: u64 in Trapping;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 // A name path, such as `a\b\c` or `a\Type::member`, as a contiguous range of
@@ -611,7 +610,7 @@ public data Contract [copy] {
 public data NamePath [copy] {
     first_member: u64 in Trapping;
     member_count: u64 in Trapping;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 // A `trait` declaration names machine requirements. Its parents, written in
@@ -640,7 +639,7 @@ public data TraitItem [copy] {
     contract_count: u64 in Trapping;
     is_refinement: bool;
     base: u64 in Trapping;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 // A named implementation `Name<binders> satisfies Trait<arguments> { members }`.
@@ -657,7 +656,7 @@ public data ConformanceItem [copy] {
     first_machine: u64 in Trapping;
     machine_count: u64 in Trapping;
     is_public: bool;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 // A `domain` declaration `domain<binders> Carrier::Name<indices>(subject)`.
@@ -682,7 +681,7 @@ public data DomainItem [copy] {
     first_constituent: u64 in Trapping;
     constituent_count: u64 in Trapping;
     is_public: bool;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 // A `const [Owner::]NAME: Type = value;` declaration. `value` is an
@@ -694,7 +693,7 @@ public data ConstantItem [copy] {
     type_reference: u64 in Trapping;
     value: u64 in Trapping;
     is_public: bool;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 // What a proposition declares after its signature: nothing more (`;`), a
@@ -718,7 +717,7 @@ public data PropositionItem [copy] {
     evidence: u64 in Trapping;
     fact: u64 in Trapping;
     is_public: bool;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 // A named mathematical definition `let Name<binders>(parameters): Type =
@@ -736,7 +735,7 @@ public data DefinitionItem [copy] {
     term: u64 in Trapping;
     is_boundary: bool;
     is_public: bool;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 public data RootItemKind [copy] {
@@ -754,7 +753,7 @@ public data RootItemKind [copy] {
 public data RootItem [copy] {
     kind: RootItemKind;
     item_index: u64 in Trapping;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 public data ParseDiagnosticCode [copy] {
@@ -967,7 +966,7 @@ public data ParseDiagnosticCode [copy] {
 
 public data ParseDiagnostic [copy] {
     code: ParseDiagnosticCode;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 public data SyntaxTrees
@@ -1080,7 +1079,7 @@ requires
     accepted: bool;
 }
 
-public machine syntax_trees_clear(syntax_trees: @mutable SyntaxTrees, source: SourceId) {
+public machine syntax_trees_clear(syntax_trees: @mutable SyntaxTrees, source: |source|::SourceId) {
     syntax_trees.root_count = 0;
     syntax_trees.use_count = 0;
     syntax_trees.member_count = 0;
@@ -1125,7 +1124,7 @@ public machine syntax_trees_clear(syntax_trees: @mutable SyntaxTrees, source: So
 public machine syntax_trees_reject(
     syntax_trees: @mutable SyntaxTrees,
     code: ParseDiagnosticCode,
-    source: SourceId,
+    source: |source|::SourceId,
     start: u64 in Trapping,
     end: u64 in Trapping
 ) {
@@ -1170,6 +1169,34 @@ crashes Trap
 
     machine invalid() -> DataItem {
         crash Trap;
+    }
+}
+
+// The generic parameters an application of data `item` spells: every
+// declared parameter except lifetimes.
+public machine applied_parameter_count(syntax: @SyntaxTrees, item: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    let data_item: DataItem = syntax_trees_data_item(syntax, item);
+    transition { _ -> count(syntax, data_item, 0 as +Trapping, 0 as +Trapping) }
+
+    machine count(syntax: @SyntaxTrees, data_item: DataItem, offset: u64 in Trapping, applied: u64 in Trapping) -> u64 in Trapping {
+        transition offset < data_item.generic_parameter_count {
+            true -> parameter(syntax, data_item, offset, applied),
+            _ -> result(applied)
+        }
+    }
+
+    machine parameter(syntax: @SyntaxTrees, data_item: DataItem, offset: u64 in Trapping, applied: u64 in Trapping) -> u64 in Trapping {
+        let generic: GenericParameter = syntax_trees_generic_parameter(syntax, data_item.first_generic_parameter + offset);
+        transition generic.kind == GenericParameterKind::Lifetime {
+            true -> count(syntax, data_item, offset + 1, applied),
+            _ -> count(syntax, data_item, offset + 1, applied + 1)
+        }
+    }
+
+    machine result(applied: u64 in Trapping) -> u64 in Trapping {
+        applied
     }
 }
 
@@ -1277,20 +1304,20 @@ crashes Trap
 
 // A type reference's `in` qualifier as written: its owner path, if any,
 // through its name.
-public machine qualifier_span(reference: TypeReference) -> SourceSpan {
+public machine qualifier_span(reference: TypeReference) -> |source|::SourceSpan {
     transition reference.has_domain_owner {
         true -> owned(reference),
         _ -> bare(reference)
     }
 
-    machine owned(reference: TypeReference) -> SourceSpan {
-        SourceSpan {
+    machine owned(reference: TypeReference) -> |source|::SourceSpan {
+        |source|::SourceSpan {
             source: reference.domain.source_span.source,
-            span: Span { start: reference.domain_owner.source_span.span.start, end: reference.domain.source_span.span.end }
+            span: |source|::Span { start: reference.domain_owner.source_span.span.start, end: reference.domain.source_span.span.end }
         }
     }
 
-    machine bare(reference: TypeReference) -> SourceSpan {
+    machine bare(reference: TypeReference) -> |source|::SourceSpan {
         reference.domain.source_span
     }
 }

@@ -587,6 +587,7 @@ mod routing {
                         let test = expression_table.insert(ExpressionNode::Binary(
                             TableBinaryExpression {
                                 policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                                negation: false,
                                 left: retained.subject,
                                 operator: BinaryOperator::Equal,
                                 right: retained.pattern.head,
@@ -622,6 +623,7 @@ mod routing {
                         } else {
                             expression_table.insert(ExpressionNode::Binary(TableBinaryExpression {
                                 policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                                negation: false,
                                 left: test,
                                 operator: BinaryOperator::And,
                                 right: retained.pattern.condition,
@@ -640,6 +642,7 @@ mod routing {
                     selected_guard = Some(if let Some(prior) = selected_guard {
                         expression_table.insert(ExpressionNode::Binary(TableBinaryExpression {
                             policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                            negation: false,
                             left: prior,
                             operator: BinaryOperator::And,
                             right: axis,
@@ -654,6 +657,7 @@ mod routing {
                         TransitionGuard::When(predicate) => {
                             expression_table.insert(ExpressionNode::Binary(TableBinaryExpression {
                                 policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                                negation: false,
                                 left: test,
                                 operator: BinaryOperator::And,
                                 right: predicate,

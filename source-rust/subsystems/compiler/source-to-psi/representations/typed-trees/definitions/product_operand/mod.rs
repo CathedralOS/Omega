@@ -7,6 +7,7 @@ pub use input_selections::{
 };
 
 pub(crate) mod applications;
+mod captures;
 pub use applications::{ProductApplicationDemand, ProductOperandApplication};
 
 pub(crate) mod occurrences;

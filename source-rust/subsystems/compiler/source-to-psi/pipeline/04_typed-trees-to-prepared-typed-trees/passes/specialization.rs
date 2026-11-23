@@ -90,7 +90,7 @@ fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
 
 pub(crate) fn prepare_with_providers(
     program: &mut TypedTrees,
-    selected_providers: &[SymbolHandle],
+    selected_providers: &[crate::SelectedProvider],
 ) -> Result<(), Vec<Diagnostic>> {
     let first_type = program.type_reference_table.type_reference_count();
     let mut generated = GeneratedMachines::default();
@@ -98,6 +98,18 @@ pub(crate) fn prepare_with_providers(
     // decides which branches exist on the exact applied record. Keep a rejection
     // with its branch, including machines specialized solely for that branch.
     let mut case_branches = std::collections::HashSet::new();
+    for selection in selected_providers {
+        named_conformances::prepare_selected(program, *selection).map_err(|reason| {
+            let detail = match reason {
+                Stop::Unserved(reason) => reason.into_owned(),
+                Stop::Rejected(reason) => reason,
+                Stop::Defect(reason) => reason.to_owned(),
+            };
+            vec![Diagnostic::error(format!(
+                "cannot prepare the selected provider: {detail}"
+            ))]
+        })?;
+    }
     let mut captures = crate::source_state::NamedConformanceCaptureIndex::new(program);
     // A generated machine is appended to the machines and read in its turn.
     let mut selected_methods = provider_methods::SelectedMethods::new(program, selected_providers);
@@ -1016,6 +1028,7 @@ fn bind_requirement(
         matches!(
             parameter.kind,
             crate::source_state::data::TypeParameterKind::Const { .. }
+                | crate::source_state::data::TypeParameterKind::Value { .. }
         )
     }) {
         return Ok(());
@@ -1181,6 +1194,7 @@ fn selections(program: &TypedTrees, operands: &[Operand]) -> Served<Vec<Selectio
                     matches!(
                         parameter.kind,
                         crate::source_state::data::TypeParameterKind::Const { .. }
+                            | crate::source_state::data::TypeParameterKind::Value { .. }
                     )
                 });
             if !only_values

@@ -53,7 +53,76 @@ use syntax_trees::types::FixedArrayLength;
 use syntax_trees::types::TypeReferenceHandle;
 use syntax_trees::types::TypeReferenceNode;
 
-pub(crate) fn desugar_generic_data_instances_in(
+/// A closed application can occur in an authored field or signature before any
+/// machine call asks to recover a static argument. Give those applications to
+/// the same instantiator that handles the type roots produced by a call.
+pub(crate) fn materialize_authored_equations(
+    syntax: &mut SyntaxTrees,
+    selection: &ConstantSelection,
+) -> Result<(), Vec<Diagnostic>> {
+    let templates = syntax
+        .root_item_handles()
+        .iter()
+        .copied()
+        .filter(|&handle| {
+            let Some(data) = syntax.root_item(handle).as_data() else {
+                return false;
+            };
+            !data.type_parameters.is_empty()
+                && !super::equations::classify_type_equations(
+                    syntax,
+                    syntax.items.type_parameters(data.type_parameters),
+                    syntax.items.proof_facts(data.requires_facts),
+                )
+                .is_empty()
+        })
+        .collect::<HashSet<_>>();
+    if templates.is_empty() {
+        return Ok(());
+    }
+    let declarations =
+        crate::resolution::declarations::declaration_selection::RootDeclarations::of(syntax);
+    let type_roots = super::const_evaluation::collect_selected_type_reference_positions(
+        syntax,
+        syntax.root_item_handles(),
+    )
+    .into_iter()
+    .filter(|&reference| {
+        let TypeReferenceNode::Generic { base_name, .. } =
+            syntax.type_references.type_reference(reference)
+        else {
+            return false;
+        };
+        super::discovery::selected_data_item_in(&declarations, Some(selection), base_name)
+            .is_some_and(|declaration| templates.contains(&declaration))
+    })
+    .collect::<Vec<_>>();
+    materialize_type_roots(syntax, selection, &type_roots)
+}
+
+pub(crate) fn materialize_type_roots(
+    syntax: &mut SyntaxTrees,
+    selection: &ConstantSelection,
+    type_roots: &[TypeReferenceHandle],
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    desugar_generic_data_instances_in(
+        syntax,
+        &mut diagnostics,
+        Some(selection),
+        GenericDataWorkDomain {
+            type_roots,
+            declarations: &[],
+        },
+    )?;
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn desugar_generic_data_instances_in(
     syntax: &mut SyntaxTrees,
     warnings: &mut Vec<Diagnostic>,
     selection: Option<&ConstantSelection>,
@@ -99,12 +168,12 @@ pub(crate) fn desugar_generic_data_instances_in(
         }
         let definition_parameters =
             syntax_items(syntax).type_parameters(definition.type_parameters);
-        if definition_parameters.iter().any(|parameter| {
-            matches!(
-                parameter.kind,
-                TypeParameterKind::Value { .. } | TypeParameterKind::Machine { .. }
-            )
-        }) {
+        // A value binder is an index like a `const` one (`Index<Limit: u32>`
+        // applied as `Index<5>`); only a machine binder has no instance here.
+        if definition_parameters
+            .iter()
+            .any(|parameter| matches!(parameter.kind, TypeParameterKind::Machine { .. }))
+        {
             continue;
         }
         if attached_machines.contains_key(&declaration) {

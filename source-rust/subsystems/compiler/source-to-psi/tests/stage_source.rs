@@ -435,7 +435,7 @@ fn omega_frontend_imports_a_member_of_the_lowered_program_representation() {
     assert!(
         errors.iter().any(|d| d
             .message
-            .contains("type without a symbol while reading the signature of `handle`")),
+            .contains("an unknown type name is an error wherever it appears: `ScalarLayout`")),
         "{errors:?}"
     );
 }

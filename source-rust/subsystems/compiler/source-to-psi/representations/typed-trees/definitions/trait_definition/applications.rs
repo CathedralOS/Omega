@@ -395,6 +395,7 @@ impl<'program> AppliedTraitScope<'program> {
             0,
             AppliedDeclarationRegionScope::new(
                 conformance.symbol,
+                application.lexical_owner,
                 &conformance.lifetime_parameters,
                 application.lifetimes,
             ),
@@ -492,6 +493,7 @@ impl<'program> AppliedTraitScope<'program> {
         );
         scope.region_scopes.push(AppliedDeclarationRegionScope::new(
             declaration.symbol,
+            application.lexical_owner,
             &declaration.lifetime_parameters,
             application.lifetimes,
         ));
@@ -505,6 +507,7 @@ impl<'program> AppliedTraitScope<'program> {
             substitution_scope_starts: vec![0],
             argument_owner: declaration.symbol,
             region_scopes: vec![AppliedDeclarationRegionScope::new(
+                declaration.symbol,
                 declaration.symbol,
                 &declaration.lifetime_parameters,
                 &[],
@@ -586,31 +589,20 @@ impl<'program> AppliedTraitScope<'program> {
         program: &TypedTrees,
         parameter: SymbolHandle,
     ) -> TypeReferenceHandle {
-        let Some((ordinal, (_, reference))) = self
-            .substitutions
-            .iter()
-            .enumerate()
-            .rev()
-            .find(|(_, (binder, _))| *binder == parameter)
-        else {
-            return TypeReferenceHandle::invalid();
-        };
-        let visible = self
-            .substitution_scope_starts
-            .iter()
-            .rev()
-            .find(|start| **start <= ordinal)
-            .copied()
-            .unwrap_or(0);
-        project_type_reference(
-            program,
-            *reference,
-            &self.substitutions[..visible],
-            &self.substitution_scope_starts[..self
-                .substitution_scope_starts
-                .partition_point(|start| *start < visible)],
-        )
-        .reference
+        self.supplied_parameter_application(program, parameter)
+            .map_or(TypeReferenceHandle::invalid(), |(reference, _)| reference)
+    }
+
+    /// A forwarded argument belongs to the frame that supplied its source
+    /// reference. Nested types and lifetimes still depend on the outer frames.
+    pub fn supplied_parameter_application(
+        &self,
+        program: &TypedTrees,
+        parameter: SymbolHandle,
+    ) -> Option<(TypeReferenceHandle, usize)> {
+        let (reference, outer) = self.parameter_application(parameter)?;
+        let supplied = self.supplied_type_reference(program, reference, outer)?;
+        Some((supplied.reference, supplied.scope_starts.len()))
     }
 
     pub fn same_application(&self, program: &TypedTrees, other: &Self) -> bool {
@@ -755,7 +747,7 @@ impl<'program> AppliedTraitScope<'program> {
             program,
             program.trait_definition_by_symbol(bound.trait_symbol)?,
             TraitApplicationArguments {
-                lexical_owner: self.argument_owner,
+                lexical_owner: self.declaration.symbol,
                 enclosing_data_applications: &[],
                 arguments: &bound.arguments,
                 lifetimes: &bound.lifetime_arguments,
@@ -804,7 +796,7 @@ impl<'program> AppliedTraitScope<'program> {
             program,
             declaration,
             TraitApplicationArguments {
-                lexical_owner: self.argument_owner,
+                lexical_owner: self.declaration.symbol,
                 enclosing_data_applications: &[],
                 arguments: program.type_reference_handles(parent.arguments),
                 lifetimes: &parent.lifetime_arguments,

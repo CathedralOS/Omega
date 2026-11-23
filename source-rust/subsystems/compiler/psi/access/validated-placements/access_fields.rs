@@ -231,6 +231,24 @@ pub struct LogicalFieldFragment {
 }
 
 impl LogicalFieldFragment {
+    pub(crate) fn from_layout_placement(
+        container_byte_offset: u64,
+        destination_lsb: u64,
+        source_bit_offset: u64,
+        width_bits: u64,
+    ) -> Option<Self> {
+        let layout_bit_offset = container_byte_offset
+            .checked_mul(8)?
+            .checked_add(destination_lsb)?;
+        // A fragment may include the final bit without a representable one-past-the-end offset.
+        layout_bit_offset.checked_add(width_bits.saturating_sub(1))?;
+        Some(Self {
+            layout_bit_offset,
+            source_bit_offset,
+            width_bits,
+        })
+    }
+
     pub const fn layout_bit_offset(self) -> u64 {
         self.layout_bit_offset
     }
@@ -496,20 +514,20 @@ impl ValidatedAccessFields {
                 "projection exceeds its parent region, exact leaf width or alignment".into(),
             ));
         }
-        let layout_bit_offset = byte_offset
-            .checked_mul(8)
-            .ok_or_else(|| AccessPlanDiagnostic("region projection bit offset overflows".into()))?;
+        let fragment = LogicalFieldFragment::from_layout_placement(
+            byte_offset,
+            0,
+            0,
+            u64::from(transfer_width_bits),
+        )
+        .ok_or_else(|| AccessPlanDiagnostic("region projection bit offset overflows".into()))?;
         let descriptor = FieldAccessDescriptor {
             key,
             field: region.field.clone(),
             container_byte_offset: byte_offset,
             transfer_width_bits,
             logical_extent: LogicalFieldExtent {
-                fragments: vec![LogicalFieldFragment {
-                    layout_bit_offset,
-                    source_bit_offset: 0,
-                    width_bits: u64::from(transfer_width_bits),
-                }],
+                fragments: vec![fragment],
             },
             effect_footprint: RelativeEffectFootprint {
                 byte_offset,

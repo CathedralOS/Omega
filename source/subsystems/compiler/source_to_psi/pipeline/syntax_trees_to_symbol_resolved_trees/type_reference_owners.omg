@@ -1,113 +1,80 @@
-use representations\source_files\SourceSet;
-use representations\symbol_resolved_trees\TypeScope;
-use representations\syntax_trees\Clause;
-use representations\syntax_trees\ClauseKind;
-use representations\syntax_trees\ConformanceItem;
-use representations\syntax_trees\ConstantItem;
-use representations\syntax_trees\Contract;
-use representations\syntax_trees\DataCase;
-use representations\syntax_trees\DataField;
-use representations\syntax_trees\DataItem;
-use representations\syntax_trees\DataMember;
-use representations\syntax_trees\DataMemberKind;
-use representations\syntax_trees\DomainItem;
-use representations\syntax_trees\Expression;
-use representations\syntax_trees\ExpressionKind;
-use representations\syntax_trees\MachineItem;
-use representations\syntax_trees\Parameter;
-use representations\syntax_trees\PropositionBody;
-use representations\syntax_trees\PropositionItem;
-use representations\syntax_trees\Statement;
-use representations\syntax_trees\StatementKind;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\TraitItem;
-use representations\syntax_trees\conformance_item;
-use representations\syntax_trees\constant_item;
-use representations\syntax_trees\machine_item;
-use representations\syntax_trees\proposition_item;
-use representations\syntax_trees\syntax_trees_clause;
-use representations\syntax_trees\syntax_trees_contract;
-use representations\syntax_trees\syntax_trees_data_case;
-use representations\syntax_trees\syntax_trees_data_item;
-use representations\syntax_trees\syntax_trees_data_member;
-use representations\syntax_trees\syntax_trees_domain_item;
-use representations\syntax_trees\syntax_trees_expression;
-use representations\syntax_trees\syntax_trees_field;
-use representations\syntax_trees\syntax_trees_parameter;
-use representations\syntax_trees\syntax_trees_payload_field;
-use representations\syntax_trees\syntax_trees_statement;
-use representations\syntax_trees\trait_item;
-use representations\syntax_trees\trait_parent;
-use representations\syntax_trees\type_argument;
+use pipeline/syntax_trees_to_symbol_resolved_trees/resolution_state.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/containers.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/generic_scopes.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/type_names.omg;
+
+use representations/source_files/source.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
 
 // Walk the syntax owners that supply a type reference’s lexical scope. The binding of each individual type lives in type_names.omg.
 
 // Type references of each data declaration: its generic-parameter
 // annotations, then its members' references in authored order. Every type
 // reference has exactly one owner, so this walk binds the whole table.
-machine bind_references(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
+machine bind_references(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> next_data(resolver, sources, syntax, 0) }
+    transition { _ -> next_data(resolver, sources, syntax, 0 as +Trapping) }
 
-    machine next_data(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping) {
+    machine next_data(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, data_index: u64 in Trapping) {
         transition data_index < syntax.data_count {
             true -> data_references(resolver, sources, syntax, data_index),
             _ -> done()
         }
     }
 
-    machine data_references(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping) {
-        let item: DataItem = syntax_trees_data_item(syntax, data_index);
-        let scope: TypeScope = data_scope(item);
-        bind_generic_annotations(resolver, sources, syntax, scope, false);
+    machine data_references(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, data_index: u64 in Trapping) {
+        let item: |syntax_trees|::DataItem = |syntax_trees|::syntax_trees_data_item(syntax, data_index);
+        let scope: |symbol_resolved_trees|::TypeScope = |generic_scopes|::data_scope(item);
+        |generic_scopes|::bind_generic_annotations(resolver, sources, syntax, scope, false);
         transition resolver.output.accepted {
-            true -> member(resolver, sources, syntax, data_index, item, 0),
+            true -> member(resolver, sources, syntax, data_index, item, 0 as +Trapping),
             _ -> done()
         }
     }
 
-    machine member(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
+    machine member(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, data_index: u64 in Trapping, item: |syntax_trees|::DataItem, offset: u64 in Trapping) {
         transition offset < item.member_count {
             true -> member_kind(resolver, sources, syntax, data_index, item, offset),
             _ -> next_data(resolver, sources, syntax, data_index + 1)
         }
     }
 
-    machine member_kind(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
-        let data_member: DataMember = syntax_trees_data_member(syntax, item.first_member + offset);
+    machine member_kind(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, data_index: u64 in Trapping, item: |syntax_trees|::DataItem, offset: u64 in Trapping) {
+        let data_member: |syntax_trees|::DataMember = |syntax_trees|::syntax_trees_data_member(syntax, item.first_member + offset);
         transition data_member.kind {
-            DataMemberKind::Field -> field_reference(resolver, sources, syntax, data_index, item, offset, data_member.item_index),
-            DataMemberKind::Case -> case_references(resolver, sources, syntax, data_index, item, offset, data_member.item_index)
+            |syntax_trees|::DataMemberKind::Field -> field_reference(resolver, sources, syntax, data_index, item, offset, data_member.item_index),
+            |syntax_trees|::DataMemberKind::Case -> case_references(resolver, sources, syntax, data_index, item, offset, data_member.item_index)
         }
     }
 
-    machine field_reference(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, handle: u64 in Trapping) {
-        let field: DataField = syntax_trees_field(syntax, handle);
-        let scope: TypeScope = data_scope(item);
-        bind_type_reference(resolver, sources, syntax, scope, field.type_reference, TypeRole::Type);
+    machine field_reference(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, data_index: u64 in Trapping, item: |syntax_trees|::DataItem, offset: u64 in Trapping, handle: u64 in Trapping) {
+        let field: |syntax_trees|::DataField = |syntax_trees|::syntax_trees_field(syntax, handle);
+        let scope: |symbol_resolved_trees|::TypeScope = |generic_scopes|::data_scope(item);
+        |type_names|::bind_type_reference(resolver, sources, syntax, scope, field.type_reference, |type_names|::TypeRole::Type);
         transition resolver.output.accepted {
             true -> member(resolver, sources, syntax, data_index, item, offset + 1),
             _ -> done()
         }
     }
 
-    machine case_references(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, handle: u64 in Trapping) {
-        let data_case: DataCase = syntax_trees_data_case(syntax, handle);
-        transition { _ -> payload(resolver, sources, syntax, data_index, item, offset, data_case, 0) }
+    machine case_references(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, data_index: u64 in Trapping, item: |syntax_trees|::DataItem, offset: u64 in Trapping, handle: u64 in Trapping) {
+        let data_case: |syntax_trees|::DataCase = |syntax_trees|::syntax_trees_data_case(syntax, handle);
+        transition { _ -> payload(resolver, sources, syntax, data_index, item, offset, data_case, 0 as +Trapping) }
     }
 
-    machine payload(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping) {
+    machine payload(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, data_index: u64 in Trapping, item: |syntax_trees|::DataItem, offset: u64 in Trapping, data_case: |syntax_trees|::DataCase, field_offset: u64 in Trapping) {
         transition field_offset < data_case.payload_field_count {
             true -> payload_reference(resolver, sources, syntax, data_index, item, offset, data_case, field_offset),
             _ -> member(resolver, sources, syntax, data_index, item, offset + 1)
         }
     }
 
-    machine payload_reference(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping) {
-        let field: DataField = syntax_trees_payload_field(syntax, data_case.first_payload_field + field_offset);
-        let scope: TypeScope = data_scope(item);
-        bind_type_reference(resolver, sources, syntax, scope, field.type_reference, TypeRole::Type);
+    machine payload_reference(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, data_index: u64 in Trapping, item: |syntax_trees|::DataItem, offset: u64 in Trapping, data_case: |syntax_trees|::DataCase, field_offset: u64 in Trapping) {
+        let field: |syntax_trees|::DataField = |syntax_trees|::syntax_trees_payload_field(syntax, data_case.first_payload_field + field_offset);
+        let scope: |symbol_resolved_trees|::TypeScope = |generic_scopes|::data_scope(item);
+        |type_names|::bind_type_reference(resolver, sources, syntax, scope, field.type_reference, |type_names|::TypeRole::Type);
         transition resolver.output.accepted {
             true -> payload(resolver, sources, syntax, data_index, item, offset, data_case, field_offset + 1),
             _ -> done()
@@ -122,94 +89,94 @@ crashes Trap
 // parents, which name traits; a conformance's generic annotations and
 // satisfied trait; a constant's type; a proposition's generic annotations,
 // parameter types and evidence type.
-machine bind_declaration_references(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
+machine bind_declaration_references(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> traits(resolver, sources, syntax, 0) }
+    transition { _ -> traits(resolver, sources, syntax, 0 as +Trapping) }
 
-    machine traits(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine traits(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.trait_count && resolver.output.accepted {
             true -> trait_annotations(resolver, sources, syntax, index),
-            _ -> conformances(resolver, sources, syntax, 0)
+            _ -> conformances(resolver, sources, syntax, 0 as +Trapping)
         }
     }
 
-    machine trait_annotations(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
-        let item: TraitItem = trait_item(syntax, index);
-        let scope: TypeScope = resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
-        bind_generic_annotations(resolver, sources, syntax, scope, !item.is_boundary);
-        transition { _ -> parents(resolver, sources, syntax, index, item, scope, 0) }
+    machine trait_annotations(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
+        let item: |syntax_trees|::TraitItem = |syntax_trees|::trait_item(syntax, index);
+        let scope: |symbol_resolved_trees|::TypeScope = |generic_scopes|::resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
+        |generic_scopes|::bind_generic_annotations(resolver, sources, syntax, scope, !item.is_boundary);
+        transition { _ -> parents(resolver, sources, syntax, index, item, scope, 0 as +Trapping) }
     }
 
-    machine parents(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: TraitItem, scope: TypeScope, offset: u64 in Trapping) {
+    machine parents(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, item: |syntax_trees|::TraitItem, scope: |symbol_resolved_trees|::TypeScope, offset: u64 in Trapping) {
         transition offset < item.parent_count && resolver.output.accepted {
             true -> parent(resolver, sources, syntax, index, item, scope, offset),
             _ -> traits(resolver, sources, syntax, index + 1)
         }
     }
 
-    machine parent(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: TraitItem, scope: TypeScope, offset: u64 in Trapping) {
-        let row: u64 in Trapping = trait_parent(syntax, item.first_parent + offset);
-        bind_type_reference(resolver, sources, syntax, scope, row, TypeRole::Trait);
+    machine parent(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, item: |syntax_trees|::TraitItem, scope: |symbol_resolved_trees|::TypeScope, offset: u64 in Trapping) {
+        let row: u64 in Trapping = |syntax_trees|::trait_parent(syntax, item.first_parent + offset);
+        |type_names|::bind_type_reference(resolver, sources, syntax, scope, row, |type_names|::TypeRole::Trait);
         transition { _ -> parents(resolver, sources, syntax, index, item, scope, offset + 1) }
     }
 
-    machine conformances(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine conformances(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.conformance_count && resolver.output.accepted {
             true -> conformance(resolver, sources, syntax, index),
-            _ -> constants(resolver, sources, syntax, 0)
+            _ -> constants(resolver, sources, syntax, 0 as +Trapping)
         }
     }
 
-    machine conformance(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
-        let item: ConformanceItem = conformance_item(syntax, index);
-        let scope: TypeScope = resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
-        bind_generic_annotations(resolver, sources, syntax, scope, false);
-        bind_type_reference(resolver, sources, syntax, scope, item.trait_type, TypeRole::Trait);
+    machine conformance(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
+        let item: |syntax_trees|::ConformanceItem = |syntax_trees|::conformance_item(syntax, index);
+        let scope: |symbol_resolved_trees|::TypeScope = |generic_scopes|::resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
+        |generic_scopes|::bind_generic_annotations(resolver, sources, syntax, scope, false);
+        |type_names|::bind_type_reference(resolver, sources, syntax, scope, item.trait_type, |type_names|::TypeRole::Trait);
         transition { _ -> conformances(resolver, sources, syntax, index + 1) }
     }
 
-    machine constants(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine constants(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.constant_count && resolver.output.accepted {
             true -> constant(resolver, sources, syntax, index),
-            _ -> propositions(resolver, sources, syntax, 0)
+            _ -> propositions(resolver, sources, syntax, 0 as +Trapping)
         }
     }
 
-    machine constant(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
-        let item: ConstantItem = constant_item(syntax, index);
-        let scope: TypeScope = empty_scope();
-        bind_type_reference(resolver, sources, syntax, scope, item.type_reference, TypeRole::Type);
+    machine constant(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
+        let item: |syntax_trees|::ConstantItem = |syntax_trees|::constant_item(syntax, index);
+        let scope: |symbol_resolved_trees|::TypeScope = |generic_scopes|::empty_scope();
+        |type_names|::bind_type_reference(resolver, sources, syntax, scope, item.type_reference, |type_names|::TypeRole::Type);
         transition { _ -> constants(resolver, sources, syntax, index + 1) }
     }
 
-    machine propositions(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine propositions(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.proposition_count && resolver.output.accepted {
             true -> proposition(resolver, sources, syntax, index),
             _ -> done()
         }
     }
 
-    machine proposition(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
-        let item: PropositionItem = proposition_item(syntax, index);
-        let scope: TypeScope = resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
-        bind_generic_annotations(resolver, sources, syntax, scope, false);
+    machine proposition(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
+        let item: |syntax_trees|::PropositionItem = |syntax_trees|::proposition_item(syntax, index);
+        let scope: |symbol_resolved_trees|::TypeScope = |generic_scopes|::resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
+        |generic_scopes|::bind_generic_annotations(resolver, sources, syntax, scope, false);
         transition resolver.output.accepted {
             true -> proposition_signature(resolver, sources, syntax, index, item, scope),
             _ -> done()
         }
     }
 
-    machine proposition_signature(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: PropositionItem, scope: TypeScope) {
-        bind_signature(resolver, sources, syntax, scope, item.first_parameter, item.parameter_count, false, 0);
-        transition resolver.output.accepted && item.body == PropositionBody::Evidence {
+    machine proposition_signature(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, item: |syntax_trees|::PropositionItem, scope: |symbol_resolved_trees|::TypeScope) {
+        bind_signature(resolver, sources, syntax, scope, item.first_parameter, item.parameter_count, false, 0 as +Trapping);
+        transition resolver.output.accepted && item.body == |syntax_trees|::PropositionBody::Evidence {
             true -> evidence(resolver, sources, syntax, index, item, scope),
             _ -> propositions(resolver, sources, syntax, index + 1)
         }
     }
 
-    machine evidence(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: PropositionItem, scope: TypeScope) {
-        bind_type_reference(resolver, sources, syntax, scope, item.evidence, TypeRole::Type);
+    machine evidence(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, item: |syntax_trees|::PropositionItem, scope: |symbol_resolved_trees|::TypeScope) {
+        |type_names|::bind_type_reference(resolver, sources, syntax, scope, item.evidence, |type_names|::TypeRole::Type);
         transition { _ -> propositions(resolver, sources, syntax, index + 1) }
     }
 
@@ -220,22 +187,22 @@ crashes Trap
 // return types and its `requires machine` contracts, all in
 // the machine's scope (a trait or conformance member's includes its
 // container's generic parameters).
-machine bind_machine_references(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
+machine bind_machine_references(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> next_machine(resolver, sources, syntax, 0) }
+    transition { _ -> next_machine(resolver, sources, syntax, 0 as +Trapping) }
 
-    machine next_machine(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine next_machine(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count {
             true -> machine_signature(resolver, sources, syntax, index),
             _ -> done()
         }
     }
 
-    machine machine_signature(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
-        let item: MachineItem = machine_item(syntax, index);
-        let scope: TypeScope = resolver_machine_scope(@resolver.output, syntax, index);
-        bind_generic_annotations(resolver, sources, syntax, scope, false);
+    machine machine_signature(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, index);
+        let scope: |symbol_resolved_trees|::TypeScope = |containers|::resolver_machine_scope(@resolver.output, syntax, index);
+        |generic_scopes|::bind_generic_annotations(resolver, sources, syntax, scope, false);
         transition resolver.output.accepted {
             true -> entry_signature(resolver, sources, syntax, index, item, scope),
             _ -> done()
@@ -243,30 +210,30 @@ crashes Trap
     }
 
     machine entry_signature(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         index: u64 in Trapping,
-        item: MachineItem,
-        scope: TypeScope
+        item: |syntax_trees|::MachineItem,
+        scope: |symbol_resolved_trees|::TypeScope
     ) {
         bind_signature(resolver, sources, syntax, scope, item.first_parameter, item.parameter_count,
             item.has_return_type, item.return_type
         );
         transition resolver.output.accepted {
-            true -> contract_signature(resolver, sources, syntax, index, item, scope, 0),
+            true -> contract_signature(resolver, sources, syntax, index, item, scope, 0 as +Trapping),
             _ -> done()
         }
     }
 
     // Each `requires machine` contract's signature, in the machine's scope.
     machine contract_signature(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         index: u64 in Trapping,
-        item: MachineItem,
-        scope: TypeScope,
+        item: |syntax_trees|::MachineItem,
+        scope: |symbol_resolved_trees|::TypeScope,
         offset: u64 in Trapping
     ) {
         transition offset < item.contract_count && resolver.output.accepted {
@@ -276,15 +243,15 @@ crashes Trap
     }
 
     machine bind_contract(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         index: u64 in Trapping,
-        item: MachineItem,
-        scope: TypeScope,
+        item: |syntax_trees|::MachineItem,
+        scope: |symbol_resolved_trees|::TypeScope,
         offset: u64 in Trapping
     ) {
-        let written: Contract = syntax_trees_contract(syntax, item.first_contract + offset);
+        let written: |syntax_trees|::Contract = |syntax_trees|::syntax_trees_contract(syntax, item.first_contract + offset);
         bind_signature(resolver, sources, syntax, scope, written.first_parameter, written.parameter_count,
             written.has_return_type, written.return_type
         );
@@ -297,10 +264,10 @@ crashes Trap
 // One signature's parameter types, then its return type when present, in
 // its machine's scope.
 machine bind_signature(
-    resolver: @mutable Resolver,
-    sources: @SourceSet,
-    syntax: @SyntaxTrees,
-    scope: TypeScope,
+    resolver: @mutable |resolution_state|::Resolver,
+    sources: @|source|::SourceSet,
+    syntax: @|syntax_trees|::SyntaxTrees,
+    scope: |symbol_resolved_trees|::TypeScope,
     first_parameter: u64 in Trapping,
     parameter_count: u64 in Trapping,
     has_return_type: bool,
@@ -308,13 +275,13 @@ machine bind_signature(
 )
 crashes Trap
 {
-    transition { _ -> parameter(resolver, sources, syntax, scope, first_parameter, parameter_count, has_return_type, return_type, 0) }
+    transition { _ -> parameter(resolver, sources, syntax, scope, first_parameter, parameter_count, has_return_type, return_type, 0 as +Trapping) }
 
     machine parameter(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        scope: TypeScope,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        scope: |symbol_resolved_trees|::TypeScope,
         first_parameter: u64 in Trapping,
         parameter_count: u64 in Trapping,
         has_return_type: bool,
@@ -328,18 +295,18 @@ crashes Trap
     }
 
     machine bind_parameter(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        scope: TypeScope,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        scope: |symbol_resolved_trees|::TypeScope,
         first_parameter: u64 in Trapping,
         parameter_count: u64 in Trapping,
         has_return_type: bool,
         return_type: u64 in Trapping,
         offset: u64 in Trapping
     ) {
-        let parameter: Parameter = syntax_trees_parameter(syntax, first_parameter + offset);
-        bind_type_reference(resolver, sources, syntax, scope, parameter.type_reference, TypeRole::Type);
+        let current_parameter: |syntax_trees|::Parameter = |syntax_trees|::syntax_trees_parameter(syntax, first_parameter + offset);
+        |type_names|::bind_type_reference(resolver, sources, syntax, scope, current_parameter.type_reference, |type_names|::TypeRole::Type);
         transition resolver.output.accepted {
             true -> parameter(resolver, sources, syntax, scope, first_parameter, parameter_count, has_return_type, return_type, offset + 1),
             _ -> done()
@@ -347,10 +314,10 @@ crashes Trap
     }
 
     machine result(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        scope: TypeScope,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        scope: |symbol_resolved_trees|::TypeScope,
         has_return_type: bool,
         return_type: u64 in Trapping
     ) {
@@ -360,8 +327,8 @@ crashes Trap
         }
     }
 
-    machine bind_result(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, return_type: u64 in Trapping) {
-        bind_type_reference(resolver, sources, syntax, scope, return_type, TypeRole::Type);
+    machine bind_result(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, return_type: u64 in Trapping) {
+        |type_names|::bind_type_reference(resolver, sources, syntax, scope, return_type, |type_names|::TypeRole::Type);
     }
 
     machine done() {}
@@ -374,27 +341,27 @@ crashes Trap
 // the owning machine binds each in that machine's scope. Statements belong
 // to machines only; an expression outside every machine binds in the scope
 // of the declaration whose fact or value holds it (`detached_scope`).
-machine bind_body_references(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
+machine bind_body_references(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> statement(resolver, sources, syntax, 0, 0) }
+    transition { _ -> statement(resolver, sources, syntax, 0 as +Trapping, 0 as +Trapping) }
 
-    machine statement(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, owner: u64 in Trapping) {
+    machine statement(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, owner: u64 in Trapping) {
         transition index < syntax.statement_count && resolver.output.accepted {
             true -> statement_owner(resolver, sources, syntax, index, owner),
             _ -> expressions(resolver, sources, syntax)
         }
     }
 
-    machine statement_owner(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, owner: u64 in Trapping) {
+    machine statement_owner(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, owner: u64 in Trapping) {
         transition owner < syntax.machine_count {
             true -> statement_in(resolver, sources, syntax, index, owner),
             _ -> invalid()
         }
     }
 
-    machine statement_in(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, owner: u64 in Trapping) {
-        let item: MachineItem = machine_item(syntax, owner);
+    machine statement_in(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, owner: u64 in Trapping) {
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, owner);
         let end: u64 in Trapping = resolver_statement_end(syntax, item);
         transition index < end {
             true -> statement_kind(resolver, sources, syntax, index, owner, item),
@@ -403,42 +370,42 @@ crashes Trap
     }
 
     machine statement_kind(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         index: u64 in Trapping,
         owner: u64 in Trapping,
-        item: MachineItem
+        item: |syntax_trees|::MachineItem
     ) {
-        let statement: Statement = syntax_trees_statement(syntax, index);
-        let scope: TypeScope = resolver_machine_scope(@resolver.output, syntax, owner);
-        transition statement.kind {
-            StatementKind::Let -> bind_local(resolver, sources, syntax, index, owner, scope, statement.type_reference),
+        let current_statement: |syntax_trees|::Statement = |syntax_trees|::syntax_trees_statement(syntax, index);
+        let scope: |symbol_resolved_trees|::TypeScope = |containers|::resolver_machine_scope(@resolver.output, syntax, owner);
+        transition current_statement.kind {
+            |syntax_trees|::StatementKind::Let -> bind_local(resolver, sources, syntax, index, owner, scope, current_statement.type_reference),
             _ -> statement(resolver, sources, syntax, index + 1, owner)
         }
     }
 
     machine bind_local(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         index: u64 in Trapping,
         owner: u64 in Trapping,
-        scope: TypeScope,
+        scope: |symbol_resolved_trees|::TypeScope,
         reference: u64 in Trapping
     ) {
-        bind_type_reference(resolver, sources, syntax, scope, reference, TypeRole::Type);
+        |type_names|::bind_type_reference(resolver, sources, syntax, scope, reference, |type_names|::TypeRole::Type);
         transition { _ -> statement(resolver, sources, syntax, index + 1, owner) }
     }
 
-    machine expressions(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
+    machine expressions(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees) {
         transition resolver.output.accepted {
-            true -> expression(resolver, sources, syntax, 0, 0),
+            true -> expression(resolver, sources, syntax, 0 as +Trapping, 0 as +Trapping),
             _ -> done()
         }
     }
 
-    machine expression(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, owner: u64 in Trapping) {
+    machine expression(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, owner: u64 in Trapping) {
         transition index < syntax.expression_count && resolver.output.accepted {
             true -> expression_owner(resolver, sources, syntax, index, owner),
             _ -> done()
@@ -446,16 +413,16 @@ crashes Trap
     }
 
     // Move the cursor past machines whose run ends at or before `index`.
-    machine expression_owner(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, owner: u64 in Trapping) {
-        let scope: TypeScope = detached_scope(syntax, index);
+    machine expression_owner(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, owner: u64 in Trapping) {
+        let scope: |symbol_resolved_trees|::TypeScope = detached_scope(syntax, index);
         transition owner < syntax.machine_count {
             true -> expression_in(resolver, sources, syntax, index, owner),
             _ -> expression_kind(resolver, sources, syntax, index, owner, scope)
         }
     }
 
-    machine expression_in(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, owner: u64 in Trapping) {
-        let item: MachineItem = machine_item(syntax, owner);
+    machine expression_in(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, owner: u64 in Trapping) {
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, owner);
         transition index < item.first_expression + item.expression_count {
             true -> expression_scope(resolver, sources, syntax, index, owner, item),
             _ -> expression_owner(resolver, sources, syntax, index, owner + 1)
@@ -463,15 +430,15 @@ crashes Trap
     }
 
     machine expression_scope(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         index: u64 in Trapping,
         owner: u64 in Trapping,
-        item: MachineItem
+        item: |syntax_trees|::MachineItem
     ) {
-        let owned: TypeScope = resolver_machine_scope(@resolver.output, syntax, owner);
-        let unowned: TypeScope = detached_scope(syntax, index);
+        let owned: |symbol_resolved_trees|::TypeScope = |containers|::resolver_machine_scope(@resolver.output, syntax, owner);
+        let unowned: |symbol_resolved_trees|::TypeScope = detached_scope(syntax, index);
         transition index >= item.first_expression {
             true -> expression_kind(resolver, sources, syntax, index, owner, owned),
             _ -> expression_kind(resolver, sources, syntax, index, owner, unowned)
@@ -479,17 +446,17 @@ crashes Trap
     }
 
     machine expression_kind(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         index: u64 in Trapping,
         owner: u64 in Trapping,
-        scope: TypeScope
+        scope: |symbol_resolved_trees|::TypeScope
     ) {
-        let expression: Expression = syntax_trees_expression(syntax, index);
-        transition expression.kind {
-            ExpressionKind::Cast -> cast_form(resolver, sources, syntax, index, owner, scope, expression),
-            ExpressionKind::Apply -> static_argument(resolver, sources, syntax, index, owner, scope, expression, 0),
+        let current_expression: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, index);
+        transition current_expression.kind {
+            |syntax_trees|::ExpressionKind::Cast -> cast_form(resolver, sources, syntax, index, owner, scope, current_expression),
+            |syntax_trees|::ExpressionKind::Apply -> static_argument(resolver, sources, syntax, index, owner, scope, current_expression, 0 as +Trapping),
             _ -> expression(resolver, sources, syntax, index + 1, owner)
         }
     }
@@ -497,13 +464,13 @@ crashes Trap
     // A static application's arguments are types (or integer values) listed
     // in `type_arguments`; each binds like a body type.
     machine static_argument(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         index: u64 in Trapping,
         owner: u64 in Trapping,
-        scope: TypeScope,
-        application: Expression,
+        scope: |symbol_resolved_trees|::TypeScope,
+        application: |syntax_trees|::Expression,
         offset: u64 in Trapping
     ) {
         transition offset < application.count && resolver.output.accepted {
@@ -513,17 +480,17 @@ crashes Trap
     }
 
     machine bind_static_argument(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         index: u64 in Trapping,
         owner: u64 in Trapping,
-        scope: TypeScope,
-        application: Expression,
+        scope: |symbol_resolved_trees|::TypeScope,
+        application: |syntax_trees|::Expression,
         offset: u64 in Trapping
     ) {
-        let argument: u64 in Trapping = type_argument(syntax, application.first + offset);
-        bind_type_reference(resolver, sources, syntax, scope, argument, TypeRole::StaticArgument);
+        let argument: u64 in Trapping = |syntax_trees|::type_argument(syntax, application.first + offset);
+        |type_names|::bind_type_reference(resolver, sources, syntax, scope, argument, |type_names|::TypeRole::StaticArgument);
         transition { _ -> static_argument(resolver, sources, syntax, index, owner, scope, application, offset + 1) }
     }
 
@@ -532,13 +499,13 @@ crashes Trap
     // supported compiler-known policy name is classified at type checking;
     // other domain forms remain explicit coverage refusals there.
     machine cast_form(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         index: u64 in Trapping,
         owner: u64 in Trapping,
-        scope: TypeScope,
-        cast: Expression
+        scope: |symbol_resolved_trees|::TypeScope,
+        cast: |syntax_trees|::Expression
     ) {
         transition cast.flag {
             true -> expression(resolver, sources, syntax, index + 1, owner),
@@ -547,15 +514,15 @@ crashes Trap
     }
 
     machine bind_cast(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         index: u64 in Trapping,
         owner: u64 in Trapping,
-        scope: TypeScope,
+        scope: |symbol_resolved_trees|::TypeScope,
         reference: u64 in Trapping
     ) {
-        bind_type_reference(resolver, sources, syntax, scope, reference, TypeRole::Type);
+        |type_names|::bind_type_reference(resolver, sources, syntax, scope, reference, |type_names|::TypeRole::Type);
         transition { _ -> expression(resolver, sources, syntax, index + 1, owner) }
     }
 
@@ -572,102 +539,102 @@ crashes Trap
 // fact its own, a data declaration's or case's `requires` facts the data's; a
 // constant's value has no generic parameters. Only casts and static
 // applications ask, so the scan is rare.
-machine detached_scope(syntax: @SyntaxTrees, index: u64 in Trapping) -> TypeScope
+machine detached_scope(syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) -> |symbol_resolved_trees|::TypeScope
 crashes Trap
 {
-    transition { _ -> domain(syntax, index, 0) }
+    transition { _ -> domain(syntax, index, 0 as +Trapping) }
 
-    machine domain(syntax: @SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) -> TypeScope {
+    machine domain(syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) -> |symbol_resolved_trees|::TypeScope {
         transition offset < syntax.domain_count {
             true -> domain_facts(syntax, index, offset),
-            _ -> proposition(syntax, index, 0)
+            _ -> proposition(syntax, index, 0 as +Trapping)
         }
     }
 
-    machine domain_facts(syntax: @SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) -> TypeScope {
-        let item: DomainItem = syntax_trees_domain_item(syntax, offset);
+    machine domain_facts(syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) -> |symbol_resolved_trees|::TypeScope {
+        let item: |syntax_trees|::DomainItem = |syntax_trees|::syntax_trees_domain_item(syntax, offset);
         let holds: bool = clauses_hold(syntax, item.first_clause, item.clause_count, index);
-        let scope: TypeScope = resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
+        let scope: |symbol_resolved_trees|::TypeScope = |generic_scopes|::resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
         transition holds {
             true -> found(scope),
             _ -> domain(syntax, index, offset + 1)
         }
     }
 
-    machine proposition(syntax: @SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) -> TypeScope {
+    machine proposition(syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) -> |symbol_resolved_trees|::TypeScope {
         transition offset < syntax.proposition_count {
             true -> proposition_fact(syntax, index, offset),
-            _ -> data(syntax, index, 0)
+            _ -> data(syntax, index, 0 as +Trapping)
         }
     }
 
-    machine proposition_fact(syntax: @SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) -> TypeScope {
-        let item: PropositionItem = proposition_item(syntax, offset);
-        let holds: bool = tree_holds(syntax, item.body == PropositionBody::Transparent, item.fact, index);
-        let scope: TypeScope = resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
+    machine proposition_fact(syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) -> |symbol_resolved_trees|::TypeScope {
+        let item: |syntax_trees|::PropositionItem = |syntax_trees|::proposition_item(syntax, offset);
+        let holds: bool = tree_holds(syntax, item.body == |syntax_trees|::PropositionBody::Transparent, item.fact, index);
+        let scope: |symbol_resolved_trees|::TypeScope = |generic_scopes|::resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
         transition holds {
             true -> found(scope),
             _ -> proposition(syntax, index, offset + 1)
         }
     }
 
-    machine data(syntax: @SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) -> TypeScope {
-        let empty: TypeScope = empty_scope();
+    machine data(syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) -> |symbol_resolved_trees|::TypeScope {
+        let empty: |symbol_resolved_trees|::TypeScope = |generic_scopes|::empty_scope();
         transition offset < syntax.data_count {
             true -> data_facts(syntax, index, offset),
             _ -> found(empty)
         }
     }
 
-    machine data_facts(syntax: @SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) -> TypeScope {
-        let item: DataItem = syntax_trees_data_item(syntax, offset);
+    machine data_facts(syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) -> |symbol_resolved_trees|::TypeScope {
+        let item: |syntax_trees|::DataItem = |syntax_trees|::syntax_trees_data_item(syntax, offset);
         let holds: bool = clauses_hold(syntax, item.first_clause, item.clause_count, index);
-        let scope: TypeScope = data_scope(item);
+        let scope: |symbol_resolved_trees|::TypeScope = |generic_scopes|::data_scope(item);
         transition holds {
             true -> found(scope),
-            _ -> case_facts(syntax, index, offset, item, 0)
+            _ -> case_facts(syntax, index, offset, item, 0 as +Trapping)
         }
     }
 
-    machine case_facts(syntax: @SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping) -> TypeScope {
+    machine case_facts(syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping, item: |syntax_trees|::DataItem, case_offset: u64 in Trapping) -> |symbol_resolved_trees|::TypeScope {
         transition case_offset < item.case_count {
             true -> case_holds(syntax, index, offset, item, case_offset),
             _ -> data(syntax, index, offset + 1)
         }
     }
 
-    machine case_holds(syntax: @SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping) -> TypeScope {
-        let data_case: DataCase = syntax_trees_data_case(syntax, item.first_case + case_offset);
+    machine case_holds(syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping, item: |syntax_trees|::DataItem, case_offset: u64 in Trapping) -> |symbol_resolved_trees|::TypeScope {
+        let data_case: |syntax_trees|::DataCase = |syntax_trees|::syntax_trees_data_case(syntax, item.first_case + case_offset);
         let holds: bool = clauses_hold(syntax, data_case.first_clause, data_case.clause_count, index);
-        let scope: TypeScope = data_scope(item);
+        let scope: |symbol_resolved_trees|::TypeScope = |generic_scopes|::data_scope(item);
         transition holds {
             true -> found(scope),
             _ -> case_facts(syntax, index, offset, item, case_offset + 1)
         }
     }
 
-    machine found(scope: TypeScope) -> TypeScope {
+    machine found(scope: |symbol_resolved_trees|::TypeScope) -> |symbol_resolved_trees|::TypeScope {
         scope
     }
 }
 
 // Whether expression `index` lies in the fact tree of one of the clauses
 // `first..first + count`.
-machine clauses_hold(syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, index: u64 in Trapping) -> bool
+machine clauses_hold(syntax: @|syntax_trees|::SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, index: u64 in Trapping) -> bool
 crashes Trap
 {
-    transition { _ -> next(syntax, first, count, index, 0) }
+    transition { _ -> next(syntax, first, count, index, 0 as +Trapping) }
 
-    machine next(syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, index: u64 in Trapping, offset: u64 in Trapping) -> bool {
+    machine next(syntax: @|syntax_trees|::SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, index: u64 in Trapping, offset: u64 in Trapping) -> bool {
         transition offset < count {
             true -> clause(syntax, first, count, index, offset),
             _ -> no()
         }
     }
 
-    machine clause(syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, index: u64 in Trapping, offset: u64 in Trapping) -> bool {
-        let fact: Clause = syntax_trees_clause(syntax, first + offset);
-        let factual: bool = fact.kind == ClauseKind::Requires || fact.kind == ClauseKind::Ensures;
+    machine clause(syntax: @|syntax_trees|::SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, index: u64 in Trapping, offset: u64 in Trapping) -> bool {
+        let fact: |syntax_trees|::Clause = |syntax_trees|::syntax_trees_clause(syntax, first + offset);
+        let factual: bool = fact.kind == |syntax_trees|::ClauseKind::Requires || fact.kind == |syntax_trees|::ClauseKind::Ensures;
         let holds: bool = tree_holds(syntax, factual, fact.expression, index);
         transition holds {
             true -> yes(),
@@ -686,7 +653,7 @@ crashes Trap
 
 // Whether expression `index` lies in the tree rooted at `root`, whose rows
 // run from the root's first row to the root; `present` says a tree exists.
-machine tree_holds(syntax: @SyntaxTrees, present: bool, root: u64 in Trapping, index: u64 in Trapping) -> bool
+machine tree_holds(syntax: @|syntax_trees|::SyntaxTrees, present: bool, root: u64 in Trapping, index: u64 in Trapping) -> bool
 crashes Trap
 {
     transition present {
@@ -694,8 +661,8 @@ crashes Trap
         _ -> no()
     }
 
-    machine run(syntax: @SyntaxTrees, root: u64 in Trapping, index: u64 in Trapping) -> bool {
-        let expression: Expression = syntax_trees_expression(syntax, root);
+    machine run(syntax: @|syntax_trees|::SyntaxTrees, root: u64 in Trapping, index: u64 in Trapping) -> bool {
+        let expression: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, root);
         expression.first_row <= index && index <= root
     }
 
@@ -705,6 +672,6 @@ crashes Trap
 }
 
 // A declaration owns only its executable statements; descendants have independent ranges.
-machine resolver_statement_end(syntax: @SyntaxTrees, item: MachineItem) -> u64 in Trapping {
+machine resolver_statement_end(syntax: @|syntax_trees|::SyntaxTrees, item: |syntax_trees|::MachineItem) -> u64 in Trapping {
     item.first_statement + item.statement_count
 }

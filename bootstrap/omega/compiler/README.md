@@ -112,10 +112,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 30,311 lines / 1,198,693 bytes with SHA-256
-`c3ccd816d4280a44a6eecd9c537f84546591dac966fcc83a7ccce15576fa1468`.
-The manifest itself is 2,905 bytes, SHA-256
-`679a5405ac7bd96e470afc5c7ac33fc3154f949219e63de552354b34e3d3ed2c`;
+The manifest materializes 30,798 lines / 1,217,811 bytes with SHA-256
+`27f6b21f00093fee1f0592a6571fe90fb0b34529742a5fb3448cc3fed17f7a2a`.
+The manifest itself is 3,249 bytes, SHA-256
+`efd2d857e02de1494035e4b8fe09de67306cebe5c838d76e02790486359010c6`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -136,7 +136,7 @@ source set: at most 64 package identities, 256 direct dependency aliases and 512
 source units. Each unit has invocation-owned package membership, an exact
 source interval and a logical package-relative path. The parser keeps each
 parent directory component for name resolution and refuses a legacy `module`
-header. Files in one package directory share a namespace. Types and calls retain
+header. Legacy directory imports share a namespace across sibling files. Types and calls retain
 their exact declaration identity across units. Source-order changes do not
 select a different imported declaration.
 
@@ -190,7 +190,12 @@ services still use the pooled checker. The single-unit public resource limits
 remain in force.
 [Per-unit compilation](construction/units.epsilon)
 
-Imports are file-local. Exact imports select declarations; namespace imports
+A file import binds its explicit alias or its filename stem. For example, the parser uses
+`use representations/tokens/numeric.omg;` and `|numeric|::IntegerSuffix::None`
+to select the suffix case from its token file. The constructor checks the
+whole logical filename and package visibility before selecting a declaration.
+
+Legacy imports are file-local. Item imports select declarations; namespace imports
 bind a namespace without importing its ordinary machines as bare names.
 Repeated imports of one identity are allowed, while competing imported names
 refuse. Ordinary package-qualified names use the requester's own package or
@@ -206,7 +211,7 @@ check directory imports, sibling lookup, path validation and legacy packets
 against a constructed executable. Successful cases execute the emitted Alpha tape.
 
 The construction application is [construct_omega.epsilon](../construct_omega.epsilon).
-It reads package, direct-alias and unit rows followed by a shared 4 MiB arena
+It reads package, direct-alias and unit rows followed by a shared 8 MiB arena
 for source bytes, logical paths and names. Package roles distinguish ordinary packages from the explicitly
 trusted core and standard library; spelling alone grants no such role. The
 selected entry is a source-unit ordinal and name span. This internal input
@@ -475,8 +480,8 @@ eight-byte word. A fixed array of plain `u8` stores one byte per element.
 Its indexing instructions read or write exactly one byte. The whole array is
 rounded up to a word boundary so record copies and zeroing can use whole words.
 Bounds checks use the declared element count. The `SourceUnit` byte array
-occupies 128 KiB and the construction application's 4 MiB byte array fits in
-its 4,224,576-byte `ConstructionInput` record. Layout recursion is bounded
+occupies 128 KiB and the construction application's byte array occupies 8 MiB
+inside its `ConstructionInput` record. Layout recursion is bounded
 at 64 steps. Compound extents and the complete private storage arena are
 bounded by the 1 GiB backing window described above. By-value cycles,
 linear/opaque/authority-bearing types, stored references, selected cleanup and

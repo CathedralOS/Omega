@@ -1,34 +1,14 @@
-use representations\source_files\SourceSet;
-use representations\source_files\spans_equal;
-use representations\symbol_resolved_trees\NameResolution;
-use representations\symbol_resolved_trees\ResolveDiagnosticCode;
-use representations\symbol_resolved_trees\TypeScope;
-use representations\symbol_resolved_trees\name_resolution_reject;
-use representations\syntax_trees\ConformanceItem;
-use representations\syntax_trees\DataCase;
-use representations\syntax_trees\DataField;
-use representations\syntax_trees\DataItem;
-use representations\syntax_trees\DataMember;
-use representations\syntax_trees\DomainItem;
-use representations\syntax_trees\IdentifierSpan;
-use representations\syntax_trees\MachineItem;
-use representations\syntax_trees\PropositionItem;
-use representations\syntax_trees\RootItem;
-use representations\syntax_trees\RootItemKind;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\TraitItem;
-use representations\syntax_trees\conformance_item;
-use representations\syntax_trees\machine_item;
-use representations\syntax_trees\member_name;
-use representations\syntax_trees\proposition_item;
-use representations\syntax_trees\root_item;
-use representations\syntax_trees\syntax_trees_data_case;
-use representations\syntax_trees\syntax_trees_data_item;
-use representations\syntax_trees\syntax_trees_data_member;
-use representations\syntax_trees\syntax_trees_domain_item;
-use representations\syntax_trees\syntax_trees_field;
-use representations\syntax_trees\syntax_trees_payload_field;
-use representations\syntax_trees\trait_item;
+use pipeline/syntax_trees_to_symbol_resolved_trees/resolution_state.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/declarations.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/generic_scopes.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/machine_signatures.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/overloads.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/type_names.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/imports.omg;
+
+use representations/source_files/source.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
 
 // Root names and member namespaces are checked before later lookup can choose between declarations.
 
@@ -45,33 +25,33 @@ public data RootNamespace [copy] {
 }
 
 public data RootName [copy] {
-    kind: RootItemKind;
+    kind: |syntax_trees|::RootItemKind;
     space: RootNamespace;
     has_owner: bool;
-    owner: IdentifierSpan;
-    name: IdentifierSpan;
+    owner: |syntax_trees|::IdentifierSpan;
+    name: |syntax_trees|::IdentifierSpan;
 }
 
-machine root_name(syntax: @SyntaxTrees, index: u64 in Trapping) -> RootName
+machine root_name(syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) -> RootName
 crashes Trap
 {
-    let root: RootItem = root_item(syntax, index);
+    let root: |syntax_trees|::RootItem = |syntax_trees|::root_item(syntax, index);
     transition root.kind {
-        RootItemKind::Data -> declared(syntax, root, RootNamespace::Type, DeclarationKind::Data),
-        RootItemKind::Trait -> declared(syntax, root, RootNamespace::Type, DeclarationKind::Trait),
-        RootItemKind::Conformance -> declared(syntax, root, RootNamespace::Type, DeclarationKind::Conformance),
-        RootItemKind::Constant -> declared(syntax, root, RootNamespace::Constant, DeclarationKind::Constant),
-        RootItemKind::Proposition -> declared(syntax, root, RootNamespace::Proposition, DeclarationKind::Proposition),
+        |syntax_trees|::RootItemKind::Data -> declared(syntax, root, RootNamespace::Type, |declarations|::DeclarationKind::Data),
+        |syntax_trees|::RootItemKind::Trait -> declared(syntax, root, RootNamespace::Type, |declarations|::DeclarationKind::Trait),
+        |syntax_trees|::RootItemKind::Conformance -> declared(syntax, root, RootNamespace::Type, |declarations|::DeclarationKind::Conformance),
+        |syntax_trees|::RootItemKind::Constant -> declared(syntax, root, RootNamespace::Constant, |declarations|::DeclarationKind::Constant),
+        |syntax_trees|::RootItemKind::Proposition -> declared(syntax, root, RootNamespace::Proposition, |declarations|::DeclarationKind::Proposition),
         _ -> none(root)
     }
 
-    machine declared(syntax: @SyntaxTrees, root: RootItem, space: RootNamespace, kind: DeclarationKind) -> RootName {
-        let path: DeclarationPath = declaration_path(syntax, kind, root.item_index);
+    machine declared(syntax: @|syntax_trees|::SyntaxTrees, root: |syntax_trees|::RootItem, space: RootNamespace, kind: |declarations|::DeclarationKind) -> RootName {
+        let path: |declarations|::DeclarationPath = |declarations|::declaration_path(syntax, kind, root.item_index);
         RootName { kind: root.kind, space: space, has_owner: path.has_owner, owner: path.owner, name: path.name }
     }
 
-    machine none(root: RootItem) -> RootName {
-        let span: IdentifierSpan = IdentifierSpan { source_span: root.source_span };
+    machine none(root: |syntax_trees|::RootItem) -> RootName {
+        let span: |syntax_trees|::IdentifierSpan = |syntax_trees|::IdentifierSpan { source_span: root.source_span };
         RootName { kind: root.kind, space: RootNamespace::None, has_owner: false, owner: span, name: span }
     }
 }
@@ -82,36 +62,36 @@ crashes Trap
 // already took rejects at the later root, as duplicate data when both are
 // data; other modules' declarations conflict only where both are visible to
 // one reference.
-machine declare_roots(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
+machine declare_roots(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> next(resolver, sources, syntax, 0) }
+    transition { _ -> next(resolver, sources, syntax, 0 as +Trapping) }
 
-    machine next(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine next(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.root_count {
             true -> root(resolver, sources, syntax, index),
             _ -> done()
         }
     }
 
-    machine root(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine root(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
         let declared: RootName = root_name(syntax, index);
         transition declared.space {
             RootNamespace::None -> next(resolver, sources, syntax, index + 1),
             RootNamespace::Type -> builtin_shadow(resolver, sources, syntax, index, declared),
-            _ -> earlier(resolver, sources, syntax, index, declared, 0)
+            _ -> earlier(resolver, sources, syntax, index, declared, 0 as +Trapping)
         }
     }
 
-    machine builtin_shadow(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, declared: RootName) {
-        let builtin: bool = builtin_type_spelling(sources, declared.name.source_span);
+    machine builtin_shadow(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, declared: RootName) {
+        let builtin: bool = |type_names|::builtin_type_spelling(sources, declared.name.source_span);
         transition builtin {
-            true -> reject(resolver, ResolveDiagnosticCode::ShadowsBuiltin, declared.name),
-            _ -> earlier(resolver, sources, syntax, index, declared, 0)
+            true -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::ShadowsBuiltin, declared.name),
+            _ -> earlier(resolver, sources, syntax, index, declared, 0 as +Trapping)
         }
     }
 
-    machine earlier(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, declared: RootName, prior: u64 in Trapping) {
+    machine earlier(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, declared: RootName, prior: u64 in Trapping) {
         transition prior < index {
             true -> compare(resolver, sources, syntax, index, declared, prior),
             _ -> competing(resolver, sources, syntax, index, declared)
@@ -120,26 +100,26 @@ crashes Trap
 
     // A constant's path is a value path that a case (`Owner::Case`) or a
     // machine of its module must not also spell.
-    machine competing(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, declared: RootName) {
+    machine competing(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, declared: RootName) {
         transition declared.space == RootNamespace::Constant {
             true -> constant_path(resolver, sources, syntax, index, declared),
             _ -> next(resolver, sources, syntax, index + 1)
         }
     }
 
-    machine constant_path(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, declared: RootName) {
+    machine constant_path(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, declared: RootName) {
         let spelled: bool = value_path_taken(@resolver.output, sources, syntax, declared);
         transition spelled {
-            true -> reject(resolver, ResolveDiagnosticCode::DuplicateDeclaration, declared.name),
+            true -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::DuplicateDeclaration, declared.name),
             _ -> next(resolver, sources, syntax, index + 1)
         }
     }
 
-    machine compare(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, declared: RootName, prior: u64 in Trapping) {
+    machine compare(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, declared: RootName, prior: u64 in Trapping) {
         let other: RootName = root_name(syntax, prior);
-        let named: bool = spans_equal(sources, declared.name.source_span, other.name.source_span);
-        let owner_named: bool = spans_equal(sources, declared.owner.source_span, other.owner.source_span);
-        let same_module: bool = resolver_same_module(sources, declared.name.source_span.source.value as -Trapping as u64 +Trapping,
+        let named: bool = |source|::spans_equal(sources, declared.name.source_span, other.name.source_span);
+        let owner_named: bool = |source|::spans_equal(sources, declared.owner.source_span, other.owner.source_span);
+        let same_module: bool = |imports|::resolver_same_module(sources, declared.name.source_span.source.value as -Trapping as u64 +Trapping,
             other.name.source_span.source.value as -Trapping as u64 +Trapping);
         transition declared.space == other.space && named && declared.has_owner == other.has_owner
             && (!declared.has_owner || owner_named) && same_module {
@@ -148,15 +128,15 @@ crashes Trap
         }
     }
 
-    machine duplicate(resolver: @mutable Resolver, declared: RootName, other: RootName) {
-        transition declared.kind == RootItemKind::Data && other.kind == RootItemKind::Data {
-            true -> reject(resolver, ResolveDiagnosticCode::DuplicateData, declared.name),
-            _ -> reject(resolver, ResolveDiagnosticCode::DuplicateDeclaration, declared.name)
+    machine duplicate(resolver: @mutable |resolution_state|::Resolver, declared: RootName, other: RootName) {
+        transition declared.kind == |syntax_trees|::RootItemKind::Data && other.kind == |syntax_trees|::RootItemKind::Data {
+            true -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::DuplicateData, declared.name),
+            _ -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::DuplicateDeclaration, declared.name)
         }
     }
 
-    machine reject(resolver: @mutable Resolver, code: ResolveDiagnosticCode, name: IdentifierSpan) {
-        name_resolution_reject(@mutable resolver.output, code, name.source_span);
+    machine reject(resolver: @mutable |resolution_state|::Resolver, code: |symbol_resolved_trees|::ResolveDiagnosticCode, name: |syntax_trees|::IdentifierSpan) {
+        |symbol_resolved_trees|::name_resolution_reject(@mutable resolver.output, code, name.source_span);
     }
 
     machine done() {}
@@ -165,23 +145,23 @@ crashes Trap
 // Whether a case or a machine of `declared`'s module spells its path: a
 // case `Owner::NAME` of a data declaration `Owner`, or a machine whose path
 // is the constant's.
-machine value_path_taken(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, declared: RootName) -> bool
+machine value_path_taken(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, declared: RootName) -> bool
 crashes Trap
 {
-    transition { _ -> machine_at(resolution, sources, syntax, declared, 0) }
+    transition { _ -> machine_at(resolution, sources, syntax, declared, 0 as +Trapping) }
 
-    machine machine_at(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, declared: RootName, index: u64 in Trapping) -> bool {
+    machine machine_at(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, declared: RootName, index: u64 in Trapping) -> bool {
         transition index < syntax.machine_count {
             true -> machine_path(resolution, sources, syntax, declared, index),
-            _ -> owner_data(sources, syntax, declared, 0)
+            _ -> owner_data(sources, syntax, declared, 0 as +Trapping)
         }
     }
 
-    machine machine_path(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, declared: RootName, index: u64 in Trapping) -> bool {
-        let item: MachineItem = machine_item(syntax, index);
-        let spelled: bool = machine_spells(resolution, sources, item, index, declared.has_owner,
+    machine machine_path(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, declared: RootName, index: u64 in Trapping) -> bool {
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, index);
+        let spelled: bool = |overloads|::machine_spells(resolution, sources, item, index, declared.has_owner,
             declared.owner.source_span, declared.name.source_span);
-        let same_module: bool = resolver_same_module(sources, declared.name.source_span.source.value as -Trapping as u64 +Trapping,
+        let same_module: bool = |imports|::resolver_same_module(sources, declared.name.source_span.source.value as -Trapping as u64 +Trapping,
             item.name.source_span.source.value as -Trapping as u64 +Trapping);
         transition spelled && same_module {
             true -> taken(),
@@ -189,34 +169,34 @@ crashes Trap
         }
     }
 
-    machine owner_data(sources: @SourceSet, syntax: @SyntaxTrees, declared: RootName, index: u64 in Trapping) -> bool {
+    machine owner_data(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, declared: RootName, index: u64 in Trapping) -> bool {
         transition declared.has_owner && index < syntax.data_count {
             true -> owner_named(sources, syntax, declared, index),
             _ -> free()
         }
     }
 
-    machine owner_named(sources: @SourceSet, syntax: @SyntaxTrees, declared: RootName, index: u64 in Trapping) -> bool {
-        let item: DataItem = syntax_trees_data_item(syntax, index);
-        let named: bool = spans_equal(sources, item.name.source_span, declared.owner.source_span);
-        let same_module: bool = resolver_same_module(sources, declared.name.source_span.source.value as -Trapping as u64 +Trapping,
+    machine owner_named(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, declared: RootName, index: u64 in Trapping) -> bool {
+        let item: |syntax_trees|::DataItem = |syntax_trees|::syntax_trees_data_item(syntax, index);
+        let named: bool = |source|::spans_equal(sources, item.name.source_span, declared.owner.source_span);
+        let same_module: bool = |imports|::resolver_same_module(sources, declared.name.source_span.source.value as -Trapping as u64 +Trapping,
             item.name.source_span.source.value as -Trapping as u64 +Trapping);
         transition named && same_module {
-            true -> case_at(sources, syntax, declared, index, item, 0),
+            true -> case_at(sources, syntax, declared, index, item, 0 as +Trapping),
             _ -> owner_data(sources, syntax, declared, index + 1)
         }
     }
 
-    machine case_at(sources: @SourceSet, syntax: @SyntaxTrees, declared: RootName, index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) -> bool {
+    machine case_at(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, declared: RootName, index: u64 in Trapping, item: |syntax_trees|::DataItem, offset: u64 in Trapping) -> bool {
         transition offset < item.case_count {
             true -> case_named(sources, syntax, declared, index, item, offset),
             _ -> owner_data(sources, syntax, declared, index + 1)
         }
     }
 
-    machine case_named(sources: @SourceSet, syntax: @SyntaxTrees, declared: RootName, index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) -> bool {
-        let data_case: DataCase = syntax_trees_data_case(syntax, item.first_case + offset);
-        let named: bool = spans_equal(sources, data_case.name.source_span, declared.name.source_span);
+    machine case_named(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, declared: RootName, index: u64 in Trapping, item: |syntax_trees|::DataItem, offset: u64 in Trapping) -> bool {
+        let data_case: |syntax_trees|::DataCase = |syntax_trees|::syntax_trees_data_case(syntax, item.first_case + offset);
+        let named: bool = |source|::spans_equal(sources, data_case.name.source_span, declared.name.source_span);
         transition named {
             true -> taken(),
             _ -> case_at(sources, syntax, declared, index, item, offset + 1)
@@ -235,72 +215,72 @@ crashes Trap
 // The generic parameter names of every trait, conformance, domain and
 // proposition, and each proposition's parameter names. Data declarations'
 // generics check with their members, machines' with their signatures.
-machine check_declaration_namespaces(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
+machine check_declaration_namespaces(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> traits(resolver, sources, syntax, 0) }
+    transition { _ -> traits(resolver, sources, syntax, 0 as +Trapping) }
 
-    machine traits(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine traits(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.trait_count && resolver.output.accepted {
             true -> trait_generics(resolver, sources, syntax, index),
-            _ -> conformances(resolver, sources, syntax, 0)
+            _ -> conformances(resolver, sources, syntax, 0 as +Trapping)
         }
     }
 
-    machine trait_generics(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
-        let item: TraitItem = trait_item(syntax, index);
-        let scope: TypeScope = resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
-        check_generic_names(resolver, sources, syntax, scope);
+    machine trait_generics(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
+        let item: |syntax_trees|::TraitItem = |syntax_trees|::trait_item(syntax, index);
+        let scope: |symbol_resolved_trees|::TypeScope = |generic_scopes|::resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
+        |generic_scopes|::check_generic_names(resolver, sources, syntax, scope);
         transition { _ -> traits(resolver, sources, syntax, index + 1) }
     }
 
-    machine conformances(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine conformances(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.conformance_count && resolver.output.accepted {
             true -> conformance_generics(resolver, sources, syntax, index),
-            _ -> domains(resolver, sources, syntax, 0)
+            _ -> domains(resolver, sources, syntax, 0 as +Trapping)
         }
     }
 
-    machine conformance_generics(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
-        let item: ConformanceItem = conformance_item(syntax, index);
-        let scope: TypeScope = resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
-        check_generic_names(resolver, sources, syntax, scope);
+    machine conformance_generics(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
+        let item: |syntax_trees|::ConformanceItem = |syntax_trees|::conformance_item(syntax, index);
+        let scope: |symbol_resolved_trees|::TypeScope = |generic_scopes|::resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
+        |generic_scopes|::check_generic_names(resolver, sources, syntax, scope);
         transition { _ -> conformances(resolver, sources, syntax, index + 1) }
     }
 
-    machine domains(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine domains(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.domain_count && resolver.output.accepted {
             true -> domain_generics(resolver, sources, syntax, index),
-            _ -> propositions(resolver, sources, syntax, 0)
+            _ -> propositions(resolver, sources, syntax, 0 as +Trapping)
         }
     }
 
-    machine domain_generics(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
-        let item: DomainItem = syntax_trees_domain_item(syntax, index);
-        let scope: TypeScope = resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
-        check_generic_names(resolver, sources, syntax, scope);
+    machine domain_generics(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
+        let item: |syntax_trees|::DomainItem = |syntax_trees|::syntax_trees_domain_item(syntax, index);
+        let scope: |symbol_resolved_trees|::TypeScope = |generic_scopes|::resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
+        |generic_scopes|::check_generic_names(resolver, sources, syntax, scope);
         transition { _ -> domains(resolver, sources, syntax, index + 1) }
     }
 
-    machine propositions(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine propositions(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.proposition_count && resolver.output.accepted {
             true -> proposition_generics(resolver, sources, syntax, index),
             _ -> done()
         }
     }
 
-    machine proposition_generics(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
-        let item: PropositionItem = proposition_item(syntax, index);
-        let scope: TypeScope = resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
-        check_generic_names(resolver, sources, syntax, scope);
+    machine proposition_generics(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
+        let item: |syntax_trees|::PropositionItem = |syntax_trees|::proposition_item(syntax, index);
+        let scope: |symbol_resolved_trees|::TypeScope = |generic_scopes|::resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
+        |generic_scopes|::check_generic_names(resolver, sources, syntax, scope);
         transition resolver.output.accepted {
             true -> proposition_parameters(resolver, sources, syntax, index, item),
             _ -> done()
         }
     }
 
-    machine proposition_parameters(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: PropositionItem) {
-        check_parameter_names(resolver, sources, syntax, item.first_parameter, item.parameter_count);
+    machine proposition_parameters(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, item: |syntax_trees|::PropositionItem) {
+        |machine_signatures|::check_parameter_names(resolver, sources, syntax, item.first_parameter, item.parameter_count);
         transition { _ -> propositions(resolver, sources, syntax, index + 1) }
     }
 
@@ -310,122 +290,122 @@ crashes Trap
 // Member namespaces of each data declaration. Direct fields and cases share
 // one namespace in authored order. Each case's payload fields have their own
 // namespace, which the declaration's direct (common) fields also occupy.
-machine check_members(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
+machine check_members(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> next_data(resolver, sources, syntax, 0) }
+    transition { _ -> next_data(resolver, sources, syntax, 0 as +Trapping) }
 
-    machine next_data(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping) {
+    machine next_data(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, data_index: u64 in Trapping) {
         transition data_index < syntax.data_count {
             true -> data_members(resolver, sources, syntax, data_index),
             _ -> done()
         }
     }
 
-    machine data_members(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping) {
-        let item: DataItem = syntax_trees_data_item(syntax, data_index);
-        let scope: TypeScope = data_scope(item);
-        check_generic_names(resolver, sources, syntax, scope);
+    machine data_members(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, data_index: u64 in Trapping) {
+        let item: |syntax_trees|::DataItem = |syntax_trees|::syntax_trees_data_item(syntax, data_index);
+        let scope: |symbol_resolved_trees|::TypeScope = |generic_scopes|::data_scope(item);
+        |generic_scopes|::check_generic_names(resolver, sources, syntax, scope);
         transition resolver.output.accepted {
-            true -> member(resolver, sources, syntax, data_index, item, 0),
+            true -> member(resolver, sources, syntax, data_index, item, 0 as +Trapping),
             _ -> done()
         }
     }
 
-    machine member(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
+    machine member(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, data_index: u64 in Trapping, item: |syntax_trees|::DataItem, offset: u64 in Trapping) {
         transition offset < item.member_count {
             true -> member_named(resolver, sources, syntax, data_index, item, offset),
-            _ -> cases(resolver, sources, syntax, data_index, item, 0)
+            _ -> cases(resolver, sources, syntax, data_index, item, 0 as +Trapping)
         }
     }
 
-    machine member_named(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
-        let data_member: DataMember = syntax_trees_data_member(syntax, item.first_member + offset);
-        let name: IdentifierSpan = member_name(syntax, data_member);
-        transition { _ -> member_prior(resolver, sources, syntax, data_index, item, offset, name, 0) }
+    machine member_named(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, data_index: u64 in Trapping, item: |syntax_trees|::DataItem, offset: u64 in Trapping) {
+        let data_member: |syntax_trees|::DataMember = |syntax_trees|::syntax_trees_data_member(syntax, item.first_member + offset);
+        let name: |syntax_trees|::IdentifierSpan = |syntax_trees|::member_name(syntax, data_member);
+        transition { _ -> member_prior(resolver, sources, syntax, data_index, item, offset, name, 0 as +Trapping) }
     }
 
-    machine member_prior(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, name: IdentifierSpan, prior: u64 in Trapping) {
+    machine member_prior(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, data_index: u64 in Trapping, item: |syntax_trees|::DataItem, offset: u64 in Trapping, name: |syntax_trees|::IdentifierSpan, prior: u64 in Trapping) {
         transition prior < offset {
             true -> member_compare(resolver, sources, syntax, data_index, item, offset, name, prior),
             _ -> member(resolver, sources, syntax, data_index, item, offset + 1)
         }
     }
 
-    machine member_compare(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, name: IdentifierSpan, prior: u64 in Trapping) {
-        let prior_member: DataMember = syntax_trees_data_member(syntax, item.first_member + prior);
-        let prior_name: IdentifierSpan = member_name(syntax, prior_member);
-        let equal: bool = spans_equal(sources, name.source_span,
+    machine member_compare(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, data_index: u64 in Trapping, item: |syntax_trees|::DataItem, offset: u64 in Trapping, name: |syntax_trees|::IdentifierSpan, prior: u64 in Trapping) {
+        let prior_member: |syntax_trees|::DataMember = |syntax_trees|::syntax_trees_data_member(syntax, item.first_member + prior);
+        let prior_name: |syntax_trees|::IdentifierSpan = |syntax_trees|::member_name(syntax, prior_member);
+        let equal: bool = |source|::spans_equal(sources, name.source_span,
             prior_name.source_span
         );
         transition equal {
-            true -> reject(resolver, ResolveDiagnosticCode::DuplicateDataMember, name),
+            true -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::DuplicateDataMember, name),
             _ -> member_prior(resolver, sources, syntax, data_index, item, offset, name, prior + 1)
         }
     }
 
-    machine cases(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping) {
+    machine cases(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, data_index: u64 in Trapping, item: |syntax_trees|::DataItem, case_offset: u64 in Trapping) {
         transition case_offset < item.case_count {
             true -> case_payload(resolver, sources, syntax, data_index, item, case_offset),
             _ -> next_data(resolver, sources, syntax, data_index + 1)
         }
     }
 
-    machine case_payload(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping) {
-        let data_case: DataCase = syntax_trees_data_case(syntax, item.first_case + case_offset);
-        transition { _ -> payload(resolver, sources, syntax, data_index, item, case_offset, data_case, 0) }
+    machine case_payload(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, data_index: u64 in Trapping, item: |syntax_trees|::DataItem, case_offset: u64 in Trapping) {
+        let data_case: |syntax_trees|::DataCase = |syntax_trees|::syntax_trees_data_case(syntax, item.first_case + case_offset);
+        transition { _ -> payload(resolver, sources, syntax, data_index, item, case_offset, data_case, 0 as +Trapping) }
     }
 
-    machine payload(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping) {
+    machine payload(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, data_index: u64 in Trapping, item: |syntax_trees|::DataItem, case_offset: u64 in Trapping, data_case: |syntax_trees|::DataCase, field_offset: u64 in Trapping) {
         transition field_offset < data_case.payload_field_count {
             true -> payload_named(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset),
             _ -> cases(resolver, sources, syntax, data_index, item, case_offset + 1)
         }
     }
 
-    machine payload_named(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping) {
-        let field: DataField = syntax_trees_payload_field(syntax, data_case.first_payload_field + field_offset);
-        transition { _ -> payload_prior(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset, field.name, 0) }
+    machine payload_named(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, data_index: u64 in Trapping, item: |syntax_trees|::DataItem, case_offset: u64 in Trapping, data_case: |syntax_trees|::DataCase, field_offset: u64 in Trapping) {
+        let field: |syntax_trees|::DataField = |syntax_trees|::syntax_trees_payload_field(syntax, data_case.first_payload_field + field_offset);
+        transition { _ -> payload_prior(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset, field.name, 0 as +Trapping) }
     }
 
-    machine payload_prior(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping, name: IdentifierSpan, prior: u64 in Trapping) {
+    machine payload_prior(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, data_index: u64 in Trapping, item: |syntax_trees|::DataItem, case_offset: u64 in Trapping, data_case: |syntax_trees|::DataCase, field_offset: u64 in Trapping, name: |syntax_trees|::IdentifierSpan, prior: u64 in Trapping) {
         transition prior < field_offset {
             true -> payload_compare(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset, name, prior),
-            _ -> common(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset, name, 0)
+            _ -> common(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset, name, 0 as +Trapping)
         }
     }
 
-    machine payload_compare(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping, name: IdentifierSpan, prior: u64 in Trapping) {
-        let prior_field: DataField = syntax_trees_payload_field(syntax, data_case.first_payload_field + prior);
-        let equal: bool = spans_equal(sources, name.source_span,
+    machine payload_compare(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, data_index: u64 in Trapping, item: |syntax_trees|::DataItem, case_offset: u64 in Trapping, data_case: |syntax_trees|::DataCase, field_offset: u64 in Trapping, name: |syntax_trees|::IdentifierSpan, prior: u64 in Trapping) {
+        let prior_field: |syntax_trees|::DataField = |syntax_trees|::syntax_trees_payload_field(syntax, data_case.first_payload_field + prior);
+        let equal: bool = |source|::spans_equal(sources, name.source_span,
             prior_field.name.source_span
         );
         transition equal {
-            true -> reject(resolver, ResolveDiagnosticCode::DuplicateCasePayloadField, name),
+            true -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::DuplicateCasePayloadField, name),
             _ -> payload_prior(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset, name, prior + 1)
         }
     }
 
-    machine common(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping, name: IdentifierSpan, common_offset: u64 in Trapping) {
+    machine common(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, data_index: u64 in Trapping, item: |syntax_trees|::DataItem, case_offset: u64 in Trapping, data_case: |syntax_trees|::DataCase, field_offset: u64 in Trapping, name: |syntax_trees|::IdentifierSpan, common_offset: u64 in Trapping) {
         transition common_offset < item.field_count {
             true -> common_compare(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset, name, common_offset),
             _ -> payload(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset + 1)
         }
     }
 
-    machine common_compare(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping, name: IdentifierSpan, common_offset: u64 in Trapping) {
-        let common_field: DataField = syntax_trees_field(syntax, item.first_field + common_offset);
-        let equal: bool = spans_equal(sources, name.source_span,
+    machine common_compare(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, data_index: u64 in Trapping, item: |syntax_trees|::DataItem, case_offset: u64 in Trapping, data_case: |syntax_trees|::DataCase, field_offset: u64 in Trapping, name: |syntax_trees|::IdentifierSpan, common_offset: u64 in Trapping) {
+        let common_field: |syntax_trees|::DataField = |syntax_trees|::syntax_trees_field(syntax, item.first_field + common_offset);
+        let equal: bool = |source|::spans_equal(sources, name.source_span,
             common_field.name.source_span
         );
         transition equal {
-            true -> reject(resolver, ResolveDiagnosticCode::PayloadFieldCollidesWithCommonField, name),
+            true -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::PayloadFieldCollidesWithCommonField, name),
             _ -> common(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset, name, common_offset + 1)
         }
     }
 
-    machine reject(resolver: @mutable Resolver, code: ResolveDiagnosticCode, name: IdentifierSpan) {
-        name_resolution_reject(@mutable resolver.output, code, name.source_span);
+    machine reject(resolver: @mutable |resolution_state|::Resolver, code: |symbol_resolved_trees|::ResolveDiagnosticCode, name: |syntax_trees|::IdentifierSpan) {
+        |symbol_resolved_trees|::name_resolution_reject(@mutable resolver.output, code, name.source_span);
     }
 
     machine done() {}

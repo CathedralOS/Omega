@@ -1,18 +1,19 @@
-use representations\source_files\SourceSpan;
-use representations\syntax_trees\ConstantItem;
-use representations\syntax_trees\ParseDiagnosticCode;
-use representations\syntax_trees\RootItem;
-use representations\syntax_trees\RootItemKind;
-use representations\tokens\PunctuationKind;
-use representations\tokens\TokenStream;
+use pipeline/tokens_to_syntax_trees/expression.omg;
+use pipeline/tokens_to_syntax_trees/input.omg;
+use pipeline/tokens_to_syntax_trees/types.omg;
+use pipeline/tokens_to_syntax_trees/parser.omg;
+
+use representations/source_files/source.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/tokens/tokens.omg;
 
 // `[public] const [Owner::]NAME: Type = value;`, entered at the `const` word.
 // A constant names an immutable compile-time value, package-scoped or scoped
 // to one owner type; its value is an ordinary expression, constructions
 // included. The item and its root are retained at the closing `;`.
 public machine parse_constant(
-    parser: @mutable Parser,
-    input: @TokenStream,
+    parser: @mutable |parser|::Parser,
+    input: @|tokens|::TokenStream,
     item_start: u64 in Trapping,
     is_public: bool
 )
@@ -21,127 +22,129 @@ crashes Trap
     parser.declaration_start = item_start;
     parser.declaration_is_public = is_public;
     parser.declaration_has_owner = false;
-    parser.declaration_owner_start = 0;
-    parser.declaration_owner_end = 0;
+    parser.declaration_owner_start = 0 as +Trapping;
+    parser.declaration_owner_end = 0 as +Trapping;
     transition parser.output.constant_count < 512 {
         true -> keyword(parser, input),
-        _ -> reject(parser, input, ParseDiagnosticCode::ConstantCapacityExceeded)
+        _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::ConstantCapacityExceeded)
     }
 
-    machine keyword(parser: @mutable Parser, input: @TokenStream) {
-        take_current(parser, input);
-        expect_name(parser, input, ParseDiagnosticCode::ExpectedConstantName);
+    machine keyword(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
+        |input|::expect_name(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedConstantName);
         transition parser.output.accepted {
             true -> first_name(parser, input),
             _ -> done()
         }
     }
 
-    machine first_name(parser: @mutable Parser, input: @TokenStream) {
+    machine first_name(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         parser.declaration_name_start = parser.name_start;
         parser.declaration_name_end = parser.name_end;
-        let owned: bool = at_punctuation(parser, input, PunctuationKind::ColonColon);
+        let owned: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::ColonColon);
         transition owned {
             true -> owned_name(parser, input),
             _ -> colon(parser, input)
         }
     }
 
-    machine owned_name(parser: @mutable Parser, input: @TokenStream) {
-        take_current(parser, input);
+    machine owned_name(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
         parser.declaration_has_owner = true;
         parser.declaration_owner_start = parser.declaration_name_start;
         parser.declaration_owner_end = parser.declaration_name_end;
-        expect_name(parser, input, ParseDiagnosticCode::ExpectedConstantName);
+        |input|::expect_name(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedConstantName);
         transition parser.output.accepted {
             true -> owned_named(parser, input),
             _ -> done()
         }
     }
 
-    machine owned_named(parser: @mutable Parser, input: @TokenStream) {
+    machine owned_named(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         parser.declaration_name_start = parser.name_start;
         parser.declaration_name_end = parser.name_end;
         transition { _ -> colon(parser, input) }
     }
 
-    machine colon(parser: @mutable Parser, input: @TokenStream) {
-        expect_punctuation(parser, input, PunctuationKind::Colon, ParseDiagnosticCode::ExpectedConstantColon);
+    machine colon(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::expect_punctuation(parser, input, |tokens|::PunctuationKind::Colon, |syntax_trees|::ParseDiagnosticCode::ExpectedConstantColon);
         transition parser.output.accepted {
             true -> constant_type(parser, input),
             _ -> done()
         }
     }
 
-    machine constant_type(parser: @mutable Parser, input: @TokenStream) {
-        parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedConstantType);
+    machine constant_type(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |types|::parse_type_reference(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedConstantType);
+        let type_result: u64 in Trapping = parser.type_result;
         transition parser.output.accepted {
-            true -> equals(parser, input, parser.type_result),
+            true -> equals(parser, input, type_result),
             _ -> done()
         }
     }
 
-    machine equals(parser: @mutable Parser, input: @TokenStream, type_reference: u64 in Trapping) {
-        expect_punctuation(parser, input, PunctuationKind::Equal, ParseDiagnosticCode::ExpectedConstantEquals);
+    machine equals(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, type_reference: u64 in Trapping) {
+        |input|::expect_punctuation(parser, input, |tokens|::PunctuationKind::Equal, |syntax_trees|::ParseDiagnosticCode::ExpectedConstantEquals);
         transition parser.output.accepted {
             true -> initializer(parser, input, type_reference),
             _ -> done()
         }
     }
 
-    machine initializer(parser: @mutable Parser, input: @TokenStream, type_reference: u64 in Trapping) {
-        parse_expression(parser, input, ParseDiagnosticCode::ExpectedConstantValue, true, true);
+    machine initializer(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, type_reference: u64 in Trapping) {
+        |expression|::parse_expression(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedConstantValue, true, true);
+        let expression_result: u64 in Trapping = parser.expression_result;
         transition parser.output.accepted {
-            true -> end(parser, input, type_reference, parser.expression_result),
+            true -> end(parser, input, type_reference, expression_result),
             _ -> done()
         }
     }
 
-    machine end(parser: @mutable Parser, input: @TokenStream, type_reference: u64 in Trapping, value: u64 in Trapping) {
-        expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedConstantEnd);
+    machine end(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, type_reference: u64 in Trapping, value: u64 in Trapping) {
+        |input|::expect_punctuation(parser, input, |tokens|::PunctuationKind::Semicolon, |syntax_trees|::ParseDiagnosticCode::ExpectedConstantEnd);
         transition parser.output.accepted {
             true -> retain_capacity(parser, input, type_reference, value),
             _ -> done()
         }
     }
 
-    machine retain_capacity(parser: @mutable Parser, input: @TokenStream, type_reference: u64 in Trapping, value: u64 in Trapping) {
+    machine retain_capacity(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, type_reference: u64 in Trapping, value: u64 in Trapping) {
         transition parser.output.constant_count < 512 {
             true -> root_capacity(parser, input, type_reference, value),
-            _ -> reject(parser, input, ParseDiagnosticCode::ConstantCapacityExceeded)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::ConstantCapacityExceeded)
         }
     }
 
-    machine root_capacity(parser: @mutable Parser, input: @TokenStream, type_reference: u64 in Trapping, value: u64 in Trapping) {
+    machine root_capacity(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, type_reference: u64 in Trapping, value: u64 in Trapping) {
         transition parser.output.root_count < 4096 {
             true -> retain(parser, type_reference, value),
-            _ -> reject(parser, input, ParseDiagnosticCode::RootCapacityExceeded)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::RootCapacityExceeded)
         }
     }
 
-    machine retain(parser: @mutable Parser, type_reference: u64 in Trapping, value: u64 in Trapping) {
+    machine retain(parser: @mutable |parser|::Parser, type_reference: u64 in Trapping, value: u64 in Trapping) {
         let constant: u64 in Trapping = parser.output.constant_count as +Trapping;
-        let span: SourceSpan = parser_source_span(parser, parser.declaration_start, parser.token_end);
-        parser.output.constants[parser.output.constant_count] = ConstantItem {
+        let span: |source|::SourceSpan = |parser|::parser_source_span(parser, parser.declaration_start, parser.token_end);
+        parser.output.constants[parser.output.constant_count] = |syntax_trees|::ConstantItem {
             has_owner: parser.declaration_has_owner,
-            owner: identifier_span(parser, parser.declaration_owner_start, parser.declaration_owner_end),
-            name: identifier_span(parser, parser.declaration_name_start, parser.declaration_name_end),
+            owner: |parser|::identifier_span(parser, parser.declaration_owner_start, parser.declaration_owner_end),
+            name: |parser|::identifier_span(parser, parser.declaration_name_start, parser.declaration_name_end),
             type_reference: type_reference,
             value: value,
             is_public: parser.declaration_is_public,
             source_span: span
         };
         parser.output.constant_count = parser.output.constant_count + 1;
-        parser.output.roots[parser.output.root_count] = RootItem {
-            kind: RootItemKind::Constant,
+        parser.output.roots[parser.output.root_count] = |syntax_trees|::RootItem {
+            kind: |syntax_trees|::RootItemKind::Constant,
             item_index: constant,
             source_span: span
         };
         parser.output.root_count = parser.output.root_count + 1;
     }
 
-    machine reject(parser: @mutable Parser, input: @TokenStream, code: ParseDiagnosticCode) {
-        reject_current(parser, input, code);
+    machine reject(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, code: |syntax_trees|::ParseDiagnosticCode) {
+        |input|::reject_current(parser, input, code);
     }
 
     machine done() {}

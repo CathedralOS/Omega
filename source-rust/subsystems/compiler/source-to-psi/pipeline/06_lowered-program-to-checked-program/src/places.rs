@@ -4308,6 +4308,7 @@ impl<'a> Storage<'a> {
         operation: &Operation,
     ) -> Checked<Vec<Proposition>> {
         let mut premises = self.byte_read_predicate_premises(operation)?;
+        premises.extend(self.scalar_domain_read_premises(operation)?);
         let Some(leaf) = self.read_leaf(operation)? else {
             return Ok(premises);
         };
@@ -4330,6 +4331,56 @@ impl<'a> Storage<'a> {
             (block, before),
             concerns,
         )?);
+        Ok(premises)
+    }
+
+    /// A read of scalar storage declared in a domain, such as an element of
+    /// `[u8 in Mark; 4]`, yields a member of that domain, so the domain's
+    /// predicate holds of the value read, whichever element a runtime index
+    /// selects. structural_access.md: "A validated field read or
+    /// selected-case payload copy instantiates that invariant on its fresh
+    /// scalar snapshot".
+    ///
+    /// Formation's qualification check (`scalar_qualifications`) has already
+    /// held each of these reads to its storage's declared domains and every
+    /// write of that storage to the same domains, and a value enters a
+    /// predicate domain only where its predicate was proved. A domain
+    /// without a predicate adds nothing.
+    fn scalar_domain_read_premises(&self, operation: &Operation) -> Checked<Vec<Proposition>> {
+        use terminal_semantics::scalar_qualifications::{qualification_domains, scalar_domain};
+        if !matches!(
+            operation.kind,
+            OperationKind::PrimitiveScalarRead { .. }
+                | OperationKind::StructuralLeafCopy { .. }
+                | OperationKind::ElementViewRead { .. }
+                | OperationKind::ScalarStructuralField { .. }
+                | OperationKind::BooleanStructuralField { .. }
+        ) {
+            return Ok(Vec::new());
+        }
+        let Some(result) = operation.result.scalar_ref() else {
+            return Ok(Vec::new());
+        };
+        let concerns = Construct::Operation(operation.id);
+        let domains = qualification_domains(self.module, result.qualifications)
+            .ok_or_else(|| self.foreign(concerns, "a read names an absent qualification set"))?;
+        let all = &self.module.types.scalar_qualifications.domains;
+        let mut premises = Vec::new();
+        for id in domains {
+            let closure = scalar_domain(self.module, *id)
+                .and_then(|domain| domain.required_domain_closure(all))
+                .ok_or_else(|| self.foreign(concerns, "a read names an absent domain"))?;
+            for domain in closure {
+                let Some(predicate) = &domain.predicate else {
+                    continue;
+                };
+                let mut proposition = predicate.proposition.clone();
+                proposition.remap_value_ids(|_| result.id);
+                if !premises.contains(&proposition) {
+                    premises.push(proposition);
+                }
+            }
+        }
         Ok(premises)
     }
 
@@ -8159,12 +8210,40 @@ impl Held<'_, '_> {
     }
 }
 
+/// A data clause may name an input of the machine that checks it. A record
+/// read under that machine's rigid `const` or value binder (`Index<Limit>`
+/// in `machine first<Limit: u32>`) states `value < Limit` over the input
+/// standing for `Limit` (generics.md, "Value binders and const
+/// requirements"). Stage 05 keys such a record by its checking machine, and
+/// an input keeps its value for the whole invocation, so the clause means
+/// the same at every point. Any other value refuses.
+pub(super) fn clause_input(
+    tables: &MachineTables,
+    value: ValueId,
+    scalar_type: ScalarType,
+) -> Result<ScalarTerm, crate::checking::Unbound> {
+    match tables.values.get(value) {
+        Some(row)
+            if matches!(row.origin, ValueOrigin::MachineParameter { .. })
+                && row.rigid.is_none()
+                && row.scalar_type == scalar_type =>
+        {
+            Ok(ScalarTerm::value(value, scalar_type))
+        }
+        _ => Err(crate::checking::Unbound::Unsupported(
+            "a data clause names a value that is no field of its own value",
+        )),
+    }
+}
+
 impl crate::checking::Bindings for Held<'_, '_> {
     type Error = crate::checking::Unbound;
-    fn value(&mut self, _: ValueId, _: ScalarType) -> Result<ScalarTerm, crate::checking::Unbound> {
-        Err(crate::checking::Unbound::Unsupported(
-            "a data clause names a value that is no field of its own value",
-        ))
+    fn value(
+        &mut self,
+        value: ValueId,
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+        clause_input(self.tables, value, scalar_type)
     }
 
     fn field(
@@ -8266,10 +8345,15 @@ impl Named<'_> {
 
 impl crate::checking::Bindings for Named<'_> {
     type Error = crate::checking::Unbound;
-    fn value(&mut self, _: ValueId, _: ScalarType) -> Result<ScalarTerm, crate::checking::Unbound> {
-        Err(crate::checking::Unbound::Unsupported(
-            "a data clause names a value that is no field of its own value",
-        ))
+    /// An input the clause names is no storage beneath the value; the
+    /// reading that binds the clause decides whether it may name it
+    /// (`clause_input`).
+    fn value(
+        &mut self,
+        value: ValueId,
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+        Ok(ScalarTerm::value(value, scalar_type))
     }
 
     fn field(

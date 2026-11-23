@@ -180,7 +180,7 @@ crashes Trap
     machine read(checks: @Checks, index: u64 in Trapping) -> CheckDiagnostic
     requires index < 64
     {
-        checks.diagnostics[index]
+        checks.diagnostics[index as -Trapping]
     }
 
     machine invalid() -> CheckDiagnostic {
@@ -197,7 +197,7 @@ crashes Trap
     }
 
     machine read(checks: @Checks, machine: u64 in Trapping) -> CrashRoutes {
-        checks.routes[machine]
+        checks.routes[machine as -Trapping]
     }
 
     machine invalid() -> CrashRoutes {
@@ -214,7 +214,7 @@ crashes Trap
     }
 
     machine write(checks: @mutable Checks, machine: u64 in Trapping, routes: CrashRoutes) {
-        checks.routes[machine] = routes;
+        checks.routes[machine as -Trapping] = routes;
     }
 
     machine invalid() {
@@ -264,7 +264,7 @@ crashes Trap
     machine read(checks: @Checks, index: u64 in Trapping) -> SlotReturnedBorrowOrigin
     requires index < 64
     {
-        checks.slot_origins[index]
+        checks.slot_origins[index as -Trapping]
     }
 
     machine invalid() -> SlotReturnedBorrowOrigin {
@@ -317,7 +317,7 @@ crashes Trap
     machine read(checks: @Checks, index: u64 in Trapping) -> SlotParameterQualification
     requires index < 64
     {
-        checks.slot_qualifications[index]
+        checks.slot_qualifications[index as -Trapping]
     }
 
     machine invalid() -> SlotParameterQualification {

@@ -16,8 +16,10 @@ identity, graph, snapshot, admission and commitment implementations.
 application needs: its own units, the driver, frontend, Alpha backend, wire foundation,
 standard library and core library. It copies each file byte for byte, keeps package
 and unit identities, and writes an exact manifest. Package Build declarations
-and core’s default Build are recorded separately as build inputs. The capture excludes
-each package’s `tests/fixtures/` subtree, where the compiler tests keep their own packages. The entry is
+and core’s default Build are recorded separately as build inputs. The capture skips
+`.git` directories, each package’s root `build/` output, and the example packages
+under its `tests/fixtures/`. A nested source file such as `tools/build/reader.omg`
+keeps its complete package-relative path. The entry is
 `source/application/construction/main.omg::entry_start`.
 
 ```sh
@@ -90,10 +92,10 @@ All intervals are half-open within that one buffer. Unit bytes are exact
 source, not concatenated text with rewritten imports. The given unit and entry
 name select a parsed declaration; ordinary semantic and safety checks still
 apply. Each path spans its complete package-relative filename, with `/` between
-components. Both constructors derive the namespace from the parent directory.
-Renaming a file in the same directory preserves its declarations' names. A packet
+components. The Epsilon constructor uses the full path to resolve a file import.
+The Omega-written constructor still passes the parent directory to its resolver. A packet
 beginning with a nonzero package count uses the original three-word unit rows
-and places each unit in the package root. [Directory namespaces](../../../wiki/spec/language/modules.md#directory-namespaces)
+and places each unit in the package root. [File identity](../../../wiki/spec/language/modules.md#file-identity)
 
 ### Including authored Build sources
 
@@ -120,13 +122,14 @@ when adding Build files to a given Product capture.
 The caller must supply a complete inventory and establish the trusted core
 identity. The two tables carry source provenance for subsequent checking.
 They do not establish a returned Build configuration, a physical process
-domain or stream handles. The Omega application exits 253 on malformed Build
-ownership and 246 on a valid inventory pending Build replay. Both paths write
-zero tape bytes. The public OCREQ protocol has its own acquisition and
+domain or stream handles. The Omega application exits 253 when a package selects a Build
+file it does not own, except for the trusted core default described above. A
+valid inventory exits 246 because the application cannot yet execute the
+selected Build files. Both paths write zero tape bytes. The public OCREQ protocol has its own acquisition and
 admission requirements. [Compiler request](../../../wiki/spec/build/compiler_request.md)
 
 The current limits are 64 packages, 256 direct dependencies, 512 Product
-units and 512 Build files, a 4 MiB shared buffer for sources, paths and names, 128 KiB per unit,
+units and 512 Build files, an 8 MiB shared buffer for sources, paths and names, 128 KiB per unit,
 and 256 bytes per directory namespace, package name or alias.
 These are resource limits, not language rules.
 

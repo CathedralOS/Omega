@@ -698,6 +698,7 @@ mod tests {
                         operator: BinaryOperator::Equal,
                         right: extent,
                         policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                        negation: false,
                     }));
             let facts = program
                 .proof_facts
@@ -919,6 +920,7 @@ mod tests {
                 operator: BinaryOperator::Add,
                 right: exact.measure,
                 policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                negation: false,
             }));
         let equality = exact
             .program
@@ -928,6 +930,7 @@ mod tests {
                 operator: BinaryOperator::Equal,
                 right: exact.measure,
                 policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                negation: false,
             }));
         let facts = exact
             .program

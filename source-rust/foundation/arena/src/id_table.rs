@@ -7,7 +7,7 @@ pub trait NumericId: Copy + Eq + Ord + std::hash::Hash {
     fn get(self) -> u64;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct IdTable<Id, T> {
     first: u64,
     values: Vec<T>,
@@ -223,7 +223,7 @@ impl<Id: NumericId> IdSet<Id> {
     }
 
     fn coordinate(identity: Id) -> (usize, u64) {
-        let bit = identity.get() - 1;
+        let bit = identity.get();
         (
             usize::try_from(bit / 64).expect("identity exceeds the address space"),
             1 << (bit % 64),
@@ -290,6 +290,32 @@ mod tests {
 
     fn id(raw: u64) -> TestId {
         TestId::new(raw).unwrap()
+    }
+
+    #[test]
+    fn dense_set_accepts_zero_when_the_identity_type_does() {
+        #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+        struct ZeroBased(u64);
+        impl NumericId for ZeroBased {
+            fn new(raw: u64) -> Option<Self> {
+                Some(Self(raw))
+            }
+            fn get(self) -> u64 {
+                self.0
+            }
+        }
+
+        let table = IdTable::from_rows([(ZeroBased(0), 'a'), (ZeroBased(1), 'b')]).unwrap();
+        let mut set = IdSet::new();
+        for key in table.keys() {
+            assert!(!set.contains(key));
+            assert!(set.insert(key));
+        }
+        assert!(set.insert(ZeroBased(64)));
+        assert!(!set.insert(ZeroBased(0)));
+        assert!(set.remove(ZeroBased(0)));
+        assert!(!set.contains(ZeroBased(0)));
+        assert!(set.contains(ZeroBased(1)) && set.contains(ZeroBased(64)));
     }
 
     #[test]

@@ -336,7 +336,7 @@ pub(crate) mod byte_sequences {
                 let case = match field.namespace {
                     crate::boundary::values::StructuralFieldNamespace::Member => None,
                     crate::boundary::values::StructuralFieldNamespace::CasePayload => {
-                        Some(execution.structural_cases.require(&field.parent)?.case)
+                        Some(execution.require_case(&field.parent)?.case)
                     }
                 };
                 let (fields, _) =

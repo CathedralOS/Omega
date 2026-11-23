@@ -18,7 +18,7 @@ use crate::{ExactPlaceId, InvocationId, KnowledgeId, ProgramPoint};
 /// either captured SSA value." Values are scalars because
 /// `calls_and_outcomes.md` keeps them apart from storage: "Scalar values and
 /// structural places retain separate namespaces".
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ValueRow {
     pub scalar_type: ScalarType,
     pub origin: ValueOrigin,
@@ -47,7 +47,7 @@ impl RigidType {
 }
 
 /// Where a value is evaluated. Exactly one origin per value.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ValueOrigin {
     /// An invocation formal. fact_validity.md: "Entry hypotheses bind exact
     /// invocation formals or structural entry paths".

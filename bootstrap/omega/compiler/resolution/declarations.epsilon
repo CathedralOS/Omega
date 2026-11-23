@@ -314,16 +314,34 @@ machine OmegaScalarCompiler::import_address(&mut self, row: OmegaUseSyntax, appe
     }
 }
 
-// Bare names select this file first, then this file's exact imports, then
-// sibling declarations of the same logical module. A namespace import binds
-// its final path member; it is never a wildcard import of ordinary machines.
+// A file qualifier selects a declaration in its imported file. Bare names
+// first select declarations in the current file. Legacy directory imports
+// may also supply names to construction inputs that use them.
 machine OmegaScalarCompiler::resolve_declaration(
     &mut self, source: &[u8], start: i32, end: i32, kind: OmegaDeclarationKind
 ) -> i32 {
     let unit: i32 = self.parser.sources.unit_at(start);
-    transition (unit >= 0) && (self.read_query(source, start, end) == 1) {
-        true -> lookup(unit)
+    transition (unit >= 0) && (start >= 0) && (start < end) && (end <= source.len) {
+        true -> reference(unit)
         _ -> return -1
+    }
+    state reference(unit: i32) {
+        transition source[start] == '|' {
+            true -> selected_file(unit)
+            _ -> ordinary(unit)
+        }
+    }
+    state selected_file(unit: i32) {
+        transition (self.parser.file_selected_name(source[0..end], start) == 1) && (self.parser.scan.token_end == end) {
+            true -> return self.file_declaration(source, unit, self.parser.selector_alias, self.parser.selector_member, kind)
+            _ -> return -1
+        }
+    }
+    state ordinary(unit: i32) {
+        transition self.read_query(source, start, end) {
+            1 -> lookup(unit)
+            _ -> return -1
+        }
     }
     state lookup(unit: i32) {
         transition (self.query_path.count >= 2) && (self.language_mount_prefix(source,
@@ -364,6 +382,12 @@ machine OmegaScalarCompiler::resolve_declaration(
         }
     }
     state import_candidate(index: i32, unit: i32, selected: i32, row: OmegaUseSyntax) {
+        transition row.file_path.end > row.file_path.start {
+            true -> imports(index + 1, unit, selected)
+            _ -> ordinary_import(index, unit, selected, row)
+        }
+    }
+    state ordinary_import(index: i32, unit: i32, selected: i32, row: OmegaUseSyntax) {
         transition (self.parser.sources.unit_at(row.start) == unit) &&
             (self.parser.sources.equal_name(source,
                 self.parser.members[row.first_member + row.member_count - 1], self.query_path.members[0]) == 1) {
@@ -416,8 +440,14 @@ machine OmegaScalarCompiler::resolve_declaration(
     }
     state fallback(unit: i32) {
         transition self.query_path.count {
-            1 -> sibling(0, unit, -1)
+            1 -> bare_name(unit)
             _ -> qualified(unit)
+        }
+    }
+    state bare_name(unit: i32) {
+        transition self.parser.sources.units[unit].has_file_import {
+            1 -> return -1
+            _ -> sibling(0, unit, -1)
         }
     }
     state qualified(unit: i32) {
@@ -454,6 +484,18 @@ machine OmegaScalarCompiler::validate_imports(&mut self, source: &[u8]) -> i32 {
         }
     }
     state address(index: i32, row: OmegaUseSyntax) {
+        transition row.file_path.end > row.file_path.start {
+            true -> file(index, row, self.imported_file(source, row, self.parser.sources.unit_at(row.start)))
+            _ -> legacy(index, row)
+        }
+    }
+    state file(index: i32, row: OmegaUseSyntax, target: i32) {
+        transition target >= 0 {
+            true -> retain(index, row, OmegaImportBindingKind::File, target)
+            _ -> fail(row.start)
+        }
+    }
+    state legacy(index: i32, row: OmegaUseSyntax) {
         let start: i32 = self.parser.members[row.first_member].start;
         let end: i32 = self.parser.members[row.first_member + row.member_count - 1].end;
         transition self.read_query(source, start, end) {
@@ -564,8 +606,14 @@ machine OmegaScalarCompiler::validate_imports(&mut self, source: &[u8]) -> i32 {
             (self.parser.sources.equal_name(source,
                 self.parser.members[row.first_member + row.member_count - 1],
                 self.parser.members[other.first_member + other.member_count - 1]) == 1) {
-            true -> prior_identity(index, row, previous)
+            true -> duplicate(index, row, previous, other)
             _ -> prior(index, row, previous + 1)
+        }
+    }
+    state duplicate(index: i32, row: OmegaUseSyntax, previous: i32, other: OmegaUseSyntax) {
+        transition (row.file_path.end > row.file_path.start) || (other.file_path.end > other.file_path.start) {
+            true -> fail(row.start)
+            _ -> prior_identity(index, row, previous)
         }
     }
     state prior_identity(index: i32, row: OmegaUseSyntax, previous: i32) {
@@ -581,6 +629,7 @@ machine OmegaScalarCompiler::same_import(&mut self, source: &[u8], left: i32, ri
     let a: OmegaImportBinding = self.import_bindings[left];
     let b: OmegaImportBinding = self.import_bindings[right];
     transition a.kind {
+        OmegaImportBindingKind::File -> return 0
         OmegaImportBindingKind::Namespace -> namespace(a, b)
         OmegaImportBindingKind::Data -> data_binding(a, b)
         OmegaImportBindingKind::Machine -> machine_binding(a, b)

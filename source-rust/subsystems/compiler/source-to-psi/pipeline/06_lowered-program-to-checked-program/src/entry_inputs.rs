@@ -714,7 +714,7 @@ fn derived(
         context,
         &assumptions,
         &axioms,
-        &tables.values,
+        &*tables.values,
         activity,
     );
     let mut found = Derived {
@@ -784,7 +784,7 @@ pub(crate) fn known_at(
         context,
         &assumptions,
         &axioms,
-        &tables.values,
+        &*tables.values,
     ))
 }
 

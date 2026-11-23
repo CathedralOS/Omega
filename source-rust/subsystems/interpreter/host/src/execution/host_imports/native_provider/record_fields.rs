@@ -7,7 +7,7 @@ use super::original_homes::rejection;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Path, ScalarType, StructuralFieldId, StructuralTypeId,
 };
-use terminal_interpreter::{TerminalEffectRejection, TerminalProgram};
+use terminal_interpreter::TerminalEffectRejection;
 use terminal_psi::{
     StructuralFieldType, StructuralRecordStorage, StructuralTypeDeclaration, StructuralTypeShape,
 };
@@ -88,8 +88,8 @@ enum SchemaVisit<'declaration> {
 }
 
 impl Schema {
-    fn derive(
-        program: &TerminalProgram,
+    fn derive<'types>(
+        declaration_for: impl Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
         structural_type: StructuralTypeId,
     ) -> Result<Self, TerminalEffectRejection> {
         let mut nodes: Vec<Node> = Vec::new();
@@ -105,8 +105,7 @@ impl Schema {
                         }
                         continue;
                     }
-                    let declaration = program
-                        .structural_type(identity)
+                    let declaration = declaration_for(identity)
                         .filter(|declaration| declaration.id == identity)
                         .ok_or_else(|| {
                             rejection("native embedded record has no semantic declaration")
@@ -255,11 +254,11 @@ fn scalar_type(field: &StructuralFieldType) -> Result<ScalarType, TerminalEffect
     }
 }
 
-pub(super) fn fields(
-    program: &TerminalProgram,
+pub(super) fn fields<'types>(
+    declaration_for: impl Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
     structural_type: StructuralTypeId,
 ) -> Result<SemanticFields, TerminalEffectRejection> {
-    let schema = Schema::derive(program, structural_type)?;
+    let schema = Schema::derive(declaration_for, structural_type)?;
     let mut output = Vec::new();
     let mut references = Vec::new();
     output
