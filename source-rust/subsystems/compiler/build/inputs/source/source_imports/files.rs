@@ -214,8 +214,8 @@ pub(super) fn core_relative_path(path: &str) -> Result<&str, &'static str> {
         .ok_or("the toolchain root {omega} supplies only language/core/ files")
 }
 
-/// Only a regular member at the requested spelling in the immutable capture
-/// can supply an authored file. In particular a symlink cannot change its owner.
+/// Resolve links inside the package's captured tree so every spelling of a file
+/// selects its single admitted source.
 pub(super) fn captured_file(
     root: &Path,
     relative: &Path,
@@ -237,11 +237,33 @@ pub(super) fn captured_file(
         ))]);
     }
     let path = root.join(relative);
-    Ok((filesystem.is_file(&path)
-        && filesystem
-            .canonicalize(&path)
-            .is_ok_and(|resolved| resolved == path))
-    .then_some(path))
+    let resolved = match filesystem.canonicalize(&path) {
+        Ok(resolved) => resolved,
+        Err(error)
+            if matches!(
+                error.kind(),
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+            ) =>
+        {
+            return Ok(None);
+        }
+        Err(error) => {
+            return Err(vec![Diagnostic::error(format!(
+                "cannot resolve captured source {}: {error}",
+                path.display()
+            ))]);
+        }
+    };
+    if !resolved.starts_with(root) {
+        return Err(vec![Diagnostic::error(format!(
+            "captured source {} resolves outside its package root",
+            path.display()
+        ))]);
+    }
+    Ok(
+        (resolved.extension().is_some_and(|ext| ext == "omg") && filesystem.is_file(&resolved))
+            .then_some(resolved),
+    )
 }
 
 #[cfg(test)]
