@@ -1,0 +1,48 @@
+name: Check exact file imports
+on:
+  push:
+    branches: [work/verify-logical-file-imports]
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      MBX_GC_AUTO: 'false'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_DEV_OPT_LEVEL: '1'
+      CARGO_INCREMENTAL: '0'
+      OMEGA_MBX_INSTALL_CACHE: /tmp/omega-mbx-install
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Identify the build tool
+        id: key
+        run: echo "key=$(bash tools/xtask/bootstrap-mbx.sh --cache-key)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: /tmp/omega-mbx-install/artifacts
+          key: omega-mbx-${{ runner.os }}-${{ runner.arch }}-${{ steps.key.outputs.key }}
+      - name: Install the pinned adapter
+        run: bash tools/xtask/bootstrap-mbx.sh --install-dir "$RUNNER_TEMP/bin"
+      - name: Lint the three changed crates and their test targets
+        run: "$RUNNER_TEMP/bin/mbx clippy --locked -p package-compilation -p source-compiler -p omega --all-targets -- -D warnings"
+      - name: Exercise the two staged Build programs
+        if: always()
+        run: |
+          "$RUNNER_TEMP/bin/mbx" test --locked -p omega --test build_staged_dependency_calls a_build_binds_its_products_file
+          "$RUNNER_TEMP/bin/mbx" test --locked -p omega --test build_staged_dependency_calls a_build_resolves_its_file_alias_after_preparing
+      - name: Run the neighboring legacy lookup test on the unmodified merge base
+        if: always()
+        run: |
+          git fetch --depth=1 origin bcb251d4c17cf7d88a859a99d580b71019ed814f
+          git checkout --detach FETCH_HEAD
+          set +e
+          "$RUNNER_TEMP/bin/mbx" test --locked -p source-compiler --lib a_lexical_value_named_like_a_pending_import > "$RUNNER_TEMP/baseline.log" 2>&1
+          result=$?
+          set -e
+          cat "$RUNNER_TEMP/baseline.log"
+          test "$result" -ne 0
+          grep -F 'assertion failed: plan.stage.outgoing_parked_preparation().is_none()' "$RUNNER_TEMP/baseline.log"
