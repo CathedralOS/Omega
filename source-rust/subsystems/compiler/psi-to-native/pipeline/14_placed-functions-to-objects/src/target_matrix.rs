@@ -35,7 +35,7 @@ const fn row(
 
 pub(crate) fn object_target_policy(target: NativeTarget) -> Option<ObjectTargetPolicy> {
     match (target.architecture, target.object_format) {
-        (Architecture::Aarch64, ObjectFormat::Elf) => {
+        (Architecture::Aarch64, ObjectFormat::Elf | ObjectFormat::Coff) => {
             Some(row("main", ".text", ".data", ".bss", 4))
         }
         (Architecture::Aarch64, ObjectFormat::MachO) => Some(row(
@@ -55,14 +55,13 @@ pub(crate) fn object_target_policy(target: NativeTarget) -> Option<ObjectTargetP
             "__DATA,__bss",
             1,
         )),
-        (Architecture::Aarch64, ObjectFormat::Coff) => None,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{object_target_policy, row};
-    use target::{Architecture, NativeTarget, ObjectFormat};
+    use target::NativeTarget;
 
     #[test]
     fn object_target_policy_declares_one_row_per_supported_pair() {
@@ -97,13 +96,10 @@ mod tests {
     }
 
     #[test]
-    fn object_target_policy_fails_closed_on_undeclared_pairs() {
-        let target = NativeTarget {
-            architecture: Architecture::Aarch64,
-            object_format: ObjectFormat::Coff,
-            pointer_size: 8,
-            pointer_alignment: 8,
-        };
-        assert_eq!(object_target_policy(target), None);
+    fn windows_arm64_objects_use_the_coff_names_and_aarch64_alignment() {
+        assert_eq!(
+            object_target_policy(NativeTarget::windows_arm64()),
+            Some(row("main", ".text", ".data", ".bss", 4))
+        );
     }
 }

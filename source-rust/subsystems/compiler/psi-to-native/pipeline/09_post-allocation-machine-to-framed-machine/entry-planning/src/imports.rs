@@ -137,12 +137,12 @@ pub fn plan_import_program(
             (ObjectFormat::Coff | ObjectFormat::MachO, Architecture::X86_64) => {
                 ImportRecipe::X86Indirect
             }
-            (ObjectFormat::MachO, Architecture::Aarch64) => ImportRecipe::Aarch64MachO,
+            // Mach-O and PE both branch through a loader-filled pointer slot.
+            (ObjectFormat::Coff | ObjectFormat::MachO, Architecture::Aarch64) => {
+                ImportRecipe::Aarch64Indirect
+            }
             (ObjectFormat::Elf, Architecture::X86_64) => ImportRecipe::X86Elf,
             (ObjectFormat::Elf, Architecture::Aarch64) => ImportRecipe::Aarch64Elf,
-            (ObjectFormat::Coff, Architecture::Aarch64) => {
-                return Err("physical import bodies do not support this COFF architecture");
-            }
         }
     };
     let (entry_resources, resolver_resources) = resources(recipe);
@@ -201,7 +201,7 @@ fn resources(
                 16,
             )),
         ),
-        ImportRecipe::Aarch64MachO => (record(&[R::Aarch64X(16)], &[R::Aarch64X(16)], 0), None),
+        ImportRecipe::Aarch64Indirect => (record(&[R::Aarch64X(16)], &[R::Aarch64X(16)], 0), None),
         ImportRecipe::Empty | ImportRecipe::X86Indirect => (record(&[], &[], 0), None),
     }
 }

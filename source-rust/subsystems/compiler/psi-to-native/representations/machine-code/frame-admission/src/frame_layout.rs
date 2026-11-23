@@ -227,9 +227,9 @@ pub const fn stack_commit_granule_bytes(target: NativeTarget) -> Option<u64> {
         (Architecture::X86_64, ObjectFormat::Elf)
         | (Architecture::X86_64, ObjectFormat::Coff)
         | (Architecture::X86_64, ObjectFormat::MachO)
-        | (Architecture::Aarch64, ObjectFormat::Elf) => Some(4_096),
+        | (Architecture::Aarch64, ObjectFormat::Elf)
+        | (Architecture::Aarch64, ObjectFormat::Coff) => Some(4_096),
         (Architecture::Aarch64, ObjectFormat::MachO) => Some(16_384),
-        (Architecture::Aarch64, ObjectFormat::Coff) => None,
     }
 }
 
@@ -259,15 +259,16 @@ pub const fn frame_unwind_policy(target: NativeTarget) -> Option<FrameUnwindPoli
                 saved_size_bytes: 8,
             },
         }),
-        (Architecture::Aarch64, ObjectFormat::MachO) => Some(FrameUnwindPolicy {
-            abi: FrameAbiPreservationConvention::DarwinAapcs64,
-            stack_pointer_view: "sp",
-            continuation: FrameContinuationCustody::LinkRegister {
-                view: "x30",
-                saved_size_bytes: 8,
-            },
-        }),
-        (Architecture::Aarch64, ObjectFormat::Coff) => None,
+        (Architecture::Aarch64, ObjectFormat::MachO | ObjectFormat::Coff) => {
+            Some(FrameUnwindPolicy {
+                abi: FrameAbiPreservationConvention::DarwinAapcs64,
+                stack_pointer_view: "sp",
+                continuation: FrameContinuationCustody::LinkRegister {
+                    view: "x30",
+                    saved_size_bytes: 8,
+                },
+            })
+        }
     }
 }
 

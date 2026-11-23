@@ -1,6 +1,7 @@
 /*
-We emit 64-bit PE32+ executables (`emit_pe_x86_64_executable`) and shared
-component DLLs (`emit_pe_shared_component`) for Windows x86-64 from a
+We emit 64-bit PE32+ executables (`emit_pe_executable`) for Windows x86-64
+and Windows ARM64, and shared component DLLs (`emit_pe_shared_component`) for
+Windows x86-64, from a
 format-neutral `FinalImage`. PE emission maintains two alignments
 simultaneously (`SECTION_ALIGNMENT = 0x1000` in memory and
 `FILE_ALIGNMENT = 0x200` on disk) over `IMAGE_BASE = 0x1_4000_0000` with `.text`
@@ -8,15 +9,15 @@ anchored at RVA `0x1000` and optional `.rdata`, `.data`, `.reloc`, and `.bss`
 sections emitted only when non-empty.
 
 We execute the eight emission steps in a strict dependency order:
-1. Install six-byte `jmp [rip+disp32]` (`ff 25 00 00 00 00`) import thunks at
-   the end of `.text`.
+1. Install the ISA's encoded import thunks (x86-64 `jmp [rip+disp32]`, AArch64
+   `adrp`/`ldr`/`br` through x16) at the end of `.text`.
 2. Compute the `.rdata` RVA immediately after `.text`.
 3. Build the `.rdata` import directory, lookup tables, and IAT against that RVA.
 4. Plan all section RVAs, raw file offsets, and base-relocation (`.reloc`)
    blocks in a single layout pass.
-5. Patch each import thunk's RIP-relative displacement to its IAT slot.
+5. Point each import thunk at its IAT slot.
 6. Apply `FinalImage` relocations across `.text` and `.data`.
-7. Re-verify import thunk opcodes and state-footprint evidence after relocation.
+7. Re-verify import thunk instructions and state-footprint evidence after relocation.
 8. Place executable, initialized-data, and `.rdata` import-slot inventories.
 */
 
@@ -32,7 +33,7 @@ whenever relocation records are present.
 
 /*
 `image` supplies `FinalImage`, `apply_relocations`, and region placement;
-`image-emission` invokes `emit_pe_x86_64_executable` for direct Windows
+`image-emission` invokes `emit_pe_executable` for direct Windows
 executables and `emit_pe_shared_component` for DLL components. The Windows
 subsystem word (`console`, `gui`, or `efi_application`) is passed as a
 parameter so all PE32+ targets share this exact container pipeline.
@@ -71,10 +72,10 @@ mod bytes {
     ) -> Result<(), Diagnostic> {
         let end = offset
             .checked_add(4)
-            .ok_or_else(|| Diagnostic::error("PE x86_64 patch offset overflow"))?;
+            .ok_or_else(|| Diagnostic::error("PE patch offset overflow"))?;
         let Some(slice) = bytes.get_mut(offset..end) else {
             return Err(Diagnostic::error(format!(
-                "PE x86_64 patch offset {offset} is outside text section"
+                "PE patch offset {offset} is outside text section"
             )));
         };
 
@@ -160,7 +161,7 @@ use constants::{IMAGE_BASE, TEXT_RVA};
 use entry_symbol::pe_entry_rva;
 use headers::{PeHeaderInput, write_dos_header, write_pe_headers, write_section_header};
 use imports::{
-    build_import_table, install_import_thunks, patch_import_thunks,
+    PeIsa, build_import_table, install_import_thunks, patch_import_thunks,
     validate_import_thunk_footprints,
 };
 use layout::align_to;
@@ -171,18 +172,19 @@ pub(crate) enum PeImageKind {
     SharedComponent { exports: Vec<PeComponentExport> },
 }
 
-pub fn emit_pe_x86_64_executable(
+pub fn emit_pe_executable(
     image: FinalImage,
     subsystem: u16,
 ) -> Result<ExecutableImageOutput, Diagnostic> {
-    emit_pe_x86_64(image, subsystem, PeImageKind::Executable)
+    emit_pe(image, subsystem, PeImageKind::Executable)
 }
 
-pub(crate) fn emit_pe_x86_64(
+pub(crate) fn emit_pe(
     mut image: FinalImage,
     subsystem: u16,
     kind: PeImageKind,
 ) -> Result<ExecutableImageOutput, Diagnostic> {
+    let isa = PeIsa::of(image.target)?;
     let import_thunks = install_import_thunks(&mut image, subsystem)?;
     let rdata_rva = rdata_rva_after_text(&image);
     let import_table = build_import_table(&import_thunks, rdata_rva);
@@ -251,6 +253,7 @@ pub(crate) fn emit_pe_x86_64(
     write_pe_headers(
         &mut bytes,
         PeHeaderInput {
+            isa,
             section_count: sections.section_count,
             entry_rva,
             size_of_code: sections.text_raw_size,
@@ -350,7 +353,7 @@ pub(crate) fn emit_pe_x86_64(
         final_import_data_bytes: import_table.bytes,
         bytes,
         file_name: "omega-program.exe".to_owned(),
-        format: "pe64-x86_64-executable".to_owned(),
+        format: isa.format_name().to_owned(),
         text_bytes: image.memory.text.len(),
         data_bytes: image.memory.data.len(),
         bss_bytes: image.memory.bss_size,
@@ -366,7 +369,7 @@ pub(crate) fn emit_pe_x86_64(
 #[cfg(test)]
 mod tests {
     use crate::constants::{IMAGE_BASE, TEXT_RVA};
-    use crate::emit_pe_x86_64_executable;
+    use crate::emit_pe_executable;
     use arena::Handle;
     use image::{
         FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,
@@ -398,7 +401,7 @@ mod tests {
 
     #[test]
     fn import_free_image_omits_empty_read_only_section() {
-        let output = emit_pe_x86_64_executable(returning_image(), 3).expect("emit image");
+        let output = emit_pe_executable(returning_image(), 3).expect("emit image");
         let bytes = &output.bytes;
         let pe_offset = u32::from_le_bytes(bytes[0x3c..0x40].try_into().unwrap()) as usize;
         let section_count =
@@ -413,7 +416,7 @@ mod tests {
 
     #[test]
     fn efi_application_image_is_an_import_free_subsystem_10_pe32_plus() {
-        let output = emit_pe_x86_64_executable(returning_image(), 10).expect("emit image");
+        let output = emit_pe_executable(returning_image(), 10).expect("emit image");
         let bytes = &output.bytes;
         let pe_offset = u32::from_le_bytes(bytes[0x3c..0x40].try_into().unwrap()) as usize;
         let optional_header = pe_offset + 4 + 20;
@@ -465,7 +468,7 @@ mod tests {
                         image.memory.bss_size = ZERO_FILL_BYTES;
                         names.push(b".bss\0\0\0\0");
                     }
-                    let output = emit_pe_x86_64_executable(image, 3).expect("emit image");
+                    let output = emit_pe_executable(image, 3).expect("emit image");
                     let bytes = &output.bytes;
                     let read_u32 = |offset| {
                         u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap()) as usize
@@ -515,7 +518,7 @@ mod tests {
             eprintln!("SKIP: requires an x86-64 Windows loader");
             return;
         }
-        let output = emit_pe_x86_64_executable(returning_image(), 3).expect("emit image");
+        let output = emit_pe_executable(returning_image(), 3).expect("emit image");
         let path = std::env::temp_dir().join(format!("omega-pe-return-{}.exe", std::process::id()));
         std::fs::write(&path, &output.bytes).expect("write executable");
         let result = std::process::Command::new(&path).output();
@@ -543,7 +546,7 @@ mod tests {
                     kind: RelocationKind::Absolute64,
                 });
 
-            let output = emit_pe_x86_64_executable(image, 3).expect("emit image");
+            let output = emit_pe_executable(image, 3).expect("emit image");
             let bytes = &output.bytes;
             let u32_at = |offset: usize| {
                 u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap()) as usize

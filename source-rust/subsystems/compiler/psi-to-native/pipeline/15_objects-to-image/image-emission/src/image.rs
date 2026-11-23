@@ -1037,6 +1037,7 @@ pub(crate) mod final_image_validation {
                 EntrySurface::DarwinUnit
                 | EntrySurface::DarwinX86_64Unit
                 | EntrySurface::WindowsUnit
+                | EntrySurface::WindowsArm64Unit
                 | EntrySurface::LinuxUnit
                 | EntrySurface::LinuxArm64Unit => {
                     validate_unit_shim(shim, artifact, object, text_bytes, relocations, output)?
@@ -1699,6 +1700,7 @@ pub(crate) mod image_output {
                     | (ObjectFormat::MachO, Architecture::Aarch64)
                     | (ObjectFormat::MachO, Architecture::X86_64)
                     | (ObjectFormat::Coff, Architecture::X86_64)
+                    | (ObjectFormat::Coff, Architecture::Aarch64)
             )
     }
 
@@ -1733,7 +1735,7 @@ pub(crate) mod image_output {
                 Some(identifier) => image_macho::emit_macho_executable_signed(image, identifier),
                 None => image_macho::emit_macho_executable(image),
             },
-            ObjectFormat::Coff => image_pe::emit_pe_x86_64_executable(image, subsystem),
+            ObjectFormat::Coff => image_pe::emit_pe_executable(image, subsystem),
         }?;
         // Writers resolve fixups and place emitted regions. Independent replay
         // belongs to retained-artifact receiving checks and backend tests.

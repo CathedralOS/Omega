@@ -20,15 +20,15 @@ pub struct HostedProgramEntryRequest<'a, Receiver> {
 pub type PlannedHostedProgramEntry<R> =
     HostedProgram<crate::PhysicalRecipeOrigin, HostedProgramContext<R>>;
 
-fn supports_unit_entry(target: target::NativeTarget) -> bool {
-    [
-        target::NativeTarget::linux_x64(),
-        target::NativeTarget::linux_arm64(),
-        target::NativeTarget::macos_x64(),
-        target::NativeTarget::macos_arm64(),
-        target::NativeTarget::windows_x64(),
-    ]
-    .contains(&target)
+/// A target realizes a hosted Unit program when some catalogued profile on it
+/// enters through an operating-system loader into a hosted application.
+pub(crate) fn supports_unit_entry(target: target::NativeTarget) -> bool {
+    target::TargetProfile::ALL.into_iter().any(|profile| {
+        let slot = profile.program_entry_slot();
+        profile.native_realization() == Some(target)
+            && slot.schema == target::ProgramEntrySchema::HostedApplication
+            && slot.physical_contract_package.is_some()
+    })
 }
 
 pub fn needs_hosted_entry(

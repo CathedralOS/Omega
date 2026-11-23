@@ -8,8 +8,10 @@ use crate::bytes::{write_u16, write_u32, write_u64};
 use crate::constants::{
     DOS_HEADER_SIZE, FILE_ALIGNMENT, IMAGE_BASE, OPTIONAL_HEADER_SIZE, SECTION_ALIGNMENT, TEXT_RVA,
 };
+use crate::imports::PeIsa;
 
 pub(crate) struct PeHeaderInput {
+    pub(crate) isa: PeIsa,
     pub(crate) section_count: usize,
     pub(crate) entry_rva: u32,
     pub(crate) size_of_code: usize,
@@ -38,7 +40,7 @@ pub(crate) fn write_dos_header(bytes: &mut Vec<u8>) {
 
 pub(crate) fn write_pe_headers(bytes: &mut Vec<u8>, input: PeHeaderInput) {
     bytes.extend(b"PE\0\0");
-    write_u16(bytes, 0x8664);
+    write_u16(bytes, input.isa.machine());
     write_u16(bytes, input.section_count as u16);
     write_u32(bytes, 0);
     write_u32(bytes, 0);
@@ -68,7 +70,11 @@ pub(crate) fn write_pe_headers(bytes: &mut Vec<u8>, input: PeHeaderInput) {
     write_u32(bytes, input.size_of_headers as u32);
     write_u32(bytes, 0);
     write_u16(bytes, input.subsystem);
-    let dll_characteristics: u16 = 0x0100 | if input.has_reloc { 0x0040 } else { 0 };
+    // NX_COMPAT, plus DYNAMIC_BASE when the image can move. Windows refuses
+    // fixed-base ARM64 images, and AArch64 code reaches its data only through
+    // page-relative addressing, so an ARM64 image is always relocatable.
+    let dynamic_base = input.has_reloc || input.isa == PeIsa::Aarch64;
+    let dll_characteristics: u16 = 0x0100 | if dynamic_base { 0x0040 } else { 0 };
     write_u16(bytes, dll_characteristics);
     write_u64(bytes, 0x100000);
     write_u64(bytes, 0x1000);

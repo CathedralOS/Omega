@@ -1121,11 +1121,15 @@ pub(crate) mod hosted_receiver {
                 recipes: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
             ) -> Result<(), Diagnostic> {
                 let fail = || invalid(target);
-                if ![
+                // Receiver output writes are Darwin and Linux system calls. A
+                // Windows ARM64 entry only switches stacks and returns.
+                let writes_by_system_call = [
                     target::NativeTarget::macos_arm64(),
                     target::NativeTarget::linux_arm64(),
                 ]
-                .contains(&target)
+                .contains(&target);
+                if target != target::NativeTarget::windows_arm64() && !writes_by_system_call
+                    || !writes_by_system_call && !recipes.is_empty()
                 {
                     return Err(fail());
                 }
@@ -1224,8 +1228,9 @@ pub(crate) mod hosted_receiver {
                 for word in [0xa940_792a, 0x9100_015f, 0x5280_0000] {
                     reader.exact(word)?;
                 }
-                if target == target::NativeTarget::macos_arm64() {
-                    reader.exact(0xd65f_03c0)?; // LC_MAIN returns to its loader.
+                if target.object_format != target::ObjectFormat::Elf {
+                    // LC_MAIN and the PE loader take the returned status.
+                    reader.exact(0xd65f_03c0)?;
                 } else {
                     for word in [0xd280_0bc8, 0xd400_0001, 0xd420_0000] {
                         reader.exact(word)?; // ELF entry completes through exit_group(94).
@@ -2468,6 +2473,7 @@ pub(crate) mod hosted_unit_entry {
         DarwinUnit,
         DarwinX86_64Unit,
         WindowsUnit,
+        WindowsArm64Unit,
         LinuxUnit,
         LinuxArm64Unit,
     }
@@ -2566,6 +2572,15 @@ pub(crate) mod hosted_unit_entry {
                     pe_entry_points_to(&output.bytes, offset, expected)
                 },
                 header_error: "PE AddressOfEntryPoint does not select the exact Unit entry adapter",
+            }
+        } else if target == target::NativeTarget::windows_arm64() {
+            UnitEntryForm {
+                name: "omega_windows_arm64_unit_entry",
+                surface: EntrySurface::WindowsArm64Unit,
+                header_check: |output, offset, expected| {
+                    pe_entry_points_to(&output.bytes, offset, expected)
+                },
+                header_error: "PE AddressOfEntryPoint does not select the exact Windows ARM64 Unit entry adapter",
             }
         } else if target == target::NativeTarget::linux_x64() {
             UnitEntryForm {
@@ -2712,6 +2727,7 @@ pub(crate) mod hosted_unit_entry {
             EntrySurface::DarwinUnit => target::NativeTarget::macos_arm64(),
             EntrySurface::DarwinX86_64Unit => target::NativeTarget::macos_x64(),
             EntrySurface::WindowsUnit => target::NativeTarget::windows_x64(),
+            EntrySurface::WindowsArm64Unit => target::NativeTarget::windows_arm64(),
             EntrySurface::LinuxUnit => target::NativeTarget::linux_x64(),
             EntrySurface::LinuxArm64Unit => target::NativeTarget::linux_arm64(),
             _ => {

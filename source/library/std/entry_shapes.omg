@@ -108,3 +108,54 @@ machine hosted_entry_register_extent_value(first: |abi|::MachineRegister, second
     };
     value
 }
+
+// The AAPCS64 caller-saved banks on platforms that reserve x18 (Apple and
+// Windows): x0-x17, v0-v7 and v16-v31. Callee-saved x19-x29 and v8-v15 and
+// the platform register stay out of the set.
+machine hosted_entry_aarch64_platform_clobbers() -> |abi|::RegisterSet {
+    let mutable set: |abi|::RegisterSet;
+    set.register_count = 42;
+    set.registers[0] = |abi|::MachineRegister::Aarch64X { index: 0 };
+    set.registers[1] = |abi|::MachineRegister::Aarch64X { index: 1 };
+    set.registers[2] = |abi|::MachineRegister::Aarch64X { index: 2 };
+    set.registers[3] = |abi|::MachineRegister::Aarch64X { index: 3 };
+    set.registers[4] = |abi|::MachineRegister::Aarch64X { index: 4 };
+    set.registers[5] = |abi|::MachineRegister::Aarch64X { index: 5 };
+    set.registers[6] = |abi|::MachineRegister::Aarch64X { index: 6 };
+    set.registers[7] = |abi|::MachineRegister::Aarch64X { index: 7 };
+    set.registers[8] = |abi|::MachineRegister::Aarch64X { index: 8 };
+    set.registers[9] = |abi|::MachineRegister::Aarch64X { index: 9 };
+    set.registers[10] = |abi|::MachineRegister::Aarch64X { index: 10 };
+    set.registers[11] = |abi|::MachineRegister::Aarch64X { index: 11 };
+    set.registers[12] = |abi|::MachineRegister::Aarch64X { index: 12 };
+    set.registers[13] = |abi|::MachineRegister::Aarch64X { index: 13 };
+    set.registers[14] = |abi|::MachineRegister::Aarch64X { index: 14 };
+    set.registers[15] = |abi|::MachineRegister::Aarch64X { index: 15 };
+    set.registers[16] = |abi|::MachineRegister::Aarch64X { index: 16 };
+    set.registers[17] = |abi|::MachineRegister::Aarch64X { index: 17 };
+    set.registers[18] = |abi|::MachineRegister::Aarch64V { index: 0 };
+    set.registers[19] = |abi|::MachineRegister::Aarch64V { index: 1 };
+    set.registers[20] = |abi|::MachineRegister::Aarch64V { index: 2 };
+    set.registers[21] = |abi|::MachineRegister::Aarch64V { index: 3 };
+    set.registers[22] = |abi|::MachineRegister::Aarch64V { index: 4 };
+    set.registers[23] = |abi|::MachineRegister::Aarch64V { index: 5 };
+    set.registers[24] = |abi|::MachineRegister::Aarch64V { index: 6 };
+    set.registers[25] = |abi|::MachineRegister::Aarch64V { index: 7 };
+    set.registers[26] = |abi|::MachineRegister::Aarch64V { index: 16 };
+    set.registers[27] = |abi|::MachineRegister::Aarch64V { index: 17 };
+    set.registers[28] = |abi|::MachineRegister::Aarch64V { index: 18 };
+    set.registers[29] = |abi|::MachineRegister::Aarch64V { index: 19 };
+    set.registers[30] = |abi|::MachineRegister::Aarch64V { index: 20 };
+    set.registers[31] = |abi|::MachineRegister::Aarch64V { index: 21 };
+    set.registers[32] = |abi|::MachineRegister::Aarch64V { index: 22 };
+    set.registers[33] = |abi|::MachineRegister::Aarch64V { index: 23 };
+    set.registers[34] = |abi|::MachineRegister::Aarch64V { index: 24 };
+    set.registers[35] = |abi|::MachineRegister::Aarch64V { index: 25 };
+    set.registers[36] = |abi|::MachineRegister::Aarch64V { index: 26 };
+    set.registers[37] = |abi|::MachineRegister::Aarch64V { index: 27 };
+    set.registers[38] = |abi|::MachineRegister::Aarch64V { index: 28 };
+    set.registers[39] = |abi|::MachineRegister::Aarch64V { index: 29 };
+    set.registers[40] = |abi|::MachineRegister::Aarch64V { index: 30 };
+    set.registers[41] = |abi|::MachineRegister::Aarch64V { index: 31 };
+    set
+}

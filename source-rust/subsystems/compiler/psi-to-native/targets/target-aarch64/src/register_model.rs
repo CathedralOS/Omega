@@ -21,8 +21,9 @@ mod call_keys {
         }
         let name = match target.object_format {
             ObjectFormat::Elf => "aapcs64",
-            ObjectFormat::MachO => "darwin-aapcs64",
-            ObjectFormat::Coff => return None,
+            // Apple and Windows both reserve x18 for the platform; the
+            // convention carries Darwin's name because Apple introduced it.
+            ObjectFormat::MachO | ObjectFormat::Coff => "darwin-aapcs64",
         };
         model.model().convention_named(name)
     }

@@ -2,6 +2,7 @@
 
 mod constraint_keys;
 pub mod frame_protocol;
+pub mod import_thunk;
 mod preservation_storage;
 pub mod register_model;
 pub use constraint_keys::*;

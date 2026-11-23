@@ -19,6 +19,7 @@ const fn declared_elf_interpreter_default_path(target: TargetProfile) -> Option<
         TargetProfile::MacosArm64
         | TargetProfile::MacosX64
         | TargetProfile::WindowsX64
+        | TargetProfile::WindowsArm64
         | TargetProfile::UefiX64
         | TargetProfile::CrossPlatformCli
         | TargetProfile::LocalUnchecked

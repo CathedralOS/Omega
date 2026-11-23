@@ -30,6 +30,9 @@ pub fn program_entry_semantic_binding_role(
         target::ProgramEntryPhysicalContractPackage::WindowsX64 => {
             AcceptedSemanticBindingRole::WindowsX64ProgramEntry
         }
+        target::ProgramEntryPhysicalContractPackage::WindowsArm64 => {
+            AcceptedSemanticBindingRole::WindowsArm64ProgramEntry
+        }
     }
 }
 
@@ -45,6 +48,7 @@ pub enum AcceptedSemanticBindingRole {
     LinuxX86_64ProgramEntry, // Exact package-owned Linux x86-64 application schema.
     LinuxArm64ProgramEntry, // Exact package-owned Linux ARM64 application schema.
     WindowsX64ProgramEntry, // Exact package-owned Windows x86-64 application schema.
+    WindowsArm64ProgramEntry, // Exact package-owned Windows ARM64 application schema.
 }
 
 impl AcceptedSemanticBindingRole {
@@ -61,6 +65,7 @@ impl AcceptedSemanticBindingRole {
             Self::LinuxX86_64ProgramEntry => 7,
             Self::LinuxArm64ProgramEntry => 8,
             Self::WindowsX64ProgramEntry => 9,
+            Self::WindowsArm64ProgramEntry => 11,
         }
     }
 
@@ -76,6 +81,7 @@ impl AcceptedSemanticBindingRole {
             7 => Self::LinuxX86_64ProgramEntry,
             8 => Self::LinuxArm64ProgramEntry,
             9 => Self::WindowsX64ProgramEntry,
+            11 => Self::WindowsArm64ProgramEntry,
             _ => return None,
         })
     }
@@ -94,7 +100,8 @@ pub fn accepted_service_schema_digest(
         | MacosX64ProgramEntry
         | LinuxX86_64ProgramEntry
         | LinuxArm64ProgramEntry
-        | WindowsX64ProgramEntry => schema.declaration_identity_digest(),
+        | WindowsX64ProgramEntry
+        | WindowsArm64ProgramEntry => schema.declaration_identity_digest(),
         ConsoleIo | ProcessExitExitProcessI32 | FilesystemHostService | TimeHostService => {
             schema.identity_digest()
         }

@@ -268,16 +268,14 @@ pub fn selected_abi_preservation(
                 target,
             ),
         ),
-        (Architecture::Aarch64, ObjectFormat::MachO) => (
+        // Windows ARM64 reserves x18 exactly as Darwin does.
+        (Architecture::Aarch64, ObjectFormat::MachO | ObjectFormat::Coff) => (
             FrameAbiPreservationConvention::DarwinAapcs64,
             target_aarch64::aarch64_preservation_convention_for_target(
                 environment.physical(),
                 target,
             ),
         ),
-        _ => {
-            return Err(AbiPreservationSelectionError::UnsupportedTargetConvention);
-        }
     };
     convention
         .map(|convention| SelectedAbiPreservation { kind, convention })

@@ -160,10 +160,9 @@ pub(crate) fn import_program(
     }
     let (entry, resolver) = match (target.object_format, target.architecture) {
         (ObjectFormat::Coff | ObjectFormat::MachO, Architecture::X86_64) => (&INDIRECT_X86, None),
-        (ObjectFormat::MachO, Architecture::Aarch64) => (&MACHO_ARM, None),
+        (ObjectFormat::Coff | ObjectFormat::MachO, Architecture::Aarch64) => (&MACHO_ARM, None),
         (ObjectFormat::Elf, Architecture::X86_64) => (&ELF_X86, Some(&ELF_X86_RESOLVER)),
         (ObjectFormat::Elf, Architecture::Aarch64) => (&ELF_ARM, Some(&ELF_ARM_RESOLVER)),
-        _ => panic!("no container import fixture for {target:?}"),
     };
     EncodedImportProgram {
         target,
