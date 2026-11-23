@@ -528,14 +528,9 @@ mod references {
         {
             symbol = path.symbol;
             let members = expression_table.name_path_members(path.members);
-            if head_symbol.is_valid() && members.len() >= 2 {
-                member_symbols = resolve_path_members_from_head(
-                    symbols,
-                    head_symbol,
-                    &members[1..members.len() - 1],
-                );
-                member_symbols.push(symbol);
-            }
+            member_symbols =
+                super::super::paths::constant_owner_path(symbols, members, head_symbol);
+            member_symbols.push(symbol);
         }
         if symbol.is_valid()
             && member_symbols.len() == path.members.count() as usize
