@@ -1,0 +1,20 @@
+data Cell [copy] { left: u32; right: u32; }
+data Plan<'cells> { slots: @'cells mutable [Cell]; }
+
+machine second(cells: @mutable [Cell]) -> u32 {
+    let mutable plan: Plan = Plan { slots: cells };
+    transition plan.slots.length == 2u64 {
+        true -> plan.slots[1u64].right,
+        false -> 0u32
+    }
+}
+
+machine forward(cells: @mutable [Cell]) -> u32 { second(cells) }
+
+machine main() crashes Trap {
+    let mutable cells: [Cell; 2] = [Cell { left: 1u32, right: 2u32 }, Cell { left: 3u32, right: 4u32 }];
+    let value: u32 = forward(@mutable cells[..]);
+    transition value == 4u32 { true -> done(), false -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

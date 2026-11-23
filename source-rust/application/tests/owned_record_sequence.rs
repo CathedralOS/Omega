@@ -75,6 +75,11 @@ fn a_borrowed_slice_yields_an_owned_copy_of_the_selected_record() {
 }
 
 #[test]
+fn a_record_retains_the_length_and_elements_of_a_reborrowed_slice() {
+    assert_both("reborrowed_record_slice");
+}
+
+#[test]
 fn recursive_transitions_forward_the_slice_and_return_the_matched_element() {
     assert_both("recursive_typed_slice");
 }

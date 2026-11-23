@@ -526,31 +526,39 @@ pub(crate) mod borrowed_argument {
         if !semantic.access.admits_referent(root.access) {
             return None;
         }
-        let declaration =
-            terminal_psi::find_structural_type(source.geometry(), root.structural_type)?;
-        if let Some(pointer) = calling_conventions::terminal_layout::opaque_borrow_transport(
-            &declaration.shape,
-            semantic.access,
-        ) {
+        if semantic.path.is_empty()
+            && target.structural_type == root.structural_type
+            && let target_vocabulary::TargetStructuralArgumentSource::Placement(placement) =
+                &target.source
+        {
             let incoming = signature
                 .parameters
                 .iter()
-                .find(|p| p.semantic.place == semantic.place)?;
-            let target_vocabulary::TargetStructuralArgumentSource::Placement(placement) =
-                &target.source
-            else {
-                return None;
-            };
-            return (semantic.path.is_empty()
-                && indices.is_empty()
+                .find(|parameter| parameter.semantic.place == semantic.place)?;
+            // Forwarding a whole borrow preserves the caller's ABI placement.
+            // A typed slice can have a known pointer and count without inline capacity.
+            let shape = crate::instruction_selection::structural_inputs::parameter_shape(
+                root,
+                source.geometry(),
+            )?;
+            return (indices.is_empty()
                 && target.indices.is_empty()
                 && target.source_byte_offset == 0
                 && root == &incoming.semantic
                 && root.structural_type == target.root_structural_type
-                && root.structural_type == target.structural_type
-                && incoming.target.shape == pointer
+                && incoming.target.shape == shape
                 && *placement == incoming.target.placement)
-                .then_some(pointer);
+                .then_some(shape);
+        }
+        let declaration =
+            terminal_psi::find_structural_type(source.geometry(), root.structural_type)?;
+        if calling_conventions::terminal_layout::opaque_borrow_transport(
+            &declaration.shape,
+            semantic.access,
+        )
+        .is_some()
+        {
+            return None;
         }
         let (referent, offset, elements) = runtime_borrowed_projection(
             root.structural_type,
