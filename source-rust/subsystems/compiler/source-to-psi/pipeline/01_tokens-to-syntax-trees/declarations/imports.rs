@@ -145,7 +145,7 @@ pub(crate) fn check_file_aliases(
 pub(crate) fn mark_product_operand_imports(
     trees: &mut SyntaxTrees,
     roots: &syntax_trees::ParsedRootItems,
-    qualifiers: crate::token_input::file_qualifiers::FileQualifiers<'_>,
+    qualifiers: &crate::token_input::file_qualifiers::FileQualifiers<'_>,
 ) {
     use syntax_trees::item::Item;
 

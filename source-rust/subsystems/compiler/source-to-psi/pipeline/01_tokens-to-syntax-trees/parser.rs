@@ -83,7 +83,7 @@ pub fn parse_into(
     }
 
     crate::declarations::imports::check_file_aliases(syntax_trees, &roots, tokens.source_text())?;
-    crate::declarations::imports::mark_product_operand_imports(syntax_trees, &roots, qualifiers);
+    crate::declarations::imports::mark_product_operand_imports(syntax_trees, &roots, &qualifiers);
     Ok(roots)
 }
 

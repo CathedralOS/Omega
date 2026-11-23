@@ -29,9 +29,9 @@ impl<'source> FileQualifiers<'source> {
         }
     }
 
-    pub(crate) fn only_product_operands(self) -> BTreeSet<&'source str> {
+    pub(crate) fn only_product_operands(&self) -> BTreeSet<&'source str> {
         let mut aliases = BTreeMap::new();
-        for (alias, product) in self.uses.into_inner().into_values() {
+        for (alias, product) in self.uses.borrow().values().copied() {
             *aliases.entry(alias).or_insert(true) &= product;
         }
         aliases
