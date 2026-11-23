@@ -4305,8 +4305,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     state compare_name(index: i32, previous: i32) {
         let name: OmegaRelativeSpan = self.declaration_name(OmegaDeclarationKind::Machine, index);
         let other: OmegaRelativeSpan = self.declaration_name(OmegaDeclarationKind::Machine, previous);
-        transition (self.same_module(source, self.parser.sources.unit_at(name.start),
-            self.parser.sources.unit_at(other.start)) == 1) &&
+        transition (self.parser.sources.unit_at(name.start) == self.parser.sources.unit_at(other.start)) &&
             (self.span_equals(source, name.start, name.end, source[other.start..other.end]) == 1) {
             true -> duplicate_arity(index, previous, name.start)
             _ -> check_duplicate(index, previous + 1)

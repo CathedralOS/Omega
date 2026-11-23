@@ -13,6 +13,18 @@ from compiled import ROOT, add_invocation_budget, execute, stamp
 
 def cases():
     encode = runpy.run_path(str(ROOT / "source/application/construction/construct.py"))["encode"]
+    # Only the selected file can supply answer. A sibling with the same name
+    # remains present when the selected declaration is renamed.
+    file_caller = b"use two.omg;machine main()->u8{|two|::answer()}"
+    sibling_answer = b"public machine answer()->u8{42}"
+    for name, declaration_name in [("exact-file-member", b"answer"), ("missing-file-member", b"other")]:
+        selected_source = b"public machine " + declaration_name + b"()->u8{7}"
+        wire, _, _, rows = encode([("app", 0)], [], [(0, file_caller), (0, sibling_answer), (0, selected_source)],
+                                  0, b"main", paths=["main.omg", "one.omg", "two.omg"])
+        expected = 7 if declaration_name == b"answer" else struct.pack(
+            "<BII", 0, 1, rows[0][1] + file_caller.index(b"|two|"))
+        yield name, wire, expected
+
     select = b"use first\\score; machine main() -> u8 { score() }"
     sibling = b"machine main() -> u8 { score() }"
     constant = b"machine main() -> u8 { 42 }"

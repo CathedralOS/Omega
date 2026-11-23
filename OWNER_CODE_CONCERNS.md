@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### The compiled Epsilon signature test assembles its compiler from renamed methods
+- Category: Knowledge crossing a boundary.
+- Where: [The signature test's source assembly](tests/bootstrap/independent/epsilon/compile_test.py#L132)
+- Saw: On `fd5456772f2`, `signature_source()` looks up `OmegaScalarCompiler::byte_index_result_type` while slicing the compiler source by hand. The compiler renamed it to `index_result_type` in #4638, so Python raises `KeyError` before Epsilon sees the program.
+- Cost: The test stops before it checks either signature. Epsilon should accept an omitted result type and refuse an explicitly written but unformed type. Preserve its exact three result bytes with the independently compiled and interpreted implementations.
+- Reported: 2026-11-23, Codex, while checking file imports in the bootstrap compiler.
+
 ### check-portable-services stops at a selected requirement, so most POSIX filesystem facts went unread
 
 - Category: Tests that pin the bug
