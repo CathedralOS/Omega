@@ -1,32 +1,5 @@
-/*
-Build-machine admission, filesystem scope custody, interpreter observation
-collection, and output obligation settlement.
-
-We own the pre-execution and post-execution boundaries around `Build` evaluation:
-1. Before execution, `execution_inputs`, `snapshot_request`, `filesystem_scope`,
-   `build_admission`, and `restricted_requests` validate the selected `Build`
-   machine, construct its initial `BuildTimeValue`, establish read-only or
-   scoped filesystem access, and project restricted host requests in package
-   vocabulary.
-2. During and after execution, `CapturedBuildObservations` collects filesystem
-   operation attempts, included-source handoffs, output obligations/receipts,
-   and `Build.log` bytes, then settles them (`settle`) against the staged output
-   tree into a durable `BuildObservationSummary` and `RetainedBuildOutputs`.
-*/
-
-/*
-Keeping observation capture separate from `Build`-value validation and output
-settlement preserves diagnostic ordering while ensuring that partially settled
-or unsealed outputs can never be exported as generated Omega source or published
-into `completed/` output sets.
-*/
-
-/*
-See `build_admission.rs` for machine selection and service-reach checks,
-`filesystem_scope.rs` for scoped source and output custody, `build_value.rs` for
-`Build` value admission and extraction, and `observations.rs` /
-`output_custody.rs` / `completed_outputs.rs` for settlement and publication.
-*/
+//! An admitted Build retains its filesystem observations and published source separately.
+//! Completing the activation settles its output files and transfers the immutable source bytes.
 
 mod build_admission;
 #[doc(hidden)]
@@ -40,6 +13,7 @@ mod observations;
 mod output_custody;
 mod restricted_requests;
 mod snapshot_request;
+mod source_publications;
 
 pub use build_admission::{SelectedBuildMachine, admit_build_machine, select_build_machine};
 pub use completed_outputs::RetainedBuildOutputs;
@@ -57,6 +31,7 @@ pub use restricted_requests::{
     RestrictedBuildOperation, RestrictedBuildRequest,
 };
 pub use snapshot_request::{BuildSnapshotCapture, BuildSnapshotRequest};
+pub use source_publications::BuildSourcePublications;
 
 use diagnostics::Diagnostic;
 use filesystem_authority::{BuildOutputObligation, BuildOutputReceipt};
@@ -70,7 +45,7 @@ pub struct CapturedBuildObservations<'scope> {
     filesystem_host_observed: bool,
     filesystem_operation_schema_version: u32,
     filesystem_operation_attempts: Vec<BuildFilesystemOperationAttempt>,
-    included_source_handoffs: Vec<BuildIncludedSourceHandoff>,
+    generated_sources: Option<Vec<build_output::PackageGeneratedSource>>,
     output_obligations: Vec<BuildOutputObligation>,
     output_receipts: Vec<BuildOutputReceipt>,
     build_log: Vec<u8>,
@@ -95,7 +70,6 @@ impl<'scope> CapturedBuildObservations<'scope> {
         }
         self.filesystem_host_observed = !effects.attempts.is_empty();
         self.filesystem_operation_attempts = effects.attempts;
-        self.included_source_handoffs = effects.included;
         self.output_obligations = effects.obligations;
         self.output_receipts = effects.receipts;
         self.filesystem_storage = effects.storage;
@@ -110,13 +84,31 @@ impl<'scope> CapturedBuildObservations<'scope> {
             filesystem_operation_schema_version:
                 filesystem_authority::FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
             filesystem_operation_attempts: Vec::new(),
-            included_source_handoffs: Vec::new(),
+            generated_sources: None,
             output_obligations: Vec::new(),
             output_receipts: Vec::new(),
             build_log: Vec::new(),
             filesystem_storage: Vec::new(),
             filesystem_effects_retained: false,
         }
+    }
+
+    pub fn retain_source_publications(
+        &mut self,
+        publications: BuildSourcePublications,
+        account: &evaluation_accounting::EvaluationInvocationAccount,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if self.generated_sources.is_some() {
+            return Err(vec![Diagnostic::error(
+                "Build source publications were retained more than once",
+            )]);
+        }
+        self.generated_sources = Some(
+            publications
+                .finish(account)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?,
+        );
+        Ok(())
     }
 
     pub fn retain_build_log(&mut self, log: Vec<u8>) -> Result<(), Vec<Diagnostic>> {
@@ -149,7 +141,6 @@ impl<'scope> CapturedBuildObservations<'scope> {
             machine_name,
         )?;
         Ok(BuildObservationSummary {
-            schema_version: BUILD_OBSERVATION_SCHEMA_VERSION,
             filesystem_host_observed: self.filesystem_host_observed,
             filesystem_operation_schema_version: self.filesystem_operation_schema_version,
             filesystem_operation_attempts: self.filesystem_operation_attempts,
@@ -157,23 +148,11 @@ impl<'scope> CapturedBuildObservations<'scope> {
             activation: scope.activation(),
             captured_source_inventory: scope.captured_source_inventory(),
             named_input_inventories: scope.named_input_inventories(),
-            included_source_handoffs: self.included_source_handoffs,
+            generated_sources: self.generated_sources.unwrap_or_default(),
+            staged_source_ordinals: None,
             required_output_settlements,
             staged_output_tree,
             build_log: self.build_log,
         })
-    }
-}
-
-impl BuildObservationSummary {
-    pub fn select_generated_sources(
-        &self,
-        machine_name: &str,
-    ) -> Result<Vec<build_output::PackageGeneratedSource>, Vec<Diagnostic>> {
-        output_custody::select_generated_sources(
-            self.staged_output_tree.as_ref(),
-            &self.included_source_handoffs,
-            machine_name,
-        )
     }
 }
