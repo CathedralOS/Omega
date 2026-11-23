@@ -6,8 +6,7 @@ use crate::source_state::name::Identifier;
 use crate::source_state::static_applications::StaticMachineBindingValue;
 use crate::source_state::type_identity::{IndexIdentityArgument, applied_index_identity};
 use crate::source_state::{
-    ClosedConformanceApplication, ClosedConformanceConstArgument, ClosedConformanceRowIdentity,
-    TypedTrees,
+    ClosedConformanceApplication, ClosedConformanceConstArgument, TypedTrees,
 };
 use crate::static_operand_binding::{Operand, Stop, Value, bind, unserved};
 
@@ -34,7 +33,7 @@ impl TypedTrees {
         }
         let declaration = selected.declaration;
         let owner = selected.owner;
-        let scope = selected.scope.clone();
+        let scope = selected.scope;
         let tuple = selected
             .argument
             .application
@@ -58,29 +57,6 @@ impl TypedTrees {
                 "selected provider arguments differ from its declared parameters",
             ));
         }
-        let rows = definition
-            .rows
-            .iter()
-            .map(|row| ClosedConformanceRowIdentity {
-                declaring_trait: row.declaring_trait,
-                requirement: row.requirement,
-                realization_machine: row.realization_machine,
-                realization_state: row.realization_state,
-            })
-            .collect();
-        let receiver = scope
-            .scope(self)
-            .ok_or_else(|| unserved("selected provider lost the trait that it satisfies"))?;
-        let trait_definition = receiver.declaration.symbol;
-        let trait_arguments = self
-            .trait_type_parameters(receiver.declaration)
-            .iter()
-            .map(|parameter| {
-                self.normalized_type_identity_text(
-                    receiver.parameter_argument(self, parameter.symbol),
-                )
-            })
-            .collect();
         let mut operands = Vec::with_capacity(parameters.len());
         let mut type_arguments = Vec::new();
         let mut const_arguments = Vec::new();
@@ -139,19 +115,16 @@ impl TypedTrees {
             .static_machine_application_mut(callable_application);
         binding.lexical_owner = owner;
         binding.binding_declaration = declaration;
-        let mut record = ClosedConformanceApplication {
+        let record = ClosedConformanceApplication {
             declaration,
             trait_scope: scope,
             callable_application,
             arguments,
             type_arguments,
             const_arguments,
-            trait_definition,
-            trait_arguments,
-            rows,
             ..Default::default()
         };
-        record.seal_encoding(encoding);
-        Ok(record)
+        self.finish_conformance_capture(record, encoding)
+            .map_err(unserved)
     }
 }

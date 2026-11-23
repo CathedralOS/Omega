@@ -132,48 +132,58 @@ pub(super) fn prepare_selected(
         return Ok(());
     }
     let supplier = operand.supplying_application;
+    let owner = operand.owner;
     let record = program.prepare_selected_provider_capture(handle)?;
-    let existing = program
+    let mut existing = program
         .captured_machine_applications
         .iter()
-        .find_map(|(_, captured)| {
-            (captured.supplying_application == supplier
-                && captured.conformance_application.identity_encoding == record.identity_encoding)
-                .then(|| captured.conformance_application.clone())
+        .filter(|(_, capture)| {
+            capture.conformance_application.declaration == record.declaration
+                && capture.conformance_application.identity_encoding == record.identity_encoding
+                && program
+                    .static_machine_application(capture.binding_application())
+                    .lexical_owner
+                    == owner
         });
-    let record = if let Some(existing) = existing {
-        existing
-    } else {
-        let provider = program
-            .conformance_by_symbol(record.declaration)
-            .ok_or_else(|| unserved("selected provider lost its declared members"))?;
-        let parameters = program.conformance_type_parameters(provider).to_vec();
-        let mut members = provider
-            .rows
-            .iter()
-            .filter(|row| row.source.owns_realization())
-            .map(|row| row.realization_machine)
-            .collect::<Vec<_>>();
-        members.sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
-        members.dedup();
-        let mut declarations = Vec::new();
-        for member in members {
-            declarations.extend(copy_member(
-                program,
-                member,
-                &parameters,
-                record.callable_application,
-            )?);
-        }
-        program
+    let group = match (existing.next(), existing.next()) {
+        (Some((handle, _)), None) => handle,
+        (None, None) => program
             .captured_machine_applications
             .insert(CapturedMachineApplication {
-                declarations,
+                declarations: Vec::new(),
                 supplying_application: supplier,
-                conformance_application: record.clone(),
-            });
-        record
+                conformance_application: record,
+            }),
+        _ => return Err(unserved("selected provider has ambiguous prepared bodies")),
     };
+    let capture = program.captured_machine_applications.get(group);
+    let binding = capture.binding_application();
+    let record = capture.conformance_application.clone();
+    let provider = program
+        .conformance_by_symbol(record.declaration)
+        .ok_or_else(|| unserved("selected provider lost its declared members"))?;
+    let parameters = program.conformance_type_parameters(provider).to_vec();
+    let mut missing = Vec::new();
+    for row in &provider.rows {
+        if row.source.owns_realization()
+            && capture
+                .declaration(row.realization_machine)
+                .map_err(Stop::Defect)?
+                .is_none()
+        {
+            missing.push(row.realization_machine);
+        }
+    }
+    missing.sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+    missing.dedup();
+    for member in missing {
+        let declarations = copy_member(program, member, &parameters, binding)?;
+        program
+            .captured_machine_applications
+            .get_mut(group)
+            .declarations
+            .extend(declarations);
+    }
     program
         .product_operand_applications
         .get_mut(handle)
