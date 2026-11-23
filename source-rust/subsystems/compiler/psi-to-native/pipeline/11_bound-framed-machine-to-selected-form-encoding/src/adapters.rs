@@ -2,7 +2,7 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AdapterEncodingError;
 use AdapterEncodingError as Error;
-use calling_conventions::MachineRegister;
+use calling_conventions::{MachineRegister, gpr_code};
 use post_allocation_machine::adapters::{
     AdapterInstructions, AdapterOperation, Scalar32Operation, X86AdapterTemplate,
 };
@@ -69,14 +69,13 @@ fn view(
             format!("{}{number}", if size == 16 { "q" } else { "d" })
         }
         MachineRegister::X86Xmm(number) if number < 16 => format!("xmm{number}"),
-        register if register.architecture() == Architecture::X86_64 => [
+        register => [
             "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi", "r8", "r9", "r10", "r11",
             "r12", "r13", "r14", "r15",
         ]
-        .get(usize::from(register.codec_index()))
+        .get(usize::from(gpr_code(register).ok_or(AdapterEncodingError)?))
         .ok_or(AdapterEncodingError)?
         .to_string(),
-        _ => return Err(AdapterEncodingError),
     };
     model
         .model()
@@ -265,7 +264,7 @@ pub(crate) fn encode_operation(
             vec![0x48, 0x83, if subtract { 0xec } else { 0xc4 }, amount]
         }
         Op::X86RequireEqual { register, value } => {
-            let code = register.codec_index();
+            let code = gpr_code(register).ok_or(AdapterEncodingError)?;
             vec![
                 0x48 | (code >> 3),
                 0x83,
@@ -278,7 +277,7 @@ pub(crate) fn encode_operation(
             ]
         }
         Op::X86IncrementChecked { register } => {
-            let code = register.codec_index();
+            let code = gpr_code(register).ok_or(AdapterEncodingError)?;
             vec![
                 0x48 | (code >> 3),
                 0x83,
@@ -316,8 +315,8 @@ pub(crate) fn encode_operation(
 fn encode_scalar32(operation: Scalar32Operation) -> Result<Vec<u8>, Error> {
     use Scalar32Operation as S;
     let register = |register: MachineRegister| {
-        (register.architecture() == Architecture::X86_64 && register.codec_index() < 8)
-            .then_some(register.codec_index())
+        gpr_code(register)
+            .filter(|code| *code < 8)
             .ok_or(AdapterEncodingError)
     };
     let immediate = |mut bytes: Vec<u8>, value: u32| {
@@ -447,6 +446,22 @@ mod tests {
                         member,
                     }],
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn integer_adapter_checks_require_an_x86_general_purpose_register() {
+        for register in [R::X86Xmm(0), R::Aarch64X(0), R::Aarch64V(0)] {
+            for operation in [
+                Op::X86RequireEqual { register, value: 1 },
+                Op::X86IncrementChecked { register },
+            ] {
+                let program = AdapterInstructions {
+                    architecture: Architecture::X86_64,
+                    operations: vec![operation, Op::Call, Op::Return],
+                };
+                assert_eq!(encode_instructions(&program), Err(AdapterEncodingError));
             }
         }
     }
