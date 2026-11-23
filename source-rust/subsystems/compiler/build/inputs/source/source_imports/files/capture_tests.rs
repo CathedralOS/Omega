@@ -119,3 +119,69 @@ fn local_and_dependency_file_roots_select_only_their_exact_admitted_source() {
             .contains("no direct product dependency named `lib`")
     );
 }
+
+#[test]
+fn a_captured_file_link_selects_its_source_with_the_same_package_permissions() {
+    let outer = PackageKeyIdentity::from_digest([1; 32]).unwrap();
+    let inner = PackageKeyIdentity::from_digest([2; 32]).unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("linked-import");
+    let vendor = root.join("vendor");
+    let file = || CapturedSourceNode::File {
+        bytes: Arc::from(b"public data Number {}".as_slice()),
+        executable: false,
+    };
+    let link = |target: &str| CapturedSourceNode::Symlink {
+        target: target.into(),
+    };
+    let dependency = Arc::new(
+        CapturedSourceTree::new([
+            (PathBuf::from("types.omg"), file()),
+            (PathBuf::from("public.omg"), link("types.omg")),
+            (PathBuf::from("build.omg"), file()),
+            (PathBuf::from("setup.omg"), link("build.omg")),
+        ])
+        .unwrap(),
+    );
+    let mut members = vec![
+        (PathBuf::from("vendor"), CapturedSourceNode::Directory),
+        (PathBuf::from("borrowed.omg"), link("vendor/types.omg")),
+    ];
+    members.extend(
+        dependency
+            .entries()
+            .map(|(path, node)| (Path::new("vendor").join(path), node.clone())),
+    );
+    let packages = PackageCompilationInputs::new(
+        outer,
+        BuildDeclarationKind::Package,
+        vec![
+            PackageSourceBinding::new(outer, "outer", root.clone())
+                .with_captured_source(Arc::new(CapturedSourceTree::new(members).unwrap()))
+                .unwrap(),
+            PackageSourceBinding::new(inner, "inner", vendor.clone())
+                .with_captured_source(dependency)
+                .unwrap(),
+        ],
+        vec![PackageDependencyBinding::new(outer, "kit", inner)],
+    )
+    .unwrap();
+    let importer = root.join("main.omg");
+    let select = |owner, base: &Path, name, foreign| {
+        ReconciledPackageImportRequest::file(owner, base, name, &importer, foreign)
+            .exact_file(&packages)
+    };
+    assert_eq!(
+        select(inner, &vendor, "public.omg", true).unwrap(),
+        Some(vendor.join("types.omg"))
+    );
+    assert!(
+        select(outer, &root, "borrowed.omg", false).unwrap_err()[0]
+            .message
+            .contains("belongs to a different reconciled package")
+    );
+    assert!(
+        select(inner, &vendor, "setup.omg", true).unwrap_err()[0]
+            .message
+            .contains("may not load dependency build file")
+    );
+}

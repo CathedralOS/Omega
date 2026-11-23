@@ -95,11 +95,18 @@ impl ReconciledPackageImportRequest {
         let selected = self.expected_root.join(&self.relative_path);
         self.reject_dependency_build_import(&selected)?;
         self.reject_foreign_source_owner(&selected, packages)?;
-        super::files::captured_file(
+        let resolved = super::files::captured_file(
             &self.expected_root,
             &self.relative_path,
             packages.source_filesystem(),
-        )
+        )?;
+        if let Some(path) = &resolved
+            && path != &selected
+        {
+            self.reject_foreign_source_owner(path, packages)?;
+            self.reject_dependency_build_import(path)?;
+        }
+        Ok(resolved)
     }
 
 /// Whether this import names the importing package's own sources and

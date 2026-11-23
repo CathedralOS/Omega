@@ -1614,6 +1614,13 @@ machine build(builder: @mutable Build) suspends {
         ok && report.contains("native exit 0") && report.contains("interp exit: 0"),
         "{report}"
     );
+    let with_unused = format!("use {{absent}}/other.omg as unused;\n{build}");
+    let (ok, report) = invoke(&with_unused, &["--check", "build.omg"]);
+    assert!(
+        ok && report.contains("unused deferred Build import `{absent}/other.omg as unused`")
+            && !report.contains("unused deferred Build import `{kit}/entry.omg as selected`"),
+        "{report}"
+    );
     let called = build.replace(
         "    Build::bind",
         "    |selected|::start();\n    Build::bind",
