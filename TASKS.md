@@ -206,6 +206,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
   Acceptance: none of the four files describes a fixed bug or keeps code that works around one.
 
 - **STAGED-BUILD-CAPABILITIES.** Complete [delegated filesystem authority](wiki/spec/build/scoped_execution.md#delegated-files-and-configuration) and retire `BuildInputs`, `BuildSource` and `BuildOutput`.
+  - **Design blocked for child grants.** The parent can narrow a filesystem view. How it passes that view to a registered child, and whether the child owns or borrows it, awaits the [filesystem grant decision](OWNER_QUESTIONS.md#per-child-filesystem-grant).
 
 - **CHECKED-BUILD-RESUMPTION.** Carry outstanding caller return obligations and borrowed results across [dependency preparation](wiki/spec/build/scoped_execution.md#checked-build-stages) when the checked successor preserves their storage.
   - Exercise [interpreter resumption](source-rust/subsystems/interpreter/embedding/continuation.rs) through the ordinary Build entry. Keep the registration and a borrow live, use the borrowed result after calling newly mounted code, and make a repeated initializer observable. Require refusal if the backing storage or earlier effect changes. The [repair queue](OWNER_CODE_CONCERNS.md#a-byte-read-can-run-in-a-build-but-prevent-it-from-resuming) describes the byte-read and transition-subject cases.
