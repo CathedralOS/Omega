@@ -37,8 +37,7 @@ and admission, `source/assembly/mod.rs` for Psi 00/01 source loading,
 pub use source::anonymous_owner::AnonymousSourceCapture;
 pub use source_acquisition::local::resolution_observations::CapturedLocalSource;
 pub mod build_execution;
-mod codec_bytes;
-mod cursor;
+use wire::codec_bytes;
 mod reuse;
 mod source;
 pub(crate) use ::wire::digest_encoder;
@@ -68,7 +67,6 @@ pub use package::{
 };
 #[doc(hidden)]
 pub use package::{native_output_codec, provider_selection_codec};
-pub use reuse::checked_source_cache::{CheckedSourceCache, CheckedSourceCacheLimits};
 pub use reuse::compilation_reuse::{ProductSourceInputs, SourceAssemblyInputs};
 pub use reuse::review_cache_digests::{
     package_build_handoff_digest, review_cache_inputs_digest, review_cache_snapshot_digest,

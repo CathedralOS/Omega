@@ -6,9 +6,8 @@
 // verification.
 
 use super::super::{
-    CHECKED_SOURCE_CACHE_LANE, COMPILED_REVIEW_CACHE_LANE, PackageSourceCustody,
-    PackageSourceMaterialization, PackageSourceNavigation, PackageSourceSelectionEvidence,
-    ResolvePackageSourceError,
+    COMPILED_REVIEW_CACHE_LANE, PackageSourceCustody, PackageSourceMaterialization,
+    PackageSourceNavigation, PackageSourceSelectionEvidence, ResolvePackageSourceError,
 };
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::dependencies::read::DependencyProjections;
@@ -41,11 +40,6 @@ pub(crate) fn recover_cached_external_local_source(
     };
     verify_package_source_snapshot(&source.root, expected, current.source_limits())?;
     storage.verify_path_identity()?;
-    let cache_dir = storage
-        .external_local_sources()
-        .retain_child(CHECKED_SOURCE_CACHE_LANE)?
-        .path()
-        .to_path_buf();
     let review_cache_dir = storage
         .external_local_sources()
         .retain_child(COMPILED_REVIEW_CACHE_LANE)?
@@ -63,7 +57,6 @@ pub(crate) fn recover_cached_external_local_source(
             current.source_limits(),
             recorded_dependencies.clone(),
         )
-        .with_checked_source_cache_dir(cache_dir)
         .with_compiled_review_cache_dir(review_cache_dir),
     ))
 }
