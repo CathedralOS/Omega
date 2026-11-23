@@ -240,7 +240,7 @@ Vocabularies:
 
 ## 6. Silent drops
 
-- `--verbose` is removed from anywhere in `argv` by equality, so a path or value spelled `--verbose` never reaches a command (`main.rs:54-56`).
+- `--verbose` is removed from anywhere in `argv` by equality, so a path or value spelled `--verbose` never reaches a command (`main.rs:54-56`). **Follow-up (2026-11-23).** `omega --check --report-file --verbose report.txt main.omg` wrote a report because removing the flag shifted `report.txt` into the path slot. The parser now recognizes verbosity between arguments. An option reads the token immediately after it, so this invocation reports a missing path before opening a file.
 - `--build-dir` silently keeps the last value (`arguments/compile.rs:164-169`); repeated `--target` names are deduplicated (stated, `:3`, `:176`).
 - `omega source` ignores every argument after the action (`arguments/mod.rs:230-254`); the command always errors.
 - `omega run` passes no installation assumptions (`execution/compilation.rs:147`), unlike compile (`commands/compile.rs:409-417`).
