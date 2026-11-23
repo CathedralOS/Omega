@@ -48,6 +48,23 @@ impl<Value> LocationMap<Value> {
         }
     }
 
+    /// At a join, rows on a page both branches share already have the same value.
+    /// Visit only pages that changed or are absent on the other branch.
+    pub(super) fn unshared_entries<'maps>(
+        &'maps self,
+        other: &'maps Self,
+    ) -> impl Iterator<Item = (&'maps DescriptorLocation, &'maps Value)> {
+        self.pages
+            .iter()
+            .filter(move |(number, page)| {
+                let Ok(index) = other.pages.binary_search_by_key(number, |(key, _)| *key) else {
+                    return true;
+                };
+                !Arc::ptr_eq(page, &other.pages[index].1)
+            })
+            .flat_map(|(_, page)| page.iter())
+    }
+
     pub(super) fn keys(&self) -> impl Iterator<Item = &DescriptorLocation> {
         self.iter().map(|(location, _)| location)
     }
@@ -226,6 +243,10 @@ mod tests {
         assert_eq!(copies.load(Ordering::Relaxed), 0);
         after.get_mut(&root(65)).unwrap().value = 700;
         assert_eq!(copies.load(Ordering::Relaxed), ROOTS_PER_PAGE as usize);
+        assert_eq!(
+            after.unshared_entries(&before).count(),
+            ROOTS_PER_PAGE as usize
+        );
         assert_eq!(before.get(&root(65)).unwrap().value, 65);
         assert_eq!(after.get(&root(65)).unwrap().value, 700);
         assert_eq!(after.get(&root(64)).unwrap().value, 64);
@@ -263,6 +284,14 @@ mod tests {
         locations.retain(|location, _| location.root.get() != 65);
         assert_eq!(before.get(&root(65)), Some(&None));
         assert_eq!(locations.get(&root(65)), None);
+        assert_eq!(
+            before
+                .unshared_entries(&locations)
+                .map(|(key, _)| key.root.get())
+                .collect::<Vec<_>>(),
+            [65]
+        );
+        assert!(locations.unshared_entries(&before).next().is_none());
         assert_eq!(
             locations
                 .iter()
