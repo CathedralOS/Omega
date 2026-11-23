@@ -427,17 +427,15 @@ fn at_legacy_authored_route(mut input: Input<'_, '_>) -> bool {
 }
 
 fn parse_authored_route<'tokens, 'source>(
-    mut input: Input<'tokens, 'source>,
+    input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Vec<Identifier>> {
-    let mut route = Vec::new();
-    loop {
-        let (member, rest) = input.take_identifier()?;
+    let (head, mut input) = input.take_path_head()?;
+    let mut route = vec![head];
+    while input.at_path_member() {
+        let next = input.take_path_separator()?;
+        let (member, rest) = next.take_identifier()?;
         route.push(member);
         input = rest;
-        if !input.at_path_member() {
-            break;
-        }
-        input = input.take_path_separator()?;
     }
     Ok((route, input))
 }
