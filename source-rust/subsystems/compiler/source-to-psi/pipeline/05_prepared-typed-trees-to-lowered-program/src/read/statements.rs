@@ -453,7 +453,7 @@ impl Program<'_> {
                     SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent),
                     SourceOrigin::of,
                 );
-            self.zero_established(id, value_type, source)?;
+            self.zero_established(id, value_type, None, source)?;
             let home = match value_type {
                 ValueType::Rigid(_) => return unserved("local of a rigid type"),
                 // Its home would be declared with the identity of a

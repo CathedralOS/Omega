@@ -1328,20 +1328,24 @@ impl Program<'_> {
         };
         let substitution = self.field_regions(id, record, regions)?;
         let data = self.data_type(id, record)?;
-        let declared: Vec<ValueType> = match case {
+        let declared_fields = match case {
             Some(case) => data
                 .cases()
                 .get(case)
                 .ok_or_else(|| typing("case position past the sum's declaration"))?
                 .fields
-                .iter()
-                .map(|field| field.value_type)
-                .collect(),
-            None if data.cases().is_empty() => {
-                data.fields().iter().map(|field| field.value_type).collect()
-            }
+                .as_slice(),
+            None if data.cases().is_empty() => data.fields(),
             None => return Err(typing("literal of a sum without a case")),
         };
+        let names: Vec<String> = declared_fields
+            .iter()
+            .map(|field| field.identity.clone())
+            .collect();
+        let declared: Vec<ValueType> = declared_fields
+            .iter()
+            .map(|field| field.value_type)
+            .collect();
         let declared: Vec<ValueType> = declared
             .into_iter()
             .map(|field| self.substitute(field, &substitution))
@@ -1393,7 +1397,8 @@ impl Program<'_> {
             // or selected case still owes its complete default domain.
             for (position, (present, field_type)) in seen.iter().zip(&declared).enumerate() {
                 if !present {
-                    fields.push((position, self.zero_value(id, *field_type, source)?));
+                    let zero = self.zero_value(id, *field_type, Some(&names[position]), source)?;
+                    fields.push((position, zero));
                 }
             }
         }
@@ -1411,10 +1416,13 @@ impl Program<'_> {
     /// Construct zero using the existing initialization logic, then check each
     /// declared qualification as an explicit cast would. Zero bits alone do not
     /// prove domain membership, issuer permission, or required backing storage.
+    /// `omitted` names the field of a literal that `..` zeroes, for the
+    /// diagnostic when its zero cannot exist (`zero_established`).
     pub(super) fn zero_value(
         &mut self,
         id: MachineId,
         result: ValueType,
+        omitted: Option<&str>,
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let plain = result
@@ -1443,7 +1451,10 @@ impl Program<'_> {
                         let mut fields = Vec::with_capacity(declared.len());
                         for (position, field) in declared.into_iter().enumerate() {
                             let field_type = self.substitute(field.value_type, &substitution);
-                            fields.push((position, self.zero_value(id, field_type, source)?));
+                            fields.push((
+                                position,
+                                self.zero_value(id, field_type, omitted, source)?,
+                            ));
                         }
                         match case {
                             None => ExpressionKind::Record { fields },
@@ -1451,13 +1462,13 @@ impl Program<'_> {
                         }
                     }
                     None => {
-                        self.zero_established(id, plain, source)?;
+                        self.zero_established(id, plain, omitted, source)?;
                         ExpressionKind::Zero
                     }
                 }
             }
             _ => {
-                self.zero_established(id, plain, source)?;
+                self.zero_established(id, plain, omitted, source)?;
                 ExpressionKind::Zero
             }
         };
