@@ -4,7 +4,8 @@ use calling_conventions::{
     RegisterSet, StateEffectsEvidence, ValueClass, ValuePlacement, ValueShape,
 };
 use post_allocation_machine::adapters::{
-    AdapterInstructions, AdapterOperation as Op, X86AdapterTemplate as Template,
+    AdapterInstructions, AdapterOperation as Op, X86AdapterTemplate as Template, X86Condition,
+    X86DescriptorTable,
 };
 use register_model::validate_physical_register_model;
 pub use runtime_abi::static_interrupts::{InstalledInterruptEntryPlan, InstalledInterruptFrame};
@@ -980,15 +981,21 @@ fn plan_installed_fatal_entry_bridge(
     bytes.push(Op::ClearDirection);
     bytes.push(Op::X86Fixed(Template::AlignStack));
     bytes.frame(local_bytes, interval, touches, true);
-    descriptor_store(&mut bytes, idtr, 1);
-    descriptor_store(&mut bytes, gdtr, 0);
+    bytes.push(Op::X86DescriptorStore {
+        offset: idtr,
+        table: X86DescriptorTable::Interrupt,
+    });
+    bytes.push(Op::X86DescriptorStore {
+        offset: gdtr,
+        table: X86DescriptorTable::Global,
+    });
     encoding.memory(&mut bytes, MachineRegister::X86Rax, idtr, 2, true)?;
     compare_eax(&mut bytes, table_bytes - 1);
-    require(&mut bytes, 0x74);
+    bytes.push(Op::X86Require(X86Condition::Equal));
     encoding.memory(&mut bytes, MachineRegister::X86Rdx, idtr + 2, 8, true)?;
     encoding.pointer_memory(&mut bytes, anchor_gate_byte_offset + 4, 1, true)?;
     bytes.push(Op::X86Fixed(Template::MaskAndTestIst));
-    require(&mut bytes, 0x75);
+    bytes.push(Op::X86Require(X86Condition::NotEqual));
     encoding.memory(&mut bytes, MachineRegister::X86Rax, ist, 8, false)?;
     encoding.pointer_memory(&mut bytes, anchor_gate_byte_offset + 8, 4, true)?;
     bytes.push(Op::X86Fixed(Template::ShiftHighGateAddress));
@@ -999,13 +1006,13 @@ fn plan_installed_fatal_entry_bridge(
     encoding.memory(&mut bytes, MachineRegister::X86Rax, provider, 8, false)?;
     bytes.push(Op::X86Fixed(Template::ReadTaskSelector));
     bytes.push(Op::X86Fixed(Template::TestSelectorAlignment));
-    require(&mut bytes, 0x74);
+    bytes.push(Op::X86Require(X86Condition::Equal));
     bytes.push(Op::X86Fixed(Template::TestSelectorNonzero));
-    require(&mut bytes, 0x75);
+    bytes.push(Op::X86Require(X86Condition::NotEqual));
     bytes.push(Op::X86Fixed(Template::SelectorLimit));
     encoding.memory(&mut bytes, MachineRegister::X86Rdx, gdtr, 2, true)?;
     bytes.push(Op::X86Fixed(Template::CompareDescriptorLimit));
-    require(&mut bytes, 0x76);
+    bytes.push(Op::X86Require(X86Condition::UnsignedLessOrEqual));
     encoding.memory(&mut bytes, MachineRegister::X86Rdx, gdtr + 2, 8, true)?;
     bytes.push(Op::X86Fixed(Template::AddDescriptorBase));
     encoding.pointer_memory(&mut bytes, 4, 4, true)?;
@@ -1021,11 +1028,11 @@ fn plan_installed_fatal_entry_bridge(
     bytes.push(Op::X86Fixed(Template::LoadIstRoot));
     encoding.pointer_memory(&mut bytes, root::STATE, 8, true)?;
     bytes.push(Op::X86Fixed(Template::CompareActiveRoot));
-    require(&mut bytes, 0x74);
+    bytes.push(Op::X86Require(X86Condition::Equal));
     encoding.pointer_memory(&mut bytes, root::PROVIDER, 8, true)?;
     encoding.memory(&mut bytes, MachineRegister::X86Rcx, provider, 8, true)?;
     bytes.push(Op::X86Fixed(Template::CompareProvider));
-    require(&mut bytes, 0x74);
+    bytes.push(Op::X86Require(X86Condition::Equal));
     encoding.pointer_memory(&mut bytes, root::CONTEXT, 8, true)?;
     encoding.memory(&mut bytes, MachineRegister::X86Rax, context, 8, false)?;
     encoding.distribute_argument(&mut bytes, &transport.destination, context, 8)?;
@@ -1046,16 +1053,8 @@ fn add_one_without_overflow(bytes: &mut AdapterInstructions, register: MachineRe
     bytes.push(Op::X86IncrementChecked { register });
 }
 
-fn descriptor_store(bytes: &mut AdapterInstructions, offset: u32, operation: u8) {
-    bytes.push(Op::X86DescriptorStore { offset, operation });
-}
-
 fn compare_eax(bytes: &mut AdapterInstructions, value: u32) {
     bytes.push(Op::X86CompareEax { value });
-}
-
-fn require(bytes: &mut AdapterInstructions, condition: u8) {
-    bytes.push(Op::X86Require { condition });
 }
 
 fn halt(bytes: &mut AdapterInstructions) {

@@ -70,17 +70,28 @@ pub enum AdapterOperation {
     },
     X86DescriptorStore {
         offset: u32,
-        operation: u8,
+        table: X86DescriptorTable,
     },
     X86CompareEax {
         value: u32,
     },
-    X86Require {
-        condition: u8,
-    },
+    X86Require(X86Condition),
     X86Stop,
     X86Fixed(X86AdapterTemplate),
     X86Scalar32(Scalar32Operation),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum X86DescriptorTable {
+    Global,
+    Interrupt,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum X86Condition {
+    Equal,
+    NotEqual,
+    UnsignedLessOrEqual,
 }
 
 /// Physical operands are settled before encoding, including the 32-bit width.
@@ -375,18 +386,15 @@ impl AdapterOperation {
                 e.clobber(State::Flags);
                 e.clobber(State::InstructionPointer);
             }
-            Op::X86DescriptorStore { operation, .. } => {
+            Op::X86DescriptorStore { .. } => {
                 e.stack(architecture, false);
                 e.use_state(State::ControlState);
-                if operation >= 2 {
-                    e.clobber(State::ControlState);
-                }
             }
             Op::X86CompareEax { .. } => {
                 e.read(R::X86Rax);
                 e.clobber(State::Flags);
             }
-            Op::X86Require { .. } | Op::X86Stop => {
+            Op::X86Require(_) | Op::X86Stop => {
                 e.clobber(State::Flags);
                 e.clobber(State::InstructionPointer);
             }
