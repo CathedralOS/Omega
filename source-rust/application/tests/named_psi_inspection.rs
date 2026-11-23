@@ -21,6 +21,22 @@ fn inspect(project: &Path, root: &str, name: &str, artifact: &Path) -> Output {
         .expect("run source inspection")
 }
 
+// The selector label changes from the source name to "artifact" on reopening.
+// The checked entry, operations and fingerprint must all survive.
+fn assert_reopened_inspection(name: &str, source: Output, reopened: Output) {
+    let source = String::from_utf8(source.stdout).unwrap();
+    let reopened = String::from_utf8(reopened.stdout).unwrap();
+    assert_eq!(
+        source
+            .strip_prefix(&format!("terminal selected_machine={name} "))
+            .expect("source inspection names the selected machine"),
+        reopened
+            .strip_prefix("terminal selected_machine=artifact ")
+            .expect("reopened inspection identifies an artifact"),
+        "{name}"
+    );
+}
+
 #[test]
 fn named_inspection_publishes_the_requested_reference_machine() {
     let project = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -42,7 +58,7 @@ fn named_inspection_publishes_the_requested_reference_machine() {
         .and_then(|machine| machine.declaration.as_ref())
         .expect("entry has a source declaration");
     let identity = module.identities.text(declared.machine.identity()).unwrap();
-    assert!(identity.ends_with("path(retained))"), "{identity}");
+    assert!(identity.ends_with("path(main.omg::retained))"), "{identity}");
 
     let loaded = omega(&project)
         .args(["psi", "inspect", "--artifact"])
@@ -50,9 +66,7 @@ fn named_inspection_publishes_the_requested_reference_machine() {
         .output()
         .expect("run artifact inspection");
     assert!(loaded.status.success(), "{:?}", loaded);
-    let source_output = String::from_utf8(output.stdout).unwrap();
-    let artifact_output = String::from_utf8(loaded.stdout).unwrap();
-    assert_eq!(source_output.lines().last(), artifact_output.lines().last());
+    assert_reopened_inspection("retained", output, loaded);
 }
 
 #[test]
@@ -70,9 +84,7 @@ fn named_inspection_reopens_owned_record_sequences_stored_in_locals() {
             .output()
             .expect("reopen the saved sequence artifact");
         assert!(loaded.status.success(), "{name}: {loaded:?}");
-        let source = String::from_utf8(source.stdout).unwrap();
-        let loaded = String::from_utf8(loaded.stdout).unwrap();
-        assert_eq!(source.lines().last(), loaded.lines().last(), "{name}");
+        assert_reopened_inspection("main", source, loaded);
     }
 }
 
