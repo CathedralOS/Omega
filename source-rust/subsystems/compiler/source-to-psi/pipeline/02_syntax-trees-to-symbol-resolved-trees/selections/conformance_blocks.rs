@@ -933,6 +933,9 @@ fn normalize_one(
                 requirement.requirement_name == authored.requirement_name
                     && inherited_qualifiers.as_ref().map_or_else(
                         || {
+                            if authored.source == ConformanceRowSource::Reference {
+                                return requirement.declaring_trait == authored.declaring_trait;
+                            }
                             authored.declaring_trait_name.as_str().is_empty()
                                 || requirement.declaring_trait_name == authored.declaring_trait_name
                                 || program
