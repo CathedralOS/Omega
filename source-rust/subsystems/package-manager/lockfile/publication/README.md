@@ -26,12 +26,17 @@ is running. Contention returns `Busy`. Ordinary project preparation joins in
 when the state or an accepted lock exists. A fresh locked checkout
 creates it before fetching dependencies; unlocked source-only reads do not.
 
-The bounded `pending` journal records exact old and new bytes of the two
-files, including an explicitly absent old lock. Once written, it commits the
-change: recovery finishes it forward. Each file must match its old or new
-contents; another party's edit stops recovery and keeps the journal. A failure before the journal leaves the pair
-unchanged; `Pending` means publication may have progressed and must be
-inspected or recovered.
+Once the package manager writes `pending`, the install or update has been
+accepted. Its journal records the old and reviewed bytes of both project
+files, including an absent old lock. Recovery finishes writing those bytes.
+An unrelated edit to either project file stops recovery and preserves the
+journal.
+
+Version 2 also records the command and the digest of its exact review proposal.
+Recovery verifies that proposal, writes the pair, removes the completed
+proposal and then removes the journal. A matching `--resume` reports the
+finished publication. Older journals record only the two project files. They
+recover that pair and leave any separate proposal in place.
 
 Atomic stages stay under `build/package-manager`, not in source input.
 Replacement keeps permissions, including the executable bit in source

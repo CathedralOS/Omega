@@ -4,10 +4,13 @@ mod checked;
 mod directory;
 mod error;
 mod journal;
+#[cfg(test)]
+mod tests;
 mod transaction;
 
 pub(crate) use checked::publish_reviewed_package_change;
 pub(crate) use error::PackagePublicationError;
+pub(crate) use journal::ReviewedProposal;
 pub(crate) use transaction::PackageFileTransaction;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,5 +45,6 @@ impl PackagePublicationLimits {
 const BUILD_FILE: &str = "build.omg";
 const LOCK_FILE: &str = "omega.lock";
 const JOURNAL_FILE: &str = "pending";
+pub(crate) const PROPOSAL_FILE: &str = "proposal";
 const TRANSACTION_LOCK: &str = "transaction.lock";
 const STATE_DIRECTORY: &str = "package-manager";

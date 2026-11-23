@@ -1,16 +1,18 @@
 // Forward-completing two-file transaction guard (`PackageFileTransaction`) for `build.omg` and `omega.lock`.
 // The persistent lock file is never unlinked (its OS lock represents an active operation), and once the commit-intent journal is written any interrupted publication rolls forward on recovery after verifying that neither file contains unexpected third-party edits.
 
-use platform_custody::record_file::{RecordFileLock, RecordFileRoot};
+use platform_custody::record_file::{RecordFileLock, RecordFileRoot, RootRecordRead};
 use std::path::Path;
 
+use super::PROPOSAL_FILE;
 use super::directory::ProjectDirectories;
 use super::error::io_error;
-use super::journal::PackageFileJournal;
+use super::journal::{PackageFileJournal, ReviewedProposal};
 use super::{
     BUILD_FILE, JOURNAL_FILE, LOCK_FILE, PackagePublicationError, PackagePublicationLimits,
     TRANSACTION_LOCK,
 };
+use crate::transaction::PackageCommandKind;
 use platform_custody::record_file::RecordFileError;
 
 pub struct PackageFileTransaction {
@@ -123,6 +125,7 @@ impl PackageFileTransaction {
 
     pub fn publish(
         &mut self,
+        proposal: ReviewedProposal,
         before_build: &[u8],
         after_build: &[u8],
         before_lock: Option<&[u8]>,
@@ -135,6 +138,7 @@ impl PackageFileTransaction {
         self.expect_file(BUILD_FILE, Some(before_build))?;
         self.expect_file(LOCK_FILE, before_lock)?;
         let journal = PackageFileJournal {
+            proposal: Some(proposal),
             before_build: self.copy(before_build)?,
             after_build: self.copy(after_build)?,
             before_lock: before_lock.map(|bytes| self.copy(bytes)).transpose()?,
@@ -144,6 +148,11 @@ impl PackageFileTransaction {
         self.verify()?;
         self.expect_file(BUILD_FILE, Some(before_build))?;
         self.expect_file(LOCK_FILE, before_lock)?;
+        let reviewed =
+            self.read_proposal(proposal)?
+                .ok_or(PackagePublicationError::ConcurrentEdit {
+                    file: PROPOSAL_FILE,
+                })?;
         self.journal
             .write_new(Path::new(JOURNAL_FILE), &encoded, self.limits.journal())
             .map_err(|error| {
@@ -155,26 +164,31 @@ impl PackageFileTransaction {
             })?;
         let result = (|| {
             checkpoint(PublicationStep::IntentRecorded)?;
-            self.apply(&journal, &mut checkpoint)?;
+            self.apply(&journal, Some(reviewed), &mut checkpoint)?;
             self.clear_journal(&encoded)
         })();
         result.map_err(|error| PackagePublicationError::Pending(Box::new(error)))
     }
 
-    pub fn recover(&mut self) -> Result<bool, PackagePublicationError> {
+    pub fn recover(&mut self) -> Result<Option<PackageCommandKind>, PackagePublicationError> {
         self.verify()?;
         let Some(record) = self
             .journal
             .read_optional(Path::new(JOURNAL_FILE), self.limits.journal())?
         else {
-            return Ok(false);
+            return Ok(None);
         };
         let result = (|| {
             let journal = PackageFileJournal::recover(record.bytes(), self.limits)?;
-            self.apply(&journal, &mut |_| Ok(()))?;
+            let proposal = journal
+                .proposal
+                .map(|expected| self.read_proposal(expected))
+                .transpose()?
+                .flatten();
+            self.apply(&journal, proposal, &mut |_| Ok(()))?;
             record.remove(self.limits.journal())?;
             self.verify()?;
-            Ok(true)
+            Ok(journal.proposal.map(|proposal| proposal.kind))
         })();
         result.map_err(|error| PackagePublicationError::Pending(Box::new(error)))
     }
@@ -182,6 +196,7 @@ impl PackageFileTransaction {
     fn apply(
         &self,
         journal: &PackageFileJournal,
+        proposal: Option<RootRecordRead<'_>>,
         checkpoint: &mut impl FnMut(PublicationStep) -> Result<(), PackagePublicationError>,
     ) -> Result<(), PackagePublicationError> {
         self.verify()?;
@@ -195,6 +210,11 @@ impl PackageFileTransaction {
             journal.before_lock.as_deref(),
             &journal.after_lock,
         )?;
+        // Publication removes the proposal only after both project files match the review.
+        if journal.proposal.is_some() && proposal.is_none() {
+            self.expect_file(BUILD_FILE, Some(&journal.after_build))?;
+            self.expect_file(LOCK_FILE, Some(&journal.after_lock))?;
+        }
         self.replace(
             BUILD_FILE,
             Some(&journal.before_build),
@@ -209,7 +229,27 @@ impl PackageFileTransaction {
         checkpoint(PublicationStep::LockReplaced)?;
         self.expect_file(BUILD_FILE, Some(&journal.after_build))?;
         self.expect_file(LOCK_FILE, Some(&journal.after_lock))?;
+        if let Some(proposal) = proposal {
+            proposal.remove(self.limits.files())?;
+        }
         self.verify()
+    }
+
+    fn read_proposal(
+        &self,
+        expected: ReviewedProposal,
+    ) -> Result<Option<RootRecordRead<'_>>, PackagePublicationError> {
+        let proposal = self
+            .journal
+            .read_optional(Path::new(PROPOSAL_FILE), self.limits.files())?;
+        if proposal.as_ref().is_some_and(|record| {
+            crate::digest_encoder::content_identity(record.bytes()) != expected.digest
+        }) {
+            return Err(PackagePublicationError::ConcurrentEdit {
+                file: PROPOSAL_FILE,
+            });
+        }
+        Ok(proposal)
     }
 
     fn replace(
