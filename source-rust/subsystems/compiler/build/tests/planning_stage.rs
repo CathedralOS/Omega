@@ -19,9 +19,16 @@ fn alpha_service_defaults_are_returned_by_the_standard_library_build() {
     use source_declarations::declaration_selection::BuildOperation;
 
     configure_library();
-    let standard =
-        std::fs::read_to_string(fixture_repository::root().join("source/library/std/build.omg"))
+    let build_path = fixture_repository::root().join("source/library/std/build.omg");
+    let standard_package =
+        begin_local_project_preparation(&build_path, &[TargetProfile::AlphaBootstrap], true)
+            .unwrap()
+            .acquire_root()
             .unwrap();
+    let files = standard_package.source_capture().tree();
+    let standard = files
+        .read_to_string(std::path::Path::new("build.omg"))
+        .unwrap();
     let exit =
         "Build::select_provider::<ProcessExit, NativeProcessExit>(builder, alpha_bootstrap);";
     let console = "Build::select_provider::<Console, AlphaConsole>(builder, alpha_bootstrap);";
@@ -30,7 +37,7 @@ fn alpha_service_defaults_are_returned_by_the_standard_library_build() {
     let selected_console = ("Console", "AlphaConsole", "configure_console");
     let selected_exit = ("ProcessExit", "NativeProcessExit", "configure_process_exit");
     for (source, expected) in [
-        (standard.as_str(), vec![selected_console, selected_exit]),
+        (standard.as_ref(), vec![selected_console, selected_exit]),
         (&standard.replace(exit, ""), vec![selected_console]),
         (&standard.replace(console, ""), vec![selected_exit]),
     ] {
@@ -39,6 +46,14 @@ fn alpha_service_defaults_are_returned_by_the_standard_library_build() {
             false,
         )
         .unwrap();
+        for (path, _) in files
+            .entries()
+            .filter(|(path, _)| path.extension().is_some_and(|ext| ext == "omg"))
+        {
+            let destination = temp.path().join(path);
+            std::fs::create_dir_all(destination.parent().unwrap()).unwrap();
+            std::fs::write(destination, files.read_to_string(path).unwrap().as_bytes()).unwrap();
+        }
         let root = temp.path().join("build.omg");
         std::fs::write(&root, source).unwrap();
         let project =

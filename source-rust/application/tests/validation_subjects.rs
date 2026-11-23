@@ -213,3 +213,39 @@ machine grow(count: u64) -> u64 { count + 1u64 }
     };
     assert_refused_in(&reached.write("dependency_build_reached"), "grow");
 }
+
+#[test]
+fn a_direct_package_checks_its_unused_build_declarations_under_its_owner() {
+    let build = r#"use service.omg;
+machine build(builder: @mutable Build) { Build::package(builder, "root_tests"); }
+machine unused() reaches |service|::Pulse { |service|::Pulse::tick(); }
+"#;
+    let mut project = Project::valid();
+    project.vendor_build = build.to_owned();
+    project.vendor_main.clear();
+    let package = project.write("build_boundary_owner").join("vendor");
+    std::fs::write(
+        package.join("service.omg"),
+        "public boundary trait Pulse { machine tick() reaches none crashes none; }",
+    )
+    .unwrap();
+    assert_accepted(&package);
+
+    std::fs::write(
+        package.join("build.omg"),
+        format!("{build}machine invalid() -> u32 ensures result == 3u32 {{ 2u32 }}"),
+    )
+    .unwrap();
+    let refused = check(&package);
+    assert!(
+        !refused.success,
+        "an unused Build helper broke its guarantee"
+    );
+    assert!(
+        refused
+            .stderr
+            .contains("cannot prove ensures contract for exit from invalid"),
+        "{}",
+        refused.stderr
+    );
+}
