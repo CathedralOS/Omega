@@ -8,11 +8,10 @@ use semantic_vocabulary::{
 };
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{
-    NominalDeclarationIdentity, ScalarDomainDeclaration, ScalarDomainEstablishmentRoute,
-    ScalarDomainPredicate, ScalarQualificationCatalog, ScalarQualificationSet,
-    StructuralDomainDeclaration, StructuralDomainPredicate, StructuralEstablishmentRoute,
-    StructuralQualificationChange, TerminalIdentityIndex, TerminalIdentityTable,
-    TerminalIdentityTableBuilder,
+    NominalDeclarationIdentity, ScalarDomainDeclaration, ScalarDomainPredicate,
+    ScalarQualificationCatalog, ScalarQualificationSet, StructuralDomainDeclaration,
+    StructuralDomainPredicate, StructuralEstablishmentRoute, StructuralQualificationChange,
+    TerminalIdentityTable, TerminalIdentityTableBuilder,
 };
 
 use crate::lowering::body::{DomainInstance, DomainSet, Policy, Qualification, ValueType};
@@ -215,12 +214,9 @@ pub(crate) struct Qualifications {
     pub structural_changes: Vec<StructuralQualificationChange>,
 }
 
-/// Which declared route an issuer restriction names.
-#[derive(Clone, Copy)]
-enum RouteKind {
-    ExactMachine,
-    CheckedRequirement,
-    BoundaryRequirement,
+struct EstablishmentRoutes {
+    routes: Vec<StructuralEstablishmentRoute>,
+    issuers: Vec<(MachineId, u32)>,
 }
 
 /// A domain's issuer restriction in canonical order, and each body that may
@@ -228,15 +224,14 @@ enum RouteKind {
 /// restriction; `Some` of nothing permits nobody. One builder serves both
 /// domain families, so a scalar and a record domain written the same way
 /// have the same routes.
-fn establishment_routes<R: Ord>(
+fn establishment_routes(
     typed: &crate::source_state::TypedTrees,
     source: &crate::lowering::read::Program<'_>,
     sources: &[(source_text::SourceId, [u8; 32])],
     builder: &mut TerminalIdentityTableBuilder,
     definition: &crate::source_state::domain::DomainDefinition,
     unavailable: &impl Fn(&'static str) -> terminal_check_tables::Refusal,
-    make: impl Fn(RouteKind, NominalDeclarationIdentity, TerminalIdentityIndex) -> R,
-) -> Checked<Option<(Vec<R>, Vec<(MachineId, u32)>)>> {
+) -> Checked<Option<EstablishmentRoutes>> {
     let routes = match definition.issuance() {
         crate::source_state::domain::DomainIssuance::Unrestricted => return Ok(None),
         crate::source_state::domain::DomainIssuance::Planned(_) => {
@@ -268,11 +263,10 @@ fn establishment_routes<R: Ord>(
                     .machine_callable_identity_text(machine)
                     .filter(|text| !text.is_empty())
                     .ok_or_else(|| unavailable("domain issuer has no callable identity"))?;
-                retained.push(make(
-                    RouteKind::ExactMachine,
-                    NominalDeclarationIdentity::new(declaration),
-                    builder.intern(&callable),
-                ));
+                retained.push(StructuralEstablishmentRoute::ExactMachine {
+                    declaration: NominalDeclarationIdentity::new(declaration),
+                    machine_identity: builder.intern(&callable),
+                });
             }
             source_declarations::DomainEstablishmentRoute::CheckedRequirement {
                 trait_definition,
@@ -304,11 +298,10 @@ fn establishment_routes<R: Ord>(
                 );
                 let requirement_identity = builder.intern(&callable);
                 if boundary {
-                    retained.push(make(
-                        RouteKind::BoundaryRequirement,
+                    retained.push(StructuralEstablishmentRoute::BoundaryRequirement {
                         declaration,
                         requirement_identity,
-                    ));
+                    });
                 } else {
                     for (body, symbol) in source.symbols.iter() {
                         if typed.machine_by_symbol(*symbol).is_some_and(|machine| {
@@ -323,11 +316,10 @@ fn establishment_routes<R: Ord>(
                             issuers.push((body, ordinal));
                         }
                     }
-                    retained.push(make(
-                        RouteKind::CheckedRequirement,
+                    retained.push(StructuralEstablishmentRoute::CheckedRequirement {
                         declaration,
                         requirement_identity,
-                    ));
+                    });
                 }
             }
         }
@@ -346,10 +338,10 @@ fn establishment_routes<R: Ord>(
         )
         .map_err(|_| unavailable("domain issuer ordinal overflow"))?;
     }
-    Ok(Some((
-        ordered.into_iter().map(|(_, route)| route).collect(),
+    Ok(Some(EstablishmentRoutes {
+        routes: ordered.into_iter().map(|(_, route)| route).collect(),
         issuers,
-    )))
+    }))
 }
 
 impl Qualifications {
@@ -537,27 +529,9 @@ impl Qualifications {
                 builder,
                 definition,
                 &unavailable,
-                |kind, declaration, identity| match kind {
-                    RouteKind::ExactMachine => ScalarDomainEstablishmentRoute::ExactMachine {
-                        declaration,
-                        machine_identity: identity,
-                    },
-                    RouteKind::CheckedRequirement => {
-                        ScalarDomainEstablishmentRoute::CheckedRequirement {
-                            declaration,
-                            requirement_identity: identity,
-                        }
-                    }
-                    RouteKind::BoundaryRequirement => {
-                        ScalarDomainEstablishmentRoute::BoundaryRequirement {
-                            declaration,
-                            requirement_identity: identity,
-                        }
-                    }
-                },
             )? {
                 None => None,
-                Some((routes, issuers)) => {
+                Some(EstablishmentRoutes { routes, issuers }) => {
                     result.issuers.extend(
                         issuers
                             .into_iter()
@@ -822,27 +796,9 @@ impl Qualifications {
                 &mut self.identities,
                 definition,
                 &unavailable,
-                |kind, declaration, identity| match kind {
-                    RouteKind::ExactMachine => StructuralEstablishmentRoute::ExactMachine {
-                        declaration,
-                        machine_identity: identity,
-                    },
-                    RouteKind::CheckedRequirement => {
-                        StructuralEstablishmentRoute::CheckedRequirement {
-                            declaration,
-                            requirement_identity: identity,
-                        }
-                    }
-                    RouteKind::BoundaryRequirement => {
-                        StructuralEstablishmentRoute::BoundaryRequirement {
-                            declaration,
-                            requirement_identity: identity,
-                        }
-                    }
-                },
             )? {
                 None => None,
-                Some((routes, issuers)) => {
+                Some(EstablishmentRoutes { routes, issuers }) => {
                     self.structural_issuers.extend(
                         issuers
                             .into_iter()

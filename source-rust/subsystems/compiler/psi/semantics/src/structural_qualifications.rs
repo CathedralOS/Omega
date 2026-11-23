@@ -38,7 +38,7 @@ use terminal_psi::{
     TargetMachineCallable, TerminalMachine, TerminalModule, Terminator,
 };
 
-use crate::scalar_qualifications::{IssuerRoute, issuer_route_authorizes};
+use crate::domain_issuance::{DeniedEstablishment, excludes_machine, issuer_route_authorizes};
 
 /// The one rule a lowered structural value breaks, and in which machine.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -46,15 +46,6 @@ pub struct StructuralQualificationError {
     pub machine: Option<MachineId>,
     pub detail: &'static str,
     denied_establishment: Option<DeniedEstablishment>,
-}
-
-/// The membership check failed at this cast, and none of the domain's closed
-/// issuer routes authorizes its machine. This locates a refusal; it grants no
-/// membership or issuance authority.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DeniedEstablishment {
-    pub edge: EdgeId,
-    pub domain: StructuralDomainId,
 }
 
 impl StructuralQualificationError {
@@ -1603,22 +1594,17 @@ fn validate_change(
                 // Only its checked, explicitly empty plan establishes that
                 // nobody may issue. An allowed issuer missing its emitted
                 // row remains a malformed product.
-                let complete = !routes.is_empty()
-                    || declared.access_policy.as_ref().is_some_and(|plan| {
-                        plan.issuance.as_ref().is_some_and(Vec::is_empty)
-                    });
-                if complete
-                    && let Some(declaration) = declaration
-                    && routes.iter().all(|route| !matches!(
-                        route, StructuralEstablishmentRoute::BoundaryRequirement { .. }
-                    ))
-                    && !routes.iter().any(|route| structural_route_authorizes(
-                        module, places.machine, declaration, route,
-                    ))
+                let explicitly_empty = declared
+                    .access_policy
+                    .as_ref()
+                    .is_some_and(|plan| plan.issuance.as_ref().is_some_and(Vec::is_empty));
+                if (!routes.is_empty() || explicitly_empty)
+                    && excludes_machine(module, places.machine, routes)
                 {
                     error.denied_establishment = Some(DeniedEstablishment {
+                        machine: places.machine.id,
                         edge: change.edge,
-                        domain: *id,
+                        domain: declared.semantic_domain,
                     });
                 }
                 return Err(error);
@@ -1628,7 +1614,7 @@ fn validate_change(
                     return malformed(machine, "a structural issuer lost its checked declaration");
                 };
                 let authorized = routes.get(row.route as usize).is_some_and(|route| {
-                    structural_route_authorizes(module, places.machine, declaration, route)
+                    issuer_route_authorizes(module, places.machine, declaration, route)
                 });
                 if !authorized {
                     return malformed(
@@ -1650,41 +1636,6 @@ fn validate_change(
         );
     }
     Ok(())
-}
-
-fn structural_route_authorizes(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    declaration: &terminal_psi::CheckedMachineDeclaration,
-    route: &StructuralEstablishmentRoute,
-) -> bool {
-    match route {
-        StructuralEstablishmentRoute::ExactMachine {
-            declaration: issuer,
-            machine_identity,
-        } => issuer_route_authorizes(
-            module,
-            machine,
-            declaration,
-            IssuerRoute::ExactMachine {
-                issuer,
-                machine_identity: *machine_identity,
-            },
-        ),
-        StructuralEstablishmentRoute::CheckedRequirement {
-            declaration: issuer,
-            requirement_identity,
-        } => issuer_route_authorizes(
-            module,
-            machine,
-            declaration,
-            IssuerRoute::CheckedRequirement {
-                issuer,
-                requirement_identity: *requirement_identity,
-            },
-        ),
-        StructuralEstablishmentRoute::BoundaryRequirement { .. } => false,
-    }
 }
 
 fn byte_change_judgment(

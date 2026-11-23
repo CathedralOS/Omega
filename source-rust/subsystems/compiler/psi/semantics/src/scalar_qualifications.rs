@@ -2,6 +2,7 @@
 //! the sole lowered checker and artifact ingress share this judgment; neither
 //! an ordinary result annotation nor an unbound coercion can mint membership.
 
+use crate::domain_issuance::{DeniedEstablishment, excludes_machine, issuer_route_authorizes};
 use semantic_vocabulary::{
     EdgeId, MachineId, Proposition, PropositionContext, ScalarDomainId, ScalarQualificationSetId,
     ValueId,
@@ -13,6 +14,7 @@ use terminal_psi::{
 
 #[derive(Debug)]
 pub enum ScalarQualificationError {
+    DeniedEstablishment(DeniedEstablishment),
     NormalResultMembership {
         machine: Option<MachineId>,
         detail: &'static str,
@@ -64,82 +66,6 @@ pub fn arithmetic_policy_identity(
         numerics::arithmetic::ArithmeticDomain::Saturating => Some("builtin:policy:Saturating"),
         numerics::arithmetic::ArithmeticDomain::Trapping => Some("builtin:policy:Trapping"),
         numerics::arithmetic::ArithmeticDomain::Exact => None,
-    }
-}
-
-/// An issuer restriction's route, whichever domain family declares it. A
-/// boundary requirement issues only at its boundary completion, never inside
-/// a guest machine, so it has no form here.
-pub(crate) enum IssuerRoute<'a> {
-    ExactMachine {
-        issuer: &'a terminal_psi::NominalDeclarationIdentity,
-        machine_identity: terminal_psi::TerminalIdentityIndex,
-    },
-    CheckedRequirement {
-        issuer: &'a terminal_psi::NominalDeclarationIdentity,
-        requirement_identity: terminal_psi::TerminalIdentityIndex,
-    },
-}
-
-/// Whether `machine`, by its checked declaration, is the callable a route
-/// names: the exact machine (or the template a specialization instantiates),
-/// or a closed conformance realizing the exact requirement with it.
-pub(crate) fn issuer_route_authorizes(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    declaration: &terminal_psi::CheckedMachineDeclaration,
-    route: IssuerRoute<'_>,
-) -> bool {
-    match route {
-        IssuerRoute::ExactMachine {
-            issuer,
-            machine_identity,
-        } => {
-            (module
-                .identities
-                .text(machine_identity)
-                .zip(module.identities.text(declaration.callable))
-                .is_some_and(|(issued, callable)| {
-                    issued
-                        == terminal_psi::CheckedMachineDeclaration::callable_evidence_identity(
-                            callable,
-                            declaration
-                                .specialization
-                                .as_ref()
-                                .map(|application| &application.commitment),
-                        )
-                })
-                && issuer.identity() == declaration.semantic_declaration)
-                || declaration
-                    .specialization
-                    .as_ref()
-                    .is_some_and(|specialization| {
-                        machine_identity == specialization.template_callable
-                            && issuer.identity() == specialization.template_semantic_declaration
-                            && module
-                                .identities
-                                .text(specialization.template_callable)
-                                .is_some_and(|identity| !identity.is_empty())
-                    })
-        }
-        IssuerRoute::CheckedRequirement {
-            issuer,
-            requirement_identity,
-        } => module
-            .proofs.closed_conformance_applications
-            .iter()
-            .any(|application| {
-                application.rows.iter().any(|row| {
-                    row.public_requirement_identity == requirement_identity
-                        && row.requirement_declaration == *issuer
-                        && row.realization_callable_identity == Some(declaration.callable)
-                        && application.realization_callables.iter().any(|callable| {
-                            callable.source_callable_identity == declaration.callable
-                                && callable.callable
-                                    == terminal_psi::TargetMachineCallable::Machine(machine.id)
-                        })
-                })
-            }),
     }
 }
 
@@ -1200,21 +1126,44 @@ pub fn validate_for_bodies(
                     );
                 }
             }
-            if (domain.establishment_routes.is_some() || domain.predicate.is_some())
-                && !catalog.returns.iter().any(|returned| {
-                    returned.machine == machine.id
-                        && returned.edge == coercion.edge
-                        && returned.source == source.id
-                        && returned.result == destination.id
-                        && returned.domain == *id
-                        && !returned.origins.is_empty()
-                        && matches!(returned.site, ScalarReturnSite::Completion { argument_ordinal }
-                            if argument_ordinal == coercion.argument_ordinal)
-                })
-            {
+            if domain.establishment_routes.is_none() && domain.predicate.is_none() {
+                continue;
+            }
+            let completion = catalog.returns.iter().find(|returned| {
+                returned.machine == machine.id
+                    && returned.edge == coercion.edge
+                    && returned.source == source.id
+                    && returned.result == destination.id
+                    && returned.domain == *id
+                    && !returned.origins.is_empty()
+                    && matches!(returned.site, ScalarReturnSite::Completion { argument_ordinal }
+                        if argument_ordinal == coercion.argument_ordinal)
+            });
+            let Some(completion) = completion else {
                 return malformed(
                     "scalar coercion has no retained checked establishment completion",
                 );
+            };
+            if !forwarded
+                && destination.scalar_type == domain.carrier
+                && completion.origins.as_slice() == [ScalarReturnOrigin::Forwarded]
+                && domain
+                    .establishment_routes
+                    .as_deref()
+                    .is_some_and(|routes| excludes_machine(module, machine, routes))
+                && domain
+                    .missing_membership_requirements(&catalog.domains, source_domains)
+                    .is_some_and(
+                        |missing| matches!(missing.as_slice(), [only] if only.id == domain.id),
+                    )
+            {
+                return Err(ScalarQualificationError::DeniedEstablishment(
+                    DeniedEstablishment {
+                        machine: machine.id,
+                        edge: coercion.edge,
+                        domain: domain.semantic_domain,
+                    },
+                ));
             }
         }
     }
@@ -1354,38 +1303,13 @@ pub fn validate_for_bodies(
                             "scalar issuer lost its checked declaration",
                         ),
                     )?;
-                    match domain
+                    domain
                         .establishment_routes
                         .as_deref()
-                        .unwrap_or_default()
-                        .get(*route as usize)
-                    {
-                        Some(ScalarDomainEstablishmentRoute::ExactMachine {
-                            declaration: issuer,
-                            machine_identity,
-                        }) => issuer_route_authorizes(
-                            module,
-                            machine,
-                            declaration,
-                            IssuerRoute::ExactMachine {
-                                issuer,
-                                machine_identity: *machine_identity,
-                            },
-                        ),
-                        Some(ScalarDomainEstablishmentRoute::CheckedRequirement {
-                            declaration: issuer,
-                            requirement_identity,
-                        }) => issuer_route_authorizes(
-                            module,
-                            machine,
-                            declaration,
-                            IssuerRoute::CheckedRequirement {
-                                issuer,
-                                requirement_identity: *requirement_identity,
-                            },
-                        ),
-                        _ => false,
-                    }
+                        .and_then(|routes| routes.get(*route as usize))
+                        .is_some_and(|route| {
+                            issuer_route_authorizes(module, machine, declaration, route)
+                        })
                 }
             };
             let prerequisites = if matches!(origin, ScalarReturnOrigin::Established { .. }) {

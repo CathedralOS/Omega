@@ -21,6 +21,8 @@ pub mod content_transformations;
 pub use content_transformations::{domain_preservation, quotients};
 pub mod control_graph;
 pub mod descriptors;
+mod domain_issuance;
+pub use domain_issuance::DeniedEstablishment;
 pub mod float_meaning_sources;
 pub mod inhabitation;
 mod membership_facts;

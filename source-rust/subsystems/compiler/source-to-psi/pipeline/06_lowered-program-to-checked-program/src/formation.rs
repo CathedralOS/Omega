@@ -30,6 +30,26 @@ pub struct ReplayScope<'a> {
     pub(super) inferred_results: Vec<(MachineId, u32, terminal_psi::ContractClause)>,
 }
 
+fn denied_domain_cast(
+    elaboration: &terminal_check_tables::program::Elaboration,
+    denied: terminal_semantics::DeniedEstablishment,
+) -> Refusal {
+    let domain = elaboration
+        .domain_names
+        .get(denied.domain)
+        .cloned()
+        .unwrap_or_else(|| format!("domain {}", denied.domain.get()));
+    crate::checking::refusal(
+        RefusalReason::Violation,
+        denied.machine,
+        Construct::Edge(denied.edge),
+        &format!(
+            "this cast adds {domain} in a machine that is not one of the domain's \
+             establishment routes, and its input has no retained membership to forward"
+        ),
+    )
+}
+
 pub fn prepare_replay<'source>(
     elaboration: &'source mut terminal_check_tables::program::Elaboration,
     activity: &mut crate::checking::ProofSearchActivity,
@@ -52,6 +72,9 @@ pub fn prepare_replay<'source>(
             let fallback = || elaboration.module.machines.first().map(|machine| machine.id)
                 .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity"));
             let (machine, detail) = match error {
+                terminal_semantics::scalar_qualifications::ScalarQualificationError::DeniedEstablishment(denied) => {
+                    return denied_domain_cast(elaboration, denied);
+                }
                 terminal_semantics::scalar_qualifications::ScalarQualificationError::NormalResultMembership { machine, detail } => (
                     machine.unwrap_or_else(fallback),
                     format!("domain guarantee for the returned value: {detail}"),
@@ -89,26 +112,8 @@ pub fn prepare_replay<'source>(
         &bodies,
     )
     .map_err(|error| {
-        if let Some(denied) = error.denied_establishment()
-            && let Some(machine) = error.machine
-        {
-            let named = elaboration
-                .module
-                .types
-                .structural_domains
-                .iter()
-                .find(|domain| domain.id == denied.domain)
-                .and_then(|domain| elaboration.domain_names.get(domain.semantic_domain));
-            let domain = named.cloned().unwrap_or_else(|| format!("domain {}", denied.domain.get()));
-            return crate::checking::refusal(
-                RefusalReason::Violation,
-                machine,
-                Construct::Edge(denied.edge),
-                &format!(
-                    "this cast adds {domain} in a machine that is not one of the domain's \
-                     establishment routes, and its input has no retained membership to forward"
-                ),
-            );
+        if let Some(denied) = error.denied_establishment() {
+            return denied_domain_cast(elaboration, denied);
         }
         crate::checking::refusal(
             RefusalReason::ForeignIdentity,
