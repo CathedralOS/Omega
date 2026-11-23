@@ -18,9 +18,9 @@ mod tests;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 
 use crate::repo_root;
+use crate::repository::git;
 
 use self::board_and_tasks::{
     DANGLING_BASELINE, TASK_BOARDS, TASKS_BOARD, board_task_ids, citing_documents,
@@ -39,24 +39,6 @@ use self::ratchets::{
 const COMPILER_GUIDE: &str = "source-rust/subsystems/compiler/README.md";
 
 pub(super) const FACTS_ROOT: &str = "samples/cli/facts/";
-
-pub(super) fn git(root: &Path, args: &[&str]) -> Result<String, String> {
-    let out = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(args)
-        .stdin(Stdio::null())
-        .output()
-        .map_err(|e| format!("git {}: {e}", args.join(" ")))?;
-    if !out.status.success() {
-        return Err(format!(
-            "git {}: {}",
-            args.join(" "),
-            String::from_utf8_lossy(&out.stderr).trim()
-        ));
-    }
-    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
-}
 
 pub(super) fn show_git_file(root: &Path, rev: &str, path: &str) -> String {
     git(root, &["show", &format!("{rev}:{path}")]).unwrap_or_default()

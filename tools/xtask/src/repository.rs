@@ -5,6 +5,26 @@ use std::io::{self, ErrorKind};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
+pub(crate) const RUST_ROOT: &str = "source-rust";
+
+pub(crate) fn git(root: &Path, args: &[&str]) -> Result<String, String> {
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(args)
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|e| format!("git {}: {e}", args.join(" ")))?;
+    if !out.status.success() {
+        return Err(format!(
+            "git {}: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
 pub(crate) fn current() -> Result<PathBuf, String> {
     let directory = std::env::current_dir()
         .map_err(|error| format!("cannot read invocation directory: {error}"))?;
