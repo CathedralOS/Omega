@@ -262,6 +262,16 @@ name = "checking_cycle_cleanup"
 path = "pipeline/06_lowered-program-to-checked-program/tests/cycle_cleanup.rs"
 required-features = ["test-support"]
 
+[[test]]
+name = "lowering_contract_clauses"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/contract_clauses.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "lowering_calls_and_joins"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/calls_and_joins.rs"
+required-features = ["test-support"]
+
 [[example]]
 name = "checking_machine_checks"
 path = "pipeline/06_lowered-program-to-checked-program/examples/machine_checks.rs"

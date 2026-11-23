@@ -705,6 +705,12 @@ impl Program<'_> {
         let ordered = matches!(left_type, ScalarType::Integer(_));
         match comparison {
             BinaryOperator::Equal => canonical::equal(left, right, id),
+            // Booleans have no order to split a disequality on. `a != b` is
+            // the clause `!(a == b)`, read as the negation above reads it.
+            BinaryOperator::NotEqual if !ordered => Ok(Proposition::Implication {
+                premise: Box::new(canonical::equal(left, right, id)?),
+                conclusion: Box::new(Proposition::Falsehood),
+            }),
             _ if !ordered => unserved("ordering of Booleans"),
             BinaryOperator::Less => Ok(Proposition::LessThan(left, right)),
             BinaryOperator::LessOrEqual => Ok(Proposition::LessOrEqual(left, right)),
