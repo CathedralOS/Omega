@@ -777,8 +777,8 @@ pub mod data {
         requirement: &TypeParameter,
         provider: &TypeParameter,
     ) -> bool {
-        (provider.bounds.multiplicity != language_core::Multiplicity::Affine
-            && requirement.bounds.multiplicity != provider.bounds.multiplicity)
+        provider.bounds.multiplicity != language_core::Multiplicity::Affine
+            && requirement.bounds.multiplicity != provider.bounds.multiplicity
     }
 
     impl Default for TypeParameter {
