@@ -1,3 +1,5 @@
+use {omega}/language/core/access/access.omg as access;
+
 // LAYOUT POLICIES (wiki/spec/layouts/plans.md):
 // Layout is a library, not a language axiom. A policy is an ordinary named
 // implementation of `FixedLayout<T>`. Its exact `plan(schema, target)` call
@@ -324,13 +326,13 @@ requires field_count <= 32, reader_count <= 32, writer_count <= 32
 
 public IssuedBy<const R: CallableInfo> satisfies AccessPolicy {
     machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
-        access\new_plan(@schema, Issuance::Only { routes: [R] })
+        |access|::new_plan(@schema, Issuance::Only { routes: [R] })
     }
 }
 
 public IssuedByAny<const N: u64, const Routes: [CallableInfo; N]> satisfies AccessPolicy {
     machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
-        access\new_plan(@schema, Issuance::Only { routes: Routes })
+        |access|::new_plan(@schema, Issuance::Only { routes: Routes })
     }
 }
 
@@ -493,7 +495,7 @@ public NativeAccess<P, T, Storage, Role> satisfies AccessLifecycle<P, T> {
         let profile: ResourceProfile = ResourceProfileSupply::<Role>::profile(
             @storage as @Extent in Granted
         );
-        access\initialize_from_profile::<P, T, Storage, Role>(storage, value, @profile)
+        |access|::initialize_from_profile::<P, T, Storage, Role>(storage, value, @profile)
     }
 
     machine move_out(storage: Extent in Granted & Resident<P, T>)
@@ -505,7 +507,7 @@ public NativeAccess<P, T, Storage, Role> satisfies AccessLifecycle<P, T> {
         let profile: ResourceProfile = ResourceProfileSupply::<Role>::profile(
             @storage as @Extent in Granted
         );
-        access\extract_resident::<P, T, Storage, Role>(storage, @profile)
+        |access|::extract_resident::<P, T, Storage, Role>(storage, @profile)
     }
 }
 
