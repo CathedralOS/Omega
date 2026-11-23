@@ -31,8 +31,9 @@ domain contributions keep their existing judgments. The source clauses
 are retired; their obligations belong to this one domain contract.
 
 An ordinary named implementation of `AccessPolicy` supplies
-`plan(schema: reflect\TypeSchema) -> AccessPlan`. This is the semantic schema,
-not the target-resolved `layout\Schema`. Its complete checked execution closure is
+`plan(subject: |reflect|::TypeSchema) -> AccessPlan`. `subject` describes the type
+whose access this policy governs. A separate, target-resolved `|layout|::Schema`
+describes its layout. The complete checked execution of `plan` is
 effect-free and terminating under compile-time admission: no boundary services,
 suspension, blocking, or unadmitted linear carriers. It may call ordinary layout
 helpers; no layout argument or two-argument composition trait is required.
@@ -46,20 +47,20 @@ constructing a plan grants no reach and never edits a machine's reach row.
 Named decision: `required-issuance-choice`, settled 2026-11-10;
 [the design draft](../../drafts/designs/required_issuance_choice.md) records
 the migration. Every plan states who may introduce its domain qualification.
-`access\new_plan(@schema, issuance)` binds the semantic schema and that choice.
+`|access|::new_plan(@subject, issuance)` binds the semantic schema and that choice.
 The plan constructors and the view operations are ordinary machines of the
-core `access` module (`use omega\language\core\access;`); `AccessPlan` is
-data and owns none of them ([machines](../language/machines.md#static-declarations-and-explicit-state)).
+core `access` module (`use {omega}/language/core/access/access.omg as access;`).
+`AccessPlan` is data and owns none of them ([machines](../language/machines.md#static-declarations-and-explicit-state)).
 
 ```omega
 data Issuance {
-    case Only(routes: [reflect\CallableInfo]);
+    case Only(routes: [|reflect|::CallableInfo]);
     case Unrestricted;
 }
 
-let plan: AccessPlan = access\new_plan(
-    @schema,
-    Issuance::Only { routes: [reflect\callable(choose_folder)] }
+let plan: AccessPlan = |access|::new_plan(
+    @subject,
+    Issuance::Only { routes: [|reflect|::callable(choose_folder)] }
 );
 ```
 
@@ -82,14 +83,14 @@ else, so that its issuers appear on its declaration:
 
 ```omega
 domain Folder::Writable
-    access IssuedBy<reflect\callable(choose_folder)>;
+    access IssuedBy<|reflect|::callable(choose_folder)>;
 
 domain Handle::Open
-    access IssuedByAny<2, [reflect\callable(open_file), reflect\callable(open_dir)]>;
+    access IssuedByAny<2, [|reflect|::callable(open_file), |reflect|::callable(open_dir)]>;
 ```
 
-`IssuedBy<const R: reflect\CallableInfo>` and
-`IssuedByAny<const N: u64, const Routes: [reflect\CallableInfo; N]>` are
+`IssuedBy<const R: |reflect|::CallableInfo>` and
+`IssuedByAny<const N: u64, const Routes: [|reflect|::CallableInfo; N]>` are
 ordinary named implementations of `AccessPolicy`. Each places its descriptors
 in `Issuance::Only` and adds no reader or writer rule. A descriptor is
 [descriptive data](../language/reflection.md#typed-declaration-selectors): the
@@ -104,22 +105,35 @@ whether an operation is supported by the carrier, loan, observation contract or
 backing. An unspecified observation never manufactures Stable, External or Atomic
 supply. The ordinary carrier/source contract remains applicable.
 
-The policy-construction operations are ordinary core/library APIs, not keywords:
+<a id="access-rule-subjects"></a>
 
-| Operation | Meaning |
-| --- | --- |
-| `access\allow_readers(@mutable plan, region, callers)` | Restrict readers of this semantic region. |
-| `access\allow_writers(@mutable plan, region, callers)` | Restrict writers of this semantic region. |
+**Reader and writer rule subjects.** The decision `reflected-access-rule-subjects`
+(2026-11-22) gives `|access|::allow_readers` and `|access|::allow_writers` the
+same three choices for their second argument. These examples show each choice
+for a policy over `Account`.
 
-`TypeSchema::root(@schema)` denotes the whole semantic subject. A field region comes
-from `reflect\field(Type::field)`, not a string, field ordinal, address or layout
-offset. Caller lists contain `reflect\callable(...)` results for exact machines
-or exact trait machine requirements. These are homogeneous `CallableInfo`
-descriptors, not executable callback values; `FieldInfo` is a different type.
-See [typed declaration reflection](../language/reflection.md#typed-declaration-selectors).
+```omega
+|access|::allow_writers(@mutable plan, subject, writers);
+|access|::allow_writers(@mutable plan, |reflect|::field(Account::balance), writers);
+|access|::allow_writers(@mutable plan, |reflect|::fields(Account), writers);
+```
 
-A list contains alternative authorized callers. An empty list admits nobody;
-absence of a list imposes no additional restriction. Whole-subject rules cover
+1. Passing the policy's `TypeSchema` restricts the whole subject, including a
+   scalar such as `u32`. The schema must match the plan's governed type application.
+2. Passing a `FieldInfo` restricts that field. The plan validates its exact
+   correspondence to the governed subject.
+3. Passing a collection of `FieldInfo` applies the same rule to each selected
+   field, whether the caller supplies every field or a subset. An empty
+   collection adds zero rules. In particular, `|reflect|::fields(u32)` selects
+   zero fields. Passing the integer's schema applies the rule to the integer itself.
+
+Each caller list contains `|reflect|::callable(...)` descriptions of exact
+machines or trait machine requirements. Field identity follows the
+[field enumeration contract](../language/reflection.md#field-enumeration).
+
+A caller list contains alternative authorized callers. An empty caller list
+admits nobody on the selected subject or field. Omitting a caller rule adds no
+restriction on that axis. Whole-subject rules cover
 structural subplaces. Parent, child, repeated and independently inherited rules
 intersect; policy construction order cannot restore a permission. Adding a caller
 to a later rule is not an override. A field-only rule is valid without an explicit
