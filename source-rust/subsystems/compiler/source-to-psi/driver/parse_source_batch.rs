@@ -5,7 +5,7 @@ mod batch;
 mod parsed_files;
 pub use parsed_files::{
     ParsedSourceBatch, ParsedSourceSummary, RetainedSourceParse, SourceDeclarations, SourceImport,
-    SourceItems, SourceSyntax,
+    SourceImportTarget, SourceItems, SourceSyntax,
 };
 
 use artifacts::compile_timings::{CompileTimings, source as stages};

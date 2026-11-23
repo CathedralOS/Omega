@@ -114,10 +114,10 @@ pub(crate) fn packages(
                 continue;
             }
             for item in unit.root_items() {
-                let syntax_trees::item::Item::Use(import) = item else {
+                let syntax_trees::item::Item::Use(syntax_trees::item::UseItem::Namespace { path: import }) = item else {
                     continue;
                 };
-                let members = unit.items.identifier_path_members(import.path);
+                let members = unit.items.identifier_path_members(*import);
                 if members
                     .iter()
                     .take(3)
