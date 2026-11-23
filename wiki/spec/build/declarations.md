@@ -89,8 +89,10 @@ Build parameter and any declared execution-backing parameters selected and
 admitted by its invocation. A simple entry remains
 `machine build(builder: @mutable Build)`; a filesystem-using entry may additionally
 take `filesystem: @mutable FilesystemBacking` under an ordinary selected
-`const Files: Filesystem<FilesystemBacking>` binder. These are explicit
-source arguments, not a synthesized receiver or ambient provider. Its kind is explicit:
+`const Files: Filesystem<FilesystemBacking>` binder. The invoking tool supplies
+the root backing. A parent can [supply its child's backing at registration](scoped_execution.md#supplying-a-filesystem-to-a-child-build).
+The driver passes the selected backing as a separate entry argument.
+The Build declares its project role through one of the following operations.
 
 | Build result | Role |
 | --- | --- |

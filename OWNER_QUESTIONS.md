@@ -64,15 +64,8 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-<a id="per-child-filesystem-grant"></a>
-### 1. How does a parent supply a particular filesystem view to a child build?
-
-Suppose the root wants a generator's own `build.omg` to read a captured schema directory while a sibling sees only its package snapshot. What does the parent supply at registration to bind that view to just the generator? When the invocation permits live backing and the parent constructs a narrowed view over it, must it transfer the view to the child, or can the child borrow it until the dependency join?
-
-The spec fixes the delegated context at registration, confines the default filesystem and lets the parent narrow its grant. An ordinary helper can already take a filesystem argument within the caller's activation. The public dependency description carries only source and alias information. The unresolved handoff is between separate Build activations. [Dependency description](source-rust/subsystems/compiler/build/inputs/declarations/prelude/declarations/dependency_requests.omg) · [Registration](wiki/spec/build/scoped_execution.md#dependency-declarations-and-binding) · [Filesystem delegation](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem)
-
 <a id="build-network-and-subprocess-grants"></a>
-### 2. Should an interpreted build be able to request network access or launch a host tool?
+### 1. Should an interpreted build be able to request network access or launch a host tool?
 
 A release build might need to fetch a pinned firmware image or run a vendor image packer. For each operation, should the caller perform it outside Omega and supply the captured bytes, or may the build request it through a scoped host service? If admitted, what does the consumer approve and the executor enforce for the remote resource or the executable, its inputs and its outputs?
 
