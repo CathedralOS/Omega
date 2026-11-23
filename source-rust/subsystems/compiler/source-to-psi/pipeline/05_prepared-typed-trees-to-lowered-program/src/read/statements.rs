@@ -11,7 +11,7 @@ referent like a home, a field of a record referent like a field of a mutable
 local.
 */
 
-use crate::source_state::expression::{ExpressionHandle, ExpressionNode};
+use crate::source_state::expression::{ExpressionHandle, ExpressionNode, UnaryOperator};
 use crate::source_state::statement::{
     StatementHandle, StatementNode, TableAssignment, TableLocalData,
 };
@@ -517,12 +517,14 @@ impl Program<'_> {
                 Unserved::Typing("local bound to a Unit call"),
             ));
         };
-        // `let r = reference;` with no declared type: whether the local is
-        // a copy of the referent or the reference itself, the typed trees
-        // do not say here, and a reference local belongs to a later slice.
+        // A borrowed formal already addresses its referent, so reading `$v`
+        // lowers to the same slot. An inferred binding may copy that value.
+        // Without an explicit read, the binding must keep the reference.
         if declared.is_none()
             && let ExpressionKind::Slot(named) = value.kind
             && slots[named].borrowed.is_some()
+            && !matches!(self.node(id, local.initial_value)?,
+                ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::Dereference)
         {
             return unserved("local bound to a reference without a declared type");
         }
