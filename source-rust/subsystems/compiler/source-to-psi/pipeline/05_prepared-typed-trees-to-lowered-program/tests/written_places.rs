@@ -312,9 +312,29 @@ fn a_nested_machine_is_called_with_the_argument_written_and_returns_its_own_form
     }
 }
 
+/// `text` with the number in each `StructuralTypeId(n)` removed.
+fn without_type_numbers(text: &str) -> String {
+    const MARK: &str = "StructuralTypeId(";
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find(MARK) {
+        out.push_str(&rest[..at + MARK.len()]);
+        rest = rest[at + MARK.len()..].trim_start_matches(|c: char| c.is_ascii_digit());
+    }
+    out.push_str(rest);
+    out
+}
+
 #[test]
 fn a_returned_record_names_the_parameter_the_body_names_in_either_file_order() {
-    let cell = ("product/cell.omg", "public data Cell [copy] { v: u8; }\n");
+    // The other file declares a record and a machine of its own, so reading
+    // it first changes the order every declaration is met in. The stage
+    // harness does not bind file imports (the Build does), so `select`
+    // names only its own file's type.
+    let other = (
+        "product/other.omg",
+        "data Other [copy] { w: u16; }\nmachine keep(o: Other) -> Other { o }\n",
+    );
     let returned_place = |files: &[(&str, &str)], position: usize| {
         let program = Program::try_of(files).unwrap_or_else(|refusal| panic!("{refusal:?}"));
         let lowered = program.lower();
@@ -341,17 +361,20 @@ fn a_returned_record_names_the_parameter_the_body_names_in_either_file_order() {
                 path: vec![]
             }
         );
-        format!(
+        // Stage 05 numbers record types in the order it meets them, so only
+        // that numbering may differ between the two file orders.
+        without_type_numbers(&format!(
             "{:?} {:?}",
             machine.blocks, machine.contract.structural_parameters
-        )
+        ))
     };
     for (body, position) in [("a", 0), ("b", 1)] {
-        let select =
-            format!("use cell\\Cell;\nmachine select(a: Cell, b: Cell) -> Cell {{ {body} }}\n");
+        let select = format!(
+            "data Cell [copy] {{ v: u8; }}\nmachine select(a: Cell, b: Cell) -> Cell {{ {body} }}\n"
+        );
         let main = ("product/main.omg", select.as_str());
-        let forward = returned_place(&[main, cell], position);
-        let backward = returned_place(&[cell, main], position);
+        let forward = returned_place(&[main, other], position);
+        let backward = returned_place(&[other, main], position);
         assert_eq!(forward, backward, "{body}");
     }
 }
