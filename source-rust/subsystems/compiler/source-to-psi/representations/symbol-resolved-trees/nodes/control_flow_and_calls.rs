@@ -1659,6 +1659,7 @@ pub mod control_flow {
                         head_symbol: target_symbol,
                         symbol: target_symbol,
                         storage: NamedTransitionTargetStorage {
+                            callee: Default::default(),
                             operational_acknowledgement: Default::default(),
                             path,
                             arguments,
