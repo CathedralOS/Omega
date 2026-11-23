@@ -4389,3 +4389,92 @@ fn a_boundary_call_uses_its_callers_type_argument() {
     assert!(diagnostics.iter().any(|diagnostic| diagnostic.message
         == "type argument `B` for `Item` has neither `[copy]` nor `[linear]` but the binder requires `[copy]`"), "{diagnostics:?}");
 }
+
+#[test]
+fn boundary_results_preserve_domains_on_the_declared_fields() {
+    use terminal_psi::OperationKind;
+    let source = r#"
+data Ticket [copy] { number: u32; }
+domain Ticket::Stamped;
+domain Ticket::Other;
+data Envelope [copy] { left: Ticket in Stamped; right: Ticket in Other; }
+boundary trait Reading {
+    machine read(input: Envelope) -> Envelope reaches none crashes none;
+}
+machine entry(input: Envelope) -> Envelope reaches Reading { Reading::read(input) }
+Provider satisfies Reading {
+    machine read(input: Envelope) -> Envelope { input }
+}
+"#;
+    let trees = typed(source);
+    let whole = super::entryless::judged_typed_result(&trees, false).unwrap();
+    assert!(matches!(whole, RouteVerdict::Accepted(_)), "{whole:?}");
+
+    let mut elaboration = invocation(trees).unwrap();
+    let [boundary] = elaboration.module.interfaces.boundary_machines.as_slice() else {
+        panic!("expected one boundary");
+    };
+    let terminal_psi::BoundaryMachineResult::Structural(required) = &boundary.result else {
+        panic!("the requirement returns an Envelope");
+    };
+    assert!(required.qualifications.is_empty());
+    let [left, right] = required.projected_qualifications.as_slice() else {
+        panic!("each Envelope field must carry one domain");
+    };
+    assert_ne!(left.path, right.path);
+    assert_ne!(left.domain, right.domain);
+    // A provider candidate with the same field carriers and the same two
+    // domains still has to deliver each domain at the promised path.
+    let Some(semantic_vocabulary::TargetMachineCallable::Machine(entry_id)) =
+        elaboration.module.entry
+    else {
+        panic!("the entry is a machine");
+    };
+    let entry_result = &elaboration.module.machine(entry_id).unwrap().result;
+    let accepts_provider = |candidate: &terminal_psi::TerminalMachineResult| {
+        boundary.result.accepts_provider_result(
+            candidate,
+            boundary.identity,
+            boundary
+                .declaration
+                .as_ref()
+                .map(|declaration| &declaration.source.state),
+            &elaboration.module.types.structural_domains,
+        )
+    };
+    assert!(accepts_provider(entry_result));
+    let mut supplied = entry_result.clone();
+    let terminal_psi::TerminalMachineResult::Structural(supplied_result) = &mut supplied else {
+        panic!("the returning machine supplies an Envelope");
+    };
+    let [first, second] = supplied_result.projected_qualifications.as_mut_slice() else {
+        panic!("expected the two declared fields");
+    };
+    std::mem::swap(&mut first.domain, &mut second.domain);
+    assert!(!accepts_provider(&supplied));
+
+    let call = elaboration
+        .module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| matches!(operation.kind, OperationKind::BoundaryCall { .. }))
+        .expect("the entry calls Reading");
+    let terminal_psi::OperationResult::Structural(result) = &mut call.result else {
+        panic!("the call returns an Envelope");
+    };
+    assert_eq!(
+        result.projected_qualifications,
+        required.projected_qualifications
+    );
+    let [first, second] = result.projected_qualifications.as_mut_slice() else {
+        unreachable!();
+    };
+    std::mem::swap(&mut first.domain, &mut second.domain);
+    let verdict = judge(Ok(elaboration));
+    assert!(
+        !matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+        "exchanged field domains accepted"
+    );
+}
