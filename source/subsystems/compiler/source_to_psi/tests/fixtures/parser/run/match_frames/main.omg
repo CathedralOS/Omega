@@ -1,21 +1,29 @@
 // Expected exit: 0
+use pipeline/tokens_to_syntax_trees/expression_frames.omg as frames;
+use representations/syntax_trees/syntax_trees.omg as syntax;
+
 machine start() crashes Trap {
-    let frame: ExpressionFrame = ExpressionFrame {
-        kind: ExpressionFrameKind::RangeEnd,
+    let frame: |frames|::ExpressionFrame = |frames|::ExpressionFrame {
+        kind: |frames|::ExpressionFrameKind::RangeEnd,
         operator_base: 1u64 as +Trapping, pending_base: 2u64 as +Trapping,
         callee: 3u64 as +Trapping, field_start: 4u64 as +Trapping, field_end: 5u64 as +Trapping,
         start: 6u64 as +Trapping, arm_start: 7u64 as +Trapping, pattern: 8u64 as +Trapping,
-        pattern_kind: ArmPatternKind::Binder, range_start: true, range_inclusive: true
+        pattern_kind: |syntax|::ArmPatternKind::Binder, range_start: true, range_inclusive: true
     };
-    let shifted: ExpressionFrame = started_frame(frame, 10u64 as +Trapping);
-    let subject: ExpressionFrame = match_frame(shifted, ExpressionFrameKind::MatchSubject, 11u64 as +Trapping, 12u64 as +Trapping);
-    let arm: ExpressionFrame = match_arm_frame(subject, 13u64 as +Trapping);
-    let value: ExpressionFrame = match_value_frame(arm, ArmPatternKind::Literal, 14u64 as +Trapping);
+    let shifted: |frames|::ExpressionFrame = |frames|::started_frame(frame, 10u64 as +Trapping);
+    let subject: |frames|::ExpressionFrame = |frames|::match_frame(
+        shifted, |frames|::ExpressionFrameKind::MatchSubject, 11u64 as +Trapping, 12u64 as +Trapping
+    );
+    let arm: |frames|::ExpressionFrame = |frames|::match_arm_frame(subject, 13u64 as +Trapping);
+    let value: |frames|::ExpressionFrame = |frames|::match_value_frame(arm, |syntax|::ArmPatternKind::Literal, 14u64 as +Trapping);
     transition {
         shifted.start != 10 || !shifted.range_start || !shifted.range_inclusive || shifted.field_start != 4 || shifted.field_end != 5 -> wrong(),
-        subject.kind != ExpressionFrameKind::MatchSubject || subject.arm_start != 7 || subject.pattern != 8 || subject.pattern_kind != ArmPatternKind::Binder -> wrong(),
-        arm.kind != ExpressionFrameKind::MatchPattern || arm.pattern != 0 || arm.pattern_kind != ArmPatternKind::Wildcard -> wrong(),
-        value.kind != ExpressionFrameKind::MatchValue || value.pattern != 14 || value.pattern_kind != ArmPatternKind::Literal -> wrong(),
+        subject.kind != |frames|::ExpressionFrameKind::MatchSubject || subject.arm_start != 7 || subject.pattern != 8
+            || subject.pattern_kind != |syntax|::ArmPatternKind::Binder -> wrong(),
+        arm.kind != |frames|::ExpressionFrameKind::MatchPattern || arm.pattern != 0
+            || arm.pattern_kind != |syntax|::ArmPatternKind::Wildcard -> wrong(),
+        value.kind != |frames|::ExpressionFrameKind::MatchValue || value.pattern != 14
+            || value.pattern_kind != |syntax|::ArmPatternKind::Literal -> wrong(),
         value.operator_base != 1 || value.pending_base != 2 || value.callee != 11 || value.start != 12 || value.arm_start != 13 -> wrong(),
         subject.field_start != 0 || subject.field_end != 0 || subject.range_start || subject.range_inclusive -> wrong(),
         _ -> done()
