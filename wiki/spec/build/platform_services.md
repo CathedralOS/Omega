@@ -21,6 +21,62 @@ events are outside these two contracts. A host can provide the standard library
 interface wherever it can preserve its byte-stream semantics. The
 [bounded input contract](../resources/bounded_input.md) defines read outcomes.
 
+## Network reach
+
+A helper can send a reply on a flow its caller already opened without acquiring
+the power to choose who gets that reply. A **flow** is a path for exchanging data
+with a peer. A connected socket is one possible implementation. The
+`network-service-reach` decision (2026-11-23) applies to both hosted sockets
+and protocol stacks that run in the application.
+
+Core declares `Network` as a memberless boundary trait. Its five memberless
+boundary children identify operations. Reaching any child also reaches
+`Network` under the ordinary [boundary-parent rules](../language/effects.md#boundary-services-with-parameters).
+
+| Service | What the operation permits |
+| --- | --- |
+| `NetworkResolveName` | Submit a name to a resolver service. The resolver can observe the name even if the caller never contacts the peer. |
+| `NetworkInitiateContact` | Open an outbound flow or designate the destination for an outbound datagram. The caller's grant limits which peers it can contact. |
+| `NetworkServe` | Make an endpoint reachable for new incoming contact or accept an incoming flow on an existing listener. |
+| `NetworkSend` | Supply application bytes for transmission on a flow or to a datagram destination. |
+| `NetworkReceive` | Receive application bytes from a flow or datagram endpoint. Receiving a reply on an existing flow requires this reach alone. |
+
+Passing a sender or listener to a helper transfers only the authority the value
+carries. A destination address alone grants no authority. Passing any of these
+values adds no network reach. Each operation below lists its reach before
+boundary parents are added.
+
+| Operation | Required reach |
+| --- | --- |
+| Send bytes on a sender whose peer is already fixed | `NetworkSend` |
+| Open an outbound flow to a chosen peer without supplying application bytes | `NetworkInitiateContact` |
+| Send a UDP datagram with a caller-supplied destination | `NetworkInitiateContact + NetworkSend`, even when no separate connect call occurs |
+| Reserve a local address or port without opening it to incoming contact | `Network` |
+| Enable incoming contact, or take a new connection from an existing listener | `NetworkServe` |
+
+A socket library can declare `SocketBind` as a child of `Network` and
+`SocketListen` and `SocketAccept` as children of `NetworkServe`. When a boundary operation
+declares such a refinement, it propagates to callers. Other libraries can use
+the core identities directly. A bind operation that also makes an endpoint
+reachable must include
+`NetworkServe`.
+
+Portable and raw platform requirements declare the full union of what each
+operation permits. A Windows `ConnectEx` binding that allows an initial payload
+reaches both `NetworkInitiateContact` and `NetworkSend`. A binding whose
+checked contract excludes that payload can expose just `NetworkInitiateContact`.
+Passing an empty buffer to the broader binding still uses its published row.
+An in-process transport can send on an already-authorized flow with the same
+`NetworkSend` contract. The receiver checks the [physical network authority](permissions.md#physical-network-authority)
+of the selected provider separately.
+
+Reading a caller-supplied table to find an address is ordinary computation.
+Calling a resolver boundary contributes its declared reach even if its provider
+answers from a recording. The [critical audit policy](../packages/review.md#critical-service-audit-policy)
+highlights `Network` for both Build and Product code. The [default Build environment](execution.md#restricted-build-requests)
+supplies neither live network access nor a subprocess service. Delegation of
+either service to Build code is a separate decision.
+
 ## Three layers
 
 Named decision: `portable-service-per-family-binding-carrier`, settled

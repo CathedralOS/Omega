@@ -91,9 +91,10 @@ compiler-owned `[copy]` data type with payload-free cases:
 `FilesystemContentRead`, `FilesystemContentWrite`, `FilesystemMetadataQuery`,
 `DirectoryEnumeration`, `FilesystemNamespaceMutation`, `FilesystemMetadataMutation`,
 `ProcessOutput`, `ProcessTermination`, `MachineControl`, `PortIo`,
-`InterruptControl`, `InterruptEntry`, `RootMemoryAccess`, and `ProcessInput`.
-These cases select the existing closed terminal-authority vocabulary; they do
-not introduce new classification rules.
+`InterruptControl`, `InterruptEntry`, `RootMemoryAccess`, `ProcessInput`,
+`HostNetworkStack`, and `OffMachineNetworkTransmit`. The [physical network rules](permissions.md#physical-network-authority)
+distinguish a host loopback connection from a mechanism that can transmit off-machine.
+Each case uses the same mechanism classification as receiver admission.
 
 The argument is an evaluated value, so locals and authorized helper parameters
 work just as literal cases do. The explicit `builder` argument must be the activation's original
