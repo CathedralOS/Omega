@@ -235,7 +235,7 @@ Vocabularies:
 - `source-provenance`: `PackageSourceConsumptionCommitment::from_retained_digest` wraps any 32 bytes, including zero (`source_provenance.rs:55`): open.
 - `language-core`: `NumericTargetCapabilities::support_for` returns `None` for names not in the 104 (`float_operations.rs:213-221`): open. `asm_catalog_entry` returns `None` for an unknown mnemonic (`inline_assembly.rs:1835`) and `accepts_target_name` lists `macos_x86_64` (`:1012`): open.
 - `numerics`: `ArithmeticDomain::combine` takes the left of two conflicting non-exact domains (`lib.rs:60-65`): open.
-- `numeric-literals`: `value_f64`/`value_f32` return `0.0` when `FloatSemantics::from_decimal` fails (`lib.rs:154-181`): open for `inf`/`-inf` text in the record; section 10 shows `inf`, `-inf` and `NaN` spellings parse, so the `from_f64` texts the record worried about do not reach the fallback.
+- `numeric-literals`: `value_f64`/`value_f32` return `0.0` when `FloatSemantics::from_decimal` fails (`lib.rs:154-181`): open for `inf`/`-inf` text in the record; section 10 shows `inf`, `-inf` and `NaN` spellings parse, so the `from_f64` texts the record worried about do not reach the fallback. **Follow-up (2026-11-23).** Negating the parsed literal `+1.25` did reach the fallback: it produced `-+1.25` and both format reads returned zero. Source parsing separately turned `-(-1.25f32)` into `--1.25f32`, which resolution rejected. Both paths now toggle the leading sign and preserve the rest of the spelling. This fixes negation of valid literals. Validation of other decimal text restored from records remains open.
 - `worker-budget`: none; `within_budget` panics rather than running unbudgeted (`lib.rs:90`).
 
 ## 6. Silent drops

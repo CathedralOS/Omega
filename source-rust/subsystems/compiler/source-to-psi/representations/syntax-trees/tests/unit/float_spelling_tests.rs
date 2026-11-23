@@ -33,6 +33,19 @@ fn equality_uses_exact_spelling_across_owners_and_generated_provenance() {
 }
 
 #[test]
+fn negating_a_materialized_float_keeps_the_nan_payload() {
+    use numeric_literals::{FloatFormat, FloatLiteral};
+    let literal = FloatLiteral::from_bits(FloatFormat::F32, 0x7f80_1234).unwrap();
+    let owner = SyntaxTextOwner::default();
+    let spelling = FloatSpelling::materialized(literal, SourceSpan::default());
+    let negated = spelling.negated(&owner, SourceSpan::default());
+    assert_eq!(
+        negated.literal(&owner).unwrap().presented_bits(),
+        Some((FloatFormat::F32, 0xff80_1234))
+    );
+}
+
+#[test]
 #[should_panic(expected = "does not belong to this forest")]
 fn another_owner_cannot_resolve_a_float_source_handle() {
     let mut owner = SyntaxTextOwner::default();
