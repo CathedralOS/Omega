@@ -74,9 +74,9 @@ than silently translate them or enable a compatibility mode.
 
 Header clauses are delimited by the next clause or body, never by semicolons.
 Only a bodyless declaration or requirement has a final declaration semicolon.
-This includes nested `requires machine` hypotheses of mathematical
-declarations; see
-[machine header delimiters](state_contracts.md#machine-header-delimiters).
+A theorem declares its proof parameters in the generic header. Each parameter's
+named alias ends after its complete contract.
+[Machine header delimiters](state_contracts.md#machine-header-delimiters)
 
 A fixed operator token after `machine`, as in `machine + add(...)`, binds
 expression syntax to the same named machine. This is not a separate executable

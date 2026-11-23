@@ -92,17 +92,11 @@ data WaitForValue = machine() -> u64
     terminates;
 ```
 
-A machine-shaped `requires machine` hypothesis in a
-[mathematical declaration](../proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use)
-is a nested bodyless declaration: its semicolon closes the nested contract and
-subsequent clauses belong to the enclosing declaration. No extra semicolon is
-needed after its last clause, and an additional same-level terminator rejects;
-it is not a compatibility spelling.
-[Nested callable families](generics.md#nested-contracts-and-proof-families) still
-have one terminator per bodyless declaration: closing an inner requirement and
-then its enclosing bodyless requirement legitimately needs two declaration
-terminators. Neither is a clause terminator. Statement, data-field, and other
-declaration punctuation is unchanged by this rule.
+The same delimiter rule applies to a [theorem's proof contract](../proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use).
+The alias's final semicolon closes its entire signature. The theorem names the
+alias in its generic header, so subsequent premises and conclusions belong to
+the theorem. A nested proof contract has its own named alias and terminator.
+Statement, data-field and other declaration punctuation follows its usual rules.
 
 ## Bindings and arrivals
 

@@ -62,6 +62,33 @@ A fact-only invocation emits no runtime call. This helper states a fact already
 within the floor; harder proofs can be split into smaller helpers. A separately
 compiled consumer uses published guarantees, not private implementation facts.
 
+## Passing a proof to a theorem
+
+A theorem can ask its caller for a proof. Give the contract a name and declare
+the proof argument in the theorem header.
+
+```omega
+data DistinctIfOrdered = machine(i: u64, j: u64)
+    requires i < j
+    ensures i != j;
+
+machine use_order<Step: DistinctIfOrdered>(a: u64, b: u64)
+requires a < b
+ensures a != b
+{
+    Step(a, b);
+}
+
+machine example() {
+    use_order::<distinct_indices>(2, 5);
+}
+```
+
+`distinct_indices` from the start of this chapter proves the contract for
+every ordered pair. The citation supplies it as `Step` and supplies `2` and
+`5` as the values. Writing `use_order(2, 5)` leaves the proof argument missing.
+[Logical hypotheses](../spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use)
+
 ## Proof by recursion
 
 A proof can call itself on something smaller, which is induction:
