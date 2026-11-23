@@ -75,14 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### An unauthorized integer handle reports a checker defect in its caller
-
-- Category: One idea, several implementations
-- Where: [Scalar return validation](source-rust/subsystems/compiler/psi/semantics/src/scalar_qualifications.rs#L1462) and [lowered-form error reporting](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/formation.rs#L63).
-- Saw: Removing the disk-file classifier from its domain’s issuer list correctly refused the classifier’s cast. The scalar return check recorded that the issuer lacked permission and that the integer predicate held. It reported malformed compiler output in `main`. The same denied cast on a record already identifies the cast and its owning machine.
-- Cost: The programmer sees an internal error at the call site and has to decode a printed compiler record to find the unauthorized cast.
-- Reported: 2026-11-23, Codex, while checking the Windows file handle policies in #5167.
-
 ### A resumed Build refuses itself whenever it is typed again, because region owners print as symbol slots
 
 - Category: Knowledge crossing a boundary

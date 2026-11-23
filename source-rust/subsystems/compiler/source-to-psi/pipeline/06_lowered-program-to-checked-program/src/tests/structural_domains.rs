@@ -885,29 +885,27 @@ fn normal_result_membership_does_not_survive_alias_writes_or_value_changes() {
         "let tagged: u32 in WordStamped = plain as +WordStamped;",
         "let tagged: u32 in WordStamped = (plain ^ 1u32) as +WordStamped;",
     );
-    let RouteVerdict::Rejected { violations, .. } = judge(invocation(&alias_write)).unwrap() else {
-        panic!("a write invalidates the membership the cast would forward")
-    };
-    assert_eq!(violations.len(), 1);
-    assert!(
-        violations[0]
-            .statement
-            .contains("not one of the domain's establishment routes"),
-        "{violations:?}"
-    );
-    let span = violations[0].site.unwrap().span;
-    assert_eq!(&alias_write[span.start..span.end], "+");
-    assert_eq!(
-        span.start,
-        alias_write.find("plain as +Stamped").unwrap() + "plain as ".len()
-    );
-    let refusal = judge(invocation(&changed_value)).unwrap_err();
-    assert!(
-        refusal
-            .detail
-            .contains("scalar return origin does not match its source or authorized issuer"),
-        "{refusal:?}"
-    );
+    for (source, cast) in [
+        (alias_write, "plain as +Stamped"),
+        (changed_value, "(plain ^ 1u32) as +WordStamped"),
+    ] {
+        let RouteVerdict::Rejected { violations, .. } = judge(invocation(&source)).unwrap() else {
+            panic!("changing the value invalidates the membership the cast would forward")
+        };
+        assert_eq!(violations.len(), 1);
+        assert!(
+            violations[0]
+                .statement
+                .contains("not one of the domain's establishment routes"),
+            "{violations:?}"
+        );
+        let span = violations[0].site.unwrap().span;
+        assert_eq!(&source[span.start..span.end], "+");
+        assert_eq!(
+            span.start,
+            source.find(cast).unwrap() + cast.find('+').unwrap()
+        );
+    }
 }
 
 #[test]
