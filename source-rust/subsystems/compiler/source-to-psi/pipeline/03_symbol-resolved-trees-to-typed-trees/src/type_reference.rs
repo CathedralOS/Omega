@@ -402,26 +402,24 @@ pub(crate) mod domain_constraints {
         retained: symbols::SymbolHandle,
         accepts: impl Fn(&DomainDefinition) -> bool,
     ) -> Vec<crate::source_state::domain::DomainDefinition> {
-        let selected = reference
-            .and_then(|span| {
-                source.symbols.find_top_level_by_name_and_kinds_from_source(
-                    authored_name,
-                    &[symbols::SymbolKind::Domain],
-                    span,
-                )
-            })
-            .or_else(|| (reference.is_none() && retained.is_valid()).then_some(retained));
+        let selected = match reference {
+            Some(span) => source.symbols.top_level_candidates_from_source(
+                authored_name, &[symbols::SymbolKind::Domain], span,
+            ),
+            None if retained.is_valid() => vec![retained],
+            None => Vec::new(),
+        };
         let definitions = program.domain_definitions();
         let visible = |domain: &DomainDefinition| {
             source
                 .symbols
                 .source_reference_can_see_symbol(reference.unwrap_or_default(), domain.symbol)
         };
-        if let Some(symbol) = selected {
-            domain_by_symbol(program, symbol)
+        if !selected.is_empty() {
+            selected.into_iter()
+                .filter_map(|symbol| domain_by_symbol(program, symbol))
                 .filter(|domain| visible(domain) && accepts(domain))
                 .cloned()
-                .into_iter()
                 .collect()
         } else {
             with_domain_candidate_index(source, program, |index| {

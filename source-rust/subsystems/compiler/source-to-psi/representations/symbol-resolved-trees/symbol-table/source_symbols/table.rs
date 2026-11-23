@@ -973,11 +973,11 @@ mod modules {
             reference: SourceSpan,
         ) -> bool {
             if authored.starts_with('|') {
-                return self.find_top_level_by_name_and_kinds_from_source(
+                return self.top_level_candidates_from_source(
                     authored,
                     &[SymbolKind::Domain],
                     reference,
-                ) == Some(domain);
+                ).contains(&domain);
             }
             let qualified = self.indexed_display_path(domain);
             if qualified.as_ref() == authored {

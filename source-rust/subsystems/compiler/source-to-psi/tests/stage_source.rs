@@ -893,19 +893,22 @@ fn a_static_case_in_a_file_uses_the_type_even_when_a_parameter_has_its_name() {
 #[test]
 fn a_file_qualified_domain_still_requires_its_declared_carrier() {
     let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
-    for carrier in ["u8", "u16"] {
+    for (domains, accepts_byte) in [
+        ("domain u16::Tag; domain u8::Tag;", true),
+        ("domain u16::Tag;", false),
+    ] {
         let (mut files, root) = captured(
             package,
             "machine value() -> u8 in |units|::Tag { 7u8 as + |units|::Tag }",
         );
         let units = capture_file(
-            &mut files, "product", package, "units.omg", &format!("domain {carrier}::Tag;"),
+            &mut files, "product", package, "units.omg", domains,
         );
         let mut stage = product(files, root, package, &[]).unwrap();
         stage.parsed.roots.push(units);
         stage.parsed.imports.push(SourceScopedTopLevelBinding::file_import(root, units, "units"));
         let result = compile(stage, None);
-        if carrier == "u8" {
+        if accepts_byte {
             result.expect("the selected file declares Tag on the operand type");
         } else {
             let errors = result.expect_err("a domain on u16 cannot qualify a u8");
