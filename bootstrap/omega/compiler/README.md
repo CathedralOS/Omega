@@ -206,7 +206,7 @@ check directory imports, sibling lookup, path validation and legacy packets
 against a constructed executable. Successful cases execute the emitted Alpha tape.
 
 The construction application is [construct_omega.epsilon](../construct_omega.epsilon).
-It reads package, direct-alias and unit rows followed by a shared 4 MiB arena
+It reads package, direct-alias and unit rows followed by a shared 8 MiB arena
 for source bytes, logical paths and names. Package roles distinguish ordinary packages from the explicitly
 trusted core and standard library; spelling alone grants no such role. The
 selected entry is a source-unit ordinal and name span. This internal input
@@ -475,8 +475,8 @@ eight-byte word. A fixed array of plain `u8` stores one byte per element.
 Its indexing instructions read or write exactly one byte. The whole array is
 rounded up to a word boundary so record copies and zeroing can use whole words.
 Bounds checks use the declared element count. The `SourceUnit` byte array
-occupies 128 KiB and the construction application's 4 MiB byte array fits in
-its 4,224,576-byte `ConstructionInput` record. Layout recursion is bounded
+occupies 128 KiB and the construction application's byte array occupies 8 MiB
+inside its `ConstructionInput` record. Layout recursion is bounded
 at 64 steps. Compound extents and the complete private storage arena are
 bounded by the 1 GiB backing window described above. By-value cycles,
 linear/opaque/authority-bearing types, stored references, selected cleanup and

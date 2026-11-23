@@ -21,12 +21,12 @@ reaches |process_exit|::ProcessExit crashes Trap
 {
     let start: u64 = build_source_word(input, unit, 3) as u64;
     let end: u64 = build_source_word(input, unit, 4) as u64;
-    transition start < end && end <= input.buffer_length as u64 && end <= 4194304 {
+    transition start < end && end <= input.buffer_length as u64 && end <= 8388608 {
         true -> view(input, start, end),
         _ -> empty(input)
     }
     machine view(input: @|input_packet|::ConstructionInput, start: u64, end: u64) -> @[u8]
-    requires start <= end && end <= 4194304
+    requires start <= end && end <= 8388608
     { @input.bytes[start..end] }
     machine empty(input: @|input_packet|::ConstructionInput) -> @[u8] { @input.bytes[0..0] }
 }

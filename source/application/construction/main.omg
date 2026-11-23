@@ -19,13 +19,13 @@ reaches |process_exit|::ProcessExit crashes Trap
         _ -> |input_packet|::malformed()
     }
     machine next(input: @|input_packet|::ConstructionInput, name: @mutable |source_files|::ModulePath, index: u64, end: u64) {
-        transition index < end && index < 4194304 {
+        transition index < end && index < 8388608 {
             true -> append(input, name, index, end),
             _ -> done()
         }
     }
     machine append(input: @|input_packet|::ConstructionInput, name: @mutable |source_files|::ModulePath, index: u64, end: u64)
-    requires index < 4194304
+    requires index < 8388608
     {
         let retained: bool = |source_files|::module_path_append(name, input.bytes[index]);
         transition retained {
@@ -253,25 +253,25 @@ reaches |process_exit|::ProcessExit crashes Trap
     {
         let start: u32 = |input_packet|::row_word(input, row + 3);
         let end: u32 = |input_packet|::row_word(input, row + 4);
-        transition start < end && end <= input.buffer_length && end <= 4194304 {
+        transition start < end && end <= input.buffer_length && end <= 8388608 {
             true -> namespace(input, name, start as u64, end as u64),
             _ -> |input_packet|::malformed()
         }
     }
     machine namespace(input: @|input_packet|::ConstructionInput, name: @mutable |source_files|::ModulePath, start: u64, end: u64)
-    requires start < end, end <= 4194304
+    requires start < end, end <= 8388608
     { package_namespace(@input.bytes[start..end], name); }
     machine root(name: @mutable |source_files|::ModulePath) { |source_files|::module_path_clear(name); }
 }
 
 machine load_unit_source(input: @|input_packet|::ConstructionInput, lexer: @mutable |lexer|::Lexer, unit: u32, start: u32, end: u32)
-requires start <= end, end <= 4194304
+requires start <= end, end <= 8388608
 crashes Trap
 {
     |lexer|::lexer_initialize(lexer, unit as +Trapping);
     transition { _ -> bytes(input, lexer, start as u64, end as u64) }
     machine bytes(input: @|input_packet|::ConstructionInput, lexer: @mutable |lexer|::Lexer, offset: u64, end: u64)
-    requires end <= 4194304
+    requires end <= 8388608
     {
         transition offset < end {
             true -> byte(input, lexer, offset, end),
@@ -279,7 +279,7 @@ crashes Trap
         }
     }
     machine byte(input: @|input_packet|::ConstructionInput, lexer: @mutable |lexer|::Lexer, offset: u64, end: u64)
-    requires offset < end, end <= 4194304
+    requires offset < end, end <= 8388608
     {
         |lexer|::append_source_byte(lexer, input.bytes[offset]);
         transition { _ -> bytes(input, lexer, offset + 1, end) }
@@ -311,13 +311,13 @@ reaches |process_exit|::ProcessExit crashes Trap
         let package: u32 = |input_packet|::row_word(input, row);
         let start: u32 = |input_packet|::row_word(input, row + 1);
         let end: u32 = |input_packet|::row_word(input, row + 2);
-        transition package < input.package_count && start <= end && end <= input.buffer_length && end <= 4194304 {
+        transition package < input.package_count && start <= end && end <= input.buffer_length && end <= 8388608 {
             true -> size(input, compilation, lexer, index, row, package, start, end),
             _ -> |input_packet|::malformed()
         }
     }
     machine size(input: @|input_packet|::ConstructionInput, compilation: @mutable |driver|::Compilation, lexer: @mutable |lexer|::Lexer, index: u64, row: u64, package: u32, start: u32, end: u32)
-    requires index < 512, row <= 3771, start <= end, end <= 4194304
+    requires index < 512, row <= 3771, start <= end, end <= 8388608
     {
         transition end - start <= 131072 {
             true -> retain(input, compilation, lexer, index, row, package, start, end),
@@ -325,7 +325,7 @@ reaches |process_exit|::ProcessExit crashes Trap
         }
     }
     machine retain(input: @|input_packet|::ConstructionInput, compilation: @mutable |driver|::Compilation, lexer: @mutable |lexer|::Lexer, index: u64, row: u64, package: u32, start: u32, end: u32)
-    requires index < 512, row <= 3771, start <= end, end <= 4194304
+    requires index < 512, row <= 3771, start <= end, end <= 8388608
     {
         let mutable module_path: |source_files|::ModulePath;
         unit_namespace(input, row, @mutable module_path);

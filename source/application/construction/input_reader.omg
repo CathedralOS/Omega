@@ -95,7 +95,7 @@ reaches |process_exit|::ProcessExit + |process_authority|::StandardInput crashes
             && row_count <= 6464
             && input.unit_count > 0 && input.unit_count <= 512
             && input.entry_unit < input.unit_count
-            && input.buffer_length <= 4194304
+            && input.buffer_length <= 8388608
             && input.entry_name_start < input.entry_name_end
             && input.entry_name_end <= input.buffer_length
             && input.entry_name_end - input.entry_name_start <= 256 {
@@ -116,13 +116,13 @@ reaches |process_exit|::ProcessExit + |process_authority|::StandardInput crashes
         transition { _ -> block rows(input, index + 1, count) }
     }
     machine bytes(input: @mutable |input_packet|::ConstructionInput, index: u64) {
-        transition index < input.buffer_length as u64 && index < 4194304 {
+        transition index < input.buffer_length as u64 && index < 8388608 {
             true -> block byte(input, index),
             _ -> block end()
         }
     }
     machine byte(input: @mutable |input_packet|::ConstructionInput, index: u64)
-    requires index < 4194304
+    requires index < 8388608
     {
         input.bytes[index] = block read_byte();
         transition { _ -> block bytes(input, index + 1) }

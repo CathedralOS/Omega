@@ -127,7 +127,7 @@ selected Build files. Both paths write zero tape bytes. The public OCREQ protoco
 admission requirements. [Compiler request](../../../wiki/spec/build/compiler_request.md)
 
 The current limits are 64 packages, 256 direct dependencies, 512 Product
-units and 512 Build files, a 4 MiB shared buffer for sources, paths and names, 128 KiB per unit,
+units and 512 Build files, an 8 MiB shared buffer for sources, paths and names, 128 KiB per unit,
 and 256 bytes per directory namespace, package name or alias.
 These are resource limits, not language rules.
 
