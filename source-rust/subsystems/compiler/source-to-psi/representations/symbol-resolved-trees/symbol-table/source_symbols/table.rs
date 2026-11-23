@@ -3724,13 +3724,18 @@ impl SymbolTable {
             if !reference_is_source_backed {
                 return Vec::new();
             }
+            // A cast or qualification already supplies the carrier. Within the
+            // selected file its domain may be named by its declared leaf.
+            let domain_leaf = kinds.contains(&SymbolKind::Domain) && !declaration.contains("::");
             return self
-                .top_level_children_matching_name(declaration, false)
+                .top_level_children_matching_name(declaration, domain_leaf)
                 .into_iter()
                 .filter(|symbol| {
                     self.symbol_provenance_source_span(*symbol)
                         .is_some_and(|span| span.source_id == source)
                         && kinds.contains(&self.get(*symbol).kind)
+                        && (self.name(*symbol) == declaration
+                            || (domain_leaf && self.get(*symbol).kind == SymbolKind::Domain))
                         && self.source_reference_can_see_symbol(reference, *symbol)
                         && matches_candidate(*symbol)
                 })
