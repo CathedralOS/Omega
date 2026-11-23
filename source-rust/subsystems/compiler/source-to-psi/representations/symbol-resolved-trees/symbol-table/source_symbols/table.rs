@@ -2087,6 +2087,7 @@ mod source_queries {
             {
                 return None;
             }
+            let file = self.product_file_selection(path, occurrence);
             let qualified = path.split_once("::");
             let dependency =
                 qualified.and_then(|(alias, _)| self.product_dependency_target(occurrence, alias));
@@ -2100,7 +2101,9 @@ mod source_queries {
             for (symbol, is_public) in candidates {
                 if !symbol.is_valid()
                     || !self.symbol_source_is_selected(symbol)
-                    || !match dependency {
+                    || !if let Some((source, member)) = file {
+                        self.product_file_contains(source, member, occurrence, symbol, is_public)
+                    } else { match dependency {
                         Some(package) => {
                             is_public
                                 && self.symbol_product_package_identity(symbol) == Some(package)
@@ -2123,13 +2126,14 @@ mod source_queries {
                                 || !self.has_source_metadata()
                         }
                     }
+                    }
                 {
                     continue;
                 }
                 if !self.source_reference_can_describe_product_symbol(occurrence, symbol) {
                     continue;
                 }
-                let exact = self.display_path(symbol, "::") == declaration_path;
+                let exact = file.is_some() || self.display_path(symbol, "::") == declaration_path;
                 if !exact && (dependency.is_some() || self.name(symbol) != declaration_path) {
                     continue;
                 }
@@ -2538,10 +2542,10 @@ pub struct SourceScopedTopLevelBinding {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
-enum BindingTarget {
-    Declaration(Arc<str>),
+enum BindingTarget {    Declaration(Arc<str>),
     Module(modules::ModuleImport),
     FileAlias(Arc<str>),
+    ProductFileAlias(Arc<str>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
@@ -2574,6 +2578,20 @@ impl SourceScopedTopLevelBinding {
             reference_source,
             declaration_source,
             target: BindingTarget::FileAlias(alias.into()),
+            producer: BindingProducer::Loader,
+        }
+    }
+
+    /// Target of a designated product operand in Build code.
+    pub fn product_file_import(
+        reference_source: SourceId,
+        declaration_source: SourceId,
+        alias: impl Into<Arc<str>>,
+    ) -> Self {
+        Self {
+            reference_source,
+            declaration_source,
+            target: BindingTarget::ProductFileAlias(alias.into()),
             producer: BindingProducer::Loader,
         }
     }
@@ -3598,6 +3616,74 @@ impl SymbolTable {
         )
     }
 
+    fn file_alias_source(
+        &self,
+        reference: SourceId,
+        alias: &str,
+        product_operand: bool,
+    ) -> Option<SourceId> {
+        let mut sources = self
+            .source_scoped_bindings_for(reference)
+            .iter()
+            .filter_map(|binding| {
+                let name = match (&binding.target, product_operand) {
+                    (BindingTarget::ProductFileAlias(name), true)
+                    | (BindingTarget::FileAlias(name), false) => name,
+                    _ => return None,
+                };
+                (name.as_ref() == alias).then_some(binding.declaration_source)
+            });
+        let source = sources.next()?;
+        sources.next().is_none().then_some(source)
+    }
+
+    /// An explicit alias on a Build operand names only the admitted Product
+    /// instance. A missing alias leaves an empty selection in that scope.
+    pub fn product_file_selection<'a>(
+        &self,
+        path: &'a str,
+        occurrence: SourceSpan,
+    ) -> Option<(Option<SourceId>, &'a str)> {
+        let (alias, member) = path.strip_prefix('|')?.split_once("|::")?;
+        let is_build = self
+            .source_file(occurrence)
+            .is_some_and(|file| file.dependency_scope == source_provenance::DependencyScope::Build);
+        Some((
+            self.file_alias_source(occurrence.source_id, alias, is_build),
+            member,
+        ))
+    }
+
+    pub fn product_file_contains(
+        &self,
+        source: Option<SourceId>,
+        path: &str,
+        reference: SourceSpan,
+        symbol: SymbolHandle,
+        is_public: bool,
+    ) -> bool {
+        let Some(declaration) = self.symbol_provenance_source_span(symbol) else {
+            return false;
+        };
+        if Some(declaration.source_id) != source
+            || !self.symbol_source_is_selected(symbol)
+            || !self
+                .symbol_is_in_dependency_scope(symbol, source_provenance::DependencyScope::Product)
+            || !(is_public || self.same_product_package_instance(reference, declaration))
+            || !self.source_reference_can_describe_product_symbol(reference, symbol)
+        {
+            return false;
+        }
+        let module = self.symbol_module(symbol);
+        let displayed = self.display_path(symbol, "::");
+        let namespace = self.display_path(module, "::");
+        displayed
+            .strip_prefix(&namespace)
+            .and_then(|name| name.strip_prefix("::"))
+            .unwrap_or(&displayed)
+            == path
+    }
+
     fn lookup_top_level_candidates(
         &self,
         name: &str,
@@ -3619,21 +3705,16 @@ impl SymbolTable {
             .strip_prefix('|')
             .and_then(|path| path.split_once("|::"))
         {
-            let mut imports = self.source_scoped_bindings_for(reference.source_id).iter().filter(|binding| {
-                matches!(&binding.target, BindingTarget::FileAlias(bound) if bound.as_ref() == alias)
-            });
-            let Some(binding) = imports.next() else {
+            let Some(source) = self.file_alias_source(reference.source_id, alias, false) else {
                 return Vec::new();
             };
-            if !reference_is_source_backed || imports.next().is_some() {
-                return Vec::new();
-            }
+            if !reference_is_source_backed { return Vec::new(); }
             return self
                 .top_level_children_matching_name(declaration, false)
                 .into_iter()
                 .filter(|symbol| {
                     self.symbol_provenance_source_span(*symbol)
-                        .is_some_and(|span| span.source_id == binding.declaration_source)
+                        .is_some_and(|span| span.source_id == source)
                         && kinds.contains(&self.get(*symbol).kind)
                         && self.source_reference_can_see_symbol(reference, *symbol)
                         && matches_candidate(*symbol)
@@ -3902,6 +3983,7 @@ impl SymbolTable {
                         BindingTarget::Module(_) => self.binding_exposes_member(binding, symbol),
                         BindingTarget::Declaration(_) => binding.declaration_source == declaration.source_id,
                         BindingTarget::FileAlias(_) => binding.declaration_source == declaration.source_id,
+                        BindingTarget::ProductFileAlias(_) => false,
                     }
                 })
     }
