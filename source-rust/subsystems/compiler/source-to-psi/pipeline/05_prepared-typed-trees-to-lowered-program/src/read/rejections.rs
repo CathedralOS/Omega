@@ -68,6 +68,8 @@ pub(super) enum Destination {
     Local,
     /// The place an assignment stores into.
     Assigned,
+    /// The element type of the array an array literal constructs.
+    ArrayElement,
 }
 
 impl Destination {
@@ -79,6 +81,7 @@ impl Destination {
             Self::Field => "the field it initializes",
             Self::Local => "the local it initializes",
             Self::Assigned => "the place it is assigned to",
+            Self::ArrayElement => "the array element it initializes",
         }
     }
 }
@@ -647,7 +650,7 @@ mod tests {
                 scalar_type: ScalarType::Integer(
                     IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
                 ),
-                policy: None,
+                qualification: Qualification::NONE,
             },
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             cleanup: None,

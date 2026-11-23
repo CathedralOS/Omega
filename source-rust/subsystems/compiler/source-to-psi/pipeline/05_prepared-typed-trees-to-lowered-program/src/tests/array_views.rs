@@ -24,7 +24,7 @@ fn array_types(access: StructuralAccess) -> IdTable<StructuralTypeId, RecordType
         true,
         crate::lowering::StorageShape::PrimitiveScalar {
             scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap()),
-            policy: None,
+            qualification: Qualification::NONE,
         },
     );
     add(

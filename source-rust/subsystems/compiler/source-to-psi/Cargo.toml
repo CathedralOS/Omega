@@ -308,6 +308,11 @@ path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/operator_selec
 required-features = ["test-support"]
 
 [[test]]
+name = "lowering_qualified_values"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/qualified_values.rs"
+required-features = ["test-support"]
+
+[[test]]
 name = "checking_requirement_interfaces"
 path = "pipeline/06_lowered-program-to-checked-program/tests/requirement_interfaces.rs"
 required-features = ["test-support"]

@@ -387,9 +387,13 @@ pub enum StorageShape {
         length: terminal_psi::ArrayExtent,
     },
     AtomicCell(semantic_vocabulary::AtomicCellType),
+    /// Addressable storage of one scalar, such as an array element. It keeps
+    /// the scalar's complete qualification: an element of `[u8 in Mark; 4]`
+    /// is a `u8 in Mark` wherever it is read, and only such a value may be
+    /// stored there (domains.md, "Carrier-exact membership").
     PrimitiveScalar {
         scalar_type: ScalarType,
-        policy: Option<Policy>,
+        qualification: Qualification,
     },
 }
 

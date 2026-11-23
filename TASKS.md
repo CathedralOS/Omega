@@ -238,8 +238,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
   - Publish the checked access plan and its field observations, aliases, input order and selected layout. Exercise the original [placed-view call](source-rust/subsystems/compiler/tests/fixtures/layouts/pass/placed_view_call_custody/main.omg) through read and write accessors.
   - Carry exact memberships and selected conformance evidence through record/case casts, qualified foreign inputs and results, and host-issued values. Exercise establishment through the selected requirement.
   - Close access policies applied at static arguments such as `IssuedBy<...>`. Settle domain changes on call results, matches, inferred locals and references at their owning expression.
-  - Lower arrays whose elements carry a domain. `machine pack(x: u8 in Policy) -> [u8 in Policy; 1] { [x] }` and a formal `a: [u8 in Policy; 4]` read as `a[i]` are refused in lowering ("type array of elements that carry a declared domain"). The element read keeps the domain, and with `domain u8::Mark requires self > 0u8` the result `a[i]` of `f(a: [u8 in Mark; 4], i: u64) -> u8 in Mark` needs no further proof.
-  - Lower a value `match` whose arms carry a domain. `let chosen = match flag { true -> a, false -> b, }; echo(chosen)` over `a, b: u8 in Km` is refused in lowering ("expression match with a qualified result").
 
   - Enforce the evaluated whole-subject reader and writer rules and prove repairs after partial writes to qualified locals and formals.
   - Complete zero initialization of locals with fields whose domains require establishment, including checked issuer evidence for each constructed field.
