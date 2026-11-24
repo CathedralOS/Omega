@@ -125,7 +125,6 @@ mod product {
                         | BuildOperation::AssumedBindingContract
                         | BuildOperation::WireCompatibilityRequest
                         | BuildOperation::TestGroupRegistration
-                        | BuildOperation::TestGroupService
                 ),
                 Self::Entry(_) | Self::ProviderReadiness(_) => false,
             }
@@ -1015,7 +1014,6 @@ impl From<BuildOperation> for AuthoredDeclarationSelectionIntrinsic {
             BuildOperation::TestGroupRegistration => {
                 Self::BuildTestGroupRegistration
             }
-            BuildOperation::TestGroupService => Self::BuildTestGroupService,
         }
     }
 }
@@ -1040,7 +1038,6 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     BuildServiceExclusion,
     BuildServiceAudit,
     BuildTestGroupRegistration,
-    BuildTestGroupService,
     BuildOptimizationSelection,
     BuildOptimizationReportRequest,
     BuildBoundaryAcceptance,

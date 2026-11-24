@@ -322,10 +322,9 @@ examples is not a recommendation: ordinary programs should reject assumed
 bindings, and helpers must not add one to make a rejected product compile.
 
 [Test-group registration](testing.md#registration-and-discovery) selects one exact
-product requirement; its group-scoped `service` operands select ordinary
-product service/provider declarations under the same rules. Build execution
-does not invoke the selected tests. The later runner discovers checked local
-satisfiers, admits their separate execution authority, and invokes them.
+product requirement. A test product selects providers for its requirements through
+ordinary `Build::select_provider`. The runner discovers checked local satisfiers,
+admits their separate execution authority, and invokes them.
 This adds no general private-symbol enumeration API to build helpers.
 
 For reusable build helpers, expose owned typed descriptions through the existing

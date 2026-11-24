@@ -2,15 +2,12 @@
 A test invocation's private in-memory filesystem, presented to the guest as the
 Linux kernel's filesystem calls (wiki/spec/build/testing.md#group-configuration-and-authority).
 
-A test group that names std's `FilesystemService` slot runs each invocation over
-state the runner creates empty, the way an operating system holds a real
-filesystem: std's ordinary POSIX provider makes the same kernel calls it makes
-on a host, and this table answers them instead of the host. Nothing here can
-reach a host path, so a program cannot widen the backing to the real
-filesystem; an absolute path names this namespace's own root.
+A runner can delegate a fresh namespace to the selected Linux provider for one
+invocation. Its kernel calls read and write this table. Absolute paths start
+at the private root and callees see the same files as their caller.
 
-The native engine runs the same invocation in a fresh mount namespace over an
-empty tmpfs, as an unprivileged root with umask 022 and a 64 MiB limit. These
+The native private-root adapter supplies an empty tmpfs with umask 022 and
+a 64 MiB limit. These
 semantics follow that kernel: owner permission bits are enforced, directory
 sizes and block counts take tmpfs's values, `dup` shares one open file
 description, and a removed file lives until its last description closes.
