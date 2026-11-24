@@ -94,14 +94,13 @@ pub(crate) fn goal(
         )
     };
     let application = lookup(module, owner, edge).map_err(invalid)?;
-    let formal = terminal_semantics::theorems::parameter(module, owner, application.proof_position)
+    let contract = terminal_semantics::theorems::applied(module, owner, application.source)
         .map_err(invalid)?;
-    let clause = formal
-        .contract
+    let clause = contract
         .requires
         .get(clause as usize)
         .ok_or_else(|| invalid("logical application has no such premise"))?;
-    terminal_semantics::theorems::substitute(&formal.contract, &application.arguments, clause)
+    terminal_semantics::theorems::substitute(&contract, &application.arguments, clause)
         .map_err(invalid)
 }
 
@@ -124,12 +123,11 @@ pub(crate) fn fill(
                 reason,
             )
         };
-        let formal =
-            terminal_semantics::theorems::parameter(module, owner, application.proof_position)
-                .map_err(invalid)?;
-        for (clause, proposition) in formal.contract.ensures.iter().enumerate() {
+        let contract = terminal_semantics::theorems::applied(module, owner, application.source)
+            .map_err(invalid)?;
+        for (clause, proposition) in contract.ensures.iter().enumerate() {
             let proposition = terminal_semantics::theorems::substitute(
-                &formal.contract,
+                &contract,
                 &application.arguments,
                 proposition,
             )

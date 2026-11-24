@@ -798,9 +798,9 @@ pub(crate) fn follow_the_lowered_form(
         .iter()
         .filter(|row| row.machine == id)
     {
-        let parameter = terminal_semantics::theorems::application(module, lowered, application)
+        let contract = terminal_semantics::theorems::application(module, lowered, application)
             .map_err(|reason| minted.foreign(Construct::Edge(application.edge), reason))?;
-        if application.requirements.len() != parameter.contract.requires.len() {
+        if application.requirements.len() != contract.requires.len() {
             return Err(minted.foreign(
                 Construct::Edge(application.edge),
                 "logical use lost a premise obligation",

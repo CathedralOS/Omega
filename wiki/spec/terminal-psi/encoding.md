@@ -42,7 +42,13 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Current marker 292 retains logical theorem parameters, their applications and
+Current marker 293 lets a theorem application name the implication it applies
+by its proof source: an erased proof formal of the owner, as before, or a named
+machine that does no work, whose contract is the implication. A citation of
+such a machine is then a fact-only invocation that emits no call. Readers reject
+earlier markers before reading the payload.
+
+Marker 292 retains logical theorem parameters, their applications and
 explicit proof supplies. An erased proof formal starts with a source-kind tag
 (1 for an ordinary value parameter, 2 for a generic parameter), followed by
 its source position and mathematical type identity. Calling-application operand
@@ -2813,12 +2819,18 @@ than an executable callback. Each table below is counted; its keys are strictly
 increasing. Parameter keys are `(machine, proof position)`, application keys are
 `(machine, edge)`, and supply keys are `(machine, invocation site, proof position)`.
 The proof position indexes the owning machine's erased proof formals.
+An application's proof source is either that position or a named machine. A
+named machine does no work: it returns nothing, has one block with no
+operations that returns, no structural parameters, erased proof formals,
+crash routes, reach, suspension or blocking. Its subjects
+are its scalar formals and then its erased scalar formals, numbered from one,
+and its implication is its `requires` and `ensures`.
 
 | Row | Fields |
 | --- | --- |
 | theorem contract | counted scalar formal declarations + counted requires propositions + counted ensures propositions |
 | theorem parameter | owner machine id + `u32` proof position + theorem contract |
-| theorem application | owner machine id + edge id + successor block id + `u32` proof position + counted fixed scalar subjects + counted premise obligation ids |
+| theorem application | owner machine id + edge id + successor block id + proof source + counted fixed scalar subjects + counted premise obligation ids |
 | theorem supply | caller machine id + invocation site + `u32` proof position + proof source + counted certificate envelopes |
 | proof source | `u8`: 1 + cited machine id; 2 + `u32` caller proof-formal position |
 
@@ -3182,7 +3194,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 292 | yes |
+| semantic module | `PSITERM\0` | 293 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

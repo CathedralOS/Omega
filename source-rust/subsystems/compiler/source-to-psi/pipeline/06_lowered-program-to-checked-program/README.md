@@ -122,10 +122,13 @@ declared, and the kernel checks the proof. A requirement with no proof
 refuses the program where the literal is written: "cannot prove what
 `Vector::Cons` requires of the value built here in `room`".
 
-A running machine that cites such a theorem calls it, and imports its
-`ensures` after the call like any callee's guarantee. The theorem's own
-machine has no statements, so its guarantee has no proof among the
-machines. The signature has one: the signature is judged before the
+A running machine that cites such a theorem does not call it: the
+citation is a theorem application that names the theorem's machine, and the
+machine imports the theorem's `ensures` after it as from a proof formal
+(`theorems.rs`; `terminal_semantics::theorems::named_contract` takes the
+implication from a named machine only when its body does nothing). The
+theorem's own machine has no statements, so its guarantee has no proof
+among the machines. The signature has one: the signature is judged before the
 machines, and a machine whose `ensures` clause a proved law states for
 every value of its formals (`LawJudgment::theorem`, set by `prove_family`)
 takes that law as the clause's proof (`Discharged::Law` in

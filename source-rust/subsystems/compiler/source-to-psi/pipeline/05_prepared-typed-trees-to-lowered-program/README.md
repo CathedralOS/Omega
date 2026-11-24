@@ -148,16 +148,18 @@ and nothing reads it, so the two readers split the work:
 - The ordinary reader lowers each erased formal or local of the family's type
   as an erased Boolean nothing reads (`families::evidence_witness`) and does
   not read its initializer. A citation `vector_bound::<Length, Total>(evidence);`
-  is an ordinary call, and the caller imports the theorem's `ensures` at the
-  call's values from there on, as the
+  emits no call. The caller imports the theorem's `ensures` at the call's
+  values from there on, as the
   [citation rule](../../../../../../wiki/spec/proofs/contracts.md#citation-and-induction)
-  says. The citing machine's `requires` stays as its author wrote it. The
-  theorem itself is read as a machine with its formals, its contract and no
-  statements: its body is an induction over evidence, which nothing runs,
+  says, and the citing machine's `requires` stays as its author wrote it.
+  The theorem itself is read as a machine with its formals, its contract and
+  no statements: its body is an induction over evidence, which nothing runs,
   and stage 06 takes the signature's proof of the theorem as the proof of
-  its guarantee (`Discharged::Law`). The call is lowered and runs, as an
-  empty machine; the specification erases a call made only for its
-  guarantee, and that is not done yet.
+  its guarantee (`Discharged::Law`). Because that machine does no work, the
+  reader turns the call into a theorem application that names it
+  (`cite_theorem` in `read/statements.rs`), and lowering emits a jump that
+  owes the theorem's `requires` on its edge and has its `ensures` after it,
+  as for a proof formal. The rule calls this erasing a fact-only call.
 - The mathematical reader checks every use of the evidence
   (`evidence_uses`). A value is built only by a case literal in an erased
   local, each child of the literal must be evidence the machine holds at the

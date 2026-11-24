@@ -152,39 +152,87 @@ impl Lowering<'_> {
 
     fn theorem_application(
         &mut self,
-        proof_position: u32,
+        theorem: terminal_psi::TheoremSource,
         arguments: &[Expression],
         source: SourceOrigin,
     ) -> Checked<()> {
-        let parameter = self
-            .signatures
-            .theorems
-            .iter()
-            .find(|parameter| {
-                parameter.machine == self.id && parameter.proof_position == proof_position
-            })
-            .ok_or_else(|| self.internal("logical application has no declared proof formal"))?;
-        if arguments.len() != parameter.contract.parameters.len() {
-            return Err(self.internal("logical application has another subject telescope"));
-        }
-        let requires = parameter.contract.requires.len();
-        let formal_types: Vec<_> = parameter
-            .contract
-            .parameters
-            .iter()
-            .map(|formal| formal.scalar_type)
-            .collect();
-        let arguments = arguments
-            .iter()
-            .zip(formal_types)
-            .map(|(argument, formal)| {
-                let subject = self.witness(argument)?.term(&self.erased_applications);
-                if subject.scalar_type() != formal {
-                    return Err(self.internal("logical application has another subject carrier"));
+        let (requires, arguments) = match theorem {
+            terminal_psi::TheoremSource::Formal(proof_position) => {
+                let parameter = self
+                    .signatures
+                    .theorems
+                    .iter()
+                    .find(|parameter| {
+                        parameter.machine == self.id && parameter.proof_position == proof_position
+                    })
+                    .ok_or_else(|| {
+                        self.internal("logical application has no declared proof formal")
+                    })?;
+                if arguments.len() != parameter.contract.parameters.len() {
+                    return Err(self.internal("logical application has another subject telescope"));
                 }
-                Ok(subject)
-            })
-            .collect::<Checked<Vec<_>>>()?;
+                let requires = parameter.contract.requires.len();
+                let formal_types: Vec<_> = parameter
+                    .contract
+                    .parameters
+                    .iter()
+                    .map(|formal| formal.scalar_type)
+                    .collect();
+                let arguments = arguments
+                    .iter()
+                    .zip(formal_types)
+                    .map(|(argument, formal)| {
+                        let subject = self.witness(argument)?.term(&self.erased_applications);
+                        if subject.scalar_type() != formal {
+                            return Err(
+                                self.internal("logical application has another subject carrier")
+                            );
+                        }
+                        Ok(subject)
+                    })
+                    .collect::<Checked<Vec<_>>>()?;
+                (requires, arguments)
+            }
+            // A named machine's subjects are its scalar formals and then its
+            // erased ones, as Terminal Psi numbers them
+            // (`terminal_semantics::theorems::named_contract`).
+            terminal_psi::TheoremSource::Named(callee) => {
+                let signature = terminal_check_tables::row(
+                    self.signatures.machines,
+                    callee,
+                    self.id,
+                    Construct::Machine,
+                )?;
+                if signature.result.is_some()
+                    || !signature.borrowed.is_empty()
+                    || arguments.len() != signature.parameters.len()
+                {
+                    return Err(self.internal("named theorem application has another telescope"));
+                }
+                let mut scalars = Vec::with_capacity(arguments.len());
+                let mut erased = Vec::new();
+                for (position, (argument, formal)) in
+                    arguments.iter().zip(&signature.parameters).enumerate()
+                {
+                    let ValueType::Scalar(formal, _) = formal else {
+                        return Err(self.internal("named theorem formal that is no scalar"));
+                    };
+                    let subject = self.witness(argument)?.term(&self.erased_applications);
+                    if subject.scalar_type() != *formal {
+                        return Err(
+                            self.internal("logical application has another subject carrier")
+                        );
+                    }
+                    if signature.is_erased(position) {
+                        erased.push(subject);
+                    } else {
+                        scalars.push(subject);
+                    }
+                }
+                scalars.extend(erased);
+                (signature.requires.len(), scalars)
+            }
+        };
         let successor = self.block(source);
         let edge = self.edge(
             terminal_check_tables::edges::Destination::Block(successor),
@@ -213,7 +261,7 @@ impl Lowering<'_> {
                 machine: self.id,
                 edge,
                 successor,
-                proof_position,
+                source: theorem,
                 arguments,
                 requirements,
             });
@@ -286,10 +334,10 @@ impl Lowering<'_> {
         };
         match &expression.kind {
             ExpressionKind::TheoremApplication {
-                proof_position,
+                source: theorem,
                 arguments,
             } => {
-                self.theorem_application(*proof_position, arguments, source)?;
+                self.theorem_application(*theorem, arguments, source)?;
                 Ok(Reached::Value(Value::Unit))
             }
             ExpressionKind::Atomic(operation) => match operation {

@@ -62,7 +62,49 @@ impl Program<'_> {
             crate::source_state::SourceNode::Statement(handle),
             call.source_span,
         )?;
-        self.call_statement(id, slots, call, source)
+        let mut called = self.call_statement(id, slots, call, source)?;
+        self.cite_theorem(&mut called);
+        Ok(called)
+    }
+
+    /// A machine that runs cites a theorem over indexed data by calling it.
+    /// The theorem does no work, so the call is a fact-only invocation and
+    /// emits no call: contracts.md, "Citation and induction": "Establish its
+    /// `requires` under exact operand substitution before importing its
+    /// `ensures`; erase the call if fact-only." The call becomes a theorem
+    /// application that names the theorem's machine. A mathematical body
+    /// is read as a proof instead, where a citation is the theorem itself.
+    fn cite_theorem(&self, called: &mut crate::lowering::body::Expression) {
+        use crate::lowering::body::{CallTarget, ExpressionKind};
+        if self.mathematical {
+            return;
+        }
+        let ExpressionKind::Call {
+            callee: CallTarget::Machine(callee),
+            required_contract: None,
+            static_reach_binding: None,
+            static_reach_arguments,
+            proof_arguments,
+            arguments,
+            designated: None,
+        } = &mut called.kind
+        else {
+            return;
+        };
+        if !static_reach_arguments.is_empty() || !proof_arguments.is_empty() {
+            return;
+        }
+        let theorem = self
+            .symbols
+            .get(*callee)
+            .and_then(|symbol| self.typed.machine_by_own_or_state_symbol(*symbol))
+            .is_some_and(|machine| self.is_family_theorem(machine));
+        if theorem {
+            called.kind = ExpressionKind::TheoremApplication {
+                source: terminal_psi::TheoremSource::Named(*callee),
+                arguments: std::mem::take(arguments),
+            };
+        }
     }
 
     /// A slice formal carries a descriptor for borrowed backing. A whole

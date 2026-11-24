@@ -26,12 +26,18 @@ pub struct TheoremParameter {
 /// One proof application continues on its own ordinary control-flow edge.
 /// Its conclusions are available only in the successor, after every supplied
 /// premise has been checked on that edge under the captured substitution.
+///
+/// `source` names the implication: one of the owner's erased proof formals,
+/// or a named machine that does no work, whose contract is the implication.
+/// A named application is a fact-only invocation: contracts.md, "Citation
+/// and induction": "Establish its `requires` under exact operand substitution
+/// before importing its `ensures`; erase the call if fact-only."
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TheoremApplication {
     pub machine: MachineId,
     pub edge: EdgeId,
     pub successor: BlockId,
-    pub proof_position: u32,
+    pub source: TheoremSource,
     pub arguments: Vec<ScalarTerm>,
     pub requirements: Vec<ObligationId>,
 }
