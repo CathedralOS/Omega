@@ -702,32 +702,73 @@ pub fn borrowed_loan_sources<'a>(
             &descriptor.path,
         )
         .ok_or("provider borrow has no exact descriptor path")?;
-        let shared_reference =
-            crate::runtime_structural_path_tip(module.types.structural_types.iter(), root, &path)
-                .is_some_and(|row| {
-                    matches!(
-                        row.shape,
-                        StructuralTypeShape::Reference {
-                            access: StructuralAccess::SharedBorrow,
-                            ..
-                        }
-                    )
-                });
-        if shared_reference {
-            // Owning the reference carrier does not own its referent.
-            // Check the admitted leaf's permission at that crossing.
+        let reference_access = crate::runtime_structural_path_tip(
+            module.types.structural_types.iter(),
+            root,
+            &path,
+        )
+        .and_then(|row| match row.shape {
+            StructuralTypeShape::Reference {
+                access: access @ (StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+                ..
+            } => Some(access),
+            _ => None,
+        });
+        if reference_access.is_some() {
             path.push(StructuralPathSegment::Referent);
         }
-        if !(view || shared_reference)
+        let access = reference_access.unwrap_or(StructuralAccess::SharedBorrow);
+        if !(view || reference_access.is_some())
             || crate::structural_projection_authority(
                 machine,
                 &module.types.structural_types,
                 &terminal_psi::StructuralArgument {
                     place: descriptor.root,
                     path,
-                    access: StructuralAccess::SharedBorrow,
+                    access,
                 },
-            ) != Some(StructuralAccess::SharedBorrow)
+            ) != Some(access)
+        {
+            return Err("a writable provider borrow needs its exact payload region");
+        }
+        // A mutable reference can lend its provider's storage when every possible
+        // result grants exclusive access. A writable input debt could be the
+        // original storage; that case still needs a captured write footprint.
+        if access == StructuralAccess::MutableBorrow
+            && !origins.iter().all(|origin| {
+                use crate::descriptor_results::{DescriptorProviderOutput, DescriptorSourceOrigin};
+                let DescriptorSourceOrigin::Provider(provider) = origin else {
+                    return false;
+                };
+                let DescriptorProviderOutput::Result(path) = &provider.output else {
+                    return false;
+                };
+                let Some(boundary) = module.boundary_machine(provider.boundary) else {
+                    return false;
+                };
+                let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result
+                else {
+                    return false;
+                };
+                provider
+                    .lifetime_dependencies
+                    .iter()
+                    .all(|debt| debt.access == StructuralAccess::SharedBorrow)
+                    && crate::runtime_structural_path_tip(
+                        module.types.structural_types.iter(),
+                        result.structural_type,
+                        path,
+                    )
+                    .is_some_and(|row| {
+                        matches!(
+                            row.shape,
+                            StructuralTypeShape::Reference {
+                                access: StructuralAccess::MutableBorrow,
+                                ..
+                            }
+                        )
+                    })
+            })
         {
             return Err("a writable provider borrow needs its exact payload region");
         }

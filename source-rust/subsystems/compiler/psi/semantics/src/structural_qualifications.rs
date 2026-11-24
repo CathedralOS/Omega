@@ -711,12 +711,13 @@ impl<'a> DefaultRequirements<'a> {
     /// and exact backing. The producer and checker use the same stable order.
     pub fn operation(
         &self,
+        module: &TerminalModule,
         operation: &Operation,
         before: crate::descriptor_lifetimes::DescriptorPosition,
         references: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
     ) -> Judged<Vec<DefaultRequirement>> {
         let mut result = self.declared_operation(operation)?;
-        self.changed_storage(operation, before, references, &mut |changed| {
+        self.changed_storage(module, operation, before, references, &mut |changed| {
             match changed {
                 Changed::Containing { root, path } => {
                     self.append_unique(&mut result, self.owners(root, &path)?)
@@ -740,6 +741,7 @@ impl<'a> DefaultRequirements<'a> {
     /// destination's exact domains.
     pub fn routed_owners(
         &self,
+        module: &TerminalModule,
         operation: &Operation,
         before: crate::descriptor_lifetimes::DescriptorPosition,
         references: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
@@ -751,7 +753,7 @@ impl<'a> DefaultRequirements<'a> {
         for (root, path) in self.displayed_containers(operation) {
             self.append_routed(&mut result, root, &path);
         }
-        self.changed_storage(operation, before, references, &mut |changed| {
+        self.changed_storage(module, operation, before, references, &mut |changed| {
             match changed {
                 Changed::Containing { root, path } => {
                     self.append_routed(&mut result, root, &path)
@@ -791,7 +793,7 @@ impl<'a> DefaultRequirements<'a> {
         before: crate::descriptor_lifetimes::DescriptorPosition,
         references: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
     ) -> Judged<Option<RoutedOwner>> {
-        for owner in self.routed_owners(operation, before, references)? {
+        for owner in self.routed_owners(module, operation, before, references)? {
             let routes = self
                 .domains
                 .binary_search_by_key(&owner.domain, |row| row.id)
@@ -842,6 +844,7 @@ impl<'a> DefaultRequirements<'a> {
     /// captured address to the lender that actually holds it.
     fn changed_storage<'operation>(
         &self,
+        module: &TerminalModule,
         operation: &'operation Operation,
         before: crate::descriptor_lifetimes::DescriptorPosition,
         references: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
@@ -880,7 +883,7 @@ impl<'a> DefaultRequirements<'a> {
                         descriptor.path.to_vec()
                     };
                     for (root, mut selected) in
-                        self.backings(descriptor.root, &selected, true, before, references)?
+                        self.backings(module, descriptor.root, &selected, true, before, references)?
                     {
                         selected.extend_from_slice(path);
                         selected.pop(); // Only the containing owner carries the default.
@@ -900,7 +903,9 @@ impl<'a> DefaultRequirements<'a> {
                     | OperationKind::StructuralByteViewFieldStore { field: None, .. }
                     | OperationKind::AtomicAccess { .. }
             );
-            for (owner, mut selected) in self.backings(root, &path, payload, before, references)? {
+            for (owner, mut selected) in
+                self.backings(module, root, &path, payload, before, references)?
+            {
                 if replaces_whole {
                     visit(Changed::Replaced {
                         displayed_root: root,
@@ -926,9 +931,14 @@ impl<'a> DefaultRequirements<'a> {
             ) {
                 continue;
             }
-            for (root, mut path) in
-                self.backings(argument.place, &argument.path, true, before, references)?
-            {
+            for (root, mut path) in self.backings(
+                module,
+                argument.place,
+                &argument.path,
+                true,
+                before,
+                references,
+            )? {
                 // The callee maintains its displayed domains. Each possible
                 // lender still owes its own hidden and enclosing rules.
                 visit(Changed::Replaced {
@@ -976,6 +986,7 @@ impl<'a> DefaultRequirements<'a> {
 
     fn backings(
         &self,
+        module: &TerminalModule,
         root: PlaceId,
         path: &[StructuralPathSegment],
         payload: bool,
@@ -1005,6 +1016,48 @@ impl<'a> DefaultRequirements<'a> {
                 ))
         {
             return Ok(vec![(root, path.to_vec())]);
+        }
+        // A provider-owned referent has displayed defaults but no enclosing
+        // guest object. A mutable lender tied to an exclusive input is not
+        // enough to establish this distinction.
+        if let Some(crossing) = path
+            .iter()
+            .position(|step| *step == StructuralPathSegment::Referent)
+            && path[crossing + 1..]
+                .iter()
+                .all(|step| matches!(step, StructuralPathSegment::Field(_)))
+            && let Some(descriptor) = crate::descriptor_lifetimes::descriptor_location(
+                self.types,
+                root,
+                ty,
+                &path[..crossing],
+                None,
+            )
+            && references
+                .symbolic_source_origins(self.machine.id, before, &descriptor)
+                .is_some_and(|origins| {
+                    !origins.is_empty()
+                        && origins.iter().all(|origin| {
+                            matches!(
+                                origin,
+                                crate::descriptor_results::DescriptorSourceOrigin::Provider(_)
+                            )
+                        })
+                })
+            && matches!(
+                crate::borrowed_loan_source(
+                    module,
+                    self.machine,
+                    references,
+                    before,
+                    &descriptor,
+                    std::iter::empty(),
+                )
+                .map_err(|detail| self.error(detail))?,
+                crate::BorrowedLoanSource::Provider
+            )
+        {
+            return Ok(Vec::new());
         }
         let split = path
             .iter()

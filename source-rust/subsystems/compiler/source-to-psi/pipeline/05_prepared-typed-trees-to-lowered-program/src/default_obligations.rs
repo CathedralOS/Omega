@@ -75,7 +75,7 @@ pub(crate) fn install(
                     .get(operation.id)
                     .ok_or_else(|| unavailable("default restoration lost its operation source"))?;
                 let clauses = required
-                    .operation(operation, (block.id, position), &mut references)
+                    .operation(module, operation, (block.id, position), &mut references)
                     .map_err(|error| {
                         refuse(
                             machine.id,

@@ -828,11 +828,14 @@ edge and no edge disposes of it. A returned view can instead keep the input
 loans alive until that view's last use. Those dependencies restrict access to
 the inputs; they do not make the result's pointer an alias of an input.
 
-An admitted provider contract can establish a stable shared view whose address
-is unknown. That permission can coexist with an independent mutable object of
-the caller. The input loans still prevent mutating an input the view depends
-on, and the provider permission cannot authorize mutable access. The overlap
-check still requires exact known places.
+A boundary may return a shared or mutable reference to provider storage.
+Each scalar field read observes the provider's current value. A mutable
+reference can write an ordinary scalar field when every possible return
+grants that permission and the result has only shared input dependencies.
+Those dependencies keep their original loans alive. The checker requires a
+captured address for a write that may reach an exclusive input. Two provider
+borrows with overlapping lifetimes still need evidence of disjointness when
+either borrows exclusively.
 
 A loan formed for a call with no normal return (an `InvokeNoNormal` or
 `ExternalCompletion` terminator) is carried into that transfer. Its edge must
