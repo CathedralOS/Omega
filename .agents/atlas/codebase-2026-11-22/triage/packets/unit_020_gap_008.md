@@ -7,8 +7,8 @@ corrected by [#5376](https://github.com/CathedralOS/Omega/pull/5376). Each place
 either cannot be reached or ends in a refusal.
 
 Running the owning `image-elf` fixtures found an unrelated build break on `main`. The break is outside this slice
-and is listed under "Build break found while running the fixtures". It is repaired in this PR's two `omega:`
-commits.
+and is listed under "Build break found while running the fixtures". [#5427](https://github.com/CathedralOS/Omega/pull/5427)
+repaired it while this review was in progress. This PR changes only the ledger.
 
 Evidence baseline: `main` at `24ad2700685e6cc6062026c87ed5fd24ed415265`, read at
 `a0152d26` (two later commits touch neither file). Survey revision `4f3c255d05599c11b1ea8ac668635f15f2a6eb86`.
@@ -52,7 +52,7 @@ None.
 
 | Finding | Source | Reproducer and trace | Outcome |
 | --- | --- | --- | --- |
-| The native compiler does not compile on `main`. [#5393](https://github.com/CathedralOS/Omega/pull/5393) added `Proposition::DeclarationIdentity`, but `encode_proposition` in the native optimization-unit identity still matches the old variant list. | `source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit/src/identity.rs`, `proposition_encoding::encode_proposition` | `CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx test -p image-elf --lib < /dev/null` on `a0152d26` fails with `error[E0004]: non-exhaustive patterns: &semantic_vocabulary::Proposition::DeclarationIdentity(_) not covered` at `identity.rs:267`, exit 101. #5393 is in the baseline `24ad2700`. When this was found, no open PR touched the crate. | **Fixed** in this PR. The encoder writes tag 23, the portable encoder's tag, then each clause value's carrier and operand and the left and right positions. Published Psi still refuses the form (`psi/artifact/wire/src/foundation_validation.rs:6080`). The identity encodes the form in full rather than skipping it. Fixture: `identity::proposition_encoding::tests::declaration_identity_encodes_every_clause_field`. |
+| The native compiler does not compile on `main`. [#5393](https://github.com/CathedralOS/Omega/pull/5393) added `Proposition::DeclarationIdentity`, but `encode_proposition` in the native optimization-unit identity still matches the old variant list. | `source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit/src/identity.rs`, `proposition_encoding::encode_proposition` | `CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx test -p image-elf --lib < /dev/null` on `a0152d26` fails with `error[E0004]: non-exhaustive patterns: &semantic_vocabulary::Proposition::DeclarationIdentity(_) not covered` at `identity.rs:267`, exit 101. #5393 is in the baseline `24ad2700`. When this was found, no open PR touched the crate. | **Fixed** in [#5427](https://github.com/CathedralOS/Omega/pull/5427), which merged during this review. That change writes tag 23, the portable encoder's tag, then each clause value's carrier and operand and the left and right positions. Published Psi still refuses the form (`psi/artifact/wire/src/foundation_validation.rs:6080`). Fixture: `declaration_identity_commits_its_cited_declaration`. An equivalent local repair was written and tested, then dropped as a duplicate. |
 
 ## Inventory and duplication leads
 
@@ -74,11 +74,7 @@ refactor, not a defect.
 
 - Before the repair, on `a0152d26`: `CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx test -p image-elf --lib < /dev/null` failed to
   compile `optimization-unit` with E0004 (`Proposition::DeclarationIdentity` not covered), exit 101.
-- After the repair: `CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx test -p optimization-unit --lib < /dev/null`: 15 passed,
-  0 failed. This includes the new `declaration_identity_encodes_every_clause_field`.
-- After the repair: `CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx test -p image-elf --lib < /dev/null`: 138 passed, 0 failed.
-  These are the owning fixtures cited above.
-- `mbx clippy -p optimization-unit --all-targets -- -D warnings`: clean.
-- `rustfmt --check` on `identity.rs` reports only one diff, at the `StorageLocationQuery` match near line 5180. It
-  predates this change. `mbx xtask fmt --check` reports many other files that this PR does not touch.
-- No global compiler build, sample gate or end-to-end native run was performed.
+- On `main` at `08a667b1`, which includes #5427, plus this ledger:
+  `CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx test -p image-elf --lib < /dev/null` gives 138 passed, 0 failed. These are
+  the owning fixtures cited above.
+- No code is changed. No global compiler build, sample gate or end-to-end native run was performed.
