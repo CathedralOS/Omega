@@ -11,7 +11,6 @@ use representations\syntax_trees\ReferenceAccess;
 use representations\syntax_trees\SyntaxTrees;
 use representations\syntax_trees\TransitionArm;
 use representations\syntax_trees\machine_item;
-use representations\syntax_trees\syntax_trees_argument;
 use representations\syntax_trees\syntax_trees_arm;
 use representations\syntax_trees\syntax_trees_expression;
 use representations\syntax_trees\syntax_trees_match_arm;
@@ -52,13 +51,31 @@ public data Hold [copy] {
     case Exclusive(place: u64 in Trapping);
 }
 
+// Only a selected machine or binder establishes an invocation for binary syntax.
+// Builtin arithmetic and indexing keep their ordinary expression semantics.
+public machine called_binary(typing: @Typing, expression: Expression, handle: u64 in Trapping) -> bool
+crashes Trap
+{
+    transition expression.kind == ExpressionKind::Binary {
+        true -> selected(typing, handle),
+        _ -> false
+    }
+    machine selected(typing: @Typing, handle: u64 in Trapping) -> bool {
+        let selection: Selection = typing_selection(typing, handle);
+        let called: bool = selects_machine(selection);
+        called
+    }
+}
+
 // A call's arguments, pairwise: an earlier argument's hold against every
 // access of a later one.
 public machine check_holds(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping)
 crashes Trap
 {
     let expression: Expression = syntax_trees_expression(syntax, handle);
-    transition expression.kind == ExpressionKind::Call && expression.count > 1 && checker.output.machine_accepted {
+    let invocation: bool = expression.kind == ExpressionKind::Call || called_binary(typing, expression, handle);
+    let count: u64 in Trapping = operand_count(expression);
+    transition invocation && count > 1 && checker.output.machine_accepted {
         true -> called(checker, syntax, resolution, typing, handle, expression),
         _ -> done()
     }
@@ -67,7 +84,7 @@ crashes Trap
         let selection: Selection = typing_selection(typing, handle);
         let first_parameter: u64 in Trapping = callee_parameters(syntax, selection);
         let terminal: bool = terminal_call(checker, handle);
-        transition { _ -> earlier(checker, syntax, resolution, typing, expression, terminal, first_parameter, 0) }
+        transition { _ -> earlier(checker, syntax, resolution, typing, expression, terminal, first_parameter, 0 as +Trapping) }
     }
 
     machine earlier(
@@ -80,7 +97,8 @@ crashes Trap
         first_parameter: u64 in Trapping,
         index: u64 in Trapping
     ) {
-        transition index + 1 < expression.count && checker.output.machine_accepted {
+        let count: u64 in Trapping = operand_count(expression);
+        transition index + 1 < count && checker.output.machine_accepted {
             true -> held(checker, syntax, resolution, typing, expression, terminal, first_parameter, index),
             _ -> done()
         }
@@ -96,7 +114,7 @@ crashes Trap
         first_parameter: u64 in Trapping,
         index: u64 in Trapping
     ) {
-        let argument: u64 in Trapping = syntax_trees_argument(syntax, expression.first + index);
+        let argument: u64 in Trapping = checker_operand(syntax, expression, index);
         let hold: Hold = argument_hold(syntax, typing, argument);
         let forwards: bool = terminal && forwards_reference(syntax, resolution, typing, argument);
         let shared: bool = shared_parameter(syntax, typing, first_parameter, index);
@@ -172,26 +190,11 @@ crashes Trap
         forwards: bool,
         other: u64 in Trapping
     ) {
-        transition other < expression.count && checker.output.machine_accepted {
-            true -> paired(checker, syntax, resolution, typing, expression, terminal, place, exclusive, forwards, other),
+        let count: u64 in Trapping = operand_count(expression);
+        transition other < count && checker.output.machine_accepted {
+            true -> scanned(checker, syntax, resolution, typing, expression, terminal, place, exclusive, forwards, other),
             _ -> done()
         }
-    }
-
-    machine paired(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
-        typing: @Typing,
-        expression: Expression,
-        terminal: bool,
-        place: u64 in Trapping,
-        exclusive: bool,
-        forwards: bool,
-        other: u64 in Trapping
-    ) {
-        let argument: u64 in Trapping = syntax_trees_argument(syntax, expression.first + other);
-        transition { _ -> scanned(checker, syntax, resolution, typing, expression, terminal, place, exclusive, forwards, other) }
     }
 
     machine scanned(
@@ -206,7 +209,7 @@ crashes Trap
         forwards: bool,
         other: u64 in Trapping
     ) {
-        let argument: u64 in Trapping = syntax_trees_argument(syntax, expression.first + other);
+        let argument: u64 in Trapping = checker_operand(syntax, expression, other);
         let argument_type: u64 in Trapping = typing_expression_type(typing, argument);
         let copied: bool = forwards && !holds_references(syntax, typing, argument_type);
         scan_accesses(checker, syntax, resolution, typing, argument, place, exclusive, copied);
@@ -230,7 +233,7 @@ machine retained_holds(
 )
 crashes Trap
 {
-    let argument: u64 in Trapping = syntax_trees_argument(syntax, expression.first + index);
+    let argument: u64 in Trapping = checker_operand(syntax, expression, index);
     let tree: Expression = syntax_trees_expression(syntax, argument);
     transition { _ -> next(checker, syntax, resolution, typing, expression, terminal, index, argument, tree.first_row) }
 
@@ -327,7 +330,8 @@ crashes Trap
 
     machine enclosed(syntax: @SyntaxTrees, typing: @Typing, node: u64 in Trapping, root: u64 in Trapping, enclosing: u64 in Trapping, found: bool) -> bool {
         let expression: Expression = syntax_trees_expression(syntax, enclosing);
-        let call: bool = expression.kind == ExpressionKind::Call && expression.first_row <= node;
+        let invocation: bool = expression.kind == ExpressionKind::Call || called_binary(typing, expression, enclosing);
+        let call: bool = invocation && expression.first_row <= node;
         transition call {
             true -> completed(syntax, typing, node, root, enclosing),
             _ -> next(syntax, typing, node, root, enclosing + 1, found)
@@ -501,7 +505,9 @@ crashes Trap
     ) {
         let relation: PlaceRelation = path_relation(syntax, resolution, typing, node, place, true);
         let excludes: bool = exclusive_access(typing, node, role);
-        let same_root: bool = path_root(syntax, resolution, typing, node, true) == path_root(syntax, resolution, typing, place, true);
+        let access_root: u64 in Trapping = path_root(syntax, resolution, typing, node, true);
+        let held_root: u64 in Trapping = path_root(syntax, resolution, typing, place, true);
+        let same_root: bool = access_root == held_root;
         let snapshot: bool = copied && !excludes && same_root && relation == PlaceRelation::Inside;
         let conflict: bool = relation != PlaceRelation::Apart && (exclusive || excludes) && !snapshot;
         transition conflict {
