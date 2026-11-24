@@ -1081,10 +1081,11 @@ kernel, from the library file as it stands.
   that state a law; the call of itself at a field of the case is the
   induction hypothesis. A nested machine that states nothing is read in
   place where it is called.
-- **Cost.** The twelve library laws that program pulls in take 1,574 to
-  13,358 kernel conversion steps each, about 67,000 together, every time
-  such a program is compiled, because the library is compiled from source
-  with it.
+- **Cost.** The twelve library laws that program pulls in took 1,574 to
+  13,358 kernel conversion steps each when this landed, about 67,000
+  together, every time such a program is compiled, because the library is
+  compiled from source with it. The repair recorded below cut each by five to
+  eight times.
 - **Laws with a premise.** Eleven of `nat.omg`'s lemmas state a `requires`
   equality (`add_cancel`, `le_of_succ_le`, `sub_lt`). A premise is bound in
   the law's statement after its formals, is a hypothesis of each case, and is
@@ -1096,8 +1097,28 @@ kernel, from the library file as it stands.
   normalizes again after each rewrite. With that, the kernel judges every
   law in the file but the three below: 34 laws when the file's declarations
   are compiled as a program (`every_law_of_nat_but_three_recursions_is_judged`).
-  The largest, `sub_lt_of_le`, takes 42,717 kernel conversion steps of the
-  65,536 budget, so the budget is close.
+  The largest, `sub_lt_of_le`, took 42,717 kernel conversion steps of the
+  65,536 budget when this landed; the next bullet brought the largest down
+  to 5,628 (`sub_lt`).
+- **Where the kernel's steps went, and the repair (2026-11-24).** Search is
+  not the cost: it spends 5 to 20 conversion steps per law. The kernel's one
+  check of the finished proof is. One computation, `plus(Succ(m), b)` to
+  `Succ(plus(m, b))`, cost 4,512 steps and 56,708 scratch terms, because the
+  induction principle carried its step over raw trees inline, and the kernel
+  checked that whole step again each time unfolding exposed it in a
+  recursion it could not finish. The step, and the step of the
+  canonical-tree condition, are now declarations of their own, so the kernel
+  reads their types from the signature. The same computation costs 546
+  steps. Per law: associativity 11,817 to 2,176, the two distributivity laws
+  about 7,320 to about 1,660, commutativity 3,529 to 1,105, the seven laws of
+  the library conformance 847 to 2,176 each. Declaring a type: two cases 964
+  to 816, four unary cases 59,242 to 10,463. What remains is the price of
+  the encoding itself: under raw trees the associativity law took 1,148, and
+  one computation is still hundreds of steps where a built-in inductive
+  type would take about one. Whether to keep W types on that measurement is
+  [owner question 6](../../../OWNER_QUESTIONS.md#recursive-data-as-w-types).
+  Each law still re-checks the declarations before it, about 1,000 steps a
+  law, which a shared check would remove.
 - **Not done: `mod`, `div` and `gcd`.** Their recursion is on
   `saturating_sub(a, b)`, not on a field of the dispatched case, so they need
   recursion justified by a decreasing measure, which the signature does not
