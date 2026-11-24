@@ -148,7 +148,21 @@ impl PolicySource<'_> {
                 _ => return Err(unavailable("this callable's supply and authority contract")),
             };
             let identity = self.nominal(declaration.symbol)?;
-            if let Some(generic) = self.generic_callable(declaration.symbol, &identity)? {
+            let generic = self
+                .generic_callable(declaration.symbol, &identity)
+                .map_err(|mut findings| {
+                    let mut context = Diagnostic::note(format!(
+                        "while reviewing public generic `{}`",
+                        identity.path
+                    ));
+                    context.source_span = self
+                        .typed()
+                        .symbols
+                        .symbol_provenance_source_span(declaration.symbol);
+                    findings.push(context);
+                    findings
+                })?;
+            if let Some(generic) = generic {
                 rows.push(generic);
                 continue;
             }
