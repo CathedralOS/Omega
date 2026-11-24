@@ -4202,8 +4202,7 @@ impl<'a> Lowering<'a> {
         base: &Expression,
         case: usize,
         field: usize,
-        scalar_type: ScalarType,
-        source: SourceOrigin,
+        expression: &Expression,
     ) -> Evaluation<Value> {
         let at = continuing!(self.located(base));
         let bound = self
@@ -4235,7 +4234,7 @@ impl<'a> Lowering<'a> {
         let leaf = self.step(at.place, step)?;
         let mut steps = at.path;
         steps.push(step);
-        self.read_projected_scalar(at.root, leaf, &steps, scalar_type, source)
+        self.read_projected_scalar(at.root, leaf, &steps, expression)
             .map(Reached::Value)
     }
 
@@ -4285,36 +4284,68 @@ impl<'a> Lowering<'a> {
         root: PlaceId,
         leaf: ExactPlaceId,
         steps: &[Step],
-        scalar_type: ScalarType,
-        source: SourceOrigin,
+        expression: &Expression,
     ) -> Checked<Value> {
         if let Some((view, index, position)) = self.element_view_projection(root, steps)? {
+            let scalar = expression
+                .result
+                .and_then(ValueType::scalar)
+                .ok_or_else(|| self.internal("a scalar place has no scalar result"))?;
             return self.read_element_view(
                 &view,
                 index,
                 &steps[position + 1..],
-                scalar_type,
-                source,
+                scalar,
+                expression.source,
             );
         }
-        self.name_contents(leaf, ValueType::Scalar(scalar_type, Qualification::NONE))?;
         self.name_passed_clauses(root, steps)?;
+        self.read_primitive_leaf(root, leaf, steps, expression)
+    }
+
+    fn read_primitive_leaf(
+        &mut self,
+        root: PlaceId,
+        leaf: ExactPlaceId,
+        steps: &[Step],
+        expression: &Expression,
+    ) -> Checked<Value> {
+        let Some(ValueType::Scalar(carrier, qualification)) = expression.result else {
+            return Err(self.internal("a scalar place has no scalar result"));
+        };
+        self.name_contents(leaf, ValueType::plain(carrier))?;
+        let value = match self.incoming_read(root, leaf, steps, (carrier, qualification), expression.source)? {
+            Some(joined) => joined,
+            None => self.primitive_read(root, steps, carrier, expression.source)?,
+        };
+        Ok(Value::Scalar(value))
+    }
+
+    pub(super) fn primitive_read(
+        &mut self,
+        root: PlaceId,
+        steps: &[Step],
+        scalar_type: ScalarType,
+        source: SourceOrigin,
+    ) -> Checked<ValueId> {
         let operation = self.operation_identity(source);
         let path = self.storage_path(steps, ExecutionSite::Operation(operation), source)?;
-        self.emit(
+        let Value::Scalar(value) = self.emit(
             operation,
             Some(scalar_type),
             OperationKind::PrimitiveScalarRead { source: root, path },
-        )
+        )? else {
+            return Err(self.internal("a primitive read has no scalar result"));
+        };
+        Ok(value)
     }
 
     pub(super) fn read_referent(
         &mut self,
         expression: &Expression,
-        scalar_type: ScalarType,
     ) -> Evaluation<Value> {
         let (root, steps, exact, _) = continuing!(self.capture_place(expression));
-        self.read_projected_scalar(root, exact, &steps, scalar_type, expression.source)
+        self.read_projected_scalar(root, exact, &steps, expression)
             .map(Reached::Value)
     }
 
@@ -4322,8 +4353,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         base: &Expression,
         field: usize,
-        scalar_type: ScalarType,
-        source: SourceOrigin,
+        expression: &Expression,
     ) -> Evaluation<Value> {
         let at = continuing!(self.located(base));
         let step = Step::Field {
@@ -4333,7 +4363,7 @@ impl<'a> Lowering<'a> {
         let leaf = self.step(at.place, step)?;
         let mut steps = at.path;
         steps.push(step);
-        self.read_projected_scalar(at.root, leaf, &steps, scalar_type, source)
+        self.read_projected_scalar(at.root, leaf, &steps, expression)
             .map(Reached::Value)
     }
 
@@ -4341,8 +4371,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         base: &Expression,
         index: &Expression,
-        scalar_type: ScalarType,
-        source: SourceOrigin,
+        expression: &Expression,
     ) -> Evaluation<Value> {
         let at = continuing!(self.located(base));
         let (element, _, _) = self.array_element(at.record)?;
@@ -4350,7 +4379,7 @@ impl<'a> Lowering<'a> {
         let leaf = self.step(at.place, step)?;
         let mut steps = at.path;
         steps.push(step);
-        self.read_projected_scalar(at.root, leaf, &steps, scalar_type, source)
+        self.read_projected_scalar(at.root, leaf, &steps, expression)
             .map(Reached::Value)
     }
 
@@ -4887,21 +4916,11 @@ impl<'a> Lowering<'a> {
     pub(super) fn read_home(
         &mut self,
         home: PlaceId,
-        scalar_type: ScalarType,
-        source: SourceOrigin,
+        expression: &Expression,
     ) -> Checked<Value> {
         // A borrowed scalar formal's place holds the caller's value at entry.
         let place = self.exact_root(home)?;
-        self.name_contents(place, ValueType::Scalar(scalar_type, Qualification::NONE))?;
-        let operation = self.operation_identity(source);
-        self.emit(
-            operation,
-            Some(scalar_type),
-            OperationKind::PrimitiveScalarRead {
-                source: home,
-                path: Vec::new(),
-            },
-        )
+        self.read_primitive_leaf(home, place, &[], expression)
     }
 
     /// `slot.path = value;`: the value, then one store into exactly the

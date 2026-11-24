@@ -375,11 +375,7 @@ impl Lowering<'_> {
                 let bound = *self.slot_mut(*slot)?;
                 match bound {
                     Some(Bound::Scalar(value)) => Ok(Reached::Value(Value::Scalar(value))),
-                    Some(Bound::Home(home)) => {
-                        let scalar_type = self.result_type(expression)?;
-                        self.read_home(home, scalar_type, source)
-                            .map(Reached::Value)
-                    }
+                    Some(Bound::Home(home)) => self.read_home(home, expression).map(Reached::Value),
                     Some(Bound::Record(_) | Bound::Observed(_)) => {
                         Err(self.internal("a record slot has a scalar type"))
                     }
@@ -391,18 +387,9 @@ impl Lowering<'_> {
                     None => Err(self.internal("a slot is read before it is bound")),
                 }
             }
-            ExpressionKind::Index { base, index } => {
-                let scalar_type = self.result_type(expression)?;
-                self.read_index(base, index, scalar_type, source)
-            }
-            ExpressionKind::Referent(_) => {
-                let scalar_type = self.result_type(expression)?;
-                self.read_referent(expression, scalar_type)
-            }
-            ExpressionKind::Field { base, field } => {
-                let scalar_type = self.result_type(expression)?;
-                self.read_field(base, *field, scalar_type, source)
-            }
+            ExpressionKind::Index { base, index } => self.read_index(base, index, expression),
+            ExpressionKind::Referent(_) => self.read_referent(expression),
+            ExpressionKind::Field { base, field } => self.read_field(base, *field, expression),
             ExpressionKind::StorageLocation {
                 query,
                 place,
@@ -443,8 +430,7 @@ impl Lowering<'_> {
                 Err(self.internal("a byte descriptor is used as a scalar"))
             }
             ExpressionKind::Payload { base, case, field } => {
-                let scalar_type = self.result_type(expression)?;
-                self.read_payload(base, *case, *field, scalar_type, source)
+                self.read_payload(base, *case, *field, expression)
             }
             ExpressionKind::IsCase { subject, case } => {
                 self.case_membership(subject, *case, source)
@@ -455,8 +441,8 @@ impl Lowering<'_> {
                 arms,
                 default,
             } => {
-                // A Unit match joins no value: each arm that returns
-                // continues at one join block without parameters.
+                // A Unit match has no result parameter. Each returning arm
+                // continues at the same block.
                 let result_type = match expression.result {
                     None => None,
                     Some(_) => Some(ValueType::plain(self.result_type(expression)?)),
