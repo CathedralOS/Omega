@@ -448,18 +448,27 @@ mod judgments {
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     struct InferenceScope(usize);
 
-    /// Signature and universe scope stay fixed for one drive. Reuse an
-    /// inferred type only under the complete same binding prefix. Comparison
-    /// continuations also extend contexts, so observe the actual bindings.
+    /// One drive keeps its signature, universe scope and initial bindings.
+    /// Inference and comparison can both extend that context. Distinguish
+    /// their actual local bindings even at the same depth.
     #[derive(Default)]
     struct InferredTypes {
+        initial_bindings: usize,
         scopes: HashMap<(InferenceScope, TermHandle), InferenceScope>,
         active_bindings: Vec<(TermHandle, InferenceScope)>,
         types: HashMap<(InferenceScope, TermHandle), TermHandle>,
     }
 
     impl InferredTypes {
-        fn scope(&mut self, bindings: &[TermHandle]) -> InferenceScope {
+        fn under(context: &Context) -> Self {
+            Self {
+                initial_bindings: context.len(),
+                ..Self::default()
+            }
+        }
+
+        fn scope(&mut self, context: &Context) -> InferenceScope {
+            let bindings = &context.bindings[self.initial_bindings..];
             let mut common = 0;
             while common < self.active_bindings.len()
                 && common < bindings.len()
@@ -479,6 +488,25 @@ mod judgments {
             }
             scope
         }
+    }
+
+    #[test]
+    fn only_binders_introduced_during_inference_receive_scope_keys() {
+        let mut arena = TermArena::new();
+        let two = arena.insert(Term::Two);
+        let empty = arena.insert(Term::Empty);
+        let mut context = Context::empty();
+        context.bindings.resize(2_048, two);
+        let mut inferred = InferredTypes::under(&context);
+        let base = inferred.scope(&context);
+        assert!(inferred.scopes.is_empty());
+
+        let first = inferred.scope(&context.extend(two));
+        let second = inferred.scope(&context.extend(empty));
+        assert_ne!(first, second);
+        assert_eq!(inferred.scope(&context.extend(two)), first);
+        assert_eq!(inferred.scope(&context), base);
+        assert_eq!(inferred.scopes.len(), 2);
     }
 
     enum Formation {
@@ -2358,13 +2386,13 @@ mod judgments {
         budget: &mut Budget,
     ) -> Result<JudgmentValue, CoreError> {
         let mut context = context.clone();
-        let mut inferred_types = InferredTypes::default();
+        let mut inferred_types = InferredTypes::under(&context);
         let mut pending = Vec::new();
         let mut current = operation;
         loop {
             if let Operation::Infer(term) = &current {
                 let term = *term;
-                let scope = inferred_types.scope(&context.bindings);
+                let scope = inferred_types.scope(&context);
                 if let Some(&ty) = inferred_types.types.get(&(scope, term)) {
                     current = Operation::ReusedInference(ty);
                 } else {
