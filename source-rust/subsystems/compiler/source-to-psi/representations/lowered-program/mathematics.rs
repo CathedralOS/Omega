@@ -34,12 +34,22 @@ pub enum OperandLaw {
     /// `op(op(x, y), z) = op(x, op(y, z))`, or the same equality with its
     /// sides exchanged when `left_nested_first` is false.
     Associates { left_nested_first: bool },
+    /// `op` distributes over the operation at entry `over`: from the left,
+    /// `op(x, over(y, z)) = over(op(x, y), op(x, z))`; from the right,
+    /// `op(over(x, y), z) = over(op(x, z), op(y, z))`. When `product_first`
+    /// is false the statement has its sides exchanged.
+    Distributes {
+        over: u32,
+        from_left: bool,
+        product_first: bool,
+    },
 }
 
 /// A law that satisfies a requirement of a trait application and states
 /// `law` of an operation satisfying a requirement of the same application.
-/// A program licenses rearrangement by declaring the conformance; a law
-/// that merely has the right shape does not.
+/// For distributivity the operation it distributes over must satisfy a
+/// requirement of that application too. A program licenses rearrangement by
+/// declaring the conformance; a law that merely has the right shape does not.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OperandLicense {
     /// The entry of the operation.
@@ -50,9 +60,10 @@ pub struct OperandLicense {
 }
 
 /// Reads a closed statement as commutativity or associativity of the one
-/// operation it applies, over formals of one type. Stage 05 uses it on a
-/// requirement to read such laws first and on each statement to record the
-/// license; nothing else decides what counts as either law.
+/// operation it applies, or as distributivity of one operation over another,
+/// over formals of one type. Stage 05 uses it on a requirement to read such
+/// laws first and on each statement to record the license; nothing else
+/// decides what counts as any of these laws.
 pub fn operand_law(arena: &TermArena, statement: TermHandle) -> Option<(u32, OperandLaw)> {
     let mut body = statement;
     let mut formals = Vec::new();
@@ -89,8 +100,50 @@ pub fn operand_law(arena: &TermArena, statement: TermHandle) -> Option<(u32, Ope
             _ => None,
         }
     };
-    let (operation, ..) = applied(left)?;
     let is = |term, index| arena.get(term) == Term::Variable(index);
+    // `op(first, second)` over two formals, for a given operation.
+    let over_formals = |term, op, first, second| {
+        applied(term).is_some_and(|(head, a, b)| head == op && is(a, first) && is(b, second))
+    };
+    // A product of a formal and a sum of two formals, and the sum of the two
+    // products it expands to, under two different operations.
+    let distribution = |product, sum| -> Option<(u32, u32, bool)> {
+        let (outer, first, second) = applied(product)?;
+        let (inner, x, y) = applied(sum)?;
+        if inner == outer {
+            return None;
+        }
+        if is(first, 2)
+            && over_formals(second, inner, 1, 0)
+            && over_formals(x, outer, 2, 1)
+            && over_formals(y, outer, 2, 0)
+        {
+            return Some((outer, inner, true));
+        }
+        if over_formals(first, inner, 2, 1)
+            && is(second, 0)
+            && over_formals(x, outer, 2, 0)
+            && over_formals(y, outer, 1, 0)
+        {
+            return Some((outer, inner, false));
+        }
+        None
+    };
+    if formals.len() == 3 {
+        for (product, sum, product_first) in [(left, right, true), (right, left, false)] {
+            if let Some((outer, over, from_left)) = distribution(product, sum) {
+                return Some((
+                    outer,
+                    OperandLaw::Distributes {
+                        over,
+                        from_left,
+                        product_first,
+                    },
+                ));
+            }
+        }
+    }
+    let (operation, ..) = applied(left)?;
     // `op(first, second)` over two formals, by their distance from the body.
     let pair = |term, first, second| {
         applied(term).is_some_and(|(head, a, b)| head == operation && is(a, first) && is(b, second))

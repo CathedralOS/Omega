@@ -182,16 +182,25 @@ impl Program<'_> {
             }
         }
         // A law whose requirement states associativity or commutativity of
-        // an operation is read before the other machines. A proof may only
-        // rest on statements that come before its own, so this is what lets
-        // any other law regroup and reorder under these wherever the source
-        // declares them.
+        // an operation is read before the other machines, and then one whose
+        // requirement states distributivity of one operation over another. A
+        // proof may only rest on statements that come before its own, so this
+        // is what lets any other law regroup, reorder and expand under these
+        // wherever the source declares them, and lets a distributivity law
+        // regroup and reorder under the first ones.
         let mut first = Vec::new();
+        let mut distributive = Vec::new();
         for satisfaction in satisfactions {
             let id = satisfaction.machine;
             let read = match converter.requires_operand_law(satisfaction) {
-                Ok(false) => continue,
-                Ok(true) => converter.declare(id),
+                Ok(None) => continue,
+                Ok(Some(terminal_check_tables::mathematics::OperandLaw::Distributes {
+                    ..
+                })) => {
+                    distributive.push(id);
+                    continue;
+                }
+                Ok(Some(_)) => converter.declare(id),
                 Err(refusal) => {
                     if let Some(state @ Read::Unread) = converter.machines.get_mut(id) {
                         *state = Read::Refused;
@@ -199,6 +208,18 @@ impl Program<'_> {
                     Err(refusal)
                 }
             };
+            first.push(id);
+            if let Err(refusal) = read {
+                let symbol = self
+                    .symbols
+                    .get(id)
+                    .copied()
+                    .unwrap_or_else(SymbolHandle::invalid);
+                refused.push(self.read_failure_at(refusal, symbol, "the mathematical declaration"));
+            }
+        }
+        for id in distributive {
+            let read = converter.declare(id);
             first.push(id);
             if let Err(refusal) = read {
                 let symbol = self
@@ -241,7 +262,7 @@ impl Program<'_> {
             return Err(refused);
         }
         // The license is the declared conformance: the law and the
-        // operation it speaks of satisfy requirements of one trait at the
+        // operations it speaks of satisfy requirements of one trait at the
         // same type arguments.
         let mut licenses = Vec::new();
         for satisfaction in satisfactions {
@@ -254,15 +275,22 @@ impl Program<'_> {
                 let Some((operation, law)) = operand_law(&converter.signature.arena, stated) else {
                     continue;
                 };
-                let conforms = satisfactions.iter().any(|other| {
-                    other.declaring_trait == satisfaction.declaring_trait
-                        && other.scope == satisfaction.scope
-                        && matches!(
-                            converter.functions.get(other.machine),
-                            Some(Read::Function(entry)) if *entry == operation
-                        )
-                });
-                if conforms {
+                let conforms = |operation: u32| {
+                    satisfactions.iter().any(|other| {
+                        other.declaring_trait == satisfaction.declaring_trait
+                            && other.scope == satisfaction.scope
+                            && matches!(
+                                converter.functions.get(other.machine),
+                                Some(Read::Function(entry)) if *entry == operation
+                            )
+                    })
+                };
+                use terminal_check_tables::mathematics::OperandLaw;
+                let over = match law {
+                    OperandLaw::Distributes { over, .. } => Some(over),
+                    OperandLaw::Commutes | OperandLaw::Associates { .. } => None,
+                };
+                if conforms(operation) && over.is_none_or(conforms) {
                     licenses.push(OperandLicense {
                         operation,
                         statement,
@@ -497,12 +525,16 @@ impl Converter<'_, '_> {
             .collect()
     }
 
-    /// Whether the requirement this machine satisfies states associativity
-    /// or commutativity of an operation, read without the machine's body.
-    fn requires_operand_law(&mut self, satisfaction: &Satisfaction) -> Checked<bool> {
+    /// Which law of operands, if any, the requirement this machine satisfies
+    /// states: associativity or commutativity of an operation, or
+    /// distributivity of one over another. Read without the machine's body.
+    fn requires_operand_law(
+        &mut self,
+        satisfaction: &Satisfaction,
+    ) -> Checked<Option<terminal_check_tables::mathematics::OperandLaw>> {
         let id = satisfaction.machine;
         let [clause] = satisfaction.ensures.as_slice() else {
-            return Ok(false);
+            return Ok(None);
         };
         let formals = self.formals(id)?;
         let count = formals.len();
@@ -516,7 +548,7 @@ impl Converter<'_, '_> {
                 codomain: statement,
             });
         }
-        Ok(operand_law(&self.signature.arena, statement).is_some())
+        Ok(operand_law(&self.signature.arena, statement).map(|(_, law)| law))
     }
 
     fn declare(&mut self, id: MachineId) -> Checked<()> {

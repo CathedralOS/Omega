@@ -1135,6 +1135,59 @@ kernel, from the library file as it stands.
   program. A program that uses the library reaches the conformance and what
   it cites, nothing more.
 
+**Step 4a as built (2026-11-24): products expand over sums.** A proof may
+now expand a product of sums into a sum of products under a distributivity law
+of the program's conformance, then regroup and reorder both sums and products
+as step 3a does. Both sides of a goal reach one polynomial form, and each
+expansion is an application of the law in the proof term, so the certificate
+names it.
+
+- **Customers.** The recovered `polynomial/pass/ring_full_polynomial_compile`
+  states `mul(add(a, b), add(c, d))` equal to its four-term expansion over the
+  library's `Nat` and cites nothing. It used to be refused with "no available
+  equality proves the stated Identity". The kernel now judges it in 993
+  conversion steps, resting on exactly four laws of `core/nat.omg`'s
+  conformance: `mul_distributes`, `mul_comm`, `add_comm` and `add_assoc`.
+  A Peano twin pair adds a law needing two expansions to the
+  `peano_left_distributivity` program: judged in 847 steps with
+  `times_distributes` declared as the trait's `mul_distributes`, and refused
+  once that `satisfies` line is removed.
+- **One mechanism.** `operand_law` also reads distributivity
+  (`OperandLaw::Distributes`, from the left or the right, either side first).
+  The license needs both operations to satisfy requirements of the law's trait
+  application. Stage 05 reads distributivity laws after the commutativity and
+  associativity laws and before every other machine, so a distributivity law's
+  own proof may still regroup under the first ones, as `mul_distributes`
+  does, whatever the source order. Stage 06's `rearrange` gains one more kind
+  of rewrite: a product whose sum sits on the side the law states expands; one
+  whose sum sits on the other side is first commuted when its operation
+  commutes. Expansion runs only after the search without it finds no proof,
+  so every law proved before this step keeps the same proof and cost.
+- **Bounds.** A product may expand to at most 64 summands, the spec's default,
+  counted from the term before anything is built and under the exact licensed
+  laws (a law that only expands sums on the right counts only those). A larger
+  one stops the proof with `SearchError::Budget`, reported as "ran out of
+  proof budget" with no claim that the program is wrong. Every rewrite is also
+  charged to the existing 65,536-step search budget. A product of 64 summands
+  over Peano is judged in 55,949 conversion steps; one of 128 is refused as
+  out of budget.
+- **Mutual distributivity.** When two operations each distribute over the
+  other, the search tries one direction at a time, so neither law disables
+  the other and expansion cannot undo itself. A longer cycle of three or more
+  operations is not split and runs into the budget.
+- **Not done: satisfier groups.** The recovered
+  `polynomial/fail/ring_rearrange_unlicensed_rejected` labels its satisfiers
+  with `satisfies Trait<...>::requirement as Name`, and the mathematical
+  signature refuses that clause as not supported. The program is refused at its
+  eight `satisfies` clauses before any law is judged, so its claims that one
+  trait application or satisfier group cannot borrow another's law are not
+  yet tested. Its first part, which needs no group, is refused at
+  `needs_rearrange`'s successor arm.
+- **Not done: configuration and reporting of the limit.** The 64-summand limit
+  is a constant. Root Build cannot configure it through the
+  [proof-work policy](../../spec/build/configuration.md#proof-work-policy) yet,
+  and the diagnostic does not say which limit stopped the proof.
+
 The first version of this plan started with level binders and value-indexed
 type arguments because they move 66 samples. They move those samples to
 their next failure, the library needs neither, and level binders wait on

@@ -21,7 +21,7 @@ use terminal_check_tables::mathematics::{
     SignatureEntry, SignatureEntryKind,
 };
 
-use super::equality::{Definitions, License, SearchError, prove_under};
+use super::equality::{Definitions, Distribution, License, Licenses, SearchError, prove_licensed};
 
 /// How many rewrite attempts one case of one law may make.
 const SEARCH_STEPS: usize = 65_536;
@@ -268,18 +268,19 @@ fn constant(arena: &mut TermArena, declaration: u32) -> TermHandle {
 }
 
 /// The operations whose operands this law's proof may regroup or reorder,
-/// each with the laws that say so: the licenses stated before the law. That
-/// keeps a law out of its own proof and keeps two laws from resting on each
-/// other. The search puts each law it uses into the proof term, so a wrong
-/// license fails the kernel's check and the certificate names every law the
-/// proof relied on.
+/// each with the laws that say so, and the distributivity laws it may expand
+/// products under: the licenses stated before the law. That keeps a law out
+/// of its own proof and keeps two laws from resting on each other. The search
+/// puts each law it uses into the proof term, so a wrong license fails the
+/// kernel's check and the certificate names every law the proof relied on.
 fn licenses(
     arena: &mut TermArena,
     declarations: &[Declaration],
     granted: &[OperandLicense],
     law: &Law,
-) -> Vec<License> {
+) -> (Vec<License>, Vec<Distribution>) {
     let mut found: Vec<(u32, License)> = Vec::new();
+    let mut distributions: Vec<(u32, u32, bool, Distribution)> = Vec::new();
     for grant in granted
         .iter()
         .filter(|grant| grant.statement < law.statement)
@@ -291,6 +292,35 @@ fn licenses(
             continue;
         };
         let proved = constant(arena, grant.statement);
+        if let OperandLaw::Distributes {
+            over,
+            from_left,
+            product_first,
+        } = grant.law
+        {
+            // The first law stated for each pair of operations and side.
+            if !distributions
+                .iter()
+                .any(|known| (known.0, known.1, known.2) == (grant.operation, over, from_left))
+            {
+                let outer = constant(arena, grant.operation);
+                let inner = constant(arena, over);
+                distributions.push((
+                    grant.operation,
+                    over,
+                    from_left,
+                    Distribution {
+                        outer,
+                        inner,
+                        carrier,
+                        law: proved,
+                        from_left,
+                        product_first,
+                    },
+                ));
+            }
+            continue;
+        }
         let at = match found
             .iter()
             .position(|(operation, _)| *operation == grant.operation)
@@ -320,9 +350,13 @@ fn licenses(
                     .associates
                     .get_or_insert((proved, left_nested_first));
             }
+            OperandLaw::Distributes { .. } => {}
         }
     }
-    found.into_iter().map(|(_, license)| license).collect()
+    (
+        found.into_iter().map(|(_, license)| license).collect(),
+        distributions.into_iter().map(|(.., law)| law).collect(),
+    )
 }
 
 /// What a case of a law may cite, as kernel terms of that case's context.
@@ -330,7 +364,7 @@ struct Cited<'c> {
     arena: &'c mut TermArena,
     context: &'c Context,
     definitions: &'c Definitions,
-    licenses: &'c [License],
+    licenses: Licenses<'c>,
     laws: &'c [Law],
     law: &'c Law,
     /// Each formal of the law and then each field of the case, as the
@@ -415,7 +449,7 @@ impl Cited<'_> {
             for (mut term, goals) in waiting {
                 let mut proofs = Vec::with_capacity(goals.len());
                 for &goal in &goals {
-                    match prove_under(
+                    match prove_licensed(
                         self.arena,
                         self.context,
                         self.definitions,
@@ -459,7 +493,11 @@ fn prove_law(
     granted: &[OperandLicense],
     law: &Law,
 ) -> Result<LawJudgment, Failure> {
-    let licenses = licenses(arena, declarations, granted, law);
+    let (operations, distributions) = licenses(arena, declarations, granted, law);
+    let licenses = Licenses {
+        operations: &operations,
+        distributions: &distributions,
+    };
     let definitions = Definitions::of_signature(&entries[..law.statement as usize]);
     let prefix = declarations[..law.statement as usize].to_vec();
     let closed = Context::empty().with_signature(Signature::from_declarations(prefix.clone()));
@@ -485,7 +523,7 @@ fn prove_law(
                 arena,
                 context: &context,
                 definitions: &definitions,
-                licenses: &licenses,
+                licenses,
                 laws,
                 law,
                 names: &names,
@@ -493,13 +531,13 @@ fn prove_law(
             }
             .evidence(&direct.citations, &mut budget)
             .map_err(|error| error.failure(None))?;
-            prove_under(
+            prove_licensed(
                 arena,
                 &context,
                 &definitions,
                 goal,
                 &evidence,
-                &licenses,
+                licenses,
                 SEARCH_STEPS,
                 &mut budget,
             )
@@ -594,7 +632,7 @@ fn prove_law(
                     arena,
                     context: &context,
                     definitions: &definitions,
-                    licenses: &licenses,
+                    licenses,
                     laws,
                     law,
                     names: &names,
@@ -602,13 +640,13 @@ fn prove_law(
                 }
                 .evidence(&script.citations, &mut budget)
                 .map_err(|error| error.failure(Some(case)))?;
-                let mut branch = prove_under(
+                let mut branch = prove_licensed(
                     arena,
                     &context,
                     &definitions,
                     goal,
                     &evidence,
-                    &licenses,
+                    licenses,
                     SEARCH_STEPS,
                     &mut budget,
                 )
