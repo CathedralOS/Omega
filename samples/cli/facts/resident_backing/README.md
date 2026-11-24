@@ -14,12 +14,12 @@ access each requires separate authority. The existing allocation, profile,
 geometry, qualification, lifecycle, cleanup, and neighbor-canary checks remain
 part of the example.
 
-The local grant and vacancy providers return a bare `Extent`. Their result
-guarantees supply the evidence for the named domain casts. The local control
+The grant and vacancy providers return a bare `Extent`. Their result
+guarantees supply the evidence for the named domain casts. Each control
 keeps its grant and attempts to add vacancy without the transfer.
 
-The local example and its control parsed after their migration to the public
-owned lifecycle. All nine pairs still need optimized checking, native/Psi
+All nine examples and their controls use the public owned lifecycle. The parser
+accepted all 36 Build and Product sources. The nine pairs still need optimized checking, native/Psi
 agreement for the positives, the intended vacancy refusals for the controls,
 and a clean corpus record. The historical results below identify the source
 and compiler used in those runs.
