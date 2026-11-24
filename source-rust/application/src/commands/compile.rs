@@ -371,7 +371,7 @@ fn compile_target(
                 "an artifact-only Build requires completed outputs and cannot publish executable Psi",
             ));
         }
-        if arguments.compare_tests {
+        if !arguments.check_only {
             test_roster =
                 stage.execute_registered_tests(profile, &arguments.installation_assumptions, tests)?;
         }

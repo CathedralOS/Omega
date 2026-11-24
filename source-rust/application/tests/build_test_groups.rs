@@ -232,6 +232,46 @@ fn a_build_with_no_groups_has_zero_comparisons() {
 }
 
 #[test]
+fn an_artifact_only_build_runs_its_groups_before_publishing_files() {
+    use platform_custody::temporary_directory::TemporaryDirectory;
+    const BUILD: &str = include_str!("fixtures/build/run/artifact_only_group/build.omg");
+    for (sum, should_publish) in [("5u32", true), ("6u32", false)] {
+        let scratch = TemporaryDirectory::create("artifact-group", false).unwrap();
+        let root = scratch.path();
+        std::fs::write(root.join("build.omg"), BUILD).unwrap();
+        std::fs::write(root.join("main.omg"), TESTS.replace("EXPECTED", sum)).unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+            .args(["build", "--target", "linux_arm64", "build.omg"])
+            .current_dir(root)
+            .stdin(std::process::Stdio::null())
+            .output()
+            .unwrap();
+        let report = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(output.status.success(), should_publish, "{report}");
+        let completed = root.join("build/completed");
+        if should_publish {
+            assert!(report.contains("passed on Psi interpreter"), "{report}");
+            let publication = std::fs::read_dir(completed)
+                .unwrap()
+                .next()
+                .unwrap()
+                .unwrap();
+            assert_eq!(
+                std::fs::read(publication.path().join("files/blob.bin")).unwrap(),
+                b"blobdata\n"
+            );
+        } else {
+            assert!(
+                report.contains("test `addition_is_correct`")
+                    && report.contains("crashed with Trap"),
+                "{report}"
+            );
+            assert!(!completed.exists(), "a failing test published its artifact");
+        }
+    }
+}
+
+#[test]
 fn a_required_native_engine_on_another_target_leaves_the_build_incomplete() {
     let target =
         if target::TargetProfile::host_if_supported() == Some(target::TargetProfile::LinuxArm64) {
