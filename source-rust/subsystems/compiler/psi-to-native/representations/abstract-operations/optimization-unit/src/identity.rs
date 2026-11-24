@@ -415,13 +415,7 @@ pub(crate) mod proposition_encoding {
                             arguments,
                         } => {
                             bytes.u8(3);
-                            bytes.boolean(declaration.supplier.is_some());
-                            if let Some((slot, generation)) = declaration.supplier {
-                                bytes.u32(slot);
-                                bytes.u32(generation);
-                            }
-                            bytes.u32(declaration.member.0);
-                            bytes.u32(declaration.member.1);
+                            encode_clause_declaration(bytes, *declaration);
                             bytes.slice(arguments, |bytes, argument| bytes.u32(*argument));
                         }
                     }
@@ -524,9 +518,28 @@ pub(crate) mod proposition_encoding {
         }
     }
 
+    fn encode_clause_declaration(
+        bytes: &mut CanonicalBytes,
+        declaration: semantic_vocabulary::ClauseDeclaration,
+    ) {
+        bytes.boolean(declaration.supplier.is_some());
+        if let Some((slot, generation)) = declaration.supplier {
+            bytes.u32(slot);
+            bytes.u32(generation);
+        }
+        bytes.u32(declaration.member.0);
+        bytes.u32(declaration.member.1);
+    }
+
     pub(super) fn encode_scalar_term(bytes: &mut CanonicalBytes, term: &ScalarTerm) {
         use ScalarTerm as S;
         match term {
+            S::DeclarationApplication { declaration, arguments, scalar_type } => {
+                bytes.u8(45);
+                encode_clause_declaration(bytes, *declaration);
+                encode_scalar_type(bytes, *scalar_type);
+                bytes.slice(arguments, encode_scalar_term);
+            }
             S::Application {
                 application,
                 scalar_type,

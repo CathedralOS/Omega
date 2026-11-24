@@ -198,7 +198,7 @@ pub(crate) fn prove(
     Err(SearchError::NoProof)
 }
 
-use super::{Hypotheses, call_contracts};
+use super::{call_contracts, graph::Graph, hypotheses};
 use proof_admission::{
     Declaration, Level, MathematicalCertificate, MathematicalCoreDecision,
     MathematicalJudgmentReceipt, Sort, check_signature,
@@ -208,7 +208,7 @@ use semantic_vocabulary::{
     PlaceId, Proposition, ScalarTerm, TargetMachineCallable,
 };
 use terminal_check_tables::{
-    Checked, Construct, KnowledgeId, MachineTables, RefusalReason, UnprovedCause,
+    Checked, Construct, KnowledgeId, MachineTables, ProgramPoint, RefusalReason, UnprovedCause,
 };
 use terminal_check_tables::{edges::Callee, values::Justification};
 use terminal_psi::{TerminalMachine, TerminalModule};
@@ -269,6 +269,63 @@ impl Declarations {
         self.entry(Entry::Carrier(carrier), universe)
     }
 
+    fn application(
+        &mut self,
+        declaration: ClauseDeclaration,
+        result: TermHandle,
+        domains: &[ClauseCarrier],
+        arguments: &[TermHandle],
+    ) -> Result<TermHandle, &'static str> {
+        let mut function_type = result;
+        for &carrier in domains.iter().rev() {
+            let domain = self.carrier(carrier)?;
+            function_type = self.arena.insert(Term::Pi {
+                domain,
+                codomain: function_type,
+            });
+        }
+        let operation = self.entry(Entry::Operation(declaration), function_type)?;
+        Ok(self.arena.apply_arguments(operation, arguments))
+    }
+
+    fn scalar(
+        &mut self,
+        term: &ScalarTerm,
+        binders: &[LawInput],
+    ) -> Result<TermHandle, &'static str> {
+        let ty = self.carrier(ClauseCarrier::Scalar(term.scalar_type()))?;
+        match term {
+            ScalarTerm::DeclarationApplication {
+                declaration,
+                arguments,
+                ..
+            } => {
+                let mut terms = Vec::with_capacity(arguments.len());
+                let mut domains = Vec::with_capacity(arguments.len());
+                for argument in arguments {
+                    domains.push(ClauseCarrier::Scalar(argument.scalar_type()));
+                    terms.push(self.scalar(argument, binders)?);
+                }
+                self.application(*declaration, ty, &domains, &terms)
+            }
+            ScalarTerm::Value { id, .. } if !binders.is_empty() => {
+                let position = binders
+                    .iter()
+                    .position(|binder| *binder == LawInput::Scalar(*id))
+                    .ok_or("law scalar names a foreign input")?;
+                Ok(self.arena.insert(Term::Variable(
+                    u32::try_from(binders.len() - position - 1)
+                        .map_err(|_| "too many law formals")?,
+                )))
+            }
+            ScalarTerm::Boolean(_)
+            | ScalarTerm::Integer { .. }
+            | ScalarTerm::IeeeFloatLiteral(_) => self.entry(Entry::Scalar(term.clone()), ty),
+            _ if binders.is_empty() => self.entry(Entry::Scalar(term.clone()), ty),
+            _ => Err("no whole-value mathematical input for this scalar operand"),
+        }
+    }
+
     /// A closed law quantifies over its formals. An instantiated clause
     /// names the invocation inputs to which the storage analysis traced it.
     fn identity(
@@ -298,45 +355,15 @@ impl Declarations {
                         return Err("law names storage outside its telescope");
                     }
                 }
-                ClauseOperand::Scalar(ScalarTerm::Value { id, .. }) if !binders.is_empty() => {
-                    let position = binders
-                        .iter()
-                        .position(|binder| *binder == LawInput::Scalar(*id))
-                        .ok_or("law scalar names a foreign input")?;
-                    self.arena.insert(Term::Variable(
-                        u32::try_from(binders.len() - position - 1)
-                            .map_err(|_| "too many law formals")?,
-                    ))
-                }
-                ClauseOperand::Scalar(term)
-                    if binders.is_empty()
-                        || matches!(
-                            term,
-                            ScalarTerm::Boolean(_)
-                                | ScalarTerm::Integer { .. }
-                                | ScalarTerm::IeeeFloatLiteral(_)
-                        ) =>
-                {
-                    self.entry(Entry::Scalar(term.clone()), ty)?
-                }
-                ClauseOperand::Application {
-                    declaration,
-                    arguments,
-                } => {
-                    let mut function_type = ty;
-                    for &arg in arguments.iter().rev() {
-                        let domain = self.carrier(clause.values[arg as usize].carrier)?;
-                        function_type = self.arena.insert(Term::Pi {
-                            domain,
-                            codomain: function_type,
-                        });
-                    }
-                    let operation = self.entry(Entry::Operation(*declaration), function_type)?;
-                    let operands = arguments
-                        .iter()
-                        .map(|&row| terms[row as usize])
+                ClauseOperand::Scalar(term) => self.scalar(term, binders)?,
+                ClauseOperand::Application { declaration, arguments } => {
+                    let domains = arguments.iter()
+                        .map(|&arg| clause.values[arg as usize].carrier)
                         .collect::<Vec<_>>();
-                    self.arena.apply_arguments(operation, &operands)
+                    let operands = arguments.iter()
+                        .map(|&arg| terms[arg as usize])
+                        .collect::<Vec<_>>();
+                    self.application(*declaration, ty, &domains, &operands)?
                 }
                 _ => return Err("no whole-value mathematical input for this clause operand"),
             };
@@ -426,15 +453,18 @@ impl Declarations {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn discharge(
     module: &TerminalModule,
     machine: &TerminalMachine,
     tables: &MachineTables,
+    graph: &Graph,
+    point: ProgramPoint,
     obligation: ObligationId,
     goal: &ClauseIdentity,
-    known: &Hypotheses,
     law_instances: &[MachineId],
 ) -> Checked<Judgment> {
+    let known = hypotheses(graph, tables, machine.id, obligation, point)?;
     let unavailable = |why: &str| {
         super::refusal(
             RefusalReason::Unsupported,

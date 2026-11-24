@@ -10842,6 +10842,18 @@ pub(crate) mod operation_contracts {
                     | Proposition::IntegerIeeeFloatExact { source, .. } => {
                         scalar_term_roots(source, roots)
                     }
+                    Proposition::DeclarationIdentity(clause) => {
+                        use semantic_vocabulary::ClauseOperand;
+                        for value in &clause.values {
+                            match &value.operand {
+                                ClauseOperand::Input(subject) => {
+                                    roots.insert(subject.root());
+                                }
+                                ClauseOperand::Scalar(term) => scalar_term_roots(term, roots),
+                                ClauseOperand::Formal(_) | ClauseOperand::Application { .. } => {}
+                            }
+                        }
+                    }
                     Proposition::FloatMeaningEqual(clause) => {
                         for source in clause.sources() {
                             scalar_term_roots(source, roots);

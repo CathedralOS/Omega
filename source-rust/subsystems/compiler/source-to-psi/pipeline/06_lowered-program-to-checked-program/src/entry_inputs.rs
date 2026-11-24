@@ -187,6 +187,7 @@ fn describe_calls(
             ranking_bindings: &prepared.ranking_bindings,
             declared: &declared,
             unreached: &beyond,
+            law_instances: &[],
         },
         &mut tables,
         &mut decided,
