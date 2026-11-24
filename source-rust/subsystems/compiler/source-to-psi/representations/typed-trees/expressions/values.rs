@@ -4039,6 +4039,35 @@ pub mod expression {
                 .then(|| self.build_selection_requests.get(call))
         }
 
+        /// Readiness is checked for every authored call, including calls outside the
+        /// selected entry's executable closure. The commit row names its lexical owner.
+        pub fn build_provider_readiness_calls(
+            &self,
+        ) -> impl Iterator<
+            Item = (
+                &crate::declaration_selection::ProviderReadinessRequest<
+                    crate::source_state::types::TypeReferenceHandle,
+                >,
+                SymbolHandle,
+            ),
+        > {
+            self.build_selection_inputs
+                .0
+                .iter()
+                .flatten()
+                .filter_map(|inputs| {
+                    if inputs.phase != BuildSelectionPhase::Commit {
+                        return None;
+                    }
+                    match self.build_selection_request(inputs.request)? {
+                        BuildSelectionRequest::ProviderReadiness(request) => {
+                            Some((request, inputs.lexical_owner))
+                        }
+                        _ => None,
+                    }
+                })
+        }
+
         pub fn build_selection_request(
             &self,
             call: Handle<BuildSelectionCall>,

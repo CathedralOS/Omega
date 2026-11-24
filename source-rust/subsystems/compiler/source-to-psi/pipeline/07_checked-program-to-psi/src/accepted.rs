@@ -503,22 +503,9 @@ impl AcceptedTerminalSource {
         let refuse = |why: &str| vec![Diagnostic::error(why).with_source_span(operand.source_span)];
         let source = self.source();
         let symbol = source
-            .symbols
-            .find_top_level_by_name_and_kinds_from_source(
-                &operand.path,
-                &[symbols::SymbolKind::Conformance],
-                operand.source_span,
-            )
-            .filter(|&symbol| {
-                source
-                    .conformance_by_symbol(symbol)
-                    .is_some_and(|row| row.is_public)
-            })
-            .ok_or_else(|| {
-                refuse(
-                    "Build backing names no visible public implementation in its supplied library",
-                )
-            })?;
+            .build_provider_backing(operand)
+            .map_err(refuse)?
+            .symbol;
         let package = source
             .symbols
             .symbol_package_identity(symbol)
