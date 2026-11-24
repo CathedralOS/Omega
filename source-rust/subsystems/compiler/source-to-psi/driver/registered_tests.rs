@@ -116,6 +116,7 @@ impl<'a> RegisteredTests<'a> {
         };
         let mut roots = Vec::new();
         let mut notes = Vec::new();
+        let mut refusals = Vec::new();
         for group in &checked.declarations.test_groups {
             let path = typed.symbols.display_path(group.requirement, "::");
             if disabled || group.configuration.disabled {
@@ -124,9 +125,16 @@ impl<'a> RegisteredTests<'a> {
                 ));
                 continue;
             }
-            let mut tests = Vec::new();
-            for machine in satisfiers(typed, group) {
-                let name = typed.symbols.display_path(machine.symbol, "::");
+            let mut candidates: Vec<_> = satisfiers(typed, group)
+                .map(|machine| (typed.symbols.display_path(machine.symbol, "::"), machine))
+                .collect();
+            if candidates.is_empty() {
+                notes.push(format!(
+                    "group `{path}` (target `{target}`): registered with no tests; nothing ran"
+                ));
+            }
+            candidates.sort_by(|(left, _), (right, _)| left.cmp(right));
+            for (name, machine) in candidates {
                 let refusal = if !typed.machine_type_parameters(machine).is_empty()
                     || !machine.body_is_present
                 {
@@ -145,14 +153,16 @@ impl<'a> RegisteredTests<'a> {
                     None
                 };
                 if let Some(reason) = refusal {
-                    return Err(vec![
-                        Diagnostic::error(format!(
-                            "test `{name}` in group `{path}` is not runnable: {reason}"
-                        ))
-                        .with_source_span(group.source_span),
-                    ]);
+                    let mut row = Diagnostic::error(format!(
+                        "test `{name}` in group `{path}` is not runnable: {reason}"
+                    ));
+                    row.source_span = typed.symbols.symbol_provenance_source_span(machine.symbol);
+                    row.build_context =
+                        Some(diagnostics::BuildDiagnosticContext::RunningRegisteredTests);
+                    refusals.push(row);
+                    continue;
                 }
-                tests.push(TestRoot {
+                roots.push(TestRoot {
                     group: path.clone(),
                     name,
                     group_declaration: retain(group.requirement)?,
@@ -160,13 +170,9 @@ impl<'a> RegisteredTests<'a> {
                     declaration: retain(machine.symbol)?,
                 });
             }
-            if tests.is_empty() {
-                notes.push(format!(
-                    "group `{path}` (target `{target}`): registered with no tests; nothing ran"
-                ));
-            }
-            tests.sort_by(|a, b| a.name.cmp(&b.name));
-            roots.extend(tests);
+        }
+        if !refusals.is_empty() {
+            return Err(refusals);
         }
         Ok(Some(Self {
             source,

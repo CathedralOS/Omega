@@ -155,10 +155,11 @@ fn compile_targets(
             snapshot,
         ))
     };
-    let prepared: Vec<_> = profiles
-        .iter()
-        .zip(&leases)
-        .map(|(&profile, lease)| {
+    // Announce every selected target's test plan before starting any of its guests.
+    let mut prepared = Vec::with_capacity(profiles.len());
+    let mut portable_plans = Vec::new();
+    for (&profile, lease) in profiles.iter().zip(&leases) {
+        let selected = (|| {
             let lease = lease.as_ref().map_err(output_error)?;
             let plans = plans
                 .as_ref()
@@ -166,30 +167,10 @@ fn compile_targets(
                 .as_ref()
                 .map_err(Clone::clone)?;
             Ok::<_, NativeValidationError>((plans.select(profile)?, lease))
-        })
-        .collect();
-    if arguments.timings
-        && let Some((planned, _)) = prepared.iter().find_map(|row| row.as_ref().ok())
-    {
-        print_phases("Build", planned.timings());
-    }
-    let mut failures = Vec::new();
-    let mut failed_targets = Vec::new();
-    let mut portable = Vec::new();
-    let mut portable_plans = Vec::new();
-    for (&profile, prepared) in profiles.iter().zip(prepared) {
-        let name = profile.target_name();
-        if batch {
-            println!("target {name}:");
-        }
-        let report_name = if arguments.target_names.is_empty() {
-            "host default"
-        } else {
-            name
-        };
+        })();
         // A shared plan with the complete target set issues a single portable program.
         if arguments.emit_psi.is_some()
-            && let Ok((planned, _)) = &prepared
+            && let Ok((planned, _)) = &selected
         {
             if portable_plans
                 .iter()
@@ -199,38 +180,52 @@ fn compile_targets(
             }
             portable_plans.push(*planned);
         }
-        let result = prepared.and_then(|(planned, lease)| {
+        let target = selected.and_then(|(planned, lease)| {
             let deployments = if arguments.emit_psi.is_some() {
-                &profiles
+                profiles.as_slice()
             } else {
                 std::slice::from_ref(&profile)
             };
-            let result = (|| {
-                let mut stage = planned.product_stage(deployments)?;
-                let rollback = stage.apply_rollback(&arguments.optimization_rollback);
-                let mut result = compile_target(
-                    arguments,
-                    planned,
-                    &stage,
-                    profile,
-                    lease.directory(),
-                    rollback.as_ref(),
-                )?;
-                if let Some(candidate) = result.portable.take() {
-                    portable.push(candidate);
-                }
-                Ok(result)
-            })();
-            result.map_err(|mut error| {
-                match &mut error {
-                    NativeValidationError::Compilation(rows) => planned.attribute_diagnostics(rows),
-                    NativeValidationError::Unavailable(row) => {
-                        planned.attribute_diagnostics(std::slice::from_mut(row))
-                    }
-                    NativeValidationError::Failed(_) => {}
-                }
-                error
-            })
+            PreparedTarget::new(arguments, planned, deployments, profile, lease.directory())
+                .map_err(|error| attribute_error(planned, error))
+        });
+        prepared.push((profile, target));
+    }
+    for target in prepared
+        .iter()
+        .filter_map(|(_, result)| result.as_ref().ok())
+    {
+        for row in target.tests.rows() {
+            eprintln!("{row}");
+            writeln!(report, "{row}").unwrap();
+        }
+    }
+    if arguments.timings
+        && let Some(target) = prepared.iter().find_map(|(_, result)| result.as_ref().ok())
+    {
+        print_phases("Build", target.planned.timings());
+    }
+    let mut failures = Vec::new();
+    let mut failed_targets = Vec::new();
+    let mut portable = Vec::new();
+    for (profile, target) in prepared {
+        let name = profile.target_name();
+        if batch {
+            println!("target {name}:");
+        }
+        let report_name = if arguments.target_names.is_empty() {
+            "host default"
+        } else {
+            name
+        };
+        let result = target.and_then(|target| {
+            let planned = target.planned;
+            let mut result = compile_target(arguments, target)
+                .map_err(|error| attribute_error(planned, error))?;
+            if let Some(candidate) = result.portable.take() {
+                portable.push(candidate);
+            }
+            Ok(result)
         });
         match result {
             Ok(outcome) => {
@@ -327,14 +322,73 @@ fn output_error(message: impl ToString) -> NativeValidationError {
     NativeValidationError::Compilation(vec![Diagnostic::error(message.to_string())])
 }
 
+fn attribute_error(
+    planned: &PlannedProduct,
+    mut error: NativeValidationError,
+) -> NativeValidationError {
+    match &mut error {
+        NativeValidationError::Compilation(rows) => planned.attribute_diagnostics(rows),
+        NativeValidationError::Unavailable(row) => {
+            planned.attribute_diagnostics(std::slice::from_mut(row))
+        }
+        NativeValidationError::Failed(_) => {}
+    }
+    error
+}
+
+struct PreparedTarget<'a> {
+    planned: &'a PlannedProduct,
+    stage: project_build::ProductStage<'a>,
+    profile: TargetProfile,
+    directory: &'a Path,
+    rollback: Option<optimization_requests::OptimizationRollbackReceipt>,
+    tests: project_build::RegisteredTestPlan,
+}
+
+impl<'a> PreparedTarget<'a> {
+    fn new(
+        arguments: &CompileArguments,
+        planned: &'a PlannedProduct,
+        deployments: &[TargetProfile],
+        profile: TargetProfile,
+        directory: &'a Path,
+    ) -> Result<Self, NativeValidationError> {
+        let mut stage = planned.product_stage(deployments)?;
+        let rollback = stage.apply_rollback(&arguments.optimization_rollback);
+        let tests = if arguments.check_only || arguments.emit_psi.is_some() {
+            project_build::RegisteredTestPlan::default()
+        } else {
+            let execution = if arguments.compare_tests {
+                project_build::TestExecution::Compare
+            } else {
+                project_build::TestExecution::Available
+            };
+            stage.plan_registered_tests(profile, &arguments.installation_assumptions, execution)?
+        };
+        Ok(Self {
+            planned,
+            stage,
+            profile,
+            directory,
+            rollback,
+            tests,
+        })
+    }
+}
+
 fn compile_target(
     arguments: &CompileArguments,
-    planned: &PlannedProduct,
-    stage: &project_build::ProductStage<'_>,
-    profile: TargetProfile,
-    directory: &Path,
-    rollback: Option<&optimization_requests::OptimizationRollbackReceipt>,
+    target: PreparedTarget<'_>,
 ) -> Result<TargetReport, NativeValidationError> {
+    let PreparedTarget {
+        planned,
+        stage,
+        profile,
+        directory,
+        rollback,
+        tests,
+    } = target;
+    let rollback = rollback.as_ref();
     let configuration = &planned.evaluated().configuration;
     let mut completed = configuration
         .observation_summary
@@ -350,11 +404,6 @@ fn compile_target(
     let mut wrote_output = false;
     let mut show_summary = true;
     let artifact_only = stage.artifact_only();
-    let tests = if arguments.compare_tests {
-        project_build::TestExecution::Compare
-    } else {
-        project_build::TestExecution::Available
-    };
     let kind = if artifact_only {
         "build outputs"
     } else if arguments.check_only {
@@ -371,10 +420,7 @@ fn compile_target(
                 "an artifact-only Build requires completed outputs and cannot publish executable Psi",
             ));
         }
-        if !arguments.check_only {
-            test_roster =
-                stage.execute_registered_tests(profile, &arguments.installation_assumptions, tests)?;
-        }
+        test_roster = tests.execute()?;
         rows = arguments.stage_validators.stages_not_produced(
             &[profile.target_name()],
             |_| "the Build produces only completed files",
@@ -450,8 +496,7 @@ fn compile_target(
                 "native compilation returned an unexpected product",
             ));
         };
-        test_roster =
-            stage.execute_registered_tests(profile, &arguments.installation_assumptions, tests)?;
+        test_roster = tests.execute()?;
         let published = product
             .publish(&arguments.root_path, directory)
             .map_err(output_error)?;
