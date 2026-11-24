@@ -1,10 +1,17 @@
 //! The library a caller supplied for one Build before its first statement.
 
 use super::ProductQueryDependency;
-use crate::PackageCompilationInputs;
+use crate::{AnonymousSourceCapture, PackageCompilationInputs};
 use build_declarations::{
     BuildDeclarationKind, BuildDependencySource, BuildRequest, DependencyPurpose, ProjectName,
 };
+use declaration_scope::PackageDeclarationScope;
+use semantic_vocabulary::PackageKeyIdentity;
+use source_compiler::compile_time_invocations::InvocationSourceConsent;
+use source_compiler::representations::source_inputs::SourceMap;
+use source_provenance::DependencyScope;
+use source_text::SourceSpan;
+use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SuppliedBuildLibrary {
@@ -58,6 +65,35 @@ impl SuppliedBuildLibrary {
             .generated
             .as_ref()
             .expect("the supplied library retains its checked handoff")
+    }
+
+    /// A library's own source keeps its Product edges. Only the receiving
+    /// Build's check-only owner, when present, gets the caller's direct grants.
+    pub fn declaration_scope(
+        libraries: &[Self],
+        check_owner: Option<PackageKeyIdentity>,
+    ) -> Option<PackageDeclarationScope> {
+        if libraries.is_empty() {
+            return None;
+        }
+        let mut packages: std::collections::BTreeSet<_> = check_owner.into_iter().collect();
+        let mut edges = Vec::new();
+        for library in libraries {
+            let closure = library.handoff().dependency_closure();
+            packages.extend(closure.packages());
+            edges.extend(
+                closure
+                    .dependencies()
+                    .iter()
+                    .map(|edge| (edge.requester(), edge.target())),
+            );
+            if let Some(requester) = check_owner {
+                edges.push((requester, closure.root()));
+            }
+        }
+        Some(PackageDeclarationScope::from_direct_dependencies(
+            &packages, edges,
+        ))
     }
 
     /// Select the handoff that supplied a declaration visible from this library's Product.
@@ -123,5 +159,72 @@ impl SuppliedBuildLibrary {
             );
         }
         library.require_same_shared_product_sources(joined)
+    }
+}
+
+/// Authorize the caller's direct Build library selections only on the original
+/// source map. The receiver continues to have invocation-local declarations.
+struct SuppliedLibraryConsent {
+    capture: AnonymousSourceCapture,
+    libraries: Arc<[SuppliedBuildLibrary]>,
+}
+
+impl AnonymousSourceCapture {
+    pub fn invocation_consent(
+        &self,
+        libraries: Arc<[SuppliedBuildLibrary]>,
+    ) -> Arc<dyn InvocationSourceConsent> {
+        if libraries.is_empty() {
+            return Arc::new(self.clone());
+        }
+        Arc::new(SuppliedLibraryConsent {
+            capture: self.clone(),
+            libraries,
+        })
+    }
+}
+
+impl InvocationSourceConsent for SuppliedLibraryConsent {
+    fn allows_selection(
+        &self,
+        sources: &Arc<SourceMap>,
+        requester: SourceSpan,
+        declaration: SourceSpan,
+        purpose: DependencyScope,
+    ) -> bool {
+        self.capture
+            .allows_selection(sources, requester, declaration, purpose)
+    }
+
+    fn allows_supplied_library(
+        &self,
+        sources: &Arc<SourceMap>,
+        requester: SourceSpan,
+        declaration: SourceSpan,
+    ) -> bool {
+        if !self
+            .capture
+            .allows_selection(sources, requester, requester, DependencyScope::Build)
+        {
+            return false;
+        }
+        let Some(file) = sources.file_at(declaration) else {
+            return false;
+        };
+        if !sources.source_is_selected(declaration.source_id)
+            || file.origin != source_admission::SourceOrigin::User
+            // The receiving Build selected this file in its Build cohort. The
+            // publisher reads a foreign declaration in its supplier's Product scope.
+            || file.dependency_scope != DependencyScope::Build
+            || declaration.span.start > declaration.span.end
+            || declaration.span.end > file.source.len()
+        {
+            return false;
+        }
+        self.libraries.iter().any(|library| {
+            let inputs = &library.dependency().inputs;
+            file.package_identity == Some(inputs.root())
+                && inputs.package_root(inputs.root()) == Some(file.package_root.as_path())
+        })
     }
 }

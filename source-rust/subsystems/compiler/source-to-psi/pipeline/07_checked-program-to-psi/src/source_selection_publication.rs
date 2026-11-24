@@ -255,6 +255,19 @@ impl<'source> Questions<'source> {
                         {
                             self.declarations.source_span(*selected)?
                         }
+                        DeclarationCustody::Package(_)
+                            if selected_row.purpose == SelectionPurpose::Product =>
+                        {
+                            let selected_span = self.declarations.source_span(*selected)?;
+                            if consent.allows_supplied_library(
+                                &sources,
+                                requester_span,
+                                selected_span,
+                            ) {
+                                questions.push(id);
+                            }
+                            continue;
+                        }
                         DeclarationCustody::Toolchain => requester_span,
                         _ => continue,
                     }

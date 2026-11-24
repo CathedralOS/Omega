@@ -212,8 +212,9 @@ pub fn prepare(
             )?
         }
     };
-    let interval = resolve(&assembled, &preparation, profile, inputs)?;
-    let check_only_subject = check_only_subject(&assembled, &preparation, profile)?;
+    let interval = resolve(&assembled, &preparation, profile, inputs, &supplied_libraries)?;
+    let check_only_subject =
+        check_only_subject(&assembled, &preparation, profile, &supplied_libraries)?;
     let evaluation = prepare_build_evaluation(
         BuildEvaluationRequest {
             execution_purpose: BuildExecutionPurpose::Source,
@@ -253,12 +254,21 @@ fn check_only_subject(
     assembled: &AssembledSyntax,
     preparation: &SourcePreparation,
     profile: TargetProfile,
+    libraries: &[SuppliedBuildLibrary],
 ) -> Result<Option<TypedBuildInterval>, CompileFailure> {
     let Some(stage) = assembled.check_only_build_stage_source()? else {
         return Ok(None);
     };
+    let check_owner = assembled
+        .anonymous_owner
+        .as_ref()
+        .filter(|_| !libraries.is_empty())
+        .map(|capture| capture.provisional_check_owner())
+        .transpose()
+        .map_err(refusal)?;
+    let scope = SuppliedBuildLibrary::declaration_scope(libraries, check_owner).map(Arc::new);
     stage
-        .prepare(preparation, profile.target_name(), None)
+        .prepare(preparation, profile.target_name(), scope)
         .map(Some)
         .map_err(|rows| locate_failure(rows.into(), assembled, None))
 }
@@ -268,15 +278,19 @@ fn resolve(
     preparation: &SourcePreparation,
     profile: TargetProfile,
     inputs: Option<&PackageCompilationInputs>,
+    libraries: &[SuppliedBuildLibrary],
 ) -> Result<TypedBuildInterval, CompileFailure> {
     assembled
         .build_stage_source()?
         .prepare(
             preparation,
             profile.target_name(),
-            inputs.map(|inputs| {
-                Arc::new(inputs.declaration_scope(build_declarations::DependencyPurpose::Build))
-            }),
+            inputs
+                .map(|inputs| {
+                    inputs.declaration_scope(build_declarations::DependencyPurpose::Build)
+                })
+                .or_else(|| SuppliedBuildLibrary::declaration_scope(libraries, None))
+                .map(Arc::new),
         )
         .map_err(|rows| locate_failure(rows.into(), assembled, inputs))
 }
