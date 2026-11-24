@@ -11404,6 +11404,17 @@ mod multiplication {
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
     enum Law {
+        /// `scale * (left + right) = scale * left + scale * right` for all
+        /// unbounded integers `scale`, `left` and `right`, with no side
+        /// condition. This is a trusted assumption of the integer model,
+        /// believed and not derived, like `MonotonePositive` and
+        /// `AntitoneNegative`; it is not a certificate rule. The source
+        /// integer search needs it for the induction step of `vector_bound`
+        /// in `samples/cli/facts/source_indexed_family/main.omg`, which
+        /// rewrites `10 * (previous + 1)` to `10 * previous + 10`. A checked
+        /// proof replaces it when the kernel can derive it. The test
+        /// `distribute_add_statement_agrees_with_computed_arithmetic` checks
+        /// the declared statement against arithmetic.
         DistributeAdd,
         MonotonePositive,
         AntitoneNegative,
@@ -14227,6 +14238,133 @@ mod source_integer {
             truncated.truncate(positions.numeral_negate as usize);
             assert!(SourceIntegerTheory::resume(&mut arena, &mut truncated, positions).is_err());
             assert!(SourceIntegerTheory::resume(&mut arena, &mut declarations, positions).is_ok());
+        }
+
+        /// Instantiate a closed statement `Π s. Π a. Π b. Id Int left right`
+        /// at the literals for each `s`, `a` and `b` in `range` and evaluate
+        /// both sides with the theory's closed numeral evaluation
+        /// (`source_integer_value`), which folds `+`, `-` and `*` over
+        /// literals by computing the result and never cites a law. Returns
+        /// the first triple whose sides differ. Panics when a side cannot be
+        /// evaluated, so the check never passes by skipping a case.
+        fn equation_counterexample(
+            state: &mut Denotation,
+            statement: TermHandle,
+            range: std::ops::RangeInclusive<i64>,
+        ) -> Option<[i64; 3]> {
+            let integer = state.integer_constant().unwrap();
+            for s in range.clone() {
+                for a in range.clone() {
+                    for b in range.clone() {
+                        let mut instance = statement;
+                        for value in [s, a, b] {
+                            let Term::Pi { domain, codomain } = state.arena.get(instance) else {
+                                panic!("the statement binds three integers");
+                            };
+                            assert!(state.arena.structurally_equal(domain, integer));
+                            let literal = state.math_literal(BigInt::from_i64(value)).unwrap();
+                            instance = crate::substitute(&mut state.arena, codomain, literal);
+                        }
+                        let Term::Id { ty, left, right } = state.arena.get(instance) else {
+                            panic!("the instantiated statement is an integer equation");
+                        };
+                        assert!(state.arena.structurally_equal(ty, integer));
+                        let mut evaluate = |side| {
+                            let (value, _, _) = state
+                                .source_integer_value(side, 0)
+                                .unwrap()
+                                .expect("both sides are closed arithmetic over literals");
+                            value
+                        };
+                        if evaluate(left) != evaluate(right) {
+                            return Some([s, a, b]);
+                        }
+                    }
+                }
+            }
+            None
+        }
+
+        /// The statement `Π s. Π a. Π b. Id Int left (x + y * z)` with
+        /// its right side's last summand `y * z` replaced by `z`: for
+        /// `DistributeAdd` that is the wrong law `s * (a + b) = s * a + b`.
+        fn unscale_last_summand(arena: &mut TermArena, statement: TermHandle) -> TermHandle {
+            let mut domains = Vec::new();
+            let mut body = statement;
+            for _ in 0..3 {
+                let Term::Pi { domain, codomain } = arena.get(body) else {
+                    panic!("the statement binds three integers");
+                };
+                domains.push(domain);
+                body = codomain;
+            }
+            let Term::Id { ty, left, right } = arena.get(body) else {
+                panic!("the statement is an integer equation");
+            };
+            let Term::Apply {
+                function: sum,
+                argument: product,
+            } = arena.get(right)
+            else {
+                panic!("the right side is a sum");
+            };
+            let Term::Apply {
+                argument: unscaled, ..
+            } = arena.get(product)
+            else {
+                panic!("the last summand is a product");
+            };
+            let right = arena.insert(Term::Apply {
+                function: sum,
+                argument: unscaled,
+            });
+            let mut wrong = arena.insert(Term::Id { ty, left, right });
+            for domain in domains.into_iter().rev() {
+                wrong = arena.insert(Term::Pi {
+                    domain,
+                    codomain: wrong,
+                });
+            }
+            wrong
+        }
+
+        /// `DistributeAdd` is trusted, not derived, so its declared statement
+        /// is checked against computed arithmetic for every `s`, `a` and `b`
+        /// in -4..=4. The statement is read from the declaration
+        /// `distribute_add` cites, not retyped. This checks the statement's
+        /// instances in that range, evaluated by closed numeral arithmetic;
+        /// it does not check the law for other values, and it relies on the
+        /// numeral evaluation being correct. A control with `s * a + b` on
+        /// the right shows the same check finds a counterexample.
+        #[test]
+        fn distribute_add_statement_agrees_with_computed_arithmetic() {
+            let mut arena = TermArena::new();
+            let mut declarations = indexed_scheme(&mut arena);
+            let mut theory = SourceIntegerTheory::new(&mut arena, &mut declarations).unwrap();
+            let (correct, control) = theory
+                .with(&mut arena, &mut declarations, |state| {
+                    let zero = state.math_literal(BigInt::zero())?;
+                    let mut head = state.distribute_add(zero, zero, zero)?;
+                    while let Term::Apply { function, .. } = state.arena.get(head) {
+                        head = function;
+                    }
+                    let Term::Constant { declaration, .. } = state.arena.get(head) else {
+                        panic!("distribute_add applies its law's declaration");
+                    };
+                    let law = &state.declarations[declaration as usize];
+                    assert!(law.body.is_none(), "the law is an assumption");
+                    let statement = law.ty;
+                    let wrong = unscale_last_summand(&mut state.arena, statement);
+                    Ok((
+                        equation_counterexample(state, statement, -4..=4),
+                        equation_counterexample(state, wrong, -4..=4),
+                    ))
+                })
+                .unwrap();
+            assert_eq!(correct, None, "DistributeAdd disagrees with arithmetic");
+            let [s, a, b] = control.expect("the wrong law has a counterexample in range");
+            eprintln!("control counterexample: s = {s}, a = {a}, b = {b}");
+            assert_ne!(s * (a + b), s * a + b);
         }
 
         #[test]
