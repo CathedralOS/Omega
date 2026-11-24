@@ -363,15 +363,12 @@ pub fn result_matches(
             let Some(domain) = crate::scalar_qualifications::scalar_domain(module, *id) else {
                 return false;
             };
-            domain.carrier == result.scalar_type
-                && module.identities.text(domain.identity)
-                    == crate::scalar_qualifications::arithmetic_policy_identity(policy)
-                && domain.predicate.is_none()
-                && domain.establishment_routes.is_none()
-                && domain
-                    .required_memberships
-                    .as_ref()
-                    .is_some_and(Vec::is_empty)
+            crate::scalar_qualifications::matches_arithmetic_policy(
+                module,
+                domain,
+                result.scalar_type,
+                policy,
+            )
         }
         Err(_) => false,
     }

@@ -1,7 +1,8 @@
 //! Source correspondence retained by the driver, outside Terminal judgments.
 
 use arena::IdTable;
-use semantic_vocabulary::{MachineId, OperationId};
+use numerics::arithmetic::ArithmeticDomain;
+use semantic_vocabulary::{MachineId, OperationId, ScalarType};
 
 /// Source forms in the same order as the Terminal compilation: the primary
 /// closure, its generic forms, then its conformance witnesses. A failed reader
@@ -73,6 +74,8 @@ pub struct RequirementReviewMetadata {
     pub returned_parameters: Vec<u32>,
     /// Root domain applications keyed by source parameter position.
     pub parameter_qualifications: Vec<(u32, terminal_check_tables::program::DomainInstance)>,
+    /// Source parameter position, scalar carrier and selected core arithmetic policy.
+    pub parameter_policies: Vec<(u32, ScalarType, ArithmeticDomain)>,
     pub suspends: bool,
     pub blocks: bool,
     pub terminates: bool,

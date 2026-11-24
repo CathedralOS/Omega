@@ -209,7 +209,8 @@ impl<'module> AcceptedDeclarations<'module> {
     ) -> Result<(), Vec<Diagnostic>> {
         use terminal_psi::{BoundaryParameterKind, StructuralDomainRequirement};
         use terminal_semantics::scalar_qualifications::{
-            primitive_qualifications, qualification_domains, scalar_domain,
+            matches_arithmetic_policy, primitive_qualifications, qualification_domains,
+            scalar_domain,
         };
         let mismatch = || {
             unavailable(format!(
@@ -225,12 +226,6 @@ impl<'module> AcceptedDeclarations<'module> {
         }
         let module = self.accepted.module();
         let origins = &self.accepted.closure().elaboration().domain_sources;
-        let scalar_source = |id| {
-            scalar_domain(module, id)
-                .and_then(|domain| origins.get(domain.semantic_domain))
-                .map(|source| source.application)
-                .ok_or_else(mismatch)
-        };
         let scalar_positions: Vec<_> = boundary
             .parameter_positions(BoundaryParameterKind::Scalar)
             .collect();
@@ -238,11 +233,12 @@ impl<'module> AcceptedDeclarations<'module> {
             .parameter_positions(BoundaryParameterKind::Structural)
             .collect();
         let mut actual = Vec::new();
+        let mut scalar_requirements = Vec::new();
         for row in &boundary.scalar_domain_requirements {
             let position = *scalar_positions
                 .get(row.argument_index as usize)
                 .ok_or_else(mismatch)?;
-            actual.push((position, scalar_source(row.domain)?));
+            scalar_requirements.push((position, row.domain));
         }
         for formal in &boundary.structural_parameters {
             let position = *structural_positions
@@ -272,7 +268,18 @@ impl<'module> AcceptedDeclarations<'module> {
             // A borrowed scalar carries its domains on the referent's primitive storage.
             let home = primitive_qualifications(module, formal.structural_type);
             for &id in qualification_domains(module, home).ok_or_else(mismatch)? {
-                actual.push((position, scalar_source(id)?));
+                scalar_requirements.push((position, id));
+            }
+        }
+        // Core arithmetic policies have no source domain declaration. The checked
+        // formal carries the policy itself and its carrier.
+        let mut policies = Vec::new();
+        for (position, id) in scalar_requirements {
+            let domain = scalar_domain(module, id).ok_or_else(mismatch)?;
+            if let Some(source) = origins.get(domain.semantic_domain) {
+                actual.push((position, source.application));
+            } else {
+                policies.push((position, domain));
             }
         }
         use review_evidence::record::{
@@ -293,11 +300,21 @@ impl<'module> AcceptedDeclarations<'module> {
         // example a generic result) is outside this comparison.
         let source = match self.accepted.requirement_review(signature.symbol) {
             Ok(metadata) => metadata,
-            Err(_) if actual.is_empty() && !declared_membership => return Ok(()),
+            Err(_) if actual.is_empty() && policies.is_empty() && !declared_membership => {
+                return Ok(());
+            }
             Err(reason) => return Err(unavailable(reason)),
         };
         actual.sort_unstable_by_key(|(position, domain)| (*position, domain.coordinates()));
+        policies.sort_unstable_by_key(|(position, _)| *position);
         if boundary.parameter_order.len() != source.parameter_types.len()
+            || policies.len() != source.parameter_policies.len()
+            || !policies.iter().zip(&source.parameter_policies).all(
+                |(&(actual_position, domain), &(position, carrier, policy))| {
+                    actual_position == position as usize
+                        && matches_arithmetic_policy(module, domain, carrier, policy)
+                },
+            )
             || !structural_positions.iter().copied().eq(source
                 .structural_parameter_positions
                 .iter()

@@ -69,6 +69,27 @@ pub fn arithmetic_policy_identity(
     }
 }
 
+/// Match the compiler-owned arithmetic domain installed for this integer carrier.
+pub fn matches_arithmetic_policy(
+    module: &TerminalModule,
+    domain: &ScalarDomainDeclaration,
+    carrier: semantic_vocabulary::ScalarType,
+    policy: numerics::arithmetic::ArithmeticDomain,
+) -> bool {
+    let Some(identity) = arithmetic_policy_identity(policy) else {
+        return false;
+    };
+    matches!(carrier, semantic_vocabulary::ScalarType::Integer(_))
+        && domain.carrier == carrier
+        && module.identities.text(domain.identity) == Some(identity)
+        && domain.predicate.is_none()
+        && domain.establishment_routes.is_none()
+        && domain
+            .required_memberships
+            .as_ref()
+            .is_some_and(Vec::is_empty)
+}
+
 fn same_type(left: &ValueDeclaration, right: &ValueDeclaration) -> bool {
     left.scalar_type == right.scalar_type && left.qualifications == right.qualifications
 }
