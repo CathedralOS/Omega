@@ -1,6 +1,6 @@
 use machine_code::layout_requirements::*;
 /*
-We construct function-relative block and instruction layouts for ordinary functions in stage 08. We select the program-wide layout policy (`select`), order blocks along mandatory conditional fallthrough chains while keeping storage positions independent of sparse block identifiers (`derive_order`), iteratively widen AArch64 conditional branches whose taken displacement exceeds the signed 19-bit word range (`derive_plan`), and resolve each row's byte vector, branch evidence, and call or image-address fixup bounds (`layout`).
+We construct function-relative block and instruction layouts for ordinary functions in stage 12. We select the program-wide layout policy (`select`), order blocks along mandatory conditional fallthrough chains while keeping storage positions independent of sparse block identifiers (`derive_order`), iteratively widen AArch64 conditional branches whose taken displacement exceeds the signed 19-bit word range (`derive_plan`), and resolve each row's byte vector, branch evidence, and call or image-address fixup bounds (`layout`).
 */
 
 use std::collections::BTreeMap;
