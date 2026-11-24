@@ -60,14 +60,15 @@ group that uses `FilesystemService`.
 
 ```omega
 let memory: TestGroup = builder.tests.group::<Tests::memory>();
+memory.inputs.private_filesystem = true;
 Build::select_provider::<FilesystemService, PrivateFilesystem>(builder, linux_x86_64, memory);
 ```
 
-Pass the issued group after the target to select a provider for that group alone.
-The application and sibling groups retain their own selections.
+Setting `private_filesystem` gives each invocation in `Tests::memory` an empty
+private filesystem. Passing `memory` after the target selects `PrivateFilesystem`
+for that group. The application and sibling groups keep their own selections.
 
-The harness grants filesystem access separately. With that input, each test
-receives a fresh, empty backing. Inside a test, an ordinary call such as
+Inside a test, an ordinary call such as
 `block FilesystemService::create_new("note.txt")` creates the file in that
 test's filesystem. A helper can open it again. The next test can create
 `note.txt` anew, even when both tests run in parallel.
