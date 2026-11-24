@@ -122,3 +122,44 @@ machine main(arg: UnavailableSchema) {}"#,
         "{reason}"
     );
 }
+
+#[test]
+fn private_ram_can_only_initialize_an_installed_argument() {
+    let project = TemporaryDirectory::create("hosted-private-entry-ram", false).unwrap();
+    let root = project.path();
+    std::fs::write(root.join("build.omg"), BUILD).unwrap();
+    std::fs::write(root.join("main.omg"), MAIN).unwrap();
+    let run = |ram: bool| {
+        let mut args = vec!["run", "--engine", "psi", "--target", "linux_x86_64"];
+        if ram {
+            args.extend(["--entry-ram", "0=29000000"]);
+        }
+        args.push("build.omg");
+        invoke(root, &args)
+    };
+    let empty = run(false);
+    assert!(empty.status.success(), "{empty:?}");
+    let extra = run(true);
+    assert!(!extra.status.success());
+    let reason = String::from_utf8_lossy(&extra.stderr);
+    assert!(
+        reason.contains("private entry RAM initializer answers no declared entry position"),
+        "{reason}"
+    );
+
+    std::fs::write(
+        root.join("main.omg"),
+        "data Registers { value: u32; }\nmachine main(view: @mutable Registers) {}\n",
+    )
+    .unwrap();
+    for ram in [false, true] {
+        let undeclared = run(ram);
+        assert!(!undeclared.status.success());
+        let reason = String::from_utf8_lossy(&undeclared.stderr);
+        assert!(
+            reason.contains("hosted `ProgramEntry` exposes no arrival parameters")
+                && reason.contains("`main` declares 1 visible parameters"),
+            "{reason}"
+        );
+    }
+}

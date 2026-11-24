@@ -3,7 +3,17 @@
 Owning task: **BUILD-OWNED-TARGET-SELECTION** in [TASKS.md](../../../../TASKS.md).
 This row tests the entry-memory and lifetime obligations of [entry roots](../../../../wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge).
 
-**Fact:** An explicitly installed private `Registers` allocation lends its exact
+The frozen programs bind a hosted `ProgramEntry` and declare a placed argument.
+Today's hosted contract supplies zero arguments. These sources therefore cannot
+demonstrate installed lending through that binding. A new run needs an installed
+entry or embedding caller that actually lends the record. Its acceptance is
+status 41 on ingress and `29 00 00 00 09 00 00 00` in the caller's original
+allocation after return. The commands and observations below document the
+earlier compiler revisions listed in the qualification table.
+
+## Historical qualification
+
+**Fact under test:** An explicitly installed private `Registers` allocation lends its exact
 exclusive placed view, reading status 41 and writing transmit 9 into the same backing
 before handback. The nine examples perform the same read and write. The code byte 9
 travels through each place before the same placed write consumes its proved contract.

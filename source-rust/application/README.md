@@ -166,7 +166,7 @@ binding that `omega packages update` reviews (accept the pending decisions, then
 rerun with `--resume`). Without it, the entry is rejected with a message naming
 that review.
 
-`--entry-ram` builds fresh private initialized scalar-record RAM for one exact borrowed placed entry position. It grants no host address or external allocation. The physical lender works on Linux x86-64 and macOS ARM64 and refuses unsupported predicates, qualifications, compound storage and cleanup. With `--both --keep`, observations of the original backing and the actual interpreter effect receipts are kept separately from the program's streams; see the [placed entry RAM sample](../../samples/cli/probes/placed_entry_ram/README.md).
+`--entry-ram <position>=<hex-bytes>` supplies initial bytes for a borrowed scalar record at a position declared by the installed entry contract. The standard hosted `ProgramEntry` has zero visible arguments. Passing `--entry-ram 0=29000000` to a parameterless hosted program therefore fails with “private entry RAM initializer answers no declared entry position”. Adding a parameter to the source machine also fails the hosted signature check. The [entry contract](../../wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge) describes when a platform or embedding caller can supply arguments. The [placed entry RAM probe](../../samples/cli/probes/placed_entry_ram/README.md) records the expected bytes for an explicitly lent allocation.
 
 Startup and dispatch live in `src/main.rs`; typed invocations are parsed in
 `src/arguments/` and run in `src/commands/`. Full surface:
