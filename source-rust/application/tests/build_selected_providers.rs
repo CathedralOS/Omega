@@ -216,3 +216,40 @@ machine build(builder: @mutable Build) {{
     let (status, report) = run_both("invalid_alias_actual", program, &erased);
     assert!(!status.success() && report.contains("copy"), "{report}");
 }
+
+#[test]
+fn an_ordinary_build_helper_forwards_the_type_of_its_checked_alias() {
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        return;
+    };
+    let target = host.target_name();
+    let product = r#"boundary trait Reading<T> { machine read() -> u32 reaches none crashes none; }
+Words satisfies Reading<u32> { machine read() -> u32 { 29u32 } }
+machine entry() crashes Trap {
+    let word = Reading::<u32>::read();
+    transition word == 29u32 { true -> done(), _ -> bad() }
+    machine done() {} machine bad() { crash Trap; }
+}
+"#;
+    let build = format!(
+        r#"use main.omg as app;
+data Word<T [copy]> = u32;
+data Ticket [linear] {{}}
+machine build(builder: @mutable Build) {{
+    Build::application(builder, "helper_alias");
+    choose::<Word<u64>>(builder);
+    Build::bind(builder, {target}\ProgramEntry, |app|::entry);
+}}
+machine choose<T>(builder: @mutable Build) {{
+    Build::select_provider::<|app|::Reading<T>, |app|::Words>(builder, {target});
+}}"#
+    );
+    assert_agreed_exit_zero(run_both("helper_alias", product, &build));
+
+    let invalid = build.replace("Word<u64>", "Word<Ticket>");
+    let (status, report) = run_both("helper_alias_bound", product, &invalid);
+    assert!(
+        !status.success() && report.contains("requires `[copy]`"),
+        "{report}"
+    );
+}
