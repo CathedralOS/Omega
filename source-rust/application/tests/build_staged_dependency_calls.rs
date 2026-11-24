@@ -1529,7 +1529,7 @@ machine wrong() crashes Trap { crash Trap; }
     assert!(
         !output.status.success()
             && report.contains("Alias `kit` was prepared as a Product dependency")
-            && report.contains("Build::build_dependency(builder, description)")
+            && report.contains("the invoker must supply `kit` as a Build library before entry")
             && report.contains("build.omg:6:"),
         "{report}"
     );
