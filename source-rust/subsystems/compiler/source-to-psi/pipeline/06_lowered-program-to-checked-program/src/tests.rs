@@ -88,6 +88,7 @@ mod result_summaries;
 mod law_premise;
 mod nat_semiring;
 mod record_law;
+mod sum_hypothesis;
 mod ring_law;
 mod ring_law_publication;
 mod semiring_identity;

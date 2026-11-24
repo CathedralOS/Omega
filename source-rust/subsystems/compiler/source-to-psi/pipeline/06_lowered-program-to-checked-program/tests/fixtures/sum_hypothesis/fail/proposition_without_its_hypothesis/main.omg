@@ -1,0 +1,125 @@
+// The twin of `pass/proposition_under_addition` without the hypothesis that
+// `a` and `a2` stand for the same difference. Nothing then relates the two
+// sides of the goal, and the law is refused.
+use omega\language\core\ProcessExit;
+
+data Peano {
+    case Zero;
+    case Succ(pred: Peano);
+}
+
+trait AdditiveLaws<T> {
+    machine add(a: T, b: T) -> T reaches none crashes none terminates;
+    machine add_comm(a: T, b: T)
+    ensures core\Identity::<T>(add(a, b), add(b, a));
+    machine add_assoc(a: T, b: T, c: T)
+    ensures core\Identity::<T>(add(add(a, b), c), add(a, add(b, c)));
+}
+
+machine plus(a: Peano, b: Peano) -> Peano
+satisfies AdditiveLaws<Peano>::add
+terminates by a
+{
+    transition a {
+        Peano::Zero -> (b),
+        Peano::Succ { pred } -> Peano::Succ { pred: plus(pred, b) }
+    }
+}
+
+machine plus_zero_right(a: Peano)
+terminates by a
+ensures
+    core\Identity::<Peano>(plus(a, Peano::Zero), a)
+{
+    transition a {
+        Peano::Zero -> base(),
+        Peano::Succ { pred } -> step(pred)
+    }
+    machine base() {
+    }
+    machine step(pred: Peano) {
+        plus_zero_right(pred);
+    }
+}
+
+machine plus_succ_right(a: Peano, b: Peano)
+terminates by a
+ensures
+    core\Identity::<Peano>(plus(a, Peano::Succ { pred: b }), Peano::Succ { pred: plus(a, b) })
+{
+    transition a {
+        Peano::Zero -> base(),
+        Peano::Succ { pred } -> step(pred, b)
+    }
+    machine base() {
+    }
+    machine step(pred: Peano, b: Peano) {
+        plus_succ_right(pred, b);
+    }
+}
+
+machine plus_comm(a: Peano, b: Peano)
+satisfies AdditiveLaws<Peano>::add_comm
+terminates by a
+ensures
+    core\Identity::<Peano>(plus(a, b), plus(b, a))
+{
+    transition a {
+        Peano::Zero -> base(b),
+        Peano::Succ { pred } -> step(pred, b)
+    }
+    machine base(b: Peano) {
+        plus_zero_right(b);
+    }
+    machine step(pred: Peano, b: Peano) {
+        plus_comm(pred, b);
+        plus_succ_right(b, pred);
+    }
+}
+
+machine plus_assoc(a: Peano, b: Peano, c: Peano)
+satisfies AdditiveLaws<Peano>::add_assoc
+terminates by a
+ensures
+    core\Identity::<Peano>(plus(plus(a, b), c), plus(a, plus(b, c)))
+{
+    transition a {
+        Peano::Zero -> base(),
+        Peano::Succ { pred } -> step(pred, b, c)
+    }
+    machine base() {
+    }
+    machine step(pred: Peano, b: Peano, c: Peano) {
+        plus_assoc(pred, b, c);
+    }
+}
+
+// The pair `(neg, pos)` stands for the difference `pos - neg`.
+data Pair {
+    neg: Peano;
+    pos: Peano;
+}
+
+proposition same_difference(left: Pair, right: Pair) =
+    core\Identity::<Peano>(plus(left.pos, right.neg), plus(right.pos, left.neg));
+
+machine add_pair(a: Pair, b: Pair) -> Pair {
+    transition { _ -> (Pair { neg: plus(a.neg, b.neg), pos: plus(a.pos, b.pos) }) }
+}
+
+machine add_pair_keeps_difference(a: Pair, a2: Pair, b: Pair)
+ensures
+    same_difference(add_pair(a, b), add_pair(a2, b))
+{
+}
+
+data Main { }
+machine exit_with_status(main: @mutable Main) reaches ProcessExit {
+    ProcessExit::exit_process(0);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit {
+    let mutable entry_storage: Main;
+    block exit_with_status(@mutable entry_storage);
+}

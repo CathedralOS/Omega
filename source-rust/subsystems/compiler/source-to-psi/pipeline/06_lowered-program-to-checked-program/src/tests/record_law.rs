@@ -148,42 +148,16 @@ fn a_record_field_left_uncited_is_what_stays_unproved() {
 }
 
 #[test]
-fn every_law_of_int_but_those_that_exchange_a_hypothesis_is_judged() {
+fn every_law_of_int_is_judged() {
     // `core/int.omg` builds the integers as pairs of naturals. As with
     // `nat.omg`, the library is judged only through a program, and these
     // machines are private, so the two files' declarations are compiled as
-    // the program's. Left out of `int.omg`, each for its own reason: the
-    // named proposition and the one law stated with it, which the clause
-    // reader does not read yet, and three laws whose proof must use a
-    // hypothesis inside a larger sum.
-    let nat = super::nat_semiring::library_declarations();
-    let int = include_str!(concat!(
+    // the program's.
+    let mut program = super::nat_semiring::library_declarations();
+    program.push_str(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../../../../../source/library/core/int.omg"
-    ));
-    let proposition = int
-        .find("proposition int_pair_equivalent(")
-        .expect("the proposition");
-    let after = proposition + int[proposition..].find(';').expect("its end") + 1;
-    let left_out = [
-        "add_int_respects_eq",
-        "mul_int_respects_eq",
-        "int_eq_transitive",
-        "neg_int_respects_eq",
-    ];
-    let mut program = nat;
-    let mut skipping = false;
-    for line in int[..proposition].lines().chain(int[after..].lines()) {
-        skipping |= left_out
-            .iter()
-            .any(|name| line.starts_with(&format!("machine {name}(")));
-        if !skipping {
-            program.push_str(line);
-            program.push('\n');
-        } else if line == "}" {
-            skipping = false;
-        }
-    }
+    )));
     let typed = super::build_purpose::frontier_with_core(
         &program,
         "machine build_entry() {}",
@@ -221,6 +195,11 @@ fn every_law_of_int_but_those_that_exchange_a_hypothesis_is_judged() {
         "add_int_identity",
         "mul_int_identity",
         "neg_int_involution",
+        // Each of these uses a hypothesis on part of a longer sum.
+        "neg_int_respects_eq",
+        "add_int_respects_eq",
+        "mul_int_respects_eq",
+        "int_eq_transitive",
     ] {
         let law = judgment
             .laws

@@ -698,8 +698,22 @@ impl Program<'_> {
         let unjudged = [
             (symbols_of(typed.measures(), |row| row.symbol), "measure"),
             (symbols_of(typed.operators(), |row| row.symbol), "operator"),
+            // A proposition declared as one formula is read where a clause
+            // applies it (`contracts::named_proposition`); its declaration
+            // states nothing by itself.
             (
-                symbols_of(typed.propositions(), |row| row.symbol),
+                typed
+                    .propositions()
+                    .iter()
+                    .filter(|row| {
+                        !row.binders.is_empty()
+                            || !matches!(
+                                row.body,
+                                crate::source_state::proposition::PropositionBody::Transparent { .. }
+                            )
+                    })
+                    .map(|row| row.symbol)
+                    .collect(),
                 "proposition",
             ),
             (

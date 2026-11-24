@@ -245,6 +245,14 @@ impl Program<'_> {
             _ => None,
         };
         if let Some((mut expected, values)) = operands {
+            // A parameter of a named proposition being read is the argument
+            // written for it where the proposition was applied.
+            if let ExpressionNode::Name(path) = table.expression(expression)
+                && let Some(expected) = expected
+                && let Some(actual) = self.proposition_argument(path.symbol)
+            {
+                return self.clause_term(id, scope, actual, ClauseUse::Operand(expected, values));
+            }
             let operand = match (table.expression(expression), expected) {
                 // A machine defined by cases over data that contains itself is
                 // a function of the signature. The clause applies it by its
@@ -548,24 +556,45 @@ impl Program<'_> {
                         ))
                     }
                 }
-                // A field of a formal, or of a field of one: the formal's
-                // place and the path beneath it.
-                (ExpressionNode::Member(_), Some(expected)) if self.mathematical => {
-                    let fields = ClauseScope {
-                        formal_fields: true,
-                        ..*scope
+                // A field of a value is the field's declaration applied to
+                // that value, whatever the value is: a formal, a call or
+                // another field.
+                (ExpressionNode::Member(member), Some(expected)) if self.mathematical => {
+                    let field = member.selection.field_symbol();
+                    if !field.is_valid() {
+                        return Err(unavailable("clause member without a field symbol"));
+                    }
+                    let receiver = self.record(id, typed.symbols.get(field).parent)?;
+                    let opened = self
+                        .opened(id, Some(receiver), super::authority::Access::Read)?
+                        .ok_or_else(|| unavailable("member of something that is not data"))?;
+                    let super::places::Member::Field(position) =
+                        self.member_of(id, opened, field)?
+                    else {
+                        return Err(unavailable("clause member of one case of its data"));
                     };
-                    let (root, path, ty) = self
-                        .projected(id, &fields, expression)?
-                        .ok_or_else(|| unavailable("Identity operand has no bound formal"))?;
-                    if ty != expected {
+                    if self.data_type(id, opened.record())?.fields()[position].value_type
+                        != expected
+                    {
                         return Err(unavailable(
                             "Identity operand differs from the written carrier",
                         ));
                     }
-                    ClauseOperand::Input(semantic_vocabulary::StructuralCaseSubject::new(
-                        root, path,
-                    ))
+                    let value = self
+                        .clause_term(
+                            id,
+                            scope,
+                            member.receiver,
+                            ClauseUse::Operand(receiver, values),
+                        )?
+                        .operand(id)?;
+                    ClauseOperand::Application {
+                        declaration: ClauseDeclaration {
+                            member: (field.arena_index(), field.generation()),
+                            supplier: None,
+                        },
+                        arguments: vec![value],
+                    }
                 }
                 _ => {
                     return Err(unavailable(
