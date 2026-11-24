@@ -1731,3 +1731,78 @@ macro_rules! establish_or_subslice_set_pattern {
             | $crate::AbstractOperation::EstablishStructuralArray { $($fields)* }
     };
 }
+
+#[cfg(test)]
+mod structural_path_tests {
+    use super::AbstractOperation;
+    use crate::{AbstractStructuralBinding, AbstractStructuralCaseSuccessor};
+    use semantic_vocabulary::{
+        BlockId, EdgeId, ObligationId, PlaceId, StructuralCaseId, StructuralTypeId, ValueId,
+    };
+    use terminal_psi::{
+        StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralPathSegment,
+        TerminalAffineCleanupAction,
+    };
+
+    fn index(value: u64) -> StructuralPathSegment {
+        StructuralPathSegment::RuntimeIndex {
+            index: ValueId::new(value).unwrap(),
+            obligation: ObligationId::new(value).unwrap(),
+        }
+    }
+
+    // A dispatch reads indices in its own path, in a case binding and in a
+    // case cleanup. The mutable walk must reach the same indices in the same
+    // order, so a substitution changes exactly what `runtime_indices` reports.
+    #[test]
+    fn mutable_paths_visit_every_runtime_index_in_order() {
+        let place = PlaceId::new(1).unwrap();
+        let case = |edge, binding: u64, cleanup: u64| AbstractStructuralCaseSuccessor {
+            psi_edge: EdgeId::new(edge).unwrap(),
+            target: BlockId::new(2).unwrap(),
+            case: StructuralCaseId::new(edge).unwrap(),
+            payloads: Vec::new(),
+            structural_bindings: vec![AbstractStructuralBinding {
+                parameter: PlaceId::new(2).unwrap(),
+                argument: StructuralArgument {
+                    place,
+                    path: vec![index(binding)],
+                    access: StructuralAccess::SharedBorrow,
+                },
+            }],
+            cleanup_actions: vec![TerminalAffineCleanupAction::DiscardResidual(
+                StructuralAffineDiscard {
+                    place,
+                    path: vec![index(cleanup)],
+                    structural_type: StructuralTypeId::new(1).unwrap(),
+                },
+            )],
+        };
+        let mut operation = AbstractOperation::StructuralCase {
+            psi_block: BlockId::new(1).unwrap(),
+            source: place,
+            path: vec![index(1)],
+            cases: vec![case(1, 2, 4), case(2, 3, 5)],
+        };
+        let reported = operation
+            .runtime_indices()
+            .into_iter()
+            .map(|(value, _)| value.get())
+            .collect::<Vec<_>>();
+        assert_eq!(reported, [1, 2, 3, 4, 5]);
+        let mut visited = Vec::new();
+        operation.for_each_runtime_index_mut(|value| {
+            visited.push(value.get());
+            *value = ValueId::new(value.get() + 10).unwrap();
+        });
+        assert_eq!(visited, reported);
+        assert_eq!(
+            operation
+                .runtime_indices()
+                .into_iter()
+                .map(|(value, _)| value.get())
+                .collect::<Vec<_>>(),
+            [11, 12, 13, 14, 15]
+        );
+    }
+}
