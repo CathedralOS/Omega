@@ -205,18 +205,20 @@ fn initialize_record(
     let mut initialized = vec![false; contents.len()];
     let mut initializers = Vec::with_capacity(fields.len());
     for field in fields {
-        let StructuralFieldType::Scalar(scalar @ (ScalarType::Boolean | ScalarType::Integer(_))) =
-            field.field_type
-        else {
-            return Err(
-                "private entry RAM does not establish compound, atomic, erased or predicate fields"
-                    .into(),
-            );
+        let scalar = match &field.field_type {
+            StructuralFieldType::Scalar(scalar) => *scalar,
+            StructuralFieldType::BoundedInteger(bounds) => {
+                ScalarType::Integer(bounds.integer_type())
+            }
+            StructuralFieldType::RefinedScalar(refinement) => refinement.carrier(),
+            _ => return Err("private entry RAM requires an ordinary scalar field".into()),
         };
         if !terminal_semantics::scalar_qualifications::field_qualifications(module, field.id)
             .is_empty()
         {
-            return Err("private entry RAM does not establish a declared scalar field domain".into());
+            return Err(
+                "private entry RAM does not establish a declared scalar field domain".into(),
+            );
         }
         if field.relevance.is_erased() {
             return Err("private entry RAM does not establish erased custody".into());

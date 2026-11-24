@@ -1,8 +1,7 @@
 use super::*;
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, ContentPlaceVersion, DomainSemanticId, MachineId, PlaceId,
-    Proposition, QualifiedScalarType, ScalarQualificationSetId, StructuralDomainId,
-    StructuralFieldId,
+    CanonicalStructuralPathSegment, ContentPlaceVersion, DomainSemanticId, PlaceId, Proposition,
+    QualifiedScalarType, ScalarQualificationSetId, StructuralDomainId, StructuralFieldId,
 };
 use terminal_psi::{
     BindingRelevance, ScalarFieldQualification, StructuralDomainDeclaration,
@@ -10,33 +9,31 @@ use terminal_psi::{
     StructuralTypeDeclaration, TerminalIdentityIndex, TerminalModule,
 };
 
-#[test]
-fn entry_bytes_must_establish_the_selected_records_own_requirements() {
-    let mut module = TerminalModule::for_entry(MachineId::new(1).unwrap());
-    let id = StructuralTypeId::new(1).unwrap();
-    let first = StructuralFieldId::new(1).unwrap();
-    let second = StructuralFieldId::new(2).unwrap();
-    let field = |id| StructuralFieldDeclaration {
-        declaration_identity: Default::default(),
-        inline_carrier: None,
-        id,
-        identity: TerminalIdentityIndex(id.get() as u32),
-        relevance: BindingRelevance::Relevant,
-        field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
-        storage: None,
-    };
-    let observed = |field| ScalarTerm::BooleanField {
-        version: ContentPlaceVersion::Current,
-        root: PlaceId::new(1).unwrap(),
-        path: vec![CanonicalStructuralPathSegment::Field(field)],
-    };
+fn record(types: &[StructuralFieldType], requires: Vec<Proposition>) -> TerminalModule {
+    let mut module = TerminalModule::declarations();
+    let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+    let identity = identities.intern("EntryRecord");
+    let fields = types
+        .iter()
+        .enumerate()
+        .map(|(position, field_type)| StructuralFieldDeclaration {
+            declaration_identity: Default::default(),
+            inline_carrier: None,
+            id: StructuralFieldId::new(position as u64 + 1).unwrap(),
+            identity: identities.intern(&format!("field_{position}")),
+            relevance: BindingRelevance::Relevant,
+            field_type: field_type.clone(),
+            storage: None,
+        })
+        .collect();
+    module.identities = identities.build();
     module
         .types
         .structural_types
         .push(StructuralTypeDeclaration {
             declaration_identity: Default::default(),
-            id,
-            identity: TerminalIdentityIndex(0),
+            id: StructuralTypeId::new(1).unwrap(),
+            identity,
             quotient_carrier: None,
             owns_linear_claim: false,
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -44,12 +41,32 @@ fn entry_bytes_must_establish_the_selected_records_own_requirements() {
             descriptor_cleanup: true,
             nominal_cleanup: None,
             shape: StructuralTypeShape::Record {
-                fields: vec![field(first), field(second)],
+                fields,
                 storage: StructuralRecordStorage::Packed,
             },
             scalar_restriction: None,
-            requires: vec![Proposition::Equal(observed(first), observed(second))],
+            requires,
         });
+    module
+}
+
+#[test]
+fn entry_bytes_must_establish_the_selected_records_own_requirements() {
+    let first = StructuralFieldId::new(1).unwrap();
+    let second = StructuralFieldId::new(2).unwrap();
+    let observed = |field| ScalarTerm::BooleanField {
+        version: ContentPlaceVersion::Current,
+        root: PlaceId::new(1).unwrap(),
+        path: vec![CanonicalStructuralPathSegment::Field(field)],
+    };
+    let mut module = record(
+        &[
+            StructuralFieldType::Scalar(ScalarType::Boolean),
+            StructuralFieldType::Scalar(ScalarType::Boolean),
+        ],
+        vec![Proposition::Equal(observed(first), observed(second))],
+    );
+    let id = module.types.structural_types[0].id;
     // A named domain on this carrier is an independent qualification.
     // It is never asserted by this unqualified record's initializer.
     module
@@ -129,4 +146,55 @@ fn entry_bytes_must_establish_the_selected_records_own_requirements() {
         decode(&module, &[1, 1]).unwrap_err(),
         "private entry RAM does not establish a declared scalar field domain"
     );
+}
+
+#[test]
+fn entry_integer_bytes_must_satisfy_the_field_range_and_refinement() {
+    use semantic_vocabulary::{BoundedIntegerType, IntegerType, ScalarRefinement};
+    let integer = IntegerType::new(IntegerSign::Signed, 8).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    let literal = |n| ScalarTerm::Integer {
+        scalar_type: integer,
+        value: IntegerValue::Signed(n),
+    };
+    let bounded =
+        BoundedIntegerType::new(integer, IntegerValue::Signed(-2), IntegerValue::Signed(9))
+            .unwrap();
+    let exact = ScalarRefinement::new(
+        scalar,
+        Proposition::Equal(
+            ScalarTerm::value(ScalarRefinement::SUBJECT, scalar),
+            literal(-3),
+        ),
+    )
+    .unwrap();
+    let module = record(
+        &[
+            StructuralFieldType::BoundedInteger(bounded),
+            StructuralFieldType::RefinedScalar(exact),
+        ],
+        vec![],
+    );
+    let closed = terminal_codec::ClosedTerminalModule::new(module).unwrap();
+    let module = closed.module();
+    let decode = |bytes: &[u8]| {
+        initialize_record(
+            module,
+            closed.closed_types(),
+            &module.types.structural_types,
+            &module.types.structural_types[0],
+            bytes,
+        )
+    };
+    for endpoint in [-2i8, 9] {
+        let decoded = decode(&[endpoint as u8, (-3i8) as u8]).unwrap();
+        assert_eq!(decoded[0].value, literal(i128::from(endpoint)));
+        assert_eq!(decoded[1].value, literal(-3));
+    }
+    for bytes in [[(-3i8) as u8, (-3i8) as u8], [10, (-3i8) as u8], [9, 3]] {
+        assert_eq!(
+            decode(&bytes).unwrap_err(),
+            "private entry RAM initializer violates its declaration"
+        );
+    }
 }
