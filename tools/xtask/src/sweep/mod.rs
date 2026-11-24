@@ -1026,7 +1026,7 @@ fn sweep(
     // fails in the first second rather than after the last program.
     let (journal, earlier) = match &options.out {
         Some(out) => {
-            let (journal, earlier) = Journal::open(root, out, header)?;
+            let (journal, earlier) = Journal::open(root, out, header, programs)?;
             (Some(journal), earlier)
         }
         None => (None, Vec::new()),

@@ -73,9 +73,9 @@ impl Shard {
     }
 }
 
-/// A program's name as outputs record it: its folder.
+/// Display the folder for a main.omg entry and the full path for other files.
 pub(crate) fn short(program: &str) -> &str {
-    program.trim_end_matches("/main.omg")
+    program.strip_suffix("/main.omg").unwrap_or(program)
 }
 
 /// A fingerprint of the whole selection, before sharding: every shard of one
@@ -155,7 +155,7 @@ fn label(text: &str) -> Option<&'static str> {
 }
 
 pub(crate) fn row_json(row: &Row) -> serde_json::Value {
-    serde_json::json!({
+    let mut value = serde_json::json!({
         "program": short(&row.program),
         "exit": row.exit,
         "ms": row.ms as u64,
@@ -164,7 +164,11 @@ pub(crate) fn row_json(row: &Row) -> serde_json::Value {
         "cause": row.cause,
         "detail": row.detail,
         "expect": if row.reject { "reject" } else { "accept" },
-    })
+    });
+    if !row.program.ends_with("/main.omg") {
+        value["entry"] = serde_json::Value::String(row.program.clone());
+    }
+    value
 }
 
 pub(crate) fn row_from_json(value: &serde_json::Value) -> Result<Row, String> {
@@ -174,7 +178,15 @@ pub(crate) fn row_from_json(value: &serde_json::Value) -> Result<Row, String> {
             .and_then(serde_json::Value::as_str)
             .ok_or_else(|| format!("a row has no `{key}`"))
     };
-    let program = format!("{}/main.omg", text("program")?);
+    let name = text("program")?;
+    let program = match value.get("entry") {
+        None => format!("{name}/main.omg"),
+        Some(entry) => entry
+            .as_str()
+            .filter(|path| short(path) == name)
+            .ok_or_else(|| format!("sweep entry does not match program `{name}`"))?
+            .to_owned(),
+    };
     let known = |key: &str| {
         let found = text(key)?;
         label(found).ok_or_else(|| format!("{program}: unknown {key} `{found}`"))
@@ -207,7 +219,12 @@ pub(crate) struct Journal {
 impl Journal {
     /// Opens the journal for `header`, returning the rows an earlier attempt
     /// of the same run already checked. Refuses a journal from another run.
-    pub fn open(root: &Path, out: &Path, header: &Header) -> Result<(Journal, Vec<Row>), String> {
+    pub fn open(
+        root: &Path,
+        out: &Path,
+        header: &Header,
+        selected: &[impl AsRef<str>],
+    ) -> Result<(Journal, Vec<Row>), String> {
         let path = journal_path(out);
         if let Some(parent) = out.parent().filter(|parent| !parent.as_os_str().is_empty()) {
             fs::create_dir_all(parent)
@@ -260,10 +277,19 @@ impl Journal {
                 let Ok(value) = serde_json::from_str::<serde_json::Value>(&line) else {
                     break;
                 };
-                done.push(
-                    row_from_json(&value)
-                        .map_err(|error| format!("{}: {error}", path.display()))?,
-                );
+                let mut row = row_from_json(&value)
+                    .map_err(|error| format!("{}: {error}", path.display()))?;
+                // Older journals omitted the entry field for every filename.
+                // Only the original sorted shard can distinguish a selected
+                // file from a folder whose name happens to end in .omg.
+                if value.get("entry").is_none()
+                    && let Some(name) = row.program.strip_suffix("/main.omg")
+                    && name.ends_with(".omg")
+                    && selected.binary_search_by(|p| p.as_ref().cmp(name)).is_ok()
+                {
+                    row.program.truncate(name.len());
+                }
+                done.push(row);
             }
             // Rewrite the journal without any torn tail before appending.
             let mut text = serde_json::to_string(header).map_err(|error| error.to_string())?;
@@ -542,7 +568,7 @@ mod tests {
         let out = dir.join("out.json");
         let programs = ["samples/a/main.omg", "samples/b/main.omg"];
         let run = header(Shard::WHOLE, &programs, 2);
-        let (mut journal, done) = Journal::open(&dir, &out, &run).unwrap();
+        let (mut journal, done) = Journal::open(&dir, &out, &run, &programs).unwrap();
         assert!(done.is_empty());
         journal.append(&row(programs[0], 0, 3, "")).unwrap();
         drop(journal);
@@ -554,7 +580,7 @@ mod tests {
         file.write_all(b"{\"program\":\"samp").unwrap();
         drop(file);
 
-        let (journal, done) = Journal::open(&dir, &out, &run).unwrap();
+        let (journal, done) = Journal::open(&dir, &out, &run, &programs).unwrap();
         assert_eq!(done.len(), 1);
         assert_eq!(done[0].program, programs[0]);
         assert_eq!(done[0].outcome, "Checks");
@@ -564,13 +590,13 @@ mod tests {
             commit: "def".to_owned(),
             ..run.clone()
         };
-        let refused = Journal::open(&dir, &out, &other).err().unwrap();
+        let refused = Journal::open(&dir, &out, &other, &programs).err().unwrap();
         assert!(refused.contains("another run"), "{refused}");
 
         // A journal of another run that checked nothing is simply replaced.
         let empty = dir.join("empty.json");
-        drop(Journal::open(&dir, &empty, &other).unwrap());
-        let (_, done) = Journal::open(&dir, &empty, &run).unwrap();
+        drop(Journal::open(&dir, &empty, &other, &programs).unwrap());
+        let (_, done) = Journal::open(&dir, &empty, &run, &programs).unwrap();
         assert!(done.is_empty());
         let _ = fs::remove_dir_all(&dir);
     }
@@ -644,6 +670,48 @@ mod tests {
                 assert_eq!(fs::read(&out).unwrap(), expected);
             }
         }
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn sweep_output_preserves_the_selected_entry_filename() {
+        let dir = scratch("entry-filename");
+        let out = dir.join("out.json");
+        let programs = [
+            "samples/fixture.omg/main.omg",
+            "samples/main.omg/main.omg",
+            "samples/verify_domain.omg",
+        ];
+        let run = header(Shard::WHOLE, &programs, programs.len());
+        let rows = programs.map(|program| row(program, 0, 7, ""));
+
+        write_output(&out, &run, &rows).unwrap();
+        let (read, decoded) = parse_output(&fs::read_to_string(&out).unwrap()).unwrap();
+        assert_eq!(read, run);
+        assert_eq!(decoded, rows);
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn a_legacy_journal_resumes_the_files_in_its_selection() {
+        let dir = scratch("legacy-entry-filename");
+        let out = dir.join("out.json");
+        let programs = ["samples/fixture.omg/main.omg", "samples/verify_domain.omg"];
+        let run = header(Shard::WHOLE, &programs, programs.len());
+        let rows = programs.map(|program| row(program, 0, 7, ""));
+        let mut journal = serde_json::to_string(&run).unwrap();
+        for row in &rows {
+            let mut old = row_json(row);
+            old.as_object_mut().unwrap().remove("entry");
+            journal.push('\n');
+            journal.push_str(&old.to_string());
+        }
+        fs::write(journal_path(&out), journal).unwrap();
+
+        let (journal, resumed) = Journal::open(&dir, &out, &run, &programs).unwrap();
+        assert_eq!(resumed, rows);
+        write_output(&out, &run, &resumed).unwrap();
+        journal.remove().unwrap();
         fs::remove_dir_all(dir).unwrap();
     }
 

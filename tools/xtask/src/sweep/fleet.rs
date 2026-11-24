@@ -1292,12 +1292,13 @@ mod tests {
         assert!(matches_run(&root.join("absent"), &run, &assignment, &header).is_err());
         let out = root.join("shard.json");
         let row = crate::sweep::row("samples/app/main.omg", 0, 3, "");
-        let (mut journal, _) = record::Journal::open(&root, &out, &header).unwrap();
+        let selected = ["samples/app/main.omg"];
+        let (mut journal, _) = record::Journal::open(&root, &out, &header, &selected).unwrap();
         journal.append(&row).unwrap();
         drop(journal);
         header.commit.clone_from(&run.commit);
         assert!(matches_run(&root.join("absent"), &run, &assignment, &header).is_ok());
-        let (journal, restored) = record::Journal::open(&root, &out, &header).unwrap();
+        let (journal, restored) = record::Journal::open(&root, &out, &header, &selected).unwrap();
         assert_eq!(restored, [row]);
         drop(journal);
         fs::remove_dir_all(root).unwrap();
