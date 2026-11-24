@@ -1,6 +1,6 @@
 //! Compare compatible completed runs without pretending their samples were paired.
 
-use crate::plan::Plan;
+use crate::plan::{Measurement, Plan};
 use crate::{records, statistics};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
@@ -59,7 +59,10 @@ fn logical_plan(plan: &Plan) -> Result<Value, String> {
         }
     }
     let mut environment = plan.candidate.environment.clone();
-    environment.remove("OMEGA_LIBRARY_ROOT");
+    if matches!(plan.measurement, Measurement::Compiler { .. }) {
+        // The compiler plan already compares the library path and its captured input bytes.
+        environment.remove("OMEGA_LIBRARY_ROOT");
+    }
     Ok(
         json!({"measurement":measurement,"arguments":plan.candidate.arguments,"environment":environment,"timeout_ms":plan.timeout_ms,"warmups":plan.warmups}),
     )
