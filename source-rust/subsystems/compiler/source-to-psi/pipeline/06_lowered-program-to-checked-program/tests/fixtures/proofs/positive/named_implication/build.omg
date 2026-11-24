@@ -1,10 +1,19 @@
 use main.omg as program;
+use omega\language\core\ProcessExit;
+
+machine hosted_entry() reaches ProcessExit {
+    let result: u8 = |program|::entry();
+    ProcessExit::exit_process(result as i32);
+}
 
 machine build(builder: @mutable Build) {
     Build::application(builder, "theorem_proof_parameters");
-    Build::bind(builder, windows_x86_64\ProgramEntry, |program|::entry);
-    Build::bind(builder, windows_arm64\ProgramEntry, |program|::entry);
-    Build::bind(builder, linux_x86_64\ProgramEntry, |program|::entry);
-    Build::bind(builder, macos_arm64\ProgramEntry, |program|::entry);
-    Build::bind(builder, linux_arm64\ProgramEntry, |program|::entry);
+    let std_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
+        location: "../../../../../../../../../../../source/library/std"
+    }));
+    Build::bind(builder, windows_x86_64\ProgramEntry, hosted_entry);
+    Build::bind(builder, windows_arm64\ProgramEntry, hosted_entry);
+    Build::bind(builder, linux_x86_64\ProgramEntry, hosted_entry);
+    Build::bind(builder, macos_arm64\ProgramEntry, hosted_entry);
+    Build::bind(builder, linux_arm64\ProgramEntry, hosted_entry);
 }

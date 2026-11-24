@@ -712,23 +712,18 @@ impl<'t> Program<'t> {
             let (machine, _) = self.declaration(id, symbol)?;
             // The signature already retained each logical parameter's contract
             // and header position. Only unresolved source binders belong here.
-            let mut binders = self
+            let callable_parameters = self.typed.machine_callable_parameters(machine);
+            let binders = self
                 .generic_parameters(id, machine)?
                 .into_iter()
+                .chain(callable_parameters.iter())
                 .filter(|parameter| {
                     !matches!(
                         parameter.kind,
                         crate::source_state::data::TypeParameterKind::Proof { .. }
                     )
                 })
-                .map(|parameter| parameter.symbol)
-                .collect::<Vec<_>>();
-            binders.extend(
-                self.typed
-                    .machine_callable_parameters(machine)
-                    .iter()
-                    .map(|parameter| parameter.symbol),
-            );
+                .map(|parameter| parameter.symbol);
             let mut known = self
                 .generic_binders
                 .iter()

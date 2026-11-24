@@ -12,6 +12,10 @@ const ORIGINAL: &str = include_str!("fixtures/proofs/positive/named_implication/
 fn a_named_theorem_supplies_the_full_explicit_implication() {
     let program = Program::of(ORIGINAL);
     let verdict = program.judged(|elaboration| {
+        assert!(
+            elaboration.generic_binders.is_empty(),
+            "the checked logical header leaves no open source binder at publication"
+        );
         let proofs = &elaboration.module.proofs;
         assert!(
             !proofs.theorem_parameters.is_empty(),

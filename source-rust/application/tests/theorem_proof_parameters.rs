@@ -22,7 +22,20 @@ fn invoke(wrong_proof: bool) -> (Output, String) {
         original
     };
     std::fs::write(scratch.path().join("main.omg"), source).unwrap();
-    std::fs::copy(fixture.join("build.omg"), scratch.path().join("build.omg")).unwrap();
+    // The Build normally resolves its std dependency beside the checkout.
+    // Keep that source when the twin moves into its private working directory.
+    let build = std::fs::read_to_string(fixture.join("build.omg")).unwrap();
+    let std_location = support::repository_root()
+        .join("source/library/std")
+        .to_string_lossy()
+        .replace('\\', "/");
+    let location = "../../../../../../../../../../../source/library/std";
+    assert!(build.contains(location));
+    std::fs::write(
+        scratch.path().join("build.omg"),
+        build.replace(location, &std_location),
+    )
+    .unwrap();
     std::fs::write(scratch.path().join("empty.stdin"), []).unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args([
