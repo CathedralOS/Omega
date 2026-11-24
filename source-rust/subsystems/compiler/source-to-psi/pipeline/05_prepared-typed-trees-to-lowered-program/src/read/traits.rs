@@ -20,6 +20,14 @@ fn key(symbol: SymbolHandle) -> (u32, u32) {
     (symbol.arena_index(), symbol.generation())
 }
 
+/// The same requirement arguments as lowered values and as written source
+/// types. A record application needs the latter to retain its exact identity.
+#[derive(Clone)]
+pub(super) struct RequirementTypeScope {
+    pub(super) values: Vec<(SymbolHandle, ValueType)>,
+    pub(super) source: std::sync::Arc<crate::source_state::SourceTypeScope>,
+}
+
 /// Pair every selected row with the declaration and arguments that own its public contract.
 struct ImplementationMember<'program, 'row> {
     receiver: AppliedTraitScope<'program>,
@@ -289,7 +297,7 @@ impl<'program> Program<'program> {
             .data_type_parameters
             .span(declaration.type_parameters)
             .ok_or_else(|| services::unavailable(context, "trait has a stale generic telescope"))?;
-        let scope = parameters
+        let values = parameters
             .iter()
             .enumerate()
             // An implementation binder is its declared record value, not a type.
@@ -310,6 +318,14 @@ impl<'program> Program<'program> {
                 ))
             })
             .collect::<Checked<Vec<_>>>()?;
+        let rigid_parameters = values.iter().map(|(binder, _)| *binder).collect();
+        let scope = RequirementTypeScope {
+            values,
+            source: std::sync::Arc::new(crate::source_state::SourceTypeScope {
+                rigid_parameters,
+                ..Default::default()
+            }),
+        };
         let signatures = typed
             .trait_machine_signatures
             .span(declaration.machines)
@@ -1059,23 +1075,28 @@ impl<'program> Program<'program> {
         &mut self,
         context: MachineId,
         application: &AppliedTraitScope<'_>,
-    ) -> Checked<Vec<(SymbolHandle, ValueType)>> {
+    ) -> Checked<RequirementTypeScope> {
         let typed = self.typed;
         let outer = std::mem::take(&mut self.scope);
         // A non-generic conformance supplies its receiver arguments together,
         // independently of which parameters its chosen method uses.
-        let scope = typed
+        let mut substitutions = Vec::new();
+        let values = typed
             .trait_type_parameters(application.declaration)
             .iter()
             .filter(|binder| binder.kind == crate::source_state::data::TypeParameterKind::Type)
             .map(|binder| {
                 let actual = application.parameter_argument(typed, binder.symbol);
+                substitutions.push((binder.symbol, actual));
                 self.value_type(context, actual)
                     .map(|value| (binder.symbol, value))
             })
-            .collect();
+            .collect::<Checked<Vec<_>>>();
         self.scope = outer;
-        scope
+        Ok(RequirementTypeScope {
+            values: values?,
+            source: self.extended_source_scope(substitutions),
+        })
     }
 }
 

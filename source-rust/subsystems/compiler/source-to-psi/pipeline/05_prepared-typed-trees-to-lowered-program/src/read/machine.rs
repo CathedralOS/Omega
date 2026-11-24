@@ -3165,7 +3165,7 @@ impl<'t> Program<'t> {
         &mut self,
         id: MachineId,
         signature: &StateSignature,
-        scope: Vec<(SymbolHandle, ValueType)>,
+        scope: super::traits::RequirementTypeScope,
         is_boundary: bool,
         abstract_schema: bool,
     ) -> Checked<Signature> {
@@ -3198,7 +3198,8 @@ impl<'t> Program<'t> {
         // The schema retains these binders as its own logical formals below.
         // Reading that metadata must preserve the executable closure's scope;
         // a standalone generic check form owns its binders in generic_trait.
-        let outer = std::mem::replace(&mut self.scope, scope);
+        let outer = std::mem::replace(&mut self.scope, scope.values);
+        let outer_source = std::mem::replace(&mut self.source_scope, scope.source);
         let reading_schema = std::mem::replace(&mut self.reading_schema, abstract_schema);
         let declared = if abstract_schema {
             Declarer::Schema {
@@ -3238,6 +3239,7 @@ impl<'t> Program<'t> {
         self.elision = elision;
         self.reading_schema = reading_schema;
         self.scope = outer;
+        self.source_scope = outer_source;
         if let Some((_, count)) = self
             .elided_lifetimes
             .iter_mut()

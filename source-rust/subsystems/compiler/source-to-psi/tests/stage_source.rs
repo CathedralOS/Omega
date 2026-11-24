@@ -85,6 +85,43 @@ fn an_entryless_checked_product_publishes_reopenable_psi() {
 }
 
 #[test]
+fn a_requirement_reads_nested_nominal_arguments_in_its_own_type_scope() {
+    let package = PackageKeyIdentity::from_digest([0x72; 32]).unwrap();
+    let source = r#"
+        data Reading {}
+        data Writing {}
+        data Stamp<T> { value: u32; }
+        boundary trait Echo<T> {
+            machine carry(input: Stamp<Stamp<T>>) -> Stamp<Stamp<T>> reaches none crashes none;
+        }
+        First satisfies Echo<Reading> {
+            machine carry(input: Stamp<Stamp<Reading>>) -> Stamp<Stamp<Reading>> { input }
+        }
+        Second satisfies Echo<Writing> {
+            machine carry(input: Stamp<Stamp<Writing>>) -> Stamp<Stamp<Writing>> { input }
+        }
+        machine main() {}
+    "#;
+    let check = |source: &str| {
+        let (files, root) = captured(package, source);
+        source_compiler::check(
+            product(files, root, package, &[]).unwrap(),
+            &mut Default::default(),
+        )
+    };
+    check(source).unwrap();
+    let wrong = source.replace(
+        "-> Stamp<Stamp<Writing>> { input }",
+        "-> Stamp<Stamp<Reading>> { input }",
+    );
+    let errors = check(&wrong).expect_err("the second provider promises a different record");
+    assert!(
+        errors.iter().any(|error| error.message.contains("differs from its requirement")),
+        "{errors:?}"
+    );
+}
+
+#[test]
 fn inherited_provider_methods_keep_the_declaring_application_and_result() {
     let package = PackageKeyIdentity::from_digest([0x72; 32]).unwrap();
     let source = "public boundary trait Reading<T> {
