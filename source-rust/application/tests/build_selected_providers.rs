@@ -100,6 +100,38 @@ fn assert_agreed_exit_zero((status, report): (ExitStatus, String)) {
 }
 
 #[test]
+fn a_selected_generic_provider_keeps_its_uncalled_requirement() {
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        return;
+    };
+    let target = host.target_name();
+    let program = r#"
+data Tag {}
+data Word {}
+boundary trait Echo<P, T> { machine carry(x: u32) -> u32 reaches none crashes none; }
+Copy<P, T, R> satisfies Echo<P, T> {
+    machine carry(x: u32) -> u32 reaches none crashes none { x }
+}
+machine entry() {}
+"#;
+    let build = format!(
+        r#"machine build(builder: @mutable Build) {{
+    Build::application(builder, "uncalled_provider");
+    Build::select_provider::<Echo<Tag, Word>, Copy<Tag, Word, u32>>(builder, {target});
+    Build::bind(builder, {target}\ProgramEntry, entry);
+}}"#
+    );
+    assert_agreed_exit_zero(run_both("uncalled_requirement", program, &build));
+
+    let wrong = build.replace("Copy<Tag, Word, u32>", "Copy<Word, Tag, u32>");
+    let (status, report) = run_both("wrong_uncalled_requirement", program, &wrong);
+    assert!(
+        !status.success() && report.contains("does not satisfy"),
+        "{report}"
+    );
+}
+
+#[test]
 fn a_selected_referenced_provider_runs_on_both_engines() {
     assert_agreed_exit_zero(run_both("referenced", &referenced("value + 1"), BUILD));
 }
