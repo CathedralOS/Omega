@@ -7,11 +7,11 @@ use crate::source_state::references::StaticArgumentCall;
 use crate::source_state::types::TypeReferenceHandle;
 use access_admission::AccessPlan;
 use access_vocabulary::AccessExposure;
-use access_vocabulary::AccessPermissions;
 use access_vocabulary::AtomicPermissions;
 use access_vocabulary::BoundaryReach;
 use access_vocabulary::BoundaryServiceReachId;
-use access_vocabulary::ObservationModel;
+use access_vocabulary::ExternalRead;
+use access_vocabulary::ObservationDemand;
 use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
 use schema_reflection::CallableDescription;
 use schema_reflection::FieldDescription;
@@ -349,32 +349,35 @@ fn exposure(value: &BuildTimeValue) -> Result<AccessExposure, String> {
 
 fn observation(
     value: &BuildTimeValue,
-) -> Result<Option<(ObservationModel, AccessPermissions, AccessExposure)>, String> {
+) -> Result<Option<(ObservationDemand, AccessExposure)>, String> {
     let (kind, payload) = case(value)?;
-    let mut permissions = AccessPermissions::default();
-    let model = match kind {
+    let operations = match kind {
         "Inaccessible" => {
             roster(payload, &[])?;
             return Ok(None);
         }
         "Stable" => {
-            roster(payload, &["read", "write", "exposure"])?;
-            permissions.read = boolean(field(payload, "read")?)?;
-            permissions.write = boolean(field(payload, "write")?)?;
-            ObservationModel::Stable
+            roster(payload, &["read", "take", "write", "swap", "exposure"])?;
+            ObservationDemand::Stable {
+                read: boolean(field(payload, "read")?)?,
+                take: boolean(field(payload, "take")?)?,
+                write: boolean(field(payload, "write")?)?,
+                swap: boolean(field(payload, "swap")?)?,
+            }
         }
         "External" => {
             roster(payload, &["read", "write", "exposure"])?;
             let (read, empty) = case(field(payload, "read")?)?;
             roster(empty, &[])?;
-            match read {
-                "None" => {}
-                "Read" => permissions.read = true,
-                "Take" => permissions.take = true,
-                _ => return Err("external observation lost its read behavior".into()),
+            ObservationDemand::External {
+                read: match read {
+                    "None" => ExternalRead::None,
+                    "Read" => ExternalRead::Read,
+                    "Take" => ExternalRead::Take,
+                    _ => return Err("external observation lost its read behavior".into()),
+                },
+                write: boolean(field(payload, "write")?)?,
             }
-            permissions.write = boolean(field(payload, "write")?)?;
-            ObservationModel::External
         }
         "Atomic" => {
             roster(payload, &["operations", "exposure"])?;
@@ -395,7 +398,7 @@ fn observation(
                     "try_exchange_once",
                 ],
             )?;
-            permissions.atomic = AtomicPermissions {
+            ObservationDemand::Atomic(AtomicPermissions {
                 load: boolean(field(operations, "load")?)?,
                 store: boolean(field(operations, "store")?)?,
                 fetch_add: boolean(field(operations, "fetch_add")?)?,
@@ -408,16 +411,11 @@ fn observation(
                 compare_exchange_once: boolean(field(operations, "compare_exchange_once")?)?,
                 try_exchange: boolean(field(operations, "try_exchange")?)?,
                 try_exchange_once: boolean(field(operations, "try_exchange_once")?)?,
-            };
-            ObservationModel::Atomic
+            })
         }
         _ => return Err("access plan has another observation demand".into()),
     };
-    Ok(Some((
-        model,
-        permissions,
-        exposure(field(payload, "exposure")?)?,
-    )))
+    Ok(Some((operations, exposure(field(payload, "exposure")?)?)))
 }
 
 fn active<'v>(fields: &'v Fields, name: &str, count: &str) -> Result<&'v [BuildTimeValue], String> {
