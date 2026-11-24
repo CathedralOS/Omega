@@ -79,11 +79,13 @@ fn parses_domain_definition_surface() {
 #[test]
 fn fixed_domain_carriers_keep_their_names_when_the_family_binds_indices() {
     let source = "domain<P, T> Tag::Occupied<P, T>;
-                  domain<T, P> T::Selected<P>;";
+                  domain<T, P> T::Selected<P>;
+                  domain<const Tag: u64> Tag::Number<Tag>;";
     let parsed = crate::tests::parse_source(source, "indexed domains should parse");
     let domains = crate::tests::root_domains(&parsed);
     assert_eq!(domains[0].name.as_str(&parsed), "Tag::Occupied");
     assert_eq!(domains[1].name.as_str(&parsed), "Selected");
+    assert_eq!(domains[2].name.as_str(&parsed), "Tag::Number");
     assert_eq!(domains[0].index_arguments.count(), 2);
     assert_eq!(domains[1].index_arguments.count(), 1);
 }
