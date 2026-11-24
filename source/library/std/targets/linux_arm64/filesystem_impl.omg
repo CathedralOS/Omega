@@ -167,6 +167,7 @@ machine linux_arm64_posix_kind_of_stored_error_code(filesystem: @mutable PosixFi
         1 -> ErrorKind::PermissionDenied,
         17 -> ErrorKind::AlreadyExists,
         9 -> ErrorKind::BadDescriptor,
+        20 -> ErrorKind::InvalidInput,
         21 -> ErrorKind::IsADirectory,
         11 -> ErrorKind::WouldBlock,
         22 -> ErrorKind::InvalidInput,
