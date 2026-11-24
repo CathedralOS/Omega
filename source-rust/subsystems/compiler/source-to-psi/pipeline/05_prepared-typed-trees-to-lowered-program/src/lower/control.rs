@@ -708,7 +708,16 @@ impl Lowering<'_> {
             default,
             source,
             capture,
-            |lowering, value, temporary| lowering.arm(value, arrivals, temporary),
+            |lowering, value, temporary| {
+                if let Some(home) = temporary {
+                    arrivals.temporaries.push((home, value.source));
+                }
+                let result = lowering.arm(value, arrivals);
+                if temporary.is_some() {
+                    arrivals.temporaries.pop();
+                }
+                result
+            },
         )? {
             arrivals.ended = Some(call);
         }
@@ -1049,17 +1058,11 @@ impl Lowering<'_> {
 
     /// One arm of a value-position `match`, lowered in the open block: its
     /// value and where it arrives from, or the call at which it ended.
-    fn arm(
-        &mut self,
-        value: &Expression,
-        arrivals: &mut Arrivals,
-        temporary: Option<PlaceId>,
-    ) -> Checked<()> {
-        // A structural result has an ownership transfer of its own. A
-        // selected subject temporary must likewise retire after its arm
-        // completes. Keep both continuations at their original positions.
+    fn arm(&mut self, value: &Expression, arrivals: &mut Arrivals) -> Checked<()> {
+        // A structural result has an ownership transfer of its own.
+        // Scalar and Unit results can go directly to the enclosing join.
         let mut value = value;
-        if temporary.is_none() && matches!(value.result, None | Some(ValueType::Scalar(..))) {
+        if matches!(value.result, None | Some(ValueType::Scalar(..))) {
             while let ExpressionKind::Block {
                 statements,
                 value: Some(tail),
@@ -1090,10 +1093,12 @@ impl Lowering<'_> {
                 );
             }
         }
-        let source = value.source;
         match self.expression(value)? {
             Reached::Value(value) => {
-                if let Some(home) = temporary {
+                // This leaf completed every enclosing tail match. Retire its
+                // computed subjects from the innermost to the outermost, on
+                // their own normal edges, before observing shared storage.
+                for &(home, source) in arrivals.temporaries.iter().rev() {
                     self.retire_homes(&[home], source)?;
                 }
                 arrivals.values.push((self.current()?, self.here()?, value));
@@ -1406,6 +1411,8 @@ impl Lowering<'_> {
 /// which an arm ended instead.
 #[derive(Default)]
 struct Arrivals {
+    /// Computed subjects whose selected arms are being evaluated.
+    temporaries: Vec<(PlaceId, SourceOrigin)>,
     values: Vec<(BlockId, ProgramPoint, Value)>,
     ended: Option<SourceOrigin>,
 }

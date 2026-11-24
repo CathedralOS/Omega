@@ -20,10 +20,11 @@
 //! `pipeline/05_prepared-typed-trees-to-lowered-program/tests/block_values.rs`
 //! and `pipeline/06_lowered-program-to-checked-program/tests/block_values.rs`.
 
+#[path = "support/program.rs"]
+mod program;
 mod support;
 
-use platform_custody::temporary_directory::TemporaryDirectory;
-use std::process::{Command, Output, Stdio};
+use program::invoke;
 
 fn fixture(tier: &str, case: &str) -> String {
     let path = support::repository_root()
@@ -32,27 +33,6 @@ fn fixture(tier: &str, case: &str) -> String {
         .join(case)
         .join("main.omg");
     std::fs::read_to_string(path).unwrap()
-}
-
-/// Run `omega` on a copy of one source file, so nothing the compiler writes
-/// lands in the checkout.
-fn invoke(source: &str, arguments: &[&str]) -> (Output, String) {
-    let scratch = TemporaryDirectory::create("block-valued-arms", false).unwrap();
-    std::fs::write(scratch.path().join("main.omg"), source).unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(arguments)
-        .arg("main.omg")
-        .current_dir(scratch.path())
-        .stdin(Stdio::null())
-        .output()
-        .expect("the compiler runs on the fixture");
-    let report = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    eprintln!("{report}");
-    (output, report)
 }
 
 /// The twin `case` is the run program with `from` replaced by `to`, and
@@ -73,17 +53,9 @@ fn refused(case: &str, from: &str, to: &str, expected: &[&str]) {
     }
 }
 
-fn runs_both(source: &str) {
-    let (output, report) = invoke(source, &["run", "--both"]);
-    assert_eq!(output.status.code(), Some(0), "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
-        assert!(report.lines().any(|line| line == receipt), "{report}");
-    }
-}
-
 #[test]
 fn block_arms_run_natively_and_in_psi() {
-    runs_both(&fixture("run", "block_arms"));
+    program::assert_silent_return(&fixture("run", "block_arms"));
 }
 
 #[test]
@@ -128,7 +100,7 @@ fn a_write_while_a_block_locals_loan_is_live_is_refused() {
 #[test]
 fn selected_block_writes_survive_the_join() {
     let source = fixture("run", "block_assignment");
-    runs_both(&source);
+    program::assert_silent_return(&source);
 
     let immutable = source.replacen("let mutable other:", "let other:", 1);
     let (output, report) = invoke(&immutable, &["--check"]);
@@ -143,7 +115,7 @@ fn selected_block_writes_survive_the_join() {
 #[test]
 fn a_read_after_distinct_bounded_writes_preserves_their_common_range() {
     let source = fixture("run", "block_storage_bounds");
-    runs_both(&source);
+    program::assert_silent_return(&source);
     for (old, new, at) in [
         (
             "total: u32 = 4;",
@@ -166,6 +138,7 @@ fn a_read_after_distinct_bounded_writes_preserves_their_common_range() {
             "cell.value = 4294967295;",
             "main.omg:44:7",
         ),
+        ("stored = 10;", "stored = 4294967295;", "main.omg:72:28"),
     ] {
         assert_eq!(source.matches(old).count(), 1, "{old}");
         let (output, report) = invoke(&source.replace(old, new), &["--check"]);
