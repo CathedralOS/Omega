@@ -15,7 +15,7 @@
 use crate::process_child::limits;
 use std::ffi::OsStr;
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 const MAXIMUM_COMMAND_ARGUMENTS: usize = 4 * 1024;
@@ -28,6 +28,7 @@ pub struct BoundedProcessPrepared {
     limits: BoundedProcessLimits,
     boundary: &'static str,
     observe_resources: bool,
+    private_root: Option<PathBuf>,
     stdin: Option<BoundedStandardStreamDisposition>,
     stdout: Option<BoundedStandardStreamDisposition>,
     stderr: Option<BoundedStandardStreamDisposition>,
@@ -105,6 +106,7 @@ impl BoundedProcessPrepared {
             limits,
             boundary,
             observe_resources: false,
+            private_root: None,
             stdin: None,
             stdout: None,
             stderr: None,
@@ -135,11 +137,6 @@ impl BoundedProcessPrepared {
     standard_stream_disposition!(stdin, stdin_null, stdin_piped);
     standard_stream_disposition!(stdout, stdout_null, stdout_piped);
     standard_stream_disposition!(stderr, stderr_null, stderr_piped);
-    #[cfg(unix)]
-    pub(crate) fn retained_descriptors(&self) -> &[std::os::fd::RawFd] {
-        &self.retained_descriptors
-    }
-
     #[cfg(unix)]
     pub fn retain_descriptor(
         &mut self,
@@ -222,9 +219,33 @@ impl BoundedProcessPrepared {
         self.observe_resources
     }
 
+    /// Give this invocation an empty, private filesystem. The caller owns a
+    /// fresh scratch directory for the mount point through process cleanup.
+    /// The guest starts at its root with the explicitly supplied arguments and environment.
+    pub fn use_empty_private_root(&mut self, scratch: &Path) -> &mut Self {
+        self.private_root = Some(scratch.to_owned());
+        self
+    }
+
     pub(crate) fn into_command(self) -> io::Result<(Command, BoundedProcessLimits)> {
         self.validate()?;
-        Ok((self.command, self.limits))
+        let mut command = self.command;
+        #[cfg(unix)]
+        {
+            use crate::process_child::descriptors;
+            if self.private_root.is_some() && !self.retained_descriptors.is_empty() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "a retained descriptor has no grant in the private test filesystem",
+                ));
+            }
+            descriptors::mark_ambient_close_on_exec(&mut command)?;
+            descriptors::retain_descriptors(&mut command, self.retained_descriptors)?;
+        }
+        if let Some(scratch) = self.private_root {
+            crate::private_root::install(&mut command, &scratch)?;
+        }
+        Ok((command, self.limits))
     }
 
     fn validate(&self) -> io::Result<()> {
