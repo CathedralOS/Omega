@@ -17,16 +17,6 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const ARGV_BUDGET: usize = 24_000;
-const TARGET_KINDS: &[&str] = &[
-    "lib",
-    "bin",
-    "test",
-    "bench",
-    "example",
-    "custom-build",
-    "proc-macro",
-];
-
 #[derive(Deserialize)]
 struct Metadata {
     workspace_members: Vec<String>,
@@ -41,7 +31,6 @@ struct Package {
 
 #[derive(Deserialize)]
 struct Target {
-    kind: Vec<String>,
     edition: String,
     src_path: String,
 }
@@ -71,16 +60,10 @@ fn workspace_targets(repository: &Path) -> Result<BTreeMap<String, Vec<String>>,
             continue;
         }
         for target in &package.targets {
-            if target
-                .kind
-                .iter()
-                .any(|kind| TARGET_KINDS.contains(&kind.as_str()))
-            {
-                groups
-                    .entry(target.edition.clone())
-                    .or_default()
-                    .insert(target.src_path.clone());
-            }
+            groups
+                .entry(target.edition.clone())
+                .or_default()
+                .insert(target.src_path.clone());
         }
     }
     Ok(groups
@@ -205,6 +188,47 @@ fn succeeded(mut child: std::process::Child) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn formats_workspace_libraries_with_explicit_crate_types() {
+        let root = std::env::temp_dir().join(format!("omega-fmt-libraries-{}", std::process::id()));
+        std::fs::create_dir(&root).unwrap();
+        let kinds = ["rlib", "dylib", "cdylib", "staticlib"];
+        std::fs::write(
+            root.join("Cargo.toml"),
+            "[workspace]\nmembers=['crates/*']\nresolver='3'\n",
+        )
+        .unwrap();
+        for kind in kinds {
+            let directory = root.join("crates").join(kind);
+            std::fs::create_dir_all(&directory).unwrap();
+            std::fs::write(
+                directory.join("Cargo.toml"),
+                format!("[package]\nname='fixture-{kind}'\nversion='0.1.0'\nedition='2024'\n[lib]\npath='entry.rs'\ncrate-type=['{kind}']\n"),
+            ).unwrap();
+            std::fs::write(directory.join("entry.rs"), "pub fn value( )->i32{123}\n").unwrap();
+        }
+        let repository = vec!["--repository".to_owned(), root.display().to_string()];
+        let mut check = repository.clone();
+        check.push("--check".to_owned());
+        let original = run(&check);
+        run(&repository).unwrap();
+        let formatted = run(&check);
+        let sources: Vec<_> = kinds
+            .into_iter()
+            .map(|kind| {
+                std::fs::read_to_string(root.join("crates").join(kind).join("entry.rs")).unwrap()
+            })
+            .collect();
+        std::fs::remove_dir_all(root).unwrap();
+        assert_eq!(original, Err(1));
+        assert!(formatted.is_ok());
+        assert!(
+            sources
+                .iter()
+                .all(|source| source.contains("pub fn value() -> i32 {"))
+        );
+    }
 
     #[test]
     fn chunks_stay_within_windows_command_line_budget() {
