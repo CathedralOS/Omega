@@ -155,6 +155,10 @@ fn a_test_that_crashes_refuses_the_build() {
         ),
         "{output}"
     );
+    assert!(
+        output.contains("test `subtraction_is_correct` in group `Tests::arithmetic` (target `linux_x86_64`): passed on Psi interpreter"),
+        "{output}"
+    );
 }
 
 #[test]
