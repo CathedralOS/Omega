@@ -52,7 +52,7 @@ machine main() {}
 #[test]
 fn erasing_a_scalar_membership_preserves_its_fact_on_the_original_value() {
     let source = r#"domain u64::Stamped established by Source::issue;
-boundary trait Source { machine issue() -> u64 reaches none crashes none; }
+boundary trait Source { machine issue() -> u64 in Stamped reaches none crashes none; }
 machine carry(original: u64 in Stamped) -> u64 in Stamped {
     let plain: u64 = original as -Stamped;
     plain as +Stamped
