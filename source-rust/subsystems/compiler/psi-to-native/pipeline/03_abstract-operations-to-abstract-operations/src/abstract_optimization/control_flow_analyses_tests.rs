@@ -601,7 +601,11 @@ fn pruning_keeps_a_machine_reached_only_by_a_call_without_normal_return() {
             },
         ),
     ];
-    let seed = unit(&plan);
+    let mut seed = unit(&plan);
+    seed.functions[1].verified_contract = Some(terminal_psi::MachineContract::empty(
+        semantic_vocabulary::ContractId::new(2).unwrap(),
+    ));
+    seed.identity = optimization_unit::recompute_psi_optimization_unit_identity(&seed);
     let frontiers =
         reconstruct_ownership_frontier_facts_with_admitted_cycle_machines(&seed, &[]).unwrap();
     let input = attach_ownership_frontier_facts(seed, frontiers).unwrap();
