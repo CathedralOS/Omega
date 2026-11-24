@@ -3,17 +3,12 @@
 //! Address interpretation follows the ordinary program carrier or the binding's
 //! retained mathematical model, including through nested definitions.
 
-use crate::source_state::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression,
-};
+use crate::source_state::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use crate::source_state::mathematical::{
     MathematicalBody, MathematicalDefinition, MathematicalType,
 };
 use crate::source_state::types::TypeReferenceNode;
-use numeric_literals::IntegerLiteral;
-use semantic_vocabulary::{
-    IntegerMathLiteral, IntegerMathTerm, IntegerValue, MachineId, Proposition, ScalarType,
-};
+use semantic_vocabulary::{MachineId, Proposition};
 use symbols::{BuiltinFunction, BuiltinTypeMember, FixedCoreDeclaration, SymbolHandle};
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::MathematicalPredicateBody;
@@ -24,55 +19,6 @@ use super::{
     logical::{MathematicalAddressContext, MathematicalInputs},
 };
 use crate::lowering::{Unserved, refuse};
-
-/// A proof integer has no runtime carrier. A literal with a carrier suffix
-/// must enter the proof through an explicit `embed`.
-pub(super) fn mathematical_integer_literal(
-    id: MachineId,
-    literal: &IntegerLiteral,
-) -> Checked<IntegerMathTerm> {
-    let unserved = |detail| refuse(id, Construct::Machine, Unserved::Contract(detail));
-    if literal.landing().is_some() {
-        return Err(unserved(
-            "typed literal in a mathematical term without embed",
-        ));
-    }
-    let magnitude = literal
-        .magnitude_u128()
-        .ok_or_else(|| unserved("mathematical literal magnitude exceeds 128 bits"))?;
-    let literal = IntegerMathLiteral::new(literal.is_negative() && magnitude != 0, magnitude)
-        .map_err(|_| unserved("invalid mathematical literal"))?;
-    Ok(IntegerMathTerm::IntegerLiteral(literal))
-}
-
-/// Embedding reads an integer's value without invoking a carrier operator.
-/// Domain qualifications do not change that value. The term reader and checker
-/// still enforce formation of the operand before this total projection.
-pub(super) fn integer_embedding(
-    id: MachineId,
-    term: semantic_vocabulary::ScalarTerm,
-    value_type: crate::lowering::body::ValueType,
-) -> Checked<IntegerMathTerm> {
-    let unavailable = || {
-        refuse(
-            id,
-            Construct::Machine,
-            Unserved::Contract("non-integer mathematical embedding"),
-        )
-    };
-    let crate::lowering::body::ValueType::Scalar(ScalarType::Integer(carrier), _) = value_type
-    else {
-        return Err(unavailable());
-    };
-    if term.scalar_type() != ScalarType::Integer(carrier) {
-        return Err(refuse(
-            id,
-            Construct::Machine,
-            Unserved::Contract("mathematical embedding changed its source carrier"),
-        ));
-    }
-    IntegerMathTerm::embed(term).ok_or_else(unavailable)
-}
 
 pub(super) fn mathematical_sort(
     typed: &crate::source_state::TypedTrees,
@@ -452,92 +398,6 @@ impl<'t> Program<'t> {
     ) -> Option<FixedCoreDeclaration> {
         mathematical_sort(self.typed, definition.result)
     }
-
-    pub(super) fn logical_mathematical_term(
-        &mut self,
-        id: MachineId,
-        scope: &ClauseScope<'_>,
-        expression: ExpressionHandle,
-    ) -> Checked<IntegerMathTerm> {
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
-        if !expression.is_valid() {
-            return Err(unserved("missing mathematical premise term"));
-        }
-        if self.address_bound(expression) {
-            let address = MathematicalAddressContext::of(scope).carrier(id)?;
-            let bound = 1_u128
-                .checked_shl(u32::from(address.bits()))
-                .ok_or_else(|| unserved("address bound outside mathematical literal support"))?;
-            return Ok(IntegerMathTerm::literal(IntegerValue::Unsigned(bound)));
-        }
-        match self.typed.expression_table.expression(expression) {
-            ExpressionNode::Call(call)
-                if self
-                    .typed
-                    .symbols
-                    .builtin_function_for_symbol(call.target_symbol)
-                    == Some(BuiltinFunction::IntegerEmbed) =>
-            {
-                if call.receiver.is_valid()
-                    || call.requirement_application.is_valid()
-                    || call.exact_coercion_target.is_valid()
-                    || call.build_selection.is_valid()
-                    || call.operational_acknowledgement.acknowledges_suspend
-                    || call.operational_acknowledgement.acknowledges_block
-                    || !call.evidence_arguments.is_empty()
-                    || call.static_machine_parameter.is_valid()
-                    || call.static_requirement_dispatch.is_some()
-                    || call.quotient_operation.is_some()
-                    || call.private_layout_operation.is_some()
-                    || call.installed_interrupt_operation.is_some()
-                    || call.layout_query.is_some()
-                    || call.native_code_layout.is_some()
-                {
-                    return Err(unserved("integer embedding has an unformed application"));
-                }
-                self.applies_nothing(
-                    id,
-                    call.target_symbol,
-                    call.authored_machine_application,
-                    &call.machine_arguments,
-                )?;
-                let arguments = self
-                    .typed
-                    .expression_table
-                    .expression_handles(call.arguments);
-                let [argument] = arguments else {
-                    return Err(unserved("integer embedding argument correspondence"));
-                };
-                let (term, carrier) = self.term(id, scope, *argument, None)?;
-                integer_embedding(id, term, carrier)
-            }
-            ExpressionNode::Binary(binary) => {
-                // Only explicit mathematical arithmetic is total here. A
-                // fixed-width partial operand inside a mathematical clause
-                // must not be reinterpreted as an unbounded operation.
-                if binary.policy != numerics::arithmetic::ArithmeticDomain::Exact
-                    || !(self.is_mathematical_term(binary.left)
-                        || self.is_mathematical_term(binary.right))
-                {
-                    return Err(unserved(
-                        "mathematical premise contains computational arithmetic",
-                    ));
-                }
-                let left = Box::new(self.logical_mathematical_term(id, scope, binary.left)?);
-                let right = Box::new(self.logical_mathematical_term(id, scope, binary.right)?);
-                match binary.operator {
-                    BinaryOperator::Add => Ok(IntegerMathTerm::Add(left, right)),
-                    BinaryOperator::Subtract => Ok(IntegerMathTerm::Subtract(left, right)),
-                    BinaryOperator::Multiply => Ok(IntegerMathTerm::Multiply(left, right)),
-                    _ => Err(unserved("mathematical premise arithmetic")),
-                }
-            }
-            ExpressionNode::Integer(literal) => mathematical_integer_literal(id, literal),
-            _ => Err(unserved(
-                "mathematical premise term without explicit integer embedding",
-            )),
-        }
-    }
 }
 
 #[cfg(test)]
@@ -546,14 +406,17 @@ mod address_context_tests {
     use crate::lowering::body::ValueType;
     use crate::lowering::read::Slot;
     use crate::source_state::TypedTrees;
+    use crate::source_state::expression::BinaryOperator;
     use crate::source_state::expression::{TableBinaryExpression, TableNamePath};
     use crate::source_state::mathematical::{MathematicalParameter, MathematicalType};
     use crate::source_symbols::{
         SymbolTableBuilder, builtin_function_symbols, builtin_type_member_symbols,
         builtin_type_symbols, fixed_core_declaration_symbols,
     };
+    use numeric_literals::IntegerLiteral;
     use numeric_literals::{IntegerLanding, IntegerRadix, LandedIntegerType};
     use semantic_vocabulary::{ClosedIntegerType, IntegerSign, ScalarAddressModel, ValueId};
+    use semantic_vocabulary::{IntegerMathLiteral, IntegerMathTerm, IntegerValue, ScalarType};
     use symbols::{
         BuiltinFunction, BuiltinTypeAtom, FixedCoreDeclaration, SymbolKind, SymbolNameRef,
     };
@@ -841,7 +704,7 @@ mod address_context_tests {
                 formal_fields: true,
                 logical: Some(inputs.scope(id, MathematicalAddressContext::Ordinary, &[])),
             };
-            Program::new(typed, false).logical_mathematical_term(id, &scope, expression)
+            Program::new(typed, false).mathematical_term(id, &scope, expression)
         };
         let bound =
             IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "18446744073709551616")
@@ -932,9 +795,7 @@ mod address_context_tests {
                 logical: Some(inputs.scope(id, context, &[])),
             };
             let mut program = Program::new(&typed, false);
-            let refusal = program
-                .logical_mathematical_term(id, &scope, bound)
-                .unwrap_err();
+            let refusal = program.mathematical_term(id, &scope, bound).unwrap_err();
             assert!(
                 refusal
                     .detail
@@ -959,9 +820,7 @@ mod address_context_tests {
         };
         let mut program = Program::new(&typed, false);
         assert_eq!(
-            program
-                .logical_mathematical_term(id, &scope, bound)
-                .unwrap(),
+            program.mathematical_term(id, &scope, bound).unwrap(),
             IntegerMathTerm::literal(IntegerValue::Unsigned(1_u128 << 32))
         );
         assert!(program.symbols.is_empty());

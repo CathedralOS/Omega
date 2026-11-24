@@ -2237,8 +2237,10 @@ impl Program<'_> {
     }
 
     /// One side of a comparison between mathematical integers: `embed` of a
-    /// term this reader serves, an anonymous integer, or `+`, `-` and `*` of
-    /// those.
+    /// term this reader serves, an anonymous integer, the address bound, or
+    /// `+`, `-` and `*` of those. Every clause reads them here: a machine's
+    /// contract, a domain or data predicate, and the body of a transparent
+    /// `let` definition, whose formals the scope supplies.
     ///
     /// contracts.md, "Mathematical values and quantification": "Runtime
     /// integer/address values enter mathematical integer arithmetic through
@@ -2248,60 +2250,94 @@ impl Program<'_> {
     /// computes in a carrier and no term owes a formation condition, which is
     /// what tells this from carrier arithmetic in a clause (`term`).
     ///
-    /// What `embed` is applied to is read by `term`, so it is whatever a
-    /// clause of this kind may name: a formal, a field of a record formal in
-    /// an entry `requires`, `result` in an `ensures`, a bound value
-    /// parameter or a typed literal. The embedding keeps that term's carrier
-    /// (`IntegerMathTerm::embed`).
+    /// What `embed` is applied to is read by `term`, so it is whatever the
+    /// clause's scope names: a formal, a field of a record formal, `result`
+    /// in an `ensures`, a bound value parameter or a typed literal. The
+    /// embedding keeps that term's carrier (`IntegerMathTerm::embed`).
     ///
     /// Refused by name: `/` and `%`, whose mathematical meaning is rational
     /// division or a named quotient and remainder (contracts.md: "Its result
     /// is always `Rat`"); shifts and bitwise operators; a suffixed operator
-    /// applied to mathematical integers, which have no carrier;
-    /// a call other than `embed`; a cast; and a runtime value or typed
-    /// literal that is not embedded, since no promotion of one into the
-    /// mathematical integers is implied.
-    fn mathematical_term(
+    /// applied to mathematical integers, which have no carrier; a call other
+    /// than `embed`, whose value is a carrier value; a cast; and a runtime
+    /// value or typed literal that is not embedded, since no promotion of one
+    /// into the mathematical integers is implied.
+    pub(super) fn mathematical_term(
         &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
     ) -> Checked<IntegerMathTerm> {
-        let read = self.read_mathematical_term(id, scope, expression)?;
-        self.complete_contract_operator(
-            id,
-            scope,
-            expression,
-            self.mathematical_operator_operands(),
-        )?;
-        Ok(read)
-    }
-
-    fn read_mathematical_term(
-        &mut self,
-        id: MachineId,
-        scope: &ClauseScope<'_>,
-        expression: ExpressionHandle,
-    ) -> Checked<IntegerMathTerm> {
-        if scope.logical.is_some() {
-            return self.logical_mathematical_term(id, scope, expression);
-        }
         let typed = self.typed;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
         if !expression.is_valid() {
             return unserved("missing term");
         }
-        match typed.expression_table.expression(expression) {
-            ExpressionNode::Call(call) if self.embeds(call) => {
+        let read = match typed.expression_table.expression(expression) {
+            ExpressionNode::Call(call)
+                if typed
+                    .symbols
+                    .builtin_function_for_symbol(call.target_symbol)
+                    == Some(symbols::BuiltinFunction::IntegerEmbed) =>
+            {
+                if call.receiver.is_valid()
+                    || call.runtime_call.is_some()
+                    || call.requirement_application.is_valid()
+                    || call.exact_coercion_target.is_valid()
+                    || call.build_selection.is_valid()
+                    || call.operational_acknowledgement.acknowledges_suspend
+                    || call.operational_acknowledgement.acknowledges_block
+                    || !call.evidence_arguments.is_empty()
+                    || call.static_machine_parameter.is_valid()
+                    || call.static_requirement_dispatch.is_some()
+                    || call.quotient_operation.is_some()
+                    || call.private_layout_operation.is_some()
+                    || call.installed_interrupt_operation.is_some()
+                    || call.layout_query.is_some()
+                    || call.native_code_layout.is_some()
+                {
+                    return unserved("integer embedding has an unformed application");
+                }
+                self.applies_nothing(
+                    id,
+                    call.target_symbol,
+                    call.authored_machine_application,
+                    &call.machine_arguments,
+                )?;
                 let [argument] = typed.expression_table.expression_handles(call.arguments) else {
                     return unserved("embed of other than one value");
                 };
+                // Embedding reads an integer's value without invoking a
+                // carrier operator. Domain qualifications do not change that
+                // value. The checker still proves the operand forms.
                 let (term, value_type) = self.term(id, scope, *argument, None)?;
-                super::mathematics::integer_embedding(id, term, value_type)
+                let ValueType::Scalar(ScalarType::Integer(carrier), _) = value_type else {
+                    return unserved("embed of a value that is not an integer");
+                };
+                if term.scalar_type() != ScalarType::Integer(carrier) {
+                    return unserved("mathematical embedding changed its source carrier");
+                }
+                match IntegerMathTerm::embed(term) {
+                    Some(embedded) => embedded,
+                    None => return unserved("embed of a value that is not an integer"),
+                }
             }
-            ExpressionNode::Call(_) => unserved("call in a mathematical term"),
+            ExpressionNode::Call(_) => {
+                return unserved("call in a mathematical term");
+            }
+            // A proof integer has no runtime carrier. A literal with a
+            // carrier suffix must enter the proof through an explicit `embed`.
             ExpressionNode::Integer(literal) => {
-                super::mathematics::mathematical_integer_literal(id, literal)
+                if literal.landing().is_some() {
+                    return unserved("typed literal in a mathematical term without embed");
+                }
+                let Some(magnitude) = literal.magnitude_u128() else {
+                    return unserved("mathematical literal magnitude exceeds 128 bits");
+                };
+                match IntegerMathLiteral::new(literal.is_negative() && magnitude != 0, magnitude) {
+                    Ok(literal) => IntegerMathTerm::IntegerLiteral(literal),
+                    Err(_) => return unserved("invalid mathematical literal"),
+                }
             }
             // numeric_values.md: wholly anonymous arithmetic is exact, and
             // contracts.md: "An anonymous integral final value can land in
@@ -2329,8 +2365,8 @@ impl Program<'_> {
                     (None, None) => None,
                 };
                 match literal {
-                    Some(literal) => Ok(IntegerMathTerm::IntegerLiteral(literal)),
-                    None => unserved("mathematical literal beyond 64 bits"),
+                    Some(literal) => IntegerMathTerm::IntegerLiteral(literal),
+                    None => return unserved("mathematical literal beyond 64 bits"),
                 }
             }
             ExpressionNode::Binary(binary) => {
@@ -2360,9 +2396,9 @@ impl Program<'_> {
                     };
                 let left = self.mathematical_term(id, scope, binary.left)?;
                 let right = self.mathematical_term(id, scope, binary.right)?;
-                Ok(operation(Box::new(left), Box::new(right)))
+                operation(Box::new(left), Box::new(right))
             }
-            ExpressionNode::Cast(_) => unserved("cast in a mathematical term"),
+            ExpressionNode::Cast(_) => return unserved("cast in a mathematical term"),
             // counts_and_addresses.md: valid geometry proves `embed(base) +
             // embed(length) <= addr::Bound` "in unbounded proof integers".
             // The bound is one past the largest address. Its interpretation
@@ -2373,17 +2409,24 @@ impl Program<'_> {
             {
                 let address = super::logical::MathematicalAddressContext::of(scope).carrier(id)?;
                 match 1_u128.checked_shl(u32::from(address.bits())) {
-                    Some(bound) => Ok(IntegerMathTerm::literal(
-                        semantic_vocabulary::IntegerValue::Unsigned(bound),
-                    )),
-                    None => unserved("address bound outside mathematical literal support"),
+                    Some(bound) => {
+                        IntegerMathTerm::literal(semantic_vocabulary::IntegerValue::Unsigned(bound))
+                    }
+                    None => return unserved("address bound outside mathematical literal support"),
                 }
             }
             ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
-                unserved("runtime value in a mathematical term without embed")
+                return unserved("runtime value in a mathematical term without embed");
             }
-            _ => unserved("mathematical term other than embed, a literal and arithmetic"),
-        }
+            _ => return unserved("mathematical term other than embed, a literal and arithmetic"),
+        };
+        self.complete_contract_operator(
+            id,
+            scope,
+            expression,
+            self.mathematical_operator_operands(),
+        )?;
+        Ok(read)
     }
 
     /// A scalar field of the value a data clause is about, as the term
