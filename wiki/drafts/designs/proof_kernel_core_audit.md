@@ -1356,7 +1356,8 @@ type), and the clause's `ClauseScope` says what each name denotes there.
     2026-11-24). All four are raised only where a clause is read without
     `formal_fields`, which today is a crash guard. `requires` and `ensures`
     already read a field of an owned or borrowed formal and of the result
-    (seven small programs were accepted). The specification lets a guard
+    (five small programs, one for each of those forms, were accepted). The
+    specification lets a guard
     name its contract inputs ([guarded crashes](../../spec/language/effects.md#guarded-crashes)),
     and the eighteen programs of `samples/cli/facts/indexed_crash_guard/`
     write `crashes Trap items[index] == 0` over a borrowed array and are
