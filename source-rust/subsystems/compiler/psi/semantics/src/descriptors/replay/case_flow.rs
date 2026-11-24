@@ -15,18 +15,22 @@ pub(crate) struct CurrentCases {
     copies: values::Copies,
 }
 
-pub(crate) fn validate_graph(replay: &Replay<'_>, machine: &DescriptorMachine) -> Option<()> {
+pub(crate) fn validate_graph(
+    replay: &Replay<'_>,
+    machine: &DescriptorMachine,
+) -> Option<Vec<DescriptorPosition>> {
     machine.validate_invocation_owners()?;
-    let mut visited = BTreeSet::new();
-    let mut pending = vec![machine.entry];
-    while let Some(position) = pending.pop() {
-        if !visited.insert(position) {
-            continue;
-        }
-        let step = machine.flow.get(&position)?;
-        pending.extend(step.successors.iter().map(|edge| edge.target));
-    }
-    if visited.len() != machine.flow.len() {
+    let order = crate::control_graph::finished_order(machine.entry, |position, index| {
+        machine
+            .flow
+            .get(&position)?
+            .successors
+            .get(index)
+            .map(|edge| edge.target)
+    });
+    if order.len() != machine.flow.len()
+        || order.iter().any(|point| !machine.flow.contains_key(point))
+    {
         return None;
     }
     for (position, predicates) in &machine.case_constructors {
@@ -44,7 +48,7 @@ pub(crate) fn validate_graph(replay: &Replay<'_>, machine: &DescriptorMachine) -
             valid_subject(replay, machine, predicate)?;
         }
     }
-    Some(())
+    Some(order)
 }
 
 fn valid_subject(

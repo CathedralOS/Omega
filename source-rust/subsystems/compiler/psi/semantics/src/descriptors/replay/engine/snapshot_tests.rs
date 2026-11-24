@@ -674,6 +674,61 @@ fn bare_machine(
 }
 
 #[test]
+fn replay_joins_diamond_inputs_once_and_keeps_loop_effects() {
+    use crate::descriptor_lifetimes::{DescriptorFlowEdge, DescriptorFlowStep};
+
+    let identity = MachineId::new(1).unwrap();
+    let mut machine = bare_machine(identity, Vec::new(), BTreeMap::new(), BTreeSet::new());
+    let block = machine.entry.0;
+    let step = |targets: &[u32]| DescriptorFlowStep {
+        successors: targets
+            .iter()
+            .map(|&index| DescriptorFlowEdge {
+                target: (block, index),
+                edge: None,
+                effects: Vec::new(),
+                definitions: Vec::new(),
+                parameters: Vec::new(),
+                bindings: Vec::new(),
+            })
+            .collect(),
+        ..Default::default()
+    };
+    // One arm invalidates contents, the other preserves them. Both feed a
+    // long straight-line suffix, which should see the joined state once.
+    const EXIT: u32 = 80;
+    machine.normal_exits = vec![(block, EXIT)];
+    machine.unresolved_contents_writes.insert((block, 1));
+    machine.flow.insert((block, 1), step(&[3]));
+    machine.flow.insert((block, 2), step(&[3]));
+    for point in 3..EXIT {
+        machine.flow.insert((block, point), step(&[point + 1]));
+    }
+    for arms in [[1, 2], [2, 1]] {
+        machine.flow.insert(machine.entry, step(&arms));
+        for backedge in [false, true] {
+            machine
+                .flow
+                .insert((block, EXIT), if backedge { step(&[2]) } else { step(&[]) });
+            let mut replay = Replay::new(&[], std::slice::from_ref(&machine));
+            let states = replay.states(identity, 0).expect("complete control flow");
+            assert_eq!(states.len(), machine.flow.len());
+            for (&(_, point), state) in states.iter() {
+                assert_eq!(
+                    state.contents_invalidated,
+                    point >= 3 || (backedge && point == 2)
+                );
+            }
+            let prepared = replay.snapshots[&identity].ready().unwrap();
+            if !backedge {
+                assert_eq!(prepared.visits, states.len());
+            }
+            assert!(prepared.normal_exits[&(block, EXIT)].contents_invalidated);
+        }
+    }
+}
+
+#[test]
 fn an_unresolved_write_only_invalidates_returns_it_can_reach() {
     use crate::descriptor_lifetimes::{DescriptorFlowEdge, DescriptorFlowStep};
 
