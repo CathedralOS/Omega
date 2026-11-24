@@ -54,9 +54,63 @@ fn the_same_machine_without_the_citation_is_refused_at_its_ensures() {
 }
 
 #[test]
-fn peano_addition_associativity_by_induction_compiles() {
+fn peano_addition_associativity_compiles_and_its_saved_program_names_the_kernel_type() {
+    // One test for this fixture: two `omega` runs in one project directory
+    // at the same time contend for its package lock, and one is refused.
     let (output, report) = check("ring_law/pass/ring_law_conformance");
     assert_eq!(output.status.code(), Some(0), "{report}");
+
+    // Peano has no storage, so the saved program carries it only as a
+    // mathematical carrier: its source type identity and its kernel type.
+    let directory: PathBuf = support::repository_root()
+        .join(CHECKER_FIXTURES)
+        .join("ring_law/pass/ring_law_conformance");
+    let scratch = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "kernel-judged-law-psi",
+        false,
+    )
+    .unwrap();
+    let artifact = scratch.path().join("ring_law_conformance.psi");
+    let omega = |arguments: &[&std::ffi::OsStr]| {
+        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+            .args(arguments)
+            .current_dir(&directory)
+            .stdin(Stdio::null())
+            .output()
+            .expect("omega runs");
+        let report = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        assert_eq!(output.status.code(), Some(0), "{arguments:?}: {report}");
+    };
+    omega(&[
+        "--emit-psi".as_ref(),
+        artifact.as_os_str(),
+        "main.omg".as_ref(),
+    ]);
+    omega(&[
+        "psi".as_ref(),
+        "inspect".as_ref(),
+        "--artifact".as_ref(),
+        artifact.as_os_str(),
+    ]);
+
+    let bytes = std::fs::read(&artifact).expect("the compiler saved the program");
+    let saved = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
+        .expect("the saved program reopens");
+    let module = saved.semantic_module();
+    let [carrier] = module.types.mathematical_carriers.as_slice() else {
+        panic!("one carrier: {:?}", module.types.mathematical_carriers)
+    };
+    let identity = module.identities.text(carrier.type_identity).unwrap();
+    assert!(identity.contains("Peano"), "{identity}");
+    let key = terminal_codec::decode_mathematical_certificate(&carrier.carrier_key).unwrap();
+    assert!(
+        key.arena
+            .structurally_equal(key.certificate.term, key.certificate.expected)
+    );
 }
 
 #[test]

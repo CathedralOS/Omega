@@ -65,7 +65,12 @@ closure in `PreparedCompilation::mathematics`:
 Stage 05 writes the table ([`read/signature.rs`](../../pipeline/05_prepared-typed-trees-to-lowered-program/src/read/signature.rs)).
 Stage 06 checks every declaration once with the kernel and judges each law
 ([`laws.rs`](../../pipeline/06_lowered-program-to-checked-program/src/laws.rs)).
-Names and source positions in the table are for diagnostics only.
+Once the compilation is accepted, stage 06 writes each data declaration into
+the root module's Psi mathematical carrier table, under the type identity text
+stage 05 records on the data's entry. The laws' certificates are not yet
+published: the Psi theorem root and Id formation rows have no field for a law
+over plain data (`TASKS.md`, **PROOF-KERNEL-CORE**). Other names and source
+positions in the table are for diagnostics only.
 
 ## Rules every lane relies on
 

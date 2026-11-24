@@ -37,6 +37,16 @@ recovered Peano associativity law the proof takes 23,113 kernel conversion
 steps of a 65,536 budget, so larger laws need a cheaper search before they
 need a larger budget.
 
+When every part is accepted, publication writes one Psi mathematical carrier
+row per data declaration into the root module
+([publication/mathematics.rs](src/publication/mathematics.rs)). The row names
+the data by its source type identity, and its key is the data's W type under
+the declarations up to its own. The laws' certificates stay in the judgment.
+An indexed theorem root row names an erased evidence formal, and an Id
+formation row names an erased formal's Identity type and the source subjects
+it captures. A law over plain data has neither, so neither table has a row for
+it yet (`TASKS.md`, **PROOF-KERNEL-CORE**).
+
 The checker always uses branch conditions, dispatch bindings and value
 relations as premises; no mode compares results with less knowledge. That is
 separate from the specified

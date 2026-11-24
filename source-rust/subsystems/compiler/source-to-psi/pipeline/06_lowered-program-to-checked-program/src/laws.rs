@@ -41,7 +41,49 @@ pub struct LawJudgment {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignatureJudgment {
     pub declarations: usize,
+    /// One row per data declaration, in signature order, for the Psi
+    /// mathematical carrier table.
+    pub carriers: Vec<DataCarrier>,
     pub laws: Vec<LawJudgment>,
+}
+
+/// A data declaration's kernel type, under the source identity Psi names it by.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DataCarrier {
+    /// The data's source type identity text.
+    pub type_identity: String,
+    /// The carrier key the encoding specifies: a closed certificate whose term
+    /// and expected type are both the data's type. Its signature is the
+    /// declarations up to and including the data's own, the prefix the type
+    /// depends on, so the key does not change when the program adds a later
+    /// declaration.
+    pub carrier_key: Vec<u8>,
+}
+
+/// The carrier of every data declaration the kernel has checked.
+fn carriers(
+    arena: &mut TermArena,
+    declarations: &[Declaration],
+    entries: &[SignatureEntry],
+) -> Result<Vec<DataCarrier>, terminal_codec::CodecError> {
+    let mut carriers = Vec::new();
+    for (position, entry) in entries.iter().enumerate() {
+        let SignatureEntryKind::Data { type_identity, .. } = &entry.kind else {
+            continue;
+        };
+        let ty = constant(arena, position as u32);
+        let certificate = MathematicalCertificate::with_signature(
+            declarations[..=position].to_vec(),
+            Vec::new(),
+            ty,
+            ty,
+        );
+        carriers.push(DataCarrier {
+            type_identity: type_identity.clone(),
+            carrier_key: terminal_codec::mathematical_carrier_key(arena, &certificate)?,
+        });
+    }
+    Ok(carriers)
 }
 
 /// One law, or one case of it, the checker could not prove.
@@ -142,6 +184,15 @@ pub(crate) fn judge(
             detail,
         }]);
     }
+    let carriers = carriers(&mut arena, &declarations, &entries).map_err(|_| {
+        vec![UnprovedLaw {
+            machine: String::new(),
+            site: None,
+            cause: UnprovedCause::KernelRefused,
+            statement: "the mathematical declarations cannot be published".to_owned(),
+            detail: "could not encode a data declaration's carrier key".to_owned(),
+        }]
+    })?;
     let mut judged = Vec::with_capacity(laws.len());
     let mut unproved = Vec::new();
     for law in &laws {
@@ -166,6 +217,7 @@ pub(crate) fn judge(
     if unproved.is_empty() {
         Ok(SignatureJudgment {
             declarations: declarations.len(),
+            carriers,
             laws: judged,
         })
     } else {

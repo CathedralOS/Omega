@@ -41,6 +41,10 @@ pub enum SignatureEntryKind {
     Data {
         declaration: SymbolHandle,
         shape: PlainData,
+        /// The data's source type identity text. Stage 06 publishes it as
+        /// the identity of the data's mathematical carrier row; nothing
+        /// compares it while checking.
+        type_identity: String,
     },
     /// A case of the data declared at index `data`, as a function of its fields.
     Constructor { data: u32, case: u32 },

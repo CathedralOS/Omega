@@ -191,8 +191,9 @@ Terminal Psi already has the slots these rules fill: `mathematical_carriers`
 and `identity_formations` (`psi/types/mod.rs:27-28`) and `indexed_theorems`
 (`psi/proofs/declarations.rs:5`). The wire decoder reads all three
 (`psi/artifact/wire/src/identity_formations.rs:51`,
-`mathematical_proof_actual.rs:845-863`); nothing in `source-to-psi` writes
-them.
+`mathematical_proof_actual.rs:845-863`). Only the carrier table has writers
+in `source-to-psi`: theorem parameters in stage 05 and data declarations in
+stage 06 (step 2 below).
 
 ## The deleted checker against stages 05 and 06
 
@@ -958,10 +959,16 @@ recovered programs live beside the stage 06 test, with only their spelling
 moved to today's syntax; the trait's `add` also gained `reaches none crashes
 none`, which a clause application now requires. What step 2 did not build:
 
-- **Publication.** The signature is in the lowered program and stage 06 judges
-  it, but nothing writes it to the Psi carrier, Id formation and theorem root
-  tables. A theorem root row carries a checked-machine declaration, which
-  stage 05 builds only from a lowered machine, and a law has none.
+- **Publication of laws.** Stage 06 writes one Psi carrier row per data
+  declaration into the root module: the data's source type identity and its
+  W type under the declarations up to its own. It writes no theorem root and
+  no Id formation row. Both row shapes come from the deleted elaborator's
+  erased evidence (`f4c7a70beb^`, `05_typed-trees-to-checked-trees/src/checking.rs:1339-1395`
+  and `published_facts.rs:4888-5006`): a theorem root's evidence position is
+  an erased formal of the theorem's indexed type, and an Id formation is the
+  Identity type of an erased formal over captured source expressions. A law
+  over plain data has no erased formal, and its `ensures` Identity is a
+  clause with no type identity. See open question 3.
 - **One table for step 1's goals.** A generic machine's Identity goal still
   gets its own table per obligation in `equality::discharge`. Only the
   declarations over data that contains itself are in the shared signature.
@@ -1008,12 +1015,19 @@ Recorded, not answered:
    [the proofs lane](proofs_evidence_lane.md) changes with it in the same
    pull request, so the two notes do not disagree.
 3. **Where the signature lives.** Terminal Psi has `mathematical_carriers`,
-   `identity_formations` and `indexed_theorems` slots with readers and no
-   writer. Is R1's signature table those slots, or a new table? The spec
+   `identity_formations` and `indexed_theorems` slots. Stage 05 writes
+   carriers for theorem parameters (`read/theorems.rs`) and stage 06 writes
+   one for each data declaration; nothing writes the other two. Is R1's
+   signature table those slots, or a new table? The spec
    requires publishing "the full level telescope and constraints"; no level
    constraint encoding was found. L3 proposes one table in the lowered
    program for every declaration kind and leaves the wire tables as the
-   spec has them, so what remains open is the level constraint encoding.
+   spec has them. Two things remain open: the level constraint encoding,
+   and which row a judged law over plain data publishes. The theorem root
+   row needs an evidence position, which for such a law could only be the
+   formal its induction dispatches on. That formal is its ranking subject,
+   which [termination](../../spec/language/termination.md) keeps private,
+   and a law that does not dispatch has no such formal.
 4. **Floor scope.** Does "the tightest literal bounds order reasoning gives
    it" ([contracts.md#required-automatic-discharge](../../spec/proofs/contracts.md#required-automatic-discharge))
    require landing an operand on bounds proved equal (`(prefix - 360) + last`,
