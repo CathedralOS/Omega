@@ -27,6 +27,8 @@ impl TerminalBuildBindingHost {
         };
         if request.root().artifact() != self.artifact.semantic()
             || request.argument_index() != 0
+            || request.access() != terminal_psi::StructuralAccess::MutableBorrow
+            || !request.argument_path().is_empty()
             || !request.referent().is_empty()
             || !self.calls.iter().any(|call| {
                 call.site.boundary == boundary && matches!(call.operand,
