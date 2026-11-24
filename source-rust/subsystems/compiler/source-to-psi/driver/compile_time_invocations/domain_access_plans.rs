@@ -17,8 +17,8 @@
 //!   exactly one declaration of this program;
 //! - reader and writer rules stay attached for the canonical operation
 //!   checks against the actual function and borrowed storage;
-//! - field observation demands and required reach remain unjudged until
-//!   the backing and lifecycle checks can establish them.
+//! - inaccessible fields permit no operation on their storage; other field
+//!   observations and required reach still need a backing judgment.
 //!
 //! A plan this pass cannot judge is recorded as
 //! `AccessPlanJudgment::Unjudged` with the reason: every use that needs the
@@ -257,8 +257,8 @@ fn evaluate_domain(
         returned_plan::normalize_for_schema(&entry, receipt, schema_graph, &schema, &revision)?;
     // Complete data is retained by the common normalizer. Until operation
     // consumers enforce an axis, recording it as checked would drop a rule.
-    if !normalized.observations.is_empty() {
-        return Err("no product route yet: an access plan with a nonzero `field_count`".into());
+    if normalized.requires_observation_backing() {
+        return Err("no product route yet: a field observation requiring backing supply".into());
     }
     if normalized.reach.services().len() != 0 {
         return Err("no product route yet: an access plan that requires boundary reach".into());

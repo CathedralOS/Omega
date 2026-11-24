@@ -717,6 +717,26 @@ machine write_number(ticket: @mutable Ticket in Stamped) { ticket.number = 41; }
             .expect_err("saved deny rules cannot bypass the operation check");
             assert!(format!("{error:?}").contains(&reason), "{error:?}");
         }
+        // A received program may contain only an observation restriction.
+        // Its stored schema identifies the same number field used by main.
+        let mut excluded = accepted.module().clone();
+        let index = excluded.types.structural_domains.iter().position(|domain| {
+            domain.access_policy.as_ref().is_some_and(|plan| !plan.readers.is_empty())
+        }).expect("governed Ticket");
+        let carrier = excluded.types.structural_domains[index].carrier;
+        let field = excluded.structural_type(carrier).unwrap().shape.fields_with_case()
+            .next().expect("Ticket.number").1.identity;
+        let plan = excluded.types.structural_domains[index].access_policy.as_mut().unwrap();
+        let fields = plan.schema.governed_fields().unwrap();
+        let [(node, _)] = fields.as_slice() else { panic!("Ticket has one field") };
+        let coordinate = (*node, Some(vec![terminal_psi::StructuralPathSegment::Field(field)]));
+        plan.observations = vec![(coordinate, None)];
+        plan.readers.clear();
+        plan.writers.clear();
+        let bytes_with_exclusion = terminal_codec::encode_module(&excluded).unwrap();
+        let error = terminal_codec::decode_module(&bytes_with_exclusion)
+            .expect_err("the received program writes its now-inaccessible field");
+        assert!(format!("{error:?}").contains("this field is inaccessible"), "{error:?}");
         let produced = accepted
             .produce(
                 Default::default(),

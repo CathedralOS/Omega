@@ -42,6 +42,12 @@ impl<Region, Caller> AccessPlan<Region, Caller> {
             || self.reach.services().len() != 0
     }
 
+    /// Inaccessible fields demand no transfer. Every other observation must
+    /// be checked against the operations supported by its actual backing.
+    pub fn requires_observation_backing(&self) -> bool {
+        self.observations.iter().any(|(_, demand)| demand.is_some())
+    }
+
     /// Replace descriptions with the exact fields and functions they name.
     /// Keep every rule: later rules must not override earlier restrictions or
     /// discard the independent issuer, caller, observation and reach choices.
