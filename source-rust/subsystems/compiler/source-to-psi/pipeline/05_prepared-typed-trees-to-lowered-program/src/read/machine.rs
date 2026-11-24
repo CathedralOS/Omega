@@ -1762,56 +1762,6 @@ impl<'t> Program<'t> {
         Ok(())
     }
 
-    /// The statement each `satisfies` clause of a closed machine makes: the
-    /// machine refines that requirement of that trait. conformances.md,
-    /// "Binding a machine to a requirement": the machine "refines the
-    /// complete requirement", and "A matching signature is insufficient."
-    /// So wherever the machine is judged, each clause is owed as a
-    /// conformance witness, whether the machine is a chosen provider, a
-    /// subject declaration or a callee. A clause the route does not read
-    /// (one of an applied trait, of an operator or a top-level requirement,
-    /// or one carrying a native binding) refuses the machine by name.
-    fn satisfied_requirements(
-        &self,
-        id: MachineId,
-        machine: &'t Machine,
-    ) -> Checked<Vec<crate::lowering::ConformanceWitness>> {
-        let typed = self.typed;
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
-        let mut witnesses = Vec::new();
-        for clause in typed.machine_trait_conformances(machine) {
-            if clause.external_binding.is_some()
-                || clause.external_binding_source_span.is_some()
-                || clause.via_expression.is_valid()
-                || clause.alias.is_some()
-            {
-                return unserved("`satisfies` clause with a native binding or an alias");
-            }
-            let Some(crate::source_state::machine::SatisfiedDeclaration::Trait {
-                definition,
-                requirement,
-            }) =
-                crate::source_state::machine::resolve_satisfied_declaration(typed, machine, clause)
-            else {
-                return unserved("`satisfies` clause that names no requirement of a trait");
-            };
-            if requirement.symbol != clause.requirement_symbol
-                || !clause.trait_lifetime_arguments.is_empty()
-                || !definition.lifetime_parameters.is_empty()
-                || !definition.type_parameters.is_empty()
-            {
-                return unserved("`satisfies` clause of a trait with parameters");
-            }
-            witnesses.push(crate::lowering::ConformanceWitness {
-                declaring_trait: definition.symbol,
-                requirement: requirement.symbol,
-                implementation: machine.symbol,
-                value_arguments: Vec::new(),
-            });
-        }
-        Ok(witnesses)
-    }
-
     fn prepare_const_scope(
         &mut self,
         id: MachineId,
@@ -2538,27 +2488,25 @@ impl<'t> Program<'t> {
                 "conformer without exactly one declared requirement",
             ));
         };
-        if !edge.arguments.is_empty()
-            || !edge.trait_lifetime_arguments.is_empty()
-            || edge.external_binding.is_some()
+        if edge.external_binding.is_some()
+            || edge.external_binding_source_span.is_some()
             || edge.via_expression.is_valid()
+            || edge.alias.is_some()
         {
             return Err(unserved(
-                "declared requirement with arguments or external supply",
+                "declared requirement with external supply or an alias",
             ));
         }
-        let witnesses = self.satisfied_requirements(id, machine)?;
-        let [binding] = witnesses.as_slice() else {
+        let typed = self.typed;
+        let Some(crate::source_state::machine::SatisfiedDeclaration::Trait {
+            definition,
+            requirement,
+        }) = crate::source_state::machine::resolve_satisfied_declaration(typed, machine, edge)
+        else {
             return Err(unserved(
                 "declared edge without one exact trait requirement",
             ));
         };
-        let definition = self
-            .typed
-            .trait_definition_by_symbol(binding.declaring_trait)
-            .ok_or_else(|| unserved("declared edge lost its trait declaration"))?;
-        let requirement =
-            self.declared_requirement(id, binding.declaring_trait, binding.requirement)?;
         if edge.requirement_symbol != requirement.symbol || edge.symbol != definition.symbol {
             return Err(unserved(
                 "declared requirement identity differs from its resolved edge",
@@ -2571,7 +2519,21 @@ impl<'t> Program<'t> {
                 "inline and declared edges name different requirements",
             ));
         }
-        Ok(Some((definition.symbol, requirement)))
+        let scope =
+            crate::source_state::trait_definition::AppliedTraitScope::from_machine_conformance(
+                typed, machine, edge,
+            )
+            .ok_or_else(|| unserved("declared edge lost its trait application"))?;
+        let header = if scope.keeps_declared_signatures(typed) {
+            requirement
+        } else {
+            typed
+                .closed_requirement_in_scope(&scope, requirement.symbol)
+                .ok_or_else(|| {
+                    unserved("declared edge lost its prepared requirement application")
+                })?
+        };
+        Ok(Some((definition.symbol, header)))
     }
 
     fn same_conformer_shape(

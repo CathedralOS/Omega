@@ -361,9 +361,8 @@ impl Program<'_> {
                             self.supplied.push(supplied);
                         }
                     }
-                    // A machine that states `satisfies` already owes this row
-                    // (`satisfied_requirements`), and two supplies may name one
-                    // row; it is one obligation.
+                    // A machine that states `satisfies` already owes this row.
+                    // Several supplies may name the same obligation.
                     if !self.conformance_witnesses.contains(&witness) {
                         self.conformance_witnesses.push(witness);
                     }

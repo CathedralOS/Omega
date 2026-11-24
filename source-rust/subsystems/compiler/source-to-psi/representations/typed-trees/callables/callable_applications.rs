@@ -7447,11 +7447,46 @@ pub(crate) mod trait_scopes {
                 })
         }
 
+        /// The already closed header of a requirement with no local arguments
+        /// in this exact declaring trait application.
+        pub fn closed_requirement_in_scope(
+            &self,
+            scope: &AppliedTraitScope<'_>,
+            template: SymbolHandle,
+        ) -> Option<&signature::StateSignature> {
+            self.closed_requirement_applications()
+                .find(|closed| {
+                    closed.template == template
+                        && closed.local_arguments.is_empty()
+                        && self.requirement_application_matches_contract_scope(
+                            closed.signature.symbol,
+                            scope,
+                        )
+                })
+                .map(|closed| closed.signature)
+        }
+
         /// A concrete conformance supplies its required header even when no
         /// source call enters the member. Close the same requirement as an
         /// explicit call using the row's declaring (possibly inherited) scope.
         pub fn prepare_conformance_requirement_headers(&mut self) -> Result<(), &'static str> {
             let mut requests = Vec::new();
+            let mut request = |receiver: AppliedTraitScope<'_>,
+                               required: &signature::StateSignature| {
+                if !required.type_parameters.is_empty()
+                    || !required.lifetime_parameters.is_empty()
+                    || receiver.keeps_declared_signatures(self)
+                    || self.require_receiving_trait_operands(&receiver).is_err()
+                {
+                    return;
+                }
+                requests.push((
+                    receiver.environment(),
+                    receiver.argument_owner,
+                    required.symbol,
+                    required.name.clone(),
+                ));
+            };
             for conformance in self.conformances() {
                 if !conformance.type_parameters.is_empty()
                     || !conformance.lifetime_parameters.is_empty()
@@ -7465,39 +7500,37 @@ pub(crate) mod trait_scopes {
                     let Some(receiver) = root.declaring_scope(self, row.declaring_trait) else {
                         continue;
                     };
-                    let Some((owner, required)) = self.trait_machine_signature(row.requirement)
-                    else {
-                        continue;
-                    };
-                    if owner.symbol != receiver.declaration.symbol
-                        || !owner.is_boundary
-                        || !required.type_parameters.is_empty()
-                        || !required.lifetime_parameters.is_empty()
-                        || receiver.keeps_declared_signatures(self)
-                        || self.require_receiving_trait_operands(&receiver).is_err()
+                    if let Some((owner, required)) = self.trait_machine_signature(row.requirement)
+                        && owner.symbol == receiver.declaration.symbol
+                        && owner.is_boundary
                     {
+                        request(receiver, required);
+                    }
+                }
+            }
+            for machine in self.machines() {
+                for edge in self.machine_trait_conformances(machine) {
+                    if edge.arguments.is_empty() && edge.trait_lifetime_arguments.is_empty() {
                         continue;
                     }
-                    requests.push((
-                        receiver.environment(),
-                        receiver.argument_owner,
-                        required.symbol,
-                        required.name.clone(),
-                    ));
+                    if let Some((owner, required)) =
+                        self.trait_machine_signature(edge.requirement_symbol)
+                        && owner.symbol == edge.symbol
+                        && let Some(receiver) =
+                            AppliedTraitScope::from_machine_conformance(self, machine, edge)
+                    {
+                        request(receiver, required);
+                    }
                 }
             }
             for (environment, supplying_owner, required, name) in requests {
                 let receiver = environment
                     .scope(self)
                     .ok_or("conformance lost its declaring receiver")?;
-                if self.closed_requirement_applications().any(|closed| {
-                    closed.template == required
-                        && closed.local_arguments.is_empty()
-                        && self.requirement_application_matches_contract_scope(
-                            closed.signature.symbol,
-                            &receiver,
-                        )
-                }) {
+                if self
+                    .closed_requirement_in_scope(&receiver, required)
+                    .is_some()
+                {
                     continue;
                 }
                 let operands = self.materialize_trait_application_arguments(&environment)?;
