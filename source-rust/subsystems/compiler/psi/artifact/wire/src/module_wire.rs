@@ -124,7 +124,7 @@ mod theorem_parameter_wire {
             machine: Id,
             edge: Id,
             successor: Id,
-            proof_position: U32,
+            source: Source,
             arguments: List<ScalarTerm>,
             requirements: List<Id>,
         }

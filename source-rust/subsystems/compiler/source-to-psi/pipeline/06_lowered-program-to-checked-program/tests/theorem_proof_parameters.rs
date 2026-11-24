@@ -172,6 +172,42 @@ fn received_logical_subjects_keep_their_real_declared_carrier() {
 }
 
 #[test]
+fn a_named_application_names_only_a_machine_that_does_no_work() {
+    // A named application emits no call, so the machine it names must have
+    // nothing to run. The caller itself, or any machine with a result or
+    // with operations in its body, is refused.
+    let program = Program::of(ORIGINAL);
+    program.judged(|elaboration| {
+        let module = &elaboration.module;
+        let mut application = module.proofs.theorem_applications[0].clone();
+        let owner = module.machine(application.machine).unwrap();
+        application.source = terminal_psi::TheoremSource::Named(owner.id);
+        assert_eq!(
+            terminal_semantics::theorems::application(module, owner, &application).unwrap_err(),
+            "named theorem application cites its own machine"
+        );
+        let working = module
+            .machines
+            .iter()
+            .find(|machine| {
+                machine.id != owner.id
+                    && machine
+                        .blocks
+                        .iter()
+                        .any(|block| !block.operations.is_empty())
+            })
+            .expect("a machine whose body does work");
+        application.source = terminal_psi::TheoremSource::Named(working.id);
+        let error =
+            terminal_semantics::theorems::application(module, owner, &application).unwrap_err();
+        assert!(
+            error.starts_with("named theorem application names a machine"),
+            "{error}"
+        );
+    });
+}
+
+#[test]
 fn a_logical_subject_cannot_be_an_out_of_carrier_literal() {
     let program = Program::of(ORIGINAL);
     program.judged(|elaboration| {

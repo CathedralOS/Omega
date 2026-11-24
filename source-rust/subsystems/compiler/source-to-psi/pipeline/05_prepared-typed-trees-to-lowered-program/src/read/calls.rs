@@ -2446,7 +2446,7 @@ impl<'t> Program<'t> {
         Ok(Some(Expression {
             call_context: None,
             kind: ExpressionKind::TheoremApplication {
-                proof_position,
+                source: terminal_psi::TheoremSource::Formal(proof_position),
                 arguments,
             },
             result: None,

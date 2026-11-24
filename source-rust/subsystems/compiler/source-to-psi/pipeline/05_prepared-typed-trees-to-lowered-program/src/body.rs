@@ -1144,8 +1144,12 @@ pub enum ExpressionKind {
     /// Operand indices refer to the event's source evaluation order.
     Atomic(AtomicOperation),
     /// Apply the supplied implication to fixed subjects without executing a call.
+    /// `source` is one of the machine's proof formals, or a named machine
+    /// that does no work, a theorem over indexed data, whose citation is a
+    /// fact-only invocation. For a named machine `arguments` are the call's
+    /// own, one per formal of the machine.
     TheoremApplication {
-        proof_position: u32,
+        source: terminal_psi::TheoremSource,
         arguments: Vec<Expression>,
     },
     /// The enclosing match's already captured place, never its selector again.
