@@ -88,10 +88,11 @@ impl TestRoot {
             })
             .map(|machine| machine.name.clone())
             .ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-            "test adapter `{}` must define a body and take one static machine parameter",
-            typed.symbols.display_path(adapter, "::")
-        )).with_source_span(registration.source_span)]
+                let path = typed.symbols.display_path(adapter, "::");
+                let reason = format!(
+                    "test adapter `{path}` must define a body and take one static machine parameter"
+                );
+                vec![Diagnostic::error(reason).with_source_span(registration.source_span)]
             })?;
         let argument = StaticMachineArgument {
             symbol: implementation,

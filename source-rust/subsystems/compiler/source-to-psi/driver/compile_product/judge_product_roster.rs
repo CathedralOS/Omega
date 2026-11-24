@@ -65,19 +65,16 @@ pub(super) fn prepare_and_judge(
     )?;
     // The normalized provider application below carries the selected trait arguments.
     let mut selected = Vec::new();
-    // Open templates request layouts here. Only their closed applications
-    // become executable declarations in the lowering roster.
-    if pass.roots.applications().is_empty() {
-        for scope in &layout_scopes {
-            selected.extend(scope.entry_declarations.iter().copied());
-        }
+    for scope in &layout_scopes {
+        selected.extend(scope.entry_declarations.iter().copied());
     }
     let subject = pass.inputs.subject;
-    selected.extend(
+    let claimed_declarations = || {
         claimed
             .iter()
-            .flat_map(|supply| [supply.selection.subject, supply.selection.requirement]),
-    );
+            .flat_map(|supply| [supply.selection.subject, supply.selection.requirement])
+    };
+    selected.extend(claimed_declarations());
     // Opaque representations enter the source frontier when a value requires them.
 
     let source_admission = prepare_typed_source::SourceAdmission {
@@ -178,6 +175,10 @@ pub(super) fn prepare_and_judge(
     let program = prepared.trees();
     let specialized = pass.roots.specialized(&prepared)?;
     let root_bindings = if let Some(entry) = &specialized {
+        // Preparation needs both authored bodies' constants and layouts. The
+        // executable closure follows the closed entry's actual calls.
+        roster.selected.clear();
+        roster.selected.extend(claimed_declarations());
         let bindings = std::slice::from_ref(entry);
         roster.entries = program_roots(bindings);
         roster.bindings = crate::compile_product::entry_shapes::bound_program_entry_shapes(
