@@ -1580,9 +1580,11 @@ stages 03 and 04. What is built:
   three and the 39 older ones, are now listed with their statements
   in the [kernel metatheory](../../spec/proofs/kernel_metatheory.md#assumed-laws-of-the-integer-model);
   the [rule table](../../spec/proofs/classicality.md) lists only the rules a
-  certificate can cite, and none of these is one. The rank is also narrower than the specification,
-  which lets a proof "rank on mathematical structure": a theorem ranked on
-  its evidence is refused.
+  certificate can cite, and none of these is one. A theorem may also rank
+  on its evidence (`terminates by evidence`), as the specification lets a
+  proof "rank on mathematical structure". It then owes no arithmetic at its
+  citations, because a step cites it only at a child of its case, a part of
+  the evidence; a step that cites it at the whole evidence is refused.
 - **A quotient and indexed data in one program.** Both rest on declarations
   of the kernel's own. The quotient's come first and the indexed scheme's
   five follow, each constant moved to where the scheme starts

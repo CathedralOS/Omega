@@ -591,6 +591,37 @@ fn the_rank_must_get_smaller_at_a_cited_child() {
 }
 
 #[test]
+fn a_theorem_may_rank_on_its_evidence() {
+    // The twin of the test above: ranked on the evidence rather than on
+    // `Total`, the theorem owes no arithmetic at its citations. Each one is
+    // at the tail, a part of the list, and the theorem is proved.
+    for source in [proofs(BOUND), proofs(RUNNING)] {
+        let ranked = source.replace("terminates by Length", "terminates by evidence");
+        assert_ne!(ranked, source);
+        signature(&judged(&ranked));
+    }
+}
+
+#[test]
+fn a_theorem_ranked_on_its_evidence_is_cited_only_at_a_part_of_it() {
+    // Citing the theorem at the whole evidence would use the theorem to
+    // prove itself. Ranked on the evidence, the step must cite a child.
+    let source = proofs(BOUND)
+        .replace("terminates by Length", "terminates by evidence")
+        .replace(
+            CITATION,
+            "        vector_bound::<Length, Total>(evidence);\n",
+        );
+    assert!(!source.contains(CITATION));
+    let verdicts = judged(&source);
+    assert!(
+        refused(&verdicts).iter().any(|detail| detail
+            .contains("machine step of a theorem that cites it at other than a child")),
+        "{verdicts:?}"
+    );
+}
+
+#[test]
 fn a_theorem_that_cites_itself_states_its_rank() {
     let source = proofs(BOUND).replace("terminates by Length\n", "");
     assert_ne!(source, proofs(BOUND));

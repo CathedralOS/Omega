@@ -155,10 +155,24 @@ pub(crate) struct FamilyTheorem {
     pub(crate) ensures: Vec<Proposition>,
     /// One per case of the family, in declared order.
     pub(crate) cases: Vec<FamilyTheoremCase>,
-    /// The index the theorem is ranked on (`terminates by Length`), by its
-    /// position among the family's indices. A theorem that cites itself has
-    /// one, and its type is unsigned.
-    pub(crate) rank: Option<u32>,
+    /// What the theorem is ranked on. A theorem that cites itself has a rank.
+    pub(crate) rank: Option<FamilyRank>,
+}
+
+/// What a theorem over indexed data is ranked on (`terminates by ..`).
+/// termination.md, "Ranking": a ranking view may be "a proper subtree",
+/// and contracts.md, "Citation and induction": "Proof/compile-time
+/// recursion may rank on mathematical structure".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FamilyRank {
+    /// One of the family's indices, by position, of an unsigned type
+    /// (`terminates by Length`). Each cited child's value of it is shown
+    /// to be smaller.
+    Index(u32),
+    /// The evidence itself (`terminates by evidence`). The theorem is cited
+    /// only at a child of the case it dispatched on, which is a proper part
+    /// of the evidence, so nothing more is owed.
+    Evidence,
 }
 
 /// What a theorem's body does in one case of the family.
@@ -405,15 +419,23 @@ impl Program<'_> {
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| unserved("theorem dispatch without an arm for every case"))?;
         // A citation of the theorem at a child rests on the theorem's rank
-        // being smaller there: one of its indices, which counts down to
-        // zero only if it cannot be negative.
-        let rank =
-            match crate::source_state::ranking::resolve_machine_witness_subjects(typed, machine)
-                .as_deref()
+        // being smaller there: the evidence, of which the child is a part,
+        // or one of its indices, which counts down to zero only if it
+        // cannot be negative.
+        let rank = match crate::source_state::ranking::resolve_machine_witness_subjects(
+            typed, machine,
+        )
+        .as_deref()
+        {
+            None | Some([]) => None,
+            Some([subject])
+                if matches!(typed.expression_table.expression(*subject),
+                        ExpressionNode::Name(path) if path.symbol == evidence.symbol) =>
             {
-                None | Some([]) => None,
-                Some([subject]) => {
-                    let position = match typed.expression_table.expression(*subject) {
+                Some(FamilyRank::Evidence)
+            }
+            Some([subject]) => {
+                let position = match typed.expression_table.expression(*subject) {
                         ExpressionNode::Name(path) => {
                             values.iter().position(|value| *value == path.symbol)
                         }
@@ -421,24 +443,24 @@ impl Program<'_> {
                     }
                     .ok_or_else(|| {
                         unserved(
-                            "theorem over indexed data ranked on other than one of its indices",
+                            "theorem over indexed data ranked on other than its evidence or one of its indices",
                         )
                     })?;
-                    if family.indices[position].integer.sign()
-                        != semantic_vocabulary::IntegerSign::Unsigned
-                    {
-                        return Err(unserved(
-                            "theorem over indexed data ranked on an index that may be negative",
-                        ));
-                    }
-                    Some(position as u32)
-                }
-                Some(_) => {
+                if family.indices[position].integer.sign()
+                    != semantic_vocabulary::IntegerSign::Unsigned
+                {
                     return Err(unserved(
-                        "theorem over indexed data ranked on other than one of its indices",
+                        "theorem over indexed data ranked on an index that may be negative",
                     ));
                 }
-            };
+                Some(FamilyRank::Index(position as u32))
+            }
+            Some(_) => {
+                return Err(unserved(
+                    "theorem over indexed data ranked on other than its evidence or one of its indices",
+                ));
+            }
+        };
         if rank.is_none() && cases.iter().any(|case| case.cited.contains(&true)) {
             return Err(unserved(
                 "theorem over indexed data that cites itself without a rank",

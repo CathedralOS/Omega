@@ -1925,7 +1925,9 @@ impl<'p> Converter<'p, '_> {
                 }
             }
             let mut descent = Vec::new();
-            if let Some(rank) = theorem.rank {
+            // Ranked on the evidence, each cited child is a part of it and
+            // owes nothing more.
+            if let Some(super::families::FamilyRank::Index(rank)) = theorem.rank {
                 for (child, _) in read.cited.iter().enumerate().filter(|(_, cited)| **cited) {
                     let smaller = *terms
                         .children
