@@ -1188,7 +1188,7 @@ names it.
   [proof-work policy](../../spec/build/configuration.md#proof-work-policy) yet,
   and the diagnostic does not say which limit stopped the proof.
 
-**Step 4 as built so far (2026-11-24): records, named propositions and hypotheses inside sums.**
+**Step 4 as built so far (2026-11-24): records, named propositions, hypotheses inside sums and cases inside cases.**
 `core/int.omg` builds the integers as a record of two naturals, so step 4
 starts with records.
 
@@ -1231,9 +1231,36 @@ starts with records.
   the two library files' declarations are compiled as a program. The largest
   is `mul_int_assoc` at 7,533 conversion steps; the four that use a
   hypothesis on part of a sum take 1,021 to 3,637.
-- **Not done:** `rat.omg`, `cauchy.omg` and `extent.omg`, not yet tried. A
-  refused law whose goal names a field inside one case of an induction
-  prints `?` for that field.
+- **Cases inside cases.** `core/nat_metric.omg`, which `rat.omg` builds on,
+  proves `le_trans` by induction on `a` whose successor case splits on `b`,
+  and that case's successor case on `c`. A case of a law may now call a
+  nested machine that dispatches on another formal or on a field; stage 05
+  reads its cases as a split inside the case and stage 06 proves each. All
+  22 laws of `nat_metric.omg` are judged. They are the most expensive so
+  far: `nat_gap_triangle` takes 59,947 of the 65,536 conversion steps a law
+  may use and `le_add_gap` 31,474, so a larger proof of this shape will not
+  fit until the cost per case comes down.
+- **A law with a result is a definition only on demand.** These laws return
+  `Nat` only so they can be called as statements. Reading every one as a
+  definition too refused `le_trans`, whose body is an argument by cases and
+  defines nothing. It is now read as a definition only where a term applies
+  it or its statement names its result.
+- **Not done, in the order `rat.omg` meets them** (found by compiling
+  `nat.omg`, `nat_metric.omg`, `int.omg` and `rat.omg` as one program, with
+  stand-ins for the three machines of the first item):
+  - `mod`, `div` and `gcd` of `nat.omg`, whose recursion is justified by a
+    decreasing measure and not by a field of the dispatched case. `rat.omg`
+    calls `gcd` and `div`.
+  - A machine with a result and a `requires` that states no law (`mk_rat`,
+    `mk_signed_rat`): refused as "mathematical machine with a premise that
+    states no law".
+  - A definition that dispatches on a computed value (`rat_eq` on
+    `saturating_sub(positive, negative)`): refused as "mathematical dispatch
+    on a local".
+  - `cauchy.omg` is refused first on `cauchy_at`, a machine generic over
+    two machines, which is step 6.
+  - `extent.omg` is not yet tried. A refused law whose goal names a field
+    inside one case of an induction prints `?` for that field.
 
 The first version of this plan started with level binders and value-indexed
 type arguments because they move 66 samples. They move those samples to

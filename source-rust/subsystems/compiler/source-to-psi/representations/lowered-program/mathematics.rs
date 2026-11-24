@@ -295,10 +295,27 @@ pub struct LawCase {
     /// The fields the case binds, for diagnostics only.
     pub field_names: Vec<String>,
     pub source: Option<SourceSpan>,
+    /// The case's own cases, when its argument goes on by splitting another
+    /// value after the citations above.
+    pub split: Option<LawSplit>,
+}
+
+/// A split inside a case of a law: one script per case of the value split,
+/// in declared order. It is a case analysis only. The law as a hypothesis
+/// comes from the induction of [`LawProof::Cases`], never from here.
+#[derive(Debug, Clone)]
+pub struct LawSplit {
+    /// The value split: a formal of the law by position or, past the
+    /// formals, a field of an enclosing case, in the order the cases bind
+    /// them.
+    pub subject: u32,
+    pub data: u32,
+    pub cases: Vec<LawCase>,
 }
 
 /// A call the body makes for its conclusion. Each argument is a term under
-/// the law's formals followed by the fields of the enclosing case.
+/// the law's formals followed by the fields of every enclosing case,
+/// outermost first.
 #[derive(Debug, Clone)]
 pub struct Citation {
     pub evidence: Evidence,

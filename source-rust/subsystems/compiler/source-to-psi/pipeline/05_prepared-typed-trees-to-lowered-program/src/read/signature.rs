@@ -40,7 +40,7 @@ use semantic_vocabulary::{
 };
 use symbols::SymbolHandle;
 use terminal_check_tables::mathematics::{
-    Citation, Evidence, FunctionCases, Law, LawCase, LawProof, MathematicalSignature,
+    Citation, Evidence, FunctionCases, Law, LawCase, LawProof, LawSplit, MathematicalSignature,
     OperandLicense, SignatureEntry, SignatureEntryKind, operand_law,
 };
 use terminal_check_tables::{Checked, Construct, Refusal};
@@ -391,6 +391,13 @@ struct Scope<'s> {
     /// The machine whose body this is and, for each field of the case, the
     /// recursion's result for it.
     recursion: Option<(MachineId, usize, &'s [TermHandle])>,
+    /// How many fields the enclosing cases of a law bind: its terms are
+    /// stated under the law's formals and then those fields.
+    depth: u32,
+    /// Whether `case` is the case of the recursion or induction. A case
+    /// split inside one is not: the law at one of its fields is no
+    /// hypothesis.
+    induction: bool,
 }
 
 struct Converter<'p, 't> {
@@ -698,13 +705,12 @@ impl Converter<'_, '_> {
             .result;
         match result {
             None => self.laws(id).map(|_| ()),
-            // A machine that returns a value and states a law is both a
-            // definition and a law, in that order: its statement may name
-            // its own result.
-            Some(_) if self.states_law(id) => {
-                self.function(id)?;
-                self.laws(id).map(|_| ())
-            }
+            // A machine that returns a value and states a law is a law. It
+            // is a definition too where a term applies it or its statement
+            // names its result, and is read as one there: a law may return
+            // a value only so that it can be called as a statement, and its
+            // body is then an argument, not a definition.
+            Some(_) if self.states_law(id) => self.laws(id).map(|_| ()),
             // A nested machine that states nothing is read where it is
             // called, whether or not it returns a value.
             Some(_) if self.helper(id) => self.laws(id).map(|_| ()),
@@ -858,6 +864,8 @@ impl Converter<'_, '_> {
                     aliases: &aliases,
                     case: None,
                     recursion: None,
+                    depth: 0,
+                    induction: true,
                 };
                 (self.expression(id, value, &scope)?.term, None)
             }
@@ -927,6 +935,8 @@ impl Converter<'_, '_> {
                         aliases: &aliases,
                         case: Some((subject, case, &fields)),
                         recursion: Some((id, subject, &results)),
+                        depth: 0,
+                        induction: true,
                     };
                     let mut branch = self.expression(id, value, &scope)?.term;
                     for &other in others.iter().rev() {
@@ -1056,7 +1066,7 @@ impl Converter<'_, '_> {
                 {
                     Ok(Bound {
                         term: fields[*field],
-                        field: Some(*field as u32),
+                        field: scope.induction.then_some(*field as u32),
                     })
                 }
                 _ => Err(unserved(
@@ -1191,6 +1201,8 @@ impl Converter<'_, '_> {
                         aliases: &aliases,
                         case: None,
                         recursion: scope.recursion,
+                        depth: 0,
+                        induction: true,
                     };
                     return self.expression(*callee, value, &inner);
                 }
@@ -1523,6 +1535,8 @@ impl Converter<'_, '_> {
                     aliases,
                     case: None,
                     recursion: None,
+                    depth: 0,
+                    induction: true,
                 };
                 self.expression(id, value, &scope)?
             };
@@ -1563,9 +1577,11 @@ impl Converter<'_, '_> {
                 aliases: &aliases,
                 case: None,
                 recursion: None,
+                depth: 0,
+                induction: true,
             };
             let mut case = LawCase::default();
-            self.citations(id, id, before, &scope, &mut case.citations)?;
+            self.citations(id, id, before, &scope, &mut case)?;
             return Ok(LawProof::Direct(case));
         };
         let ExpressionKind::Slot(subject) = subject.kind else {
@@ -1629,6 +1645,8 @@ impl Converter<'_, '_> {
                 aliases: &aliases,
                 case: Some((subject, case, &fields)),
                 recursion: Some((id, subject, &[])),
+                depth: arity,
+                induction: true,
             };
             let mut script = LawCase {
                 citations: Vec::new(),
@@ -1641,12 +1659,13 @@ impl Converter<'_, '_> {
                     crate::lowering::SourceOrigin::Authored(span) => Some(*span),
                     _ => None,
                 },
+                split: None,
             };
-            self.citations(id, id, before, &scope, &mut script.citations)?;
+            self.citations(id, id, before, &scope, &mut script)?;
             match target {
                 Target::Unit => {}
                 Target::Value(value) => {
-                    self.cite_within(id, id, value, &scope, &mut script.citations, false)?
+                    self.cite_within(id, id, value, &scope, &mut script, false)?
                 }
                 Target::Crash(_) => return Err(unserved(id, "law case that crashes")),
             }
@@ -1659,6 +1678,77 @@ impl Converter<'_, '_> {
         })
     }
 
+    /// Read each case of a split inside a case of `law`. `machine` is the
+    /// helper whose body dispatches and `slot` the formal it dispatches on.
+    /// That formal must stand for a value the proof still holds whole: a
+    /// formal of the law or a field of an enclosing case. `read` is called
+    /// once per case, in declared order, with the scope of that case: the
+    /// helper's formals as before and the case's fields beneath them.
+    /// Returns which value is split and the entry of its data.
+    fn split(
+        &mut self,
+        law: MachineId,
+        machine: MachineId,
+        slot: usize,
+        scope: &Scope<'_>,
+        mut read: impl FnMut(&mut Self, usize, &Scope<'_>) -> Checked<()>,
+    ) -> Checked<(u32, u32)> {
+        let slot = scope.aliases.get(slot).copied().unwrap_or(slot);
+        let bound = scope
+            .slots
+            .get(slot)
+            .copied()
+            .flatten()
+            .ok_or_else(|| unserved(machine, "law dispatch on a local"))?;
+        let Term::Variable(index) = self.signature.arena.get(bound.term) else {
+            return Err(unserved(
+                machine,
+                "law dispatch on a value that is no formal of the law and no field of a case",
+            ));
+        };
+        let formals = self.formals(law)?.len() as u32;
+        let subject = (formals + scope.depth)
+            .checked_sub(index + 1)
+            .ok_or_else(|| unserved(machine, "law dispatch outside the law's names"))?;
+        let data = self
+            .formals(machine)?
+            .get(slot)
+            .ok_or_else(|| unserved(machine, "law dispatch on a local"))?
+            .1;
+        let SignatureEntryKind::Data { shape, .. } = &self.signature.entries[data as usize].kind
+        else {
+            return Err(unserved(machine, "law dispatch on a value without cases"));
+        };
+        let shape = shape.clone();
+        for case in 0..shape.cases() {
+            // The names so far move beneath the case's fields.
+            let arity = shape.arity(case);
+            let fields: Vec<_> = (0..arity)
+                .map(|field| self.variable(arity - 1 - field))
+                .collect();
+            let slots: Vec<_> = scope
+                .slots
+                .iter()
+                .map(|bound| {
+                    bound.map(|bound| Bound {
+                        term: shift(&mut self.signature.arena, bound.term, 0, arity),
+                        field: bound.field,
+                    })
+                })
+                .collect();
+            let inner = Scope {
+                slots: &slots,
+                aliases: scope.aliases,
+                case: Some((slot, case, &fields)),
+                recursion: scope.recursion,
+                depth: scope.depth + arity,
+                induction: false,
+            };
+            read(self, case, &inner)?;
+        }
+        Ok((subject, data))
+    }
+
     /// The citations a statement list makes. `law` is the law being read and
     /// `machine` the body the statements belong to, the law's or a helper's.
     fn citations(
@@ -1667,15 +1757,15 @@ impl Converter<'_, '_> {
         machine: MachineId,
         statements: &[&Statement],
         scope: &Scope<'_>,
-        citations: &mut Vec<Citation>,
+        script: &mut LawCase,
     ) -> Checked<()> {
         for statement in statements.iter().copied() {
             match statement {
                 Statement::Evaluate { expression, .. } => {
-                    self.cite_within(law, machine, expression, scope, citations, false)?
+                    self.cite_within(law, machine, expression, scope, script, false)?
                 }
                 Statement::Bind { value, .. } => {
-                    self.cite_within(law, machine, value, scope, citations, true)?
+                    self.cite_within(law, machine, value, scope, script, true)?
                 }
                 Statement::Arm {
                     guard: ArmGuard::Always,
@@ -1686,7 +1776,7 @@ impl Converter<'_, '_> {
                     guard: ArmGuard::Always,
                     target: Target::Value(value),
                     ..
-                } => self.cite_within(law, machine, value, scope, citations, false)?,
+                } => self.cite_within(law, machine, value, scope, script, false)?,
                 _ => {
                     return Err(unserved(
                         machine,
@@ -1709,7 +1799,7 @@ impl Converter<'_, '_> {
         machine: MachineId,
         expression: &Expression,
         scope: &Scope<'_>,
-        citations: &mut Vec<Citation>,
+        script: &mut LawCase,
         nested: bool,
     ) -> Checked<()> {
         let returns = self
@@ -1724,29 +1814,22 @@ impl Converter<'_, '_> {
                 ..
             } => {
                 for argument in arguments {
-                    self.cite_within(law, machine, argument, scope, citations, true)?;
+                    self.cite_within(law, machine, argument, scope, script, true)?;
                 }
-                self.cite(
-                    law,
-                    machine,
-                    expression,
-                    scope,
-                    citations,
-                    nested || returns,
-                )
+                self.cite(law, machine, expression, scope, script, nested || returns)
             }
             ExpressionKind::Case { fields, .. } if nested || returns => {
                 for (_, operand) in fields {
-                    self.cite_within(law, machine, operand, scope, citations, true)?;
+                    self.cite_within(law, machine, operand, scope, script, true)?;
                 }
                 Ok(())
             }
             ExpressionKind::Field { base, .. } if nested || returns => {
-                self.cite_within(law, machine, base, scope, citations, true)
+                self.cite_within(law, machine, base, scope, script, true)
             }
             ExpressionKind::Record { fields } if nested || returns => {
                 for (_, operand) in fields {
-                    self.cite_within(law, machine, operand, scope, citations, true)?;
+                    self.cite_within(law, machine, operand, scope, script, true)?;
                 }
                 Ok(())
             }
@@ -1761,7 +1844,7 @@ impl Converter<'_, '_> {
         machine: MachineId,
         call: &Expression,
         scope: &Scope<'_>,
-        citations: &mut Vec<Citation>,
+        script: &mut LawCase,
         term: bool,
     ) -> Checked<()> {
         let ExpressionKind::Call {
@@ -1795,7 +1878,7 @@ impl Converter<'_, '_> {
                     )
                 })?;
             self.ranked_on(law, subject, true)?;
-            citations.push(Citation {
+            script.citations.push(Citation {
                 evidence: Evidence::Hypothesis { field },
                 arguments: operands
                     .iter()
@@ -1827,7 +1910,7 @@ impl Converter<'_, '_> {
         if !laws.is_empty() {
             let arguments: Vec<_> = operands.iter().map(|operand| operand.term).collect();
             for cited in laws {
-                citations.push(Citation {
+                script.citations.push(Citation {
                     evidence: Evidence::Statement(self.signature.laws[cited as usize].statement),
                     arguments: arguments.clone(),
                 });
@@ -1848,8 +1931,82 @@ impl Converter<'_, '_> {
             aliases: &aliases,
             case: None,
             recursion: scope.recursion,
+            depth: scope.depth,
+            induction: scope.induction,
         };
-        let read = self.citations(law, *callee, &statements, &inner, citations);
+        // Its last statement may dispatch on one of its formals: the case
+        // being read then goes on by cases of the value that formal stands
+        // for.
+        let read = match statements.split_last() {
+            Some((
+                Statement::Dispatch {
+                    subject,
+                    arms,
+                    default,
+                    ..
+                },
+                before,
+            )) => {
+                let ExpressionKind::Slot(subject) = subject.kind else {
+                    return Err(unserved(*callee, "law dispatch on a computed subject"));
+                };
+                if default.is_some() {
+                    return Err(unserved(*callee, "law dispatch with a default arm"));
+                }
+                let mut cases = Vec::with_capacity(arms.len());
+                let split = self.split(law, *callee, subject, &inner, |converter, case, scope| {
+                    let mut selected = arms.iter().filter(|(selector, _, _)| selector.case == case);
+                    let (Some((selector, target, origin)), None) =
+                        (selected.next(), selected.next())
+                    else {
+                        return Err(unserved(
+                            *callee,
+                            "law dispatch without exactly one arm per case",
+                        ));
+                    };
+                    if selector.condition.is_some() {
+                        return Err(unserved(*callee, "law dispatch on a field value"));
+                    }
+                    let mut nested = LawCase {
+                        source: match origin {
+                            crate::lowering::SourceOrigin::Authored(span) => Some(*span),
+                            _ => None,
+                        },
+                        ..LawCase::default()
+                    };
+                    converter.citations(law, *callee, before, scope, &mut nested)?;
+                    match target {
+                        Target::Unit => {}
+                        Target::Value(value) => {
+                            converter.cite_within(law, *callee, value, scope, &mut nested, false)?
+                        }
+                        Target::Crash(_) => {
+                            return Err(unserved(*callee, "law case that crashes"));
+                        }
+                    }
+                    cases.push(nested);
+                    Ok(())
+                });
+                split.and_then(|(subject, data)| {
+                    if arms.len() != cases.len() {
+                        return Err(unserved(
+                            *callee,
+                            "law dispatch without exactly one arm per case",
+                        ));
+                    }
+                    if script.split.is_some() {
+                        return Err(unserved(*callee, "law case that splits twice"));
+                    }
+                    script.split = Some(LawSplit {
+                        subject,
+                        data,
+                        cases,
+                    });
+                    Ok(())
+                })
+            }
+            _ => self.citations(law, *callee, &statements, &inner, script),
+        };
         *self.machines.get_mut(*callee).expect("row read by `laws`") = match read {
             Ok(()) => Read::Cites { called: true },
             Err(_) => Read::Refused,

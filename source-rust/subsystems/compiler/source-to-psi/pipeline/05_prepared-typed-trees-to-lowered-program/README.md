@@ -29,7 +29,11 @@ as a definition and as a law. Data with a field of mathematical data is
 mathematical too: a record of such fields is read as the product of their
 types, with field access and record literals as projections and tuples.
 Conformances are read in the order of the data they are about, so a record's
-laws come after the laws of its fields' type. A named proposition declared as
+laws come after the laws of its fields' type. A case of a law may call a nested machine that
+dispatches on another of its formals: its cases are read as a split inside
+that case (`LawSplit`), to any depth. A machine that returns a value and
+states a law is read as a definition only where a term applies it or its
+statement names its result. A named proposition declared as
 one formula is read where a clause of such a machine applies it: the formula,
 with each parameter standing for the argument written for it. Its declaration
 adds nothing to the signature. The ordinary reader refuses the same data and machines when a

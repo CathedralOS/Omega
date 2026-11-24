@@ -60,7 +60,10 @@ closure in `PreparedCompilation::mathematics`:
   is one definition, the product of its fields' types (`Record`). It has no
   constructor entry: a value is the tuple of its fields and a field is a
   projection of it.
-- **Laws**: one per `ensures` equality of a machine over such data. A machine
+- **Laws**: one per `ensures` equality of a machine over such data. A law's
+  proof is its body's citations, read per case when the body dispatches on a
+  formal (an induction), and per case of a further value where a case splits
+  again (`LawSplit`). A machine
   that also returns a value has a definition entry too, and its statement may
   name that result. The machine's `requires` equalities are the law's
   premises: the statement takes a proof of each after the formals. A law's
