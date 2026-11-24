@@ -32,7 +32,7 @@ pub(crate) mod limits;
 pub(crate) mod windows;
 
 use crate::BoundedProcessPrepared;
-pub use completion::{BoundedProcessCompletion, BoundedProcessExitStatus};
+pub use completion::{BoundedProcessCompletion, BoundedProcessExitStatus, ProcessLimit};
 use std::io;
 use std::process::{ChildStderr, ChildStdin, ChildStdout, Command, ExitStatus};
 
@@ -262,9 +262,14 @@ impl BoundedProcessChild {
             )
         })?;
         self.finished = true;
+        #[cfg(windows)]
+        let limits_reached = self.child.take_limit_events();
+        #[cfg(not(windows))]
+        let limits_reached = Vec::new();
         Ok(BoundedProcessCompletion::new(
             BoundedProcessExitStatus::from(status),
             self.resource_usage.take(),
+            limits_reached,
         ))
     }
 

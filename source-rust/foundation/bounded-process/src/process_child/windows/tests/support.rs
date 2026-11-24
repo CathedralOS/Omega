@@ -4,8 +4,9 @@ use std::process::{Command, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use super::super::lifecycle::{JobLimitEvent, WindowsJobChild};
+use super::super::lifecycle::WindowsJobChild;
 use super::super::limits::WindowsJobLimits;
+use crate::ProcessLimit;
 
 pub(super) const WORKER_MODE: &str = "OMEGA_BOUNDED_PROCESS_WINDOWS_JOB_WORKER";
 pub(super) const WORKER_VALUE: &str = "OMEGA_BOUNDED_PROCESS_WINDOWS_JOB_WORKER_VALUE";
@@ -63,10 +64,10 @@ pub(super) fn run_worker(
     value: &str,
     limits: WindowsJobLimits,
     timeout: Duration,
-) -> (std::process::ExitStatus, Vec<JobLimitEvent>) {
+) -> (std::process::ExitStatus, Vec<ProcessLimit>) {
     let mut command = worker_command(mode, value);
     let mut child = WindowsJobChild::spawn_with_config(&mut command, limits)
         .expect("spawn limited Windows Job worker");
     let status = wait_bounded(&mut child, timeout);
-    (status, child.limit_events.clone())
+    (status, child.take_limit_events())
 }
