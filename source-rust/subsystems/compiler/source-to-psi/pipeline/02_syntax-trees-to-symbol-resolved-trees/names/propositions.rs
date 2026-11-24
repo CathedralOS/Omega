@@ -13,7 +13,10 @@ use super::lookup::child_symbol_by_kinds;
 use super::paths::{
     resolve_state_scoped_table_path, resolve_state_scoped_table_path_member_symbols,
 };
-use super::targets::{assign_static_argument_symbols, resolve_free_call_target_symbol};
+use super::targets::{
+    assign_static_argument_symbols, normalize_expression_module_call,
+    resolve_free_call_target_symbol,
+};
 
 pub(super) fn assign_proposition_expression_symbols(
     program: &mut crate::source_resolved::SymbolResolvedTrees,
@@ -211,7 +214,10 @@ fn assign_expression_symbols_in_role(
                 local_type_parameters,
                 call.arguments,
             );
-            let target_symbol = if call.receiver.is_valid() {
+            let normalized = normalize_expression_module_call(symbols, expressions, expression);
+            let target_symbol = if let Some(target) = normalized {
+                target
+            } else if call.receiver.is_valid() {
                 SymbolHandle::invalid()
             } else {
                 let parameter = child_symbol_by_kinds(
@@ -233,7 +239,9 @@ fn assign_expression_symbols_in_role(
             if let ExpressionNode::Call(call) = expressions.expression_mut(expression) {
                 call.target_symbol = target_symbol;
                 for argument in &mut call.machine_arguments {
-                    assign_static_argument_symbols(symbols, owner_symbol, &[], argument, true);
+                    assign_static_argument_symbols(
+                        symbols, owner_symbol, local_type_parameters, argument, true,
+                    );
                 }
             }
             if !target_symbol.is_valid() && !call.receiver.is_valid() {

@@ -1814,7 +1814,7 @@ mod catalogs {
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     ) -> Result<(), OptimizationUnitValidationError> {
         use abstract_operations::AbstractOperation as O;
-        use terminal_psi::{RecordFieldValue, StructuralTypeShape};
+        use terminal_psi::StructuralTypeShape;
         macro_rules! require_operation {
             ($operation:expr, $obligation:expr, $goal:expr) => {
                 require_accepted_goal_fact(
@@ -2407,31 +2407,29 @@ mod catalogs {
                     result_case,
                     fields,
                 } => {
-                    let Some(StructuralTypeDeclaration {
-                        shape: StructuralTypeShape::Sum { cases },
-                        ..
-                    }) = types.get(&result.structural_type).copied()
-                    else {
-                        continue;
+                    let invalid =
+                        || OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;
+                    let (common, cases) = match types.get(&result.structural_type).map(|d| &d.shape)
+                    {
+                        Some(StructuralTypeShape::Sum { cases }) => (&[][..], cases),
+                        Some(StructuralTypeShape::Mixed { fields, cases }) => {
+                            (fields.as_slice(), cases)
+                        }
+                        _ => return Err(invalid()),
                     };
-                    let Some(case) = find_structural_case(cases, *result_case) else {
-                        continue;
-                    };
-                    for (declaration, binding) in case.fields.iter().zip(fields) {
-                        if let RecordFieldValue::Scalar {
+                    let case = find_structural_case(cases, *result_case).ok_or_else(invalid)?;
+                    for (declaration, value, range_obligation) in
+                        scalar_initializer_declarations(common.iter().chain(&case.fields), fields)
+                            .ok_or_else(invalid)?
+                    {
+                        validate_field_range_authority(
+                            unit,
+                            function.machine,
+                            *psi_operation,
+                            declaration,
                             value,
                             range_obligation,
-                        } = &binding.value
-                        {
-                            validate_field_range_authority(
-                                unit,
-                                function.machine,
-                                *psi_operation,
-                                declaration,
-                                *value,
-                                *range_obligation,
-                            )?;
-                        }
+                        )?;
                     }
                 }
                 O::EstablishRecord {
@@ -2439,38 +2437,70 @@ mod catalogs {
                     result,
                     fields,
                 } => {
-                    let Some(StructuralTypeDeclaration {
-                        shape:
-                            StructuralTypeShape::Record {
-                                fields: declarations,
-                                ..
-                            },
+                    let invalid =
+                        || OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;
+                    let Some(StructuralTypeShape::Record {
+                        fields: declarations,
                         ..
-                    }) = types.get(&result.structural_type).copied()
+                    }) = types.get(&result.structural_type).map(|d| &d.shape)
                     else {
-                        continue;
+                        return Err(invalid());
                     };
-                    for (declaration, initializer) in declarations.iter().zip(fields) {
-                        if let RecordFieldValue::Scalar {
+                    for (declaration, value, range_obligation) in
+                        scalar_initializer_declarations(declarations.iter(), fields)
+                            .ok_or_else(invalid)?
+                    {
+                        validate_field_range_authority(
+                            unit,
+                            function.machine,
+                            *psi_operation,
+                            declaration,
                             value,
                             range_obligation,
-                        } = &initializer.value
-                        {
-                            validate_field_range_authority(
-                                unit,
-                                function.machine,
-                                *psi_operation,
-                                declaration,
-                                *value,
-                                *range_obligation,
-                            )?;
-                        }
+                        )?;
                     }
                 }
                 _ => {}
             }
         }
         Ok(())
+    }
+
+    /// Pairs each scalar initializer of a record or case constructor with the
+    /// field declaration it names. Initializers cover only the relevant fields,
+    /// in declaration order (`field_initializers_match`), while a type's roster
+    /// also lists `[erased]` fields and, for a mixed type, the common fields
+    /// before the case's own. Matching by field id keeps an erased field from
+    /// shifting every later initializer onto the wrong declaration. `None`
+    /// means an initializer names no relevant field of the roster.
+    pub(super) fn scalar_initializer_declarations<'a>(
+        roster: impl Iterator<Item = &'a terminal_psi::StructuralFieldDeclaration> + Clone,
+        fields: &'a [terminal_psi::RecordFieldInitializer],
+    ) -> Option<
+        Vec<(
+            &'a terminal_psi::StructuralFieldDeclaration,
+            ValueId,
+            Option<ObligationId>,
+        )>,
+    > {
+        fields
+            .iter()
+            .filter_map(|initializer| match &initializer.value {
+                terminal_psi::RecordFieldValue::Scalar {
+                    value,
+                    range_obligation,
+                } => Some((initializer.field, *value, *range_obligation)),
+                _ => None,
+            })
+            .map(|(field, value, range_obligation)| {
+                roster
+                    .clone()
+                    .find(|declaration| {
+                        declaration.id == field && !declaration.relevance.is_erased()
+                    })
+                    .map(|declaration| (declaration, value, range_obligation))
+            })
+            .collect()
     }
 
     fn validate_field_range_authority(
@@ -2620,6 +2650,115 @@ mod catalogs {
         }
         validate_root_service_reach(unit, machines, boundary_machines, services)?;
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod field_range_pairing_tests {
+        use super::scalar_initializer_declarations;
+        use semantic_vocabulary::{
+            BoundedIntegerType, IntegerSign, IntegerType, IntegerValue, ObligationId, ScalarType,
+            StructuralFieldId, ValueId,
+        };
+        use terminal_psi::{
+            BindingRelevance, RecordFieldInitializer, RecordFieldValue, StructuralFieldDeclaration,
+            StructuralFieldType,
+        };
+
+        fn field(
+            id: u64,
+            relevance: BindingRelevance,
+            field_type: StructuralFieldType,
+        ) -> StructuralFieldDeclaration {
+            StructuralFieldDeclaration {
+                declaration_identity: Default::default(),
+                inline_carrier: None,
+                id: StructuralFieldId::new(id).unwrap(),
+                identity: Default::default(),
+                relevance,
+                field_type,
+                storage: None,
+            }
+        }
+
+        fn scalar(id: u64, value: u64, obligation: Option<u64>) -> RecordFieldInitializer {
+            RecordFieldInitializer {
+                field: StructuralFieldId::new(id).unwrap(),
+                value: RecordFieldValue::Scalar {
+                    value: ValueId::new(value).unwrap(),
+                    range_obligation: obligation.map(|id| ObligationId::new(id).unwrap()),
+                },
+            }
+        }
+
+        fn byte() -> IntegerType {
+            IntegerType::new(IntegerSign::Unsigned, 8).unwrap()
+        }
+
+        fn bounded() -> StructuralFieldType {
+            StructuralFieldType::BoundedInteger(
+                BoundedIntegerType::new(
+                    byte(),
+                    IntegerValue::Unsigned(0),
+                    IntegerValue::Unsigned(9),
+                )
+                .unwrap(),
+            )
+        }
+
+        /// A record `{ [erased] ghost: u8, count: u8 in 0..=9 }` is built with
+        /// one initializer, for `count`. Its range obligation must be checked
+        /// against `count`'s bounded declaration, not the erased field before
+        /// it.
+        #[test]
+        fn erased_field_does_not_shift_initializer_declarations() {
+            let roster = [
+                field(
+                    1,
+                    BindingRelevance::Erased,
+                    StructuralFieldType::Scalar(ScalarType::Integer(byte())),
+                ),
+                field(2, BindingRelevance::Relevant, bounded()),
+            ];
+            let fields = [scalar(2, 7, Some(3))];
+            let pairs = scalar_initializer_declarations(roster.iter(), &fields).unwrap();
+            assert_eq!(pairs.len(), 1);
+            assert_eq!(pairs[0].0.id, StructuralFieldId::new(2).unwrap());
+            assert_eq!(pairs[0].0.field_type, bounded());
+            assert_eq!(pairs[0].2, Some(ObligationId::new(3).unwrap()));
+        }
+
+        /// A mixed type's case constructor initializes the common fields first,
+        /// then the case's own fields; both lists take part in the pairing.
+        #[test]
+        fn mixed_case_pairs_common_and_case_fields() {
+            let common = [field(1, BindingRelevance::Relevant, bounded())];
+            let case = [field(
+                2,
+                BindingRelevance::Relevant,
+                StructuralFieldType::Scalar(ScalarType::Integer(byte())),
+            )];
+            let fields = [scalar(1, 4, Some(5)), scalar(2, 6, None)];
+            let pairs =
+                scalar_initializer_declarations(common.iter().chain(&case), &fields).unwrap();
+            let ids = pairs
+                .iter()
+                .map(|(declaration, _, _)| declaration.id.get())
+                .collect::<Vec<_>>();
+            assert_eq!(ids, [1, 2]);
+        }
+
+        /// An initializer for an erased or unknown field has no declaration to
+        /// check against, so the range check refuses it.
+        #[test]
+        fn initializer_without_relevant_declaration_is_refused() {
+            let roster = [field(1, BindingRelevance::Erased, bounded())];
+            assert!(
+                scalar_initializer_declarations(roster.iter(), &[scalar(1, 2, None)]).is_none()
+            );
+            assert!(
+                scalar_initializer_declarations(roster.iter(), &[scalar(9, 2, None)]).is_none()
+            );
+        }
     }
 }
 pub(crate) mod derived_metadata {
@@ -10703,6 +10842,18 @@ pub(crate) mod operation_contracts {
                     | Proposition::IntegerIeeeFloatExact { source, .. } => {
                         scalar_term_roots(source, roots)
                     }
+                    Proposition::DeclarationIdentity(clause) => {
+                        use semantic_vocabulary::ClauseOperand;
+                        for value in &clause.values {
+                            match &value.operand {
+                                ClauseOperand::Input(subject) => {
+                                    roots.insert(subject.root());
+                                }
+                                ClauseOperand::Scalar(term) => scalar_term_roots(term, roots),
+                                ClauseOperand::Formal(_) | ClauseOperand::Application { .. } => {}
+                            }
+                        }
+                    }
                     Proposition::FloatMeaningEqual(clause) => {
                         for source in clause.sources() {
                             scalar_term_roots(source, roots);
@@ -10711,6 +10862,23 @@ pub(crate) mod operation_contracts {
                     Proposition::ContentConservation(conservation) => {
                         content_term_roots(conservation.left(), roots);
                         content_term_roots(conservation.right(), roots);
+                    }
+                    // A declared Identity names places through its scalar and
+                    // input operands. Formals and applications refer to other
+                    // values in the same table, which this loop also visits.
+                    Proposition::DeclarationIdentity(clause) => {
+                        for value in &clause.values {
+                            match &value.operand {
+                                semantic_vocabulary::ClauseOperand::Scalar(term) => {
+                                    scalar_term_roots(term, roots)
+                                }
+                                semantic_vocabulary::ClauseOperand::Input(subject) => {
+                                    roots.insert(subject.root());
+                                }
+                                semantic_vocabulary::ClauseOperand::Formal(_)
+                                | semantic_vocabulary::ClauseOperand::Application { .. } => {}
+                            }
+                        }
                     }
                     Proposition::Conjunction(propositions)
                     | Proposition::Disjunction(propositions) => {
@@ -10732,6 +10900,59 @@ pub(crate) mod operation_contracts {
             let mut roots = BTreeSet::new();
             collect(proposition, &mut roots);
             roots
+        }
+
+        #[cfg(test)]
+        mod tests {
+            use super::proposition_structural_roots;
+            use semantic_vocabulary::{
+                ClauseCarrier, ClauseDeclaration, ClauseIdentity, ClauseOperand, ClauseValue,
+                PlaceId, Proposition, ScalarReadProjection, ScalarTerm, ScalarType,
+                StructuralCaseSubject,
+            };
+            use std::collections::BTreeSet;
+
+            // A payloadless call is accepted only when every ensures root is the
+            // result place, so a declared Identity must report the places it reads.
+            #[test]
+            fn declaration_identity_reports_scalar_and_input_roots() {
+                let place = |raw| PlaceId::new(raw).unwrap();
+                let carrier = ClauseCarrier::Parameter(0);
+                let identity = |values: Vec<ClauseOperand>| {
+                    Proposition::DeclarationIdentity(ClauseIdentity {
+                        values: values
+                            .into_iter()
+                            .map(|operand| ClauseValue { carrier, operand })
+                            .collect(),
+                        left: 0,
+                        right: 1,
+                    })
+                };
+                let read = ClauseOperand::Scalar(ScalarTerm::StructuralRead {
+                    root: place(4),
+                    path: vec![ScalarReadProjection::Referent],
+                    scalar_type: ScalarType::Boolean,
+                });
+                let input = ClauseOperand::Input(StructuralCaseSubject::new(place(3), Vec::new()));
+                let application = ClauseOperand::Application {
+                    declaration: ClauseDeclaration {
+                        supplier: None,
+                        member: (1, 1),
+                    },
+                    arguments: vec![0],
+                };
+                assert_eq!(
+                    proposition_structural_roots(&identity(vec![read, input, application.clone()])),
+                    BTreeSet::from([place(3), place(4)])
+                );
+                assert!(
+                    proposition_structural_roots(&identity(vec![
+                        ClauseOperand::Formal(0),
+                        application
+                    ]))
+                    .is_empty()
+                );
+            }
         }
     }
     pub(crate) use claim_transfers::{function_entry_claim_paths, validate_slot_claim_transfers};

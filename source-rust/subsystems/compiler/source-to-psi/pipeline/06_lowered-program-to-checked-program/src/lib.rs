@@ -807,6 +807,7 @@ fn check_prepared_machine(
             ranking_bindings,
             declared: &declared,
             unreached,
+            law_instances,
         },
         tables,
         &mut decided,
@@ -903,9 +904,9 @@ fn check_prepared_machine(
         )
         .and_then(|goal| {
             if let Proposition::DeclarationIdentity(clause) = &goal {
-                let known = hypotheses(graph, tables, id, obligation, row.created_at)?;
-                return equality::discharge(module, lowered, tables, obligation, clause, &known, law_instances)
-                    .map(Discharged::Identity);
+                return equality::discharge(
+                    module, lowered, tables, graph, row.created_at, obligation, clause, law_instances,
+                ).map(Discharged::Identity);
             }
             if let Some(carry) = &carrier
                 && let Ok(evidence) = carry.certify(
@@ -1861,6 +1862,17 @@ pub(crate) fn substitute_goal(
         {
             goal_from_observed_parts(clause, bindings)
         }
+        // An erased actual can make a previously scalar equality mention
+        // a declaration application. Use the same typed form as authored
+        // clause applications, and keep the ordinary scalar route otherwise.
+        Ok(Proposition::Equal(left, right))
+            if [&left, &right].into_iter().any(|term| matches!(
+                term, ScalarTerm::DeclarationApplication { .. }
+            )) =>
+        {
+            terminal_codec::contract_forms::equal(left, right)
+                .map_err(|_| Unbound::Unsupported("an erased equality has no canonical form"))
+        }
         result => result,
     }
 }
@@ -1944,12 +1956,15 @@ fn erased_actuals(
         .iter()
         .zip(supplied)
         .map(|(formal, term)| match term {
-            ScalarTerm::Value { .. } | ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_) => {
+            ScalarTerm::Value { .. }
+            | ScalarTerm::Integer { .. }
+            | ScalarTerm::Boolean(_)
+            | ScalarTerm::DeclarationApplication { .. } => {
                 Ok((formal.id, term.clone()))
             }
             _ => Err(refuse(
                 RefusalReason::Unsupported,
-                "erased actual outside values and literals",
+                "erased actual outside values, literals, and declaration applications",
             )),
         })
         .collect()

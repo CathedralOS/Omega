@@ -82,6 +82,28 @@ fn missing_source_roots_cannot_produce_an_empty_count_baseline() {
 }
 
 #[test]
+fn count_rules_refuse_unreadable_text_in_source_and_contracts() {
+    let repo = ScratchRepository::new();
+    let guide = repo.root.join(super::COMPILER_GUIDE);
+    fs::create_dir_all(guide.parent().unwrap()).unwrap();
+    fs::write(guide, "").unwrap();
+    for (index, relative, text) in [
+        (0, "source-rust/reader.rs", "// café\n"),
+        (1, "wiki/spec/contract.md", "A café.\n"),
+    ] {
+        let path = repo.root.join(relative);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, text).unwrap();
+        let counts = compute_ratchet_counts(&repo.root, index, &Default::default()).unwrap();
+        assert!(counts.is_empty(), "{counts:?}");
+        fs::write(&path, [0xff]).unwrap();
+        let error = compute_ratchet_counts(&repo.root, index, &Default::default()).unwrap_err();
+        let (file, _) = error.rsplit_once(": ").expect("filename and read error");
+        assert_eq!(PathBuf::from(file), path);
+    }
+}
+
+#[test]
 fn source_reads_count_the_live_file_after_a_move() {
     let repo = ScratchRepository::new();
     for directory in ["source-rust", "omega-rust", "_recycling/source-rust"] {

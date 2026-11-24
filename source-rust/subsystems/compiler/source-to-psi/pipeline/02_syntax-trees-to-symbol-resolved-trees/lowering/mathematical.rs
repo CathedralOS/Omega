@@ -88,7 +88,17 @@ fn lower_mathematical_definition(
 
     let body = match definition.body {
         syntax::item::MathematicalDefinitionBody::Definition(term) => {
-            MathematicalBody::Definition(lower_expression_into_table(lowerer, syntax, term)?)
+            use crate::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
+            let exposure = if definition.is_public {
+                Exposure::PublicInterface
+            } else {
+                Exposure::PrivateImplementation
+            };
+            MathematicalBody::Definition(
+                lowerer.with_authored_expression_exposure(exposure, |lowerer| {
+                    lower_expression_into_table(lowerer, syntax, term)
+                })?,
+            )
         }
         syntax::item::MathematicalDefinitionBody::Assumption => MathematicalBody::Assumption,
     };

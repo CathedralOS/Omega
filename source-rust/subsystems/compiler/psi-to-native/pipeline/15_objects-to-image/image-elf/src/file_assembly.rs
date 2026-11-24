@@ -3,8 +3,10 @@ We execute stages 19 through 22 of the dynamic ELF pipeline: serializing the
 ELF64 header and program-header envelope (`serialize_elf_dynamic_file_envelope`),
 applying `.plt`, `.got.plt`, and image-local relocations
 (`apply_elf_procedure_linkage_fixups`), assembling the complete container file
-(`assemble_elf_dynamic_file`), and re-verifying final-byte admission
-(`admit_elf_dynamic_executable`).
+(`assemble_elf_dynamic_file`), and admitting the final bytes
+(`admit_elf_dynamic_executable`). Admission derives the output from the file
+that stage 21 has already replayed and sealed; it does not check the bytes a
+second time. The test-only `validate_executable_output` replays admission.
 */
 
 pub(crate) mod assembled_dynamic_file {

@@ -8064,7 +8064,7 @@ mod source {
             };
             if candidates.next().is_some()
                 || !cleanup_rosters_match(
-                    source,
+                    source.cleanup_rosters(),
                     candidate.operations(),
                     &target.graph.structural_types,
                 )
@@ -8267,8 +8267,17 @@ mod source {
                 && target.cleanup_actions == source.cleanup_actions
         }
 
-        fn cleanup_rosters_match<'operations>(
-            source: &AbstractOperation,
+        /// A block's cleanup calls must be exactly the `InvokeOwned` actions of
+        /// the cleanup rosters on its terminator's edges: each edge's calls
+        /// match its roster, and the block holds no other cleanup call.
+        /// Terminators without rosters therefore admit no cleanup call.
+        pub(super) fn cleanup_rosters_match<'rosters, 'operations>(
+            rosters: impl Iterator<
+                Item = (
+                    semantic_vocabulary::EdgeId,
+                    &'rosters [TerminalAffineCleanupAction],
+                ),
+            >,
             operations: impl Iterator<Item = &'operations target_operations::TargetUnitOperation>
             + Clone,
             structural_types: &abstract_operations::StructuralTypeCatalog,
@@ -8276,20 +8285,27 @@ mod source {
             let Ok(mut layouts) = crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay::from_catalog(structural_types) else {
                 return false;
             };
-            let expected = source
-                .cleanup_rosters()
-                .map(|(_, actions)| {
-                    actions
-                        .iter()
-                        .filter(|action| {
-                            matches!(action, TerminalAffineCleanupAction::InvokeOwned(_))
-                        })
-                        .count()
-                })
-                .sum::<usize>();
-            expected == operations.clone().filter(|operation| matches!(operation, target_operations::TargetUnitOperation::CleanupCall { .. })).count()
-                && source.cleanup_rosters().all(|(edge, actions)| edge_cleanup_calls_match(actions, operations.clone().filter(|operation|
-                    matches!(operation, target_operations::TargetUnitOperation::CleanupCall { owner, .. } if owner.edge() == Some(edge))), &mut layouts, edge))
+            let mut expected = 0usize;
+            for (edge, actions) in rosters {
+                expected += actions
+                    .iter()
+                    .filter(|action| matches!(action, TerminalAffineCleanupAction::InvokeOwned(_)))
+                    .count();
+                if !edge_cleanup_calls_match(actions, operations.clone().filter(|operation|
+                    matches!(operation, target_operations::TargetUnitOperation::CleanupCall { owner, .. } if owner.edge() == Some(edge))), &mut layouts, edge)
+                {
+                    return false;
+                }
+            }
+            expected
+                == operations
+                    .filter(|operation| {
+                        matches!(
+                            operation,
+                            target_operations::TargetUnitOperation::CleanupCall { .. }
+                        )
+                    })
+                    .count()
         }
 
         pub(super) fn return_cleanup_calls_match<'operations>(
@@ -8572,6 +8588,144 @@ mod source {
                         &structural_types,
                         edge
                     ));
+                }
+            }
+
+            /// A structural case dispatch keeps one cleanup roster per case
+            /// edge, and target lowering places every owned cleanup call in
+            /// the dispatching block. The block must hold exactly the calls of
+            /// all case rosters, each under its own edge and action ordinal.
+            #[test]
+            fn case_dispatch_block_retains_every_case_cleanup_call() {
+                use super::cleanup_rosters_match;
+                let structural_type = StructuralTypeId::new(1).unwrap();
+                let structural_types: abstract_operations::StructuralTypeCatalog =
+                    vec![structural_declaration(
+                        structural_type,
+                        terminal_psi::TerminalIdentityIndex(1),
+                        StructuralTypeShape::Record {
+                            storage: terminal_psi::StructuralRecordStorage::Packed,
+                            fields: vec![StructuralFieldDeclaration {
+                                declaration_identity: Default::default(),
+                                inline_carrier: None,
+                                storage: None,
+                                id: StructuralFieldId::new(1).unwrap(),
+                                identity: terminal_psi::TerminalIdentityIndex(2),
+                                relevance: BindingRelevance::Relevant,
+                                field_type: StructuralFieldType::Scalar(ScalarType::IeeeFloat(
+                                    IeeeFloatFormat::Binary32,
+                                )),
+                            }],
+                        },
+                    )]
+                    .into();
+                let machine = MachineId::new(9).unwrap();
+                let shape = crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay::new(&structural_types).unwrap().value_shape(structural_type).unwrap();
+                let plan = evaluate_call_plan(
+                    CallingPolicy::native_for_target(target::NativeTarget::linux_x64()),
+                    &CallSignature {
+                        parameters: vec![shape],
+                        result: None,
+                    },
+                )
+                .unwrap();
+                let first_edge = EdgeId::new(1).unwrap();
+                let second_edge = EdgeId::new(2).unwrap();
+                let mut rosters = Vec::new();
+                let mut calls = Vec::new();
+                for (edge, place, discarded) in [
+                    (first_edge, PlaceId::new(1).unwrap(), true),
+                    (second_edge, PlaceId::new(2).unwrap(), false),
+                ] {
+                    let mut actions = Vec::new();
+                    if discarded {
+                        actions.push(TerminalAffineCleanupAction::DiscardRoot(
+                            PlaceId::new(4).unwrap(),
+                        ));
+                    }
+                    let action_ordinal = u32::try_from(actions.len()).unwrap();
+                    actions.push(TerminalAffineCleanupAction::InvokeOwned(
+                        OwnedCleanupInvocation {
+                            subject: terminal_psi::StructuralArgument {
+                                place,
+                                path: Vec::new(),
+                                access: StructuralAccess::Owned,
+                            },
+                            structural_type,
+                            cleanup_machine: machine,
+                            claim_transfers: Vec::new(),
+                            requirement_obligations: Vec::new(),
+                        },
+                    ));
+                    rosters.push((edge, actions));
+                    calls.push(TargetUnitOperation::CleanupCall {
+                        owner: CallSiteOwner::CleanupAction {
+                            edge,
+                            action_ordinal,
+                        },
+                        callee: machine,
+                        call_plan: plan.clone(),
+                        requirement_obligations: Vec::new(),
+                        arguments: vec![TargetStructuralArgument {
+                            place,
+                            access: StructuralAccess::Owned,
+                            path: Vec::new(),
+                            root_structural_type: structural_type,
+                            structural_type,
+                            shape,
+                            source_byte_offset: 0,
+                            fixed_array_length: None,
+                            element_stride: None,
+                            indices: Vec::new(),
+                            source: plan.parameters[0].clone().into(),
+                            destination: plan.parameters[0].clone(),
+                        }],
+                    });
+                }
+                let matches = |calls: &[TargetUnitOperation]| {
+                    cleanup_rosters_match(
+                        rosters
+                            .iter()
+                            .map(|(edge, actions)| (*edge, actions.as_slice())),
+                        calls.iter(),
+                        &structural_types,
+                    )
+                };
+                assert!(matches(&calls));
+                assert!(
+                    !cleanup_rosters_match(std::iter::empty(), calls.iter(), &structural_types),
+                    "a terminator without rosters admits no cleanup call"
+                );
+                for mutation in 0..5 {
+                    let mut hostile = calls.clone();
+                    match mutation {
+                        0 => {
+                            hostile.pop();
+                        }
+                        1 => hostile.push(hostile[0].clone()),
+                        _ => {
+                            let TargetUnitOperation::CleanupCall {
+                                owner,
+                                callee,
+                                arguments,
+                                ..
+                            } = &mut hostile[1]
+                            else {
+                                unreachable!()
+                            };
+                            match mutation {
+                                2 => {
+                                    *owner = CallSiteOwner::CleanupAction {
+                                        edge: first_edge,
+                                        action_ordinal: 1,
+                                    }
+                                }
+                                3 => *callee = MachineId::new(10).unwrap(),
+                                _ => arguments[0].place = PlaceId::new(1).unwrap(),
+                            }
+                        }
+                    }
+                    assert!(!matches(&hostile), "mutation {mutation}");
                 }
             }
 
@@ -12492,21 +12646,28 @@ mod source {
                     indices,
                     *byte_offset,
                     *region_byte_size,
-                    block.block,
+                    block,
                 ))
             });
-            let Some((
-                target_source,
-                target_cases,
-                indices,
-                byte_offset,
-                region_byte_size,
-                current_block,
-            )) = matching.next()
+            let Some((target_source, target_cases, indices, byte_offset, region_byte_size, block)) =
+                matching.next()
             else {
                 return false;
             };
-            if matching.next().is_some() || target_cases.len() != cases.len() {
+            let current_block = block.block;
+            // Target lowering emits each case edge's owned cleanup calls into
+            // the dispatching block, so they are checked against the case
+            // rosters like any other terminator's.
+            if matching.next().is_some()
+                || target_cases.len() != cases.len()
+                || !super::control_flow::cleanup_rosters_match(
+                    cases
+                        .iter()
+                        .map(|case| (case.psi_edge, case.cleanup_actions.as_slice())),
+                    block.operations(),
+                    &target.graph.structural_types,
+                )
+            {
                 return false;
             }
             if !super::structural_fields::retained_selectors(path, indices) {
