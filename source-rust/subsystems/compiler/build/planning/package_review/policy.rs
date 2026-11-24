@@ -6,12 +6,14 @@ use super::declarations::unavailable;
 use super::input::PolicySource;
 use super::provider_rows;
 use diagnostics::Diagnostic;
+use language_core::core_vocabulary::CoreVocabulary;
 use review_evidence::record::{
     PackagePolicyBaseline, PackagePolicyBoundaryApplications, PackagePolicyCallables,
     PackagePolicyPublicApi, PackagePolicyRepresentation, PackagePolicyRestrictedBuildRequest,
-    PackagePolicySelectedProviders, PackageReviewRepresentationArchitecture,
-    PackageReviewRepresentationObjectFormat, PackageReviewRepresentationTarget,
-    PackageReviewRepresentationTargetProfile, PackageReviewServiceIdentity,
+    PackagePolicySelectedProviders, PackageReviewNominalIdentity,
+    PackageReviewRepresentationArchitecture, PackageReviewRepresentationObjectFormat,
+    PackageReviewRepresentationTarget, PackageReviewRepresentationTargetProfile,
+    PackageReviewServiceIdentity,
 };
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
@@ -46,7 +48,7 @@ pub(super) fn project(
         native.declared(),
         choices,
     )?;
-    require_supported_inventory(input, package, &providers.slots)?;
+    let opaque_declarations = check_declaration_inventory(input, package, &providers.slots)?;
     if !checked.plans().assumed_bindings().is_empty() {
         return Err(unavailable("selected provider assumptions"));
     }
@@ -93,7 +95,7 @@ pub(super) fn project(
         representation: PackagePolicyRepresentation {
             package,
             target: source.representation,
-            declarations: Vec::new(),
+            declarations: opaque_declarations,
             producer_availability: Vec::new(),
             selected_availability: Vec::new(),
             demands: Vec::new(),
@@ -224,11 +226,11 @@ fn declaration_policy(
     })
 }
 
-fn require_supported_inventory(
+fn check_declaration_inventory(
     declarations: &PolicySource<'_>,
     package: PackageKeyIdentity,
     reviewed_boundary_slots: &[symbols::SymbolHandle],
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<Vec<PackageReviewNominalIdentity>, Vec<Diagnostic>> {
     let typed = declarations.typed();
     let owned = |symbol| {
         for purpose in [
@@ -248,13 +250,12 @@ fn require_supported_inventory(
         }
         Ok::<_, Vec<Diagnostic>>(false)
     };
+    let mut opaque_declarations = Vec::new();
     for declaration in typed.data_definitions() {
-        if declaration.supply_mode != language_core::DataSupplyMode::CheckedShape
+        if declaration.supply_mode == language_core::DataSupplyMode::BoundaryOpaque
             && owned(declaration.symbol)?
         {
-            return Err(unavailable(
-                "opaque declaration and representation contracts",
-            ));
+            opaque_declarations.push(declarations.nominal(declaration.symbol)?);
         }
         if declaration.is_public
             && source_compiler::representations::source_state::source_subjects::contains(
@@ -329,6 +330,17 @@ fn require_supported_inventory(
             return Err(unavailable("public wire-schema contracts"));
         }
     }
+    // A public representation producer discloses a carrier even when no Build
+    // selects it. The opaque name alone cannot account for that availability.
+    for conformance in typed.conformances() {
+        if conformance.is_public
+            && typed.core_vocabulary(conformance.trait_symbol)
+                == Some(CoreVocabulary::OpaqueRepresentation)
+            && owned(conformance.symbol)?
+        {
+            return Err(unavailable("opaque representation producer availability"));
+        }
+    }
     let selected_build = declarations.selected_build_symbol()?;
     for declaration in typed.machines() {
         if !owned(declaration.symbol)? {
@@ -344,7 +356,8 @@ fn require_supported_inventory(
             )));
         }
     }
-    Ok(())
+    opaque_declarations.sort();
+    Ok(opaque_declarations)
 }
 
 pub(super) fn representation_target(
