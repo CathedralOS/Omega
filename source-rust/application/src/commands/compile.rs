@@ -235,6 +235,10 @@ fn compile_targets(
         match result {
             Ok(outcome) => {
                 writeln!(report, "product: {}\ntarget: {report_name}", outcome.kind).unwrap();
+                for test in outcome.test_roster {
+                    eprintln!("{test}");
+                    writeln!(report, "{test}").unwrap();
+                }
                 for row in arguments
                     .installation_assumptions
                     .iter()
@@ -255,6 +259,11 @@ fn compile_targets(
             }
             Err(error) => {
                 let message = match &error {
+                    // Distinct tests can fail for the same reason. Keep the requested roster in order.
+                    NativeValidationError::Compilation(rows) if arguments.compare_tests => {
+                        std::fmt::from_fn(|f| diagnostics::write_bounded_diagnostics(f, rows))
+                            .to_string()
+                    }
                     NativeValidationError::Compilation(rows) => {
                         output.diagnostics(rows).to_string()
                     }
@@ -310,6 +319,7 @@ struct TargetReport {
     summary: String,
     show_summary: bool,
     publications: String,
+    test_roster: Vec<String>,
     rows: Vec<StageValidationRow>,
 }
 
@@ -340,6 +350,11 @@ fn compile_target(
     let mut wrote_output = false;
     let mut show_summary = true;
     let artifact_only = stage.artifact_only();
+    let tests = if arguments.compare_tests {
+        project_build::TestExecution::Compare
+    } else {
+        project_build::TestExecution::Available
+    };
     let kind = if artifact_only {
         "build outputs"
     } else if arguments.check_only {
@@ -355,6 +370,10 @@ fn compile_target(
             return Err(output_error(
                 "an artifact-only Build requires completed outputs and cannot publish executable Psi",
             ));
+        }
+        if arguments.compare_tests {
+            test_roster =
+                stage.execute_registered_tests(profile, &arguments.installation_assumptions, tests)?;
         }
         rows = arguments.stage_validators.stages_not_produced(
             &[profile.target_name()],
@@ -432,7 +451,7 @@ fn compile_target(
             ));
         };
         test_roster =
-            stage.execute_registered_tests(profile, &arguments.installation_assumptions)?;
+            stage.execute_registered_tests(profile, &arguments.installation_assumptions, tests)?;
         let published = product
             .publish(&arguments.root_path, directory)
             .map_err(output_error)?;
@@ -479,9 +498,6 @@ fn compile_target(
     if arguments.timings && !rows.is_empty() {
         eprintln!("{} validator rows", rows.len());
     }
-    for test in test_roster {
-        eprintln!("{test}");
-    }
     planned.attribute_diagnostics(&mut advisories);
     advisories.extend_from_slice(planned.build_advisories());
     if !advisories.is_empty() {
@@ -507,6 +523,7 @@ fn compile_target(
         summary,
         show_summary,
         publications,
+        test_roster,
         rows,
     })
 }
