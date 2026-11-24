@@ -89,6 +89,8 @@ pub enum EstablishedCondition {
     ExactRepresentation(String),
     /// The normalized measure must lie inside its declared interval.
     RankRange,
+    /// A recursive IncreasingTo transfer must preserve the declared bound.
+    FixedRankBound,
 }
 
 /// One machine's source correspondence: one row per lowered identity, indexed

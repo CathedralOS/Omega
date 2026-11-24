@@ -586,6 +586,8 @@ pub struct Signature {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Ranking {
     pub measures: Vec<Expression>,
+    /// IncreasingTo compares this expression at both ends of a recursive transfer.
+    pub fixed_bound: Option<Box<Expression>>,
     pub range: Option<Box<RankRange>>,
 }
 
@@ -593,6 +595,7 @@ impl Ranking {
     pub fn without_range(measures: Vec<Expression>) -> Self {
         Self {
             measures,
+            fixed_bound: None,
             range: None,
         }
     }

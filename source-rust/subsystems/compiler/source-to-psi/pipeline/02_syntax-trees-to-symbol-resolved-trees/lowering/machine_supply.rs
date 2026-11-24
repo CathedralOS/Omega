@@ -790,6 +790,7 @@ mod compiler_machine_tests {
             (FLOAT, "float_operations.omg", "FloatSemantics::add", 3),
             (NAT, "nat.omg", "Nat::Descending", 1),
             (NAT, "nat.omg", "Nat::BoundedDistance", 2),
+            (NAT, "nat.omg", "Nat::IncreasingTo", 2),
         ] {
             let (syntax, sources) = parsed(text, path, SourceOrigin::Toolchain);
             let authored = syntax

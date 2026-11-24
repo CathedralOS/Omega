@@ -99,7 +99,8 @@ may be descending naturals, written `Nat\Descending`, an increasing value
 approaching a fixed bound, written `Nat\IncreasingTo(limit)`, a proper
 subtree, or a lexicographic product. `terminates by (cursor, limit) ->
 Nat\BoundedDistance` ranks by the unsigned distance from cursor to limit.
-The distance is zero when the cursor reaches or passes the limit. An unbounded
+The distance is zero when the cursor reaches or passes the limit. Each recursive
+transfer using `IncreasingTo` must preserve the value of its bound. An unbounded
 increasing view is not well-founded. The view owns normalization so authors
 need not synthesize subtraction to express a bounded increasing cursor.
 
