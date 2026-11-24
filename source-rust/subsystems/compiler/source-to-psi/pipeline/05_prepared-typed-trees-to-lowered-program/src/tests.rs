@@ -3090,6 +3090,7 @@ fn store(slot: usize, path: &[usize], value: Expression) -> Statement {
         };
     }
     Statement::Store {
+        slot_home: None,
         destination,
         value,
         source: nowhere(),
