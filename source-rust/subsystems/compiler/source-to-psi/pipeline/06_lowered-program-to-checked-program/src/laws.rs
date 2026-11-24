@@ -5,14 +5,14 @@
 //! evidence. A law whose body dispatches on a formal is an induction: each
 //! case is an equality over an arbitrary value of that case, proved by
 //! rewriting with the laws the case cites and with the law itself at a field
-//! of the case, and the cases are assembled into one `indW` term. The kernel
-//! checks that term against the law's statement, and the encoded certificate
-//! is what the judgment reports.
+//! of the case, and the cases are assembled with the data's induction
+//! principle. The kernel checks that term once, as the certificate the
+//! judgment reports.
 
 use proof_admission::{
-    Budget, Context, CoreError, DEFAULT_CONVERSION_STEPS, Declaration, MathematicalCertificate,
-    MathematicalCoreDecision, MathematicalJudgmentReceipt, Signature, Term, TermArena, TermHandle,
-    check_signature_with_attribution, check_type, instantiate,
+    Budget, Context, CoreError, DEFAULT_CONVERSION_STEPS, Declaration, Level,
+    MathematicalCertificate, MathematicalCoreDecision, MathematicalJudgmentReceipt, Signature,
+    Sort, Term, TermArena, TermHandle, check_signature_with_attribution, convertible, instantiate,
 };
 use terminal_check_tables::UnprovedCause;
 use terminal_check_tables::mathematics::{
@@ -20,7 +20,7 @@ use terminal_check_tables::mathematics::{
     SignatureEntry, SignatureEntryKind,
 };
 
-use super::equality::{License, SearchError, prove_under};
+use super::equality::{Definitions, License, SearchError, prove_under};
 
 /// How many rewrite attempts one case of one law may make.
 const SEARCH_STEPS: usize = 65_536;
@@ -311,6 +311,7 @@ fn prove_law(
     law: &Law,
 ) -> Result<LawJudgment, Failure> {
     let licenses = licenses(arena, declarations, granted, law);
+    let definitions = Definitions::of_signature(&entries[..law.statement as usize]);
     let prefix = declarations[..law.statement as usize].to_vec();
     let closed = Context::empty().with_signature(Signature::from_declarations(prefix.clone()));
     let statement = declarations[law.statement as usize].ty;
@@ -333,6 +334,7 @@ fn prove_law(
             prove_under(
                 arena,
                 &context,
+                &definitions,
                 law.goal,
                 &evidence,
                 &licenses,
@@ -381,13 +383,17 @@ fn prove_law(
             });
             let mut branches = Vec::with_capacity(cases.len());
             for (case, script) in cases.iter().enumerate() {
-                let (function, hypothesis) = shape.case_binders(arena, motive, case);
-                let mut context = closed.extend(function).extend(hypothesis);
+                // A case is proved for arbitrary fields, with the law at
+                // each field as a hypothesis.
+                let mut context = closed.clone();
+                for binder in shape.case_binders(arena, *data, motive, case) {
+                    context = context.extend(binder);
+                }
                 for &other in &others {
                     context = context.extend(law.formals[other]);
                 }
-                let node = shape.node(arena, case, rest as u32);
-                let mut actuals = outer(arena, node);
+                let value = shape.case_value(arena, *data, case, rest as u32);
+                let mut actuals = outer(arena, value);
                 let goal = instantiate(arena, law.goal, &actuals);
                 for field in 0..shape.arity(case) {
                     actuals.push(shape.field(arena, case, field, rest as u32));
@@ -410,6 +416,7 @@ fn prove_law(
                 let mut branch = prove_under(
                     arena,
                     &context,
+                    &definitions,
                     goal,
                     &evidence,
                     &licenses,
@@ -423,11 +430,10 @@ fn prove_law(
                         body: branch,
                     });
                 }
-                branches.push(branch);
+                branches.push(shape.branch(arena, *data, motive, case, branch));
             }
-            let step = shape.step(arena, motive, &branches);
             let tree = variable(arena, count - 1 - subject);
-            let induction = arena.insert(Term::IndW { motive, step, tree });
+            let induction = shape.induct(arena, *data, motive, &branches, tree);
             let arguments: Vec<_> = others
                 .iter()
                 .map(|&other| variable(arena, count - 1 - other))
@@ -442,10 +448,14 @@ fn prove_law(
             body: proof,
         });
     }
-    check_type(arena, &closed, proof, statement, &mut budget).map_err(kernel)?;
+    // The kernel checks the proof once, as the certificate it will publish.
+    let certificate = MathematicalCertificate::with_signature(prefix, Vec::new(), proof, statement);
+    let receipt =
+        MathematicalJudgmentReceipt::verify(arena, &certificate, &mut budget).map_err(kernel)?;
     if let Some(declared) = law.declared {
-        // The machine satisfies a requirement: what it proved must be the
-        // law that requirement declares, up to the kernel's own computation.
+        // The machine satisfies a requirement: the statement it proved must
+        // be the law that requirement declares, up to the kernel's own
+        // computation.
         let mut required = declared;
         for &formal in law.formals.iter().rev() {
             required = arena.insert(Term::Pi {
@@ -453,18 +463,18 @@ fn prove_law(
                 codomain: required,
             });
         }
-        check_type(arena, &closed, proof, required, &mut budget).map_err(|error| Failure {
+        let universe = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
+        let differs = |cause| Failure {
             case: None,
-            cause: match error {
-                CoreError::StepCeiling => UnprovedCause::BudgetExhausted,
-                _ => UnprovedCause::NoDerivation,
-            },
+            cause,
             detail: "the proved equality is not the law its requirement declares".to_owned(),
-        })?;
+        };
+        match convertible(arena, &closed, statement, required, universe, &mut budget) {
+            Ok(true) => {}
+            Err(CoreError::StepCeiling) => return Err(differs(UnprovedCause::BudgetExhausted)),
+            Ok(false) | Err(_) => return Err(differs(UnprovedCause::NoDerivation)),
+        }
     }
-    let certificate = MathematicalCertificate::with_signature(prefix, Vec::new(), proof, statement);
-    let receipt =
-        MathematicalJudgmentReceipt::verify(arena, &certificate, &mut budget).map_err(kernel)?;
     let bytes =
         terminal_codec::encode_mathematical_certificate(arena, &certificate).map_err(|_| {
             Failure {

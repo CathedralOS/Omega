@@ -42,16 +42,19 @@ program's conformance declares and that were stated before the law being
 proved. It brings both sides of the goal to one arrangement (nested to the
 right, operands in a fixed order where commutativity allows) and puts each
 law it used into the proof term, so the certificate's assumptions name it.
-Right distributivity of Peano multiplication is the customer: its successor
-case is the cited law at `pred` and one regrouping. The Peano associativity
-law takes 1,148 kernel conversion steps of a 65,536 budget and right
-distributivity 3,136.
+Distributivity of Peano multiplication is the customer. From the right, its
+successor case is the cited law at `pred` and one regrouping. From the left
+it is four addends in another order, which needs commutativity too, and
+commutativity needs `plus(a, Zero) = a`, a law that returns its own argument.
+The kernel checks each law's proof once, as its certificate: 11,817
+conversion steps of a 65,536 budget for associativity, 7,317 and 7,324 for the
+two distributivity laws, 3,529 for commutativity.
 
 When every part is accepted, publication writes one Psi mathematical carrier
 row per data declaration into the root module
 ([publication/mathematics.rs](src/publication/mathematics.rs)). The row names
-the data by its source type identity, and its key is the data's W type under
-the declarations up to its own. The laws' certificates stay in the judgment.
+the data by its source type identity, and its key is the data's type (its
+canonical trees) under the declarations up to its own. The laws' certificates stay in the judgment.
 An indexed theorem root row names an erased evidence formal, and an Id
 formation row names an erased formal's Identity type and the source subjects
 it captures. A law over plain data has neither, so neither table has a row for

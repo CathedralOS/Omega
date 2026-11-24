@@ -1,0 +1,139 @@
+// The passing program with `plus_comm` proved but no longer declared as the
+// trait's `add_comm`. Regrouping is still licensed; reordering is not, so the
+// four addends of the successor case cannot be brought into one order.
+use omega\language\core\ProcessExit;
+
+data Peano {
+    case Zero;
+    case Succ(pred: Peano);
+}
+
+trait Semiring3<T> {
+    machine add(a: T, b: T) -> T reaches none crashes none terminates;
+    machine mul(a: T, b: T) -> T reaches none crashes none terminates;
+    machine add_comm(a: T, b: T)
+    ensures core\Identity::<T>(add(a, b), add(b, a));
+    machine add_assoc(a: T, b: T, c: T)
+    ensures core\Identity::<T>(add(add(a, b), c), add(a, add(b, c)));
+    machine mul_distributes(a: T, b: T, c: T)
+    ensures core\Identity::<T>(mul(a, add(b, c)), add(mul(a, b), mul(a, c)));
+}
+
+machine plus(a: Peano, b: Peano) -> Peano
+satisfies Semiring3<Peano>::add
+terminates by a
+{
+    transition a {
+        Peano::Zero -> (b),
+        Peano::Succ { pred } -> Peano::Succ { pred: plus(pred, b) }
+    }
+}
+
+machine times(a: Peano, b: Peano) -> Peano
+satisfies Semiring3<Peano>::mul
+terminates by a
+{
+    transition a {
+        Peano::Zero -> Peano::Zero,
+        Peano::Succ { pred } -> plus(b, times(pred, b))
+    }
+}
+
+// The two lemmas commutativity cites. Each returns or rebuilds its own
+// argument, which a proof over raw trees could not state.
+machine plus_zero_right(a: Peano)
+terminates by a
+ensures
+    core\Identity::<Peano>(plus(a, Peano::Zero), a)
+{
+    transition a {
+        Peano::Zero -> base(),
+        Peano::Succ { pred } -> step(pred)
+    }
+    machine base() {
+    }
+    machine step(pred: Peano) {
+        plus_zero_right(pred);
+    }
+}
+
+machine plus_succ_right(a: Peano, b: Peano)
+terminates by a
+ensures
+    core\Identity::<Peano>(plus(a, Peano::Succ { pred: b }), Peano::Succ { pred: plus(a, b) })
+{
+    transition a {
+        Peano::Zero -> base(),
+        Peano::Succ { pred } -> step(pred, b)
+    }
+    machine base() {
+    }
+    machine step(pred: Peano, b: Peano) {
+        plus_succ_right(pred, b);
+    }
+}
+
+machine plus_comm(a: Peano, b: Peano)
+terminates by a
+ensures
+    core\Identity::<Peano>(plus(a, b), plus(b, a))
+{
+    transition a {
+        Peano::Zero -> base(b),
+        Peano::Succ { pred } -> step(pred, b)
+    }
+    machine base(b: Peano) {
+        plus_zero_right(b);
+    }
+    machine step(pred: Peano, b: Peano) {
+        plus_comm(pred, b);
+        plus_succ_right(b, pred);
+    }
+}
+
+machine plus_assoc(a: Peano, b: Peano, c: Peano)
+satisfies Semiring3<Peano>::add_assoc
+terminates by a
+ensures
+    core\Identity::<Peano>(plus(plus(a, b), c), plus(a, plus(b, c)))
+{
+    transition a {
+        Peano::Zero -> base(),
+        Peano::Succ { pred } -> step(pred, b, c)
+    }
+    machine base() {
+    }
+    machine step(pred: Peano, b: Peano, c: Peano) {
+        plus_assoc(pred, b, c);
+    }
+}
+
+// The shape of `mul_distributes` in `core/nat.omg`: the body calls only the
+// law itself on `pred`.
+machine times_distributes(a: Peano, b: Peano, c: Peano)
+satisfies Semiring3<Peano>::mul_distributes
+terminates by a
+ensures
+    core\Identity::<Peano>(times(a, plus(b, c)), plus(times(a, b), times(a, c)))
+{
+    transition a {
+        Peano::Zero -> base(),
+        Peano::Succ { pred } -> step(pred, b, c)
+    }
+    machine base() {
+    }
+    machine step(pred: Peano, b: Peano, c: Peano) {
+        times_distributes(pred, b, c);
+    }
+}
+
+data Main { }
+machine exit_with_status(main: @mutable Main) reaches ProcessExit {
+    ProcessExit::exit_process(0);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit {
+    let mutable entry_storage: Main;
+    block exit_with_status(@mutable entry_storage);
+}

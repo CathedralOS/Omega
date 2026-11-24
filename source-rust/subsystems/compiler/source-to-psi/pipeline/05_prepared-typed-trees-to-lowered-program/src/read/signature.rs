@@ -2,11 +2,12 @@
 Turns the mathematical declarations this reader has read into one kernel
 signature (`terminal_check_tables::mathematics`).
 
-Each entry refers only to earlier ones. Data becomes a W type and one
-definition per case. A machine with a result becomes a definition: a body that
-dispatches on one formal is an `indW` whose branch for a case binds that
-case's fields, and a call of the machine itself at such a field is the
-recursion's result for it. A machine with no result states one law per
+Each entry refers only to earlier ones. Data becomes the declarations
+`PlainData` gives it: its canonical trees, one definition per case and an
+induction principle. A machine with a result becomes a definition: a body
+that dispatches on one formal is that induction, whose branch for a case
+binds the case's fields, and a call of the machine itself at such a field is
+the recursion's result for it. A machine with no result states one law per
 `ensures` equality. Its body is not a term: the calls it makes are recorded as
 citations, a call of the law itself at a field of the dispatched case as the
 induction hypothesis, and stage 06 builds the proof from them.
@@ -16,14 +17,14 @@ itself through its citations is refused, so no statement can justify itself.
 */
 
 use arena::IdTable;
-use mathematical_kernel::{Declaration, Level, PlainData, Sort, Term, TermHandle};
+use mathematical_kernel::{Declaration, PlainData, Term, TermHandle};
 use semantic_vocabulary::{
     ClauseCarrier, ClauseIdentity, ClauseOperand, MachineId, Proposition, StructuralTypeId,
 };
 use symbols::SymbolHandle;
 use terminal_check_tables::mathematics::{
-    Citation, Evidence, Law, LawCase, LawProof, MathematicalSignature, OperandLicense,
-    SignatureEntry, SignatureEntryKind, operand_law,
+    Citation, Evidence, FunctionCases, Law, LawCase, LawProof, MathematicalSignature,
+    OperandLicense, SignatureEntry, SignatureEntryKind, operand_law,
 };
 use terminal_check_tables::{Checked, Construct, Refusal};
 
@@ -399,39 +400,34 @@ impl Converter<'_, '_> {
         }
         let shape = PlainData::new(arities)
             .ok_or_else(|| unserved(id, "data that contains itself without a case"))?;
-        index(
-            id,
-            self.signature.declarations.len() + declared.cases().len() + 1,
-        )?;
-        let arena = &mut self.signature.arena;
-        let universe = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
-        let body = shape.ty(arena);
+        let first = index(id, self.signature.declarations.len())?;
+        let declarations = shape.declarations(&mut self.signature.arena, first);
+        index(id, self.signature.declarations.len() + declarations.len())?;
+        let entry = PlainData::data_entry(first);
         let name = self.name(source.declaration);
-        let entry = self.push(
-            Declaration::definition(0, universe, body),
-            SignatureEntryKind::Data {
-                declaration: source.declaration,
-                shape: shape.clone(),
-                type_identity: declared.identity.clone(),
-            },
-            name.clone(),
-        );
-        self.data.push((record, entry));
-        let ty = self.constant(entry);
-        for (case, (symbol, _)) in source.cases.iter().enumerate() {
-            let arena = &mut self.signature.arena;
-            let constructor_type = shape.constructor_type(arena, case, ty);
-            let constructor = shape.constructor(arena, case, ty);
-            let case_name = format!("{name}::{}", self.name(*symbol));
-            self.push(
-                Declaration::definition(0, constructor_type, constructor),
-                SignatureEntryKind::Constructor {
-                    data: entry,
-                    case: case as u32,
-                },
-                case_name,
-            );
+        for (offset, declaration) in declarations.into_iter().enumerate() {
+            let position = first + offset as u32;
+            let case = position
+                .checked_sub(entry + 1)
+                .and_then(|case| source.cases.get(case as usize).map(|found| (case, found.0)));
+            let (kind, entry_name) = match case {
+                _ if position == entry => (
+                    SignatureEntryKind::Data {
+                        declaration: source.declaration,
+                        shape: shape.clone(),
+                        type_identity: declared.identity.clone(),
+                    },
+                    name.clone(),
+                ),
+                Some((case, symbol)) => (
+                    SignatureEntryKind::Constructor { data: entry, case },
+                    format!("{name}::{}", self.name(symbol)),
+                ),
+                None => (SignatureEntryKind::Encoding { data: entry }, name.clone()),
+            };
+            self.push(declaration, kind, entry_name);
         }
+        self.data.push((record, entry));
         Ok(entry)
     }
 
@@ -578,7 +574,7 @@ impl Converter<'_, '_> {
             .ok_or_else(|| unserved(id, "mathematical machine lost its body"))?;
         let (aliases, statements) = spine(body);
         let named = |slot: usize| aliases.get(slot).copied().unwrap_or(slot);
-        let mut term = match statements.as_slice() {
+        let (mut term, cases) = match statements.as_slice() {
             [
                 Statement::Arm {
                     guard: ArmGuard::Always,
@@ -600,7 +596,7 @@ impl Converter<'_, '_> {
                     case: None,
                     recursion: None,
                 };
-                self.expression(id, value, &scope)?.term
+                (self.expression(id, value, &scope)?.term, None)
             }
             [
                 Statement::Dispatch {
@@ -676,7 +672,13 @@ impl Converter<'_, '_> {
                             body: branch,
                         });
                     }
-                    branches.push(branch);
+                    branches.push(shape.branch(
+                        &mut self.signature.arena,
+                        data,
+                        motive,
+                        case,
+                        branch,
+                    ));
                 }
                 if arms.len() != shape.cases() {
                     return Err(unserved(
@@ -684,17 +686,23 @@ impl Converter<'_, '_> {
                         "mathematical dispatch without exactly one value arm per case",
                     ));
                 }
-                let step = shape.step(&mut self.signature.arena, motive, &branches);
                 let tree = self.variable((count - 1 - subject) as u32);
-                let induction = self
-                    .signature
-                    .arena
-                    .insert(Term::IndW { motive, step, tree });
+                let induction =
+                    shape.induct(&mut self.signature.arena, data, motive, &branches, tree);
                 let arguments: Vec<_> = others
                     .iter()
                     .map(|&other| self.variable((count - 1 - other) as u32))
                     .collect();
-                self.signature.arena.apply_arguments(induction, &arguments)
+                (
+                    self.signature.arena.apply_arguments(induction, &arguments),
+                    Some(FunctionCases {
+                        data,
+                        subject: subject as u32,
+                        arity: count as u32,
+                        motive,
+                        branches,
+                    }),
+                )
             }
             _ => {
                 return Err(unserved(
@@ -722,7 +730,10 @@ impl Converter<'_, '_> {
         let name = self.name(symbol);
         Ok(self.push(
             Declaration::definition(0, ty, term),
-            SignatureEntryKind::Function { machine: symbol },
+            SignatureEntryKind::Function {
+                machine: symbol,
+                cases,
+            },
             name,
         ))
     }

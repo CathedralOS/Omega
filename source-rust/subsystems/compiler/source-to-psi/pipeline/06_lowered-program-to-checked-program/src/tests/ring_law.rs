@@ -10,6 +10,11 @@
 //! over `plus` from the right. Its successor case needs three addends
 //! regrouped, which the proof does under the associativity law the program's
 //! conformance declares, without citing it.
+//!
+//! `peano_left_distributivity` proves the laws that return or rebuild their
+//! own argument (`plus(a, Zero) = a`, `plus(a, Succ(b)) = Succ(plus(a, b))`),
+//! commutativity from them, and left distributivity, whose successor case
+//! needs four addends reordered under commutativity and associativity.
 
 use super::*;
 use crate::checking::laws::{SignatureJudgment, UnprovedLaw};
@@ -22,6 +27,11 @@ const DISTRIBUTES: &str =
     include_str!("../../tests/fixtures/ring_law/pass/peano_right_distributivity/main.omg");
 const DISTRIBUTES_UNCITED: &str =
     include_str!("../../tests/fixtures/ring_law/fail/peano_right_distributivity_uncited/main.omg");
+const COMMUTES: &str =
+    include_str!("../../tests/fixtures/ring_law/pass/peano_left_distributivity/main.omg");
+const COMMUTES_UNLICENSED: &str = include_str!(
+    "../../tests/fixtures/ring_law/fail/peano_left_distributivity_unlicensed/main.omg"
+);
 
 /// The declarations a fixture proves with. Its entry and exit status need
 /// the standard library, which the command-level test supplies.
@@ -139,12 +149,24 @@ fn the_kernel_judges_peano_addition_associative_by_induction() {
     else {
         panic!("the carrier is the declared data")
     };
+    let Some(Term::Sigma { domain: trees, .. }) = checked
+        .certificate
+        .signature
+        .get(data as usize)
+        .and_then(|declaration| declaration.body)
+        .map(|body| arena.get(body))
+    else {
+        panic!("the data pairs a raw tree with the evidence that it is canonical")
+    };
+    let Term::Constant {
+        declaration: trees, ..
+    } = arena.get(trees)
+    else {
+        panic!("the raw trees are a declared constant")
+    };
     assert!(matches!(
-        checked
-            .certificate
-            .signature
-            .get(data as usize)
-            .and_then(|declaration| declaration.body)
+        checked.certificate.signature[trees as usize]
+            .body
             .map(|body| arena.get(body)),
         Some(Term::W { .. })
     ));
@@ -193,13 +215,29 @@ fn the_kernel_judges_peano_addition_associative_by_induction() {
         };
         proof = body;
     }
-    while let Term::Apply { function, .. } = arena.get(proof) {
+    // The data's induction principle, applied to a motive, one branch per
+    // case and the first formal, then to the other two formals.
+    let mut arguments = Vec::new();
+    while let Term::Apply { function, argument } = arena.get(proof) {
+        arguments.push(argument);
         proof = function;
     }
-    let Term::IndW { tree, .. } = arena.get(proof) else {
+    arguments.reverse();
+    let Term::Constant {
+        declaration: induction,
+        ..
+    } = arena.get(proof)
+    else {
         panic!("the proof must be an induction")
     };
-    variable(tree, 2);
+    // Zero and Succ follow the data; the induction principle follows them.
+    assert_eq!(induction, data + 3);
+    let [_motive, _zero, _successor, subject, b, c] = arguments.as_slice() else {
+        panic!("a motive, two branches, the subject and two formals: {arguments:?}")
+    };
+    variable(*subject, 2);
+    variable(*b, 1);
+    variable(*c, 0);
 }
 
 #[test]
@@ -472,7 +510,7 @@ fn operands_are_reordered_only_under_a_commutativity_law() {
     // kernel audit's step 3a notes say why). So the laws here are
     // assumptions of a bare signature: a type, one operation on it, four
     // values, and the two laws.
-    use crate::checking::equality::{License, SearchError, prove_under};
+    use crate::checking::equality::{Definitions, License, SearchError, prove_under};
     use proof_admission::{
         Budget, Context, Declaration, Level, Sort, Term, TermArena, check_signature, check_type,
     };
@@ -576,7 +614,17 @@ fn operands_are_reordered_only_under_a_commutativity_law() {
     let reordering = license(None, Some(commutes));
     let attempt = |arena: &mut TermArena, goal, licenses: &[License]| {
         let mut budget = Budget::default();
-        let proof = prove_under(arena, &context, goal, &[], licenses, 4096, &mut budget)?;
+        let definitions = Definitions::plain(&context);
+        let proof = prove_under(
+            arena,
+            &context,
+            &definitions,
+            goal,
+            &[],
+            licenses,
+            4096,
+            &mut budget,
+        )?;
         check_type(arena, &context, proof, goal, &mut budget).unwrap();
         Ok::<_, SearchError>(())
     };
@@ -631,5 +679,124 @@ fn without_its_recursive_call_distributivity_would_need_itself() {
     assert!(
         !source[..site.span.start].contains("machine plus_assoc"),
         "the arm of the distributivity law, not of the associativity law"
+    );
+}
+
+#[test]
+fn left_distributivity_reorders_under_the_commutativity_law_of_its_conformance() {
+    use terminal_check_tables::mathematics::{OperandLaw, operand_law};
+    let verdicts = judged(&proofs(COMMUTES));
+    let judgment = signature(&verdicts);
+    let law = |machine: &str| {
+        judgment
+            .laws
+            .iter()
+            .find(|law| law.machine == machine)
+            .unwrap_or_else(|| panic!("the law `{machine}`: {judgment:?}"))
+    };
+    // Every law of the program is judged, and each is closed.
+    for (machine, assumptions) in [
+        // A law that returns its own argument rests on nothing.
+        ("plus_zero_right", 0),
+        ("plus_succ_right", 0),
+        // Commutativity cites the two lemmas above.
+        ("plus_comm", 2),
+        ("plus_assoc", 0),
+        // Distributivity cites nothing and rests on the two licenses.
+        ("times_distributes", 2),
+    ] {
+        let law = law(machine);
+        let MathematicalCoreDecision::Judged(receipt) = law.decision else {
+            panic!("the kernel must judge `{machine}`: {law:?}")
+        };
+        assert_eq!(
+            (receipt.context_depth, receipt.assumption_closure),
+            (0, assumptions),
+            "{machine}"
+        );
+        eprintln!(
+            "{machine}: {} declarations, {} arena slots, {} conversion steps",
+            receipt.declarations, receipt.arena_slots, law.conversion_steps
+        );
+    }
+
+    let distributes = law("times_distributes");
+    let mut checked =
+        terminal_codec::decode_mathematical_certificate(&distributes.certificate).unwrap();
+    proof_admission::verify_mathematical_certificate(
+        &mut checked.arena,
+        &checked.certificate,
+        &mut Default::default(),
+    )
+    .unwrap();
+    let arena = &checked.arena;
+    let declarations = &checked.certificate.signature;
+    // Its two assumptions are commutativity and associativity of one
+    // operation. The body names neither; the proof term does.
+    let closure = proof_admission::certificate_assumption_closure(arena, &checked.certificate);
+    let mut laws: Vec<_> = closure
+        .iter()
+        .map(|&assumed| {
+            operand_law(arena, declarations[assumed as usize].ty)
+                .expect("each assumption states a law of one operation")
+        })
+        .collect();
+    laws.sort_by_key(|(_, law)| matches!(law, OperandLaw::Associates { .. }));
+    let [
+        (commuted, OperandLaw::Commutes),
+        (regrouped, OperandLaw::Associates { .. }),
+    ] = laws.as_slice()
+    else {
+        panic!("commutativity and associativity: {laws:?}")
+    };
+    assert_eq!(commuted, regrouped);
+    for declaration in declarations {
+        assert!(!arena.structurally_equal(declaration.ty, checked.certificate.expected));
+    }
+}
+
+#[test]
+fn a_commutativity_law_outside_the_conformance_does_not_license_reordering() {
+    let source = proofs(COMMUTES_UNLICENSED);
+    // Only the `satisfies` clause of the commutativity law is gone.
+    let licensed = proofs(COMMUTES);
+    assert_eq!(
+        source[source.find("data Peano").unwrap()..],
+        licensed.replace("satisfies Semiring3<Peano>::add_comm\n", "")
+            [licensed.find("data Peano").unwrap()..]
+    );
+    let verdicts = judged(&source);
+    let law = unproved(&verdicts);
+    assert_eq!(law.machine, "times_distributes");
+    assert_eq!(law.cause, UnprovedCause::NoDerivation);
+    assert_eq!(
+        law.statement,
+        "cannot prove ensures contract for `times_distributes` in the case `Peano::Succ`: \
+         core\\Identity::<Peano>(times(Peano::Succ(pred), plus(b, c)), \
+         plus(times(Peano::Succ(pred), b), times(Peano::Succ(pred), c)))"
+    );
+    let site = law.site.expect("the successor arm");
+    assert_eq!(
+        line(&source, site.span.start),
+        "Peano::Succ { pred } -> step(pred, b, c)"
+    );
+    assert!(source[..site.span.start].contains("machine times_distributes"));
+}
+
+#[test]
+fn a_law_that_returns_its_argument_still_needs_its_recursive_call() {
+    // `plus(a, Zero) = a` without the law at `pred`: the successor case is
+    // left with `Succ(plus(pred, Zero)) = Succ(pred)`.
+    let licensed = proofs(COMMUTES);
+    let source = licensed.replace("        plus_zero_right(pred);\n", "");
+    assert_ne!(source, licensed);
+    let verdicts = judged(&source);
+    let law = unproved(&verdicts);
+    assert_eq!(law.machine, "plus_zero_right");
+    assert_eq!(law.cause, UnprovedCause::NoDerivation);
+    assert_eq!(
+        law.statement,
+        "cannot prove ensures contract for `plus_zero_right` in the case `Peano::Succ`: \
+         core\\Identity::<Peano>(plus(Peano::Succ(pred), Peano::Zero), Peano::Succ(pred))"
     );
 }

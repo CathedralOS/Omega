@@ -3,9 +3,9 @@
 //! it once with the kernel and judges each law against the entries before it.
 //!
 //! Data that contains itself has no storage, so it and the machines over it
-//! exist only here: the data as a W type, its constructors and each machine
-//! defined by cases as definitions, and each law as a statement whose proof
-//! stage 06 produces. A law's own statement is not among the entries its
+//! exist only here: the data as the canonical trees of a W type with its
+//! constructors and induction principle, each machine defined by cases as a
+//! definition, and each law as a statement whose proof stage 06 produces. A law's own statement is not among the entries its
 //! proof is checked against, so a law cannot supply its own evidence.
 
 use mathematical_kernel::{Declaration, PlainData, Term, TermArena, TermHandle};
@@ -140,7 +140,7 @@ pub struct SignatureEntry {
 
 #[derive(Debug, Clone)]
 pub enum SignatureEntryKind {
-    /// A plain data declaration: the closed W type of its cases.
+    /// A plain data declaration: the canonical trees of its cases.
     Data {
         declaration: SymbolHandle,
         shape: PlainData,
@@ -151,12 +151,37 @@ pub enum SignatureEntryKind {
     },
     /// A case of the data declared at index `data`, as a function of its fields.
     Constructor { data: u32, case: u32 },
-    /// A machine defined by cases on one parameter.
-    Function { machine: SymbolHandle },
+    /// A declaration the encoding of the data at index `data` needs besides
+    /// the data and its constructors: its case labels, their child
+    /// positions, its raw trees, the canonical-tree condition or its
+    /// induction principle.
+    Encoding { data: u32 },
+    /// A machine with a result. `cases` says how it computes when its body
+    /// dispatches on one parameter.
+    Function {
+        machine: SymbolHandle,
+        cases: Option<FunctionCases>,
+    },
     /// The statement of `laws[law]`, closed over its formals. It has no body:
     /// a proof that cites the law depends on it as an assumption, and the
     /// law's own proof is judged separately.
     Statement { law: u32 },
+}
+
+/// A function defined by cases on one parameter: the induction over the data
+/// at entry `data` whose subject is formal `subject`. `motive` and each
+/// branch are closed, as `PlainData::induct` takes them. Applied to a case
+/// of the data in that position, the function is that case's branch over the
+/// case's fields, then the function itself at each field, then its other
+/// arguments.
+#[derive(Debug, Clone)]
+pub struct FunctionCases {
+    pub data: u32,
+    pub subject: u32,
+    /// How many formals the function has.
+    pub arity: u32,
+    pub motive: TermHandle,
+    pub branches: Vec<TermHandle>,
 }
 
 /// One `ensures` equality of a machine with no result, and how its body

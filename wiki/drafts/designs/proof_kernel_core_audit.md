@@ -984,9 +984,10 @@ none`, which a clause application now requires. What step 2 did not build:
   canonical position. That is enough when the tree is consumed only by
   recursion, as here. A law that returns the tree itself, such as
   `add(a, Zero) = a`, also needs `Succ(k position) = sup(succ, k)`, which
-  this kernel does not convert. Step 3 meets it at `add_zero_right`.
+  this kernel does not convert. Step 3a met it at commutativity and replaced
+  the encoding (below).
 
-**Step 3a as built (2026-11-23), and what it still owes.** A proof may now
+**Step 3a as built (2026-11-23).** A proof may now
 regroup and reorder the operands of one operation without citing the laws
 that allow it. The license is the program's declared conformance: a law that
 satisfies a requirement of a trait application and states associativity or
@@ -999,43 +1000,55 @@ statements that come before its own. The search brings both sides of a goal
 to one arrangement and puts every law it used into the proof term, so the
 certificate names it.
 
-- **Customer.** `peano_right_distributivity` proves
+- **Customers.** `peano_right_distributivity` proves
   `times(plus(a, b), c) = plus(times(a, c), times(b, c))` by induction,
   calling only the law itself at `pred`. The kernel judges it resting on one
   assumption, the associativity statement. Its twin drops the call on `pred`
   and is refused at the successor arm: the equality left over is the law
-  being proved. The same program with `plus_assoc` no longer declared as the
-  trait's `add_assoc` is refused too. Reordering is tested on a bare
-  signature with assumed laws, including the four-addend shuffle
-  `mul_distributes` leaves.
-- **Cost.** The producer keeps a defined function folded until the argument
-  it dispatches on is a constructor, where step 2 unfolded every definition
-  to its `indW`. The associativity law went from 23,113 conversion steps and
-  271,116 arena slots to 1,148 and 18,724. Right distributivity takes 3,136
-  and 64,976.
-- **Not done: left `mul_distributes`.** It needs the addends reordered, so it
-  needs `add_comm` proved, and the base case of `add_comm` is
-  `add(b, Zero) = b`, the equality the unit-eta bullet above says this
-  encoding cannot prove
-  (`a_tree_of_a_case_is_not_its_constructor_by_computation`). That is a
-  defect of the encoding, and repairing it needs no ruling and no new kernel
-  rule. Keep only the trees whose child function is the constructor's own:
-  `Data = Σ (t : W). Canonical(t)`, where `Canonical(sup(case, k))` holds the
-  case's fields, a proof that the constructor's child function over those
-  fields is identical to `k`, and `Canonical` of each field. `J` on that
-  identity replaces `k` by the constructor's function, so the induction
+  being proved. `peano_left_distributivity` proves `plus(a, Zero) = a`,
+  `plus(a, Succ(b)) = Succ(plus(a, b))`, commutativity from those two,
+  associativity, and `times(a, plus(b, c)) = plus(times(a, b), times(a, c))`,
+  again calling only the law itself at `pred`. The kernel judges that last law
+  resting on exactly two assumptions, commutativity and associativity of
+  `plus`. Its twin proves commutativity but does not declare it as the
+  trait's `add_comm`, and is refused at the successor arm. This is the shape
+  of `mul_distributes` and `mul_distributes_right` in `core/nat.omg`.
+- **The encoding of data changed.** Under step 2's raw trees no program could
+  prove `plus(a, Zero) = a` (the unit-eta bullet above), so none could prove
+  commutativity. The data is now the canonical trees of the same W type:
+  `Data = Σ (t : W). Canonical(t)`, where `Canonical(sup(case, k))` holds one
+  raw tree per field, an identity between the constructor's child function
+  over those trees and `k`, and `Canonical` of each field. `J` on that
+  identity replaces `k` by the constructor's own function, so the induction
   principle is stated over constructor applications (`P(m) -> P(Succ(m))`)
-  and computes on them by `indW`, `J` on `refl`, beta and pair eta. The
+  and computes on them, for any fields, by `indW`, `J` on `refl`, beta and
+  pair eta. It adds no kernel rule and no assumption, and the kernel checks
+  every declaration (`PlainData::declarations`). The
   [inductive profile](../../spec/proofs/inductive_profile.md#derived-indexed-families)
   builds indexed families the same way, as a tree paired with a recursively
-  defined condition. `PlainData` then hands out that derived induction, and
-  stages 05 and 06 build functions and laws from it.
+  defined condition.
+- **Cost.** The kernel checks a two-case data's declarations in 964
+  conversion steps, a three-case one with two and three fields in 42,317 and
+  four unary cases in 59,242 (`a_declaration_checks_within_one_default_budget`).
+  Declaring the label and position types once as constants, where they were
+  inlined at each use, is what brought the last two under one default
+  budget; they were 236,839 and 702,069. A law's proof is checked by the
+  kernel once, as its certificate. Before that change each was checked four
+  times (per case, whole, against the trait's statement, as the
+  certificate). The producer keeps a defined function folded until the
+  argument it dispatches on is a case, so the search itself spends almost no
+  conversion steps. Per law, of a 65,536 budget: associativity 11,817,
+  right distributivity 7,317, left distributivity 7,324, commutativity
+  3,529, `plus(a, Zero) = a` 3,512. Under raw trees associativity took 1,148
+  and right distributivity 3,136; the canonical evidence is what the
+  difference pays for. Each proof leaves 50,000 to 420,000 scratch terms in
+  the arena.
 - **Not done: a law written as a machine with a result.** `core/nat.omg`
-  states `mul_distributes_right` as `-> Nat` with
-  `Nat::Succ { prev: mul_distributes_right(prev, b, c) }` in its successor
+  states `mul_distributes_right` and its lemmas as `-> Nat` machines, with
+  `Nat::Succ { prev: mul_distributes_right(prev, b, c) }` in the successor
   arm. The signature reads a machine with a result as a function and refuses
-  a guarantee on one. Step 3 needs a reading of that shape; the Peano fixture
-  states the law as a machine with no result.
+  a guarantee on one. Step 3 needs a reading of that shape; the Peano
+  fixtures state each law as a machine with no result.
 
 The first version of this plan started with level binders and value-indexed
 type arguments because they move 66 samples. They move those samples to

@@ -50,9 +50,12 @@ compilation, [`MathematicalSignature`](mathematics.rs), carried beside the
 closure in `PreparedCompilation::mathematics`:
 
 - **Declarations**, in dependency order, as kernel terms: each such data
-  declaration as a W type, each of its cases as a definition, and each machine
-  with a result as a definition. A machine that dispatches on one formal is an
-  `indW` over that formal's data.
+  declaration as the entries `PlainData` gives it (its canonical trees, one
+  definition per case and an induction principle over those cases), and each
+  machine with a result as a definition. A machine that dispatches on one
+  formal is that induction over the formal's data, and its entry records the
+  motive and the branch of each case (`FunctionCases`), which is how stage 06
+  computes it on a case without reading the shape of a term.
 - **Laws**: one per `ensures` equality of a machine with no result. A law's
   statement is an entry with no body. The entries before it are everything
   its proof is checked against, so a law is never its own evidence, and a law
