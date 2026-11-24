@@ -773,7 +773,7 @@ impl ProofSearchActivity {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 struct ActiveCut {
     proposition: Proposition,
     origin: Option<crate::checking::known::DisjunctionOrigin>,
@@ -1832,8 +1832,11 @@ impl<'a> Prover<'a> {
         );
         branch.case_split = self.case_split;
         branch.remaining_case_branches = self.remaining_case_branches;
-        branch.active_cuts.clone_from(&self.active_cuts);
+        // The parent resumes after this branch. Nested cuts are popped by
+        // split on both a successful proof and a failed alternative.
+        branch.active_cuts = std::mem::take(&mut self.active_cuts);
         let proof = branch.prove(goal);
+        self.active_cuts = branch.active_cuts;
         self.remaining_case_branches = branch.remaining_case_branches;
         proof
     }
