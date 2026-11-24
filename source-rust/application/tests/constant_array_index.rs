@@ -6,22 +6,14 @@ const SOURCE: &str = include_str!("fixtures/constants/run/constant_array_index/m
 
 const BORROW: &str = include_str!("fixtures/constants/run/borrowed_constant_projection/main.omg");
 
-fn expect_native_and_psi_success(source: &str) {
-    let (output, report) = program::invoke(source, &["run", "--both"]);
-    assert_eq!(output.status.code(), Some(0), "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
-        assert!(report.lines().any(|line| line == receipt), "{report}");
-    }
-}
-
 #[test]
 fn a_proven_index_reads_the_selected_constant() {
-    expect_native_and_psi_success(SOURCE);
+    program::assert_silent_return(SOURCE);
 }
 
 #[test]
 fn borrows_of_elements_and_slices_read_the_constant_copy() {
-    expect_native_and_psi_success(BORROW);
+    program::assert_silent_return(BORROW);
 }
 
 #[test]

@@ -16,11 +16,12 @@
 //! source compiler's `driver/compile_time_invocations/demand_order.rs` and
 //! `constants/tests.rs`.
 
+#[path = "support/program.rs"]
+mod program;
 mod support;
 
-use platform_custody::temporary_directory::TemporaryDirectory;
+use program::invoke;
 use std::path::PathBuf;
-use std::process::{Command, Output, Stdio};
 
 fn fixture(tier: &str, case: &str) -> String {
     let path: PathBuf = support::repository_root()
@@ -38,33 +39,8 @@ fn expected(case: &str) -> String {
     std::fs::read_to_string(path).unwrap().trim_end().to_owned()
 }
 
-/// Run `omega` on a copy of one source file, so nothing the compiler writes
-/// lands in the checkout.
-fn invoke(source: &str, arguments: &[&str]) -> (Output, String) {
-    let scratch = TemporaryDirectory::create("computed-constant-order", false).unwrap();
-    std::fs::write(scratch.path().join("main.omg"), source).unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(arguments)
-        .arg("main.omg")
-        .current_dir(scratch.path())
-        .stdin(Stdio::null())
-        .output()
-        .expect("the compiler runs on the fixture");
-    let report = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    eprintln!("{report}");
-    (output, report)
-}
-
 fn runs_in_both_engines(case: &str) {
-    let (output, report) = invoke(&fixture("run", case), &["run", "--both"]);
-    assert_eq!(output.status.code(), Some(0), "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
-        assert!(report.lines().any(|line| line == receipt), "{report}");
-    }
+    program::assert_silent_return(&fixture("run", case));
 }
 
 /// The twin differs from its program in exactly `line`, and is refused with

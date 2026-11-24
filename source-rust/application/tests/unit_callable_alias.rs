@@ -32,11 +32,7 @@ fn fixture(tier: &str) -> String {
 #[test]
 fn a_callable_alias_without_a_result_selects_a_machine_natively_and_in_psi() {
     let source = fixture("run");
-    for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let (output, report) = invoke(&source, &["run", "--engine", engine]);
-        assert_eq!(output.status.code(), Some(0), "{report}");
-        assert!(report.lines().any(|line| line == receipt), "{report}");
-    }
+    program::assert_silent_return(&source);
 }
 
 #[test]
