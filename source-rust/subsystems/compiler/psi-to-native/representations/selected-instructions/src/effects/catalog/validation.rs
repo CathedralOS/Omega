@@ -1,7 +1,8 @@
 /*
-  Admission validation (`validate_declaration`, `validate_isa_machine_effect_catalog`)
-  for `MachineEffectCatalog` declarations against target register constraints
-  and ISA encodings.
+  Admission validation (`validate_declaration`) for one `MachineEffectCatalog`
+  declaration against its target register constraint and ISA encodings.
+  `validate_machine_effect_catalog` in `catalog.rs` calls it for every row, and
+  `validate_isa_machine_effect_catalog` there admits a separately supplied catalog.
 */
 
 use register_model::{
