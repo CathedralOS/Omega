@@ -184,3 +184,47 @@ fn a_logical_subject_cannot_be_an_out_of_carrier_literal() {
         assert_eq!(error, "logical subject has a malformed scalar term");
     });
 }
+
+#[test]
+fn decoding_preserves_the_recorded_judgment_and_leaves_proof_checking_to_the_validator() {
+    use source_compiler::test_support::checking::{RouteVerdict, judge};
+
+    let program = Program::of(ORIGINAL);
+    let RouteVerdict::Accepted(accepted) = judge(Ok(program.elaboration().clone())).unwrap() else {
+        panic!("the original caller must reach publication");
+    };
+    let mut module = accepted.prepare_publication().unwrap().module().clone();
+    let derivation = &mut module.proofs.theorem_citations[0].derivations[0];
+    // This rule does not prove the recorded implication. The bytes still
+    // identify the same source, subjects, invocation and conclusion.
+    derivation.proof.rule =
+        terminal_psi::ProofRule::Primitive(terminal_psi::PrimitiveJudgment::Truth);
+    let bytes = terminal_codec::encode_module(&module).unwrap();
+    let decoded = terminal_codec::decode_module(&bytes).unwrap();
+    assert_eq!(
+        decoded.proofs.theorem_citations,
+        module.proofs.theorem_citations
+    );
+    assert!(
+        terminal_codec::validate_theorem_evidence(
+            &decoded,
+            &mut proof_admission::Budget::default()
+        )
+        .is_err()
+    );
+
+    module.proofs.theorem_citations[0].derivations[0]
+        .proof
+        .conclusion = semantic_vocabulary::Proposition::Truth;
+    let error = terminal_codec::decode_module(&terminal_codec::encode_module(&module).unwrap())
+        .unwrap_err();
+    assert!(
+        matches!(
+            error,
+            terminal_codec::CodecError::MalformedStructuralFoundation(
+                "theorem derivation lost its declared judgment or role"
+            )
+        ),
+        "{error:?}"
+    );
+}

@@ -222,7 +222,7 @@ pub(crate) mod block_bindings {
                 crate::engine::custody::consume_projected_ownership(
                     &execution.structural_types(),
                     &values,
-                    execution.structural_cases.as_map(),
+                    &execution.array_initialization.cases(&execution.structural_cases),
                     &mut frontier,
                     &mut claims,
                     argument,
@@ -251,7 +251,7 @@ pub(crate) mod block_bindings {
                         // Preflight removes only the caller's transferred
                         // custody; it never simulates the target's body.
                         let types = execution.structural_types();
-                        let cases = execution.structural_cases.as_map();
+                        let cases = &execution.array_initialization.cases(&execution.structural_cases);
                         let held = crate::engine::custody::projected_ownership_claims(
                             &claims,
                             &cleanup.subject,
@@ -326,7 +326,7 @@ pub(crate) mod block_bindings {
                         crate::engine::custody::consume_affine_discard(
                             &execution.structural_types(),
                             &values,
-                            execution.structural_cases.as_map(),
+                            &execution.array_initialization.cases(&execution.structural_cases),
                             &mut frontier,
                             &claims,
                             discard,
@@ -881,7 +881,7 @@ pub(crate) mod block_bindings {
                             Ok(stored_case_at_projection(
                                 &self.structural_types(),
                                 &carrier,
-                                self.structural_cases.as_map(),
+                                &self.array_initialization.cases(&self.structural_cases),
                                 &[],
                             ))
                         },
@@ -924,7 +924,7 @@ pub(crate) mod block_bindings {
                     if crate::boundary::structural_inputs::case_membership::case_projection_is_active(
                     &self.structural_types(),
                     &structural,
-                    self.structural_cases.as_map(),
+                    &self.array_initialization.cases(&self.structural_cases),
                     parameter.place,
                     &binding.path,
                 )? {
@@ -1020,7 +1020,7 @@ pub(crate) mod block_bindings {
                     std::slice::from_ref(parameter),
                     std::slice::from_ref(&captured),
                     &self.structural_types(),
-                    self.structural_cases.as_map(),
+                    &self.array_initialization.cases(&self.structural_cases),
                     self.account.as_ref(),
                 )?;
                 let captured = admitted.get(&parameter.place).cloned().ok_or(malformed())?;
@@ -1547,7 +1547,7 @@ pub(crate) mod completion {
                 };
                 commit_cleanup_action(
                     &self.program.structural_types(),
-                    self.structural_cases.as_map(),
+                    &self.array_initialization.cases(&self.structural_cases),
                     self.program.verified_machine(self.current_machine)?,
                     &mut self.structural_values,
                     &mut self.linear_homes,
@@ -2079,7 +2079,7 @@ pub(crate) mod structural_return {
                 {
                     for row in preserved_projected_qualifications {
                         if crate::boundary::structural_inputs::case_membership::case_projection_in_value_is_active(
-                        &self.structural_types(), &value, self.structural_cases.as_map(), &row.path,
+                        &self.structural_types(), &value, &self.array_initialization.cases(&self.structural_cases), &row.path,
                     )? {
                         value.projected_qualifications.push(row.clone());
                     }
@@ -2100,7 +2100,7 @@ pub(crate) mod structural_return {
                     let mut receiving = Vec::new();
                     for row in &result.projected_qualifications {
                         if crate::boundary::structural_inputs::case_membership::case_projection_in_value_is_active(
-                        &self.structural_types(), &value, self.structural_cases.as_map(), &row.path,
+                        &self.structural_types(), &value, &self.array_initialization.cases(&self.structural_cases), &row.path,
                     )? {
                         if !value.projected_qualifications.contains(row) {
                             return Err(malformed());
@@ -2275,7 +2275,7 @@ pub(crate) mod structural_return {
                     let mut active = Vec::new();
                     for row in &result.projected_qualifications {
                         if crate::boundary::structural_inputs::case_membership::case_projection_in_value_is_active(
-                        &self.structural_types(), &value, self.structural_cases.as_map(), &row.path,
+                        &self.structural_types(), &value, &self.array_initialization.cases(&self.structural_cases), &row.path,
                     )? {
                         if !value.projected_qualifications.contains(row) {
                             return Err(malformed());
@@ -2384,7 +2384,7 @@ pub(crate) mod structural_return {
                 return Ok(None);
             };
             let root = crate::boundary::values::StructuralRuntimePlace::from(value);
-            let Some(contents) = self.structural_cases.get(&root) else {
+            let Some(contents) = self.case_at(&root) else {
                 return Ok(None);
             };
             if contents.structural_type != value.structural_type {
@@ -2503,7 +2503,7 @@ impl TerminalExecution<'_> {
         crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
             &self.structural_types(),
             structural_values.get(&discard.place)?,
-            self.structural_cases.as_map(),
+            &self.array_initialization.cases(&self.structural_cases),
             &discard.path,
         )
     }
@@ -2596,7 +2596,7 @@ impl TerminalExecution<'_> {
             consume_projected_ownership(
                 &self.program.structural_types(),
                 &self.structural_values,
-                self.structural_cases.as_map(),
+                &self.array_initialization.cases(&self.structural_cases),
                 &mut self.live_affine_frontier,
                 &mut self.live_claims,
                 argument,

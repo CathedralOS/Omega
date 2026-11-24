@@ -5,7 +5,7 @@
 
 use crate::source_state::TypedTrees;
 use crate::source_state::data::{DataMember, TypeParameterKind};
-use crate::source_state::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+use crate::source_state::types::{DomainConstraintSubject, FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use arena::HandleSpan;
 use symbols::{SymbolHandle, SymbolKind};
 
@@ -66,10 +66,20 @@ pub fn settle_const_argument(
     ) {
         return Err("a settled const argument is not an expression to evaluate".into());
     }
+
+    let mut domain_sites = Vec::new();
     let mut extents = Vec::new();
     let mut applications = Vec::new();
     for (reference, node) in program.type_reference_table.type_reference_rows() {
         match node {
+            TypeReferenceNode::Constrained { constraints, .. } => {
+                let authored = program.type_reference_table.constraints(*constraints);
+                if authored.iter().any(|constraint| matches!(constraint,
+                    TypeConstraintNode::Domain(domain) if domain.subject == DomainConstraintSubject::Declared && domain.arguments.contains(&argument)
+                )) {
+                    domain_sites.push(reference);
+                }
+            }
             TypeReferenceNode::FixedArray {
                 element_type,
                 length: FixedArrayLength::Expression(extent),
@@ -107,6 +117,7 @@ pub fn settle_const_argument(
             name: crate::source_state::name::Identifier::generated(spelling),
         },
     );
+    settle_domain_indices(program, argument, &domain_sites)?;
     if let Some(length) = length {
         for (reference, element_type) in extents {
             program.type_reference_table.substitute_node(
@@ -125,6 +136,121 @@ pub fn settle_const_argument(
     }
     for reference in applications {
         prepare(program, reference)?;
+    }
+    Ok(())
+}
+
+/// Replace the former application coordinate wherever the same type occurrence
+/// supplied it. Another occurrence of a similar expression keeps its own request.
+fn settle_domain_indices(
+    program: &mut TypedTrees,
+    argument: TypeReferenceHandle,
+    domain_sites: &[TypeReferenceHandle],
+) -> Result<(), String> {
+    let mut domain_changes = Vec::new();
+    // The same constraint span can occur on two carriers. Retain the value
+    // application for each site before replacing that site's constraint span.
+    for &site in domain_sites {
+        let TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } = *program.type_reference_table.type_reference(site)
+        else {
+            return Err("an evaluated domain index lost its constrained type".into());
+        };
+        let carrier = base_type;
+        let mut constraints = program
+            .type_reference_table
+            .constraints(constraints)
+            .to_vec();
+        for constraint in &mut constraints {
+            let TypeConstraintNode::Domain(domain) = constraint else {
+                continue;
+            };
+            if domain.subject != DomainConstraintSubject::Declared
+                || !domain.arguments.contains(&argument)
+            {
+                continue;
+            }
+            let identity = program
+                .retain_domain_application(domain.symbol, carrier, &domain.arguments)
+                .map_err(|error| error.message)?;
+            domain_changes.push((
+                domain.symbol,
+                domain.semantic_id,
+                domain.arguments.clone(),
+                identity,
+            ));
+            domain.semantic_id = identity;
+            domain.semantic_roles.denotation_dimension =
+                domain.semantic_roles.denotation_dimension.map(|_| identity);
+            domain.semantic_roles.arithmetic_policy =
+                domain.semantic_roles.arithmetic_policy.map(|_| identity);
+        }
+        let constraints = program.type_reference_table.insert_constraints(constraints);
+        program
+            .type_reference_table
+            .set_constraint_span(site, constraints);
+    }
+    if !domain_changes.is_empty() {
+        // A parameter's synthesized membership contract and a cast can retain the
+        // same authored index handles. A separate occurrence needs its own evaluation.
+        let updated = |symbol, previous, arguments: &[TypeReferenceHandle]| {
+            domain_changes
+                .iter()
+                .find_map(|(declaration, old, original, next)| {
+                    (*declaration == symbol && *old == previous && original == arguments)
+                        .then_some(*next)
+                })
+        };
+        let facts = program
+            .proof_facts
+            .iter()
+            .filter_map(|(handle, fact)| {
+                let membership = fact.as_membership()?;
+                let arguments = program
+                    .type_reference_table
+                    .type_reference_handles(membership.domain_arguments);
+                updated(
+                    membership.domain_symbol,
+                    membership.semantic_domain,
+                    arguments,
+                )
+                .map(|identity| (handle, identity))
+            })
+            .collect::<Vec<_>>();
+        for (handle, identity) in facts {
+            if let crate::source_state::domain::ProofFact::Membership(membership) =
+                program.proof_facts.get_mut(handle)
+            {
+                membership.semantic_domain = identity;
+            }
+        }
+        let casts = program
+            .expression_table
+            .expression_entries()
+            .filter_map(|(handle, expression)| {
+                let crate::source_state::expression::ExpressionNode::Cast(cast) = expression else {
+                    return None;
+                };
+                let arguments = program
+                    .type_reference_table
+                    .type_reference_handles(cast.semantic_domain_arguments);
+                updated(
+                    cast.semantic_domain_symbol,
+                    cast.semantic_domain_id,
+                    arguments,
+                )
+                .map(|identity| (handle, identity))
+            })
+            .collect::<Vec<_>>();
+        for (handle, identity) in casts {
+            if let crate::source_state::expression::ExpressionNode::Cast(cast) =
+                program.expression_table.expression_mut(handle)
+            {
+                cast.semantic_domain_id = identity;
+            }
+        }
     }
     Ok(())
 }
@@ -322,7 +448,9 @@ impl<'source> ApplicationPreparation<'source> {
             || parameters.iter().any(|parameter| {
                 !matches!(
                     parameter.kind,
-                    TypeParameterKind::Type | TypeParameterKind::Const { .. }
+                    TypeParameterKind::Type
+                        | TypeParameterKind::Const { .. }
+                        | TypeParameterKind::Value { .. }
                 )
             })
         {
@@ -369,7 +497,7 @@ impl<'source> ApplicationPreparation<'source> {
         let mut definition = template.clone();
         // Only a newly formed view needs canonical integers in its member types.
         for (parameter, (_, argument)) in parameters.iter().zip(&mut substitutions) {
-            if matches!(parameter.kind, TypeParameterKind::Const { .. })
+            if parameter.kind.is_const_or_value()
                 && let Some(value) = self
                     .source
                     .static_const_literal_from_type_reference(*argument)
@@ -393,7 +521,7 @@ impl<'source> ApplicationPreparation<'source> {
         for (parameter, (_, argument)) in parameters.iter().zip(&substitutions) {
             closed &= match parameter.kind {
                 TypeParameterKind::Type => self.reference(*argument)?,
-                TypeParameterKind::Const { .. } => {
+                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
                     self.source
                         .static_const_literal_from_type_reference(*argument)
                         .is_some()

@@ -550,6 +550,13 @@ Use [test-cycle measurements](../drafts/measurements/test_cycle_measurements.md)
 compilation, test execution and repeated landing checks apart. They found no
 reliable thread cap or nextest speedup, so avoid running unrelated tests.
 
+By default, mbx keeps an edited crate and its dependents in the editing
+worktree's private cache. A second worktree can spend hours rebuilding the
+same compiler. When several worktrees need the same revision, run
+`MBX_LEARNED_INCREMENTAL=0 mbx build --locked -p omega` in the first one.
+This lets mbx share newly compiled crates with the other worktrees when their
+sources and build options match. The setting applies to one command.
+
 If small crates each pause for seconds before parsing, inspect `target/` before
 changing test or compiler architecture: a long-lived `target/debug/deps` with
 hundreds of thousands of stale hashed artifacts makes rustc rescan it per

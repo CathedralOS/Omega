@@ -1,0 +1,2 @@
+# slice 034: 6895 lines in 1 file range(s)
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_current_scalar_values.rs	1	6895

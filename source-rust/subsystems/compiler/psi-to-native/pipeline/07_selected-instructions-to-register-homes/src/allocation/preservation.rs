@@ -1,8 +1,8 @@
 /*
-We derive and independently replay `ValidatedAllocatedCalleeSavedRequirements`
-by intersecting each function's assigned physical register write units,
-implicit definitions, and clobbers with the target ABI's callee-saved register
-roster.
+We derive each function's callee-saved requirements by intersecting its assigned
+physical register write units, implicit definitions, and clobbers with the
+target ABI's callee-saved registers. The receipt records the resulting plan's
+identity.
 */
 
 pub(crate) mod compute {

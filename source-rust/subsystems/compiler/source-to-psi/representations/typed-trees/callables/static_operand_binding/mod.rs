@@ -184,12 +184,36 @@ impl Operand {
                     StaticMachineBindingValue::Const(reference),
                 )
             }
-            TypeParameterKind::Const { type_reference } => {
+            // A value binder also admits a static argument, which selects its
+            // specialization like a `const` one (generics.md, "Value binders
+            // and const requirements"). A runtime argument has no static value
+            // and stays unserved in `closed_scalar`.
+            TypeParameterKind::Const { type_reference }
+            | TypeParameterKind::Value { type_reference } => {
                 let identity = match closed_scalar(program, *type_reference, argument)? {
                     Scalar::Closed(value) => {
                         let identity = Identity::Scalar(value.spelled());
                         scalar = Some(value);
                         identity
+                    }
+                    // A `const` parameter needs a value that is static in
+                    // the caller's own body. A caller's value binder may be
+                    // runtime there, so it does not supply one ("A static-only
+                    // use of a dynamic binder rejects").
+                    Scalar::Parameter(symbol)
+                        if matches!(kind, TypeParameterKind::Const { .. })
+                            && program.data_type_parameter_by_symbol(symbol).is_some_and(
+                                |forwarded| {
+                                    matches!(forwarded.kind, TypeParameterKind::Value { .. })
+                                },
+                            ) =>
+                    {
+                        return Err(Stop::Rejected(format!(
+                            "`const` parameter `{}` needs a static value, and the value binder \
+                             `{}` may be a runtime value",
+                            program.symbols.name(parameter),
+                            program.symbols.name(symbol),
+                        )));
                     }
                     Scalar::Parameter(symbol) => Identity::Declaration(symbol),
                 };
@@ -237,9 +261,6 @@ impl Operand {
                 return Err(unserved(
                     "a static machine binder needs a complete contract on a body-bearing declaration",
                 ));
-            }
-            TypeParameterKind::Value { .. } => {
-                return Err(unserved("a value binder has no specialization operand"));
             }
             TypeParameterKind::Proof { .. } => {
                 return Err(unserved("a logical proof is not a specialization operand"));

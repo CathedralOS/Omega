@@ -1,0 +1,2 @@
+# slice 117: 6124 lines in 1 file range(s)
+omega-rust/psi/compilation/validation/src/literals_and_struct_literals.rs	1	6124

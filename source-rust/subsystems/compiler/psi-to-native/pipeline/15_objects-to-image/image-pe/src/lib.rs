@@ -12,7 +12,10 @@ We execute the eight emission steps in a strict dependency order:
 1. Install the ISA's encoded import thunks (x86-64 `jmp [rip+disp32]`, AArch64
    `adrp`/`ldr`/`br` through x16) at the end of `.text`.
 2. Compute the `.rdata` RVA immediately after `.text`.
-3. Build the `.rdata` import directory, lookup tables, and IAT against that RVA.
+3. Build the `.rdata` import directory, lookup tables, and IAT against that RVA,
+   then append the export directory and the `.xdata`/`.pdata` unwind tables
+   (`unwind`) for every function that moves the stack pointer or saves a
+   preserved register.
 4. Plan all section RVAs, raw file offsets, and base-relocation (`.reloc`)
    blocks in a single layout pass.
 5. Point each import thunk at its IAT slot.
@@ -142,15 +145,12 @@ mod headers;
 mod imports;
 mod layout {
     pub(crate) use image::align_to;
-
-    pub(crate) fn align_to_u32(value: u32, alignment: usize) -> u32 {
-        let alignment = u32::try_from(alignment.max(1)).expect("alignment overflow");
-        value.div_ceil(alignment) * alignment
-    }
 }
 
 mod sections;
 mod shared_component;
+mod unwind;
+pub mod unwind_records;
 
 pub use shared_component::{
     PeComponentExport, PeSharedComponentEmissionError, PeSharedComponentImage,
@@ -186,7 +186,7 @@ pub(crate) fn emit_pe(
 ) -> Result<ExecutableImageOutput, Diagnostic> {
     let isa = PeIsa::of(image.target)?;
     let import_thunks = install_import_thunks(&mut image, subsystem)?;
-    let rdata_rva = rdata_rva_after_text(&image);
+    let rdata_rva = rdata_rva_after_text(&image)?;
     let import_table = build_import_table(&import_thunks, rdata_rva);
     let (export_bytes, export_directory_rva, export_directory_size) = match &kind {
         PeImageKind::Executable => (Vec::new(), 0, 0),
@@ -203,7 +203,23 @@ pub(crate) fn emit_pe(
         rdata_bytes.resize(align_to(rdata_bytes.len(), 4), 0);
         rdata_bytes.extend_from_slice(&export_bytes);
     }
-    let sections = plan_pe_sections(&image, rdata_bytes.len());
+    let unwind_offset = align_to(rdata_bytes.len(), 4);
+    let unwind = unwind::build_unwind_tables(
+        &image,
+        isa,
+        shared_component::directory_rva_of(rdata_rva, unwind_offset)?,
+    )?;
+    let (exception_directory_rva, exception_directory_size) = if unwind.is_empty() {
+        (0, 0)
+    } else {
+        rdata_bytes.resize(unwind_offset, 0);
+        rdata_bytes.extend_from_slice(&unwind.bytes);
+        (
+            shared_component::directory_rva_of(rdata_rva, unwind_offset + unwind.directory_offset)?,
+            unwind.directory_size,
+        )
+    };
+    let sections = plan_pe_sections(&image, rdata_bytes.len())?;
     let layout = sections.final_image_layout();
 
     patch_import_thunks(&mut image, &layout, &import_thunks, &import_table)?;
@@ -271,6 +287,8 @@ pub(crate) fn emit_pe(
             file_characteristics,
             export_directory_rva,
             export_directory_size,
+            exception_directory_rva,
+            exception_directory_size,
         },
     );
     write_section_header(
@@ -509,6 +527,43 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    #[test]
+    fn image_extent_beyond_a_32_bit_rva_is_refused() {
+        // PE32+ stores `SizeOfImage` and every section RVA in 32 bits. A
+        // `.bss` reaching the last addressable page must emit with that exact
+        // size; one more byte, or a size that wraps at 2^32, must be refused
+        // instead of being truncated into a smaller zero-fill section.
+        let size_of_image = |bytes: &[u8]| {
+            let pe_offset = u32::from_le_bytes(bytes[0x3c..0x40].try_into().unwrap()) as usize;
+            u32::from_le_bytes(bytes[pe_offset + 80..pe_offset + 84].try_into().unwrap())
+        };
+        let mut probe = returning_image();
+        probe.memory.bss_size = 1;
+        let probe = emit_pe_executable(probe, 3).expect("emit image");
+        let bss_rva = usize::try_from(probe.final_image_layout.bss_address - IMAGE_BASE).unwrap();
+        let last_page_end = 0xffff_f000usize;
+
+        let mut largest = returning_image();
+        largest.memory.bss_size = last_page_end - bss_rva;
+        let largest = emit_pe_executable(largest, 3).expect("largest addressable .bss");
+        assert_eq!(size_of_image(&largest.bytes), 0xffff_f000);
+        assert_eq!(largest.bss_bytes, last_page_end - bss_rva);
+
+        for bss_size in [last_page_end - bss_rva + 1, 1usize << 32] {
+            let mut image = returning_image();
+            image.memory.bss_size = bss_size;
+            let error = emit_pe_executable(image, 3)
+                .expect_err("a .bss past the 32-bit RVA space must be refused");
+            assert!(
+                error
+                    .message
+                    .contains("exceeds the 32-bit PE address space"),
+                "{bss_size:#x}: {}",
+                error.message
+            );
         }
     }
 

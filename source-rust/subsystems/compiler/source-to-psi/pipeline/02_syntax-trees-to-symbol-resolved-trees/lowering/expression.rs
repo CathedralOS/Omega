@@ -279,6 +279,7 @@ pub(crate) mod match_dispatch {
                 let equality = expression_table(lowerer).insert(ExpressionNode::Binary(
                     TableBinaryExpression {
                         policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                        negation: false,
                         left: projected,
                         operator: BinaryOperator::Equal,
                         right: expected,
@@ -293,6 +294,7 @@ pub(crate) mod match_dispatch {
                     expression_table(lowerer).insert(ExpressionNode::Binary(
                         TableBinaryExpression {
                             policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                            negation: false,
                             left: condition,
                             operator: BinaryOperator::And,
                             right: equality,
@@ -307,6 +309,7 @@ pub(crate) mod match_dispatch {
             condition = if condition.is_valid() {
                 expression_table(lowerer).insert(ExpressionNode::Binary(TableBinaryExpression {
                     policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    negation: false,
                     left: condition,
                     operator: BinaryOperator::And,
                     right: guard,
@@ -428,6 +431,7 @@ fn lower_binary_expression_into_table(
     Ok(
         expression_table(lowerer).insert(ExpressionNode::Binary(TableBinaryExpression {
             policy: binary.policy,
+            negation: binary.negation,
             left,
             operator: lower_binary_operator(binary.operator),
             right,

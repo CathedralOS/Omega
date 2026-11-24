@@ -14,17 +14,20 @@ use symbols::SymbolHandle;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct AppliedDeclarationRegionScope {
     pub(crate) declaration: SymbolHandle,
+    pub(crate) argument_owner: SymbolHandle,
     pub(crate) lifetimes: Vec<(String, String)>,
 }
 
 impl AppliedDeclarationRegionScope {
     pub(crate) fn new(
         declaration: SymbolHandle,
+        argument_owner: SymbolHandle,
         parameters: &[Identifier],
         arguments: &[Identifier],
     ) -> Self {
         Self {
             declaration,
+            argument_owner,
             lifetimes: parameters
                 .iter()
                 .zip(arguments)
@@ -165,7 +168,7 @@ impl AppliedTraitScope<'_> {
                 portable_applied_lifetime_identity(
                     program,
                     parameter.as_str(),
-                    argument_owner,
+                    self.declaration.symbol,
                     scopes,
                 )
             })
@@ -224,7 +227,7 @@ impl AppliedTraitScope<'_> {
                     portable_applied_lifetime_identity(
                         program,
                         parameter.as_str(),
-                        self.argument_owner,
+                        self.declaration.symbol,
                         scopes,
                     )
                 })
@@ -314,6 +317,7 @@ impl AppliedTraitScope<'_> {
             .zip(&arguments)
             .map(|(region, arguments)| AppliedTypeIdentityScope {
                 declaration: region.declaration,
+                argument_owner: region.argument_owner,
                 arguments,
                 lifetimes: &region.lifetimes,
             })
@@ -361,7 +365,7 @@ impl AppliedTraitScope<'_> {
                     applied_lifetime_identity(
                         program,
                         parameter.as_str(),
-                        self.argument_owner,
+                        self.declaration.symbol,
                         scopes,
                     )
                 })
@@ -402,6 +406,7 @@ fn invocation_region_scope(
     }
     Some(AppliedDeclarationRegionScope {
         declaration,
+        argument_owner,
         lifetimes,
     })
 }

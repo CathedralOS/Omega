@@ -112,7 +112,7 @@ pub(crate) mod arguments {
                 .into_call_arguments(
                     &opaque_parameters,
                     &self.structural_types(),
-                    self.structural_cases.as_map(),
+                    &self.array_initialization.cases(&self.structural_cases),
                     Some(StructuralArgumentSources {
                         arguments: &opaque_arguments,
                         provenance: &provenance,
@@ -498,7 +498,7 @@ pub(crate) mod frames {
             .map_err(|error| error.in_argument_preparation("bind callee affine frontier"))?;
             let (remaining_claims, live_claims) = transfer_claims(
                 &self.structural_types(),
-                self.structural_cases.as_map(),
+                &self.array_initialization.cases(&self.structural_cases),
                 &self.live_claims,
                 structural_arguments,
                 claim_transfers,
@@ -518,7 +518,7 @@ pub(crate) mod frames {
                     crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
                         &self.structural_types(),
                         structural_values.get(&current.place)?,
-                        self.structural_cases.as_map(),
+                        &self.array_initialization.cases(&self.structural_cases),
                         &current.path,
                     )
                 },
@@ -1168,7 +1168,7 @@ pub(crate) mod component_arguments {
         StructuralArgument, StructuralMultiplicity,
     };
 
-    use super::component_empty_arguments::SharedEmptyArgument;
+    use super::component_empty_arguments::{SharedEmptyArgument, empty_record};
     use super::component_scalar_arguments::LentScalarArgument;
     use crate::boundary::errors::{TerminalInterpretError, malformed};
     use crate::boundary::values::{StructuralRuntimePlace, TerminalStructuralValue};
@@ -1243,6 +1243,22 @@ pub(crate) mod component_arguments {
     }
 
     impl<'artifact> TerminalExecution<'artifact> {
+        pub(crate) fn component_borrows_scalar_cells(
+            &self,
+            value: &crate::boundary::values::TerminalStructuralValue,
+        ) -> Result<bool, TerminalInterpretError> {
+            use crate::storage::structural_storage::cells;
+            let home = StructuralRuntimePlace::from(value);
+            Ok(cells(&self.structural_primitive_storage, &home)
+                .next()
+                .is_some()
+                || cells(&self.structural_scalar_fields, &home)
+                    .next()
+                    .is_some()
+                || (self.array_initialization.has_zeroed_elements(&home)
+                    && !empty_record(self, value)?))
+        }
+
         pub(crate) fn component_call_scope(&self) -> ComponentCallScope {
             ComponentCallScope {
                 float_evaluation: self.float_evaluation,
@@ -1287,7 +1303,7 @@ pub(crate) mod component_arguments {
                 &receiver.structural_parameters,
                 &prepared.values,
                 &self.structural_types(),
-                self.structural_cases.as_map(),
+                &self.array_initialization.cases(&self.structural_cases),
                 self.account.as_ref(),
             )?;
             validate_boundary_requirements(receiver, |index| prepared.values.get(index))?;
@@ -1463,14 +1479,7 @@ pub(crate) mod component_arguments {
                         "component input requires a loan or resource storage transfer carrier",
                     ));
                 }
-                let scalar_backing = lent
-                    && (self.array_initialization.has_zero_record_fields(&home)
-                        || self.structural_primitive_storage.keys().any(within_value)
-                        || self
-                            .structural_scalar_fields
-                            .keys()
-                            .any(|field| within_value(&field.parent)));
-                if scalar_backing {
+                if lent && self.component_borrows_scalar_cells(value)? {
                     scalar_arguments.push(self.prepare_component_scalar_argument(
                         value,
                         argument_index,
@@ -2384,7 +2393,7 @@ pub(crate) mod component_empty_arguments {
         original: ScalarStorageAddress,
     }
 
-    fn empty_record(
+    pub(super) fn empty_record(
         execution: &TerminalExecution<'_>,
         value: &TerminalStructuralValue,
     ) -> Result<bool, TerminalInterpretError> {
@@ -2528,7 +2537,7 @@ pub(crate) mod component_scalar_arguments {
     ) -> Result<Option<ScalarCell>, TerminalInterpretError> {
         match key {
             ScalarStorageAddressKey::Scalar(home) => {
-                Ok(source.structural_primitive_storage.get(home).cloned())
+                source.primitive_cell(home)
             }
             ScalarStorageAddressKey::Field(field) => source.scalar_field_cell(field),
         }
@@ -2540,7 +2549,7 @@ pub(crate) mod component_scalar_arguments {
     ) -> Result<Option<&'source mut ScalarCell>, TerminalInterpretError> {
         match key {
             ScalarStorageAddressKey::Scalar(home) => {
-                Ok(source.structural_primitive_storage.get_mut(home))
+                source.primitive_cell_mut(home)
             }
             ScalarStorageAddressKey::Field(field) => source.scalar_field_cell_mut(field),
         }
@@ -2886,9 +2895,14 @@ impl<'artifact> TerminalExecution<'artifact> {
         program: &std::sync::Arc<crate::embedding::program::AdmittedTerminalProgram>,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         let result = operation.result.scalar().ok_or(malformed())?;
-        let Some(scalar_type) = result.scalar_type.as_integer() else {
+        let scalar_type = semantic_vocabulary::IntegerType::new(
+            semantic_vocabulary::IntegerSign::Unsigned,
+            64,
+        )
+        .map_err(|_| malformed())?;
+        if result.scalar_type.as_integer() != Some(scalar_type) {
             return Err(malformed());
-        };
+        }
         if program
             .catalogs
             .execution
@@ -3295,7 +3309,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 &opaque_parameters,
                 &boundary_arguments.values,
                 &self.structural_types(),
-                self.structural_cases.as_map(),
+                &self.array_initialization.cases(&self.structural_cases),
                 self.account.as_ref(),
             )?;
             validate_boundary_requirements(boundary_declaration, |index| {
@@ -3315,7 +3329,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             let mut prepared_arguments = boundary_arguments.into_call_arguments(
                 &select_positions(&callee.structural_parameters, &opaque_positions)?,
                 &self.structural_types(),
-                self.structural_cases.as_map(),
+                &self.array_initialization.cases(&self.structural_cases),
                 None,
                 self.account.as_ref(),
             )?;
@@ -3438,7 +3452,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             &boundary_declaration.structural_parameters,
             &boundary_arguments.values,
             &self.structural_types(),
-            self.structural_cases.as_map(),
+            &self.array_initialization.cases(&self.structural_cases),
             self.account.as_ref(),
         )
         .map_err(|error| error.in_argument_preparation("bind host argument declarations"))?;

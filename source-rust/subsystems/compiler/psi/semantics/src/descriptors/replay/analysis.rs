@@ -1,4 +1,4 @@
-use super::engine::{DescriptorReadDepth, EffectObservations, Origin, StorageResolution};
+use super::engine::{DescriptorReadDepth, EffectObservations, Origin, State, StorageResolution};
 use super::*;
 use crate::descriptors::descriptor_lifetimes::descriptor_location;
 use crate::descriptors::descriptor_lifetimes::descriptor_location_type;
@@ -486,11 +486,20 @@ impl<'a> DescriptorAnalysis<'a> {
         location: &DescriptorLocation,
     ) -> Option<DescriptorLocation> {
         self.replay.prepare_states(identity)?;
+        let machine = self.replay.machine(identity)?;
+        let state = self
+            .replay
+            .snapshots
+            .get(&identity)?
+            .ready()?
+            .before
+            .get(&position)?;
         Self::prepared_storage(
             &self.replay,
             &mut self.storage_queries,
-            identity,
+            machine,
             position,
+            state,
             location,
             true,
         )?
@@ -525,7 +534,8 @@ impl<'a> DescriptorAnalysis<'a> {
         position: DescriptorPosition,
         location: &DescriptorLocation,
     ) -> Result<Vec<DescriptorCallOrigin>, &'static str> {
-        self.replay
+        let machine = self
+            .replay
             .machine(identity)
             .ok_or("captured storage machine is absent or stale")?;
         self.replay
@@ -535,10 +545,6 @@ impl<'a> DescriptorAnalysis<'a> {
                     .detail()
                     .unwrap_or("captured storage snapshots could not be reconstructed")
             })?;
-        let machine = self
-            .replay
-            .machine(identity)
-            .ok_or("captured storage machine is absent or stale")?;
         let state = self
             .replay
             .snapshots
@@ -549,8 +555,9 @@ impl<'a> DescriptorAnalysis<'a> {
         let resolution = Self::prepared_storage(
             &self.replay,
             &mut self.storage_queries,
-            identity,
+            machine,
             position,
+            state,
             location,
             true,
         )
@@ -679,15 +686,13 @@ impl<'a> DescriptorAnalysis<'a> {
     fn prepared_storage(
         replay: &Replay<'_>,
         queries: &mut StorageQueries,
-        identity: MachineId,
+        machine: &DescriptorMachine,
         position: DescriptorPosition,
+        state: &State,
         location: &DescriptorLocation,
         retain: bool,
     ) -> Option<StorageResolution> {
-        let machine = replay.machine(identity)?;
-        let states = &replay.snapshots.get(&identity)?.ready()?.before;
-        let state = states.get(&position)?;
-        if let Some(result) = queries.get(identity, position, location) {
+        if let Some(result) = queries.get(machine.id, position, location) {
             return result.clone();
         }
         let depth = DescriptorReadDepth::at(machine, state, None);
@@ -728,6 +733,13 @@ impl<'a> DescriptorAnalysis<'a> {
         position: DescriptorPosition,
     ) -> Result<Option<Vec<DescriptorLocation>>, &'static str> {
         self.replay.storage_writes(identity, position)
+    }
+
+    /// Completed call summaries still describe this graph. Release the
+    /// operation-by-operation states when the current machine no longer needs them.
+    pub(crate) fn release_storage_snapshots(&mut self) {
+        self.replay.snapshots.clear();
+        self.storage_queries = StorageQueries::default();
     }
 
     /// The frame names entry storage that this body may write, including
@@ -1650,7 +1662,7 @@ impl<'a> DescriptorAnalysis<'a> {
                 // demanded by individual consumers, rather than keeping
                 // every bulk scan's cut/location combination alive.
                 let resolution = Self::prepared_storage(
-                    replay, queries, identity, *position, location, false,
+                    replay, queries, machine, *position, before, location, false,
                 );
                 replay
                     .flow_location(machine, before, location, resolution)

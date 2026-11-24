@@ -1,3 +1,4 @@
+use representations/source_files/source.omg;
 use representations\source_files\SourceId;
 use representations\source_files\SourceSpan;
 use representations\syntax_trees\GenericParameter;
@@ -37,6 +38,13 @@ public data BuiltinType [copy] {
     case AtomicBool;
     case AtomicU32;
     case AtomicU64;
+}
+
+// Whether `builtin` is a fixed-width integer carrier.
+public machine fixed_integer(builtin: BuiltinType) -> bool {
+    builtin == BuiltinType::I8 || builtin == BuiltinType::I16 || builtin == BuiltinType::I32
+        || builtin == BuiltinType::I64 || builtin == BuiltinType::U8 || builtin == BuiltinType::U16
+        || builtin == BuiltinType::U32 || builtin == BuiltinType::U64
 }
 
 // What a type reference's name denotes: a compiler-installed type, a data
@@ -387,8 +395,8 @@ public machine name_resolution_clear(resolution: @mutable NameResolution, source
     resolution.accepted = true;
     resolution.diagnostic.code = ResolveDiagnosticCode::None;
     resolution.diagnostic.source_span.source = source;
-    resolution.diagnostic.source_span.span.start = 0;
-    resolution.diagnostic.source_span.span.end = 0;
+    resolution.diagnostic.source_span.span.start = 0 as +Trapping;
+    resolution.diagnostic.source_span.span.end = 0 as +Trapping;
 }
 
 public machine name_resolution_reject(
@@ -411,7 +419,7 @@ crashes Trap
     }
 
     machine read(resolution: @NameResolution, index: u64 in Trapping) -> ValueBinding {
-        resolution.value_bindings[index]
+        resolution.value_bindings[index as -Trapping]
     }
 
     machine invalid() -> ValueBinding {
@@ -464,11 +472,11 @@ public machine binder_contract(resolution: @NameResolution, parameter: u64 in Tr
     machine read(resolution: @NameResolution, parameter: u64 in Trapping) -> BinderContract
     requires parameter < 256
     {
-        resolution.binder_contracts[parameter]
+        resolution.binder_contracts[parameter as -Trapping]
     }
 
     machine none() -> BinderContract {
-        BinderContract { present: false, contract: 0 }
+        BinderContract { present: false, contract: 0 as +Trapping }
     }
 }
 
@@ -483,7 +491,7 @@ crashes Trap
     machine write(resolution: @mutable NameResolution, parameter: u64 in Trapping, contract: BinderContract)
     requires parameter < 256
     {
-        resolution.binder_contracts[parameter] = contract;
+        resolution.binder_contracts[parameter as -Trapping] = contract;
     }
 
     machine invalid() {
@@ -501,11 +509,26 @@ crashes Trap
     }
 
     machine read(resolution: @NameResolution, index: u64 in Trapping) -> ValueBinding {
-        resolution.requirements[index]
+        resolution.requirements[index as -Trapping]
     }
 
     machine invalid() -> ValueBinding {
         crash Trap;
+    }
+}
+
+public machine operator_home_is_data(home: TypeBinding, data: u64 in Trapping) -> bool {
+    transition home {
+        TypeBinding::Data { item } -> data_item(item, data),
+        _ -> elsewhere()
+    }
+
+    machine data_item(item: u64 in Trapping, data: u64 in Trapping) -> bool {
+        item == data
+    }
+
+    machine elsewhere() -> bool {
+        false
     }
 }
 
@@ -520,7 +543,7 @@ crashes Trap
     }
 
     machine read(resolution: @NameResolution, handle: u64 in Trapping) -> TypeBinding {
-        resolution.operator_homes[handle]
+        resolution.operator_homes[handle as -Trapping]
     }
 
     machine invalid() -> TypeBinding {
@@ -538,11 +561,50 @@ crashes Trap
     }
 
     machine read(resolution: @NameResolution, handle: u64 in Trapping) -> MachineOwner {
-        resolution.machine_owners[handle]
+        resolution.machine_owners[handle as -Trapping]
     }
 
     machine invalid() -> MachineOwner {
         crash Trap;
+    }
+}
+
+// The reserved policy names always denote the same domains.
+public machine builtin_domain(sources: @|source|::SourceSet, name: |source|::SourceSpan) -> DomainBinding
+crashes Trap
+{
+    let matched: bool = |source|::span_spells(sources, name, "Wrapping");
+    transition matched {
+        true -> found(DomainBinding::Wrapping),
+        _ -> saturating(sources, name)
+    }
+
+    machine saturating(sources: @|source|::SourceSet, name: |source|::SourceSpan) -> DomainBinding {
+        let matched: bool = |source|::span_spells(sources, name, "Saturating");
+        transition matched {
+            true -> found(DomainBinding::Saturating),
+            _ -> trapping(sources, name)
+        }
+    }
+
+    machine trapping(sources: @|source|::SourceSet, name: |source|::SourceSpan) -> DomainBinding {
+        let matched: bool = |source|::span_spells(sources, name, "Trapping");
+        transition matched {
+            true -> found(DomainBinding::Trapping),
+            _ -> finite(sources, name)
+        }
+    }
+
+    machine finite(sources: @|source|::SourceSet, name: |source|::SourceSpan) -> DomainBinding {
+        let matched: bool = |source|::span_spells(sources, name, "Finite");
+        transition matched {
+            true -> found(DomainBinding::Finite),
+            _ -> found(DomainBinding::Unqualified)
+        }
+    }
+
+    machine found(binding: DomainBinding) -> DomainBinding {
+        binding
     }
 }
 
@@ -556,7 +618,7 @@ crashes Trap
     }
 
     machine read(resolution: @NameResolution, row: u64 in Trapping) -> DomainBinding {
-        resolution.domain_bindings[row]
+        resolution.domain_bindings[row as -Trapping]
     }
 
     machine invalid() -> DomainBinding {
@@ -575,7 +637,7 @@ crashes Trap
     }
 
     machine read(resolution: @NameResolution, row: u64 in Trapping) -> u64 in Trapping {
-        resolution.domain_items[row] as +Trapping
+        resolution.domain_items[row as -Trapping] as +Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -593,7 +655,7 @@ crashes Trap
     }
 
     machine read(resolution: @NameResolution, handle: u64 in Trapping) -> PathBinding {
-        resolution.path_bindings[handle]
+        resolution.path_bindings[handle as -Trapping]
     }
 
     machine invalid() -> PathBinding {
@@ -612,7 +674,7 @@ crashes Trap
     }
 
     machine read(resolution: @NameResolution, row: u64 in Trapping) -> TypeBinding {
-        resolution.type_bindings[row]
+        resolution.type_bindings[row as -Trapping]
     }
 
     machine invalid() -> TypeBinding {
@@ -630,7 +692,7 @@ crashes Trap
     }
 
     machine read(resolution: @NameResolution, handle: u64 in Trapping) -> PathBinding {
-        resolution.path_bindings[handle]
+        resolution.path_bindings[handle as -Trapping]
     }
 
     machine invalid() -> PathBinding {
@@ -649,7 +711,7 @@ crashes Trap
     }
 
     machine read(resolution: @NameResolution, handle: u64 in Trapping) -> ValueBinding {
-        resolution.value_bindings[handle]
+        resolution.value_bindings[handle as -Trapping]
     }
 
     machine invalid() -> ValueBinding {
@@ -687,7 +749,7 @@ public machine ranking_view(resolution: @NameResolution, clause: u64 in Trapping
     machine read(resolution: @NameResolution, clause: u64 in Trapping) -> RankingView
     requires clause < 2048
     {
-        resolution.ranking_views[clause]
+        resolution.ranking_views[clause as -Trapping]
     }
 
     machine none() -> RankingView {
@@ -706,7 +768,7 @@ crashes Trap
     machine write(resolution: @mutable NameResolution, clause: u64 in Trapping, view: RankingView)
     requires clause < 2048
     {
-        resolution.ranking_views[clause] = view;
+        resolution.ranking_views[clause as -Trapping] = view;
     }
 
     machine invalid() {
@@ -724,11 +786,11 @@ public machine ranking_measure(resolution: @NameResolution, clause: u64 in Trapp
     machine read(resolution: @NameResolution, clause: u64 in Trapping) -> u64 in Trapping
     requires clause < 2048
     {
-        resolution.ranking_measures[clause] as +Trapping
+        resolution.ranking_measures[clause as -Trapping] as +Trapping
     }
 
     machine none() -> u64 in Trapping {
-        0
+        0 as +Trapping
     }
 }
 
@@ -743,7 +805,7 @@ crashes Trap
     machine write(resolution: @mutable NameResolution, clause: u64 in Trapping, measure: u64 in Trapping)
     requires clause < 2048
     {
-        resolution.ranking_measures[clause] = measure as u64;
+        resolution.ranking_measures[clause as -Trapping] = measure as -Trapping;
     }
 
     machine invalid() {
@@ -760,11 +822,11 @@ public machine component_field(resolution: @NameResolution, member: u64 in Trapp
     machine read(resolution: @NameResolution, member: u64 in Trapping) -> u64 in Trapping
     requires member < 32000
     {
-        resolution.component_fields[member] as +Trapping
+        resolution.component_fields[member as -Trapping] as +Trapping
     }
 
     machine none() -> u64 in Trapping {
-        0
+        0 as +Trapping
     }
 }
 
@@ -779,7 +841,7 @@ crashes Trap
     machine write(resolution: @mutable NameResolution, member: u64 in Trapping, bound: u64 in Trapping)
     requires member < 32000
     {
-        resolution.component_fields[member] = bound as u64;
+        resolution.component_fields[member as -Trapping] = bound as -Trapping;
     }
 
     machine invalid() {

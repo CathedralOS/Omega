@@ -273,7 +273,42 @@ fn function_layout(
         byte_size: outgoing_extent,
         shadow_bytes,
     };
-    let mut local_extent = outgoing_extent;
+    let unwind = frame_unwind_policy(environment.target())
+        .ok_or(TargetFrameLayoutError::UnsupportedTarget)?;
+    if unwind.abi != abi {
+        return Err(TargetFrameLayoutError::UnsupportedTarget);
+    }
+    let preservation_alignment = callee_save_slots
+        .iter()
+        .map(|slot| slot.alignment_bytes)
+        .max()
+        .unwrap_or(8)
+        .max(8);
+    if !preservation_alignment.is_power_of_two() {
+        return Err(TargetFrameLayoutError::NonCanonicalLayout);
+    }
+    let saved_link_bytes = match unwind.continuation {
+        FrameContinuationCustody::LinkRegister {
+            saved_size_bytes, ..
+        } if contains_call
+            || writes_link_register
+            || policy == TargetFrameLayoutPolicy::CanonicalSavedReturnAddressFrameV1 =>
+        {
+            Some(u64::from(saved_size_bytes))
+        }
+        _ => None,
+    };
+    let low_preservation = match unwind.preservation {
+        FramePreservationPlacement::AboveLocals => None,
+        FramePreservationPlacement::BelowLocals => Some(low_preservation_area(
+            outgoing_extent,
+            preservation_alignment,
+            callee_save_slots.is_empty(),
+            callee_save_area_bytes,
+            saved_link_bytes,
+        )?),
+    };
+    let mut local_extent = low_preservation.map_or(outgoing_extent, |area| area.locals_offset);
     let mut local_storage_slots = Vec::with_capacity(local_storage.len());
     for (index, slot) in local_storage.iter().enumerate() {
         if slot.byte_size == 0
@@ -305,18 +340,11 @@ fn function_layout(
     {
         return Err(TargetFrameLayoutError::NonCanonicalLayout);
     }
-    let preservation_offset = if local_storage_slots.is_empty() && callee_save_slots.is_empty() {
+    let preservation_offset = if let Some(area) = low_preservation {
+        area.preservation_offset
+    } else if local_storage_slots.is_empty() && callee_save_slots.is_empty() {
         outgoing_extent
     } else {
-        let preservation_alignment = callee_save_slots
-            .iter()
-            .map(|slot| slot.alignment_bytes)
-            .max()
-            .unwrap_or(8)
-            .max(8);
-        if !preservation_alignment.is_power_of_two() {
-            return Err(TargetFrameLayoutError::NonCanonicalLayout);
-        }
         align_up_frame(local_extent, preservation_alignment)?
     };
     for slot in &mut callee_save_slots {
@@ -325,19 +353,18 @@ fn function_layout(
             .checked_add(preservation_offset)
             .ok_or(TargetFrameLayoutError::GeometryOverflow)?;
     }
-    let used_area_bytes = callee_save_area_bytes
-        .checked_add(preservation_offset)
-        .ok_or(TargetFrameLayoutError::GeometryOverflow)?;
+    let used_area_bytes = if low_preservation.is_some() {
+        local_extent
+    } else {
+        callee_save_area_bytes
+            .checked_add(preservation_offset)
+            .ok_or(TargetFrameLayoutError::GeometryOverflow)?
+    };
     let locals_need_aligned_activation = local_storage.iter().any(|slot| {
         !call_site
             .entry_residue_bytes
             .is_multiple_of(u64::from(slot.alignment))
     });
-    let unwind = frame_unwind_policy(environment.target())
-        .ok_or(TargetFrameLayoutError::UnsupportedTarget)?;
-    if unwind.abi != abi {
-        return Err(TargetFrameLayoutError::UnsupportedTarget);
-    }
     let stack_pointer = environment
         .physical()
         .model()
@@ -402,14 +429,24 @@ fn function_layout(
                 .ok_or(TargetFrameLayoutError::MissingLinkRegisterView)?
                 .id;
             let saved_size = u64::from(saved_size_bytes);
-            if contains_call
-                || writes_link_register
-                || policy == TargetFrameLayoutPolicy::CanonicalSavedReturnAddressFrameV1
-            {
-                let link_offset = align_up_frame(used_area_bytes, saved_size)?;
-                let used = link_offset
-                    .checked_add(saved_size)
-                    .ok_or(TargetFrameLayoutError::GeometryOverflow)?;
+            if saved_link_bytes.is_some() {
+                let (link_offset, used) = match low_preservation {
+                    // The link slot already sits below the locals.
+                    Some(area) => (
+                        area.link_offset
+                            .ok_or(TargetFrameLayoutError::NonCanonicalLayout)?,
+                        used_area_bytes,
+                    ),
+                    None => {
+                        let link_offset = align_up_frame(used_area_bytes, saved_size)?;
+                        (
+                            link_offset,
+                            link_offset
+                                .checked_add(saved_size)
+                                .ok_or(TargetFrameLayoutError::GeometryOverflow)?,
+                        )
+                    }
+                };
                 (
                     align_up_frame(used, u64::from(call_site.stack_alignment_bytes))?,
                     0,
@@ -456,6 +493,48 @@ fn function_layout(
             released_bytes: committed_bytes,
             return_address,
         },
+    })
+}
+
+#[derive(Debug, Clone, Copy)]
+struct LowPreservationArea {
+    preservation_offset: u64,
+    link_offset: Option<u64>,
+    locals_offset: u64,
+}
+
+/// Place preserved registers, then the saved link register, directly above
+/// the outgoing-argument area; local storage starts after them.
+fn low_preservation_area(
+    outgoing_extent: u64,
+    preservation_alignment: u64,
+    no_preserved_registers: bool,
+    callee_save_area_bytes: u64,
+    saved_link_bytes: Option<u64>,
+) -> Result<LowPreservationArea, TargetFrameLayoutError> {
+    let preservation_offset = if no_preserved_registers {
+        outgoing_extent
+    } else {
+        align_up_frame(outgoing_extent, preservation_alignment)?
+    };
+    let preservation_end = preservation_offset
+        .checked_add(callee_save_area_bytes)
+        .ok_or(TargetFrameLayoutError::GeometryOverflow)?;
+    let (link_offset, locals_offset) = match saved_link_bytes {
+        Some(size) => {
+            let link = align_up_frame(preservation_end, size)?;
+            (
+                Some(link),
+                link.checked_add(size)
+                    .ok_or(TargetFrameLayoutError::GeometryOverflow)?,
+            )
+        }
+        None => (None, preservation_end),
+    };
+    Ok(LowPreservationArea {
+        preservation_offset,
+        link_offset,
+        locals_offset,
     })
 }
 
@@ -514,9 +593,10 @@ fn spill(register: u32) -> selected_instructions::SelectedLocalStorageSlot {
 mod tests {
     use super::{
         CalleeSaveFrameSlot, FrameAbiPreservationConvention, FrameContinuationCustody,
-        FrameUnwindPolicy, MAX_FRAME_BYTES, ReturnAddressFrameCustody, TargetFrameLayoutError,
-        TargetFrameLayoutPolicy, call_site_stack_contract, frame_unwind_policy, function_layout,
-        minimal_aligned_extent, save_region_is_disjoint, spill, stack_commit_granule_bytes,
+        FramePreservationPlacement, FrameUnwindPolicy, MAX_FRAME_BYTES, ReturnAddressFrameCustody,
+        TargetFrameLayoutError, TargetFrameLayoutPolicy, call_site_stack_contract,
+        frame_unwind_policy, function_layout, minimal_aligned_extent, save_region_is_disjoint,
+        spill, stack_commit_granule_bytes,
     };
     use target::NativeTarget;
 
@@ -689,6 +769,7 @@ mod tests {
                     abi: FrameAbiPreservationConvention::SystemVAMD64,
                     stack_pointer_view: "rsp",
                     continuation: caller_stack,
+                    preservation: FramePreservationPlacement::AboveLocals,
                 },
             ),
             (
@@ -697,6 +778,7 @@ mod tests {
                     abi: FrameAbiPreservationConvention::SystemVAMD64,
                     stack_pointer_view: "rsp",
                     continuation: caller_stack,
+                    preservation: FramePreservationPlacement::AboveLocals,
                 },
             ),
             (
@@ -705,6 +787,7 @@ mod tests {
                     abi: FrameAbiPreservationConvention::MicrosoftX64,
                     stack_pointer_view: "rsp",
                     continuation: caller_stack,
+                    preservation: FramePreservationPlacement::AboveLocals,
                 },
             ),
             (
@@ -713,6 +796,7 @@ mod tests {
                     abi: FrameAbiPreservationConvention::MicrosoftX64,
                     stack_pointer_view: "rsp",
                     continuation: caller_stack,
+                    preservation: FramePreservationPlacement::AboveLocals,
                 },
             ),
             (
@@ -721,6 +805,7 @@ mod tests {
                     abi: FrameAbiPreservationConvention::Aapcs64,
                     stack_pointer_view: "sp",
                     continuation: link,
+                    preservation: FramePreservationPlacement::AboveLocals,
                 },
             ),
             (
@@ -729,6 +814,7 @@ mod tests {
                     abi: FrameAbiPreservationConvention::DarwinAapcs64,
                     stack_pointer_view: "sp",
                     continuation: link,
+                    preservation: FramePreservationPlacement::AboveLocals,
                 },
             ),
         ] {
@@ -747,6 +833,7 @@ mod tests {
                     view: "x30",
                     saved_size_bytes: 8,
                 },
+                preservation: FramePreservationPlacement::BelowLocals,
             })
         );
     }
@@ -1409,6 +1496,76 @@ mod tests {
             ),
             Err(TargetFrameLayoutError::GeometryOverflow)
         );
+    }
+
+    #[test]
+    fn windows_arm64_keeps_saves_and_link_below_large_locals() {
+        // 100 spill slots put the locals past the 504 bytes a Windows ARM64
+        // unwind code can reach, so the saves must sit below them.
+        let environment = register_environment::baseline_target_register_environment(
+            NativeTarget::windows_arm64(),
+        )
+        .unwrap();
+        let model = environment.physical().model();
+        let link = model.view_named("x30").unwrap().id;
+        let x19 = model.view_named("x19").unwrap().id;
+        let locals = (0..100).map(spill).collect::<Vec<_>>();
+        let save = CalleeSaveFrameSlot {
+            abstract_slot: machine_code::NonAuthoritativeCalleeSaveSlotId(0),
+            storage_view: x19,
+            frame_offset_bytes: 0,
+            size_bytes: 8,
+            alignment_bytes: 8,
+        };
+        let layout = frame_with_saves(
+            &environment,
+            FrameAbiPreservationConvention::DarwinAapcs64,
+            true,
+            false,
+            &[],
+            &locals,
+            8,
+            vec![save],
+        )
+        .unwrap();
+        assert_eq!(layout.callee_save_slots[0].frame_offset_bytes, 0);
+        assert_eq!(
+            layout.return_address,
+            ReturnAddressFrameCustody::SavedLinkRegister {
+                view: link,
+                frame_offset_bytes: 8,
+                size_bytes: 8,
+            }
+        );
+        assert_eq!(layout.local_storage_slots[0].frame_offset_bytes, 16);
+        assert_eq!(
+            layout.local_storage_slots[99].frame_offset_bytes,
+            16 + 99 * 8
+        );
+        assert_eq!(layout.frame_size_bytes, 816);
+        assert_eq!(layout.unwind.released_bytes, 816);
+
+        // The same body on macOS keeps its saves above the locals.
+        let darwin =
+            register_environment::baseline_target_register_environment(NativeTarget::macos_arm64())
+                .unwrap();
+        let darwin_layout = frame_with_saves(
+            &darwin,
+            FrameAbiPreservationConvention::DarwinAapcs64,
+            true,
+            false,
+            &[],
+            &locals,
+            8,
+            vec![CalleeSaveFrameSlot {
+                storage_view: darwin.physical().model().view_named("x19").unwrap().id,
+                ..save
+            }],
+        )
+        .unwrap();
+        assert_eq!(darwin_layout.local_storage_slots[0].frame_offset_bytes, 0);
+        assert_eq!(darwin_layout.callee_save_slots[0].frame_offset_bytes, 800);
+        assert_eq!(darwin_layout.frame_size_bytes, 816);
     }
 
     #[test]

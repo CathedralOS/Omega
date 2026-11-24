@@ -4341,13 +4341,15 @@ fn merge_state(existing: &mut State, incoming: &State) -> bool {
     changed |= merge_slots(&mut existing.arrival_backing, &incoming.arrival_backing);
     changed
 }
-fn merge_slots(existing: &mut Arc<Slots>, incoming: &Slots) -> bool {
-    let before = existing.clone();
+fn merge_slots(existing: &mut Arc<Slots>, incoming: &Arc<Slots>) -> bool {
+    if Arc::ptr_eq(existing, incoming) {
+        return false;
+    }
     let mut changed = false;
     let mut slot_updates = Vec::new();
     {
-        let mut left = before.iter().peekable();
-        let mut right = incoming.iter().peekable();
+        let mut left = existing.unshared_entries(incoming).peekable();
+        let mut right = incoming.unshared_entries(existing).peekable();
         while left.peek().is_some() || right.peek().is_some() {
             let order = match (left.peek(), right.peek()) {
                 (Some((left, _)), Some((right, _))) => left.cmp(right),
@@ -4386,7 +4388,6 @@ fn merge_slots(existing: &mut Arc<Slots>, incoming: &Slots) -> bool {
             }
         }
     }
-    drop(before);
     if !slot_updates.is_empty() {
         let slots = Arc::make_mut(existing);
         for (location, value) in slot_updates {

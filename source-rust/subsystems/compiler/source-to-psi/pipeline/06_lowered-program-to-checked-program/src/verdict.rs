@@ -107,10 +107,8 @@ pub enum RouteVerdict {
         /// One per call that reaches a service outside its caller's reach.
         exceeded: Vec<ExceededReach>,
     },
-    /// No obligation is unproved for want of a derivation, but the prover has
-    /// no rule for the form of at least one goal, so the route can judge the
-    /// program neither way. Every entry's cause is
-    /// `UnprovedCause::NoRuleForGoalForm`. Never empty.
+    /// Every remaining obligation needs a missing proof rule or more search
+    /// budget. Each diagnostic records which condition stopped the prover.
     Incomplete(Vec<UnprovedObligation>),
     /// The route does not serve some construct or obligation of the closure,
     /// so the whole closure is refused as not supported yet. The first such
@@ -1236,11 +1234,23 @@ fn conclude(
                 terminal_check_tables::row(&tables.obligations, obligation, machine, concerns)?;
             let site =
                 *terminal_check_tables::row(&sources.obligations, obligation, machine, concerns)?;
+            // The return edge identifies the failing path. The authored
+            // equality identifies the exact claim to underline on that path.
+            let claim_site = match row.kind {
+                ObligationKind::NormalGuarantee { clause, .. }
+                    if elaboration.module.machine(machine)
+                        .and_then(|body| body.ensures.get(clause as usize))
+                        .is_some_and(|row| matches!(row.proposition, semantic_vocabulary::Proposition::DeclarationIdentity(_))) => {
+                    elaboration.names.get(machine).and_then(|names| names.ensures.get(clause as usize))
+                        .and_then(|text| text.source).map(SourceOrigin::Authored)
+                }
+                _ => None,
+            };
             unproved.push(UnprovedObligation {
                 machine,
                 obligation,
                 kind: row.kind,
-                site,
+                site: claim_site.unwrap_or(site),
                 cause,
                 detail: refused.detail.clone(),
                 statement: describe::unproved(
@@ -1414,7 +1424,7 @@ fn conclude(
         return fall_back_or_defect(refused);
     }
     if let Err(refused) = crate::checking::static_contracts::publish(&mut elaboration) {
-        return fall_back_or_defect(refused);
+        return fall_back_or_defect(Roster::of(&elaboration).locate(refused));
     }
     let applications = &mut elaboration.module.scalars.scalar_applications;
     let mut pending = Vec::new();
@@ -1579,7 +1589,7 @@ pub(crate) fn judge_compilation_with_activity(
         Ok(unproved) => {
             let verdict = if unproved
                 .iter()
-                .all(|failure| failure.cause == UnprovedCause::NoRuleForGoalForm)
+                .all(|failure| failure.cause.is_incomplete())
             {
                 RouteVerdict::Incomplete(unproved)
             } else {

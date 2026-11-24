@@ -78,8 +78,16 @@ pub(crate) fn append_data_application(
             .zip(arguments)
             .map(|(parameter, argument)| (parameter.symbol, *argument)),
     );
+    let reference_owner = program
+        .type_reference_table
+        .operand_lifetime_owner(reference);
     scope.region_scopes.push(AppliedDeclarationRegionScope::new(
         declaration.symbol,
+        if reference_owner.is_valid() {
+            reference_owner
+        } else {
+            scope.argument_owner
+        },
         &declaration.lifetime_parameters,
         lifetimes,
     ));

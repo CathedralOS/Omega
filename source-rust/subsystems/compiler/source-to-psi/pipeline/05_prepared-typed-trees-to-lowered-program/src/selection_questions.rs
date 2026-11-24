@@ -2217,6 +2217,7 @@ mod tests {
             operator: BinaryOperator::Equal,
             right: value,
             policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            negation: false,
         });
         let expression = typed.expression_table.insert(node.clone());
         typed

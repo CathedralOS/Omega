@@ -1,8 +1,9 @@
 //! Encode the immutable frame recipes completed by physical planning.
+use calling_conventions::frame_unwind::FrameProtocolStep;
 use frame_admission::frame_protocol::TargetFrameProtocolEncodingError;
 use machine_code::{
-    FrameProtocolByteSpan, FramedMachineProgram, FunctionTargetFrameProtocolEncoding,
-    TargetFrameProtocolEncodingPlan,
+    FrameProtocolByteSpan, FrameProtocolStepSpan, FramedMachineProgram,
+    FunctionTargetFrameProtocolEncoding, TargetFrameProtocolEncodingPlan,
 };
 use physical_recipes::frame_protocol::{
     FrameRecipe, PhysicalFrameProgram, PlannedTargetFrameProtocols,
@@ -20,9 +21,10 @@ pub(crate) fn encode_target_frame_protocols<Origin>(
         return Err(TargetFrameProtocolEncodingError::RootMismatch);
     }
     let mut bytes = Vec::new();
+    let mut steps = Vec::new();
     let mut functions = Vec::with_capacity(prepared.functions().len());
     for function in prepared.functions() {
-        let (prologue, epilogue) = match function.recipe() {
+        let encoded = match function.recipe() {
             FrameRecipe::X86(recipe) => isa_x86_64::encode_planned_system_v_amd64_frame_protocol(
                 environment.physical(),
                 recipe,
@@ -33,12 +35,12 @@ pub(crate) fn encode_target_frame_protocols<Origin>(
                     .map_err(TargetFrameProtocolEncodingError::Aarch64)?
             }
         };
-        let prologue = append(&mut bytes, &prologue)?;
-        let epilogue = append(&mut bytes, &epilogue)?;
         functions.push(FunctionTargetFrameProtocolEncoding {
             machine: function.machine(),
-            prologue,
-            epilogue,
+            prologue: append(&mut bytes, &encoded.prologue)?,
+            epilogue: append(&mut bytes, &encoded.epilogue)?,
+            prologue_steps: append_steps(&mut steps, &encoded.prologue_steps)?,
+            epilogue_steps: append_steps(&mut steps, &encoded.epilogue_steps)?,
         });
     }
     let plan = TargetFrameProtocolEncodingPlan {
@@ -49,8 +51,21 @@ pub(crate) fn encode_target_frame_protocols<Origin>(
         policy: prepared.policy(),
         functions,
         bytes,
+        steps,
     };
     Ok(plan)
+}
+
+fn append_steps(
+    arena: &mut Vec<FrameProtocolStep>,
+    value: &[FrameProtocolStep],
+) -> Result<FrameProtocolStepSpan, TargetFrameProtocolEncodingError> {
+    let offset = u32::try_from(arena.len())
+        .map_err(|_| TargetFrameProtocolEncodingError::ByteArenaOverflow)?;
+    let length = u32::try_from(value.len())
+        .map_err(|_| TargetFrameProtocolEncodingError::ByteArenaOverflow)?;
+    arena.extend_from_slice(value);
+    Ok(FrameProtocolStepSpan { offset, length })
 }
 
 fn append(

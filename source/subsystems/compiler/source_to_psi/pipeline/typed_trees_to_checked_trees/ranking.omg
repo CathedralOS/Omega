@@ -209,7 +209,7 @@ crashes Trap
     machine relation(checker: @Checker, before: @NormalizedRank, after: @NormalizedRank) -> u64 in Trapping {
         transition before.view {
             RankingView::BoundedDistance -> distance(checker, before, after),
-            RankingView::IncreasingTo -> distance(checker, before, after),
+            RankingView::IncreasingTo -> fixed_distance(checker, before, after),
             _ -> component(checker, before, after, 0)
         }
     }
@@ -235,6 +235,14 @@ crashes Trap
         transition kept {
             true -> component(checker, before, after, index + 1),
             false -> 0
+        }
+    }
+    machine fixed_distance(checker: @Checker, before: @NormalizedRank, after: @NormalizedRank) -> u64 in Trapping {
+        let bound: Value = before.values[1];
+        let next_bound: Value = after.values[1];
+        transition proves_at_most(checker, bound, next_bound) && proves_at_most(checker, next_bound, bound) {
+            true -> distance(checker, before, after),
+            false -> (0 as u64 +Trapping)
         }
     }
     machine distance(checker: @Checker, before: @NormalizedRank, after: @NormalizedRank) -> u64 in Trapping {

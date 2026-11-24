@@ -585,7 +585,9 @@ gives the lowered form.
 
 A loop can name its decreasing measure with `terminates by remaining`,
 `terminates by bytes -> Slice::Length` or `terminates by (cursor, limit) ->
-Nat::BoundedDistance`. The reader uses the resolved typed expressions and
+Nat::BoundedDistance`. A cursor approaching a fixed bound can use
+`terminates by cursor -> Nat::IncreasingTo(limit)`. Each recursive transfer
+must prove that its successor has the same limit. The reader uses the resolved typed expressions and
 checks explicit natural views against their sealed catalog headers. Short
 forms use the carrier's canonical default; a pair is not a carrier and
 has none, so the author names its view. A user-written lookalike grants
@@ -1105,8 +1107,9 @@ its whole component in its own graph
   It is no call operation and gets no
   invocation row: the lowered form has no call there.
 
-A component of `k` machines is therefore lowered `k` times, once per
-machine. Nothing is shared between those graphs.
+Each member has its own entry and its own graph. When two entries produce
+identical checking tables for places or scalar values, the compiler stores
+one copy of that table. Updating one entry leaves the other entry's rows intact.
 
 **`requires` at a head.** A member's `requires` clauses, each formal
 replaced by the head's parameter, are the head's one row in the module's

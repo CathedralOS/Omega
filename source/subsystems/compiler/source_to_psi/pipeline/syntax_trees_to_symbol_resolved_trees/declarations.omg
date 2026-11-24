@@ -1,0 +1,91 @@
+use representations/source_files/source.omg;
+use representations/syntax_trees/syntax_trees.omg;
+
+// What a name denotes among the declarations its unit can see.
+public data Lookup [copy] {
+    case Absent;
+    case Found(handle: u64 in Trapping);
+    case Ambiguous;
+}
+
+// The declaration tables a name or `Owner::name` path selects by spelling.
+// Data, traits and conformances are type names, constants values and
+// propositions logical declarations. Domains select by carrier as well
+// (domains.omg) and machines by overload family (`machine_named`).
+public data DeclarationKind [copy] {
+    case Data;
+    case Trait;
+    case Conformance;
+    case Constant;
+    case Proposition;
+}
+
+// The path a declaration's name spells: its owner when it has one, then its
+// name. Only a constant takes an owner (`const Owner::NAME`). `is_public`
+// is the declaration's `public`.
+public data DeclarationPath [copy] {
+    has_owner: bool;
+    owner: |syntax_trees|::IdentifierSpan;
+    name: |syntax_trees|::IdentifierSpan;
+    is_public: bool;
+}
+
+public machine declaration_count(syntax: @|syntax_trees|::SyntaxTrees, kind: DeclarationKind) -> u64 in Trapping {
+    transition kind {
+        DeclarationKind::Data -> count(syntax.data_count as +Trapping),
+        DeclarationKind::Trait -> count(syntax.trait_count as +Trapping),
+        DeclarationKind::Conformance -> count(syntax.conformance_count as +Trapping),
+        DeclarationKind::Constant -> count(syntax.constant_count as +Trapping),
+        DeclarationKind::Proposition -> count(syntax.proposition_count as +Trapping)
+    }
+
+    machine count(value: u64 in Trapping) -> u64 in Trapping {
+        value
+    }
+}
+
+public machine declaration_path(syntax: @|syntax_trees|::SyntaxTrees, kind: DeclarationKind, index: u64 in Trapping) -> DeclarationPath
+crashes Trap
+{
+    transition kind {
+        DeclarationKind::Data -> data(syntax, index),
+        DeclarationKind::Trait -> trait_name(syntax, index),
+        DeclarationKind::Conformance -> conformance(syntax, index),
+        DeclarationKind::Constant -> constant(syntax, index),
+        DeclarationKind::Proposition -> proposition(syntax, index)
+    }
+
+    machine data(syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) -> DeclarationPath {
+        let item: |syntax_trees|::DataItem = |syntax_trees|::syntax_trees_data_item(syntax, index);
+        DeclarationPath { has_owner: false, owner: item.name, name: item.name, is_public: item.is_public }
+    }
+
+    machine trait_name(syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) -> DeclarationPath {
+        let item: |syntax_trees|::TraitItem = |syntax_trees|::trait_item(syntax, index);
+        DeclarationPath { has_owner: false, owner: item.name, name: item.name, is_public: item.is_public }
+    }
+
+    machine conformance(syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) -> DeclarationPath {
+        let item: |syntax_trees|::ConformanceItem = |syntax_trees|::conformance_item(syntax, index);
+        DeclarationPath { has_owner: false, owner: item.name, name: item.name, is_public: item.is_public }
+    }
+
+    machine constant(syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) -> DeclarationPath {
+        let item: |syntax_trees|::ConstantItem = |syntax_trees|::constant_item(syntax, index);
+        DeclarationPath { has_owner: item.has_owner, owner: item.owner, name: item.name, is_public: item.is_public }
+    }
+
+    machine proposition(syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) -> DeclarationPath {
+        let item: |syntax_trees|::PropositionItem = |syntax_trees|::proposition_item(syntax, index);
+        DeclarationPath { has_owner: false, owner: item.name, name: item.name, is_public: item.is_public }
+    }
+}
+
+// Whether a declaration's path is `name` (owned by `owner` when `owned`).
+public machine path_spells(sources: @|source|::SourceSet, path: DeclarationPath, owned: bool, owner: |source|::SourceSpan, name: |source|::SourceSpan) -> bool
+crashes Trap
+{
+    let named: bool = |source|::spans_equal(sources, path.name.source_span, name);
+    let owner_named: bool = |source|::spans_equal(sources, path.owner.source_span, owner);
+    named && path.has_owner == owned && (!owned || owner_named)
+}

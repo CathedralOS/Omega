@@ -61,7 +61,7 @@ pub(crate) mod complete_values {
                     crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
                         &types,
                         root,
-                        self.structural_cases.as_map(),
+                        &self.array_initialization.cases(&self.structural_cases),
                         &original,
                     ) == Some(case)
                 },
@@ -270,7 +270,7 @@ pub(crate) mod windows {
                     crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
                         &self.structural_types(),
                         self.structural_values.get(&current.place)?,
-                        self.structural_cases.as_map(),
+                        &self.array_initialization.cases(&self.structural_cases),
                         &current.path,
                     )
                 };
@@ -369,7 +369,7 @@ pub(crate) mod windows {
                 crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
                     &self.structural_types(),
                     &selected,
-                    self.structural_cases.as_map(),
+                    &self.array_initialization.cases(&self.structural_cases),
                     &current.path,
                 )
             };
@@ -477,7 +477,7 @@ pub(crate) mod windows {
                             crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
                             &self.structural_types(),
                             root,
-                            self.structural_cases.as_map(),
+                            &self.array_initialization.cases(&self.structural_cases),
                             path,
                         )
                         },
@@ -491,6 +491,7 @@ pub(crate) mod windows {
 }
 
 use crate::boundary::errors::{TerminalInterpretError, malformed};
+use crate::boundary::structural_inputs::case_membership::CaseSelections;
 use crate::boundary::values::StructuralRuntimePlace;
 use crate::boundary::values::{
     TerminalScalarValue, TerminalStructuralPrimitiveValue, TerminalStructuralValue,
@@ -628,7 +629,7 @@ impl crate::engine::execution::TerminalExecution<'_> {
             validate_complete_affine_frontier(
                 &self.structural_types(),
                 &self.structural_values,
-                self.structural_cases.as_map(),
+                &self.array_initialization.cases(&self.structural_cases),
                 &self.live_affine_frontier,
                 self.live_claims.values(),
                 argument,
@@ -657,7 +658,7 @@ impl crate::engine::execution::TerminalExecution<'_> {
                     crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
                         &self.structural_types(),
                         value,
-                        self.structural_cases.as_map(),
+                        &self.array_initialization.cases(&self.structural_cases),
                         path,
                     ) == Some(case)
                 })
@@ -692,10 +693,7 @@ pub(crate) fn commit_cleanup_action(
         '_,
         StructuralTypeDeclaration,
     >,
-    structural_cases: &BTreeMap<
-        StructuralRuntimePlace,
-        crate::boundary::structural_inputs::case_membership::StructuralCaseContents,
-    >,
+    structural_cases: &impl CaseSelections,
     current_machine: &TerminalMachine,
     structural_values: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
     linear_homes: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
@@ -863,10 +861,7 @@ pub(crate) fn bind_active_structural_arguments(
     parameters: &[StructuralParameterDeclaration],
     arguments: &[TerminalStructuralValue],
     types: &crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
-    cases: &BTreeMap<
-        StructuralRuntimePlace,
-        crate::boundary::structural_inputs::case_membership::StructuralCaseContents,
-    >,
+    cases: &impl CaseSelections,
     account: Option<&EvaluationInvocationAccount>,
 ) -> Result<RuntimeRows<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
     let active = active_structural_parameters(parameters, arguments, &|argument_index, rows| {
@@ -1434,10 +1429,7 @@ pub(crate) fn consume_projected_ownership(
         StructuralTypeDeclaration,
     >,
     values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
-    structural_cases: &BTreeMap<
-        StructuralRuntimePlace,
-        crate::boundary::structural_inputs::case_membership::StructuralCaseContents,
-    >,
+    structural_cases: &impl CaseSelections,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     claims: &mut BTreeMap<ClaimId, LiveClaim>,
     argument: &StructuralArgument,
@@ -1468,10 +1460,7 @@ pub(crate) fn consume_projected_affine_complement(
         StructuralTypeDeclaration,
     >,
     values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
-    structural_cases: &BTreeMap<
-        StructuralRuntimePlace,
-        crate::boundary::structural_inputs::case_membership::StructuralCaseContents,
-    >,
+    structural_cases: &impl CaseSelections,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     argument: &StructuralArgument,
 ) -> Result<bool, TerminalInterpretError> {
@@ -1513,10 +1502,7 @@ pub(crate) fn consume_affine_discard(
         StructuralTypeDeclaration,
     >,
     values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
-    structural_cases: &BTreeMap<
-        StructuralRuntimePlace,
-        crate::boundary::structural_inputs::case_membership::StructuralCaseContents,
-    >,
+    structural_cases: &impl CaseSelections,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     claims: &BTreeMap<ClaimId, LiveClaim>,
     discard: &StructuralAffineDiscard,
@@ -1550,10 +1536,7 @@ pub(crate) fn consume_affine_projection(
         StructuralTypeDeclaration,
     >,
     values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
-    structural_cases: &BTreeMap<
-        StructuralRuntimePlace,
-        crate::boundary::structural_inputs::case_membership::StructuralCaseContents,
-    >,
+    structural_cases: &impl CaseSelections,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     argument: &StructuralArgument,
 ) -> Result<(), TerminalInterpretError> {
@@ -1575,10 +1558,7 @@ pub(crate) fn consume_affine_projection(
 pub(crate) fn validate_complete_affine_frontier<'claims>(
     types: &crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
-    cases: &BTreeMap<
-        StructuralRuntimePlace,
-        crate::boundary::structural_inputs::case_membership::StructuralCaseContents,
-    >,
+    cases: &impl CaseSelections,
     frontier: &BTreeSet<StructuralAffineDiscard>,
     claims: impl Iterator<Item = &'claims LiveClaim>,
     subject: &StructuralArgument,
@@ -1639,10 +1619,7 @@ pub(crate) fn decompose_owned_subject(
     types: &crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
     references: &BTreeMap<StructuralRuntimePlace, crate::storage::reference::ReferenceReferent>,
-    cases: &BTreeMap<
-        StructuralRuntimePlace,
-        crate::boundary::structural_inputs::case_membership::StructuralCaseContents,
-    >,
+    cases: &impl CaseSelections,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     claims: &mut BTreeMap<ClaimId, LiveClaim>,
     subject: &StructuralArgument,
@@ -1716,10 +1693,7 @@ pub(crate) fn consume_affine_projection_if_present(
         StructuralTypeDeclaration,
     >,
     values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
-    structural_cases: &BTreeMap<
-        StructuralRuntimePlace,
-        crate::boundary::structural_inputs::case_membership::StructuralCaseContents,
-    >,
+    structural_cases: &impl CaseSelections,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     argument: &StructuralArgument,
 ) -> Result<bool, TerminalInterpretError> {
@@ -2211,10 +2185,7 @@ pub(crate) fn transfer_claims(
         '_,
         StructuralTypeDeclaration,
     >,
-    structural_cases: &BTreeMap<
-        StructuralRuntimePlace,
-        crate::boundary::structural_inputs::case_membership::StructuralCaseContents,
-    >,
+    structural_cases: &impl CaseSelections,
     caller_claims: &BTreeMap<ClaimId, LiveClaim>,
     caller_arguments: &[StructuralArgument],
     transfers: &[ClaimTransfer],

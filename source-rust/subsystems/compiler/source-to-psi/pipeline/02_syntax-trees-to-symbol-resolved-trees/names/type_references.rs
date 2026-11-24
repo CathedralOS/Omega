@@ -323,6 +323,24 @@ mod assignment {
                     data_type_parameters.span_mut_or_empty(data_definition.type_parameters),
                 );
                 assign!(&mut data_definition.predicate_subject_type);
+                // `self` in `data Index<const Limit: u32> requires ...` has the
+                // type `Index<Limit>`. A type lookup does not select the value
+                // binder `Limit`, so each value argument keeps its own binder.
+                if let TypeReference::Generic(subject) = &data_definition.predicate_subject_type
+                    && subject.base_symbol == declaration_symbol
+                {
+                    super::value_expressions::bind_named_value_arguments(
+                        &type_parameters,
+                        child_type_references,
+                        subject.arguments,
+                        |name| {
+                            type_parameters
+                                .iter()
+                                .find(|parameter| parameter.name.as_str() == name.as_str())
+                                .map(|parameter| parameter.symbol)
+                        },
+                    );
+                }
                 if let Some(generic_instance) = &mut data_definition.generic_instance {
                     assign!(generic_instance);
                 }
@@ -1676,7 +1694,7 @@ mod value_expressions {
 
     /// The selected declaration determines which operands are values. Resolve a
     /// bare name in one of those positions in the scope that supplied the operand.
-    fn bind_named_value_arguments(
+    pub(super) fn bind_named_value_arguments(
         parameters: &[crate::source_resolved::data::TypeParameter],
         child_types: &mut crate::source_resolved::types::TypeReferenceArena,
         arguments: arena::HandleSpan<TypeReference>,

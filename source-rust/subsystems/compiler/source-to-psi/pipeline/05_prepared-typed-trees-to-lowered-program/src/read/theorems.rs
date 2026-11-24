@@ -355,7 +355,7 @@ impl Program<'_> {
             &mut proof_admission::Budget::default(),
         )
         .map_err(unavailable)?;
-        let carrier_key = terminal_codec::mathematical_carrier_key(
+        let carrier_key = terminal_codec::theorem_implication_key(
             &expected.arena,
             &proof_admission::MathematicalCertificate {
                 signature: expected.signature,

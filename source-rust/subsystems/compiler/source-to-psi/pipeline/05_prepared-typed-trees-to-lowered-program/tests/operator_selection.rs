@@ -310,3 +310,114 @@ fn an_element_read_does_not_gain_the_result_domain() {
     .judged(|_| {})
     .accepted();
 }
+
+/// The callee and arguments of the one call `path` lowers to.
+fn only_call(
+    program: &Program,
+    path: &str,
+) -> (
+    semantic_vocabulary::MachineId,
+    Vec<semantic_vocabulary::ValueId>,
+) {
+    let lowered = program.lower();
+    let calls = lowered
+        .operations(path)
+        .into_iter()
+        .filter_map(|(_, operation)| match &operation.kind {
+            OperationKind::Call {
+                callee, arguments, ..
+            } => Some((*callee, arguments.clone())),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [call] = &calls[..] else {
+        panic!("`{path}` makes one call: {calls:?}")
+    };
+    call.clone()
+}
+
+/// The declared unary `-`, `[]` and `[..]` over `Km` are selected by their
+/// tokens like a binary operator: `-v` calls `flip(v)`, `v[j]` calls
+/// `pick(v, j)` and `v[j..i]` calls `span(v, j, i)`, and a written `a - b`
+/// still calls the two-operand `minus`. Each body returns a different
+/// formal, so a call with its operands swapped would change the result.
+#[test]
+fn prefix_minus_and_brackets_call_their_declared_operators() {
+    let program = Program::of(
+        "domain u8::Km;
+machine - flip(v: u8 in Km) -> u8 in Km { v }
+machine - minus(a: u8 in Km, b: u8 in Km) -> u8 in Km { b }
+machine [] pick(v: u8 in Km, i: u8) -> u8 { i }
+machine [..] span(v: u8 in Km, i: u8, j: u8) -> u8 { j }
+machine negate(v: u8 in Km) -> u8 in Km { -v }
+machine subtract(a: u8 in Km, b: u8 in Km) -> u8 in Km { a - b }
+machine index(v: u8 in Km, j: u8) -> u8 { v[j] }
+machine range(v: u8 in Km, i: u8, j: u8) -> u8 { v[j..i] }",
+    );
+    let lowered = program.lower();
+    for (caller, callee, order) in [
+        ("negate", "flip", &[0][..]),
+        ("subtract", "minus", &[0, 1][..]),
+        ("index", "pick", &[0, 1][..]),
+        ("range", "span", &[0, 2, 1][..]),
+    ] {
+        let parameters = formals(lowered.machine(caller));
+        let expected = order.iter().map(|&at| parameters[at]).collect::<Vec<_>>();
+        assert_eq!(
+            only_call(&program, caller),
+            (lowered.machine_id(callee), expected),
+            "{caller}"
+        );
+    }
+    program.judged(|_| {}).accepted();
+}
+
+/// Each twin differs from the program above in one input, and none of them
+/// may reach a declaration its operands do not match. A written `0 - v`
+/// has two operands, so the one-operand `flip` is not its operator and the
+/// qualified `v` is refused at the builtin `-`; `-m` on another domain and
+/// `v[k]` with a `u16` index match no declaration either. Prefix minus with
+/// no one-operand declaration keeps its meaning `0 - x`, so `-w` on a
+/// `Wrapping` operand is core's wrapping subtraction from zero.
+#[test]
+fn a_unary_or_index_declaration_applies_only_to_its_own_operands() {
+    let declarations = "domain u8::Km; domain u8::Metres;
+machine - flip(v: u8 in Km) -> u8 in Km { v }
+machine [] pick(v: u8 in Km, i: u8) -> u8 { i }";
+    for (body, refused) in [
+        (
+            "machine zero_minus(v: u8 in Km) -> u8 in Km { 0 - v }",
+            "builtin operator `-` takes unqualified operands only, but `v` has type `u8 in Km`",
+        ),
+        (
+            "machine other(m: u8 in Metres) -> u8 in Metres { -m }",
+            "builtin operator `-` takes unqualified operands only, but `m` has type `u8 in Metres`",
+        ),
+        (
+            "machine wide(v: u8 in Km, k: u16) -> u8 { v[k] }",
+            "index into non-array storage",
+        ),
+    ] {
+        let refusal = Program::try_of(&[("product/main.omg", &format!("{declarations}\n{body}"))])
+            .err()
+            .unwrap_or_else(|| panic!("`{body}` must be refused"));
+        assert!(refusal.message.contains(refused), "{body}: {refusal:?}");
+    }
+
+    let program =
+        Program::of("machine negate(w: i8 in Wrapping) -> i8 in Wrapping crashes none { -w }");
+    let lowered = program.lower();
+    let operations = lowered.operations("negate");
+    let [(_, zero), (_, difference)] = operations[..] else {
+        panic!("{operations:?}")
+    };
+    let w = formals(lowered.machine("negate"))[0];
+    assert_eq!(
+        difference.kind,
+        OperationKind::WrappingIntegerSubtract {
+            left: scalar(zero),
+            right: w,
+        }
+    );
+    program.judged(|_| {}).accepted();
+}

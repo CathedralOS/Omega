@@ -1,4 +1,4 @@
-use source.omg as files;
+use representations/source_files/source.omg as files;
 
 machine span(unit: u32 in Trapping, first: u64 in Trapping, last: u64 in Trapping) -> |files|::SourceSpan {
     |files|::SourceSpan { source: |files|::SourceId { value: unit }, span: |files|::Span { start: first, end: last } }

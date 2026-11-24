@@ -171,6 +171,7 @@ impl ExpressionTable {
                 let right = self.copy_graph(source, binary.right, copies);
                 self.insert(ExpressionNode::Binary(TableBinaryExpression {
                     policy: binary.policy,
+                    negation: binary.negation,
                     left,
                     operator: binary.operator,
                     right,

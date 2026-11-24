@@ -1,0 +1,117 @@
+use representations/lowered_program/scalar.omg as program;
+
+public data ScalarLayoutState [copy] {
+    case Unseen;
+    case Visiting;
+    case Complete;
+}
+
+public data ScalarExpressionStage [copy] {
+    case Ready;
+    case ShortCircuitLeft;
+    case ShortCircuitRight;
+}
+
+public data ScalarLowerer {
+    output: |program|::ScalarProgram;
+    layout_states: [ScalarLayoutState; 8192];
+    layout_work: [u64; 8192];
+    layout_cursors: [u64; 8192];
+    layout_sizes: [u64; 8192];
+    layout_work_count: u64 in Trapping;
+    storage_size: u64 in Trapping;
+    argument_capacity: u64 in Trapping;
+    current_machine: u64 in Trapping;
+    // Handles are one-based so absence cannot accidentally name operation 0.
+    values: [u64 in Trapping; 131072];
+    locals: [u64 in Trapping; 16384];
+    work: [u64 in Trapping; 4096];
+    ready: [bool; 4096];
+    place_mode: [bool; 4096];
+    stages: [ScalarExpressionStage; 4096];
+    pending: [u64; 4096];
+    temporaries: [u64; 4096];
+    work_count: u64 in Trapping;
+    colors: [u8; 10240];
+    cursors: [u64 in Trapping; 10240];
+    calls: [u64 in Trapping; 10240];
+    call_count: u64 in Trapping;
+}
+
+public machine scalar_append(lowerer: @mutable ScalarLowerer, kind: |program|::ScalarOperationKind, left: u64 in Trapping, right: u64 in Trapping, extra: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    let index: u64 in Trapping = lowerer.output.operation_count;
+    transition index < 16384 {
+        true -> store(lowerer, kind, left, right, extra, index),
+        _ -> full(lowerer)
+    }
+    machine store(lowerer: @mutable ScalarLowerer, kind: |program|::ScalarOperationKind, left: u64 in Trapping, right: u64 in Trapping, extra: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
+        lowerer.output.operations[(index) as -Trapping] = |program|::ScalarOperation { kind: kind, left: left, right: right, extra: extra };
+        lowerer.output.operation_count = index + 1;
+        index + 1
+    }
+    machine full(lowerer: @mutable ScalarLowerer) -> u64 in Trapping {
+        lowerer.output.status = |program|::ScalarStatus::Capacity;
+        0 as u64 +Trapping
+    }
+}
+
+// Syntax handles are checked again at the storage boundary. Producer
+// invariants must not become unchecked physical array accesses.
+public machine scalar_value(lowerer: @ScalarLowerer, handle: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition handle < 131072 {
+        true -> read(lowerer, handle),
+        _ -> invalid()
+    }
+    machine read(lowerer: @ScalarLowerer, handle: u64 in Trapping) -> u64 in Trapping {
+        lowerer.values[(handle) as -Trapping]
+    }
+    machine invalid() -> u64 in Trapping { crash Trap; }
+}
+
+public machine scalar_local(lowerer: @ScalarLowerer, handle: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition handle < 16384 {
+        true -> read(lowerer, handle),
+        _ -> invalid()
+    }
+    machine read(lowerer: @ScalarLowerer, handle: u64 in Trapping) -> u64 in Trapping {
+        lowerer.locals[(handle) as -Trapping]
+    }
+    machine invalid() -> u64 in Trapping { crash Trap; }
+}
+
+public machine scalar_bind(lowerer: @mutable ScalarLowerer, handle: u64 in Trapping, value: u64 in Trapping)
+crashes Trap
+{
+    transition handle < 16384 {
+        true -> write(lowerer, handle, value),
+        _ -> invalid()
+    }
+    machine write(lowerer: @mutable ScalarLowerer, handle: u64 in Trapping, value: u64 in Trapping) {
+        lowerer.locals[(handle) as -Trapping] = value;
+    }
+    machine invalid() { crash Trap; }
+}
+
+// The Alpha entry exits with its ordinary byte result. A resultless entry
+// uses the same zero return as a resultless internal call.
+
+public machine scalar_patch_branch(lowerer: @mutable ScalarLowerer, branch: u64 in Trapping, target: u64 in Trapping)
+crashes Trap
+{
+    transition branch > 0 && branch <= lowerer.output.operation_count && branch <= 16384 {
+        true -> patch(lowerer, branch - 1, target),
+        _ -> invalid()
+    }
+    machine patch(lowerer: @mutable ScalarLowerer, index: u64 in Trapping, target: u64 in Trapping) {
+        let mutable operation: |program|::ScalarOperation = |program|::scalar_operation(@lowerer.output, index);
+        operation.right = target;
+        lowerer.output.operations[(index) as -Trapping] = operation;
+    }
+    machine invalid() { crash Trap; }
+}

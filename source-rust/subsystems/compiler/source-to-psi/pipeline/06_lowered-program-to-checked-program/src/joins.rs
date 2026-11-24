@@ -606,7 +606,7 @@ fn argument_bounds(
         context,
         &known.assumptions,
         &known.axioms,
-        &tables.values,
+        &*tables.values,
         activity,
     );
     for (parameter, argument) in join.parameters.iter().zip(arguments) {
@@ -1024,6 +1024,7 @@ pub(crate) struct Machine<'view, 'analysis> {
     /// The machine's values the integer rules do not reach
     /// (`crate::checking::Unreached`).
     pub(crate) unreached: &'view [ValueId],
+    pub(crate) law_instances: &'view [MachineId],
 }
 
 /// Decides every `ArrivalInvariant` obligation into `decided`. An inferred
@@ -1067,6 +1068,19 @@ pub(crate) fn check<'a>(
                 machine.ranking_bindings,
             )
             .and_then(|goal| {
+                if let Proposition::DeclarationIdentity(clause) = &goal {
+                    return super::equality::discharge(
+                        machine.module,
+                        machine.lowered,
+                        tables,
+                        machine.graph,
+                        point,
+                        obligation,
+                        clause,
+                        machine.law_instances,
+                    )
+                    .map(Discharged::Identity);
+                }
                 decide(
                     machine.context,
                     machine.graph,

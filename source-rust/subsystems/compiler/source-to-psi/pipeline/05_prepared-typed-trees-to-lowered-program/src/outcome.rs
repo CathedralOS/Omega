@@ -595,6 +595,7 @@ impl<'b> Walk<'b> {
             ExpressionKind::SavedSubject(_)
             | ExpressionKind::Integer(_)
             | ExpressionKind::Float(_)
+            | ExpressionKind::ErasedApplication(_)
             | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::MachineValue { .. }

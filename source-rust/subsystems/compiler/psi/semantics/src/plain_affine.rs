@@ -786,11 +786,15 @@ fn live_entries(
     // A borrowed header observes its captured backing in any block that
     // uses it. Add those dependencies at each use, so preceding definitions
     // still stop the backward walk at their establishment points.
+    let mut predecessors = None;
     let mut observe = |before: &mut IdSet<PlaceId>, place| -> Result<(), Error> {
         before.insert(valid(place)?);
         if let Some((block, backing)) = header_backing.get_mut(&place) {
             let roots = backing.get_or_insert_with(|| {
-                let names = crate::storage_names(machine, *block, place);
+                let incoming = predecessors.get_or_insert_with(|| {
+                    crate::storage::arrival_storage::StoragePredecessors::new(machine)
+                });
+                let names = incoming.storage_names(*block, place);
                 let mut roots: Vec<_> = names.captured_roots().collect();
                 roots.sort_unstable();
                 roots.dedup();

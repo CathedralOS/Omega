@@ -340,13 +340,14 @@ fn checked_entry_relocates_the_actual_issued_field_and_requires_one_invocation()
     let account = sponsor
         .begin_invocation(sponsor.measurement(), 100)
         .unwrap();
-    let parked = || {
+    let parked = |issued| {
         let mut instance = projected_accounted_instance(
             &old,
             std::slice::from_ref(&before),
             Some(account.clone()),
         )
         .unwrap();
+        instance.install_compiler_observations(issued, &[]).unwrap();
         let cut = instance.select_entry_call(site.0, site.1).unwrap();
         assert!(
             instance
@@ -365,12 +366,39 @@ fn checked_entry_relocates_the_actual_issued_field_and_requires_one_invocation()
         .unwrap();
     let wrong = projected_accounted_instance(&new, &[], Some(other)).unwrap();
     assert!(
-        TerminalInstance::continue_checked_entry(parked(), wrong, &proof)
+        TerminalInstance::continue_checked_entry(parked(None), wrong, &proof)
             .is_err_and(|message| message.contains("same invocation"))
     );
+    let issued_target = |argument| {
+        Box::new(crate::layout_target::IssuedLayoutTarget {
+            facts: layout_plans::LayoutTargetFacts {
+                profile: "linux_x86_64".into(),
+                pointer_size: 8,
+                pointer_alignment: 8,
+                case_tag_size: 4,
+                case_tag_alignment: 4,
+                little_endian: true,
+            },
+            arguments: vec![argument],
+        })
+    };
+    for on_receiver in [false, true] {
+        let previous = parked((!on_receiver).then(|| issued_target(before.value.clone())));
+        let mut successor = projected_accounted_instance(&new, &[], Some(account.clone())).unwrap();
+        successor
+            .install_compiler_observations(
+                on_receiver.then(|| issued_target(after.value.clone())),
+                &[],
+            )
+            .unwrap();
+        assert!(
+            TerminalInstance::continue_checked_entry(previous, successor, &proof)
+                .is_err_and(|message| message.contains("separate handoff"))
+        );
+    }
     let successor = projected_accounted_instance(&new, &[], Some(account.clone())).unwrap();
     let mut instance =
-        TerminalInstance::continue_checked_entry(parked(), successor, &proof).unwrap();
+        TerminalInstance::continue_checked_entry(parked(None), successor, &proof).unwrap();
     assert!(matches!(
         instance
             .invoke(&mut terminal_work::WorkMeter::with_budget(100))
@@ -380,6 +408,94 @@ fn checked_entry_relocates_the_actual_issued_field_and_requires_one_invocation()
     assert_eq!(
         instance.borrowed_entry_host_atom(0, &after.path).unwrap(),
         Some(after.value)
+    );
+}
+
+#[test]
+fn checked_entry_refuses_to_discard_the_receivers_call_observer() {
+    use semantic_vocabulary::{
+        IntegerSign, IntegerType, IntegerValue, InvocationSite, OperationId, ValueId,
+    };
+    use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
+
+    let (mut program, _) = continuation_fixture(false);
+    let admitted = std::sync::Arc::get_mut(&mut program.program).unwrap();
+    let module = admitted.fixture_module_mut();
+    let value = ValueDeclaration {
+        id: ValueId::new(1).unwrap(),
+        scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+        qualifications: Default::default(),
+    };
+    let [entry, helper] = module.machines.as_mut_slice() else {
+        unreachable!()
+    };
+    helper.parameters.push(value);
+    helper.parameter_order.push(BoundaryParameterKind::Scalar);
+    let operations = &mut entry.blocks[0].operations;
+    let cut = operations[0].id;
+    let OperationKind::CallUnit { arguments, .. } = &mut operations[0].kind else {
+        unreachable!()
+    };
+    arguments.push(value.id);
+    operations.insert(
+        0,
+        Operation::unsuspended(
+            OperationId::new(2).unwrap(),
+            OperationResult::Scalar(value),
+            OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(17),
+            },
+        ),
+    );
+    let site = (entry.id, cut);
+    let selector = crate::TerminalCallObservation {
+        caller: entry.id,
+        site: InvocationSite::Operation(cut),
+        callee: helper.id,
+        argument: 0,
+    };
+    admitted.identity = terminal_codec::TerminalExecutionIdentity::portable(
+        terminal_codec::terminal_psi_identity(module).unwrap(),
+    );
+    let proof = terminal_semantics::continuation::CheckedPrefix::check(
+        program.module(),
+        site,
+        program.module(),
+        site,
+    )
+    .unwrap();
+    let sponsor = continuation_sponsor();
+    let account = sponsor
+        .begin_invocation(sponsor.measurement(), 100)
+        .unwrap();
+    let instantiate =
+        || projected_accounted_instance(&program, &[], Some(account.clone())).unwrap();
+    let mut uninterrupted = instantiate();
+    uninterrupted
+        .install_compiler_observations(None, &[selector])
+        .unwrap();
+    uninterrupted
+        .invoke(&mut terminal_work::WorkMeter::with_budget(100))
+        .unwrap();
+    let records = uninterrupted.take_call_observations();
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].call, selector);
+
+    let mut previous = instantiate();
+    let watch = previous.select_entry_call(site.0, cut).unwrap();
+    assert!(
+        previous
+            .invoke_until_entry_call(&watch, &mut terminal_work::WorkMeter::with_budget(100))
+            .unwrap()
+            .is_none()
+    );
+    let mut successor = instantiate();
+    successor
+        .install_compiler_observations(None, &[selector])
+        .unwrap();
+    assert!(
+        TerminalInstance::continue_checked_entry(previous, successor, &proof)
+            .is_err_and(|message| message.contains("separate handoff"))
     );
 }
 

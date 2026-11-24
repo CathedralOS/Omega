@@ -1,10 +1,13 @@
-use representations\source_files\SourceSpan;
-use representations\syntax_trees\DefinitionItem;
-use representations\syntax_trees\ParseDiagnosticCode;
-use representations\syntax_trees\RootItem;
-use representations\syntax_trees\RootItemKind;
-use representations\tokens\PunctuationKind;
-use representations\tokens\TokenStream;
+use pipeline/tokens_to_syntax_trees/expression.omg;
+use pipeline/tokens_to_syntax_trees/generics.omg;
+use pipeline/tokens_to_syntax_trees/input.omg;
+use pipeline/tokens_to_syntax_trees/machine.omg as machine_file;
+use pipeline/tokens_to_syntax_trees/types.omg;
+use pipeline/tokens_to_syntax_trees/parser.omg;
+
+use representations/source_files/source.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/tokens/tokens.omg;
 
 // `[public] [boundary] let Name [<generic parameters>] [(parameters)] : Type
 // [= term];`, a named mathematical definition (wiki/spec/proofs/
@@ -14,8 +17,8 @@ use representations\tokens\TokenStream;
 // and parameters share the machine grammars. The item and its root are
 // retained at the closing `;`.
 public machine parse_definition(
-    parser: @mutable Parser,
-    input: @TokenStream,
+    parser: @mutable |parser|::Parser,
+    input: @|tokens|::TokenStream,
     item_start: u64 in Trapping,
     is_public: bool,
     is_boundary: bool
@@ -27,114 +30,116 @@ crashes Trap
     parser.declaration_is_boundary = is_boundary;
     transition parser.output.definition_count < 256 {
         true -> keyword(parser, input),
-        _ -> reject(parser, input, ParseDiagnosticCode::DefinitionCapacityExceeded)
+        _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::DefinitionCapacityExceeded)
     }
 
-    machine keyword(parser: @mutable Parser, input: @TokenStream) {
-        take_current(parser, input);
+    machine keyword(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
         parser.declaration_first_generic = parser.output.generic_parameter_count as +Trapping;
-        expect_name(parser, input, ParseDiagnosticCode::ExpectedDefinitionName);
+        |input|::expect_name(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedDefinitionName);
         transition parser.output.accepted {
             true -> named(parser, input),
             _ -> done()
         }
     }
 
-    machine named(parser: @mutable Parser, input: @TokenStream) {
+    machine named(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         parser.declaration_name_start = parser.name_start;
         parser.declaration_name_end = parser.name_end;
-        let generic: bool = at_punctuation(parser, input, PunctuationKind::Less);
+        let generic: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Less);
         transition generic {
             true -> generics(parser, input),
             _ -> parameters(parser, input)
         }
     }
 
-    machine generics(parser: @mutable Parser, input: @TokenStream) {
-        parse_generic_parameters(parser, input);
+    machine generics(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |generics|::parse_generic_parameters(parser, input);
         transition parser.output.accepted {
             true -> parameters(parser, input),
             _ -> done()
         }
     }
 
-    machine parameters(parser: @mutable Parser, input: @TokenStream) {
-        parse_parameters(parser, input);
+    machine parameters(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |machine_file|::parse_parameters(parser, input);
         transition parser.output.accepted {
             true -> colon(parser, input),
             _ -> done()
         }
     }
 
-    machine colon(parser: @mutable Parser, input: @TokenStream) {
+    machine colon(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         parser.declaration_first_parameter = parser.signature_first_parameter;
         parser.declaration_parameter_count = parser.signature_parameter_count;
-        expect_punctuation(parser, input, PunctuationKind::Colon, ParseDiagnosticCode::ExpectedDefinitionColon);
+        |input|::expect_punctuation(parser, input, |tokens|::PunctuationKind::Colon, |syntax_trees|::ParseDiagnosticCode::ExpectedDefinitionColon);
         transition parser.output.accepted {
             true -> result_type(parser, input),
             _ -> done()
         }
     }
 
-    machine result_type(parser: @mutable Parser, input: @TokenStream) {
-        parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedDefinitionType);
+    machine result_type(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |types|::parse_type_reference(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedDefinitionType);
+        let type_result: u64 in Trapping = parser.type_result;
         transition parser.output.accepted {
-            true -> body(parser, input, parser.type_result),
+            true -> body(parser, input, type_result),
             _ -> done()
         }
     }
 
     // An assumption ends at its signature; a checked definition owes a term.
-    machine body(parser: @mutable Parser, input: @TokenStream, result: u64 in Trapping) {
+    machine body(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, result: u64 in Trapping) {
         transition parser.declaration_is_boundary {
-            true -> end(parser, input, result, false, 0),
+            true -> end(parser, input, result, false, 0 as +Trapping),
             _ -> equals(parser, input, result)
         }
     }
 
-    machine equals(parser: @mutable Parser, input: @TokenStream, result: u64 in Trapping) {
-        expect_punctuation(parser, input, PunctuationKind::Equal, ParseDiagnosticCode::ExpectedDefinitionTerm);
+    machine equals(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, result: u64 in Trapping) {
+        |input|::expect_punctuation(parser, input, |tokens|::PunctuationKind::Equal, |syntax_trees|::ParseDiagnosticCode::ExpectedDefinitionTerm);
         transition parser.output.accepted {
             true -> term(parser, input, result),
             _ -> done()
         }
     }
 
-    machine term(parser: @mutable Parser, input: @TokenStream, result: u64 in Trapping) {
-        parse_expression(parser, input, ParseDiagnosticCode::ExpectedDefinitionTerm, true, true);
+    machine term(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, result: u64 in Trapping) {
+        |expression|::parse_expression(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedDefinitionTerm, true, true);
+        let expression_result: u64 in Trapping = parser.expression_result;
         transition parser.output.accepted {
-            true -> end(parser, input, result, true, parser.expression_result),
+            true -> end(parser, input, result, true, expression_result),
             _ -> done()
         }
     }
 
-    machine end(parser: @mutable Parser, input: @TokenStream, result: u64 in Trapping, has_term: bool, term: u64 in Trapping) {
-        expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedDefinitionEnd);
+    machine end(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, result: u64 in Trapping, has_term: bool, term: u64 in Trapping) {
+        |input|::expect_punctuation(parser, input, |tokens|::PunctuationKind::Semicolon, |syntax_trees|::ParseDiagnosticCode::ExpectedDefinitionEnd);
         transition parser.output.accepted {
             true -> retain_capacity(parser, input, result, has_term, term),
             _ -> done()
         }
     }
 
-    machine retain_capacity(parser: @mutable Parser, input: @TokenStream, result: u64 in Trapping, has_term: bool, term: u64 in Trapping) {
+    machine retain_capacity(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, result: u64 in Trapping, has_term: bool, term: u64 in Trapping) {
         transition parser.output.definition_count < 256 {
             true -> root_capacity(parser, input, result, has_term, term),
-            _ -> reject(parser, input, ParseDiagnosticCode::DefinitionCapacityExceeded)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::DefinitionCapacityExceeded)
         }
     }
 
-    machine root_capacity(parser: @mutable Parser, input: @TokenStream, result: u64 in Trapping, has_term: bool, term: u64 in Trapping) {
+    machine root_capacity(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, result: u64 in Trapping, has_term: bool, term: u64 in Trapping) {
         transition parser.output.root_count < 4096 {
             true -> retain(parser, result, has_term, term),
-            _ -> reject(parser, input, ParseDiagnosticCode::RootCapacityExceeded)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::RootCapacityExceeded)
         }
     }
 
-    machine retain(parser: @mutable Parser, result: u64 in Trapping, has_term: bool, term: u64 in Trapping) {
+    machine retain(parser: @mutable |parser|::Parser, result: u64 in Trapping, has_term: bool, term: u64 in Trapping) {
         let definition: u64 in Trapping = parser.output.definition_count as +Trapping;
-        let span: SourceSpan = parser_source_span(parser, parser.declaration_start, parser.token_end);
-        parser.output.definitions[parser.output.definition_count] = DefinitionItem {
-            name: identifier_span(parser, parser.declaration_name_start, parser.declaration_name_end),
+        let span: |source|::SourceSpan = |parser|::parser_source_span(parser, parser.declaration_start, parser.token_end);
+        parser.output.definitions[parser.output.definition_count] = |syntax_trees|::DefinitionItem {
+            name: |parser|::identifier_span(parser, parser.declaration_name_start, parser.declaration_name_end),
             first_generic_parameter: parser.declaration_first_generic,
             generic_parameter_count: (parser.output.generic_parameter_count as +Trapping) - parser.declaration_first_generic,
             first_parameter: parser.declaration_first_parameter,
@@ -147,16 +152,16 @@ crashes Trap
             source_span: span
         };
         parser.output.definition_count = parser.output.definition_count + 1;
-        parser.output.roots[parser.output.root_count] = RootItem {
-            kind: RootItemKind::Definition,
+        parser.output.roots[parser.output.root_count] = |syntax_trees|::RootItem {
+            kind: |syntax_trees|::RootItemKind::Definition,
             item_index: definition,
             source_span: span
         };
         parser.output.root_count = parser.output.root_count + 1;
     }
 
-    machine reject(parser: @mutable Parser, input: @TokenStream, code: ParseDiagnosticCode) {
-        reject_current(parser, input, code);
+    machine reject(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, code: |syntax_trees|::ParseDiagnosticCode) {
+        |input|::reject_current(parser, input, code);
     }
 
     machine done() {}

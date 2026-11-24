@@ -1,0 +1,42 @@
+// Expected exit: 0
+use pipeline/source_files_to_tokens/lexer.omg;
+use pipeline/tokens_to_syntax_trees/parser.omg;
+use representations/syntax_trees/syntax_trees.omg as syntax;
+use representations/source_files/source.omg;
+
+machine append_input(scanner: @mutable |lexer|::Lexer, text: @[u8]) crashes Trap {
+    transition { _ -> scan(scanner, text, 0 as +Trapping) }
+    machine scan(scanner: @mutable |lexer|::Lexer, text: @[u8], index: u64 in Trapping) {
+        transition index < text.length {
+            true -> append(scanner, text, index),
+            _ -> done()
+        }
+    }
+    machine append(scanner: @mutable |lexer|::Lexer, text: @[u8], index: u64 in Trapping)
+    requires index < text.length
+    {
+        |lexer|::append_source_byte(scanner, text[index as -Trapping]);
+        transition { _ -> scan(scanner, text, index + 1) }
+    }
+    machine done() {}
+}
+
+machine start() crashes Trap {
+    let mutable scanner: |lexer|::Lexer;
+    |lexer|::lexer_initialize(@mutable scanner, 7 as +Trapping);
+    append_input(@mutable scanner, "machine plain() crashes none {} machine fallible() crashes Trap {}");
+    |lexer|::tokenize(@mutable scanner);
+    let mutable parser: |parser|::Parser;
+    |parser|::parser_initialize(@mutable parser);
+    |parser|::parse(@mutable parser, |source|::SourceId { value: 7 as +Trapping }, scanner.source.length as +Trapping, @scanner.output);
+    transition parser.output.accepted && parser.output.machine_count == 2 && parser.output.clause_count == 2
+        && parser.output.machines[0].first_clause == 0 && parser.output.machines[0].clause_count == 1
+        && parser.output.machines[1].first_clause == 1 && parser.output.machines[1].clause_count == 1
+        && parser.output.clauses[0].kind == |syntax|::ClauseKind::CrashesNone
+        && parser.output.clauses[1].kind == |syntax|::ClauseKind::Crashes
+        && parser.output.clauses[1].cause == |syntax|::CrashCause::Trap {
+        true -> done(), _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

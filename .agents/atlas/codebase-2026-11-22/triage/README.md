@@ -1,16 +1,21 @@
 # Atlas repair queue
 
-Start with a claim from an [area digest](../README.md), its original record, or a handoff note. Record the contract that can settle the claim. A working description, an unused API and a deliberate refusal each need different evidence from an incorrect compiler result. The survey counts describe the accuracy of spot checks at the survey revision.
+## Review status on November 23, 2026
 
-| Coverage | Findings and evidence |
-| --- | --- |
-| 01 CLI and foundations | [Identity types, filenames and earlier CLI fixes](01-cli-foundation.md) |
-| 02–05 source stages and representations | [Binder positions, proof inputs and front-half handoffs](front.md) |
-| 06 Build and 15 packages | [Integer inputs, package review and remaining questions](06-15-build-packages.md) |
-| 07–13 Psi semantics, native stages, representations and targets | [Native fragment replay and Psi/native handoffs](07-13-psi-and-native.md) |
-| 14 interpreter | [Interpreter candidates and evidence](14-interpreter.md) |
-| 16 tools | [Repository admission and changed-program selection](16-tools.md) |
-| 17 Omega-written compiler | [Spelling comparisons and proof-goal capacity](17-omega-source.md) |
+Three of the 17 areas have a disposition for every original observation in sections 5 and 6. Those are CLI and foundations, Build, and package management. Their ledgers have no outstanding demonstrated incorrect results. The CLI's specified `source rewrite` command remains a separate release feature. The other 14 areas are under review. This snapshot includes changes merged through [#5403](https://github.com/CathedralOS/Omega/pull/5403).
+
+| Area and evidence | Original observations | Review status at this revision |
+| --- | ---: | --- |
+| [01 · CLI and foundations](01-cli-foundation.md) | 62 | Each observation has a disposition. Fixes include compiler fingerprints changing on repeat builds, unequal identity tables comparing equal, and review edits losing CRLF endings. |
+| [02–05 · Source stages and representations](front.md) | 223 | Integer operands no longer establish Boolean cases in generic proofs. User records named `IntervalSet` or `CountedQuantity` now specialize normally. Array element names in diagnostics remain under review. [#5395](https://github.com/CathedralOS/Omega/pull/5395), [#5402](https://github.com/CathedralOS/Omega/pull/5402) |
+| [06 · Build and 15 · Package management](06-15-build-packages.md) | 170 | Both candidate indexes have individual dispositions. The Build signed-width repair and package review evidence are recorded in the joint ledger. |
+| [07–13 · Psi and native compilation](07-13-psi-and-native.md) | 513 | Recovered register choices now honor the active allocator policy. Native behavior checks follow the exact selected provider when packages reuse a machine name. Other findings remain under review. [#5396](https://github.com/CathedralOS/Omega/pull/5396), [#5400](https://github.com/CathedralOS/Omega/pull/5400) |
+| [14 · Psi interpreter](14-interpreter.md) | 59 | Repairs cover implementation-table indexes, UTF-8 byte stores and resumed execution. Open traces include forwarded host values and structural copies. |
+| [16 · Repository tools and benchmarks](16-tools.md) | 67 | The benchmark validator now checks recorded compiler input identities. Sample selection, fleet results and repository checks still have open findings. [#5397](https://github.com/CathedralOS/Omega/pull/5397) |
+| [17 · Omega-written compiler and bundled libraries](17-omega-source.md) | 68 | Discarding a linear operator result now produces a diagnostic. Whole-subject scalar bindings reuse the evaluated subject. Library findings include oversized input to the staged SHA-256 implementation. [#5390](https://github.com/CathedralOS/Omega/pull/5390), [#5399](https://github.com/CathedralOS/Omega/pull/5399) |
+| **All areas** | **1,162** | **232 observations in the three reviewed areas. The other 930 are in areas with partial coverage, including fixes already merged.** |
+
+The counts include each top-level bullet or numbered observation in sections 5 and 6 of the [original area digests](../digests/) once. One observation can raise several questions, and several can refer to the same defect. The records and cross-area handoff notes also contribute findings. The ledgers do not yet establish a total number of outstanding defects.
 
 ## Order of work
 

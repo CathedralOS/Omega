@@ -1,38 +1,9 @@
-use representations\source_files\DependencyRow;
-use representations\source_files\DependencyScope;
-use representations\source_files\PackageRow;
-use representations\source_files\SourceId;
-use representations\source_files\SourceSet;
-use representations\source_files\SourceSpan;
-use representations\source_files\dependency_row;
-use representations\source_files\package_row;
-use representations\source_files\path_byte_or_nul;
-use representations\source_files\path_length;
-use representations\source_files\source_set_byte_or_nul;
-use representations\source_files\span_names;
-use representations\source_files\span_spells;
-use representations\source_files\spans_equal;
-use representations\source_files\unit_package;
-use representations\symbol_resolved_trees\ResolveDiagnosticCode;
-use representations\symbol_resolved_trees\name_resolution_reject;
-use representations\syntax_trees\ConformanceItem;
-use representations\syntax_trees\ConstantItem;
-use representations\syntax_trees\DataItem;
-use representations\syntax_trees\IdentifierSpan;
-use representations\syntax_trees\MachineContainer;
-use representations\syntax_trees\MachineItem;
-use representations\syntax_trees\PropositionItem;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\TraitItem;
-use representations\syntax_trees\UseItem;
-use representations\syntax_trees\conformance_item;
-use representations\syntax_trees\constant_item;
-use representations\syntax_trees\machine_item;
-use representations\syntax_trees\proposition_item;
-use representations\syntax_trees\syntax_trees_data_item;
-use representations\syntax_trees\syntax_trees_member;
-use representations\syntax_trees\syntax_trees_use_item;
-use representations\syntax_trees\trait_item;
+use pipeline/syntax_trees_to_symbol_resolved_trees/resolution_state.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/declarations.omg;
+
+use representations/source_files/source.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
 
 // Which declarations a source unit can name (wiki/spec/language/modules.md,
 // wiki/spec/packages/boundaries.md). Every unit belongs to a package and to
@@ -71,97 +42,97 @@ public data ImportTarget [copy] {
 }
 
 // Every `use` names a supplied module; the first that names none rejects.
-public machine check_imports(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
+public machine check_imports(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> next(resolver, sources, syntax, 0) }
+    transition { _ -> next(resolver, sources, syntax, 0 as +Trapping) }
 
-    machine next(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine next(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.use_count {
             true -> import(resolver, sources, syntax, index),
             _ -> done()
         }
     }
 
-    machine import(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
-        let use_item: UseItem = syntax_trees_use_item(syntax, index);
+    machine import(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
+        let use_item: |syntax_trees|::UseItem = |syntax_trees|::syntax_trees_use_item(syntax, index);
         let target: ImportTarget = import_target(sources, syntax, use_item);
-        let named: bool = names_some_unit(sources, syntax, use_item, target, 0);
+        let named: bool = names_some_unit(sources, syntax, use_item, target, 0 as +Trapping);
         transition named {
             true -> next(resolver, sources, syntax, index + 1),
             _ -> unresolved(resolver, sources, syntax, use_item, target)
         }
     }
 
-    machine unresolved(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, use_item: UseItem, target: ImportTarget) {
+    machine unresolved(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, use_item: |syntax_trees|::UseItem, target: ImportTarget) {
         let undeclared: bool = undeclared_dependency(sources, syntax, use_item, target);
         transition undeclared {
-            true -> reject(resolver, ResolveDiagnosticCode::UndeclaredDependency, use_item),
-            _ -> reject(resolver, ResolveDiagnosticCode::UnresolvedImport, use_item)
+            true -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::UndeclaredDependency, use_item),
+            _ -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::UnresolvedImport, use_item)
         }
     }
 
-    machine reject(resolver: @mutable Resolver, code: ResolveDiagnosticCode, use_item: UseItem) {
-        name_resolution_reject(@mutable resolver.output, code, use_item.source_span);
+    machine reject(resolver: @mutable |resolution_state|::Resolver, code: |symbol_resolved_trees|::ResolveDiagnosticCode, use_item: |syntax_trees|::UseItem) {
+        |symbol_resolved_trees|::name_resolution_reject(@mutable resolver.output, code, use_item.source_span);
     }
 
     machine done() {}
 }
 
 // The package `use_item`'s path selects and the members selecting it.
-public machine import_target(sources: @SourceSet, syntax: @SyntaxTrees, use_item: UseItem) -> ImportTarget
+public machine import_target(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, use_item: |syntax_trees|::UseItem) -> ImportTarget
 crashes Trap
 {
-    let requester: u64 in Trapping = unit_package(sources, use_item.source_span.source.value as -Trapping as u64 +Trapping);
+    let requester: u64 in Trapping = |source|::unit_package(sources, use_item.source_span.source.value as -Trapping as u64 +Trapping);
     let mounted: bool = names_toolchain_mount(sources, syntax, use_item);
     transition mounted {
-        true -> toolchain(sources, 0),
+        true -> toolchain(sources, 0 as +Trapping),
         _ -> first(sources, syntax, use_item, requester)
     }
 
-    machine toolchain(sources: @SourceSet, package: u64 in Trapping) -> ImportTarget {
+    machine toolchain(sources: @|source|::SourceSet, package: u64 in Trapping) -> ImportTarget {
         transition package < sources.package_count {
             true -> toolchain_candidate(sources, package),
             _ -> missing()
         }
     }
 
-    machine toolchain_candidate(sources: @SourceSet, package: u64 in Trapping) -> ImportTarget {
-        let row: PackageRow = package_row(sources, package);
+    machine toolchain_candidate(sources: @|source|::SourceSet, package: u64 in Trapping) -> ImportTarget {
+        let row: |source|::PackageRow = |source|::package_row(sources, package);
         transition row.toolchain {
-            true -> selected(package, 3),
+            true -> selected(package, 3 as +Trapping),
             _ -> toolchain(sources, package + 1)
         }
     }
 
-    machine first(sources: @SourceSet, syntax: @SyntaxTrees, use_item: UseItem, requester: u64 in Trapping) -> ImportTarget {
-        let member: IdentifierSpan = syntax_trees_member(syntax, use_item.first_member);
-        let spelling: SourceSpan = member.source_span;
-        transition { _ -> alias(sources, requester, spelling, 0) }
+    machine first(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, use_item: |syntax_trees|::UseItem, requester: u64 in Trapping) -> ImportTarget {
+        let member: |syntax_trees|::IdentifierSpan = |syntax_trees|::syntax_trees_member(syntax, use_item.first_member);
+        let spelling: |source|::SourceSpan = member.source_span;
+        transition { _ -> alias(sources, requester, spelling, 0 as +Trapping) }
     }
 
-    machine alias(sources: @SourceSet, requester: u64 in Trapping, spelling: SourceSpan, index: u64 in Trapping) -> ImportTarget {
+    machine alias(sources: @|source|::SourceSet, requester: u64 in Trapping, spelling: |source|::SourceSpan, index: u64 in Trapping) -> ImportTarget {
         transition index < sources.dependency_count {
             true -> alias_candidate(sources, requester, spelling, index),
             _ -> own(sources, requester, spelling)
         }
     }
 
-    machine alias_candidate(sources: @SourceSet, requester: u64 in Trapping, spelling: SourceSpan, index: u64 in Trapping) -> ImportTarget {
-        let edge: DependencyRow = dependency_row(sources, index);
-        let named: bool = edge_names(sources, edge, requester, DependencyScope::Product, spelling);
+    machine alias_candidate(sources: @|source|::SourceSet, requester: u64 in Trapping, spelling: |source|::SourceSpan, index: u64 in Trapping) -> ImportTarget {
+        let edge: |source|::DependencyRow = |source|::dependency_row(sources, index);
+        let named: bool = edge_names(sources, edge, requester, |source|::DependencyScope::Product, spelling);
         transition named {
-            true -> selected(edge.target, 1),
+            true -> selected(edge.target, 1 as +Trapping),
             _ -> alias(sources, requester, spelling, index + 1)
         }
     }
 
-    machine own(sources: @SourceSet, requester: u64 in Trapping, spelling: SourceSpan) -> ImportTarget {
-        let row: PackageRow = package_row(sources, requester);
-        let named: bool = span_names(sources, spelling, row.name);
+    machine own(sources: @|source|::SourceSet, requester: u64 in Trapping, spelling: |source|::SourceSpan) -> ImportTarget {
+        let row: |source|::PackageRow = |source|::package_row(sources, requester);
+        let named: bool = |source|::span_names(sources, spelling, row.name);
         transition named {
-            true -> selected(requester, 1),
-            _ -> selected(requester, 0)
+            true -> selected(requester, 1 as +Trapping),
+            _ -> selected(requester, 0 as +Trapping)
         }
     }
 
@@ -170,32 +141,32 @@ crashes Trap
     }
 
     machine missing() -> ImportTarget {
-        ImportTarget { found: false, package: 0, selector_count: 0 }
+        ImportTarget { found: false, package: 0 as +Trapping, selector_count: 0 as +Trapping }
     }
 }
 
 // Whether `use_item` begins with the toolchain mount `omega\language\core`,
 // which claims every path below it.
-machine names_toolchain_mount(sources: @SourceSet, syntax: @SyntaxTrees, use_item: UseItem) -> bool
+machine names_toolchain_mount(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, use_item: |syntax_trees|::UseItem) -> bool
 crashes Trap
 {
     transition use_item.member_count >= 3 {
-        true -> member(sources, syntax, use_item, 0),
+        true -> member(sources, syntax, use_item, 0 as +Trapping),
         _ -> no()
     }
 
-    machine member(sources: @SourceSet, syntax: @SyntaxTrees, use_item: UseItem, offset: u64 in Trapping) -> bool {
-        let spelling: IdentifierSpan = syntax_trees_member(syntax, use_item.first_member + offset);
-        let omega: bool = span_spells(sources, spelling.source_span, "omega");
-        let language: bool = span_spells(sources, spelling.source_span, "language");
-        let core: bool = span_spells(sources, spelling.source_span, "core");
+    machine member(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, use_item: |syntax_trees|::UseItem, offset: u64 in Trapping) -> bool {
+        let spelling: |syntax_trees|::IdentifierSpan = |syntax_trees|::syntax_trees_member(syntax, use_item.first_member + offset);
+        let omega: bool = |source|::span_spells(sources, spelling.source_span, "omega");
+        let language: bool = |source|::span_spells(sources, spelling.source_span, "language");
+        let core: bool = |source|::span_spells(sources, spelling.source_span, "core");
         transition (offset == 0 && omega) || (offset == 1 && language) || (offset == 2 && core) {
             true -> spelled(sources, syntax, use_item, offset),
             _ -> no()
         }
     }
 
-    machine spelled(sources: @SourceSet, syntax: @SyntaxTrees, use_item: UseItem, offset: u64 in Trapping) -> bool {
+    machine spelled(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, use_item: |syntax_trees|::UseItem, offset: u64 in Trapping) -> bool {
         transition offset < 2 {
             true -> member(sources, syntax, use_item, offset + 1),
             _ -> yes()
@@ -214,11 +185,11 @@ crashes Trap
 // Whether `edge` is `requester`'s edge of `scope` whose alias `spelling`
 // spells.
 machine edge_names(
-    sources: @SourceSet,
-    edge: DependencyRow,
+    sources: @|source|::SourceSet,
+    edge: |source|::DependencyRow,
     requester: u64 in Trapping,
-    scope: DependencyScope,
-    spelling: SourceSpan
+    scope: |source|::DependencyScope,
+    spelling: |source|::SourceSpan
 ) -> bool
 crashes Trap
 {
@@ -227,8 +198,8 @@ crashes Trap
         _ -> no()
     }
 
-    machine spelled(sources: @SourceSet, edge: DependencyRow, spelling: SourceSpan) -> bool {
-        span_names(sources, spelling, edge.alias)
+    machine spelled(sources: @|source|::SourceSet, edge: |source|::DependencyRow, spelling: |source|::SourceSpan) -> bool {
+        |source|::span_names(sources, spelling, edge.alias)
     }
 
     machine no() -> bool {
@@ -240,43 +211,43 @@ crashes Trap
 // path would be a module path of the requester's own package, but its first
 // member spells another package's name or one of the requester's
 // build-scope aliases.
-machine undeclared_dependency(sources: @SourceSet, syntax: @SyntaxTrees, use_item: UseItem, target: ImportTarget) -> bool
+machine undeclared_dependency(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, use_item: |syntax_trees|::UseItem, target: ImportTarget) -> bool
 crashes Trap
 {
-    let requester: u64 in Trapping = unit_package(sources, use_item.source_span.source.value as -Trapping as u64 +Trapping);
-    let member: IdentifierSpan = syntax_trees_member(syntax, use_item.first_member);
-    let spelling: SourceSpan = member.source_span;
+    let requester: u64 in Trapping = |source|::unit_package(sources, use_item.source_span.source.value as -Trapping as u64 +Trapping);
+    let member: |syntax_trees|::IdentifierSpan = |syntax_trees|::syntax_trees_member(syntax, use_item.first_member);
+    let spelling: |source|::SourceSpan = member.source_span;
     transition target.found && target.selector_count == 0 {
-        true -> named_package(sources, requester, spelling, 0),
+        true -> named_package(sources, requester, spelling, 0 as +Trapping),
         _ -> no()
     }
 
-    machine named_package(sources: @SourceSet, requester: u64 in Trapping, spelling: SourceSpan, index: u64 in Trapping) -> bool {
+    machine named_package(sources: @|source|::SourceSet, requester: u64 in Trapping, spelling: |source|::SourceSpan, index: u64 in Trapping) -> bool {
         transition index < sources.package_count {
             true -> package_candidate(sources, requester, spelling, index),
-            _ -> build_alias(sources, requester, spelling, 0)
+            _ -> build_alias(sources, requester, spelling, 0 as +Trapping)
         }
     }
 
-    machine package_candidate(sources: @SourceSet, requester: u64 in Trapping, spelling: SourceSpan, index: u64 in Trapping) -> bool {
-        let row: PackageRow = package_row(sources, index);
-        let named: bool = span_names(sources, spelling, row.name);
+    machine package_candidate(sources: @|source|::SourceSet, requester: u64 in Trapping, spelling: |source|::SourceSpan, index: u64 in Trapping) -> bool {
+        let row: |source|::PackageRow = |source|::package_row(sources, index);
+        let named: bool = |source|::span_names(sources, spelling, row.name);
         transition named && index != requester {
             true -> yes(),
             _ -> named_package(sources, requester, spelling, index + 1)
         }
     }
 
-    machine build_alias(sources: @SourceSet, requester: u64 in Trapping, spelling: SourceSpan, index: u64 in Trapping) -> bool {
+    machine build_alias(sources: @|source|::SourceSet, requester: u64 in Trapping, spelling: |source|::SourceSpan, index: u64 in Trapping) -> bool {
         transition index < sources.dependency_count {
             true -> build_alias_candidate(sources, requester, spelling, index),
             _ -> no()
         }
     }
 
-    machine build_alias_candidate(sources: @SourceSet, requester: u64 in Trapping, spelling: SourceSpan, index: u64 in Trapping) -> bool {
-        let edge: DependencyRow = dependency_row(sources, index);
-        let named: bool = edge_names(sources, edge, requester, DependencyScope::Build, spelling);
+    machine build_alias_candidate(sources: @|source|::SourceSet, requester: u64 in Trapping, spelling: |source|::SourceSpan, index: u64 in Trapping) -> bool {
+        let edge: |source|::DependencyRow = |source|::dependency_row(sources, index);
+        let named: bool = edge_names(sources, edge, requester, |source|::DependencyScope::Build, spelling);
         transition named {
             true -> yes(),
             _ -> build_alias(sources, requester, spelling, index + 1)
@@ -295,9 +266,9 @@ crashes Trap
 // Whether some unit at or after `unit` belongs to the module `use_item`
 // names in the package `target` selects.
 machine names_some_unit(
-    sources: @SourceSet,
-    syntax: @SyntaxTrees,
-    use_item: UseItem,
+    sources: @|source|::SourceSet,
+    syntax: @|syntax_trees|::SyntaxTrees,
+    use_item: |syntax_trees|::UseItem,
     target: ImportTarget,
     unit: u64 in Trapping
 ) -> bool
@@ -308,7 +279,7 @@ crashes Trap
         _ -> none()
     }
 
-    machine candidate(sources: @SourceSet, syntax: @SyntaxTrees, use_item: UseItem, target: ImportTarget, unit: u64 in Trapping) -> bool {
+    machine candidate(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, use_item: |syntax_trees|::UseItem, target: ImportTarget, unit: u64 in Trapping) -> bool {
         let named: bool = use_names_unit(sources, syntax, use_item, target, unit);
         transition named {
             true -> some(),
@@ -316,7 +287,7 @@ crashes Trap
         }
     }
 
-    machine next(sources: @SourceSet, syntax: @SyntaxTrees, use_item: UseItem, target: ImportTarget, unit: u64 in Trapping) -> bool {
+    machine next(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, use_item: |syntax_trees|::UseItem, target: ImportTarget, unit: u64 in Trapping) -> bool {
         transition unit < sources.unit_count {
             true -> candidate(sources, syntax, use_item, target, unit),
             _ -> none()
@@ -335,11 +306,11 @@ crashes Trap
 // Whether a declaration of unit `declared`, `public` when `is_public`, is one a
 // reference in `from` may name: one of the same unit or module, or one a
 // `use` of `from` imports, which across packages must be `public`.
-public machine resolver_visible(sources: @SourceSet, syntax: @SyntaxTrees, from: SourceId, declared: SourceId, is_public: bool) -> bool
+public machine resolver_visible(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, from: |source|::SourceId, declared: |source|::SourceId, is_public: bool) -> bool
 crashes Trap
 {
-    let from_unit: u64 in Trapping = from.value as u64 +Trapping;
-    let declared_unit: u64 in Trapping = declared.value as u64 +Trapping;
+    let from_unit: u64 in Trapping = from.value as -Trapping as u64 +Trapping;
+    let declared_unit: u64 in Trapping = declared.value as -Trapping as u64 +Trapping;
     let same_module: bool = resolver_same_module(sources, from_unit, declared_unit);
     let same_package: bool = resolver_same_package(sources, from_unit, declared_unit);
     transition from_unit == declared_unit || same_module {
@@ -347,22 +318,22 @@ crashes Trap
         _ -> exposed(sources, syntax, from, declared_unit, is_public || same_package)
     }
 
-    machine exposed(sources: @SourceSet, syntax: @SyntaxTrees, from: SourceId, declared_unit: u64 in Trapping, open: bool) -> bool {
+    machine exposed(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, from: |source|::SourceId, declared_unit: u64 in Trapping, open: bool) -> bool {
         transition open {
-            true -> imported(sources, syntax, from, declared_unit, 0),
+            true -> imported(sources, syntax, from, declared_unit, 0 as +Trapping),
             _ -> unseen()
         }
     }
 
-    machine imported(sources: @SourceSet, syntax: @SyntaxTrees, from: SourceId, declared_unit: u64 in Trapping, index: u64 in Trapping) -> bool {
+    machine imported(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, from: |source|::SourceId, declared_unit: u64 in Trapping, index: u64 in Trapping) -> bool {
         transition index < syntax.use_count {
             true -> use_row(sources, syntax, from, declared_unit, index),
             _ -> unseen()
         }
     }
 
-    machine use_row(sources: @SourceSet, syntax: @SyntaxTrees, from: SourceId, declared_unit: u64 in Trapping, index: u64 in Trapping) -> bool {
-        let use_item: UseItem = syntax_trees_use_item(syntax, index);
+    machine use_row(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, from: |source|::SourceId, declared_unit: u64 in Trapping, index: u64 in Trapping) -> bool {
+        let use_item: |syntax_trees|::UseItem = |syntax_trees|::syntax_trees_use_item(syntax, index);
         transition use_item.source_span.source.value == from.value {
             true -> own_use(sources, syntax, from, declared_unit, index, use_item),
             _ -> imported(sources, syntax, from, declared_unit, index + 1)
@@ -370,12 +341,12 @@ crashes Trap
     }
 
     machine own_use(
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        from: SourceId,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        from: |source|::SourceId,
         declared_unit: u64 in Trapping,
         index: u64 in Trapping,
-        use_item: UseItem
+        use_item: |syntax_trees|::UseItem
     ) -> bool {
         let target: ImportTarget = import_target(sources, syntax, use_item);
         let named: bool = use_names_unit(sources, syntax, use_item, target, declared_unit);
@@ -395,34 +366,33 @@ crashes Trap
 }
 
 // Whether two units belong to one package.
-public machine resolver_same_package(sources: @SourceSet, left: u64 in Trapping, right: u64 in Trapping) -> bool {
-    let left_package: u64 in Trapping = unit_package(sources, left);
-    let right_package: u64 in Trapping = unit_package(sources, right);
-    left_package == right_package
+public machine resolver_same_package(sources: @|source|::SourceSet, left: u64 in Trapping, right: u64 in Trapping) -> bool
+{
+    |source|::same_package(sources, left, right)
 }
 
 // Whether two units belong to one module: one package and one module path.
-public machine resolver_same_module(sources: @SourceSet, left: u64 in Trapping, right: u64 in Trapping) -> bool
+public machine resolver_same_module(sources: @|source|::SourceSet, left: u64 in Trapping, right: u64 in Trapping) -> bool
 crashes Trap
 {
-    let left_length: u64 in Trapping = path_length(sources, left);
-    let right_length: u64 in Trapping = path_length(sources, right);
+    let left_length: u64 in Trapping = |source|::path_length(sources, left);
+    let right_length: u64 in Trapping = |source|::path_length(sources, right);
     let same_package: bool = resolver_same_package(sources, left, right);
     transition same_package && left_length == right_length {
-        true -> compare(sources, left, right, left_length, 0),
+        true -> compare(sources, left, right, left_length, 0 as +Trapping),
         _ -> different()
     }
 
-    machine compare(sources: @SourceSet, left: u64 in Trapping, right: u64 in Trapping, length: u64 in Trapping, index: u64 in Trapping) -> bool {
-        let left_byte: u8 = path_byte_or_nul(sources, left, index);
-        let right_byte: u8 = path_byte_or_nul(sources, right, index);
+    machine compare(sources: @|source|::SourceSet, left: u64 in Trapping, right: u64 in Trapping, length: u64 in Trapping, index: u64 in Trapping) -> bool {
+        let left_byte: u8 = |source|::path_byte_or_nul(sources, left, index);
+        let right_byte: u8 = |source|::path_byte_or_nul(sources, right, index);
         transition index < length {
             true -> byte(sources, left, right, length, index, left_byte == right_byte),
             _ -> same()
         }
     }
 
-    machine byte(sources: @SourceSet, left: u64 in Trapping, right: u64 in Trapping, length: u64 in Trapping, index: u64 in Trapping, equal: bool) -> bool {
+    machine byte(sources: @|source|::SourceSet, left: u64 in Trapping, right: u64 in Trapping, length: u64 in Trapping, index: u64 in Trapping, equal: bool) -> bool {
         transition equal {
             true -> compare(sources, left, right, length, index + 1),
             _ -> different()
@@ -442,52 +412,52 @@ crashes Trap
 // unit belongs to the selected package, and the members after the selecting
 // ones, in order and joined by `::`, spell its module path.
 public machine use_names_unit(
-    sources: @SourceSet,
-    syntax: @SyntaxTrees,
-    use_item: UseItem,
+    sources: @|source|::SourceSet,
+    syntax: @|syntax_trees|::SyntaxTrees,
+    use_item: |syntax_trees|::UseItem,
     target: ImportTarget,
     unit: u64 in Trapping
 ) -> bool
 crashes Trap
 {
-    let length: u64 in Trapping = path_length(sources, unit);
-    let package: u64 in Trapping = unit_package(sources, unit);
+    let length: u64 in Trapping = |source|::path_length(sources, unit);
+    let package: u64 in Trapping = |source|::unit_package(sources, unit);
     transition target.found && package == target.package && target.selector_count < use_item.member_count {
-        true -> member(sources, syntax, use_item, unit, length, target.selector_count, 0),
+        true -> member(sources, syntax, use_item, unit, length, target.selector_count, 0 as +Trapping),
         _ -> different()
     }
 
     // `position` is where member `member` must begin in the module path.
     machine member(
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        use_item: UseItem,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        use_item: |syntax_trees|::UseItem,
         unit: u64 in Trapping,
         length: u64 in Trapping,
         member: u64 in Trapping,
         position: u64 in Trapping
     ) -> bool {
-        let spelling: IdentifierSpan = syntax_trees_member(syntax, use_item.first_member + member);
+        let spelling: |syntax_trees|::IdentifierSpan = |syntax_trees|::syntax_trees_member(syntax, use_item.first_member + member);
         let width: u64 in Trapping = spelling.source_span.span.end - spelling.source_span.span.start;
         transition position + width <= length {
-            true -> spell(sources, syntax, use_item, unit, length, member, position, spelling.source_span, 0),
+            true -> spell(sources, syntax, use_item, unit, length, member, position, spelling.source_span, 0 as +Trapping),
             _ -> different()
         }
     }
 
     machine spell(
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        use_item: UseItem,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        use_item: |syntax_trees|::UseItem,
         unit: u64 in Trapping,
         length: u64 in Trapping,
         member: u64 in Trapping,
         position: u64 in Trapping,
-        spelling: SourceSpan,
+        spelling: |source|::SourceSpan,
         offset: u64 in Trapping
     ) -> bool {
-        let source_byte: u8 = source_set_byte_or_nul(sources, spelling.source, spelling.span.start + offset);
-        let path_byte: u8 = path_byte_or_nul(sources, unit, position + offset);
+        let source_byte: u8 = |source|::source_set_byte_or_nul(sources, spelling.source, spelling.span.start + offset);
+        let path_byte: u8 = |source|::path_byte_or_nul(sources, unit, position + offset);
         transition offset < spelling.span.end - spelling.span.start {
             true -> spelled_byte(sources, syntax, use_item, unit, length, member, position, spelling, offset, source_byte == path_byte),
             _ -> member_end(sources, syntax, use_item, unit, length, member, position + offset)
@@ -495,14 +465,14 @@ crashes Trap
     }
 
     machine spelled_byte(
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        use_item: UseItem,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        use_item: |syntax_trees|::UseItem,
         unit: u64 in Trapping,
         length: u64 in Trapping,
         member: u64 in Trapping,
         position: u64 in Trapping,
-        spelling: SourceSpan,
+        spelling: |source|::SourceSpan,
         offset: u64 in Trapping,
         equal: bool
     ) -> bool {
@@ -514,9 +484,9 @@ crashes Trap
 
     // After the last member the path must end; otherwise `::` follows.
     machine member_end(
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        use_item: UseItem,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        use_item: |syntax_trees|::UseItem,
         unit: u64 in Trapping,
         length: u64 in Trapping,
         member: u64 in Trapping,
@@ -529,18 +499,18 @@ crashes Trap
     }
 
     machine separator(
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        use_item: UseItem,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        use_item: |syntax_trees|::UseItem,
         unit: u64 in Trapping,
         length: u64 in Trapping,
-        member: u64 in Trapping,
+        current_member: u64 in Trapping,
         position: u64 in Trapping
     ) -> bool {
-        let first: u8 = path_byte_or_nul(sources, unit, position);
-        let second: u8 = path_byte_or_nul(sources, unit, position + 1);
+        let first: u8 = |source|::path_byte_or_nul(sources, unit, position);
+        let second: u8 = |source|::path_byte_or_nul(sources, unit, position + 1);
         transition first == 58 && second == 58 {
-            true -> member(sources, syntax, use_item, unit, length, member + 1, position + 2),
+            true -> member(sources, syntax, use_item, unit, length, current_member + 1, position + 2),
             _ -> different()
         }
     }
@@ -554,122 +524,33 @@ crashes Trap
     }
 }
 
-// What a name denotes among the declarations its unit can see.
-public data Lookup [copy] {
-    case Absent;
-    case Found(handle: u64 in Trapping);
-    case Ambiguous;
-}
-
-// The declaration tables a name or `Owner::name` path selects by spelling.
-// Data, traits and conformances are type names, constants values and
-// propositions logical declarations. Domains select by carrier as well
-// (domains.omg) and machines by overload family (`machine_named`).
-public data DeclarationKind [copy] {
-    case Data;
-    case Trait;
-    case Conformance;
-    case Constant;
-    case Proposition;
-}
-
-// The path a declaration's name spells: its owner when it has one, then its
-// name. Only a constant takes an owner (`const Owner::NAME`). `is_public`
-// is the declaration's `public`.
-public data DeclarationPath [copy] {
-    has_owner: bool;
-    owner: IdentifierSpan;
-    name: IdentifierSpan;
-    is_public: bool;
-}
-
-public machine declaration_count(syntax: @SyntaxTrees, kind: DeclarationKind) -> u64 in Trapping {
-    transition kind {
-        DeclarationKind::Data -> count(syntax.data_count as +Trapping),
-        DeclarationKind::Trait -> count(syntax.trait_count as +Trapping),
-        DeclarationKind::Conformance -> count(syntax.conformance_count as +Trapping),
-        DeclarationKind::Constant -> count(syntax.constant_count as +Trapping),
-        DeclarationKind::Proposition -> count(syntax.proposition_count as +Trapping)
-    }
-
-    machine count(value: u64 in Trapping) -> u64 in Trapping {
-        value
-    }
-}
-
-public machine declaration_path(syntax: @SyntaxTrees, kind: DeclarationKind, index: u64 in Trapping) -> DeclarationPath
-crashes Trap
-{
-    transition kind {
-        DeclarationKind::Data -> data(syntax, index),
-        DeclarationKind::Trait -> trait_name(syntax, index),
-        DeclarationKind::Conformance -> conformance(syntax, index),
-        DeclarationKind::Constant -> constant(syntax, index),
-        DeclarationKind::Proposition -> proposition(syntax, index)
-    }
-
-    machine data(syntax: @SyntaxTrees, index: u64 in Trapping) -> DeclarationPath {
-        let item: DataItem = syntax_trees_data_item(syntax, index);
-        DeclarationPath { has_owner: false, owner: item.name, name: item.name, is_public: item.is_public }
-    }
-
-    machine trait_name(syntax: @SyntaxTrees, index: u64 in Trapping) -> DeclarationPath {
-        let item: TraitItem = trait_item(syntax, index);
-        DeclarationPath { has_owner: false, owner: item.name, name: item.name, is_public: item.is_public }
-    }
-
-    machine conformance(syntax: @SyntaxTrees, index: u64 in Trapping) -> DeclarationPath {
-        let item: ConformanceItem = conformance_item(syntax, index);
-        DeclarationPath { has_owner: false, owner: item.name, name: item.name, is_public: item.is_public }
-    }
-
-    machine constant(syntax: @SyntaxTrees, index: u64 in Trapping) -> DeclarationPath {
-        let item: ConstantItem = constant_item(syntax, index);
-        DeclarationPath { has_owner: item.has_owner, owner: item.owner, name: item.name, is_public: item.is_public }
-    }
-
-    machine proposition(syntax: @SyntaxTrees, index: u64 in Trapping) -> DeclarationPath {
-        let item: PropositionItem = proposition_item(syntax, index);
-        DeclarationPath { has_owner: false, owner: item.name, name: item.name, is_public: item.is_public }
-    }
-}
-
-// Whether a declaration's path is `name` (owned by `owner` when `owned`).
-public machine path_spells(sources: @SourceSet, path: DeclarationPath, owned: bool, owner: SourceSpan, name: SourceSpan) -> bool
-crashes Trap
-{
-    let named: bool = spans_equal(sources, path.name.source_span, name);
-    let owner_named: bool = spans_equal(sources, path.owner.source_span, owner);
-    named && path.has_owner == owned && (!owned || owner_named)
-}
-
 // The declaration of `kind` that `name` (owned by `owner` when `owned`)
 // denotes from its own unit. A second visible declaration of the path
 // belongs to another module (a module's duplicates reject earlier), so it
 // makes the name ambiguous.
 public machine declared_named(
-    sources: @SourceSet,
-    syntax: @SyntaxTrees,
-    kind: DeclarationKind,
+    sources: @|source|::SourceSet,
+    syntax: @|syntax_trees|::SyntaxTrees,
+    kind: |declarations|::DeclarationKind,
     owned: bool,
-    owner: SourceSpan,
-    name: SourceSpan
-) -> Lookup
+    owner: |source|::SourceSpan,
+    name: |source|::SourceSpan
+) -> |declarations|::Lookup
 crashes Trap
 {
-    let count: u64 in Trapping = declaration_count(syntax, kind);
-    transition { _ -> next(sources, syntax, kind, owned, owner, name, count, 0) }
+    let count: u64 in Trapping = |declarations|::declaration_count(syntax, kind);
+    transition { _ -> next(sources, syntax, kind, owned, owner, name, count, 0 as +Trapping) }
 
     machine next(
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        kind: DeclarationKind,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        kind: |declarations|::DeclarationKind,
         owned: bool,
-        owner: SourceSpan,
-        name: SourceSpan,
+        owner: |source|::SourceSpan,
+        name: |source|::SourceSpan,
         count: u64 in Trapping,
         index: u64 in Trapping
-    ) -> Lookup {
+    ) -> |declarations|::Lookup {
         transition index < count {
             true -> candidate(sources, syntax, kind, owned, owner, name, count, index),
             _ -> absent()
@@ -677,17 +558,17 @@ crashes Trap
     }
 
     machine candidate(
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        kind: DeclarationKind,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        kind: |declarations|::DeclarationKind,
         owned: bool,
-        owner: SourceSpan,
-        name: SourceSpan,
+        owner: |source|::SourceSpan,
+        name: |source|::SourceSpan,
         count: u64 in Trapping,
         index: u64 in Trapping
-    ) -> Lookup {
-        let path: DeclarationPath = declaration_path(syntax, kind, index);
-        let named: bool = path_spells(sources, path, owned, owner, name);
+    ) -> |declarations|::Lookup {
+        let path: |declarations|::DeclarationPath = |declarations|::declaration_path(syntax, kind, index);
+        let named: bool = |declarations|::path_spells(sources, path, owned, owner, name);
         let visible: bool = visible_if(sources, syntax, named, name.source, path.name.source_span.source, path.is_public);
         transition visible {
             true -> rival(sources, syntax, kind, owned, owner, name, count, index, index + 1),
@@ -696,16 +577,16 @@ crashes Trap
     }
 
     machine rival(
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        kind: DeclarationKind,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        kind: |declarations|::DeclarationKind,
         owned: bool,
-        owner: SourceSpan,
-        name: SourceSpan,
+        owner: |source|::SourceSpan,
+        name: |source|::SourceSpan,
         count: u64 in Trapping,
         found: u64 in Trapping,
         index: u64 in Trapping
-    ) -> Lookup {
+    ) -> |declarations|::Lookup {
         transition index < count {
             true -> rival_candidate(sources, syntax, kind, owned, owner, name, count, found, index),
             _ -> unique(found)
@@ -713,18 +594,18 @@ crashes Trap
     }
 
     machine rival_candidate(
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        kind: DeclarationKind,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        kind: |declarations|::DeclarationKind,
         owned: bool,
-        owner: SourceSpan,
-        name: SourceSpan,
+        owner: |source|::SourceSpan,
+        name: |source|::SourceSpan,
         count: u64 in Trapping,
         found: u64 in Trapping,
         index: u64 in Trapping
-    ) -> Lookup {
-        let path: DeclarationPath = declaration_path(syntax, kind, index);
-        let named: bool = path_spells(sources, path, owned, owner, name);
+    ) -> |declarations|::Lookup {
+        let path: |declarations|::DeclarationPath = |declarations|::declaration_path(syntax, kind, index);
+        let named: bool = |declarations|::path_spells(sources, path, owned, owner, name);
         let visible: bool = visible_if(sources, syntax, named, name.source, path.name.source_span.source, path.is_public);
         transition visible {
             true -> ambiguous(),
@@ -732,46 +613,46 @@ crashes Trap
         }
     }
 
-    machine unique(found: u64 in Trapping) -> Lookup {
-        Lookup::Found { handle: found }
+    machine unique(found: u64 in Trapping) -> |declarations|::Lookup {
+        |declarations|::Lookup::Found { handle: found }
     }
 
-    machine absent() -> Lookup {
-        Lookup::Absent
+    machine absent() -> |declarations|::Lookup {
+        |declarations|::Lookup::Absent
     }
 
-    machine ambiguous() -> Lookup {
-        Lookup::Ambiguous
+    machine ambiguous() -> |declarations|::Lookup {
+        |declarations|::Lookup::Ambiguous
     }
 }
 
 // The data declaration `name` denotes from its own unit.
-public machine data_named(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan) -> Lookup
+public machine data_named(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, name: |source|::SourceSpan) -> |declarations|::Lookup
 crashes Trap
 {
-    declared_named(sources, syntax, DeclarationKind::Data, false, name, name)
+    declared_named(sources, syntax, |declarations|::DeclarationKind::Data, false, name, name)
 }
 
 // The declared measure `Owner::name` (wiki/spec/language/termination.md),
 // as its machine handle plus one; zero for none. A measure is a view, not a
 // callee, so `machine_spells` never matches one.
-public machine measure_named(sources: @SourceSet, syntax: @SyntaxTrees, owner: SourceSpan, name: SourceSpan) -> u64 in Trapping
+public machine measure_named(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, owner: |source|::SourceSpan, name: |source|::SourceSpan) -> u64 in Trapping
 crashes Trap
 {
-    transition { _ -> next(sources, syntax, owner, name, 0) }
+    transition { _ -> next(sources, syntax, owner, name, 0 as +Trapping) }
 
-    machine next(sources: @SourceSet, syntax: @SyntaxTrees, owner: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> u64 in Trapping {
+    machine next(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, owner: |source|::SourceSpan, name: |source|::SourceSpan, index: u64 in Trapping) -> u64 in Trapping {
         transition index < syntax.machine_count {
             true -> candidate(sources, syntax, owner, name, index),
             _ -> absent()
         }
     }
 
-    machine candidate(sources: @SourceSet, syntax: @SyntaxTrees, owner: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> u64 in Trapping {
-        let item: MachineItem = machine_item(syntax, index);
-        let named: bool = item.container == MachineContainer::Measure && item.has_owner
-            && spans_equal(sources, item.name.source_span, name)
-            && spans_equal(sources, item.owner.source_span, owner);
+    machine candidate(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, owner: |source|::SourceSpan, name: |source|::SourceSpan, index: u64 in Trapping) -> u64 in Trapping {
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, index);
+        let named: bool = item.container == |syntax_trees|::MachineContainer::Measure && item.has_owner
+            && |source|::spans_equal(sources, item.name.source_span, name)
+            && |source|::spans_equal(sources, item.owner.source_span, owner);
         transition named {
             true -> found(index),
             _ -> next(sources, syntax, owner, name, index + 1)
@@ -783,17 +664,17 @@ crashes Trap
     }
 
     machine absent() -> u64 in Trapping {
-        0
+        0 as +Trapping
     }
 }
 
 // Visibility, tested only for a declaration whose spelling matched.
 public machine visible_if(
-    sources: @SourceSet,
-    syntax: @SyntaxTrees,
+    sources: @|source|::SourceSet,
+    syntax: @|syntax_trees|::SyntaxTrees,
     named: bool,
-    from: SourceId,
-    declared: SourceId,
+    from: |source|::SourceId,
+    declared: |source|::SourceId,
     is_public: bool
 ) -> bool
 crashes Trap
@@ -803,7 +684,7 @@ crashes Trap
         _ -> hidden()
     }
 
-    machine test(sources: @SourceSet, syntax: @SyntaxTrees, from: SourceId, declared: SourceId, is_public: bool) -> bool {
+    machine test(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, from: |source|::SourceId, declared: |source|::SourceId, is_public: bool) -> bool {
         resolver_visible(sources, syntax, from, declared, is_public)
     }
 

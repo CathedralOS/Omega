@@ -37,7 +37,7 @@ by dependency: a later slice uses what an earlier one built.
 | 4 | Erased terms that compute (`keep(n, a + 1)`), with their formation conditions as obligations | A term in `erased_arguments`; one obligation per partial operation in it | [total arithmetic](../../spec/proofs/contracts.md#total-arithmetic): "Exact operations discharge representability before formation." |
 | 5 | Erased record formals, erased data fields, and literals that supply them | `erased_proof_formals`, `ProofTerm::Construction`; an erased field outside the structural type graph | proof contracts: "Erased fields need not enter the executable structural-type graph; layout skips them before ABI classification. Semantic fingerprints retain them." |
 | 6 | Named mathematical definitions and propositions in clauses (`let greater_than(limit, value): core::Strict<0> = value > limit;`), unfolded | The clause's proposition after unfolding; no operation | [mathematical bindings](../../spec/proofs/mathematical_bindings.md#named-mathematical-definitions): "It introduces a transparent checked term definition. Naming a proposition does not prove it". |
-| 7 | Structural `==` between records and sums in clauses and bodies, `core::Identity<T>` | Conjunction of leaf equalities over values; `StructuralCaseMembership` values for tags | proof contracts: "a true record comparison yields each selected field comparison; sum comparisons retain tag agreement and the active payload case." |
+| 7 | Structural `==` between records and sums in clauses and bodies | Conjunction of selected field comparisons over values and `StructuralCaseMembership` for tags | proof contracts: "a true record comparison yields each selected field comparison; sum comparisons retain tag agreement and the active payload case." |
 | 8 | A payload named where the other cases are refuted, and a dead arm discharged by proof | The places lane's payload judgment, with refutation as a kernel-checked goal | [structural access](../../spec/terminal-psi/structural_access.md#store-vocabulary): "Otherwise the case holds when every other declared case of that sum is refuted." |
 | 9 | Boundary machines and `boundary let` as assumptions, with their closure reported | Knowledge justified by the callee's contract, marked as resting on an assumption | [axioms and receiving policy](../../spec/proofs/contracts.md#axioms-and-receiving-policy): "A bodyless boundary machine's `ensures` is an axiom claim until admitted, not a checked theorem." |
 | 10 | Calls as denotational terms in clauses (`ensures minus(a, c) == minus(b, c)`), and call congruence | A term form for an application; congruence as a kernel rule or its absence reported | proof contracts: "Repeated admitted pure comparisons with the same selected operation and exact unchanged arguments have the same Boolean denotation." |
@@ -75,9 +75,12 @@ construct. Nothing is skipped.
   `verify_obligation`. Unfolding a definition, substituting an erased term
   and expanding a structural equality all happen before the prover starts,
   so it sees values and propositions.
-- **Values only in knowledge.** The places lane's choice holds here: a
-  structural identity is stated as equalities between the values its leaves
-  hold, never as a `Proposition` that names a place.
+- **Knowledge describes values.** A structural comparison exposes the
+  selected comparisons of its fields. An explicit `core\Identity::<T>`
+  states kernel `Id` over its two operand values. When a citation passes a
+  value through storage, its evidence concerns the value supplied at that
+  invocation. Deriving identity from an executable comparison requires
+  checked evidence. [Data identity in facts](../../spec/proofs/contracts.md#data-identity-in-facts)
 - **Identity is fixed upstream.** A definition, proposition, theorem or
   quotient operation is named by its symbol. Where the typed trees hold one
   only as a spelling, the slice repairs the stage that lost it or refuses.

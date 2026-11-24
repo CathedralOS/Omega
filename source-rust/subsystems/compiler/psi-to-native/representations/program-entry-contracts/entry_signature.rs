@@ -315,12 +315,19 @@ impl SelectedProgramEntrySignature {
             || self.machine_name.is_empty()
             || self.state_name.is_empty()
             || self.normalized_callable_identity.is_absent()
+            // The identity hashes each identity by its table text, so an index
+            // outside this table would hash as the empty string.
+            || self.identities.text(self.normalized_callable_identity).is_none()
             || self.result != ProgramEntryResultSignature::Unit
         {
             return Err("selected source signature is not one exact typed Unit entry".into());
         }
         if self.visible_parameters.iter().any(|parameter| {
             parameter.normalized_type_identity.is_absent()
+                || self
+                    .identities
+                    .text(parameter.normalized_type_identity)
+                    .is_none()
                 || parameter.value_shape.byte_size == 0
                 || parameter.value_shape.alignment == 0
                 || !parameter.value_shape.alignment.is_power_of_two()
@@ -449,6 +456,23 @@ mod tests {
                 "entry".into(),
                 "entry".into(),
                 terminal_psi::TerminalIdentityIndex::ABSENT,
+                Vec::new(),
+                first.identities().clone(),
+            )
+            .is_err()
+        );
+        // An index that the supplied table does not contain must refuse
+        // rather than hash as the empty string.
+        let outside =
+            terminal_psi::TerminalIdentityIndex(first.normalized_callable_identity().0 + 1);
+        assert!(first.identities().text(outside).is_none());
+        assert!(
+            SelectedProgramEntrySignature::from_checked_declaration(
+                first.target_slot(),
+                "package::entry".into(),
+                "entry".into(),
+                "entry".into(),
+                outside,
                 Vec::new(),
                 first.identities().clone(),
             )

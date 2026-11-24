@@ -1096,6 +1096,7 @@ fn expression_homes<'b>(
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
         | ExpressionKind::Float(_)
+        | ExpressionKind::ErasedApplication(_)
         | ExpressionKind::ScalarApplication { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::MachineValue { .. }
@@ -1450,10 +1451,10 @@ pub(super) enum Bound {
     Erased(Witness),
 }
 
-/// The term an erased binding names: a value of this machine or a literal,
-/// the forms `ScalarTerm` states with no formation condition.
+/// The term an erased binding names, with its operands already formed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Witness {
+    Application(usize),
     Value(ValueId, ScalarType),
     Integer(
         semantic_vocabulary::IntegerType,
@@ -1463,9 +1464,13 @@ pub(super) enum Witness {
 }
 
 impl Witness {
-    pub(super) fn term(self) -> semantic_vocabulary::ScalarTerm {
+    pub(super) fn term(
+        self,
+        applications: &[semantic_vocabulary::ScalarTerm],
+    ) -> semantic_vocabulary::ScalarTerm {
         use semantic_vocabulary::ScalarTerm;
         match self {
+            Self::Application(index) => applications[index].clone(),
             Self::Value(id, scalar_type) => ScalarTerm::Value { id, scalar_type },
             Self::Integer(scalar_type, value) => ScalarTerm::Integer { scalar_type, value },
             Self::Boolean(value) => ScalarTerm::Boolean(value),
@@ -2898,6 +2903,7 @@ impl<'a> Lowering<'a> {
             | ExpressionKind::StorageLocation { .. }
             | ExpressionKind::CollectionMeasure { .. }
             | ExpressionKind::ByteSequencePredicate { .. }
+            | ExpressionKind::ErasedApplication(_)
             | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::Strict { .. }
             | ExpressionKind::Not(_)

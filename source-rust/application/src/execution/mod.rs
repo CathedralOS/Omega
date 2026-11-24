@@ -317,7 +317,7 @@ pub fn run_project(
                 && reference.private_entry_ram != private_entry_ram
             {
                 return Err(RunError::ReferenceOutput(std::io::Error::other(
-                    "native and Terminal original entry backing observations disagree",
+                    "native and Psi original entry backing observations disagree",
                 )));
             }
             if request.keep_artifacts
@@ -674,12 +674,12 @@ fn compare_termination(
         }
         TerminalExecutionStatus::AwaitingEffect(site) => {
             return InterpreterComparison::Declined(format!(
-                "Terminal reference execution awaits host readiness at {site:?}"
+                "Psi reference execution awaits host readiness at {site:?}"
             ));
         }
         TerminalExecutionStatus::HostComputationPending(site) => {
             return InterpreterComparison::Declined(format!(
-                "Terminal reference execution has an unfinished host computation at {site:?}"
+                "Psi reference execution has an unfinished host computation at {site:?}"
             ));
         }
         TerminalExecutionStatus::Crashed(crash) => {
@@ -687,7 +687,7 @@ fn compare_termination(
                 Some(true) => InterpreterComparison::AgreesCrash { cause: crash.cause },
                 Some(false) => InterpreterComparison::DisagreesCrash { cause: crash.cause },
                 None => InterpreterComparison::Declined(format!(
-                    "Terminal observed {:?}; host crash-presentation comparison is unavailable",
+                    "Psi observed {:?}; host crash-presentation comparison is unavailable",
                     crash.cause
                 )),
             };

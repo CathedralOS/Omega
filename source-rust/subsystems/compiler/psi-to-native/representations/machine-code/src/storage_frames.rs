@@ -10,6 +10,7 @@ All records remain non-authoritative representation data whose invariants and
 unwind rosters (`FrameUnwindPlan`) are independently replayed by the backend.
 */
 
+use calling_conventions::frame_unwind::{FrameProtocolEffect, FrameProtocolStep};
 use optimization_core::{
     FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
     OptimizationWorkBudget, OptimizationWorkUsage,
@@ -211,11 +212,28 @@ impl FrameProtocolByteSpan {
     }
 }
 
+/// A function's prologue or epilogue steps inside the plan's step arena.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FrameProtocolStepSpan {
+    pub offset: u32,
+    pub length: u32,
+}
+
+impl FrameProtocolStepSpan {
+    pub fn steps(self, arena: &[FrameProtocolStep]) -> Option<&[FrameProtocolStep]> {
+        let start = usize::try_from(self.offset).ok()?;
+        let end = start.checked_add(usize::try_from(self.length).ok()?)?;
+        arena.get(start..end)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FunctionTargetFrameProtocolEncoding {
     pub machine: MachineId,
     pub prologue: FrameProtocolByteSpan,
     pub epilogue: FrameProtocolByteSpan,
+    pub prologue_steps: FrameProtocolStepSpan,
+    pub epilogue_steps: FrameProtocolStepSpan,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -227,6 +245,7 @@ pub struct TargetFrameProtocolEncodingPlan {
     pub policy: TargetFrameProtocolEncodingPolicy,
     pub functions: Vec<FunctionTargetFrameProtocolEncoding>,
     pub bytes: Vec<u8>, // Packed arena for every function's prologue and epilogue
+    pub steps: Vec<FrameProtocolStep>, // Packed arena of each instruction's unwind effect, in byte order
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -370,9 +389,34 @@ pub fn target_frame_protocol_encoding_identity(
         hasher.raw(&function.prologue.length.to_le_bytes());
         hasher.raw(&function.epilogue.offset.to_le_bytes());
         hasher.raw(&function.epilogue.length.to_le_bytes());
+        for span in [function.prologue_steps, function.epilogue_steps] {
+            hasher.raw(&span.offset.to_le_bytes());
+            hasher.raw(&span.length.to_le_bytes());
+        }
     }
     hasher.u64(plan.bytes.len() as u64);
     hasher.raw(&plan.bytes);
+    hasher.u64(plan.steps.len() as u64);
+    for step in &plan.steps {
+        hasher.raw(&step.end_offset.to_le_bytes());
+        match step.effect {
+            FrameProtocolEffect::AdjustStack { bytes } => {
+                hasher.byte(0);
+                hasher.raw(&bytes.to_le_bytes());
+            }
+            FrameProtocolEffect::Register {
+                register,
+                frame_offset_bytes,
+            } => {
+                hasher.byte(1);
+                let (class, index) = register.wire_class_index();
+                hasher.byte(class);
+                hasher.byte(index);
+                hasher.raw(&frame_offset_bytes.to_le_bytes());
+            }
+            FrameProtocolEffect::Unchanged => hasher.byte(2),
+        }
+    }
     TargetFrameProtocolEncodingIdentity::from_bytes(hasher.finish())
 }
 

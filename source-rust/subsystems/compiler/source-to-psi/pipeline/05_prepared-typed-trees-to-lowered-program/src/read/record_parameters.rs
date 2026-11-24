@@ -165,10 +165,33 @@ impl Program<'_> {
             super::services::unavailable(id, "const record requirement lost its prepared signature")
         })?;
         if signature.symbol != target {
-            return Err(super::services::unavailable(
-                id,
-                "const record call has an unrepresented local requirement application",
-            ));
+            // A receiver can name the original requirement or its prepared
+            // application. The receiver's declared schema must select this
+            // member at the same trait arguments in either spelling.
+            let exact = self
+                .typed
+                .static_record_bound_requirement(binding.account.owner, receiver, target)
+                .map_err(|reason| super::services::unavailable(id, reason))?;
+            let same_member = exact.is_some_and(|required| {
+                required.signature.symbol == signature.symbol
+                    || self
+                        .typed
+                        .closed_requirement_application(target)
+                        .is_some_and(|closed| {
+                            closed.template == origin
+                                && closed.local_arguments.is_empty()
+                                && self.typed.requirement_application_matches_scope(
+                                    target,
+                                    &required.application,
+                                )
+                        })
+            });
+            if !same_member {
+                return Err(super::services::unavailable(
+                    id,
+                    "const record call has an unrepresented local requirement application",
+                ));
+            }
         }
         Ok(Some((position, signature.clone())))
     }
@@ -193,7 +216,10 @@ impl Program<'_> {
             return Ok(instance.machine);
         }
         let id = self.next_identity()?;
-        let (lowered, names) = self.declared_requirement_signature(id, signature, arguments)?;
+        let outer = self.clause_supplier.replace(receiver);
+        let lowered = self.declared_requirement_signature(id, signature, arguments);
+        self.clause_supplier = outer;
+        let (lowered, names) = lowered?;
         self.retain_requirement_policy(id, signature, signature.symbol)?;
         self.symbols.push(signature.symbol);
         self.signatures.push(lowered);

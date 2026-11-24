@@ -43,7 +43,6 @@ use std::cmp::Ordering;
 use std::collections::hash_map::RandomState;
 use std::hash::BuildHasher;
 
-use arena::IdTable;
 use proof_admission::{
     IntegerAffineWitness, PrimitiveJudgment, ProofNode, ProofRule, check_integer_affine_witness,
     check_value_equality_denotation, compare_integer_math_terms, decide_primitive,
@@ -74,7 +73,7 @@ mod tests;
 #[path = "prove/widths.rs"]
 mod widths;
 
-use crate::checking::known::{Fact, ProofValues, is_branch_fact};
+use crate::checking::known::{Fact, ProofValues, ValueRows, is_branch_fact};
 
 /// Why no certificate was built. Diagnostic only.
 pub(crate) type Unproven = &'static str;
@@ -612,7 +611,7 @@ impl ExactFactWork {
 /// ordinal so both passes retain their first proof when endpoints tie. Other
 /// searches, including contradiction, still read the complete fact context.
 struct BoundFacts {
-    by_value: IdTable<ValueId, Vec<usize>>,
+    by_value: ValueRows<Vec<usize>>,
     fallback: Vec<usize>,
 }
 
@@ -623,9 +622,9 @@ struct BoundFactCursor {
 }
 
 impl BoundFacts {
-    fn new(facts: &[Fact], declarations: &IdTable<ValueId, Option<usize>>) -> Self {
+    fn new(facts: &[Fact], declarations: &ValueRows<Option<usize>>) -> Self {
         let mut result = Self {
-            by_value: declarations.map(|_, _| Vec::new()),
+            by_value: declarations.like(Vec::new()),
             fallback: Vec::new(),
         };
         for (index, fact) in facts.iter().enumerate() {
@@ -722,6 +721,9 @@ pub struct ProofSearchActivity {
     bound_fact_visits: usize,
     #[cfg(test)]
     exact_fact_work: ExactFactWork,
+    /// Value rows each prepared context allocated (`ValueRows`).
+    #[cfg(test)]
+    value_rows: usize,
 }
 
 impl ProofSearchActivity {
@@ -763,6 +765,7 @@ impl ProofSearchActivity {
                 .bound_fact_visits
                 .saturating_add(other.bound_fact_visits);
             self.exact_fact_work.merge(other.exact_fact_work);
+            self.value_rows = self.value_rows.saturating_add(other.value_rows);
             self.normalization_checks = self
                 .normalization_checks
                 .saturating_add(other.normalization_checks);
@@ -808,15 +811,15 @@ pub(crate) struct Prover<'a> {
     /// initial-content aliases, and semantic integer expressions retaining
     /// their selected arithmetic meaning, each citing its prepared fact.
     equations: Vec<usize>,
-    definitions: IdTable<ValueId, Option<usize>>,
+    definitions: ValueRows<Option<usize>>,
     /// `equations` extended by arrivals' compound equalities, which only
     /// `by_transport` cites after `equations` alone fails (`Known`).
     arrival_equations: Vec<usize>,
-    arrival_definitions: IdTable<ValueId, Option<usize>>,
+    arrival_definitions: ValueRows<Option<usize>>,
     transport: crate::checking::known::TransportInputs,
     /// `[upper, lower]` in the exact declared value namespace. A contract
     /// witness may begin at any real formal ID, not only at value one.
-    bounds: IdTable<ValueId, [Slot; 2]>,
+    bounds: ValueRows<[Slot; 2]>,
     /// Each branch indexes its own facts, including the assumption added on entry.
     bound_facts: BoundFacts,
     /// Whether a failed goal may split over a disjunctive fact. Guard
@@ -1148,7 +1151,11 @@ impl<'a> Prover<'a> {
                 );
         }
         let bound_facts = BoundFacts::new(&facts, &definitions);
-        let bounds = definitions.map(|_, _| [Slot::Unknown, Slot::Unknown]);
+        let bounds = definitions.like([Slot::Unknown, Slot::Unknown]);
+        #[cfg(test)]
+        {
+            activity.value_rows = activity.value_rows.saturating_add(bounds.row_count());
+        }
         Self {
             activity,
             context,
@@ -1944,6 +1951,7 @@ impl<'a> Prover<'a> {
         }
         match goal {
             Proposition::Truth => Ok(primitive(Proposition::Truth, PrimitiveJudgment::Truth)),
+            Proposition::DeclarationIdentity(_) => Err("a typed Identity needs mathematical evidence"),
             Proposition::Falsehood => Err("the goal is false"),
             Proposition::Conjunction(parts) => {
                 let proofs = parts
@@ -2814,7 +2822,7 @@ impl<'a> Prover<'a> {
     /// subtract results ordered against their left operand. Each step is a
     /// node the kernel checks; the path is chained by order transitivity.
     fn relation(&mut self, from: &ScalarTerm, to: &ScalarTerm, strict: bool) -> Option<ProofNode> {
-        let mut visited = self.bounds.map(|_, _| [false; 2]);
+        let mut visited = self.bounds.like([false; 2]);
         let mut queue: std::collections::VecDeque<(ScalarTerm, ProofNode, bool)> =
             self.steps(from, to, strict).into_iter().collect();
         while let Some((at, proof, at_strict)) = queue.pop_front() {

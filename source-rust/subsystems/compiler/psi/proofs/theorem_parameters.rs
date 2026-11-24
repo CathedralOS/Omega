@@ -43,8 +43,8 @@ pub enum TheoremSource {
 }
 
 /// A named citation owes its declared premises over all alias subjects.
-/// These derivations prove the supplied declaration's guarantees; the receiver
-/// checks them before accepting the caller's complete mathematical evidence.
+/// The source checker discharges the derivations over the complete contract.
+/// Each retained judgment stays associated with its source and invocation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TheoremCitation {
     pub machine: MachineId,

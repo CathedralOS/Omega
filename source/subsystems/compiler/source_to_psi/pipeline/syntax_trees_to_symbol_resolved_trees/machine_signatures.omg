@@ -1,28 +1,12 @@
-use representations\source_files\SourceSet;
-use representations\source_files\spans_equal;
-use representations\symbol_resolved_trees\BuiltinType;
-use representations\symbol_resolved_trees\DomainBinding;
-use representations\symbol_resolved_trees\MachineOwner;
-use representations\symbol_resolved_trees\ResolveDiagnosticCode;
-use representations\symbol_resolved_trees\TypeBinding;
-use representations\symbol_resolved_trees\TypeScope;
-use representations\symbol_resolved_trees\ValueBinding;
-use representations\symbol_resolved_trees\domain_binding_at;
-use representations\symbol_resolved_trees\machine_owner;
-use representations\symbol_resolved_trees\name_resolution_domain_item;
-use representations\symbol_resolved_trees\name_resolution_reject;
-use representations\symbol_resolved_trees\type_binding_at;
-use representations\syntax_trees\GenericParameter;
-use representations\syntax_trees\IdentifierSpan;
-use representations\syntax_trees\MachineItem;
-use representations\syntax_trees\Parameter;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\TypeReference;
-use representations\syntax_trees\machine_item;
-use representations\syntax_trees\same_type_form;
-use representations\syntax_trees\syntax_trees_generic_parameter;
-use representations\syntax_trees\syntax_trees_parameter;
-use representations\syntax_trees\syntax_trees_type_reference;
+use pipeline/syntax_trees_to_symbol_resolved_trees/resolution_state.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/containers.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/imports.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/names.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/generic_scopes.omg;
+
+use representations/source_files/source.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
 
 // Check a machine namespace for repeated parameters and signatures. A signature compares resolved parameter types in their own generic scopes.
 
@@ -36,77 +20,77 @@ use representations\syntax_trees\syntax_trees_type_reference;
 // both are target-scoped bodies for different targets, which form one family
 // keyed by target (wiki/spec/language/machines.md#target-scoped-families). An
 // untargeted body beside a targeted one of the same signature is a duplicate.
-machine check_machines(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
+machine check_machines(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> next_machine(resolver, sources, syntax, 0) }
+    transition { _ -> next_machine(resolver, sources, syntax, 0 as +Trapping) }
 
-    machine next_machine(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine next_machine(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count {
             true -> machine_parameters(resolver, sources, syntax, index),
             _ -> done()
         }
     }
 
-    machine machine_parameters(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
-        let item: MachineItem = machine_item(syntax, index);
-        let scope: TypeScope = resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
-        check_generic_names(resolver, sources, syntax, scope);
+    machine machine_parameters(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, index);
+        let scope: |symbol_resolved_trees|::TypeScope = |generic_scopes|::resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
+        |generic_scopes|::check_generic_names(resolver, sources, syntax, scope);
         transition resolver.output.accepted {
-            true -> generic_values(resolver, sources, syntax, index, item, 0),
+            true -> generic_values(resolver, sources, syntax, index, item, 0 as +Trapping),
             _ -> done()
         }
     }
 
-    machine generic_values(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+    machine generic_values(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, item: |syntax_trees|::MachineItem, offset: u64 in Trapping) {
         transition offset < item.generic_parameter_count {
             true -> generic_value(resolver, sources, syntax, index, item, offset),
             _ -> machine_parameter_names(resolver, sources, syntax, index, item)
         }
     }
-    machine generic_value(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
-        let generic: GenericParameter = syntax_trees_generic_parameter(syntax, item.first_generic_parameter + offset);
-        let is_value: bool = binder_names(generic.kind, false);
+    machine generic_value(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, item: |syntax_trees|::MachineItem, offset: u64 in Trapping) {
+        let generic: |syntax_trees|::GenericParameter = |syntax_trees|::syntax_trees_generic_parameter(syntax, item.first_generic_parameter + offset);
+        let is_value: bool = |names|::binder_names(generic.kind, false);
         transition is_value {
             true -> visible_value(resolver, sources, syntax, index, item, offset, generic.name),
             _ -> generic_values(resolver, sources, syntax, index, item, offset + 1)
         }
     }
-    machine visible_value(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, name: IdentifierSpan) {
+    machine visible_value(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, name: |syntax_trees|::IdentifierSpan) {
         transition item.parent > 0 {
             true -> ancestor(resolver, sources, syntax, index, item, offset, name),
             _ -> container(resolver, sources, syntax, index, item, offset, name)
         }
     }
-    machine ancestor(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, name: IdentifierSpan) {
-        let binding: ValueBinding = lexical_static_value_binder(sources, syntax, item.parent - 1, name.source_span, false);
+    machine ancestor(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, name: |syntax_trees|::IdentifierSpan) {
+        let binding: |symbol_resolved_trees|::ValueBinding = |names|::lexical_static_value_binder(sources, syntax, item.parent - 1, name.source_span, false);
         transition binding {
-            ValueBinding::GenericParameter { parameter as _ } -> reject(resolver, ResolveDiagnosticCode::DuplicateLocalBinding, name),
+            |symbol_resolved_trees|::ValueBinding::GenericParameter { parameter as _ } -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::DuplicateLocalBinding, name),
             _ -> container(resolver, sources, syntax, index, item, offset, name)
         }
     }
-    machine container(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, name: IdentifierSpan) {
-        let binding: ValueBinding = container_value_binder(@resolver.output, sources, syntax, index, name.source_span, false);
+    machine container(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, name: |syntax_trees|::IdentifierSpan) {
+        let binding: |symbol_resolved_trees|::ValueBinding = |names|::container_value_binder(@resolver.output, sources, syntax, index, name.source_span, false);
         transition binding {
-            ValueBinding::GenericParameter { parameter as _ } -> reject(resolver, ResolveDiagnosticCode::DuplicateLocalBinding, name),
+            |symbol_resolved_trees|::ValueBinding::GenericParameter { parameter as _ } -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::DuplicateLocalBinding, name),
             _ -> generic_values(resolver, sources, syntax, index, item, offset + 1)
         }
     }
 
-    machine machine_parameter_names(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem) {
+    machine machine_parameter_names(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, item: |syntax_trees|::MachineItem) {
         check_parameter_names(resolver, sources, syntax, item.first_parameter, item.parameter_count);
         transition resolver.output.accepted {
-            true -> overloads(resolver, sources, syntax, index, item, 0),
+            true -> overloads(resolver, sources, syntax, index, item, 0 as +Trapping),
             _ -> done()
         }
     }
 
     machine overloads(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         index: u64 in Trapping,
-        item: MachineItem,
+        item: |syntax_trees|::MachineItem,
         prior: u64 in Trapping
     ) {
         transition prior < index {
@@ -116,25 +100,25 @@ crashes Trap
     }
 
     machine overload_compare(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         index: u64 in Trapping,
-        item: MachineItem,
+        item: |syntax_trees|::MachineItem,
         prior: u64 in Trapping
     ) {
-        let prior_item: MachineItem = machine_item(syntax, prior);
+        let prior_item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, prior);
         let same: bool = same_machine_signature(resolver, sources, syntax, index, prior);
-        let same_module: bool = resolver_same_module(sources, item.name.source_span.source.value as -Trapping as u64 +Trapping,
+        let same_module: bool = |imports|::resolver_same_module(sources, item.name.source_span.source.value as -Trapping as u64 +Trapping,
             prior_item.name.source_span.source.value as -Trapping as u64 +Trapping);
         transition same && same_module {
-            true -> reject(resolver, ResolveDiagnosticCode::DuplicateMachine, item.name),
+            true -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::DuplicateMachine, item.name),
             _ -> overloads(resolver, sources, syntax, index, item, prior + 1)
         }
     }
 
-    machine reject(resolver: @mutable Resolver, code: ResolveDiagnosticCode, name: IdentifierSpan) {
-        name_resolution_reject(@mutable resolver.output, code, name.source_span);
+    machine reject(resolver: @mutable |resolution_state|::Resolver, code: |symbol_resolved_trees|::ResolveDiagnosticCode, name: |syntax_trees|::IdentifierSpan) {
+        |symbol_resolved_trees|::name_resolution_reject(@mutable resolver.output, code, name.source_span);
     }
 
     machine done() {}
@@ -142,20 +126,20 @@ crashes Trap
 
 // Each parameter name of one signature differs from every earlier one.
 public machine check_parameter_names(
-    resolver: @mutable Resolver,
-    sources: @SourceSet,
-    syntax: @SyntaxTrees,
+    resolver: @mutable |resolution_state|::Resolver,
+    sources: @|source|::SourceSet,
+    syntax: @|syntax_trees|::SyntaxTrees,
     first_parameter: u64 in Trapping,
     parameter_count: u64 in Trapping
 )
 crashes Trap
 {
-    transition { _ -> next(resolver, sources, syntax, first_parameter, parameter_count, 0) }
+    transition { _ -> next(resolver, sources, syntax, first_parameter, parameter_count, 0 as +Trapping) }
 
     machine next(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         first_parameter: u64 in Trapping,
         parameter_count: u64 in Trapping,
         offset: u64 in Trapping
@@ -167,25 +151,25 @@ crashes Trap
     }
 
     machine named(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         first_parameter: u64 in Trapping,
         parameter_count: u64 in Trapping,
         offset: u64 in Trapping
     ) {
-        let parameter: Parameter = syntax_trees_parameter(syntax, first_parameter + offset);
-        transition { _ -> prior(resolver, sources, syntax, first_parameter, parameter_count, offset, parameter.name, 0) }
+        let parameter: |syntax_trees|::Parameter = |syntax_trees|::syntax_trees_parameter(syntax, first_parameter + offset);
+        transition { _ -> prior(resolver, sources, syntax, first_parameter, parameter_count, offset, parameter.name, 0 as +Trapping) }
     }
 
     machine prior(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         first_parameter: u64 in Trapping,
         parameter_count: u64 in Trapping,
         offset: u64 in Trapping,
-        name: IdentifierSpan,
+        name: |syntax_trees|::IdentifierSpan,
         earlier: u64 in Trapping
     ) {
         transition earlier < offset {
@@ -195,17 +179,17 @@ crashes Trap
     }
 
     machine compare(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         first_parameter: u64 in Trapping,
         parameter_count: u64 in Trapping,
         offset: u64 in Trapping,
-        name: IdentifierSpan,
+        name: |syntax_trees|::IdentifierSpan,
         earlier: u64 in Trapping
     ) {
-        let earlier_parameter: Parameter = syntax_trees_parameter(syntax, first_parameter + earlier);
-        let equal: bool = spans_equal(sources, name.source_span,
+        let earlier_parameter: |syntax_trees|::Parameter = |syntax_trees|::syntax_trees_parameter(syntax, first_parameter + earlier);
+        let equal: bool = |source|::spans_equal(sources, name.source_span,
             earlier_parameter.name.source_span
         );
         transition equal {
@@ -214,8 +198,8 @@ crashes Trap
         }
     }
 
-    machine duplicate(resolver: @mutable Resolver, name: IdentifierSpan) {
-        name_resolution_reject(@mutable resolver.output, ResolveDiagnosticCode::DuplicateParameter, name.source_span);
+    machine duplicate(resolver: @mutable |resolution_state|::Resolver, name: |syntax_trees|::IdentifierSpan) {
+        |symbol_resolved_trees|::name_resolution_reject(@mutable resolver.output, |symbol_resolved_trees|::ResolveDiagnosticCode::DuplicateParameter, name.source_span);
     }
 
     machine done() {}
@@ -225,22 +209,22 @@ crashes Trap
 // or none, and name), the same parameters (same_parameters) and no two
 // distinct targets.
 machine same_machine_signature(
-    resolver: @Resolver,
-    sources: @SourceSet,
-    syntax: @SyntaxTrees,
+    resolver: @|resolution_state|::Resolver,
+    sources: @|source|::SourceSet,
+    syntax: @|syntax_trees|::SyntaxTrees,
     left_handle: u64 in Trapping,
     right_handle: u64 in Trapping
 ) -> bool
 crashes Trap
 {
-    let left: MachineItem = machine_item(syntax, left_handle);
-    let right: MachineItem = machine_item(syntax, right_handle);
-    let left_owner: MachineOwner = machine_owner(@resolver.output, left_handle);
-    let right_owner: MachineOwner = machine_owner(@resolver.output, right_handle);
-    let same_name: bool = spans_equal(sources, left.name.source_span,
+    let left: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, left_handle);
+    let right: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, right_handle);
+    let left_owner: |symbol_resolved_trees|::MachineOwner = |symbol_resolved_trees|::machine_owner(@resolver.output, left_handle);
+    let right_owner: |symbol_resolved_trees|::MachineOwner = |symbol_resolved_trees|::machine_owner(@resolver.output, right_handle);
+    let same_name: bool = |source|::spans_equal(sources, left.name.source_span,
         right.name.source_span
     );
-    let same_owner: bool = spans_equal(sources, left_owner.owner.source_span,
+    let same_owner: bool = |source|::spans_equal(sources, left_owner.owner.source_span,
         right_owner.owner.source_span
     );
     transition left.parent == right.parent && same_name && left_owner.has_owner == right_owner.has_owner && (!left_owner.has_owner || same_owner) {
@@ -249,13 +233,13 @@ crashes Trap
     }
 
     machine parameters(
-        resolver: @Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @|resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         left_handle: u64 in Trapping,
         right_handle: u64 in Trapping,
-        left: MachineItem,
-        right: MachineItem
+        left: |syntax_trees|::MachineItem,
+        right: |syntax_trees|::MachineItem
     ) -> bool {
         let same: bool = same_parameters(resolver, syntax, left_handle, right_handle);
         transition same {
@@ -265,8 +249,8 @@ crashes Trap
     }
 
     // Bodies for two different targets are members of one family.
-    machine targets(sources: @SourceSet, left: MachineItem, right: MachineItem) -> bool {
-        let same_target: bool = spans_equal(sources, left.target.source_span, right.target.source_span);
+    machine targets(sources: @|source|::SourceSet, left: |syntax_trees|::MachineItem, right: |syntax_trees|::MachineItem) -> bool {
+        let same_target: bool = |source|::spans_equal(sources, left.target.source_span, right.target.source_span);
         transition left.has_target && right.has_target && !same_target {
             true -> different(),
             _ -> same()
@@ -287,46 +271,46 @@ crashes Trap
 // parameter in a parameter type matches the one at the same position of the
 // other machine's scope, so `f<T>(value: T)` and `f<U>(other: U)` match.
 public machine same_parameters(
-    resolver: @Resolver,
-    syntax: @SyntaxTrees,
+    resolver: @|resolution_state|::Resolver,
+    syntax: @|syntax_trees|::SyntaxTrees,
     left_handle: u64 in Trapping,
     right_handle: u64 in Trapping
 ) -> bool
 crashes Trap
 {
-    let left: MachineItem = machine_item(syntax, left_handle);
-    let right: MachineItem = machine_item(syntax, right_handle);
+    let left: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, left_handle);
+    let right: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, right_handle);
     transition left.parameter_count == right.parameter_count && left.generic_parameter_count == right.generic_parameter_count {
-        true -> generic(resolver, syntax, left_handle, right_handle, left, right, 0),
+        true -> generic(resolver, syntax, left_handle, right_handle, left, right, 0 as +Trapping),
         _ -> different()
     }
 
     machine generic(
-        resolver: @Resolver,
-        syntax: @SyntaxTrees,
+        resolver: @|resolution_state|::Resolver,
+        syntax: @|syntax_trees|::SyntaxTrees,
         left_handle: u64 in Trapping,
         right_handle: u64 in Trapping,
-        left: MachineItem,
-        right: MachineItem,
+        left: |syntax_trees|::MachineItem,
+        right: |syntax_trees|::MachineItem,
         offset: u64 in Trapping
     ) -> bool {
         transition offset < left.generic_parameter_count {
             true -> generic_kind(resolver, syntax, left_handle, right_handle, left, right, offset),
-            _ -> parameter(resolver, syntax, left_handle, right_handle, left, right, 0)
+            _ -> parameter(resolver, syntax, left_handle, right_handle, left, right, 0 as +Trapping)
         }
     }
 
     machine generic_kind(
-        resolver: @Resolver,
-        syntax: @SyntaxTrees,
+        resolver: @|resolution_state|::Resolver,
+        syntax: @|syntax_trees|::SyntaxTrees,
         left_handle: u64 in Trapping,
         right_handle: u64 in Trapping,
-        left: MachineItem,
-        right: MachineItem,
+        left: |syntax_trees|::MachineItem,
+        right: |syntax_trees|::MachineItem,
         offset: u64 in Trapping
     ) -> bool {
-        let left_parameter: GenericParameter = syntax_trees_generic_parameter(syntax, left.first_generic_parameter + offset);
-        let right_parameter: GenericParameter = syntax_trees_generic_parameter(syntax, right.first_generic_parameter + offset);
+        let left_parameter: |syntax_trees|::GenericParameter = |syntax_trees|::syntax_trees_generic_parameter(syntax, left.first_generic_parameter + offset);
+        let right_parameter: |syntax_trees|::GenericParameter = |syntax_trees|::syntax_trees_generic_parameter(syntax, right.first_generic_parameter + offset);
         transition left_parameter.kind == right_parameter.kind {
             true -> generic(resolver, syntax, left_handle, right_handle, left, right, offset + 1),
             _ -> different()
@@ -334,12 +318,12 @@ crashes Trap
     }
 
     machine parameter(
-        resolver: @Resolver,
-        syntax: @SyntaxTrees,
+        resolver: @|resolution_state|::Resolver,
+        syntax: @|syntax_trees|::SyntaxTrees,
         left_handle: u64 in Trapping,
         right_handle: u64 in Trapping,
-        left: MachineItem,
-        right: MachineItem,
+        left: |syntax_trees|::MachineItem,
+        right: |syntax_trees|::MachineItem,
         offset: u64 in Trapping
     ) -> bool {
         transition offset < left.parameter_count {
@@ -349,18 +333,18 @@ crashes Trap
     }
 
     machine compare(
-        resolver: @Resolver,
-        syntax: @SyntaxTrees,
+        resolver: @|resolution_state|::Resolver,
+        syntax: @|syntax_trees|::SyntaxTrees,
         left_handle: u64 in Trapping,
         right_handle: u64 in Trapping,
-        left: MachineItem,
-        right: MachineItem,
+        left: |syntax_trees|::MachineItem,
+        right: |syntax_trees|::MachineItem,
         offset: u64 in Trapping
     ) -> bool {
-        let left_parameter: Parameter = syntax_trees_parameter(syntax, left.first_parameter + offset);
-        let right_parameter: Parameter = syntax_trees_parameter(syntax, right.first_parameter + offset);
-        let left_scope: TypeScope = resolver_machine_scope(@resolver.output, syntax, left_handle);
-        let right_scope: TypeScope = resolver_machine_scope(@resolver.output, syntax, right_handle);
+        let left_parameter: |syntax_trees|::Parameter = |syntax_trees|::syntax_trees_parameter(syntax, left.first_parameter + offset);
+        let right_parameter: |syntax_trees|::Parameter = |syntax_trees|::syntax_trees_parameter(syntax, right.first_parameter + offset);
+        let left_scope: |symbol_resolved_trees|::TypeScope = |containers|::resolver_machine_scope(@resolver.output, syntax, left_handle);
+        let right_scope: |symbol_resolved_trees|::TypeScope = |containers|::resolver_machine_scope(@resolver.output, syntax, right_handle);
         let equal: bool = same_type(resolver, syntax, left_scope, left_parameter.type_reference,
             right_scope, right_parameter.type_reference
         );
@@ -386,28 +370,28 @@ crashes Trap
 // and domain. Generic parameters agree by position in their scopes. Integer
 // rows agree when both denote the same static integer.
 public machine same_type(
-    resolver: @Resolver,
-    syntax: @SyntaxTrees,
-    left_scope: TypeScope,
+    resolver: @|resolution_state|::Resolver,
+    syntax: @|syntax_trees|::SyntaxTrees,
+    left_scope: |symbol_resolved_trees|::TypeScope,
     left: u64 in Trapping,
-    right_scope: TypeScope,
+    right_scope: |symbol_resolved_trees|::TypeScope,
     right: u64 in Trapping
 ) -> bool
 crashes Trap
 {
-    let left_root: TypeReference = syntax_trees_type_reference(syntax, left);
-    let right_root: TypeReference = syntax_trees_type_reference(syntax, right);
+    let left_root: |syntax_trees|::TypeReference = |syntax_trees|::syntax_trees_type_reference(syntax, left);
+    let right_root: |syntax_trees|::TypeReference = |syntax_trees|::syntax_trees_type_reference(syntax, right);
     transition left - left_root.first_row == right - right_root.first_row {
         true -> rows(resolver, syntax, left_scope, left_root.first_row, right_scope, right_root.first_row, left),
         _ -> different()
     }
 
     machine rows(
-        resolver: @Resolver,
-        syntax: @SyntaxTrees,
-        left_scope: TypeScope,
+        resolver: @|resolution_state|::Resolver,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        left_scope: |symbol_resolved_trees|::TypeScope,
         left_row: u64 in Trapping,
-        right_scope: TypeScope,
+        right_scope: |symbol_resolved_trees|::TypeScope,
         right_row: u64 in Trapping,
         left_root: u64 in Trapping
     ) -> bool {
@@ -418,11 +402,11 @@ crashes Trap
     }
 
     machine row(
-        resolver: @Resolver,
-        syntax: @SyntaxTrees,
-        left_scope: TypeScope,
+        resolver: @|resolution_state|::Resolver,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        left_scope: |symbol_resolved_trees|::TypeScope,
         left_row: u64 in Trapping,
-        right_scope: TypeScope,
+        right_scope: |symbol_resolved_trees|::TypeScope,
         right_row: u64 in Trapping,
         left_root: u64 in Trapping
     ) -> bool {
@@ -443,105 +427,105 @@ crashes Trap
 }
 
 machine same_type_row(
-    resolver: @Resolver,
-    syntax: @SyntaxTrees,
-    left_scope: TypeScope,
+    resolver: @|resolution_state|::Resolver,
+    syntax: @|syntax_trees|::SyntaxTrees,
+    left_scope: |symbol_resolved_trees|::TypeScope,
     left: u64 in Trapping,
-    right_scope: TypeScope,
+    right_scope: |symbol_resolved_trees|::TypeScope,
     right: u64 in Trapping
 ) -> bool
 crashes Trap
 {
-    let left_row: TypeReference = syntax_trees_type_reference(syntax, left);
-    let right_row: TypeReference = syntax_trees_type_reference(syntax, right);
-    transition same_type_form(syntax, left_row, right_row) {
+    let left_row: |syntax_trees|::TypeReference = |syntax_trees|::syntax_trees_type_reference(syntax, left);
+    let right_row: |syntax_trees|::TypeReference = |syntax_trees|::syntax_trees_type_reference(syntax, right);
+    transition |syntax_trees|::same_type_form(syntax, left_row, right_row) {
         true -> bounded(resolver, left_scope, left, right_scope, right),
         _ -> different()
     }
 
-    machine bounded(resolver: @Resolver, left_scope: TypeScope, left: u64 in Trapping, right_scope: TypeScope, right: u64 in Trapping) -> bool {
+    machine bounded(resolver: @|resolution_state|::Resolver, left_scope: |symbol_resolved_trees|::TypeScope, left: u64 in Trapping, right_scope: |symbol_resolved_trees|::TypeScope, right: u64 in Trapping) -> bool {
         transition left < resolver.output.binding_count && right < resolver.output.binding_count {
             true -> compare(resolver, left_scope, left, right_scope, right),
             _ -> different()
         }
     }
 
-    machine compare(resolver: @Resolver, left_scope: TypeScope, left: u64 in Trapping, right_scope: TypeScope, right: u64 in Trapping) -> bool {
-        let left_domain: DomainBinding = domain_binding_at(@resolver.output, left);
-        let right_domain: DomainBinding = domain_binding_at(@resolver.output, right);
-        let left_item: u64 in Trapping = name_resolution_domain_item(@resolver.output, left);
-        let right_item: u64 in Trapping = name_resolution_domain_item(@resolver.output, right);
+    machine compare(resolver: @|resolution_state|::Resolver, left_scope: |symbol_resolved_trees|::TypeScope, left: u64 in Trapping, right_scope: |symbol_resolved_trees|::TypeScope, right: u64 in Trapping) -> bool {
+        let left_domain: |symbol_resolved_trees|::DomainBinding = |symbol_resolved_trees|::domain_binding_at(@resolver.output, left);
+        let right_domain: |symbol_resolved_trees|::DomainBinding = |symbol_resolved_trees|::domain_binding_at(@resolver.output, right);
+        let left_item: u64 in Trapping = |symbol_resolved_trees|::name_resolution_domain_item(@resolver.output, left);
+        let right_item: u64 in Trapping = |symbol_resolved_trees|::name_resolution_domain_item(@resolver.output, right);
         transition left_domain == right_domain && left_item == right_item {
-            true -> same_binding(left_scope, type_binding_at(@resolver.output, left), right_scope, type_binding_at(@resolver.output, right)),
+            true -> same_binding(left_scope, |symbol_resolved_trees|::type_binding_at(@resolver.output, left), right_scope, |symbol_resolved_trees|::type_binding_at(@resolver.output, right)),
             _ -> different()
         }
     }
 
     // TypeBinding carries payloads, so its cases are matched pairwise.
-    machine same_binding(left_scope: TypeScope, left: TypeBinding, right_scope: TypeScope, right: TypeBinding) -> bool {
+    machine same_binding(left_scope: |symbol_resolved_trees|::TypeScope, left: |symbol_resolved_trees|::TypeBinding, right_scope: |symbol_resolved_trees|::TypeScope, right: |symbol_resolved_trees|::TypeBinding) -> bool {
         transition left {
-            TypeBinding::Builtin { builtin } -> builtin_binding(builtin, right),
-            TypeBinding::Data { item } -> data_binding(item, right),
-            TypeBinding::GenericParameter { parameter } -> generic_binding(left_scope, parameter, right_scope, right),
-            TypeBinding::Trait { item } -> trait_binding(item, right),
-            TypeBinding::Conformance { item } -> conformance_binding(item, right),
-            TypeBinding::Machine { handle } -> machine_binding(handle, right),
-            TypeBinding::Unresolved -> different(),
-            TypeBinding::Ambiguous -> different(),
+            |symbol_resolved_trees|::TypeBinding::Builtin { builtin } -> builtin_binding(builtin, right),
+            |symbol_resolved_trees|::TypeBinding::Data { item } -> data_binding(item, right),
+            |symbol_resolved_trees|::TypeBinding::GenericParameter { parameter } -> generic_binding(left_scope, parameter, right_scope, right),
+            |symbol_resolved_trees|::TypeBinding::Trait { item } -> trait_binding(item, right),
+            |symbol_resolved_trees|::TypeBinding::Conformance { item } -> conformance_binding(item, right),
+            |symbol_resolved_trees|::TypeBinding::Machine { handle } -> machine_binding(handle, right),
+            |symbol_resolved_trees|::TypeBinding::Unresolved -> different(),
+            |symbol_resolved_trees|::TypeBinding::Ambiguous -> different(),
             _ -> formed()
         }
     }
 
-    machine trait_binding(left_item: u64 in Trapping, right: TypeBinding) -> bool {
+    machine trait_binding(left_item: u64 in Trapping, right: |symbol_resolved_trees|::TypeBinding) -> bool {
         transition right {
-            TypeBinding::Trait { item } -> same_handle(left_item, item),
+            |symbol_resolved_trees|::TypeBinding::Trait { item } -> same_handle(left_item, item),
             _ -> different()
         }
     }
 
-    machine conformance_binding(left_item: u64 in Trapping, right: TypeBinding) -> bool {
+    machine conformance_binding(left_item: u64 in Trapping, right: |symbol_resolved_trees|::TypeBinding) -> bool {
         transition right {
-            TypeBinding::Conformance { item } -> same_handle(left_item, item),
+            |symbol_resolved_trees|::TypeBinding::Conformance { item } -> same_handle(left_item, item),
             _ -> different()
         }
     }
 
-    machine machine_binding(left_handle: u64 in Trapping, right: TypeBinding) -> bool {
+    machine machine_binding(left_handle: u64 in Trapping, right: |symbol_resolved_trees|::TypeBinding) -> bool {
         transition right {
-            TypeBinding::Machine { handle } -> same_handle(left_handle, handle),
+            |symbol_resolved_trees|::TypeBinding::Machine { handle } -> same_handle(left_handle, handle),
             _ -> different()
         }
     }
 
-    machine builtin_binding(left_builtin: BuiltinType, right: TypeBinding) -> bool {
+    machine builtin_binding(left_builtin: |symbol_resolved_trees|::BuiltinType, right: |symbol_resolved_trees|::TypeBinding) -> bool {
         transition right {
-            TypeBinding::Builtin { builtin } -> same_builtin(left_builtin, builtin),
+            |symbol_resolved_trees|::TypeBinding::Builtin { builtin } -> same_builtin(left_builtin, builtin),
             _ -> different()
         }
     }
 
-    machine same_builtin(left: BuiltinType, right: BuiltinType) -> bool {
+    machine same_builtin(left: |symbol_resolved_trees|::BuiltinType, right: |symbol_resolved_trees|::BuiltinType) -> bool {
         left == right
     }
 
-    machine data_binding(left_item: u64 in Trapping, right: TypeBinding) -> bool {
+    machine data_binding(left_item: u64 in Trapping, right: |symbol_resolved_trees|::TypeBinding) -> bool {
         transition right {
-            TypeBinding::Data { item } -> same_handle(left_item, item),
+            |symbol_resolved_trees|::TypeBinding::Data { item } -> same_handle(left_item, item),
             _ -> different()
         }
     }
 
-    machine generic_binding(left_scope: TypeScope, left_parameter: u64 in Trapping, right_scope: TypeScope, right: TypeBinding) -> bool {
+    machine generic_binding(left_scope: |symbol_resolved_trees|::TypeScope, left_parameter: u64 in Trapping, right_scope: |symbol_resolved_trees|::TypeScope, right: |symbol_resolved_trees|::TypeBinding) -> bool {
         transition right {
-            TypeBinding::GenericParameter { parameter } -> same_position(left_scope, left_parameter, right_scope, parameter),
+            |symbol_resolved_trees|::TypeBinding::GenericParameter { parameter } -> same_position(left_scope, left_parameter, right_scope, parameter),
             _ -> different()
         }
     }
 
-    machine same_position(left_scope: TypeScope, left_parameter: u64 in Trapping, right_scope: TypeScope, right_parameter: u64 in Trapping) -> bool {
-        let left: GenericCoordinate = generic_coordinate(left_scope, left_parameter);
-        let right: GenericCoordinate = generic_coordinate(right_scope, right_parameter);
-        same_generic_coordinate(left, right)
+    machine same_position(left_scope: |symbol_resolved_trees|::TypeScope, left_parameter: u64 in Trapping, right_scope: |symbol_resolved_trees|::TypeScope, right_parameter: u64 in Trapping) -> bool {
+        let left: |generic_scopes|::GenericCoordinate = |generic_scopes|::generic_coordinate(left_scope, left_parameter);
+        let right: |generic_scopes|::GenericCoordinate = |generic_scopes|::generic_coordinate(right_scope, right_parameter);
+        |generic_scopes|::same_generic_coordinate(left, right)
     }
 
     machine same_handle(left: u64 in Trapping, right: u64 in Trapping) -> bool {

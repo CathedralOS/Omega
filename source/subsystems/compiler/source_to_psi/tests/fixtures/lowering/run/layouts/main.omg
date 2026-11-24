@@ -1,0 +1,24 @@
+// Expected exit: 0
+use representations/lowered_program/scalar.omg as program;
+use representations/lowered_program/layouts.omg;
+
+machine start() crashes Trap {
+    let mutable output: |program|::ScalarProgram;
+    output.layout_count = 2;
+    output.layouts[0] = |layouts|::ScalarLayout {
+        kind: |layouts|::ScalarLayoutKind::Scalar, size: 4 as +Trapping,
+        inner: 0 as +Trapping, length: 0 as +Trapping
+    };
+    output.layouts[1] = |layouts|::ScalarLayout {
+        kind: |layouts|::ScalarLayoutKind::Array, size: 12 as +Trapping,
+        inner: 1 as +Trapping, length: 3 as +Trapping
+    };
+    let first: |layouts|::ScalarLayout = |layouts|::scalar_layout_at(@output, 0 as +Trapping);
+    let second: |layouts|::ScalarLayout = |layouts|::scalar_layout_at(@output, 1 as +Trapping);
+    transition first.kind == |layouts|::ScalarLayoutKind::Scalar && first.size == 4
+        && second.kind == |layouts|::ScalarLayoutKind::Array && second.size == 12 && second.inner == 1 && second.length == 3 {
+        true -> done(), _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

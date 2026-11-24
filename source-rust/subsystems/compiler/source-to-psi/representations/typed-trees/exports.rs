@@ -40,7 +40,7 @@ pub use declaration_reflection::reflection;
 pub use declaration_tables_and_index::declaration_index;
 pub(crate) use declaration_tables_and_index::{
     data_definitions, declaration_tables, machine_declarations, machine_parameter_signatures,
-    spelled_declarations, type_parameters, type_reference_queries,
+    spelled_declarations, type_parameters,
 };
 pub use evidence_and_inspection::{evidence, inspection};
 pub use expressions::constant_values::*;
@@ -59,7 +59,6 @@ pub use spelled_declarations::SpelledDeclarationTable;
 pub use storage::{TypedTreeRoots, TypedTreeTables};
 pub use symbol_rebinding::{PreparedSymbolRebinding, SymbolRebinding};
 pub use type_parameters::TypeParameterTable;
-pub use type_reference_queries::ApplicationValueIndices;
 
 pub use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
 pub use crate::declaration_selection::AuthoredDeclarationSelectionKind;

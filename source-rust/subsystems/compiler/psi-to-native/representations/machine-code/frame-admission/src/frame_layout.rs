@@ -214,6 +214,19 @@ pub struct FrameUnwindPolicy {
     pub abi: FrameAbiPreservationConvention,
     pub stack_pointer_view: &'static str,
     pub continuation: FrameContinuationCustody,
+    pub preservation: FramePreservationPlacement,
+}
+
+/// Where a frame keeps its preserved registers and saved link register.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FramePreservationPlacement {
+    /// Above the local storage, at the top of the frame.
+    AboveLocals,
+    /// Directly above the outgoing-argument area, below the local storage.
+    /// Windows ARM64 unwind codes describe a register saved at most 504
+    /// bytes above the stack pointer, so its frames keep the save area low
+    /// whatever their locals need.
+    BelowLocals,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -242,6 +255,7 @@ pub const fn frame_unwind_policy(target: NativeTarget) -> Option<FrameUnwindPoli
                 continuation: FrameContinuationCustody::CallerActivationStack {
                     return_address_size_bytes: 8,
                 },
+                preservation: FramePreservationPlacement::AboveLocals,
             })
         }
         (Architecture::X86_64, ObjectFormat::Coff) => Some(FrameUnwindPolicy {
@@ -250,6 +264,7 @@ pub const fn frame_unwind_policy(target: NativeTarget) -> Option<FrameUnwindPoli
             continuation: FrameContinuationCustody::CallerActivationStack {
                 return_address_size_bytes: 8,
             },
+            preservation: FramePreservationPlacement::AboveLocals,
         }),
         (Architecture::Aarch64, ObjectFormat::Elf) => Some(FrameUnwindPolicy {
             abi: FrameAbiPreservationConvention::Aapcs64,
@@ -258,6 +273,7 @@ pub const fn frame_unwind_policy(target: NativeTarget) -> Option<FrameUnwindPoli
                 view: "x30",
                 saved_size_bytes: 8,
             },
+            preservation: FramePreservationPlacement::AboveLocals,
         }),
         (Architecture::Aarch64, ObjectFormat::MachO | ObjectFormat::Coff) => {
             Some(FrameUnwindPolicy {
@@ -266,6 +282,11 @@ pub const fn frame_unwind_policy(target: NativeTarget) -> Option<FrameUnwindPoli
                 continuation: FrameContinuationCustody::LinkRegister {
                     view: "x30",
                     saved_size_bytes: 8,
+                },
+                preservation: if matches!(target.object_format, ObjectFormat::Coff) {
+                    FramePreservationPlacement::BelowLocals
+                } else {
+                    FramePreservationPlacement::AboveLocals
                 },
             })
         }
@@ -905,7 +926,63 @@ fn validate_frame_layout_plan(
         if row.local_storage_slots.len() != source.local_storage_slots.len() {
             return Err(Error::NonCanonicalLayout);
         }
-        let mut local_extent = outgoing;
+        let unwind = frame_unwind_policy(environment.target()).ok_or(Error::UnsupportedTarget)?;
+        if unwind.abi != required.abi {
+            return Err(Error::UnsupportedTarget);
+        }
+        let preservation_alignment = storage
+            .slots
+            .iter()
+            .map(|slot| slot.alignment_bytes)
+            .max()
+            .unwrap_or(8)
+            .max(8);
+        if !preservation_alignment.is_power_of_two() {
+            return Err(Error::NonCanonicalLayout);
+        }
+        let saves_link = matches!(
+            unwind.continuation,
+            FrameContinuationCustody::LinkRegister { .. }
+        ) && (calls
+            || source.writes_link_register
+            || candidate.policy == TargetFrameLayoutPolicy::CanonicalSavedReturnAddressFrameV1);
+        // Windows ARM64 frames keep preserved registers and the saved link
+        // register directly above the outgoing area, then the locals.
+        let low_preservation = match unwind.preservation {
+            FramePreservationPlacement::AboveLocals => None,
+            FramePreservationPlacement::BelowLocals => {
+                let offset = if storage.slots.is_empty() {
+                    outgoing
+                } else {
+                    outgoing
+                        .checked_add(
+                            (preservation_alignment - outgoing % preservation_alignment)
+                                % preservation_alignment,
+                        )
+                        .ok_or(Error::GeometryOverflow)?
+                };
+                let end = storage
+                    .abstract_area_bytes
+                    .checked_add(offset)
+                    .ok_or(Error::GeometryOverflow)?;
+                let locals = match (saves_link, unwind.continuation) {
+                    (
+                        true,
+                        FrameContinuationCustody::LinkRegister {
+                            saved_size_bytes, ..
+                        },
+                    ) => {
+                        let size = u64::from(saved_size_bytes);
+                        end.checked_add((size - end % size) % size)
+                            .and_then(|link| link.checked_add(size))
+                            .ok_or(Error::GeometryOverflow)?
+                    }
+                    _ => end,
+                };
+                Some((offset, locals))
+            }
+        };
+        let mut local_extent = low_preservation.map_or(outgoing, |(_, locals)| locals);
         for (index, (local, placed)) in source
             .local_storage_slots
             .iter()
@@ -942,24 +1019,26 @@ fn validate_frame_layout_plan(
         {
             return Err(Error::NonCanonicalLayout);
         }
-        let preservation_offset =
-            if source.local_storage_slots.is_empty() && storage.slots.is_empty() {
-                outgoing
-            } else {
-                let alignment = storage
-                    .slots
-                    .iter()
-                    .map(|slot| slot.alignment_bytes)
-                    .max()
-                    .unwrap_or(8)
-                    .max(8);
-                if !alignment.is_power_of_two() {
-                    return Err(Error::NonCanonicalLayout);
-                }
-                local_extent
-                    .checked_add((alignment - local_extent % alignment) % alignment)
-                    .ok_or(Error::GeometryOverflow)?
-            };
+        let preservation_offset = if let Some((offset, _)) = low_preservation {
+            offset
+        } else if source.local_storage_slots.is_empty() && storage.slots.is_empty() {
+            outgoing
+        } else {
+            let alignment = preservation_alignment;
+            local_extent
+                .checked_add((alignment - local_extent % alignment) % alignment)
+                .ok_or(Error::GeometryOverflow)?
+        };
+        // The frame must cover everything below its top: the save area, and
+        // for low preservation the locals above it.
+        let frame_extent = if low_preservation.is_some() {
+            local_extent
+        } else {
+            storage
+                .abstract_area_bytes
+                .checked_add(preservation_offset)
+                .ok_or(Error::GeometryOverflow)?
+        };
         let area = storage
             .abstract_area_bytes
             .checked_add(preservation_offset)
@@ -1032,10 +1111,6 @@ fn validate_frame_layout_plan(
             return Err(Error::NonCanonicalLayout);
         }
         let physical = environment.physical().model();
-        let unwind = frame_unwind_policy(environment.target()).ok_or(Error::UnsupportedTarget)?;
-        if unwind.abi != required.abi {
-            return Err(Error::UnsupportedTarget);
-        }
         let stack = physical
             .view_named(unwind.stack_pointer_view)
             .ok_or(Error::MissingStackPointerView)?
@@ -1083,11 +1158,7 @@ fn validate_frame_layout_plan(
                     .ok_or(Error::MissingLinkRegisterView)?
                     .id;
                 let saved_size = u64::from(saved_size_bytes);
-                if calls
-                    || source.writes_link_register
-                    || candidate.policy
-                        == TargetFrameLayoutPolicy::CanonicalSavedReturnAddressFrameV1
-                {
+                if saves_link {
                     let ReturnAddressFrameCustody::SavedLinkRegister {
                         view,
                         frame_offset_bytes,
@@ -1098,7 +1169,8 @@ fn validate_frame_layout_plan(
                     };
                     let used = frame_offset_bytes
                         .checked_add(saved_size)
-                        .ok_or(Error::GeometryOverflow)?;
+                        .ok_or(Error::GeometryOverflow)?
+                        .max(frame_extent);
                     if view != link
                         || size_bytes != saved_size_bytes
                         || !minimal_aligned_extent(area, frame_offset_bytes, saved_size, 0)
@@ -1114,7 +1186,7 @@ fn validate_frame_layout_plan(
                 } else if row.return_address
                     != (ReturnAddressFrameCustody::LiveLinkRegister { view: link })
                     || !minimal_aligned_extent(
-                        area,
+                        frame_extent,
                         row.frame_size_bytes,
                         u64::from(call_site.stack_alignment_bytes),
                         0,

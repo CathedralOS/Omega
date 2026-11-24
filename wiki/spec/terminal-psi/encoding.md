@@ -2105,8 +2105,11 @@ marked 280 through 285, including independent layouts that shared marker 280, an
 every earlier semantic format reject before payload interpretation.
 Version 117 of the `OMGFCV\0\0` fixed-view recovery envelope encoded this
 semantic vocabulary. Version 119 binds each transferred claim's structural path
-in the transformed instruction plan identity. The reader rejects earlier
-recovery envelopes at the header.
+in the transformed instruction plan identity. Version 120 retains the domain and
+route of each structural operation result qualification establishment in both the
+recovery payload and the transformed instruction plan identity. It also preserves
+record and sum requirements and the projected qualifications of target parameters.
+The reader rejects earlier recovery envelopes at the header.
 
 Semantic schema images use version 2. Declaration shape 4 describes an exact
 compiler-owned scalar: its payload retains Boolean, integer sign and width,
@@ -2801,9 +2804,13 @@ particular caller supplies a constant.
 
 A named supply retains three checked derivations in order: the cited contract's
 implication, the alias premises implying the cited premises, and the alias
-premises plus cited conclusions implying the alias conclusions. The receiver
-composes those derivations into the complete Strict proof and checks its exact
-mathematical type and certificate. A forwarded supply names the caller's exact
+premises plus cited conclusions implying the alias conclusions. The source checker
+composes these derivations into the complete Strict proof and checks its
+mathematical type. Ordinary decoding checks each recorded judgment’s source,
+role and subjects, its invocation, and the actual certificate’s canonical
+encoding and declared type. Source-bound validation can replay the derivations.
+The receiving host authorizes the exact artifact and its assumption dependencies
+under [publication and separate consumption](product.md#publication-and-separate-consumption). A forwarded supply names the caller's exact
 proof formal, carries no new derivation, and must have the same complete type.
 The selected theorem remains derivation provenance; it does not select runtime
 code or determine Strict proof identity.

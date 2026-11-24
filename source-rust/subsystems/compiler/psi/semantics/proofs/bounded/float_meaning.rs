@@ -440,7 +440,7 @@ fn format_record(format: IeeeFloatFormat) -> FloatFormat {
     }
 }
 
-fn meaning(value: IeeeFloatValue) -> FloatMeaning {
+pub(super) fn meaning(value: IeeeFloatValue) -> FloatMeaning {
     match value {
         IeeeFloatValue::Binary32(bits) => FloatMeaning::from_f32(f32::from_bits(bits)),
         IeeeFloatValue::Binary64(bits) => FloatMeaning::from_f64(f64::from_bits(bits)),

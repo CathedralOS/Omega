@@ -111,6 +111,14 @@ fn realization_static_binders(
                 crate::source_state::data::TypeParameterKind::Const {
                     type_reference: required_carrier,
                 },
+            )
+            | (
+                crate::source_state::data::TypeParameterKind::Value {
+                    type_reference: machine_carrier,
+                },
+                crate::source_state::data::TypeParameterKind::Value {
+                    type_reference: required_carrier,
+                },
             ) if machine_parameter.bounds == required_parameter.bounds
                 && program.type_identity(
                     crate::source_state::type_identity::TypeIdentityRequest {

@@ -822,6 +822,7 @@ impl Preparation<'_> {
     ) -> ExpressionHandle {
         self.insert(ExpressionNode::Binary(TableBinaryExpression {
             policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            negation: false,
             left,
             operator,
             right,

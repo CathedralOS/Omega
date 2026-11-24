@@ -99,7 +99,7 @@ pub(crate) fn encode_operation(
             touches,
             enter,
         } => {
-            let (prologue, epilogue) = match architecture {
+            let frame = match architecture {
                 Architecture::X86_64 => isa_x86_64::encode_system_v_amd64_frame_protocol(
                     model,
                     u64::from(frame),
@@ -121,7 +121,11 @@ pub(crate) fn encode_operation(
                 )
                 .map_err(|_| AdapterEncodingError)?,
             };
-            if enter { prologue } else { epilogue }
+            if enter {
+                frame.prologue
+            } else {
+                frame.epilogue
+            }
         }
         Op::FrameMemory {
             register,

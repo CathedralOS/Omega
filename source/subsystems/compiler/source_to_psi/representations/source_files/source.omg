@@ -661,6 +661,12 @@ public machine unit_package(sources: @SourceSet, unit: u64 in Trapping) -> u64 i
     }
 }
 
+public machine same_package(sources: @SourceSet, left: u64 in Trapping, right: u64 in Trapping) -> bool {
+    let left_package: u64 in Trapping = unit_package(sources, left);
+    let right_package: u64 in Trapping = unit_package(sources, right);
+    left_package == right_package
+}
+
 // Package `package`'s row; an unnamed ordinary package for no package.
 public machine package_row(sources: @SourceSet, package: u64 in Trapping) -> PackageRow {
     transition package < sources.package_count && package < 64 {

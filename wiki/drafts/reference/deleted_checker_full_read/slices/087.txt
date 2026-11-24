@@ -1,0 +1,2 @@
+# slice 087: 9251 lines in 1 file range(s)
+omega-rust/psi/compilation/validation/src/arithmetic_domains.rs	8892	18142

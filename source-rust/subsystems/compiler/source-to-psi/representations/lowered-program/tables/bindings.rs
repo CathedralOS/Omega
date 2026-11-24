@@ -30,7 +30,7 @@ use crate::{ExactPlaceId, ProgramPoint, WriteId};
 /// One exact place. `AGENTS.md` framing rule 3: "Track facts, loans, and
 /// restoration obligations at the exact projected place (`root.field` or case
 /// variant payload)".
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PlaceRow {
     pub origin: PlaceOrigin,
     /// The projections of this place, sorted by `Segment`, at most one per
@@ -44,7 +44,7 @@ pub struct PlaceRow {
 
 /// Invariant: a projection's `parent` was minted before it, so every parent
 /// chain ends at a root and contains no cycle.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PlaceOrigin {
     /// A root storage place of the lowered form: a parameter, named local,
     /// call result or block parameter. `wiki/spec/terminal-psi/ownership.md`:

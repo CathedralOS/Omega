@@ -33,6 +33,7 @@ mod image;
 mod object;
 pub(crate) mod object_artifact;
 mod retained_working_program;
+mod unwind_check;
 pub use entries::callable_entry_transport::{
     CallableEntryTransport, EncodedPrivateEntry, NativeBodyCpuState, bind_private_function_entry,
     observe_native_body_cpu_state, observe_native_constant_operand,

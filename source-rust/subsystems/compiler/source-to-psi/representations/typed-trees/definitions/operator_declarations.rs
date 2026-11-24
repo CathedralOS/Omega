@@ -2132,6 +2132,58 @@ pub mod operator {
 
         /// Read the exact carrier and single core policy, without treating ordinary
         /// domain membership as permission to use the core operator signatures.
+        /// What a core integer operator returns before any enclosing cast. An
+        /// anonymous numeric operand lands in a known carrier as a plain operand.
+        pub fn core_integer_result(
+            program: &TypedTrees,
+            operator: BinaryOperator,
+            written: ArithmeticDomain,
+            left: Option<TypeReferenceHandle>,
+            right: Option<TypeReferenceHandle>,
+        ) -> Option<TypeReferenceHandle> {
+            let read = |reference| match reference {
+                Some(reference) => core_integer_operand(program, reference).map(Some),
+                None => Some(None),
+            };
+            let left_type = read(left)?;
+            let right_type = read(right)?;
+            let policy = |operand: Option<(
+                TypeReferenceHandle,
+                symbols::BuiltinTypeAtom,
+                ArithmeticDomain,
+            )>| {
+                operand.map_or(ArithmeticDomain::Exact, |(_, _, policy)| policy)
+            };
+            if written != ArithmeticDomain::Exact
+                && [policy(left_type), policy(right_type)]
+                    .into_iter()
+                    .any(|policy| policy != ArithmeticDomain::Exact)
+            {
+                return None;
+            }
+            if operator.is_shift() {
+                // The count can land an anonymous value's carrier, but the result
+                // of shifting that value still carries no count qualification.
+                return left.or_else(|| right_type.map(|(bare, _, _)| bare));
+            }
+            if let (Some((_, left_carrier, _)), Some((_, right_carrier, _))) =
+                (left_type, right_type)
+                && left_carrier != right_carrier
+            {
+                return None;
+            }
+            let result_policy =
+                operator.core_integer_policy(policy(left_type), policy(right_type))?;
+            if result_policy == ArithmeticDomain::Exact {
+                return left_type.or(right_type).map(|(bare, _, _)| bare);
+            }
+            if policy(left_type) == result_policy {
+                left
+            } else {
+                right
+            }
+        }
+
         pub fn core_integer_operand(
             program: &TypedTrees,
             reference: TypeReferenceHandle,
@@ -4460,7 +4512,7 @@ pub mod operator {
     pub use spellings::{
         OperandType, OperatorOperandBindings, arithmetic_operator_spelling,
         binary_operator_spelling, comparison_operator_spelling, core_integer_operand,
-        declared_domain_constraints, has_builtin_spelled_expression_meaning,
+        core_integer_result, declared_domain_constraints, has_builtin_spelled_expression_meaning,
         has_scoped_operator_meaning, operator_operand_bindings, operator_operand_is_qualified,
         resolve_spelling, resolve_spelling_for_operand_types, resolve_spelling_for_operands,
         scalar_operand_read_type,

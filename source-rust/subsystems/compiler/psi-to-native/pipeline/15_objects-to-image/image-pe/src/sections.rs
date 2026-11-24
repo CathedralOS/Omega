@@ -8,7 +8,8 @@ use crate::constants::{
     COFF_HEADER_SIZE, DOS_HEADER_SIZE, FILE_ALIGNMENT, IMAGE_BASE, OPTIONAL_HEADER_SIZE,
     SECTION_ALIGNMENT, SECTION_HEADER_SIZE, TEXT_RVA,
 };
-use crate::layout::{align_to, align_to_u32};
+use crate::layout::align_to;
+use diagnostics::Diagnostic;
 use image::{FinalImage, FinalImageLayout};
 use relocations::{BaseRelocations, build_base_relocations};
 
@@ -47,18 +48,36 @@ impl PeSections {
     }
 }
 
-pub(crate) fn rdata_rva_after_text(image: &FinalImage) -> u32 {
-    align_to_u32(TEXT_RVA + image.memory.text.len() as u32, SECTION_ALIGNMENT)
+/// PE32+ stores every section RVA and `SizeOfImage` in 32 bits. Return the
+/// aligned RVA after a section of `size` bytes at `start`, and refuse a
+/// section that would end past that space rather than truncate its size.
+fn next_section_rva(start: u32, size: usize, section: &str) -> Result<u32, Diagnostic> {
+    u32::try_from(size)
+        .ok()
+        .and_then(|size| start.checked_add(size))
+        .and_then(|end| end.checked_next_multiple_of(SECTION_ALIGNMENT as u32))
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "PE `{section}` of {size} bytes at RVA {start:#x} exceeds the 32-bit PE address space"
+            ))
+        })
 }
 
-pub(crate) fn plan_pe_sections(image: &FinalImage, rdata_virtual_size: usize) -> PeSections {
+pub(crate) fn rdata_rva_after_text(image: &FinalImage) -> Result<u32, Diagnostic> {
+    next_section_rva(TEXT_RVA, image.memory.text.len(), ".text")
+}
+
+pub(crate) fn plan_pe_sections(
+    image: &FinalImage,
+    rdata_virtual_size: usize,
+) -> Result<PeSections, Diagnostic> {
     let text_virtual_size = image.memory.text.len();
-    let rdata_rva = rdata_rva_after_text(image);
-    let data_rva = align_to_u32(rdata_rva + rdata_virtual_size as u32, SECTION_ALIGNMENT);
+    let rdata_rva = rdata_rva_after_text(image)?;
+    let data_rva = next_section_rva(rdata_rva, rdata_virtual_size, ".rdata")?;
     let reloc = build_base_relocations(image, TEXT_RVA, data_rva);
     let has_reloc = !reloc.bytes.is_empty();
-    let reloc_rva = align_to_u32(data_rva + image.memory.data.len() as u32, SECTION_ALIGNMENT);
-    let bss_rva = align_to_u32(reloc_rva + reloc.bytes.len() as u32, SECTION_ALIGNMENT);
+    let reloc_rva = next_section_rva(data_rva, image.memory.data.len(), ".data")?;
+    let bss_rva = next_section_rva(reloc_rva, reloc.bytes.len(), ".reloc")?;
     let has_data = !image.memory.data.is_empty();
     let has_bss = image.memory.bss_size > 0;
     let has_rdata = rdata_virtual_size > 0;
@@ -83,9 +102,9 @@ pub(crate) fn plan_pe_sections(image: &FinalImage, rdata_virtual_size: usize) ->
     let rdata_raw = text_raw + text_raw_size;
     let data_raw = rdata_raw + rdata_raw_size;
     let reloc_raw = data_raw + data_raw_size;
-    let size_of_image = align_to_u32(bss_rva + image.memory.bss_size as u32, SECTION_ALIGNMENT);
+    let size_of_image = next_section_rva(bss_rva, image.memory.bss_size, ".bss")?;
 
-    PeSections {
+    Ok(PeSections {
         text_virtual_size,
         rdata_virtual_size,
         has_rdata,
@@ -108,7 +127,7 @@ pub(crate) fn plan_pe_sections(image: &FinalImage, rdata_virtual_size: usize) ->
         bss_rva,
         size_of_image,
         reloc,
-    }
+    })
 }
 
 #[cfg(test)]
@@ -134,14 +153,14 @@ mod tests {
             0,
         );
 
-        let sections = plan_pe_sections(&image, 9);
+        let sections = plan_pe_sections(&image, 9).unwrap();
 
         assert_eq!(sections.section_count, 4);
         assert_eq!(sections.text_raw_size, FILE_ALIGNMENT);
         assert_eq!(sections.rdata_raw_size, FILE_ALIGNMENT);
         assert_eq!(sections.data_raw_size, FILE_ALIGNMENT);
         assert_eq!(sections.rdata_rva, TEXT_RVA + SECTION_ALIGNMENT as u32);
-        assert_eq!(sections.rdata_rva, rdata_rva_after_text(&image));
+        assert_eq!(sections.rdata_rva, rdata_rva_after_text(&image).unwrap());
         assert_eq!(sections.data_rva, TEXT_RVA + SECTION_ALIGNMENT as u32 * 2);
         assert_eq!(sections.bss_rva, TEXT_RVA + SECTION_ALIGNMENT as u32 * 3);
         assert_eq!(

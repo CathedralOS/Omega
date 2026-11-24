@@ -271,19 +271,26 @@ impl PackageCompilationInputs {
             ))),
         }
 
-        let canonical_toolchain = toolchain_root
-            .canonicalize()
-            .unwrap_or_else(|_| toolchain_root.to_path_buf());
-        for (identity, record) in &self.source.packages {
-            let root = &record.source_root;
-            if root.starts_with(&canonical_toolchain) || canonical_toolchain.starts_with(root) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "package identity {} source root {} overlaps toolchain root {}",
-                    display_identity(*identity),
-                    root.display(),
-                    canonical_toolchain.display()
-                )));
+        match toolchain_root.canonicalize() {
+            Ok(canonical_toolchain) => {
+                for (identity, record) in &self.source.packages {
+                    let root = &record.source_root;
+                    if root.starts_with(&canonical_toolchain)
+                        || canonical_toolchain.starts_with(root)
+                    {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "package identity {} source root {} overlaps toolchain root {}",
+                            display_identity(*identity),
+                            root.display(),
+                            canonical_toolchain.display()
+                        )));
+                    }
+                }
             }
+            Err(error) => diagnostics.push(Diagnostic::error(format!(
+                "failed to canonicalize toolchain root {} before compilation: {error}",
+                toolchain_root.display()
+            ))),
         }
 
         if diagnostics.is_empty() {
@@ -385,4 +392,49 @@ pub(super) fn is_snake_case(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use platform_custody::temporary_directory::TemporaryDirectory;
+
+    #[test]
+    fn compilation_requires_a_resolved_and_disjoint_toolchain_root() {
+        let temp = TemporaryDirectory::create("compilation-toolchain-root", false).unwrap();
+        let package = temp.path().join("package");
+        let toolchain = temp.path().join("toolchain");
+        std::fs::create_dir(&package).unwrap();
+        std::fs::create_dir(&toolchain).unwrap();
+        let entry = package.join("main.omg");
+        std::fs::write(&entry, "").unwrap();
+        let owner = PackageKeyIdentity::from_digest([1; 32]).unwrap();
+        let inputs = PackageCompilationInputs::new(
+            owner,
+            BuildDeclarationKind::Application,
+            vec![PackageSourceBinding::new(owner, "example", package.clone())],
+            Vec::new(),
+        )
+        .unwrap();
+
+        inputs.validate_for_compilation(&entry, &toolchain).unwrap();
+        let overlap = inputs
+            .validate_for_compilation(&entry, &package)
+            .unwrap_err();
+        assert!(
+            overlap
+                .iter()
+                .any(|d| d.message.contains("overlaps toolchain root"))
+        );
+
+        std::fs::remove_dir(&toolchain).unwrap();
+        let unavailable = inputs
+            .validate_for_compilation(&entry, &toolchain)
+            .unwrap_err();
+        assert!(
+            unavailable
+                .iter()
+                .any(|d| d.message.contains("failed to canonicalize toolchain root"))
+        );
+    }
 }

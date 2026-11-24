@@ -1,0 +1,7 @@
+use omega\language\core\CommutativeSemiring;
+
+machine entry<T [copy], const Ring: CommutativeSemiring<T>>(a: T, b: T)
+ensures core\Identity::<T>(Ring::add(b, a), Ring::add(a, b))
+{
+    Ring::add_comm(a, b);
+}

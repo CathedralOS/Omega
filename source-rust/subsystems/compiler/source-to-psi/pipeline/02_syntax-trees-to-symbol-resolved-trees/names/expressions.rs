@@ -1426,6 +1426,7 @@ mod traversal {
                     self.expression_table
                         .insert(ExpressionNode::Binary(TableBinaryExpression {
                             policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                            negation: false,
                             left: condition,
                             operator: BinaryOperator::And,
                             right: previous.condition,

@@ -3,13 +3,17 @@
 This package is the target-neutral Psi half of the Omega-written product
 compiler. The Omega application consumes it as the `psi` package.
 
-Directory names are part of the public Omega API. Source files in
-`representations/` own the tables passed between stages, including
+Files in `representations/` own the tables passed between stages, including
 [`ScalarProgram`](representations/lowered_program/scalar.omg) and its
 [layouts](representations/lowered_program/layouts.omg). Each directory in
-`pipeline/` owns the transformation between the representations named in its
-path. For example, a consumer imports `psi::representations::tokens::Token`
-and `psi::pipeline::source_files_to_tokens::tokenize` from their respective owners.
+`pipeline/` implements the transformation named in its path. A consumer
+imports the file that declares the type or operation it needs. For example,
+these imports make `|tokens|::Token` and `|lexer|::tokenize` available.
+
+```omega
+use {psi}/representations/tokens/tokens.omg;
+use {psi}/pipeline/source_files_to_tokens/lexer.omg;
+```
 
 The description below covers today's implementation, including data-owned
 machine declarations, retired target prefixes and `via` binding clauses: syntax
@@ -364,8 +368,9 @@ names here; which
 requirement a member or row fills, row completeness and a domain's
 establishment obligations are checking's.
 
-Typing follows resolution ([`pipeline/symbol_resolved_trees_to_typed_trees/typer.omg`](pipeline/symbol_resolved_trees_to_typed_trees/typer.omg)) and
-records its results in [`representations/typed_trees/typed_trees.omg`](representations/typed_trees/typed_trees.omg): an interned
+[Typing](pipeline/symbol_resolved_trees_to_typed_trees/typer.omg) follows name resolution.
+The pass shares its expression marks, generic bindings and type lookups through
+[Typer](pipeline/symbol_resolved_trees_to_typed_trees/typing_state.omg). It records its results in [`representations/typed_trees/typed_trees.omg`](representations/typed_trees/typed_trees.omg): an interned
 type table, where equal types share one handle and a type's children precede
 it, and annotations indexed by syntax handles (a type per type-reference row,
 expression and pattern binder; each call's selected machine
@@ -394,7 +399,10 @@ a computational integer landing after a fractional intermediate requires `as`
 around the completed anonymous operand. Declared locals, parameters, fields,
 typed peers and results do not acknowledge that history. Explicit casts still
 require final integrality and range. A
-suffix types its literal at that carrier, under a destination's policy. Arithmetic and bitwise operators take
+suffix types its literal at that carrier, under a destination's policy. The
+[quoted literal reader](pipeline/symbol_resolved_trees_to_typed_trees/quoted_literals.omg)
+decodes each escape once to compute the byte length and the UTF-8, ASCII,
+nonempty and NUL-free properties. Arithmetic and bitwise operators take
 one fixed-integer or float type, policy included, so differing policies never
 mix; integer comparisons relate exact values of any carriers; `==` also
 compares Booleans, addresses and sums whose every case is payload-free. A call
@@ -795,10 +803,12 @@ strings. Both maintained lexers reject all retired XID, `\u{...}`, raw-string,
 Unicode-whitespace, and raw quoted-newline spellings through the same profile
 diagnostic; no compiler source may depend on them.
 
-The parser entrance is [`pipeline/tokens_to_syntax_trees/parser.omg`](pipeline/tokens_to_syntax_trees/parser.omg): it owns `Parser`,
-initialization, and whole-file root dispatch. [`pipeline/tokens_to_syntax_trees/input.omg`](pipeline/tokens_to_syntax_trees/input.omg)
-owns bounded token selection and trivia traversal;
-[`pipeline/tokens_to_syntax_trees/data.omg`](pipeline/tokens_to_syntax_trees/data.omg) owns data-declaration grammar.
+The [parser](pipeline/tokens_to_syntax_trees/parser.omg) owns `Parser`, initializes it,
+and dispatches top-level declarations. Its [input operations](pipeline/tokens_to_syntax_trees/input.omg)
+read the token stream. The [data parser](pipeline/tokens_to_syntax_trees/data.omg)
+parses data declarations. The [expression parser](pipeline/tokens_to_syntax_trees/expression.omg)
+uses [expression frames](pipeline/tokens_to_syntax_trees/expression_frames.omg) to remember
+where to resume a group, call, index, construction, or match.
 
 ## Retention inventory
 

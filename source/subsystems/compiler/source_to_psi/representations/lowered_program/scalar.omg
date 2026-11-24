@@ -1,3 +1,5 @@
+use representations/lowered_program/layouts.omg;
+
 // A closed in-process lowering slice with scalar values and owned storage.
 // Value identity is its operation index, type identity indexes the shared
 // layout table, and callee/field identities retain checked declarations.
@@ -67,7 +69,7 @@ public data ScalarStatus [copy] {
 public data ScalarProgram {
     // Layout identity is the checked type handle. Offsets name declared
     // fields, never source spellings; all memory consumers share this table.
-    layouts: [ScalarLayout; 8192];
+    layouts: [|layouts|::ScalarLayout; 8192];
     layout_count: u64;
     field_offsets: [u64; 1024];
     parameters: [ScalarParameter; 32768];

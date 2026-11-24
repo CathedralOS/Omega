@@ -916,6 +916,77 @@ pub(crate) mod capabilities {
             index
         }
 
+        #[test]
+        fn rflags_write_requires_a_present_unsigned_64_bit_image() {
+            use crate::engine::execution::TerminalExecution;
+            use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ValueId};
+
+            struct NoEffects;
+            impl crate::TerminalEffectHandler for NoEffects {
+                fn handle_effect(
+                    &mut self,
+                    _: &crate::TerminalEffect,
+                ) -> Result<(), crate::TerminalEffectRejection> {
+                    panic!("register writes do not call a host effect")
+                }
+            }
+
+            let operand = ValueId::new(1).unwrap();
+            let uint = |width| IntegerType::new(IntegerSign::Unsigned, width).unwrap();
+            let integer = |width, value| crate::TerminalScalarValue::Integer {
+                scalar_type: uint(width),
+                value: IntegerValue::Unsigned(value),
+            };
+            let mut program = program();
+            let write = OperationKind::RegisterAccess {
+                service: Some(semantic_vocabulary::ServiceId::new(1).unwrap()),
+                event: terminal_psi::RegisterAccessEvent::Write {
+                    register: terminal_psi::SystemRegister::Rflags,
+                    value: operand,
+                },
+            };
+            set_machine(
+                &mut program,
+                MachineId::new(1).unwrap(),
+                machine(0, vec![write]),
+            );
+            let program = std::sync::Arc::new(program);
+            for (input, expected) in [
+                (Some(integer(64, 1)), Some(0x203)),
+                (Some(integer(64, 0)), Some(0x202)),
+                (None, None),
+                (Some(crate::TerminalScalarValue::Boolean(true)), None),
+                (Some(integer(32, 1)), None),
+                (Some(integer(64, 1u128 << 64)), None),
+            ] {
+                let mut execution = TerminalExecution::start_with_program(
+                    program.clone(),
+                    &[],
+                    Default::default(),
+                    None,
+                    None,
+                )
+                .unwrap();
+                execution.x86_flags = Some(crate::TerminalX86FlagsEnvironment::new(0x202).unwrap());
+                if let Some(input) = input {
+                    execution.values.insert(operand, input).unwrap();
+                }
+                let result = execution.resume(
+                    &mut terminal_work::WorkMeter::with_budget(100),
+                    &mut NoEffects,
+                );
+                assert_eq!(
+                    result.is_ok(),
+                    expected.is_some(),
+                    "input {input:?}, result {result:?}"
+                );
+                assert_eq!(
+                    execution.x86_flags.unwrap().snapshot(),
+                    expected.unwrap_or(0x202)
+                );
+            }
+        }
+
         fn add_provider(program: &mut AdmittedTerminalProgram<'_>, boundary: BoundaryMachineId) {
             let catalogs = program.fixture_module_mut();
             let requirement_identity = intern_identity(catalogs, "graph boundary");
@@ -1496,6 +1567,67 @@ pub(crate) mod capabilities {
         }
 
         #[test]
+        fn implementation_selection_requires_a_fixed_u64_result_and_existing_table() {
+            use crate::engine::execution::TerminalExecution;
+            use semantic_vocabulary::{
+                IntegerSign, IntegerType, IntegerValue, ScalarType, ValueId,
+            };
+
+            let selector = ValueId::new(1).unwrap();
+            let unsigned = |bits| IntegerType::new(IntegerSign::Unsigned, bits).unwrap();
+            let carrier = unsigned(64);
+            for (table, scalar_type, valid) in [
+                (2, carrier, true),
+                (2, unsigned(1), false),
+                (2, unsigned(32), false),
+                (2, IntegerType::new(IntegerSign::Signed, 64).unwrap(), false),
+                (2, IntegerType::address(64).unwrap(), false),
+                (3, carrier, false),
+            ] {
+                let mut program = dynamic_program();
+                let mut entry = machine(0, vec![OperationKind::SelectImplementation { table }]);
+                let operation = &mut entry.blocks[0].operations[0];
+                operation.result =
+                    terminal_psi::OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                        id: selector,
+                        scalar_type: ScalarType::Integer(scalar_type),
+                        qualifications: Default::default(),
+                    });
+                let operation = operation.clone();
+                set_machine(&mut program, MachineId::new(1).unwrap(), entry);
+                let program = std::sync::Arc::new(program);
+                let mut execution = TerminalExecution::start_with_program(
+                    program.clone(),
+                    &[],
+                    Default::default(),
+                    None,
+                    None,
+                )
+                .unwrap();
+                let result = execution.execute_select_implementation(&operation, table, &program);
+                if valid {
+                    assert!(result.is_ok());
+                    assert_eq!(
+                        execution.scalar_value(selector).unwrap(),
+                        crate::TerminalScalarValue::Integer {
+                            scalar_type: carrier,
+                            value: IntegerValue::Unsigned(u128::from(table)),
+                        }
+                    );
+                } else {
+                    assert!(
+                        matches!(
+                            result,
+                            Err(crate::TerminalInterpretError::VerifiedOperationMalformed { .. })
+                        ),
+                        "accepted table {table} with {scalar_type:?}"
+                    );
+                    assert!(execution.scalar_value(selector).is_err());
+                }
+            }
+        }
+
+        #[test]
         fn capability_graph_dynamic_call_demands_exact_slot_imports_and_providers() {
             let mut program = dynamic_program();
             let boundary = BoundaryMachineId::new(1).unwrap();
@@ -2012,7 +2144,7 @@ pub(crate) mod content_transformations {
                     crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
                         &self.structural_types(),
                         root,
-                        self.structural_cases.as_map(),
+                        &self.array_initialization.cases(&self.structural_cases),
                         path,
                     ) == Some(case)
                 },
@@ -2051,7 +2183,7 @@ pub(crate) mod content_transformations {
                             && crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
                                 &self.structural_types(),
                                 root,
-                                self.structural_cases.as_map(),
+                                &self.array_initialization.cases(&self.structural_cases),
                                 &path,
                             )
                             .is_some_and(|selected| selected != *case)
@@ -3105,17 +3237,16 @@ pub(crate) mod execution {
         pub(crate) fn final_structural_primitive_values(
             &self,
         ) -> Result<Vec<TerminalStructuralPrimitiveValue>, TerminalInterpretError> {
-            self.structural_primitive_entry_places
-                .iter()
-                .filter_map(|(argument_index, place)| {
-                    self.structural_primitive_storage.get(place).map(|cell| {
-                        cell.read().map(|value| TerminalStructuralPrimitiveValue {
-                            argument_index: *argument_index,
-                            value,
-                        })
-                    })
-                })
-                .collect()
+            let mut values = Vec::with_capacity(self.structural_primitive_entry_places.len());
+            for (argument_index, place) in &self.structural_primitive_entry_places {
+                if let Some(cell) = self.primitive_cell(place)? {
+                    values.push(TerminalStructuralPrimitiveValue {
+                        argument_index: *argument_index,
+                        value: cell.read()?,
+                    });
+                }
+            }
+            Ok(values)
         }
 
         pub fn live_affine_frontier(&self) -> impl Iterator<Item = &StructuralAffineDiscard> + '_ {
@@ -3385,12 +3516,13 @@ pub(crate) mod execution {
                                             if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
                                                 return Err(malformed());
                                             }
-                                            let Some(environment) = self.x86_flags.as_mut() else {
+                                            let Some(mut environment) = self.x86_flags else {
                                                 return Err(TerminalInterpretError::UnsupportedCapability(crate::engine::capabilities::TerminalUnsupportedCapability::RegisterAccess { operation: terminal_psi::RegisterOperation::SystemWrite(terminal_psi::SystemRegister::Rflags) }));
                                             };
-                                            if let Some(TerminalScalarValue::Integer { value: IntegerValue::Unsigned(bits), .. }) = self.values.get(&value) {
-                                                environment.restore_arithmetic_bits(u64::try_from(*bits).unwrap_or(u64::MAX));
-                                            }
+                                            let carrier = IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64).map_err(|_| malformed())?;
+                                            let image = self.unsigned_integer_value(value, carrier)?;
+                                            environment.restore_arithmetic_bits(image);
+                                            self.x86_flags = Some(environment);
                                             OperationFlow::Advance
                                         }
                                         OperationKind::ActivateTaskRegister { .. } => {

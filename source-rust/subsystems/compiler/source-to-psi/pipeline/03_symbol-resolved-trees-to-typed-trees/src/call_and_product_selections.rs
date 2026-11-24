@@ -1439,12 +1439,18 @@ pub(crate) mod construction_destinations {
                         .iter()
                         .any(|definition| definition.symbol == call.target_symbol)
                     {
-                        // A mathematical parameter has a mathematical type,
-                        // not a receiving type a value is built at, and no
-                        // pass lands one there yet.
-                        if let Some(argument) = arguments
-                            .iter()
-                            .find(|argument| needs_destination(program, **argument))
+                        // Identity and transparent mathematical calls already declare
+                        // their result. Stage 05 checks that result against the
+                        // mathematical formal. Constructors still need a destination.
+                        if let Some(argument) = arguments.iter().find(|&&argument| {
+                            needs_destination(program, argument)
+                                && !matches!(program.expression_table.expression(argument),
+                                    ExpressionNode::Call(actual)
+                                    if program.symbols.fixed_core_declaration_for_symbol(actual.target_symbol)
+                                        == Some(symbols::FixedCoreDeclaration::Identity)
+                                        || (program.symbols.symbols().nodes().is_valid(actual.target_symbol)
+                                            && program.symbols.get(actual.target_symbol).kind == symbols::SymbolKind::MathematicalDefinition))
+                        })
                         {
                             deferred
                                 .push((*argument, DeferredRequest::MathematicalCallDestination));
@@ -2128,14 +2134,11 @@ pub(crate) mod construction_destinations {
             if let ExpressionNode::StructLiteral(literal) =
                 program.expression_table.expression(value).clone()
             {
-                // Runtime value indices still need their actual source argument
-                // materialization. This type-only landing does not snapshot or
-                // invent those values and grants no construction premise.
+                // A value index is a type argument like a `const` one: this
+                // type-only landing names the application, and construction
+                // still owes the declaration's `requires` at it.
                 let exact_template = matches!(program.type_reference_table.type_reference(carrier),
-            TypeReferenceNode::Generic { base_symbol, .. } if *base_symbol == literal.type_symbol)
-                    && !program
-                        .type_application_value_indices(carrier)
-                        .has_runtime_values();
+            TypeReferenceNode::Generic { base_symbol, .. } if *base_symbol == literal.type_symbol);
                 if !exact_template
                     && program
                         .closed_data_constructor_definition(destination, literal.type_symbol)

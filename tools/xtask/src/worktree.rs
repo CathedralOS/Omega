@@ -735,7 +735,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     match sub {
         "-h" | "--help" | "help" => {
             println!(
-                "usage:\n  cargo xtask worktree status\n  cargo xtask worktree acquire [<lane>-<topic>]\n  cargo xtask worktree begin\n  cargo xtask worktree release [worker-N]\n  cargo xtask worktree clean [--dry-run] [--keep <name>...]"
+                "usage:\n  cargo xtask worktree status\n  cargo xtask worktree acquire [<lane>-<topic>]\n  cargo xtask worktree begin\n  cargo xtask worktree release [worker-N]\n  cargo xtask worktree clean [--dry-run] [--keep <name>]..."
             );
             Ok(())
         }
@@ -997,9 +997,14 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                     "--dry-run" => dry_run = true,
                     "--keep" => {
                         i += 1;
-                        if let Some(k) = args.get(i) {
-                            keep.insert(k.clone());
-                        }
+                        let Some(name) = args
+                            .get(i)
+                            .filter(|name| !name.is_empty() && !name.starts_with("--"))
+                        else {
+                            eprintln!("worktree clean: --keep requires a worktree name");
+                            return Err(2);
+                        };
+                        keep.insert(name.clone());
                     }
                     other => {
                         eprintln!("worktree clean: unknown argument `{other}`");
@@ -1116,13 +1121,13 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             let active_names: BTreeSet<String> = items
                 .iter()
                 .filter(|w| {
-                    keep.contains(&w.name)
-                        || kept.contains(&w.name)
+                    kept.contains(&w.name)
                         || w.open_pr
                         || w.slot_index.is_some()
                         || promoted_name.as_deref() == Some(w.name.as_str())
                 })
                 .map(|w| w.name.clone())
+                .chain(keep)
                 .chain(promoted_name.iter().map(|_| "worker-1".to_owned()))
                 .collect();
 

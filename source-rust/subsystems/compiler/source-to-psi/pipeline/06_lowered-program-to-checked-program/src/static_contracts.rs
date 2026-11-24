@@ -11,7 +11,7 @@ use terminal_check_tables::contracts::{
     StaticServiceCeiling, StaticSignature as Signature, StaticValueType as ValueType,
 };
 use terminal_check_tables::program::Elaboration;
-use terminal_check_tables::{Checked, Refusal, RefusalReason, RefusalSite};
+use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason, RefusalSite};
 use terminal_semantics::callable_envelopes::{
     CallableOperationalView, callable_operational_refines,
 };
@@ -946,7 +946,52 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
     order_provider_candidates(&identities, &mut candidates)?;
     module.identities = identities.build();
     module.interfaces.provider_candidates = candidates;
-    Ok(())
+    external_completion_providers(module)
+}
+
+/// A proved provider candidate stands for its boundary requirement. One that
+/// stands for a requirement ending the process must end it with the
+/// arguments it received (`external_completions`). A provider that
+/// passes another status breaks the language; a body that ends through a
+/// form the judgment does not follow is only not served.
+fn external_completion_providers(module: &terminal_psi::TerminalModule) -> Checked<()> {
+    use terminal_semantics::external_completions::{ExternalRealizationFault, validate};
+    let Err(error) = validate(module) else {
+        return Ok(());
+    };
+    let (reason, concerns, detail) = match error.fault {
+        ExternalRealizationFault::ChangedArguments { edge } => (
+            RefusalReason::Violation,
+            Construct::Edge(edge),
+            "this machine provides a requirement that ends the process, and this call does not \
+             pass on the arguments the machine received, unchanged and in order: a provider \
+             cannot change what its caller asked for",
+        ),
+        ExternalRealizationFault::OtherKind { edge } => (
+            RefusalReason::Violation,
+            Construct::Edge(edge),
+            "this machine provides a requirement that ends the process, and this call ends it \
+             in a different way than the requirement declares",
+        ),
+        ExternalRealizationFault::Returns { block } => (
+            RefusalReason::Violation,
+            Construct::Block(block),
+            "this machine provides a requirement that ends the process, and one of its paths \
+             returns to the caller",
+        ),
+        ExternalRealizationFault::Unfollowed { block } => (
+            RefusalReason::Unsupported,
+            Construct::Block(block),
+            "provider of a requirement that ends the process, whose body does not call the \
+             ending requirement directly with scalar arguments",
+        ),
+    };
+    Err(crate::checking::refusal(
+        reason,
+        error.machine,
+        concerns,
+        detail,
+    ))
 }
 
 fn order_provider_candidates(

@@ -47,6 +47,10 @@ pub fn bind_fixed_read<B: ClauseBindings + ?Sized>(
 /// the value a data type's `requires` is about.
 pub trait ClauseBindings {
     type Error: From<&'static str>;
+    /// The immutable input that supplied this whole value at the call.
+    fn whole_input(&mut self, _root: PlaceId) -> Result<PlaceId, Self::Error> {
+        Err(Self::Error::from("no whole-value input correspondence"))
+    }
     /// The term a value of the clause's owner stands for.
     fn value(&mut self, id: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Self::Error>;
     /// Goal-only alternatives for an owner-local logical name. A join may
@@ -472,6 +476,21 @@ pub fn substitute_clause_with_computation_names<Error: From<&'static str>>(
     computation_names: &[(ScalarTerm, ScalarTerm)],
 ) -> Result<Proposition, Error> {
     Ok(match proposition {
+        Proposition::DeclarationIdentity(clause) => {
+            let mut mapped = clause.clone();
+            for value in &mut mapped.values {
+                match &mut value.operand {
+                    semantic_vocabulary::ClauseOperand::Input(subject) => {
+                        if !subject.path().is_empty() { return Err(Error::from("a whole input has no field correspondence")); }
+                        *subject = semantic_vocabulary::StructuralCaseSubject::new(bindings.whole_input(subject.root())?, Vec::new());
+                    }
+                    semantic_vocabulary::ClauseOperand::Scalar(term) => *term = bound_term(term, bindings, computation_names)?,
+                    semantic_vocabulary::ClauseOperand::Formal(_) => return Err(Error::from("a schema formal has no applied value")),
+                    semantic_vocabulary::ClauseOperand::Application { .. } => {}
+                }
+            }
+            Proposition::DeclarationIdentity(mapped)
+        }
         Proposition::FloatMeaningEqual(clause) => {
             let mapped =
                 clause.map_sources(|source| bound_term(source, bindings, computation_names))?;
@@ -659,6 +678,7 @@ fn bound_term<Error: From<&'static str>>(
                         path,
                         scalar_type,
                     } => bindings.structural_read(root, &path, scalar_type)?,
+                    other @ ScalarTerm::DeclarationApplication { .. } => other,
                     other => bindings.computed(other)?,
                 }
             }
@@ -691,6 +711,7 @@ fn bound_term<Error: From<&'static str>>(
                     root,
                     path,
                 } => bindings.byte_predicate(predicate, root, &path)?,
+                ScalarTerm::DeclarationApplication { ref arguments, .. } if arguments.is_empty() => term,
                 ScalarTerm::Application { .. }
                 | ScalarTerm::Integer { .. }
                 | ScalarTerm::Boolean(_)

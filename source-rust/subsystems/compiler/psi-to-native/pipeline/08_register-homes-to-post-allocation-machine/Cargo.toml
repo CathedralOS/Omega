@@ -14,4 +14,6 @@ register-model = { path = "../../targets/register-model" }
 selected-instructions = { path = "../../representations/selected-instructions" }
 target = { path = "../../targets/target" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+
+[dev-dependencies]
 target-x86_64 = { path = "../../targets/target-x86_64" }

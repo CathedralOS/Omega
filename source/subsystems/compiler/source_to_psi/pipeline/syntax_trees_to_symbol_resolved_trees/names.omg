@@ -1,50 +1,15 @@
-use representations\source_files\SourceSet;
-use representations\source_files\SourceSpan;
-use representations\source_files\span_spells;
-use representations\source_files\spans_equal;
-use representations\symbol_resolved_trees\BytePredicate;
-use representations\symbol_resolved_trees\LayoutQuery;
-use representations\symbol_resolved_trees\MachineOwner;
-use representations\symbol_resolved_trees\NameResolution;
-use representations\symbol_resolved_trees\PathBinding;
-use representations\symbol_resolved_trees\ResolveDiagnosticCode;
-use representations\symbol_resolved_trees\TypeScope;
-use representations\symbol_resolved_trees\ValueBinding;
-use representations\symbol_resolved_trees\machine_owner;
-use representations\symbol_resolved_trees\name_resolution_reject;
-use representations\syntax_trees\ArmPatternKind;
-use representations\syntax_trees\ArmTargetKind;
-use representations\syntax_trees\ConstantItem;
-use representations\syntax_trees\DataCase;
-use representations\syntax_trees\DataItem;
-use representations\syntax_trees\DomainItem;
-use representations\syntax_trees\Expression;
-use representations\syntax_trees\ExpressionKind;
-use representations\syntax_trees\GenericParameter;
-use representations\syntax_trees\GenericParameterKind;
-use representations\syntax_trees\IdentifierSpan;
-use representations\syntax_trees\MachineContainer;
-use representations\syntax_trees\MachineItem;
-use representations\syntax_trees\NamePath;
-use representations\syntax_trees\Parameter;
-use representations\syntax_trees\PatternField;
-use representations\syntax_trees\Statement;
-use representations\syntax_trees\StatementKind;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\TransitionArm;
-use representations\syntax_trees\constant_item;
-use representations\syntax_trees\machine_item;
-use representations\syntax_trees\syntax_trees_arm;
-use representations\syntax_trees\syntax_trees_data_case;
-use representations\syntax_trees\syntax_trees_data_item;
-use representations\syntax_trees\syntax_trees_domain_item;
-use representations\syntax_trees\syntax_trees_expression;
-use representations\syntax_trees\syntax_trees_generic_parameter;
-use representations\syntax_trees\syntax_trees_member;
-use representations\syntax_trees\syntax_trees_name_path;
-use representations\syntax_trees\syntax_trees_parameter;
-use representations\syntax_trees\syntax_trees_pattern_field;
-use representations\syntax_trees\syntax_trees_statement;
+use pipeline/syntax_trees_to_symbol_resolved_trees/resolution_state.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/declarations.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/containers.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/domains.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/generic_scopes.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/overloads.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/pattern_binders.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/imports.omg;
+
+use representations/source_files/source.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
 
 // Expression names. Every name and path in a machine body, and in a
 // constant's value, binds in the order of
@@ -72,18 +37,6 @@ use representations\syntax_trees\syntax_trees_statement;
 // question, not resolution's. Facts bind in facts.omg; domain predicates
 // and proposition bodies bind no names yet.
 
-// What a name's position lets it name. Children precede their parent in the
-// expression table, so one pass over the table gives each child its role
-// before the bodies bind.
-public data NameRole [copy] {
-    case Value;
-    case Callee;
-    case Target;
-    case Construction;
-    case CasePattern;
-    case WholeSubjectBinder;
-}
-
 // One body's names: its machine, its parameters and its statements, and how
 // far into the statements locals are visible. A transition arm adds the
 // binders of its case pattern for its target.
@@ -100,7 +53,7 @@ public data NameScope [copy] {
     // The exact declared result named by an `ensures` fact. The enclosing
     // machine still supplies lexical context; a callable contract owns its
     // own result independently. NotAName outside a result scope.
-    result_binding: ValueBinding;
+    result_binding: |symbol_resolved_trees|::ValueBinding;
     // Whether the names are a fact's, rooted at `fact_root`: only there may
     // a proposition apply.
     in_fact: bool;
@@ -111,26 +64,26 @@ public data NameScope [copy] {
     subject_domain: u64 in Trapping;
 }
 
-public machine bind_body_names(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
+public machine bind_body_names(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees)
 crashes Trap
 {
     assign_name_roles(resolver, syntax);
-    mark_subject_patterns(resolver, sources, syntax);
-    transition { _ -> next_machine(resolver, sources, syntax, 0) }
+    |pattern_binders|::mark_subject_patterns(resolver, sources, syntax);
+    transition { _ -> next_machine(resolver, sources, syntax, 0 as +Trapping) }
 
-    machine next_machine(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine next_machine(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count && resolver.output.accepted {
             true -> entry(resolver, sources, syntax, index),
             _ -> constants(resolver, sources, syntax)
         }
     }
 
-    machine constants(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
+    machine constants(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees) {
         bind_constant_values(resolver, sources, syntax);
     }
 
-    machine entry(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
-        let item: MachineItem = machine_item(syntax, index);
+    machine entry(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, index);
         bind_body(resolver, sources, syntax, index, item.first_parameter, item.parameter_count,
             item.first_statement, item.statement_count
         );
@@ -142,34 +95,34 @@ crashes Trap
 
 // Each constant's value, with no locals, parameters or generic binders in
 // scope.
-machine bind_constant_values(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
+machine bind_constant_values(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> next(resolver, sources, syntax, 0) }
+    transition { _ -> next(resolver, sources, syntax, 0 as +Trapping) }
 
-    machine next(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine next(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.constant_count && resolver.output.accepted {
             true -> value(resolver, sources, syntax, index),
             _ -> done()
         }
     }
 
-    machine value(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
-        let item: ConstantItem = constant_item(syntax, index);
+    machine value(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
+        let item: |syntax_trees|::ConstantItem = |syntax_trees|::constant_item(syntax, index);
         bind_tree(resolver, sources, syntax, NameScope {
             has_machine: false,
-            machine: 0,
-            first_parameter: 0,
-            parameter_count: 0,
-            first_statement: 0,
-            visible_statement_end: 0,
-            first_binder: 0,
-            binder_count: 0,
-            result_binding: ValueBinding::NotAName,
+            machine: 0 as +Trapping,
+            first_parameter: 0 as +Trapping,
+            parameter_count: 0 as +Trapping,
+            first_statement: 0 as +Trapping,
+            visible_statement_end: 0 as +Trapping,
+            first_binder: 0 as +Trapping,
+            binder_count: 0 as +Trapping,
+            result_binding: |symbol_resolved_trees|::ValueBinding::NotAName,
             in_fact: false,
-            fact_root: 0,
+            fact_root: 0 as +Trapping,
             names_subject: false,
-            subject_domain: 0
+            subject_domain: 0 as +Trapping
         }, item.value);
         transition { _ -> next(resolver, sources, syntax, index + 1) }
     }
@@ -179,96 +132,68 @@ crashes Trap
 
 // Calls, applications and constructions give their first child its role;
 // every other node is a value.
-machine assign_name_roles(resolver: @mutable Resolver, syntax: @SyntaxTrees)
+machine assign_name_roles(resolver: @mutable |resolution_state|::Resolver, syntax: @|syntax_trees|::SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> next(resolver, syntax, 0) }
+    transition { _ -> next(resolver, syntax, 0 as +Trapping) }
 
-    machine next(resolver: @mutable Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine next(resolver: @mutable |resolution_state|::Resolver, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.expression_count {
             true -> clear(resolver, syntax, index),
-            _ -> parents(resolver, syntax, 0)
+            _ -> parents(resolver, syntax, 0 as +Trapping)
         }
     }
 
-    machine clear(resolver: @mutable Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
-        resolver_set_role(resolver, index, NameRole::Value);
+    machine clear(resolver: @mutable |resolution_state|::Resolver, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
+        |resolution_state|::resolver_set_role(resolver, index, |resolution_state|::NameRole::Value);
         transition index < 131072 {
             true -> unbound(resolver, syntax, index),
             _ -> next(resolver, syntax, index + 1)
         }
     }
 
-    machine unbound(resolver: @mutable Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
-        resolver.output.value_bindings[index] = ValueBinding::NotAName;
+    machine unbound(resolver: @mutable |resolution_state|::Resolver, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
+        resolver.output.value_bindings[index as -Trapping] = |symbol_resolved_trees|::ValueBinding::NotAName;
         transition { _ -> next(resolver, syntax, index + 1) }
     }
 
-    machine parents(resolver: @mutable Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine parents(resolver: @mutable |resolution_state|::Resolver, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.expression_count {
             true -> parent(resolver, syntax, index),
             _ -> done()
         }
     }
 
-    machine parent(resolver: @mutable Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
-        let expression: Expression = syntax_trees_expression(syntax, index);
+    machine parent(resolver: @mutable |resolution_state|::Resolver, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
+        let expression: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, index);
         transition expression.kind {
-            ExpressionKind::Call -> child(resolver, syntax, index, expression.left, NameRole::Callee),
-            ExpressionKind::Apply -> child(resolver, syntax, index, expression.left, NameRole::Callee),
-            ExpressionKind::Construct -> child(resolver, syntax, index, expression.left, NameRole::Construction),
+            |syntax_trees|::ExpressionKind::Call -> child(resolver, syntax, index, expression.left, |resolution_state|::NameRole::Callee),
+            |syntax_trees|::ExpressionKind::Apply -> child(resolver, syntax, index, expression.left, |resolution_state|::NameRole::Callee),
+            |syntax_trees|::ExpressionKind::Construct -> child(resolver, syntax, index, expression.left, |resolution_state|::NameRole::Construction),
             _ -> parents(resolver, syntax, index + 1)
         }
     }
 
-    machine child(resolver: @mutable Resolver, syntax: @SyntaxTrees, index: u64 in Trapping, left: u64 in Trapping, role: NameRole) {
-        resolver_set_role(resolver, left, role);
+    machine child(resolver: @mutable |resolution_state|::Resolver, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, left: u64 in Trapping, role: |resolution_state|::NameRole) {
+        |resolution_state|::resolver_set_role(resolver, left, role);
         transition { _ -> parents(resolver, syntax, index + 1) }
     }
 
     machine done() {}
 }
 
-machine resolver_set_role(resolver: @mutable Resolver, index: u64 in Trapping, role: NameRole)
+public machine resolver_role(resolver: @|resolution_state|::Resolver, index: u64 in Trapping) -> |resolution_state|::NameRole
 crashes Trap
 {
-    transition index < 131072 {
-        true -> store(resolver, index, role),
-        _ -> invalid()
-    }
-
-    machine store(resolver: @mutable Resolver, index: u64 in Trapping, role: NameRole) {
-        resolver.name_roles[index] = role;
-    }
-
-    machine invalid() {
-        crash Trap;
-    }
-}
-
-public machine resolver_role(resolver: @Resolver, index: u64 in Trapping) -> NameRole
-crashes Trap
-{
-    transition index < 131072 {
-        true -> read(resolver, index),
-        _ -> invalid()
-    }
-
-    machine read(resolver: @Resolver, index: u64 in Trapping) -> NameRole {
-        resolver.name_roles[index]
-    }
-
-    machine invalid() -> NameRole {
-        crash Trap;
-    }
+    |resolution_state|::resolver_role(resolver, index)
 }
 
 // One body: each statement binds with the locals of the statements before
 // it in scope.
 machine bind_body(
-    resolver: @mutable Resolver,
-    sources: @SourceSet,
-    syntax: @SyntaxTrees,
+    resolver: @mutable |resolution_state|::Resolver,
+    sources: @|source|::SourceSet,
+    syntax: @|syntax_trees|::SyntaxTrees,
     machine_index: u64 in Trapping,
     first_parameter: u64 in Trapping,
     parameter_count: u64 in Trapping,
@@ -284,41 +209,41 @@ crashes Trap
         parameter_count: parameter_count,
         first_statement: first_statement,
         visible_statement_end: first_statement,
-        first_binder: 0,
-        binder_count: 0,
-        result_binding: ValueBinding::NotAName,
+        first_binder: 0 as +Trapping,
+        binder_count: 0 as +Trapping,
+        result_binding: |symbol_resolved_trees|::ValueBinding::NotAName,
         in_fact: false,
-        fact_root: 0,
+        fact_root: 0 as +Trapping,
         names_subject: false,
-        subject_domain: 0
-    }, first_statement + statement_count, 0) }
+        subject_domain: 0 as +Trapping
+    }, first_statement + statement_count, 0 as +Trapping) }
 
-    machine parameters(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, end: u64 in Trapping, offset: u64 in Trapping) {
+    machine parameters(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, end: u64 in Trapping, offset: u64 in Trapping) {
         transition offset < scope.parameter_count {
             true -> parameter(resolver, sources, syntax, scope, end, offset),
             _ -> next(resolver, sources, syntax, scope, end)
         }
     }
-    machine parameter(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, end: u64 in Trapping, offset: u64 in Trapping) {
-        let input: Parameter = syntax_trees_parameter(syntax, scope.first_parameter + offset);
-        let generic: ValueBinding = generic_name(@resolver.output, sources, syntax, scope, input.name.source_span, false);
+    machine parameter(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, end: u64 in Trapping, offset: u64 in Trapping) {
+        let input: |syntax_trees|::Parameter = |syntax_trees|::syntax_trees_parameter(syntax, scope.first_parameter + offset);
+        let generic: |symbol_resolved_trees|::ValueBinding = generic_name(@resolver.output, sources, syntax, scope, input.name.source_span, false);
         transition generic {
-            ValueBinding::GenericParameter { parameter as _ } -> duplicate(resolver, input.name),
+            |symbol_resolved_trees|::ValueBinding::GenericParameter { parameter as _ } -> duplicate(resolver, input.name),
             _ -> parameters(resolver, sources, syntax, scope, end, offset + 1)
         }
     }
-    machine duplicate(resolver: @mutable Resolver, name: IdentifierSpan) {
-        name_resolution_reject(@mutable resolver.output, ResolveDiagnosticCode::DuplicateLocalBinding, name.source_span);
+    machine duplicate(resolver: @mutable |resolution_state|::Resolver, name: |syntax_trees|::IdentifierSpan) {
+        |symbol_resolved_trees|::name_resolution_reject(@mutable resolver.output, |symbol_resolved_trees|::ResolveDiagnosticCode::DuplicateLocalBinding, name.source_span);
     }
 
-    machine next(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, end: u64 in Trapping) {
+    machine next(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, end: u64 in Trapping) {
         transition scope.visible_statement_end < end && resolver.output.accepted {
             true -> statement(resolver, sources, syntax, scope, end),
             _ -> done()
         }
     }
 
-    machine statement(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, end: u64 in Trapping) {
+    machine statement(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, end: u64 in Trapping) {
         bind_statement(resolver, sources, syntax, scope);
         transition { _ -> next(resolver, sources, syntax, through_statement(scope), end) }
     }
@@ -365,21 +290,21 @@ machine with_binders(scope: NameScope, first_binder: u64 in Trapping, binder_cou
 
 // The statement at `scope.visible_statement_end` binds its expressions; its
 // own `let` is not yet visible to its initializer.
-machine bind_statement(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope)
+machine bind_statement(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope)
 crashes Trap
 {
-    let statement: Statement = syntax_trees_statement(syntax, scope.visible_statement_end);
+    let statement: |syntax_trees|::Statement = |syntax_trees|::syntax_trees_statement(syntax, scope.visible_statement_end);
     transition statement.kind {
-        StatementKind::Let -> local(resolver, sources, syntax, scope, statement),
-        StatementKind::Assign -> assignment(resolver, sources, syntax, scope, statement),
-        StatementKind::Expression -> value(resolver, sources, syntax, scope, statement.value),
-        StatementKind::Discard -> value(resolver, sources, syntax, scope, statement.value),
-        StatementKind::Tail -> value(resolver, sources, syntax, scope, statement.value),
-        StatementKind::Crash -> done(),
-        StatementKind::Transition -> subject(resolver, sources, syntax, scope, statement)
+        |syntax_trees|::StatementKind::Let -> local(resolver, sources, syntax, scope, statement),
+        |syntax_trees|::StatementKind::Assign -> assignment(resolver, sources, syntax, scope, statement),
+        |syntax_trees|::StatementKind::Expression -> value(resolver, sources, syntax, scope, statement.value),
+        |syntax_trees|::StatementKind::Discard -> value(resolver, sources, syntax, scope, statement.value),
+        |syntax_trees|::StatementKind::Tail -> value(resolver, sources, syntax, scope, statement.value),
+        |syntax_trees|::StatementKind::Crash -> done(),
+        |syntax_trees|::StatementKind::Transition -> subject(resolver, sources, syntax, scope, statement)
     }
 
-    machine local(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, statement: Statement) {
+    machine local(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, statement: |syntax_trees|::Statement) {
         check_local_binding(resolver, sources, syntax, scope, statement.name);
         transition resolver.output.accepted {
             true -> optional_value(resolver, sources, syntax, scope, statement),
@@ -387,42 +312,42 @@ crashes Trap
         }
     }
 
-    machine optional_value(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, statement: Statement) {
+    machine optional_value(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, statement: |syntax_trees|::Statement) {
         transition statement.has_value {
             true -> value(resolver, sources, syntax, scope, statement.value),
             _ -> done()
         }
     }
 
-    machine assignment(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, statement: Statement) {
+    machine assignment(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, statement: |syntax_trees|::Statement) {
         bind_tree(resolver, sources, syntax, scope, statement.target);
         transition { _ -> value(resolver, sources, syntax, scope, statement.value) }
     }
 
-    machine value(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, root: u64 in Trapping) {
+    machine value(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, root: u64 in Trapping) {
         bind_tree(resolver, sources, syntax, scope, root);
     }
 
-    machine subject(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, statement: Statement) {
+    machine subject(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, statement: |syntax_trees|::Statement) {
         transition statement.has_value {
             true -> subject_value(resolver, sources, syntax, scope, statement),
-            _ -> arm(resolver, sources, syntax, scope, statement, 0)
+            _ -> arm(resolver, sources, syntax, scope, statement, 0 as +Trapping)
         }
     }
 
-    machine subject_value(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, statement: Statement) {
+    machine subject_value(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, statement: |syntax_trees|::Statement) {
         bind_tree(resolver, sources, syntax, scope, statement.value);
-        transition { _ -> arm(resolver, sources, syntax, scope, statement, 0) }
+        transition { _ -> arm(resolver, sources, syntax, scope, statement, 0 as +Trapping) }
     }
 
-    machine arm(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, statement: Statement, offset: u64 in Trapping) {
+    machine arm(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, statement: |syntax_trees|::Statement, offset: u64 in Trapping) {
         transition offset < statement.arm_count && resolver.output.accepted {
             true -> bind_arm(resolver, sources, syntax, scope, statement, offset),
             _ -> done()
         }
     }
 
-    machine bind_arm(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, statement: Statement, offset: u64 in Trapping) {
+    machine bind_arm(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, statement: |syntax_trees|::Statement, offset: u64 in Trapping) {
         resolver_bind_arm(resolver, sources, syntax, scope, statement.first_arm + offset);
         transition { _ -> arm(resolver, sources, syntax, scope, statement, offset + 1) }
     }
@@ -433,76 +358,76 @@ crashes Trap
 // A guard or literal pattern binds as a value; a case pattern's path names a
 // case and its field values bind as values. The arm's target then binds with
 // the pattern's binders in scope, its callee naming a visible machine.
-machine resolver_bind_arm(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, handle: u64 in Trapping)
+machine resolver_bind_arm(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, handle: u64 in Trapping)
 crashes Trap
 {
-    let arm: TransitionArm = syntax_trees_arm(syntax, handle);
+    let arm: |syntax_trees|::TransitionArm = |syntax_trees|::syntax_trees_arm(syntax, handle);
     transition arm.kind {
-        ArmPatternKind::Guard -> pattern_value(resolver, sources, syntax, scope, arm),
-        ArmPatternKind::Binder -> pattern_value(resolver, sources, syntax, scope, arm),
-        ArmPatternKind::Literal -> pattern_value(resolver, sources, syntax, scope, arm),
-        ArmPatternKind::Case -> case_pattern(resolver, sources, syntax, scope, arm),
-        ArmPatternKind::Wildcard -> guard_clause(resolver, sources, syntax, scope, arm)
+        |syntax_trees|::ArmPatternKind::Guard -> pattern_value(resolver, sources, syntax, scope, arm),
+        |syntax_trees|::ArmPatternKind::Binder -> pattern_value(resolver, sources, syntax, scope, arm),
+        |syntax_trees|::ArmPatternKind::Literal -> pattern_value(resolver, sources, syntax, scope, arm),
+        |syntax_trees|::ArmPatternKind::Case -> case_pattern(resolver, sources, syntax, scope, arm),
+        |syntax_trees|::ArmPatternKind::Wildcard -> guard_clause(resolver, sources, syntax, scope, arm)
     }
 
-    machine pattern_value(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, arm: TransitionArm) {
+    machine pattern_value(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, arm: |syntax_trees|::TransitionArm) {
         bind_tree(resolver, sources, syntax, scope, arm.pattern);
         transition { _ -> guard_clause(resolver, sources, syntax, scope, arm) }
     }
 
     // The arm's `if` guard binds with the pattern's binders in scope, as
     // its target does.
-    machine guard_clause(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, arm: TransitionArm) {
+    machine guard_clause(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, arm: |syntax_trees|::TransitionArm) {
         transition arm.has_guard && resolver.output.accepted {
             true -> guard_bound(resolver, sources, syntax, scope, arm),
             _ -> target(resolver, sources, syntax, scope, arm)
         }
     }
 
-    machine guard_bound(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, arm: TransitionArm) {
+    machine guard_bound(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, arm: |syntax_trees|::TransitionArm) {
         bind_tree(resolver, sources, syntax, scope, arm.guard);
         transition { _ -> target(resolver, sources, syntax, scope, arm) }
     }
 
-    machine case_pattern(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, arm: TransitionArm) {
-        resolver_set_role(resolver, arm.pattern, NameRole::CasePattern);
+    machine case_pattern(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, arm: |syntax_trees|::TransitionArm) {
+        |resolution_state|::resolver_set_role(resolver, arm.pattern, |resolution_state|::NameRole::CasePattern);
         bind_tree(resolver, sources, syntax, scope, arm.pattern);
-        transition { _ -> field(resolver, sources, syntax, scope, arm, 0) }
+        transition { _ -> field(resolver, sources, syntax, scope, arm, 0 as +Trapping) }
     }
 
-    machine field(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, arm: TransitionArm, offset: u64 in Trapping) {
+    machine field(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, arm: |syntax_trees|::TransitionArm, offset: u64 in Trapping) {
         transition offset < arm.field_count && resolver.output.accepted {
             true -> field_value(resolver, sources, syntax, scope, arm, offset),
             _ -> binders(resolver, sources, syntax, scope, arm)
         }
     }
 
-    machine field_value(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, arm: TransitionArm, offset: u64 in Trapping) {
-        let pattern_field: PatternField = syntax_trees_pattern_field(syntax, arm.first_field + offset);
+    machine field_value(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, arm: |syntax_trees|::TransitionArm, offset: u64 in Trapping) {
+        let pattern_field: |syntax_trees|::PatternField = |syntax_trees|::syntax_trees_pattern_field(syntax, arm.first_field + offset);
         transition pattern_field.has_value {
             true -> bound_field_value(resolver, sources, syntax, scope, arm, offset, pattern_field.value),
             _ -> field_binder(resolver, sources, syntax, scope, arm, offset, pattern_field)
         }
     }
 
-    machine field_binder(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, arm: TransitionArm, offset: u64 in Trapping, pattern_field: PatternField) {
+    machine field_binder(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, arm: |syntax_trees|::TransitionArm, offset: u64 in Trapping, pattern_field: |syntax_trees|::PatternField) {
         transition pattern_field.is_waived {
             true -> field(resolver, sources, syntax, scope, arm, offset + 1),
             _ -> check_field(resolver, sources, syntax, scope, arm, offset, binder_spelling(pattern_field))
         }
     }
 
-    machine check_field(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, arm: TransitionArm, offset: u64 in Trapping, name: IdentifierSpan) {
+    machine check_field(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, arm: |syntax_trees|::TransitionArm, offset: u64 in Trapping, name: |syntax_trees|::IdentifierSpan) {
         check_local_binding(resolver, sources, syntax, with_binders(scope, arm.first_field, offset), name);
         transition { _ -> field(resolver, sources, syntax, scope, arm, offset + 1) }
     }
 
     machine bound_field_value(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         scope: NameScope,
-        arm: TransitionArm,
+        arm: |syntax_trees|::TransitionArm,
         offset: u64 in Trapping,
         value: u64 in Trapping
     ) {
@@ -510,45 +435,45 @@ crashes Trap
         transition { _ -> field(resolver, sources, syntax, scope, arm, offset + 1) }
     }
 
-    machine binders(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, arm: TransitionArm) {
+    machine binders(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, arm: |syntax_trees|::TransitionArm) {
         transition { _ -> guard_clause(resolver, sources, syntax, with_binders(scope, arm.first_field, arm.field_count), arm) }
     }
 
-    machine target(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, arm: TransitionArm) {
+    machine target(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, arm: |syntax_trees|::TransitionArm) {
         transition resolver.output.accepted {
             true -> target_kind(resolver, sources, syntax, scope, arm),
             _ -> done()
         }
     }
 
-    machine target_kind(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, arm: TransitionArm) {
+    machine target_kind(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, arm: |syntax_trees|::TransitionArm) {
         transition arm.target_kind {
-            ArmTargetKind::Call -> target_callee(resolver, sources, syntax, scope, arm),
-            ArmTargetKind::Value -> value_target(resolver, sources, syntax, scope, arm),
-            ArmTargetKind::Unit -> done()
+            |syntax_trees|::ArmTargetKind::Call -> target_callee(resolver, sources, syntax, scope, arm),
+            |syntax_trees|::ArmTargetKind::Value -> value_target(resolver, sources, syntax, scope, arm),
+            |syntax_trees|::ArmTargetKind::Unit -> done()
         }
     }
 
-    machine value_target(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, arm: TransitionArm) {
+    machine value_target(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, arm: |syntax_trees|::TransitionArm) {
         bind_tree(resolver, sources, syntax, scope, arm.target);
     }
 
     // The target is a call, or an acknowledged call (`suspend block f()`).
-    machine target_callee(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, arm: TransitionArm) {
-        let target: Expression = syntax_trees_expression(syntax, arm.target);
+    machine target_callee(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, arm: |syntax_trees|::TransitionArm) {
+        let target: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, arm.target);
         transition target.kind {
-            ExpressionKind::Call -> mark_target(resolver, sources, syntax, scope, arm, target.left),
+            |syntax_trees|::ExpressionKind::Call -> mark_target(resolver, sources, syntax, scope, arm, target.left),
             _ -> acknowledged(resolver, sources, syntax, scope, arm, target.left)
         }
     }
 
-    machine acknowledged(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, arm: TransitionArm, call: u64 in Trapping) {
-        let acknowledged_call: Expression = syntax_trees_expression(syntax, call);
+    machine acknowledged(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, arm: |syntax_trees|::TransitionArm, call: u64 in Trapping) {
+        let acknowledged_call: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, call);
         transition { _ -> mark_target(resolver, sources, syntax, scope, arm, acknowledged_call.left) }
     }
 
-    machine mark_target(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, arm: TransitionArm, callee: u64 in Trapping) {
-        resolver_set_role(resolver, callee, NameRole::Target);
+    machine mark_target(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, arm: |syntax_trees|::TransitionArm, callee: u64 in Trapping) {
+        |resolution_state|::resolver_set_role(resolver, callee, |resolution_state|::NameRole::Target);
         bind_tree(resolver, sources, syntax, scope, arm.target);
     }
 
@@ -557,50 +482,50 @@ crashes Trap
 
 // Every name and path in the expression rooted at `root`: its subtree is the
 // contiguous run from the root's first row to the root.
-public machine bind_tree(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, root: u64 in Trapping)
+public machine bind_tree(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, root: u64 in Trapping)
 crashes Trap
 {
-    let expression: Expression = syntax_trees_expression(syntax, root);
+    let expression: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, root);
     transition { _ -> next(resolver, sources, syntax, scope, root, expression.first_row) }
 
-    machine next(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, root: u64 in Trapping, index: u64 in Trapping) {
+    machine next(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, root: u64 in Trapping, index: u64 in Trapping) {
         transition index <= root && resolver.output.accepted {
             true -> node(resolver, sources, syntax, scope, root, index),
             _ -> done()
         }
     }
 
-    machine node(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, root: u64 in Trapping, index: u64 in Trapping) {
-        let expression: Expression = syntax_trees_expression(syntax, index);
+    machine node(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, root: u64 in Trapping, index: u64 in Trapping) {
+        let expression: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, index);
         transition expression.kind {
-            ExpressionKind::Name -> name(resolver, sources, syntax, scope, root, index, expression),
-            ExpressionKind::Path -> name(resolver, sources, syntax, scope, root, index, expression),
-            ExpressionKind::Membership -> membership(resolver, sources, syntax, scope, root, index, expression),
+            |syntax_trees|::ExpressionKind::Name -> name(resolver, sources, syntax, scope, root, index, expression),
+            |syntax_trees|::ExpressionKind::Path -> name(resolver, sources, syntax, scope, root, index, expression),
+            |syntax_trees|::ExpressionKind::Membership -> membership(resolver, sources, syntax, scope, root, index, expression),
             _ -> next(resolver, sources, syntax, scope, root, index + 1)
         }
     }
 
     machine membership(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         scope: NameScope,
         root: u64 in Trapping,
         index: u64 in Trapping,
-        expression: Expression
+        expression: |syntax_trees|::Expression
     ) {
         bind_membership(resolver, sources, syntax, scope, index, expression);
         transition { _ -> next(resolver, sources, syntax, scope, root, index + 1) }
     }
 
     machine name(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         scope: NameScope,
         root: u64 in Trapping,
         index: u64 in Trapping,
-        expression: Expression
+        expression: |syntax_trees|::Expression
     ) {
         bind_name(resolver, sources, syntax, scope, index, expression);
         transition { _ -> next(resolver, sources, syntax, scope, root, index + 1) }
@@ -612,71 +537,71 @@ crashes Trap
 // One name or path, by its role. An unresolved name rejects at its span,
 // and so does a proposition applied where none may be.
 machine bind_name(
-    resolver: @mutable Resolver,
-    sources: @SourceSet,
-    syntax: @SyntaxTrees,
+    resolver: @mutable |resolution_state|::Resolver,
+    sources: @|source|::SourceSet,
+    syntax: @|syntax_trees|::SyntaxTrees,
     scope: NameScope,
     index: u64 in Trapping,
-    expression: Expression
+    expression: |syntax_trees|::Expression
 )
 crashes Trap
 {
-    let role: NameRole = resolver_role(resolver, index);
-    let marked: ValueBinding = pending_value_binding(resolver, index);
+    let role: |resolution_state|::NameRole = |resolution_state|::resolver_role(resolver, index);
+    let marked: |symbol_resolved_trees|::ValueBinding = |pattern_binders|::pending_value_binding(resolver, index);
     transition marked {
-        ValueBinding::MatchedSubject { subject as _ } -> scoped(resolver, sources, syntax, scope, index, expression, role),
+        |symbol_resolved_trees|::ValueBinding::MatchedSubject { subject as _ } -> scoped(resolver, sources, syntax, scope, index, expression, role),
         _ -> ordinary(resolver, sources, syntax, scope, index, expression, role)
     }
 
-    machine scoped(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, index: u64 in Trapping, expression: Expression, role: NameRole) {
+    machine scoped(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, index: u64 in Trapping, expression: |syntax_trees|::Expression, role: |resolution_state|::NameRole) {
         transition role {
-            NameRole::WholeSubjectBinder -> check_local_binding(resolver, sources, syntax, scope, expression.name),
-            NameRole::Value -> done(),
+            |resolution_state|::NameRole::WholeSubjectBinder -> check_local_binding(resolver, sources, syntax, scope, expression.name),
+            |resolution_state|::NameRole::Value -> done(),
             _ -> ordinary(resolver, sources, syntax, scope, index, expression, role)
         }
     }
 
-    machine ordinary(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, index: u64 in Trapping, expression: Expression, role: NameRole) {
-        let binding: ValueBinding = name_binding(@resolver.output, sources, syntax, scope, expression, role);
+    machine ordinary(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, index: u64 in Trapping, expression: |syntax_trees|::Expression, role: |resolution_state|::NameRole) {
+        let binding: |symbol_resolved_trees|::ValueBinding = name_binding(@resolver.output, sources, syntax, scope, expression, role);
         transition binding {
-            ValueBinding::Unresolved -> unresolved(resolver, expression),
-            ValueBinding::Ambiguous -> ambiguous(resolver, expression),
-            ValueBinding::Proposition { proposition } -> applied(resolver, syntax, scope, index, expression, binding),
+            |symbol_resolved_trees|::ValueBinding::Unresolved -> unresolved(resolver, expression),
+            |symbol_resolved_trees|::ValueBinding::Ambiguous -> ambiguous(resolver, expression),
+            |symbol_resolved_trees|::ValueBinding::Proposition { proposition } -> applied(resolver, syntax, scope, index, expression, binding),
             _ -> bound(resolver, index, binding)
         }
     }
 
     machine done() {}
 
-    machine applied(resolver: @mutable Resolver, syntax: @SyntaxTrees, scope: NameScope, index: u64 in Trapping, expression: Expression, binding: ValueBinding) {
-        let code: ResolveDiagnosticCode = proposition_site(syntax, scope.in_fact, scope.fact_root, index);
-        transition code == ResolveDiagnosticCode::None {
+    machine applied(resolver: @mutable |resolution_state|::Resolver, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, index: u64 in Trapping, expression: |syntax_trees|::Expression, binding: |symbol_resolved_trees|::ValueBinding) {
+        let code: |symbol_resolved_trees|::ResolveDiagnosticCode = proposition_site(syntax, scope.in_fact, scope.fact_root, index);
+        transition code == |symbol_resolved_trees|::ResolveDiagnosticCode::None {
             true -> bound(resolver, index, binding),
             _ -> misplaced(resolver, code, expression)
         }
     }
 
-    machine misplaced(resolver: @mutable Resolver, code: ResolveDiagnosticCode, expression: Expression) {
-        name_resolution_reject(@mutable resolver.output, code, expression.source_span);
+    machine misplaced(resolver: @mutable |resolution_state|::Resolver, code: |symbol_resolved_trees|::ResolveDiagnosticCode, expression: |syntax_trees|::Expression) {
+        |symbol_resolved_trees|::name_resolution_reject(@mutable resolver.output, code, expression.source_span);
     }
 
-    machine bound(resolver: @mutable Resolver, index: u64 in Trapping, binding: ValueBinding) {
+    machine bound(resolver: @mutable |resolution_state|::Resolver, index: u64 in Trapping, binding: |symbol_resolved_trees|::ValueBinding) {
         transition index < 131072 {
             true -> store(resolver, index, binding),
             _ -> invalid()
         }
     }
 
-    machine store(resolver: @mutable Resolver, index: u64 in Trapping, binding: ValueBinding) {
-        resolver.output.value_bindings[index] = binding;
+    machine store(resolver: @mutable |resolution_state|::Resolver, index: u64 in Trapping, binding: |symbol_resolved_trees|::ValueBinding) {
+        resolver.output.value_bindings[index as -Trapping] = binding;
     }
 
-    machine unresolved(resolver: @mutable Resolver, expression: Expression) {
-        name_resolution_reject(@mutable resolver.output, ResolveDiagnosticCode::UnknownName, expression.source_span);
+    machine unresolved(resolver: @mutable |resolution_state|::Resolver, expression: |syntax_trees|::Expression) {
+        |symbol_resolved_trees|::name_resolution_reject(@mutable resolver.output, |symbol_resolved_trees|::ResolveDiagnosticCode::UnknownName, expression.source_span);
     }
 
-    machine ambiguous(resolver: @mutable Resolver, expression: Expression) {
-        name_resolution_reject(@mutable resolver.output, ResolveDiagnosticCode::AmbiguousName, expression.source_span);
+    machine ambiguous(resolver: @mutable |resolution_state|::Resolver, expression: |syntax_trees|::Expression) {
+        |symbol_resolved_trees|::name_resolution_reject(@mutable resolver.output, |symbol_resolved_trees|::ResolveDiagnosticCode::AmbiguousName, expression.source_span);
     }
 
     machine invalid() {
@@ -686,74 +611,74 @@ crashes Trap
 
 // What a name in `role` denotes, or `Unresolved`.
 public machine name_binding(
-    resolution: @NameResolution,
-    sources: @SourceSet,
-    syntax: @SyntaxTrees,
+    resolution: @|symbol_resolved_trees|::NameResolution,
+    sources: @|source|::SourceSet,
+    syntax: @|syntax_trees|::SyntaxTrees,
     scope: NameScope,
-    expression: Expression,
-    role: NameRole
-) -> ValueBinding
+    expression: |syntax_trees|::Expression,
+    role: |resolution_state|::NameRole
+) -> |symbol_resolved_trees|::ValueBinding
 crashes Trap
 {
     transition expression.kind {
-        ExpressionKind::Name -> single(resolution, sources, syntax, scope, expression, role),
+        |syntax_trees|::ExpressionKind::Name -> single(resolution, sources, syntax, scope, expression, role),
         _ -> path(resolution, sources, syntax, scope, expression, role)
     }
 
-    machine single(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, expression: Expression, role: NameRole) -> ValueBinding {
-        let name: SourceSpan = expression.name.source_span;
+    machine single(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, expression: |syntax_trees|::Expression, role: |resolution_state|::NameRole) -> |symbol_resolved_trees|::ValueBinding {
+        let name: |source|::SourceSpan = expression.name.source_span;
         transition role {
-            NameRole::Value -> local_name(resolution, sources, syntax, scope, name),
-            NameRole::Callee -> callee_name(resolution, sources, syntax, scope, name),
-            NameRole::Target -> target_name(resolution, sources, syntax, scope, name),
-            NameRole::Construction -> data_name(sources, syntax, name),
-            NameRole::CasePattern -> unresolved(),
-            NameRole::WholeSubjectBinder -> unresolved()
+            |resolution_state|::NameRole::Value -> local_name(resolution, sources, syntax, scope, name),
+            |resolution_state|::NameRole::Callee -> callee_name(resolution, sources, syntax, scope, name),
+            |resolution_state|::NameRole::Target -> target_name(resolution, sources, syntax, scope, name),
+            |resolution_state|::NameRole::Construction -> data_name(sources, syntax, name),
+            |resolution_state|::NameRole::CasePattern -> unresolved(),
+            |resolution_state|::NameRole::WholeSubjectBinder -> unresolved()
         }
     }
 
     // `Owner::name` names a case of data `Owner`, an owned constant or a
     // machine `Owner::name`; a longer path crosses a package, which a single
     // unit cannot bind.
-    machine path(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, expression: Expression, role: NameRole) -> ValueBinding {
+    machine path(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, expression: |syntax_trees|::Expression, role: |resolution_state|::NameRole) -> |symbol_resolved_trees|::ValueBinding {
         transition expression.count == 2 {
             true -> owned_members(resolution, sources, syntax, scope, expression, role),
             _ -> unresolved()
         }
     }
 
-    machine owned_members(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, expression: Expression, role: NameRole) -> ValueBinding {
-        let owner: IdentifierSpan = syntax_trees_member(syntax, expression.first);
-        let member: IdentifierSpan = syntax_trees_member(syntax, expression.first + 1);
-        transition scope.has_machine && (role == NameRole::Callee || role == NameRole::Target) {
+    machine owned_members(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, expression: |syntax_trees|::Expression, role: |resolution_state|::NameRole) -> |symbol_resolved_trees|::ValueBinding {
+        let owner: |syntax_trees|::IdentifierSpan = |syntax_trees|::syntax_trees_member(syntax, expression.first);
+        let member: |syntax_trees|::IdentifierSpan = |syntax_trees|::syntax_trees_member(syntax, expression.first + 1);
+        transition scope.has_machine && (role == |resolution_state|::NameRole::Callee || role == |resolution_state|::NameRole::Target) {
             true -> qualified_lexical(resolution, sources, syntax, scope, role, owner.source_span, member.source_span),
             _ -> owned(resolution, sources, syntax, role, owner.source_span, member.source_span)
         }
     }
 
-    machine qualified_lexical(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, role: NameRole, owner: SourceSpan, name: SourceSpan) -> ValueBinding {
-        let declared: bool = lexical_owner_visible(sources, syntax, scope.machine, owner);
+    machine qualified_lexical(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, role: |resolution_state|::NameRole, owner: |source|::SourceSpan, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding {
+        let declared: bool = |containers|::lexical_owner_visible(sources, syntax, scope.machine, owner);
         transition declared {
             true -> lexical_member(sources, syntax, scope, owner, name),
             _ -> owned(resolution, sources, syntax, role, owner, name)
         }
     }
 
-    machine lexical_member(sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, owner: SourceSpan, name: SourceSpan) -> ValueBinding {
-        let local: ValueBinding = qualified_lexical_machine(sources, syntax, scope.machine, owner, name);
+    machine lexical_member(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, owner: |source|::SourceSpan, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding {
+        let local: |symbol_resolved_trees|::ValueBinding = |containers|::qualified_lexical_machine(sources, syntax, scope.machine, owner, name);
         local
     }
 
-    machine owned(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, role: NameRole, owner: SourceSpan, name: SourceSpan) -> ValueBinding {
+    machine owned(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, role: |resolution_state|::NameRole, owner: |source|::SourceSpan, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding {
         transition role {
-            NameRole::Callee -> owned_callee(resolution, sources, syntax, owner, name),
-            NameRole::Target -> owned_callee(resolution, sources, syntax, owner, name),
+            |resolution_state|::NameRole::Callee -> owned_callee(resolution, sources, syntax, owner, name),
+            |resolution_state|::NameRole::Target -> owned_callee(resolution, sources, syntax, owner, name),
             _ -> case_or_machine(resolution, sources, syntax, owner, name)
         }
     }
 
-    machine unresolved() -> ValueBinding {
-        ValueBinding::Unresolved
+    machine unresolved() -> |symbol_resolved_trees|::ValueBinding {
+        |symbol_resolved_trees|::ValueBinding::Unresolved
     }
 }
 
@@ -762,149 +687,149 @@ crashes Trap
 // predicates, its subject binder, then, in an `ensures` fact, `result`,
 // then a value binder of the enclosing machine, then a constant.
 // An entry parameter spelled `result` shadows the returned value.
-machine local_name(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding
+machine local_name(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding
 crashes Trap
 {
     transition { _ -> local(resolution, sources, syntax, scope, name, scope.visible_statement_end) }
 
-    machine local(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, name: SourceSpan, end: u64 in Trapping) -> ValueBinding {
+    machine local(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, name: |source|::SourceSpan, end: u64 in Trapping) -> |symbol_resolved_trees|::ValueBinding {
         transition end > scope.first_statement {
             true -> local_statement(resolution, sources, syntax, scope, name, end - 1),
-            _ -> binder(resolution, sources, syntax, scope, name, 0)
+            _ -> binder(resolution, sources, syntax, scope, name, 0 as +Trapping)
         }
     }
 
-    machine local_statement(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, name: SourceSpan, index: u64 in Trapping) -> ValueBinding {
-        let statement: Statement = syntax_trees_statement(syntax, index);
-        let spelled: bool = spans_equal(sources, statement.name.source_span, name);
-        transition statement.kind == StatementKind::Let && spelled {
-            true -> found(ValueBinding::Local { statement: index }),
+    machine local_statement(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, name: |source|::SourceSpan, index: u64 in Trapping) -> |symbol_resolved_trees|::ValueBinding {
+        let statement: |syntax_trees|::Statement = |syntax_trees|::syntax_trees_statement(syntax, index);
+        let spelled: bool = |source|::spans_equal(sources, statement.name.source_span, name);
+        transition statement.kind == |syntax_trees|::StatementKind::Let && spelled {
+            true -> found(|symbol_resolved_trees|::ValueBinding::Local { statement: index }),
             _ -> local(resolution, sources, syntax, scope, name, index)
         }
     }
 
-    machine binder(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
+    machine binder(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, name: |source|::SourceSpan, offset: u64 in Trapping) -> |symbol_resolved_trees|::ValueBinding {
         transition offset < scope.binder_count {
             true -> binder_field(resolution, sources, syntax, scope, name, offset),
-            _ -> parameter(resolution, sources, syntax, scope, name, 0)
+            _ -> parameter(resolution, sources, syntax, scope, name, 0 as +Trapping)
         }
     }
 
     // A binder is spelled by its rename (`field as name`), else by its field;
     // a waived field (`field as _`) binds nothing.
-    machine binder_field(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
-        let field: PatternField = syntax_trees_pattern_field(syntax, scope.first_binder + offset);
-        let binder: IdentifierSpan = binder_spelling(field);
-        let spelled: bool = spans_equal(sources, binder.source_span, name);
+    machine binder_field(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, name: |source|::SourceSpan, offset: u64 in Trapping) -> |symbol_resolved_trees|::ValueBinding {
+        let field: |syntax_trees|::PatternField = |syntax_trees|::syntax_trees_pattern_field(syntax, scope.first_binder + offset);
+        let current_binder: |syntax_trees|::IdentifierSpan = binder_spelling(field);
+        let spelled: bool = |source|::spans_equal(sources, current_binder.source_span, name);
         transition spelled && !field.has_value && !field.is_waived {
-            true -> found(ValueBinding::PatternBinder { field: scope.first_binder + offset }),
+            true -> found(|symbol_resolved_trees|::ValueBinding::PatternBinder { field: scope.first_binder + offset }),
             _ -> binder(resolution, sources, syntax, scope, name, offset + 1)
         }
     }
 
-    machine parameter(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
+    machine parameter(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, name: |source|::SourceSpan, offset: u64 in Trapping) -> |symbol_resolved_trees|::ValueBinding {
         transition offset < scope.parameter_count {
             true -> parameter_named(resolution, sources, syntax, scope, name, offset),
             _ -> subject(resolution, sources, syntax, scope, name)
         }
     }
 
-    machine subject(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding {
+    machine subject(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding {
         transition scope.names_subject {
             true -> subject_named(resolution, sources, syntax, scope, name),
             _ -> returned(resolution, sources, syntax, scope, name)
         }
     }
 
-    machine subject_named(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding {
-        let spelled: bool = span_spells(sources, name, "self");
+    machine subject_named(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding {
+        let spelled: bool = |source|::span_spells(sources, name, "self");
         transition spelled {
-            true -> found(ValueBinding::DomainSubject { domain: scope.subject_domain }),
+            true -> found(|symbol_resolved_trees|::ValueBinding::DomainSubject { domain: scope.subject_domain }),
             _ -> returned(resolution, sources, syntax, scope, name)
         }
     }
 
-    machine returned(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding {
-        let spelled: bool = span_spells(sources, name, "result");
+    machine returned(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding {
+        let spelled: bool = |source|::span_spells(sources, name, "result");
         transition scope.result_binding {
-            ValueBinding::NotAName -> generic(resolution, sources, syntax, scope, name),
+            |symbol_resolved_trees|::ValueBinding::NotAName -> generic(resolution, sources, syntax, scope, name),
             _ -> result_spelling(resolution, sources, syntax, scope, name, spelled)
         }
     }
 
-    machine result_spelling(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, name: SourceSpan, spelled: bool) -> ValueBinding {
+    machine result_spelling(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, name: |source|::SourceSpan, spelled: bool) -> |symbol_resolved_trees|::ValueBinding {
         transition spelled {
             true -> found(scope.result_binding),
             _ -> generic(resolution, sources, syntax, scope, name)
         }
     }
 
-    machine generic(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding {
-        let binder: ValueBinding = generic_name(resolution, sources, syntax, scope, name, false);
+    machine generic(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding {
+        let binder: |symbol_resolved_trees|::ValueBinding = generic_name(resolution, sources, syntax, scope, name, false);
         transition binder {
-            ValueBinding::GenericParameter { parameter } -> found(binder),
+            |symbol_resolved_trees|::ValueBinding::GenericParameter { parameter } -> found(binder),
             _ -> constant(sources, syntax, name)
         }
     }
 
-    machine constant(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan) -> ValueBinding {
+    machine constant(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding {
         constant_name(sources, syntax, false, name, name)
     }
 
-    machine parameter_named(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
-        let parameter: Parameter = syntax_trees_parameter(syntax, scope.first_parameter + offset);
-        let spelled: bool = spans_equal(sources, parameter.name.source_span, name);
+    machine parameter_named(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, name: |source|::SourceSpan, offset: u64 in Trapping) -> |symbol_resolved_trees|::ValueBinding {
+        let current_parameter: |syntax_trees|::Parameter = |syntax_trees|::syntax_trees_parameter(syntax, scope.first_parameter + offset);
+        let spelled: bool = |source|::spans_equal(sources, current_parameter.name.source_span, name);
         transition spelled {
-            true -> found(ValueBinding::Parameter { parameter: scope.first_parameter + offset }),
+            true -> found(|symbol_resolved_trees|::ValueBinding::Parameter { parameter: scope.first_parameter + offset }),
             _ -> parameter(resolution, sources, syntax, scope, name, offset + 1)
         }
     }
 
-    machine found(binding: ValueBinding) -> ValueBinding {
+    machine found(binding: |symbol_resolved_trees|::ValueBinding) -> |symbol_resolved_trees|::ValueBinding {
         binding
     }
 }
 
 // Only existing local value bindings reserve their spelling in the body.
-machine check_local_binding(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, name: IdentifierSpan)
+machine check_local_binding(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, name: |syntax_trees|::IdentifierSpan)
 crashes Trap
 {
-    let binding: ValueBinding = local_name(@resolver.output, sources, syntax, scope, name.source_span);
+    let binding: |symbol_resolved_trees|::ValueBinding = local_name(@resolver.output, sources, syntax, scope, name.source_span);
     transition binding {
-        ValueBinding::Local { statement as _ } -> collision(resolver, name),
-        ValueBinding::Parameter { parameter as _ } -> collision(resolver, name),
-        ValueBinding::PatternBinder { field as _ } -> collision(resolver, name),
-        ValueBinding::GenericParameter { parameter as _ } -> collision(resolver, name),
-        ValueBinding::ReturnedValue { machine as _ } -> generic(resolver, sources, syntax, scope, name),
-        ValueBinding::ContractReturnedValue { contract as _ } -> generic(resolver, sources, syntax, scope, name),
-        ValueBinding::DomainSubject { domain as _ } -> generic(resolver, sources, syntax, scope, name),
+        |symbol_resolved_trees|::ValueBinding::Local { statement as _ } -> collision(resolver, name),
+        |symbol_resolved_trees|::ValueBinding::Parameter { parameter as _ } -> collision(resolver, name),
+        |symbol_resolved_trees|::ValueBinding::PatternBinder { field as _ } -> collision(resolver, name),
+        |symbol_resolved_trees|::ValueBinding::GenericParameter { parameter as _ } -> collision(resolver, name),
+        |symbol_resolved_trees|::ValueBinding::ReturnedValue { machine as _ } -> generic(resolver, sources, syntax, scope, name),
+        |symbol_resolved_trees|::ValueBinding::ContractReturnedValue { contract as _ } -> generic(resolver, sources, syntax, scope, name),
+        |symbol_resolved_trees|::ValueBinding::DomainSubject { domain as _ } -> generic(resolver, sources, syntax, scope, name),
         _ -> done()
     }
-    machine generic(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, name: IdentifierSpan) {
-        let binder: ValueBinding = generic_name(@resolver.output, sources, syntax, scope, name.source_span, false);
+    machine generic(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, name: |syntax_trees|::IdentifierSpan) {
+        let binder: |symbol_resolved_trees|::ValueBinding = generic_name(@resolver.output, sources, syntax, scope, name.source_span, false);
         transition binder {
-            ValueBinding::GenericParameter { parameter as _ } -> collision(resolver, name),
+            |symbol_resolved_trees|::ValueBinding::GenericParameter { parameter as _ } -> collision(resolver, name),
             _ -> done()
         }
     }
-    machine collision(resolver: @mutable Resolver, name: IdentifierSpan) {
-        name_resolution_reject(@mutable resolver.output, ResolveDiagnosticCode::DuplicateLocalBinding, name.source_span);
+    machine collision(resolver: @mutable |resolution_state|::Resolver, name: |syntax_trees|::IdentifierSpan) {
+        |symbol_resolved_trees|::name_resolution_reject(@mutable resolver.output, |symbol_resolved_trees|::ResolveDiagnosticCode::DuplicateLocalBinding, name.source_span);
     }
     machine done() {}
 }
 
 // The name a pattern field binds: its rename, else its own field name.
-machine binder_spelling(field: PatternField) -> IdentifierSpan {
+machine binder_spelling(field: |syntax_trees|::PatternField) -> |syntax_trees|::IdentifierSpan {
     transition field.has_rename {
         true -> renamed(field),
         _ -> own(field)
     }
 
-    machine renamed(field: PatternField) -> IdentifierSpan {
+    machine renamed(field: |syntax_trees|::PatternField) -> |syntax_trees|::IdentifierSpan {
         field.rename
     }
 
-    machine own(field: PatternField) -> IdentifierSpan {
+    machine own(field: |syntax_trees|::PatternField) -> |syntax_trees|::IdentifierSpan {
         field.name
     }
 }
@@ -918,69 +843,69 @@ machine binder_spelling(field: PatternField) -> IdentifierSpan {
 // domains at once is an expression form resolution does not bind yet: both
 // reject as unsupported.
 machine bind_membership(
-    resolver: @mutable Resolver,
-    sources: @SourceSet,
-    syntax: @SyntaxTrees,
+    resolver: @mutable |resolution_state|::Resolver,
+    sources: @|source|::SourceSet,
+    syntax: @|syntax_trees|::SyntaxTrees,
     scope: NameScope,
     index: u64 in Trapping,
-    expression: Expression
+    expression: |syntax_trees|::Expression
 )
 crashes Trap
 {
     transition expression.count == 1 {
         true -> domain(resolver, sources, syntax, scope, index, expression),
-        _ -> reject(resolver, ResolveDiagnosticCode::UnsupportedExpression, expression.source_span)
+        _ -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::UnsupportedExpression, expression.source_span)
     }
 
-    machine domain(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, index: u64 in Trapping, expression: Expression) {
-        let path: NamePath = syntax_trees_name_path(syntax, expression.first);
+    machine domain(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, index: u64 in Trapping, expression: |syntax_trees|::Expression) {
+        let path: |syntax_trees|::NamePath = |syntax_trees|::syntax_trees_name_path(syntax, expression.first);
         transition path.member_count {
             1 -> bare(resolver, sources, syntax, expression.first, path),
             2 -> owned(resolver, sources, syntax, scope, index, expression.first, path),
-            _ -> reject(resolver, ResolveDiagnosticCode::UnknownDomain, path.source_span)
+            _ -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::UnknownDomain, path.source_span)
         }
     }
 
-    machine owned(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, index: u64 in Trapping, path_handle: u64 in Trapping, path: NamePath) {
-        let owner: IdentifierSpan = syntax_trees_member(syntax, path.first_member);
-        let member: IdentifierSpan = syntax_trees_member(syntax, path.first_member + 1);
-        let types: TypeScope = name_scope_types(@resolver.output, syntax, scope);
+    machine owned(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, index: u64 in Trapping, path_handle: u64 in Trapping, path: |syntax_trees|::NamePath) {
+        let owner: |syntax_trees|::IdentifierSpan = |syntax_trees|::syntax_trees_member(syntax, path.first_member);
+        let member: |syntax_trees|::IdentifierSpan = |syntax_trees|::syntax_trees_member(syntax, path.first_member + 1);
+        let types: |symbol_resolved_trees|::TypeScope = name_scope_types(@resolver.output, syntax, scope);
         let named: DomainPath = resolver_domain_path(resolver, sources, syntax, types, owner.source_span, member.source_span);
         transition named {
-            DomainPath::Case { item, data_case } -> bound(resolver, index, ValueBinding::DataCase { item: item, data_case: data_case }),
+            DomainPath::Case { item, data_case } -> bound(resolver, index, |symbol_resolved_trees|::ValueBinding::DataCase { item: item, data_case: data_case }),
             DomainPath::Declared { item } -> path_bound(resolver, path_handle, item),
-            DomainPath::Ambiguous -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, path.source_span),
-            DomainPath::Absent -> reject(resolver, ResolveDiagnosticCode::UnknownDomain, path.source_span)
+            DomainPath::Ambiguous -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::AmbiguousName, path.source_span),
+            DomainPath::Absent -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::UnknownDomain, path.source_span)
         }
     }
 
-    machine bare(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, path_handle: u64 in Trapping, path: NamePath) {
-        let name: IdentifierSpan = syntax_trees_member(syntax, path.first_member);
-        let declared: Lookup = domain_named(sources, syntax, name.source_span);
+    machine bare(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, path_handle: u64 in Trapping, path: |syntax_trees|::NamePath) {
+        let name: |syntax_trees|::IdentifierSpan = |syntax_trees|::syntax_trees_member(syntax, path.first_member);
+        let declared: |declarations|::Lookup = |domains|::domain_named(sources, syntax, name.source_span);
         transition declared {
-            Lookup::Found { handle } -> path_bound(resolver, path_handle, handle),
-            Lookup::Ambiguous -> reject(resolver, ResolveDiagnosticCode::UnsupportedExpression, path.source_span),
-            Lookup::Absent -> reject(resolver, ResolveDiagnosticCode::UnknownDomain, path.source_span)
+            |declarations|::Lookup::Found { handle } -> path_bound(resolver, path_handle, handle),
+            |declarations|::Lookup::Ambiguous -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::UnsupportedExpression, path.source_span),
+            |declarations|::Lookup::Absent -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::UnknownDomain, path.source_span)
         }
     }
 
-    machine path_bound(resolver: @mutable Resolver, path_handle: u64 in Trapping, domain: u64 in Trapping) {
-        set_path_binding(resolver, path_handle, PathBinding::Domain { item: domain });
+    machine path_bound(resolver: @mutable |resolution_state|::Resolver, path_handle: u64 in Trapping, domain: u64 in Trapping) {
+        |containers|::set_path_binding(resolver, path_handle, |symbol_resolved_trees|::PathBinding::Domain { item: domain });
     }
 
-    machine bound(resolver: @mutable Resolver, index: u64 in Trapping, binding: ValueBinding) {
+    machine bound(resolver: @mutable |resolution_state|::Resolver, index: u64 in Trapping, binding: |symbol_resolved_trees|::ValueBinding) {
         transition index < 131072 {
             true -> store(resolver, index, binding),
             _ -> invalid()
         }
     }
 
-    machine store(resolver: @mutable Resolver, index: u64 in Trapping, binding: ValueBinding) {
-        resolver.output.value_bindings[index] = binding;
+    machine store(resolver: @mutable |resolution_state|::Resolver, index: u64 in Trapping, binding: |symbol_resolved_trees|::ValueBinding) {
+        resolver.output.value_bindings[index as -Trapping] = binding;
     }
 
-    machine reject(resolver: @mutable Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
-        name_resolution_reject(@mutable resolver.output, code, source_span);
+    machine reject(resolver: @mutable |resolution_state|::Resolver, code: |symbol_resolved_trees|::ResolveDiagnosticCode, source_span: |source|::SourceSpan) {
+        |symbol_resolved_trees|::name_resolution_reject(@mutable resolver.output, code, source_span);
     }
 
     machine invalid() {
@@ -1001,29 +926,29 @@ public data DomainPath [copy] {
     case Declared(item: u64 in Trapping);
 }
 
-public machine resolver_domain_path(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, types: TypeScope, owner: SourceSpan, name: SourceSpan) -> DomainPath
+public machine resolver_domain_path(resolver: @|resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, types: |symbol_resolved_trees|::TypeScope, owner: |source|::SourceSpan, name: |source|::SourceSpan) -> DomainPath
 crashes Trap
 {
-    let named: ValueBinding = case_or_machine(@resolver.output, sources, syntax, owner, name);
-    let declared: Lookup = domain_by_head(resolver, sources, syntax, types, owner, name);
+    let named: |symbol_resolved_trees|::ValueBinding = case_or_machine(@resolver.output, sources, syntax, owner, name);
+    let declared: |declarations|::Lookup = |domains|::domain_by_head(resolver, sources, syntax, types, owner, name);
     transition named {
-        ValueBinding::DataCase { item, data_case } -> case_domain(declared, item, data_case),
-        ValueBinding::Ambiguous -> found(DomainPath::Ambiguous),
+        |symbol_resolved_trees|::ValueBinding::DataCase { item, data_case } -> case_domain(declared, item, data_case),
+        |symbol_resolved_trees|::ValueBinding::Ambiguous -> found(DomainPath::Ambiguous),
         _ -> declared_domain(declared)
     }
 
-    machine case_domain(declared: Lookup, item: u64 in Trapping, data_case: u64 in Trapping) -> DomainPath {
+    machine case_domain(declared: |declarations|::Lookup, item: u64 in Trapping, data_case: u64 in Trapping) -> DomainPath {
         transition declared {
-            Lookup::Absent -> found(DomainPath::Case { item: item, data_case: data_case }),
+            |declarations|::Lookup::Absent -> found(DomainPath::Case { item: item, data_case: data_case }),
             _ -> found(DomainPath::Ambiguous)
         }
     }
 
-    machine declared_domain(declared: Lookup) -> DomainPath {
+    machine declared_domain(declared: |declarations|::Lookup) -> DomainPath {
         transition declared {
-            Lookup::Found { handle } -> found(DomainPath::Declared { item: handle }),
-            Lookup::Ambiguous -> found(DomainPath::Ambiguous),
-            Lookup::Absent -> found(DomainPath::Absent)
+            |declarations|::Lookup::Found { handle } -> found(DomainPath::Declared { item: handle }),
+            |declarations|::Lookup::Ambiguous -> found(DomainPath::Ambiguous),
+            |declarations|::Lookup::Absent -> found(DomainPath::Absent)
         }
     }
 
@@ -1034,7 +959,7 @@ crashes Trap
 
 // The type scope of a name scope: its machine's, or none for a constant's
 // value.
-machine name_scope_types(resolution: @NameResolution, syntax: @SyntaxTrees, scope: NameScope) -> TypeScope
+machine name_scope_types(resolution: @|symbol_resolved_trees|::NameResolution, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope) -> |symbol_resolved_trees|::TypeScope
 crashes Trap
 {
     transition scope.has_machine {
@@ -1042,27 +967,27 @@ crashes Trap
         _ -> none()
     }
 
-    machine machine_types(resolution: @NameResolution, syntax: @SyntaxTrees, machine_index: u64 in Trapping) -> TypeScope {
-        resolver_machine_scope(resolution, syntax, machine_index)
+    machine machine_types(resolution: @|symbol_resolved_trees|::NameResolution, syntax: @|syntax_trees|::SyntaxTrees, machine_index: u64 in Trapping) -> |symbol_resolved_trees|::TypeScope {
+        |containers|::resolver_machine_scope(resolution, syntax, machine_index)
     }
 
-    machine none() -> TypeScope {
-        empty_scope()
+    machine none() -> |symbol_resolved_trees|::TypeScope {
+        |generic_scopes|::empty_scope()
     }
 }
 
 // The constant `name` (owned by `owner` when `owned`) denotes.
-machine constant_name(sources: @SourceSet, syntax: @SyntaxTrees, owned: bool, owner: SourceSpan, name: SourceSpan) -> ValueBinding
+machine constant_name(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, owned: bool, owner: |source|::SourceSpan, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding
 crashes Trap
 {
-    let lookup: Lookup = declared_named(sources, syntax, DeclarationKind::Constant, owned, owner, name);
+    let lookup: |declarations|::Lookup = |imports|::declared_named(sources, syntax, |declarations|::DeclarationKind::Constant, owned, owner, name);
     transition lookup {
-        Lookup::Found { handle } -> found(ValueBinding::Constant { constant: handle }),
-        Lookup::Ambiguous -> found(ValueBinding::Ambiguous),
-        Lookup::Absent -> found(ValueBinding::Unresolved)
+        |declarations|::Lookup::Found { handle } -> found(|symbol_resolved_trees|::ValueBinding::Constant { constant: handle }),
+        |declarations|::Lookup::Ambiguous -> found(|symbol_resolved_trees|::ValueBinding::Ambiguous),
+        |declarations|::Lookup::Absent -> found(|symbol_resolved_trees|::ValueBinding::Unresolved)
     }
 
-    machine found(binding: ValueBinding) -> ValueBinding {
+    machine found(binding: |symbol_resolved_trees|::ValueBinding) -> |symbol_resolved_trees|::ValueBinding {
         binding
     }
 }
@@ -1070,17 +995,17 @@ crashes Trap
 // A machine whose path is `name` (owned by `owner` when `owned`): its
 // overload family's first declaration, since typing selects among the
 // overloads.
-public machine machine_name(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, owned: bool, owner: SourceSpan, name: SourceSpan) -> ValueBinding
+public machine machine_name(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, owned: bool, owner: |source|::SourceSpan, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding
 crashes Trap
 {
-    let lookup: Lookup = machine_named(resolution, sources, syntax, owned, owner, name);
+    let lookup: |declarations|::Lookup = |overloads|::machine_named(resolution, sources, syntax, owned, owner, name);
     transition lookup {
-        Lookup::Found { handle } -> found(ValueBinding::Machine { handle: handle }),
-        Lookup::Ambiguous -> found(ValueBinding::Ambiguous),
-        Lookup::Absent -> found(ValueBinding::Unresolved)
+        |declarations|::Lookup::Found { handle } -> found(|symbol_resolved_trees|::ValueBinding::Machine { handle: handle }),
+        |declarations|::Lookup::Ambiguous -> found(|symbol_resolved_trees|::ValueBinding::Ambiguous),
+        |declarations|::Lookup::Absent -> found(|symbol_resolved_trees|::ValueBinding::Unresolved)
     }
 
-    machine found(binding: ValueBinding) -> ValueBinding {
+    machine found(binding: |symbol_resolved_trees|::ValueBinding) -> |symbol_resolved_trees|::ValueBinding {
         binding
     }
 }
@@ -1088,26 +1013,26 @@ crashes Trap
 // A callee path `Owner::name`: the machine of that path, else, for a named
 // conformance `Owner` declaring no such member, the machine its trait
 // supplies for requirement `name` (containers.omg).
-machine owned_callee(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, owner: SourceSpan, name: SourceSpan) -> ValueBinding
+machine owned_callee(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, owner: |source|::SourceSpan, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding
 crashes Trap
 {
-    let binding: ValueBinding = machine_name(resolution, sources, syntax, true, owner, name);
+    let binding: |symbol_resolved_trees|::ValueBinding = machine_name(resolution, sources, syntax, true, owner, name);
     transition binding {
-        ValueBinding::Unresolved -> requirement(resolution, sources, syntax, owner, name),
+        |symbol_resolved_trees|::ValueBinding::Unresolved -> requirement(resolution, sources, syntax, owner, name),
         _ -> found(binding)
     }
 
-    machine requirement(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, owner: SourceSpan, name: SourceSpan) -> ValueBinding {
-        conformance_requirement_named(resolution, sources, syntax, owner, name)
+    machine requirement(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, owner: |source|::SourceSpan, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding {
+        |containers|::conformance_requirement_named(resolution, sources, syntax, owner, name)
     }
 
-    machine found(binding: ValueBinding) -> ValueBinding {
+    machine found(binding: |symbol_resolved_trees|::ValueBinding) -> |symbol_resolved_trees|::ValueBinding {
         binding
     }
 }
 
 // Calls and terminal transfers resolve the same lexical callable declaration.
-machine target_name(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding
+machine target_name(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding
 crashes Trap
 {
     callee_name(resolution, sources, syntax, scope, name)
@@ -1115,52 +1040,52 @@ crashes Trap
 
 // The first matching lexical tier owns the complete ordinary overload family.
 // A child scope never searches a sibling's descendants or enclosing runtime binders.
-machine lexical_callee(sources: @SourceSet, syntax: @SyntaxTrees, machine: u64 in Trapping, name: SourceSpan) -> ValueBinding
+machine lexical_callee(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, machine: u64 in Trapping, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding
 crashes Trap
 {
-    transition { _ -> candidate(sources, syntax, machine + 1, name, 0) }
+    transition { _ -> candidate(sources, syntax, machine + 1, name, 0 as +Trapping) }
 
-    machine candidate(sources: @SourceSet, syntax: @SyntaxTrees, parent: u64 in Trapping, name: SourceSpan, index: u64 in Trapping) -> ValueBinding {
+    machine candidate(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, parent: u64 in Trapping, name: |source|::SourceSpan, index: u64 in Trapping) -> |symbol_resolved_trees|::ValueBinding {
         transition index < syntax.machine_count {
             true -> named(sources, syntax, parent, name, index),
             false -> outer(sources, syntax, parent, name)
         }
     }
 
-    machine named(sources: @SourceSet, syntax: @SyntaxTrees, parent: u64 in Trapping, name: SourceSpan, index: u64 in Trapping) -> ValueBinding {
-        let item: MachineItem = machine_item(syntax, index);
-        let same: bool = spans_equal(sources, item.name.source_span, name);
+    machine named(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, parent: u64 in Trapping, name: |source|::SourceSpan, index: u64 in Trapping) -> |symbol_resolved_trees|::ValueBinding {
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, index);
+        let same: bool = |source|::spans_equal(sources, item.name.source_span, name);
         transition item.parent == parent && same {
-            true -> found(ValueBinding::Machine { handle: index }),
+            true -> found(|symbol_resolved_trees|::ValueBinding::Machine { handle: index }),
             false -> candidate(sources, syntax, parent, name, index + 1)
         }
     }
 
-    machine outer(sources: @SourceSet, syntax: @SyntaxTrees, parent: u64 in Trapping, name: SourceSpan) -> ValueBinding {
-        let item: MachineItem = machine_item(syntax, parent - 1);
+    machine outer(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, parent: u64 in Trapping, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding {
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, parent - 1);
         transition item.parent > 0 {
-            true -> candidate(sources, syntax, item.parent, name, 0),
-            false -> found(ValueBinding::Unresolved)
+            true -> candidate(sources, syntax, item.parent, name, 0 as +Trapping),
+            false -> found(|symbol_resolved_trees|::ValueBinding::Unresolved)
         }
     }
 
-    machine found(binding: ValueBinding) -> ValueBinding { binding }
+    machine found(binding: |symbol_resolved_trees|::ValueBinding) -> |symbol_resolved_trees|::ValueBinding { binding }
 }
 
 // A single-name callee: a machine binder of the enclosing machine, else a
 // fellow member of its trait or conformance, else a free machine.
-machine callee_name(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding
+machine callee_name(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding
 crashes Trap
 {
-    let binder: ValueBinding = generic_name(resolution, sources, syntax, scope, name, true);
+    let binder: |symbol_resolved_trees|::ValueBinding = generic_name(resolution, sources, syntax, scope, name, true);
     transition binder {
-        ValueBinding::GenericParameter { parameter } -> binder,
+        |symbol_resolved_trees|::ValueBinding::GenericParameter { parameter } -> binder,
         _ -> enclosing(resolution, sources, syntax, scope, name)
     }
-    machine enclosing(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding {
+    machine enclosing(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding {
         transition scope.has_machine {
             true -> declaration_callee(resolution, sources, syntax, scope.machine + 1, name),
-            false -> declaration_callee(resolution, sources, syntax, 0, name)
+            false -> declaration_callee(resolution, sources, syntax, 0 as +Trapping, name)
         }
     }
 }
@@ -1169,7 +1094,7 @@ crashes Trap
 // The optional exact owner is a machine handle plus one, never runtime data.
 // Whole qualified spellings remain intact; lexical lookup cannot turn a
 // sibling's descendant into a bare visible declaration.
-public machine declaration_callee(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, lexical_machine: u64 in Trapping, name: SourceSpan) -> ValueBinding
+public machine declaration_callee(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, lexical_machine: u64 in Trapping, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding
 crashes Trap
 {
     transition lexical_machine > 0 {
@@ -1177,36 +1102,36 @@ crashes Trap
         false -> free_machine(resolution, sources, syntax, name)
     }
 
-    machine lexical(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, machine: u64 in Trapping, name: SourceSpan) -> ValueBinding {
-        let local: ValueBinding = lexical_callee(sources, syntax, machine, name);
+    machine lexical(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, machine: u64 in Trapping, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding {
+        let local: |symbol_resolved_trees|::ValueBinding = lexical_callee(sources, syntax, machine, name);
         transition local {
-            ValueBinding::Unresolved -> container(resolution, sources, syntax, machine, name),
+            |symbol_resolved_trees|::ValueBinding::Unresolved -> container(resolution, sources, syntax, machine, name),
             _ -> found(local)
         }
     }
 
-    machine container(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, machine: u64 in Trapping, name: SourceSpan) -> ValueBinding {
-        let root: u64 in Trapping = lexical_root(syntax, machine);
-        let owner: MachineOwner = machine_owner(resolution, root);
-        transition owner.container == MachineContainer::Root || owner.container == MachineContainer::Measure {
+    machine container(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, machine: u64 in Trapping, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding {
+        let root: u64 in Trapping = |containers|::lexical_root(syntax, machine);
+        let owner: |symbol_resolved_trees|::MachineOwner = |symbol_resolved_trees|::machine_owner(resolution, root);
+        transition owner.container == |syntax_trees|::MachineContainer::Root || owner.container == |syntax_trees|::MachineContainer::Measure {
             true -> free_machine(resolution, sources, syntax, name),
             _ -> fellow(resolution, sources, syntax, owner, name)
         }
     }
 
-    machine fellow(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, owner: MachineOwner, name: SourceSpan) -> ValueBinding {
-        let member: ValueBinding = owned_callee(resolution, sources, syntax, owner.owner.source_span, name);
+    machine fellow(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, owner: |symbol_resolved_trees|::MachineOwner, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding {
+        let member: |symbol_resolved_trees|::ValueBinding = owned_callee(resolution, sources, syntax, owner.owner.source_span, name);
         transition member {
-            ValueBinding::Unresolved -> free_machine(resolution, sources, syntax, name),
+            |symbol_resolved_trees|::ValueBinding::Unresolved -> free_machine(resolution, sources, syntax, name),
             _ -> found(member)
         }
     }
 
-    machine free_machine(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan) -> ValueBinding {
+    machine free_machine(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding {
         free_callee(resolution, sources, syntax, name)
     }
 
-    machine found(binding: ValueBinding) -> ValueBinding {
+    machine found(binding: |symbol_resolved_trees|::ValueBinding) -> |symbol_resolved_trees|::ValueBinding {
         binding
     }
 }
@@ -1214,117 +1139,117 @@ crashes Trap
 // A free callee: the machine or the proposition `name` names. Machines and
 // propositions are one callee tier, so a machine and a proposition of one
 // spelling are ambiguous.
-public machine free_callee(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan) -> ValueBinding
+public machine free_callee(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding
 crashes Trap
 {
-    let named_machine: ValueBinding = machine_name(resolution, sources, syntax, false, name, name);
-    let named_proposition: Lookup = declared_named(sources, syntax, DeclarationKind::Proposition, false, name, name);
+    let named_machine: |symbol_resolved_trees|::ValueBinding = machine_name(resolution, sources, syntax, false, name, name);
+    let named_proposition: |declarations|::Lookup = |imports|::declared_named(sources, syntax, |declarations|::DeclarationKind::Proposition, false, name, name);
     transition named_proposition {
-        Lookup::Absent -> machine_found(sources, named_machine, name),
-        Lookup::Ambiguous -> found(ValueBinding::Ambiguous),
-        Lookup::Found { handle } -> proposition_found(named_machine, handle)
+        |declarations|::Lookup::Absent -> machine_found(sources, named_machine, name),
+        |declarations|::Lookup::Ambiguous -> found(|symbol_resolved_trees|::ValueBinding::Ambiguous),
+        |declarations|::Lookup::Found { handle } -> proposition_found(named_machine, handle)
     }
 
-    machine machine_found(sources: @SourceSet, named_machine: ValueBinding, name: SourceSpan) -> ValueBinding {
+    machine machine_found(sources: @|source|::SourceSet, named_machine: |symbol_resolved_trees|::ValueBinding, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding {
         transition named_machine {
-            ValueBinding::Unresolved -> primitive(sources, name),
+            |symbol_resolved_trees|::ValueBinding::Unresolved -> primitive(sources, name),
             _ -> found(named_machine)
         }
     }
 
-    machine primitive(sources: @SourceSet, name: SourceSpan) -> ValueBinding {
-        let layout: ValueBinding = resolver_layout_query(sources, name);
+    machine primitive(sources: @|source|::SourceSet, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding {
+        let layout: |symbol_resolved_trees|::ValueBinding = resolver_layout_query(sources, name);
         transition layout {
-            ValueBinding::Unresolved -> byte(sources, name),
+            |symbol_resolved_trees|::ValueBinding::Unresolved -> byte(sources, name),
             _ -> found(layout)
         }
     }
 
-    machine byte(sources: @SourceSet, name: SourceSpan) -> ValueBinding {
-        let binding: ValueBinding = resolver_byte_predicate(sources, name);
+    machine byte(sources: @|source|::SourceSet, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding {
+        let binding: |symbol_resolved_trees|::ValueBinding = resolver_byte_predicate(sources, name);
         binding
     }
 
-    machine proposition_found(named_machine: ValueBinding, handle: u64 in Trapping) -> ValueBinding {
+    machine proposition_found(named_machine: |symbol_resolved_trees|::ValueBinding, handle: u64 in Trapping) -> |symbol_resolved_trees|::ValueBinding {
         transition named_machine {
-            ValueBinding::Unresolved -> found(ValueBinding::Proposition { proposition: handle }),
-            _ -> found(ValueBinding::Ambiguous)
+            |symbol_resolved_trees|::ValueBinding::Unresolved -> found(|symbol_resolved_trees|::ValueBinding::Proposition { proposition: handle }),
+            _ -> found(|symbol_resolved_trees|::ValueBinding::Ambiguous)
         }
     }
 
-    machine found(binding: ValueBinding) -> ValueBinding {
+    machine found(binding: |symbol_resolved_trees|::ValueBinding) -> |symbol_resolved_trees|::ValueBinding {
         binding
     }
 }
 
 // The primitive layout query `name` spells (`size_of`, `align_of`:
 // wiki/spec/language/counts_and_addresses.md), else unresolved.
-machine resolver_layout_query(sources: @SourceSet, name: SourceSpan) -> ValueBinding
+machine resolver_layout_query(sources: @|source|::SourceSet, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding
 crashes Trap
 {
-    let size: bool = span_spells(sources, name, "size_of");
-    let align: bool = span_spells(sources, name, "align_of");
+    let size: bool = |source|::span_spells(sources, name, "size_of");
+    let align: bool = |source|::span_spells(sources, name, "align_of");
     transition size {
-        true -> found(LayoutQuery::Size),
+        true -> found(|symbol_resolved_trees|::LayoutQuery::Size),
         _ -> align_spelled(align)
     }
 
-    machine align_spelled(align: bool) -> ValueBinding {
+    machine align_spelled(align: bool) -> |symbol_resolved_trees|::ValueBinding {
         transition align {
-            true -> found(LayoutQuery::Align),
+            true -> found(|symbol_resolved_trees|::LayoutQuery::Align),
             _ -> unresolved()
         }
     }
 
-    machine found(query: LayoutQuery) -> ValueBinding {
-        ValueBinding::LayoutQuery { query: query }
+    machine found(query: |symbol_resolved_trees|::LayoutQuery) -> |symbol_resolved_trees|::ValueBinding {
+        |symbol_resolved_trees|::ValueBinding::LayoutQuery { query: query }
     }
 
-    machine unresolved() -> ValueBinding {
-        ValueBinding::Unresolved
+    machine unresolved() -> |symbol_resolved_trees|::ValueBinding {
+        |symbol_resolved_trees|::ValueBinding::Unresolved
     }
 }
 
 // The primitive byte predicate `name` spells, else unresolved.
-machine resolver_byte_predicate(sources: @SourceSet, name: SourceSpan) -> ValueBinding
+machine resolver_byte_predicate(sources: @|source|::SourceSet, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding
 crashes Trap
 {
-    let utf8: bool = span_spells(sources, name, "valid_utf8");
-    let nul: bool = span_spells(sources, name, "no_nul");
-    let ascii: bool = span_spells(sources, name, "ascii_only");
-    let empty: bool = span_spells(sources, name, "non_empty");
+    let utf8: bool = |source|::span_spells(sources, name, "valid_utf8");
+    let nul: bool = |source|::span_spells(sources, name, "no_nul");
+    let ascii: bool = |source|::span_spells(sources, name, "ascii_only");
+    let empty: bool = |source|::span_spells(sources, name, "non_empty");
     transition utf8 {
-        true -> found(BytePredicate::ValidUtf8),
+        true -> found(|symbol_resolved_trees|::BytePredicate::ValidUtf8),
         _ -> nul_spelled(nul, ascii, empty)
     }
 
-    machine nul_spelled(nul: bool, ascii: bool, empty: bool) -> ValueBinding {
+    machine nul_spelled(nul: bool, ascii: bool, empty: bool) -> |symbol_resolved_trees|::ValueBinding {
         transition nul {
-            true -> found(BytePredicate::NoNul),
+            true -> found(|symbol_resolved_trees|::BytePredicate::NoNul),
             _ -> ascii_spelled(ascii, empty)
         }
     }
 
-    machine ascii_spelled(ascii: bool, empty: bool) -> ValueBinding {
+    machine ascii_spelled(ascii: bool, empty: bool) -> |symbol_resolved_trees|::ValueBinding {
         transition ascii {
-            true -> found(BytePredicate::AsciiOnly),
+            true -> found(|symbol_resolved_trees|::BytePredicate::AsciiOnly),
             _ -> empty_spelled(empty)
         }
     }
 
-    machine empty_spelled(empty: bool) -> ValueBinding {
+    machine empty_spelled(empty: bool) -> |symbol_resolved_trees|::ValueBinding {
         transition empty {
-            true -> found(BytePredicate::NonEmpty),
+            true -> found(|symbol_resolved_trees|::BytePredicate::NonEmpty),
             _ -> unresolved()
         }
     }
 
-    machine found(predicate: BytePredicate) -> ValueBinding {
-        ValueBinding::BytePredicate { predicate: predicate }
+    machine found(predicate: |symbol_resolved_trees|::BytePredicate) -> |symbol_resolved_trees|::ValueBinding {
+        |symbol_resolved_trees|::ValueBinding::BytePredicate { predicate: predicate }
     }
 
-    machine unresolved() -> ValueBinding {
-        ValueBinding::Unresolved
+    machine unresolved() -> |symbol_resolved_trees|::ValueBinding {
+        |symbol_resolved_trees|::ValueBinding::Unresolved
     }
 }
 
@@ -1333,32 +1258,32 @@ crashes Trap
 // never applies where a value is computed (`ProofOnlyApplication`), and an
 // application inside a larger fact is a form resolution does not bind yet.
 // `None` admits the application.
-public machine proposition_site(syntax: @SyntaxTrees, in_fact: bool, root: u64 in Trapping, index: u64 in Trapping) -> ResolveDiagnosticCode
+public machine proposition_site(syntax: @|syntax_trees|::SyntaxTrees, in_fact: bool, root: u64 in Trapping, index: u64 in Trapping) -> |symbol_resolved_trees|::ResolveDiagnosticCode
 crashes Trap
 {
     transition in_fact {
         true -> fact(syntax, root, index),
-        _ -> found(ResolveDiagnosticCode::ProofOnlyApplication)
+        _ -> found(|symbol_resolved_trees|::ResolveDiagnosticCode::ProofOnlyApplication)
     }
 
-    machine fact(syntax: @SyntaxTrees, root: u64 in Trapping, index: u64 in Trapping) -> ResolveDiagnosticCode {
-        let whole: Expression = syntax_trees_expression(syntax, root);
-        transition whole.kind == ExpressionKind::Call {
+    machine fact(syntax: @|syntax_trees|::SyntaxTrees, root: u64 in Trapping, index: u64 in Trapping) -> |symbol_resolved_trees|::ResolveDiagnosticCode {
+        let whole: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, root);
+        transition whole.kind == |syntax_trees|::ExpressionKind::Call {
             true -> called(syntax, whole.left, index),
-            _ -> found(ResolveDiagnosticCode::UnsupportedExpression)
+            _ -> found(|symbol_resolved_trees|::ResolveDiagnosticCode::UnsupportedExpression)
         }
     }
 
-    machine called(syntax: @SyntaxTrees, callee: u64 in Trapping, index: u64 in Trapping) -> ResolveDiagnosticCode {
-        let written: Expression = syntax_trees_expression(syntax, callee);
-        let applied: bool = callee == index || (written.kind == ExpressionKind::Apply && written.left == index);
+    machine called(syntax: @|syntax_trees|::SyntaxTrees, callee: u64 in Trapping, index: u64 in Trapping) -> |symbol_resolved_trees|::ResolveDiagnosticCode {
+        let written: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, callee);
+        let applied: bool = callee == index || (written.kind == |syntax_trees|::ExpressionKind::Apply && written.left == index);
         transition applied {
-            true -> found(ResolveDiagnosticCode::None),
-            _ -> found(ResolveDiagnosticCode::UnsupportedExpression)
+            true -> found(|symbol_resolved_trees|::ResolveDiagnosticCode::None),
+            _ -> found(|symbol_resolved_trees|::ResolveDiagnosticCode::UnsupportedExpression)
         }
     }
 
-    machine found(code: ResolveDiagnosticCode) -> ResolveDiagnosticCode {
+    machine found(code: |symbol_resolved_trees|::ResolveDiagnosticCode) -> |symbol_resolved_trees|::ResolveDiagnosticCode {
         code
     }
 }
@@ -1367,7 +1292,7 @@ crashes Trap
 // its container's: a machine binder when `machine_binder` holds, else a
 // value binder (`Count: u32`, `const N: u64`). Type and lifetime binders
 // name no value, and a constant's value has no enclosing machine.
-machine generic_name(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, name: SourceSpan, machine_binder: bool) -> ValueBinding
+machine generic_name(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, name: |source|::SourceSpan, machine_binder: bool) -> |symbol_resolved_trees|::ValueBinding
 crashes Trap
 {
     transition scope.has_machine {
@@ -1377,82 +1302,82 @@ crashes Trap
 
     // A domain's predicates see its own generic parameters
     // (`domain<const Capacity: u64> u64::AtMost<Capacity>(value)`).
-    machine domain_scope(sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, name: SourceSpan, machine_binder: bool) -> ValueBinding {
+    machine domain_scope(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, name: |source|::SourceSpan, machine_binder: bool) -> |symbol_resolved_trees|::ValueBinding {
         transition scope.names_subject {
             true -> domain_binders(sources, syntax, scope, name, machine_binder),
-            _ -> found(ValueBinding::Unresolved)
+            _ -> found(|symbol_resolved_trees|::ValueBinding::Unresolved)
         }
     }
 
-    machine domain_binders(sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, name: SourceSpan, machine_binder: bool) -> ValueBinding {
-        let item: DomainItem = syntax_trees_domain_item(syntax, scope.subject_domain);
-        let binder: ValueBinding = resolver_binder_named(sources, syntax, item.first_generic_parameter, item.generic_parameter_count, name, machine_binder);
+    machine domain_binders(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, name: |source|::SourceSpan, machine_binder: bool) -> |symbol_resolved_trees|::ValueBinding {
+        let item: |syntax_trees|::DomainItem = |syntax_trees|::syntax_trees_domain_item(syntax, scope.subject_domain);
+        let binder: |symbol_resolved_trees|::ValueBinding = resolver_binder_named(sources, syntax, item.first_generic_parameter, item.generic_parameter_count, name, machine_binder);
         binder
     }
 
-    machine machine_scope(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, name: SourceSpan, machine_binder: bool) -> ValueBinding {
-        let item: MachineItem = machine_item(syntax, scope.machine);
-        let own: ValueBinding = lexical_value_binder(sources, syntax, scope.machine, name, machine_binder);
+    machine machine_scope(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, name: |source|::SourceSpan, machine_binder: bool) -> |symbol_resolved_trees|::ValueBinding {
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, scope.machine);
+        let own: |symbol_resolved_trees|::ValueBinding = lexical_value_binder(sources, syntax, scope.machine, name, machine_binder);
         transition own {
-            ValueBinding::GenericParameter { parameter } -> found(own),
+            |symbol_resolved_trees|::ValueBinding::GenericParameter { parameter } -> found(own),
             _ -> outer(resolution, sources, syntax, scope, name, machine_binder)
         }
     }
 
-    machine outer(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, name: SourceSpan, machine_binder: bool) -> ValueBinding {
+    machine outer(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, name: |source|::SourceSpan, machine_binder: bool) -> |symbol_resolved_trees|::ValueBinding {
         container_value_binder(resolution, sources, syntax, scope.machine, name, machine_binder)
     }
 
-    machine found(binding: ValueBinding) -> ValueBinding {
+    machine found(binding: |symbol_resolved_trees|::ValueBinding) -> |symbol_resolved_trees|::ValueBinding {
         binding
     }
 }
 
-machine container_value_binder(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, machine_index: u64 in Trapping, name: SourceSpan, machine_binder: bool) -> ValueBinding
+machine container_value_binder(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, machine_index: u64 in Trapping, name: |source|::SourceSpan, machine_binder: bool) -> |symbol_resolved_trees|::ValueBinding
 crashes Trap
 {
-    let root: u64 in Trapping = lexical_root(syntax, machine_index);
-    let owner: MachineOwner = machine_owner(resolution, root);
-    let container: TypeScope = container_scope(syntax, owner);
+    let root: u64 in Trapping = |containers|::lexical_root(syntax, machine_index);
+    let owner: |symbol_resolved_trees|::MachineOwner = |symbol_resolved_trees|::machine_owner(resolution, root);
+    let container: |symbol_resolved_trees|::TypeScope = |containers|::container_scope(syntax, owner);
     resolver_binder_named(sources, syntax, container.first_generic_parameter, container.generic_parameter_count, name, machine_binder)
 }
 
 // The binder of `first..first + count` named `name` and naming a machine
 // (`machine_binder`) or a value.
-machine resolver_binder_named(sources: @SourceSet, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan, machine_binder: bool) -> ValueBinding
+machine resolver_binder_named(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: |source|::SourceSpan, machine_binder: bool) -> |symbol_resolved_trees|::ValueBinding
 crashes Trap
 {
-    transition { _ -> next(sources, syntax, first, count, name, machine_binder, 0) }
+    transition { _ -> next(sources, syntax, first, count, name, machine_binder, 0 as +Trapping) }
 
-    machine next(sources: @SourceSet, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan, machine_binder: bool, offset: u64 in Trapping) -> ValueBinding {
+    machine next(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: |source|::SourceSpan, machine_binder: bool, offset: u64 in Trapping) -> |symbol_resolved_trees|::ValueBinding {
         transition offset < count {
             true -> candidate(sources, syntax, first, count, name, machine_binder, offset),
-            _ -> found(ValueBinding::Unresolved)
+            _ -> found(|symbol_resolved_trees|::ValueBinding::Unresolved)
         }
     }
 
-    machine candidate(sources: @SourceSet, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan, machine_binder: bool, offset: u64 in Trapping) -> ValueBinding {
+    machine candidate(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: |source|::SourceSpan, machine_binder: bool, offset: u64 in Trapping) -> |symbol_resolved_trees|::ValueBinding {
         let handle: u64 in Trapping = first + offset;
-        let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, handle);
-        let named: bool = spans_equal(sources, parameter.name.source_span, name);
+        let parameter: |syntax_trees|::GenericParameter = |syntax_trees|::syntax_trees_generic_parameter(syntax, handle);
+        let named: bool = |source|::spans_equal(sources, parameter.name.source_span, name);
         let admitted: bool = binder_names(parameter.kind, machine_binder);
         transition named && admitted {
-            true -> found(ValueBinding::GenericParameter { parameter: handle }),
+            true -> found(|symbol_resolved_trees|::ValueBinding::GenericParameter { parameter: handle }),
             _ -> next(sources, syntax, first, count, name, machine_binder, offset + 1)
         }
     }
 
-    machine found(binding: ValueBinding) -> ValueBinding {
+    machine found(binding: |symbol_resolved_trees|::ValueBinding) -> |symbol_resolved_trees|::ValueBinding {
         binding
     }
 }
 
 // Whether a binder of `kind` names a machine (`machine_binder`) or a value.
-public machine binder_names(kind: GenericParameterKind, machine_binder: bool) -> bool {
+public machine binder_names(kind: |syntax_trees|::GenericParameterKind, machine_binder: bool) -> bool {
     transition kind {
-        GenericParameterKind::Machine -> machine_kind(machine_binder),
-        GenericParameterKind::Value -> value_kind(machine_binder),
-        GenericParameterKind::Const -> value_kind(machine_binder),
+        |syntax_trees|::GenericParameterKind::Machine -> machine_kind(machine_binder),
+        |syntax_trees|::GenericParameterKind::Value -> value_kind(machine_binder),
+        |syntax_trees|::GenericParameterKind::Const -> value_kind(machine_binder),
         _ -> other()
     }
 
@@ -1470,48 +1395,48 @@ public machine binder_names(kind: GenericParameterKind, machine_binder: bool) ->
 }
 
 // A construction's data declaration.
-machine data_name(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan) -> ValueBinding
+machine data_name(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding
 crashes Trap
 {
-    let lookup: Lookup = data_named(sources, syntax, name);
+    let lookup: |declarations|::Lookup = |imports|::data_named(sources, syntax, name);
     transition lookup {
-        Lookup::Found { handle } -> found(ValueBinding::Data { item: handle }),
-        Lookup::Ambiguous -> found(ValueBinding::Ambiguous),
-        Lookup::Absent -> found(ValueBinding::Unresolved)
+        |declarations|::Lookup::Found { handle } -> found(|symbol_resolved_trees|::ValueBinding::Data { item: handle }),
+        |declarations|::Lookup::Ambiguous -> found(|symbol_resolved_trees|::ValueBinding::Ambiguous),
+        |declarations|::Lookup::Absent -> found(|symbol_resolved_trees|::ValueBinding::Unresolved)
     }
 
-    machine found(binding: ValueBinding) -> ValueBinding {
+    machine found(binding: |symbol_resolved_trees|::ValueBinding) -> |symbol_resolved_trees|::ValueBinding {
         binding
     }
 }
 
 // `Owner::name` in value position: a case of data `Owner`, else a constant
 // `Owner::name`, else a machine `Owner::name`.
-machine case_or_machine(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, owner: SourceSpan, name: SourceSpan) -> ValueBinding
+machine case_or_machine(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, owner: |source|::SourceSpan, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding
 crashes Trap
 {
-    let owner_data: ValueBinding = data_name(sources, syntax, owner);
+    let owner_data: |symbol_resolved_trees|::ValueBinding = data_name(sources, syntax, owner);
     transition owner_data {
-        ValueBinding::Data { item } -> cases(resolution, sources, syntax, owner, name, item),
-        ValueBinding::Ambiguous -> found(ValueBinding::Ambiguous),
+        |symbol_resolved_trees|::ValueBinding::Data { item } -> cases(resolution, sources, syntax, owner, name, item),
+        |symbol_resolved_trees|::ValueBinding::Ambiguous -> found(|symbol_resolved_trees|::ValueBinding::Ambiguous),
         _ -> owned_constant(resolution, sources, syntax, owner, name)
     }
 
-    machine cases(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, owner: SourceSpan, name: SourceSpan, item: u64 in Trapping) -> ValueBinding {
-        let data_item: DataItem = syntax_trees_data_item(syntax, item);
-        transition { _ -> case_at(resolution, sources, syntax, owner, name, item, data_item, 0) }
+    machine cases(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, owner: |source|::SourceSpan, name: |source|::SourceSpan, item: u64 in Trapping) -> |symbol_resolved_trees|::ValueBinding {
+        let data_item: |syntax_trees|::DataItem = |syntax_trees|::syntax_trees_data_item(syntax, item);
+        transition { _ -> case_at(resolution, sources, syntax, owner, name, item, data_item, 0 as +Trapping) }
     }
 
     machine case_at(
-        resolution: @NameResolution,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        owner: SourceSpan,
-        name: SourceSpan,
+        resolution: @|symbol_resolved_trees|::NameResolution,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        owner: |source|::SourceSpan,
+        name: |source|::SourceSpan,
         item: u64 in Trapping,
-        data_item: DataItem,
+        data_item: |syntax_trees|::DataItem,
         offset: u64 in Trapping
-    ) -> ValueBinding {
+    ) -> |symbol_resolved_trees|::ValueBinding {
         transition offset < data_item.case_count {
             true -> case_named(resolution, sources, syntax, owner, name, item, data_item, offset),
             _ -> owned_constant(resolution, sources, syntax, owner, name)
@@ -1519,17 +1444,17 @@ crashes Trap
     }
 
     machine case_named(
-        resolution: @NameResolution,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        owner: SourceSpan,
-        name: SourceSpan,
+        resolution: @|symbol_resolved_trees|::NameResolution,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        owner: |source|::SourceSpan,
+        name: |source|::SourceSpan,
         item: u64 in Trapping,
-        data_item: DataItem,
+        data_item: |syntax_trees|::DataItem,
         offset: u64 in Trapping
-    ) -> ValueBinding {
-        let data_case: DataCase = syntax_trees_data_case(syntax, data_item.first_case + offset);
-        let named: bool = spans_equal(sources, data_case.name.source_span, name);
+    ) -> |symbol_resolved_trees|::ValueBinding {
+        let data_case: |syntax_trees|::DataCase = |syntax_trees|::syntax_trees_data_case(syntax, data_item.first_case + offset);
+        let named: bool = |source|::spans_equal(sources, data_case.name.source_span, name);
         transition named {
             true -> case_found(resolution, sources, syntax, owner, name, item, data_item.first_case + offset),
             _ -> case_at(resolution, sources, syntax, owner, name, item, data_item, offset + 1)
@@ -1538,77 +1463,77 @@ crashes Trap
 
     // A visible constant of the same path competes with the case.
     machine case_found(
-        resolution: @NameResolution,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        owner: SourceSpan,
-        name: SourceSpan,
+        resolution: @|symbol_resolved_trees|::NameResolution,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        owner: |source|::SourceSpan,
+        name: |source|::SourceSpan,
         item: u64 in Trapping,
         data_case: u64 in Trapping
-    ) -> ValueBinding {
-        let rival: Lookup = declared_named(sources, syntax, DeclarationKind::Constant, true, owner, name);
+    ) -> |symbol_resolved_trees|::ValueBinding {
+        let rival: |declarations|::Lookup = |imports|::declared_named(sources, syntax, |declarations|::DeclarationKind::Constant, true, owner, name);
         transition rival {
-            Lookup::Absent -> found(ValueBinding::DataCase { item: item, data_case: data_case }),
-            _ -> found(ValueBinding::Ambiguous)
+            |declarations|::Lookup::Absent -> found(|symbol_resolved_trees|::ValueBinding::DataCase { item: item, data_case: data_case }),
+            _ -> found(|symbol_resolved_trees|::ValueBinding::Ambiguous)
         }
     }
 
-    machine owned_constant(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, owner: SourceSpan, name: SourceSpan) -> ValueBinding {
-        let constant: ValueBinding = constant_name(sources, syntax, true, owner, name);
+    machine owned_constant(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, owner: |source|::SourceSpan, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding {
+        let constant: |symbol_resolved_trees|::ValueBinding = constant_name(sources, syntax, true, owner, name);
         transition constant {
-            ValueBinding::Unresolved -> owned_machine(resolution, sources, syntax, owner, name),
+            |symbol_resolved_trees|::ValueBinding::Unresolved -> owned_machine(resolution, sources, syntax, owner, name),
             _ -> found(constant)
         }
     }
 
-    machine owned_machine(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, owner: SourceSpan, name: SourceSpan) -> ValueBinding {
+    machine owned_machine(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, owner: |source|::SourceSpan, name: |source|::SourceSpan) -> |symbol_resolved_trees|::ValueBinding {
         machine_name(resolution, sources, syntax, true, owner, name)
     }
 
-    machine found(binding: ValueBinding) -> ValueBinding {
+    machine found(binding: |symbol_resolved_trees|::ValueBinding) -> |symbol_resolved_trees|::ValueBinding {
         binding
     }
 }
 
-machine lexical_value_binder(sources: @SourceSet, syntax: @SyntaxTrees, handle: u64 in Trapping, name: SourceSpan, machine_binder: bool) -> ValueBinding
+machine lexical_value_binder(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, handle: u64 in Trapping, name: |source|::SourceSpan, machine_binder: bool) -> |symbol_resolved_trees|::ValueBinding
 crashes Trap
 {
-    let item: MachineItem = machine_item(syntax, handle);
-    let own: ValueBinding = resolver_binder_named(sources, syntax, item.first_generic_parameter, item.generic_parameter_count, name, machine_binder);
+    let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, handle);
+    let own: |symbol_resolved_trees|::ValueBinding = resolver_binder_named(sources, syntax, item.first_generic_parameter, item.generic_parameter_count, name, machine_binder);
     transition own {
-        ValueBinding::Unresolved -> outer(sources, syntax, item.parent, name, machine_binder),
+        |symbol_resolved_trees|::ValueBinding::Unresolved -> outer(sources, syntax, item.parent, name, machine_binder),
         _ -> own
     }
-    machine outer(sources: @SourceSet, syntax: @SyntaxTrees, parent: u64 in Trapping, name: SourceSpan, machine_binder: bool) -> ValueBinding {
+    machine outer(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, parent: u64 in Trapping, name: |source|::SourceSpan, machine_binder: bool) -> |symbol_resolved_trees|::ValueBinding {
         transition parent > 0 {
             true -> lexical_static_value_binder(sources, syntax, parent - 1, name, machine_binder),
-            false -> ValueBinding::Unresolved
+            false -> |symbol_resolved_trees|::ValueBinding::Unresolved
         }
     }
 }
 
 // Ancestor runtime-value generic subjects need explicit arguments, just as
 // ordinary parameters do. Const and machine selections keep exact binder IDs.
-machine lexical_static_value_binder(sources: @SourceSet, syntax: @SyntaxTrees, handle: u64 in Trapping, name: SourceSpan, machine_binder: bool) -> ValueBinding
+machine lexical_static_value_binder(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, handle: u64 in Trapping, name: |source|::SourceSpan, machine_binder: bool) -> |symbol_resolved_trees|::ValueBinding
 crashes Trap
 {
-    let item: MachineItem = machine_item(syntax, handle);
-    let own: ValueBinding = resolver_binder_named(sources, syntax, item.first_generic_parameter, item.generic_parameter_count, name, machine_binder);
+    let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, handle);
+    let own: |symbol_resolved_trees|::ValueBinding = resolver_binder_named(sources, syntax, item.first_generic_parameter, item.generic_parameter_count, name, machine_binder);
     transition own {
-        ValueBinding::GenericParameter { parameter } -> admit(sources, syntax, item.parent, name, machine_binder, parameter),
+        |symbol_resolved_trees|::ValueBinding::GenericParameter { parameter } -> admit(sources, syntax, item.parent, name, machine_binder, parameter),
         _ -> outer(sources, syntax, item.parent, name, machine_binder)
     }
-    machine admit(sources: @SourceSet, syntax: @SyntaxTrees, parent: u64 in Trapping, name: SourceSpan, machine_binder: bool, handle: u64 in Trapping) -> ValueBinding {
-        let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, handle);
-        transition parameter.kind == GenericParameterKind::Value {
+    machine admit(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, parent: u64 in Trapping, name: |source|::SourceSpan, machine_binder: bool, handle: u64 in Trapping) -> |symbol_resolved_trees|::ValueBinding {
+        let parameter: |syntax_trees|::GenericParameter = |syntax_trees|::syntax_trees_generic_parameter(syntax, handle);
+        transition parameter.kind == |syntax_trees|::GenericParameterKind::Value {
             true -> outer(sources, syntax, parent, name, machine_binder),
-            false -> ValueBinding::GenericParameter { parameter: handle }
+            false -> |symbol_resolved_trees|::ValueBinding::GenericParameter { parameter: handle }
         }
     }
-    machine outer(sources: @SourceSet, syntax: @SyntaxTrees, parent: u64 in Trapping, name: SourceSpan, machine_binder: bool) -> ValueBinding {
+    machine outer(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, parent: u64 in Trapping, name: |source|::SourceSpan, machine_binder: bool) -> |symbol_resolved_trees|::ValueBinding {
         transition parent > 0 {
             true -> lexical_static_value_binder(sources, syntax, parent - 1, name, machine_binder),
-            false -> ValueBinding::Unresolved
+            false -> |symbol_resolved_trees|::ValueBinding::Unresolved
         }
     }
 }

@@ -37,7 +37,7 @@ use semantic_vocabulary::StructuralFieldId;
 use terminal_psi::ResolvedStructuralPathSegment as Segment;
 
 #[derive(Clone, Copy)]
-struct StaticInvocation<'a> {
+pub(super) struct StaticInvocation<'a> {
     binder: SymbolHandle,
     target: SymbolHandle,
     application: StaticMachineApplicationHandle,
@@ -45,7 +45,7 @@ struct StaticInvocation<'a> {
     arguments: &'a [ExpressionHandle],
     selection: Option<AuthoredDeclarationSelectionOccurrenceId>,
     binding: Option<ResolvedAuthoredCallBinding>,
-    unsupported: bool,
+    pub(super) unsupported: bool,
     runtime_receiver: bool,
     receiver: Option<SymbolHandle>,
 }
@@ -306,6 +306,7 @@ impl<'t> Program<'t> {
                         parameter.kind,
                         crate::source_state::data::TypeParameterKind::Implementation
                             | crate::source_state::data::TypeParameterKind::Const { .. }
+                            | crate::source_state::data::TypeParameterKind::Value { .. }
                             | crate::source_state::data::TypeParameterKind::Type
                             | crate::source_state::data::TypeParameterKind::Machine {
                                 contract: crate::source_state::data::MachineParameterContract::Structural(
@@ -395,8 +396,9 @@ impl<'t> Program<'t> {
         self.visible_declaration_to(id, owner.symbol, owner.is_public)?;
         let template = row.realization_machine;
         if owner.type_parameters.is_empty() {
+            let body = self.selected_member_instance(id, call, template, row.requirement)?;
             return Ok(NamedCallTarget {
-                body: NamedCallBody::Closed(template),
+                body: NamedCallBody::Closed(body),
                 member,
             });
         }
@@ -2075,7 +2077,9 @@ impl<'t> Program<'t> {
                     .any(|parameter| {
                         !matches!(
                             parameter.kind,
-                            TypeParameterKind::Type | TypeParameterKind::Const { .. }
+                            TypeParameterKind::Type
+                                | TypeParameterKind::Const { .. }
+                                | TypeParameterKind::Value { .. }
                         )
                     })
             {
@@ -2099,6 +2103,7 @@ impl<'t> Program<'t> {
                         parameter.kind,
                         TypeParameterKind::Type
                             | TypeParameterKind::Const { .. }
+                            | TypeParameterKind::Value { .. }
                             | TypeParameterKind::Machine { .. }
                             | TypeParameterKind::Proof { .. }
                     )
@@ -2457,7 +2462,7 @@ impl<'t> Program<'t> {
 
     /// Both source call forms expose one retained static application and the
     /// same authored selection. Their operands still belong to their own arena.
-    fn static_invocation<'call>(&self, call: StaticArgumentCall<'call>) -> StaticInvocation<'call>
+    pub(super) fn static_invocation<'call>(&self, call: StaticArgumentCall<'call>) -> StaticInvocation<'call>
     where
         't: 'call,
     {
@@ -4253,6 +4258,7 @@ impl Touches<'_> {
             | ExpressionKind::Referent(_) => self.place(expression, changes, captures),
             ExpressionKind::Integer(_)
             | ExpressionKind::Float(_)
+            | ExpressionKind::ErasedApplication(_)
             | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::MachineValue { .. }

@@ -20,6 +20,22 @@ impl SelectedMethods {
             .iter()
             .map(|selection| program.implementation_value_head(selection.declaration))
             .collect::<Vec<_>>();
+        // A call names an ordinary conformance itself, `Local::keep::<u8>(x)`
+        // or through a binder it was given. Its generic member is entered at
+        // the call's own closed application, as a selected provider's is.
+        selected.extend(
+            program
+                .conformances()
+                .iter()
+                .filter(|conformance| {
+                    conformance.type_parameters.is_empty()
+                        && conformance.lifetime_parameters.is_empty()
+                        && program
+                            .trait_definition_by_symbol(conformance.trait_symbol)
+                            .is_some_and(|declaration| !declaration.is_boundary)
+                })
+                .map(|conformance| program.implementation_value_head(conformance.symbol)),
+        );
         selected.sort_unstable_by_key(|symbol| symbol_order(*symbol));
         selected.dedup();
         for symbol in selected {

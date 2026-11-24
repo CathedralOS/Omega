@@ -100,7 +100,7 @@ pub(crate) fn parse_block_value<'tokens, 'source>(
                 | StatementNode::RootBinding(_)
                 | StatementNode::ProofOutputBindingStatement(_) => {
                     return Err(statement_start.error_here(
-                        "a block value holds `let` bindings, assignments and calls before its final expression; a `transition`, `crash`, `asm`, root or proof-output binding statement cannot appear in it",
+                        syntax_trees::root_bindings::BLOCK_VALUE_STATEMENT_ERROR,
                     ));
                 }
                 StatementNode::Assignment(_)

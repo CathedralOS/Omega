@@ -77,13 +77,12 @@ impl Program<'_> {
     ) -> Result<RequirementReviewMetadata, String> {
         let (owner, source) = definition;
         if !owner.lifetime_parameters.is_empty()
-            || !source.type_parameters.is_empty()
             || !source.conformance_bounds.is_empty()
             || !source.native_callback_parameters.is_empty()
             || source.is_default
         {
             return Err(
-                "public requirement review needs its complete static/default/callback contract"
+                "public requirement review needs its complete parent lifetime, conformance, default, or callback contract"
                     .to_owned(),
             );
         }
@@ -208,12 +207,43 @@ impl Program<'_> {
         }
         returned_parameters.sort_unstable();
         returned_parameters.dedup();
-        if signature.parameters.len() != parameter_types.len() {
+        // The generic check form appends a scalar for each rigid value binder.
+        // Those scalars belong to the method's static telescope in package review.
+        let (formals, rigid_values) = signature
+            .parameters
+            .split_at_checked(parameter_types.len())
+            .ok_or("public requirement is missing lowered source parameters")?;
+        let rigid_count = match machine {
+            Some(id) => *self
+                .value_parameters
+                .get(id)
+                .ok_or("public requirement lost its checked value parameter count")?,
+            None => 0,
+        };
+        if rigid_values.len() != rigid_count {
             return Err("public requirement source and lowered parameter counts differ".to_owned());
+        }
+        if !rigid_values.is_empty() {
+            use crate::lowering::body::{Qualification, ValueType};
+            let binders = self
+                .requirement_binders(machine.unwrap_or(context), source)
+                .map_err(|_| "public requirement lost its declared value parameters")?;
+            if binders.len() != rigid_values.len()
+                || binders
+                    .iter()
+                    .zip(rigid_values)
+                    .any(|((_, carrier), formal)| {
+                        *formal != ValueType::Scalar(*carrier, Qualification::NONE)
+                    })
+            {
+                return Err(
+                    "public requirement changed a rigid value parameter's carrier".to_owned(),
+                );
+            }
         }
         let mut parameter_qualifications = Vec::new();
         let mut structural_parameter_positions = Vec::new();
-        for (position, value) in signature.parameters.iter().enumerate() {
+        for (position, value) in formals.iter().enumerate() {
             let structural = signature.is_place(position);
             let position = u32::try_from(position)
                 .map_err(|_| "public requirement parameter position exceeds u32")?;

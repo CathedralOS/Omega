@@ -1,27 +1,20 @@
+use pipeline/tokens_to_syntax_trees/callable_header.omg;
+use pipeline/tokens_to_syntax_trees/conformance.omg;
+use pipeline/tokens_to_syntax_trees/constant.omg;
+use pipeline/tokens_to_syntax_trees/data.omg as data_file;
+use pipeline/tokens_to_syntax_trees/definition.omg;
+use pipeline/tokens_to_syntax_trees/domain.omg;
+use pipeline/tokens_to_syntax_trees/expression.omg;
 use pipeline/tokens_to_syntax_trees/expression_frames.omg as frames;
-use representations\source_files\SourceId;
-use representations\source_files\SourceSpan;
-use representations\source_files\Span;
-use representations\syntax_trees\Clause;
-use representations\syntax_trees\ConstructField;
-use representations\syntax_trees\Contract;
-use representations\syntax_trees\DataMultiplicity;
-use representations\syntax_trees\IdentifierSpan;
-use representations\syntax_trees\MachineContainer;
-use representations\syntax_trees\OperatorToken;
-use representations\syntax_trees\ParseDiagnosticCode;
-use representations\syntax_trees\RootItem;
-use representations\syntax_trees\RootItemKind;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\TransitionArm;
-use representations\syntax_trees\UseItem;
-use representations\syntax_trees\syntax_trees_clear;
-use representations\syntax_trees\syntax_trees_reject;
-use representations\tokens\KeywordKind;
-use representations\tokens\PunctuationKind;
-use representations\tokens\Token;
-use representations\tokens\TokenKind;
-use representations\tokens\TokenStream;
+use pipeline/tokens_to_syntax_trees/input.omg;
+use pipeline/tokens_to_syntax_trees/machine.omg as machine_parser;
+use pipeline/tokens_to_syntax_trees/proposition.omg;
+use pipeline/tokens_to_syntax_trees/traits.omg;
+use pipeline/tokens_to_syntax_trees/types.omg;
+
+use representations/source_files/source.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/tokens/tokens.omg;
 
 // One parser owns one output arena and parse-local scratch. The lexer keeps
 // its TokenStream; `parse` observes it through one shared borrow forwarded
@@ -44,8 +37,8 @@ requires
     header_clause_count <= 2048,
     header_contract_count <= 256,
 {
-    output: SyntaxTrees;
-    source: SourceId;
+    output: |syntax_trees|::SyntaxTrees;
+    source: |source|::SourceId;
     source_length: u64 in Trapping;
     cursor: u64 in Trapping;
     current_index: u64;
@@ -60,7 +53,7 @@ requires
     data_name_end: u64 in Trapping;
     data_is_public: bool;
     data_is_boundary: bool;
-    data_multiplicity: DataMultiplicity;
+    data_multiplicity: |syntax_trees|::DataMultiplicity;
     data_first_generic: u64 in Trapping;
     data_first_clause: u64 in Trapping;
     data_clause_count: u64 in Trapping;
@@ -75,7 +68,7 @@ requires
     member_identity_literal: u64 in Trapping;
     payload_field_start: u64 in Trapping;
     case_first_payload_field: u64 in Trapping;
-    property_multiplicity: DataMultiplicity;
+    property_multiplicity: |syntax_trees|::DataMultiplicity;
     generic_saw_runtime: bool;
     // Grammar-step results: the last taken token, the last expected name,
     // the last optional stable identity, and the last completed type
@@ -92,13 +85,13 @@ requires
     type_end: u64 in Trapping;
     // Type stacks: open type constructors and the static arguments staged
     // until their list closes.
-    type_frames: [TypeFrame; 16];
+    type_frames: [|types|::TypeFrame; 16];
     type_frame_depth: u64;
     pending_type_arguments: [u64 in Trapping; 32];
     pending_type_argument_count: u64;
     // Lifetime arguments staged like the type arguments, and whether the
     // static argument just parsed was one (it leaves no row).
-    pending_type_lifetimes: [IdentifierSpan; 32];
+    pending_type_lifetimes: [|syntax_trees|::IdentifierSpan; 32];
     pending_type_lifetime_count: u64;
     type_lifetime_argument: bool;
     type_static_argument: bool;
@@ -112,7 +105,7 @@ requires
     machine_target_start: u64 in Trapping;
     machine_target_end: u64 in Trapping;
     machine_is_boundary: bool;
-    machine_container: MachineContainer;
+    machine_container: |syntax_trees|::MachineContainer;
     machine_has_owner: bool;
     machine_owner_start: u64 in Trapping;
     machine_owner_end: u64 in Trapping;
@@ -132,7 +125,7 @@ requires
     machine_current: u64 in Trapping;
     machine_result: u64 in Trapping;
     machine_generic_count: u64 in Trapping;
-    machine_operator: OperatorToken;
+    machine_operator: |syntax_trees|::OperatorToken;
     machine_token_start: u64 in Trapping;
     machine_token_end: u64 in Trapping;
     machine_first_contract: u64 in Trapping;
@@ -140,11 +133,11 @@ requires
     // Open callable scopes and their direct rows. Child headers publish before
     // their parent; staging keeps each owner's clause and contract ranges
     // contiguous without mistaking descendant rows for the parent's clauses.
-    header_frames: [CallableHeaderFrame; 257];
+    header_frames: [|callable_header|::CallableHeaderFrame; 257];
     header_depth: u64;
-    header_clauses: [Clause; 2048];
+    header_clauses: [|syntax_trees|::Clause; 2048];
     header_clause_count: u64;
-    header_contracts: [Contract; 256];
+    header_contracts: [|syntax_trees|::Contract; 256];
     header_contract_count: u64;
     machine_first_component: u64 in Trapping;
     machine_component_count: u64 in Trapping;
@@ -167,16 +160,16 @@ requires
     // the arguments and construction fields staged until their bracket closes.
     expression_operands: [u64 in Trapping; 64];
     expression_operand_depth: u64;
-    expression_operators: [PendingOperator; 64];
+    expression_operators: [|expression|::PendingOperator; 64];
     expression_operator_depth: u64;
     expression_frames: [|frames|::ExpressionFrame; 32];
     expression_frame_depth: u64;
     pending_arguments: [u64 in Trapping; 256];
     pending_argument_count: u64;
-    pending_fields: [ConstructField; 64];
+    pending_fields: [|syntax_trees|::ConstructField; 64];
     pending_field_count: u64;
     // A value-position match's arms stage here until its `}`.
-    pending_arms: [TransitionArm; 64];
+    pending_arms: [|syntax_trees|::TransitionArm; 64];
     pending_arm_count: u64;
     expression_result: u64 in Trapping;
     expression_allow_construct: bool;
@@ -251,15 +244,15 @@ requires
 // appends one at a time. Every row keeps its unit in its source span, so the
 // tables are shared and handles stay dense across units.
 public machine parser_initialize(parser: @mutable Parser) {
-    syntax_trees_clear(@mutable parser.output, SourceId { value: 0 as +Trapping });
+    |syntax_trees|::syntax_trees_clear(@mutable parser.output, |source|::SourceId { value: 0 as +Trapping });
 }
 
 // The unit `parse` appends next: its spans anchor to `source`, and its token
 // cursor starts over.
-machine begin_unit(parser: @mutable Parser, source: SourceId, source_length: u64 in Trapping) {
+machine begin_unit(parser: @mutable Parser, source: |source|::SourceId, source_length: u64 in Trapping) {
     parser.source = source;
     parser.source_length = source_length;
-    initialize_cursor(parser);
+    |input|::initialize_cursor(parser);
 }
 
 // Every stored span anchors to the parser's own source; the two constructors
@@ -268,10 +261,10 @@ machine parser_source_span(
     parser: @Parser,
     start: u64 in Trapping,
     end: u64 in Trapping
-) -> SourceSpan {
-    SourceSpan {
+) -> |source|::SourceSpan {
+    |source|::SourceSpan {
         source: parser.source,
-        span: Span { start: start, end: end }
+        span: |source|::Span { start: start, end: end }
     }
 }
 
@@ -279,8 +272,8 @@ machine identifier_span(
     parser: @Parser,
     start: u64 in Trapping,
     end: u64 in Trapping
-) -> IdentifierSpan {
-    IdentifierSpan {
+) -> |syntax_trees|::IdentifierSpan {
+    |syntax_trees|::IdentifierSpan {
         source_span: parser_source_span(parser, start, end)
     }
 }
@@ -299,33 +292,33 @@ machine identifier_span(
 // its callees do.
 public machine parse(
     parser: @mutable Parser,
-    source: SourceId,
+    source: |source|::SourceId,
     source_length: u64 in Trapping,
-    input: @TokenStream
+    input: @|tokens|::TokenStream
 )
 crashes Trap
 {
     begin_unit(parser, source, source_length);
     transition { _ -> next_root(parser, input) }
 
-    machine next_root(parser: @mutable Parser, input: @TokenStream) {
+    machine next_root(parser: @mutable Parser, input: @|tokens|::TokenStream) {
         transition parser.cursor < input.token_count {
             true -> classify_root(parser, input),
             _ -> done()
         }
     }
 
-    machine classify_root(parser: @mutable Parser, input: @TokenStream) {
-        load_current(parser, input);
-        let token: Token = input.tokens[parser.current_index];
+    machine classify_root(parser: @mutable Parser, input: @|tokens|::TokenStream) {
+        |input|::load_current(parser, input);
+        let token: |tokens|::Token = input.tokens[parser.current_index];
         parser.item_start = token.start;
         transition token.kind {
-            TokenKind::Keyword { keyword, .. } -> classify_root_keyword(parser, input,
+            |tokens|::TokenKind::Keyword { keyword, .. } -> classify_root_keyword(parser, input,
                 keyword,
                 token.start,
                 token.end
             ),
-            TokenKind::Identifier -> named_root(parser, input, false),
+            |tokens|::TokenKind::Identifier -> named_root(parser, input, false),
             _ -> unsupported_root(parser, token.start,
                 token.end
             )
@@ -333,39 +326,39 @@ crashes Trap
     }
 
 
-    machine classify_root_keyword(parser: @mutable Parser, input: @TokenStream,
-        keyword: KeywordKind,
+    machine classify_root_keyword(parser: @mutable Parser, input: @|tokens|::TokenStream,
+        keyword: |tokens|::KeywordKind,
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
-        let head: MachineHead = root_machine_head(parser.item_start, false);
+        let head: |machine_parser|::MachineHead = root_machine_head(parser.item_start, false);
         transition keyword {
-            KeywordKind::Use -> prepare_use(parser, input),
-            KeywordKind::Data -> dispatch_data(parser, input, false, false),
-            KeywordKind::Machine -> dispatch_machine(parser, input, head),
-            KeywordKind::Let -> dispatch_definition(parser, input, false, false),
-            KeywordKind::Public -> public_item_root(parser, input),
+            |tokens|::KeywordKind::Use -> prepare_use(parser, input),
+            |tokens|::KeywordKind::Data -> dispatch_data(parser, input, false, false),
+            |tokens|::KeywordKind::Machine -> dispatch_machine(parser, input, head),
+            |tokens|::KeywordKind::Let -> dispatch_definition(parser, input, false, false),
+            |tokens|::KeywordKind::Public -> public_item_root(parser, input),
             _ -> unsupported_root(parser, start, end)
         }
     }
 
-    machine public_item_root(parser: @mutable Parser, input: @TokenStream) {
-                parser_advance(parser, input);
+    machine public_item_root(parser: @mutable Parser, input: @|tokens|::TokenStream) {
+                |input|::parser_advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> public_item_keyword(parser, input),
             _ -> expected_item_after_public_at_end(parser)
         }
     }
 
-    machine public_item_keyword(parser: @mutable Parser, input: @TokenStream) {
-        load_current(parser, input);
-        let token: Token = input.tokens[parser.current_index];
-        let head: MachineHead = root_machine_head(parser.item_start, true);
+    machine public_item_keyword(parser: @mutable Parser, input: @|tokens|::TokenStream) {
+        |input|::load_current(parser, input);
+        let token: |tokens|::Token = input.tokens[parser.current_index];
+        let head: |machine_parser|::MachineHead = root_machine_head(parser.item_start, true);
         transition token.kind {
-            TokenKind::Keyword { keyword: KeywordKind::Data, .. } -> dispatch_data(parser, input, true, false),
-            TokenKind::Keyword { keyword: KeywordKind::Machine, .. } -> dispatch_machine(parser, input, head),
-            TokenKind::Keyword { keyword: KeywordKind::Let, .. } -> dispatch_definition(parser, input, true, false),
-            TokenKind::Identifier -> named_root(parser, input, true),
+            |tokens|::TokenKind::Keyword { keyword: |tokens|::KeywordKind::Data, .. } -> dispatch_data(parser, input, true, false),
+            |tokens|::TokenKind::Keyword { keyword: |tokens|::KeywordKind::Machine, .. } -> dispatch_machine(parser, input, head),
+            |tokens|::TokenKind::Keyword { keyword: |tokens|::KeywordKind::Let, .. } -> dispatch_definition(parser, input, true, false),
+            |tokens|::TokenKind::Identifier -> named_root(parser, input, true),
             _ -> expected_item_after_public(parser, token.start,
                 token.end
             )
@@ -374,40 +367,40 @@ crashes Trap
 
     // A root led by a name: a contextual introducer, a target name before
     // `machine` or `boundary machine`, or a conformance's name.
-    machine named_root(parser: @mutable Parser, input: @TokenStream, is_public: bool) {
-        let crossing: bool = at_word(parser, input, "boundary");
+    machine named_root(parser: @mutable Parser, input: @|tokens|::TokenStream, is_public: bool) {
+        let crossing: bool = |input|::at_word(parser, input, "boundary");
         transition crossing {
             true -> boundary_root(parser, input, is_public),
             _ -> trait_word(parser, input, is_public)
         }
     }
 
-    machine trait_word(parser: @mutable Parser, input: @TokenStream, is_public: bool) {
-        let requirements: bool = at_word(parser, input, "trait");
+    machine trait_word(parser: @mutable Parser, input: @|tokens|::TokenStream, is_public: bool) {
+        let requirements: bool = |input|::at_word(parser, input, "trait");
         transition requirements {
             true -> dispatch_trait(parser, input, is_public, false),
             _ -> domain_word(parser, input, is_public)
         }
     }
 
-    machine domain_word(parser: @mutable Parser, input: @TokenStream, is_public: bool) {
-        let classification: bool = at_word(parser, input, "domain");
+    machine domain_word(parser: @mutable Parser, input: @|tokens|::TokenStream, is_public: bool) {
+        let classification: bool = |input|::at_word(parser, input, "domain");
         transition classification {
             true -> dispatch_domain(parser, input, is_public),
             _ -> constant_word(parser, input, is_public)
         }
     }
 
-    machine constant_word(parser: @mutable Parser, input: @TokenStream, is_public: bool) {
-        let constant: bool = at_word(parser, input, "const");
+    machine constant_word(parser: @mutable Parser, input: @|tokens|::TokenStream, is_public: bool) {
+        let constant: bool = |input|::at_word(parser, input, "const");
         transition constant {
             true -> dispatch_constant(parser, input, is_public),
             _ -> proposition_word(parser, input, is_public)
         }
     }
 
-    machine proposition_word(parser: @mutable Parser, input: @TokenStream, is_public: bool) {
-        let proposition: bool = at_word(parser, input, "proposition");
+    machine proposition_word(parser: @mutable Parser, input: @|tokens|::TokenStream, is_public: bool) {
+        let proposition: bool = |input|::at_word(parser, input, "proposition");
         transition proposition {
             true -> dispatch_proposition(parser, input, is_public),
             _ -> measure_word(parser, input, is_public)
@@ -417,61 +410,61 @@ crashes Trap
     // `measure Owner::Name ...` declares a ranking view, parsed as a root
     // machine in the `Measure` container; `public measure` rejects, as declared
     // measures are package-private (wiki/spec/language/termination.md).
-    machine measure_word(parser: @mutable Parser, input: @TokenStream, is_public: bool) {
-        let ranking: bool = at_word(parser, input, "measure");
+    machine measure_word(parser: @mutable Parser, input: @|tokens|::TokenStream, is_public: bool) {
+        let ranking: bool = |input|::at_word(parser, input, "measure");
         transition ranking {
             true -> dispatch_measure(parser, input, is_public),
             _ -> operator_word(parser, input, is_public)
         }
     }
 
-    machine dispatch_measure(parser: @mutable Parser, input: @TokenStream, is_public: bool) {
-        let head: MachineHead = measure_head(parser.item_start);
+    machine dispatch_measure(parser: @mutable Parser, input: @|tokens|::TokenStream, is_public: bool) {
+        let head: |machine_parser|::MachineHead = measure_head(parser.item_start);
         transition is_public {
-            true -> reject_here(parser, input, ParseDiagnosticCode::MeasureNotPublic),
+            true -> reject_here(parser, input, |syntax_trees|::ParseDiagnosticCode::MeasureNotPublic),
             _ -> dispatch_machine(parser, input, head)
         }
     }
 
     // A token binds to an ordinary `machine + Name(...)` declaration; there
     // is no separate `operator` introducer.
-    machine operator_word(parser: @mutable Parser, input: @TokenStream, is_public: bool) {
-        let retired: bool = at_word(parser, input, "operator");
+    machine operator_word(parser: @mutable Parser, input: @|tokens|::TokenStream, is_public: bool) {
+        let retired: bool = |input|::at_word(parser, input, "operator");
         transition retired {
-            true -> reject_here(parser, input, ParseDiagnosticCode::RetiredOperatorDeclaration),
+            true -> reject_here(parser, input, |syntax_trees|::ParseDiagnosticCode::RetiredOperatorDeclaration),
             _ -> target_machine_word(parser, input, is_public)
         }
     }
 
-    machine target_machine_word(parser: @mutable Parser, input: @TokenStream, is_public: bool) {
-        let scoped: bool = next_is_keyword(parser, input, KeywordKind::Machine);
+    machine target_machine_word(parser: @mutable Parser, input: @|tokens|::TokenStream, is_public: bool) {
+        let scoped: bool = |input|::next_is_keyword(parser, input, |tokens|::KeywordKind::Machine);
         transition scoped {
             true -> target_machine(parser, input, is_public),
             _ -> target_boundary_word(parser, input, is_public)
         }
     }
 
-    machine target_boundary_word(parser: @mutable Parser, input: @TokenStream, is_public: bool) {
-        let scoped: bool = next_is_word(parser, input, "boundary");
+    machine target_boundary_word(parser: @mutable Parser, input: @|tokens|::TokenStream, is_public: bool) {
+        let scoped: bool = |input|::next_is_word(parser, input, "boundary");
         transition scoped {
             true -> target_boundary(parser, input, is_public),
             _ -> conformance_word(parser, input, is_public)
         }
     }
 
-    machine conformance_word(parser: @mutable Parser, input: @TokenStream, is_public: bool) {
-        let satisfies: bool = next_is_word(parser, input, "satisfies");
-        let generic: bool = next_is_punctuation(parser, input, PunctuationKind::Less);
+    machine conformance_word(parser: @mutable Parser, input: @|tokens|::TokenStream, is_public: bool) {
+        let satisfies: bool = |input|::next_is_word(parser, input, "satisfies");
+        let generic: bool = |input|::next_is_punctuation(parser, input, |tokens|::PunctuationKind::Less);
         transition satisfies || generic {
             true -> dispatch_conformance(parser, input, is_public),
             _ -> unnamed_root(parser, input, is_public)
         }
     }
 
-    machine unnamed_root(parser: @mutable Parser, input: @TokenStream, is_public: bool) {
+    machine unnamed_root(parser: @mutable Parser, input: @|tokens|::TokenStream, is_public: bool) {
         transition is_public {
-            true -> reject_here(parser, input, ParseDiagnosticCode::ExpectedItemAfterPub),
-            _ -> reject_here(parser, input, ParseDiagnosticCode::UnsupportedRootItem)
+            true -> reject_here(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedItemAfterPub),
+            _ -> reject_here(parser, input, |syntax_trees|::ParseDiagnosticCode::UnsupportedRootItem)
         }
     }
 
@@ -479,134 +472,134 @@ crashes Trap
     // assumption `boundary let`. The carrier-owned `boundary requirement` and
     // the `boundary operator` introducer are retired; a boundary operation is
     // a requirement of a boundary trait.
-    machine boundary_root(parser: @mutable Parser, input: @TokenStream, is_public: bool) {
-        take_current(parser, input);
-        let opaque: bool = at_keyword(parser, input, KeywordKind::Data);
-        let assumed: bool = at_keyword(parser, input, KeywordKind::Let);
+    machine boundary_root(parser: @mutable Parser, input: @|tokens|::TokenStream, is_public: bool) {
+        |input|::take_current(parser, input);
+        let opaque: bool = |input|::at_keyword(parser, input, |tokens|::KeywordKind::Data);
+        let assumed: bool = |input|::at_keyword(parser, input, |tokens|::KeywordKind::Let);
         transition opaque {
             true -> dispatch_data(parser, input, is_public, true),
             _ -> boundary_let(parser, input, is_public, assumed)
         }
     }
 
-    machine boundary_let(parser: @mutable Parser, input: @TokenStream, is_public: bool, assumed: bool) {
+    machine boundary_let(parser: @mutable Parser, input: @|tokens|::TokenStream, is_public: bool, assumed: bool) {
         transition assumed {
             true -> dispatch_definition(parser, input, is_public, true),
             _ -> boundary_machine_word(parser, input, is_public)
         }
     }
 
-    machine boundary_machine_word(parser: @mutable Parser, input: @TokenStream, is_public: bool) {
-        let crossing: bool = at_keyword(parser, input, KeywordKind::Machine);
-        let root_head: MachineHead = root_machine_head(parser.item_start, is_public);
-        let head: MachineHead = boundary_machine_head(root_head);
+    machine boundary_machine_word(parser: @mutable Parser, input: @|tokens|::TokenStream, is_public: bool) {
+        let crossing: bool = |input|::at_keyword(parser, input, |tokens|::KeywordKind::Machine);
+        let root_head: |machine_parser|::MachineHead = root_machine_head(parser.item_start, is_public);
+        let head: |machine_parser|::MachineHead = boundary_machine_head(root_head);
         transition crossing {
             true -> dispatch_machine(parser, input, head),
             _ -> boundary_trait_word(parser, input, is_public)
         }
     }
 
-    machine boundary_trait_word(parser: @mutable Parser, input: @TokenStream, is_public: bool) {
-        let requirements: bool = at_word(parser, input, "trait");
+    machine boundary_trait_word(parser: @mutable Parser, input: @|tokens|::TokenStream, is_public: bool) {
+        let requirements: bool = |input|::at_word(parser, input, "trait");
         transition requirements {
             true -> dispatch_trait(parser, input, is_public, true),
             _ -> boundary_requirement_word(parser, input)
         }
     }
 
-    machine boundary_requirement_word(parser: @mutable Parser, input: @TokenStream) {
-        let retired: bool = at_word(parser, input, "requirement");
+    machine boundary_requirement_word(parser: @mutable Parser, input: @|tokens|::TokenStream) {
+        let retired: bool = |input|::at_word(parser, input, "requirement");
         transition retired {
-            true -> reject_here(parser, input, ParseDiagnosticCode::RetiredBoundaryRequirement),
+            true -> reject_here(parser, input, |syntax_trees|::ParseDiagnosticCode::RetiredBoundaryRequirement),
             _ -> boundary_operator_word(parser, input)
         }
     }
 
-    machine boundary_operator_word(parser: @mutable Parser, input: @TokenStream) {
-        let retired: bool = at_word(parser, input, "operator");
+    machine boundary_operator_word(parser: @mutable Parser, input: @|tokens|::TokenStream) {
+        let retired: bool = |input|::at_word(parser, input, "operator");
         transition retired {
-            true -> reject_here(parser, input, ParseDiagnosticCode::RetiredOperatorDeclaration),
-            _ -> reject_here(parser, input, ParseDiagnosticCode::ExpectedBoundaryDeclaration)
+            true -> reject_here(parser, input, |syntax_trees|::ParseDiagnosticCode::RetiredOperatorDeclaration),
+            _ -> reject_here(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedBoundaryDeclaration)
         }
     }
 
     // `target machine ...`: the leading name is the family's target.
-    machine target_machine(parser: @mutable Parser, input: @TokenStream, is_public: bool) {
-        take_current(parser, input);
-        let root_head: MachineHead = root_machine_head(parser.item_start, is_public);
-        let head: MachineHead = target_machine_head(root_head, parser.token_start, parser.token_end);
+    machine target_machine(parser: @mutable Parser, input: @|tokens|::TokenStream, is_public: bool) {
+        |input|::take_current(parser, input);
+        let root_head: |machine_parser|::MachineHead = root_machine_head(parser.item_start, is_public);
+        let head: |machine_parser|::MachineHead = target_machine_head(root_head, parser.token_start, parser.token_end);
         transition { _ -> dispatch_machine(parser, input, head) }
     }
 
-    machine target_boundary(parser: @mutable Parser, input: @TokenStream, is_public: bool) {
-        take_current(parser, input);
-        let root_head: MachineHead = root_machine_head(parser.item_start, is_public);
-        let target_head: MachineHead = target_machine_head(root_head, parser.token_start, parser.token_end);
-        let head: MachineHead = boundary_machine_head(target_head);
-        take_current(parser, input);
-        let crossing: bool = at_keyword(parser, input, KeywordKind::Machine);
+    machine target_boundary(parser: @mutable Parser, input: @|tokens|::TokenStream, is_public: bool) {
+        |input|::take_current(parser, input);
+        let root_head: |machine_parser|::MachineHead = root_machine_head(parser.item_start, is_public);
+        let target_head: |machine_parser|::MachineHead = target_machine_head(root_head, parser.token_start, parser.token_end);
+        let head: |machine_parser|::MachineHead = boundary_machine_head(target_head);
+        |input|::take_current(parser, input);
+        let crossing: bool = |input|::at_keyword(parser, input, |tokens|::KeywordKind::Machine);
         transition crossing {
             true -> dispatch_machine(parser, input, head),
-            _ -> reject_here(parser, input, ParseDiagnosticCode::ExpectedTargetScopedMachine)
+            _ -> reject_here(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedTargetScopedMachine)
         }
     }
 
-    machine dispatch_data(parser: @mutable Parser, input: @TokenStream, is_public: bool, is_boundary: bool) {
+    machine dispatch_data(parser: @mutable Parser, input: @|tokens|::TokenStream, is_public: bool, is_boundary: bool) {
         let item_start: u64 in Trapping = parser.item_start;
-        parse_data(parser, input, item_start, is_public, is_boundary);
+        |data_file|::parse_data(parser, input, item_start, is_public, is_boundary);
         transition { _ -> declared(parser, input) }
     }
 
-    machine dispatch_machine(parser: @mutable Parser, input: @TokenStream, head: MachineHead) {
-        parse_machine(parser, input, head);
+    machine dispatch_machine(parser: @mutable Parser, input: @|tokens|::TokenStream, head: |machine_parser|::MachineHead) {
+        |machine_parser|::parse_machine(parser, input, head);
         transition { _ -> declared(parser, input) }
     }
 
-    machine dispatch_trait(parser: @mutable Parser, input: @TokenStream, is_public: bool, is_boundary: bool) {
+    machine dispatch_trait(parser: @mutable Parser, input: @|tokens|::TokenStream, is_public: bool, is_boundary: bool) {
         let item_start: u64 in Trapping = parser.item_start;
-        parse_trait(parser, input, item_start, is_public, is_boundary);
+        |traits|::parse_trait(parser, input, item_start, is_public, is_boundary);
         transition { _ -> declared(parser, input) }
     }
 
-    machine dispatch_conformance(parser: @mutable Parser, input: @TokenStream, is_public: bool) {
+    machine dispatch_conformance(parser: @mutable Parser, input: @|tokens|::TokenStream, is_public: bool) {
         let item_start: u64 in Trapping = parser.item_start;
-        parse_conformance(parser, input, item_start, is_public);
+        |conformance|::parse_conformance(parser, input, item_start, is_public);
         transition { _ -> declared(parser, input) }
     }
 
-    machine dispatch_domain(parser: @mutable Parser, input: @TokenStream, is_public: bool) {
+    machine dispatch_domain(parser: @mutable Parser, input: @|tokens|::TokenStream, is_public: bool) {
         let item_start: u64 in Trapping = parser.item_start;
-        parse_domain(parser, input, item_start, is_public);
+        |domain|::parse_domain(parser, input, item_start, is_public);
         transition { _ -> declared(parser, input) }
     }
 
-    machine dispatch_constant(parser: @mutable Parser, input: @TokenStream, is_public: bool) {
+    machine dispatch_constant(parser: @mutable Parser, input: @|tokens|::TokenStream, is_public: bool) {
         let item_start: u64 in Trapping = parser.item_start;
-        parse_constant(parser, input, item_start, is_public);
+        |constant|::parse_constant(parser, input, item_start, is_public);
         transition { _ -> declared(parser, input) }
     }
 
-    machine dispatch_definition(parser: @mutable Parser, input: @TokenStream, is_public: bool, is_boundary: bool) {
+    machine dispatch_definition(parser: @mutable Parser, input: @|tokens|::TokenStream, is_public: bool, is_boundary: bool) {
         let item_start: u64 in Trapping = parser.item_start;
-        parse_definition(parser, input, item_start, is_public, is_boundary);
+        |definition|::parse_definition(parser, input, item_start, is_public, is_boundary);
         transition { _ -> declared(parser, input) }
     }
 
-    machine dispatch_proposition(parser: @mutable Parser, input: @TokenStream, is_public: bool) {
+    machine dispatch_proposition(parser: @mutable Parser, input: @|tokens|::TokenStream, is_public: bool) {
         let item_start: u64 in Trapping = parser.item_start;
-        parse_proposition(parser, input, item_start, is_public);
+        |proposition|::parse_proposition(parser, input, item_start, is_public);
         transition { _ -> declared(parser, input) }
     }
 
-    machine declared(parser: @mutable Parser, input: @TokenStream) {
+    machine declared(parser: @mutable Parser, input: @|tokens|::TokenStream) {
         transition parser.output.accepted {
             true -> next_root(parser, input),
             _ -> done()
         }
     }
 
-    machine reject_here(parser: @mutable Parser, input: @TokenStream, code: ParseDiagnosticCode) {
-        reject_current(parser, input, code);
+    machine reject_here(parser: @mutable Parser, input: @|tokens|::TokenStream, code: |syntax_trees|::ParseDiagnosticCode) {
+        |input|::reject_current(parser, input, code);
     }
 
     machine unsupported_root(
@@ -614,59 +607,59 @@ crashes Trap
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
-        syntax_trees_reject(@mutable parser.output, ParseDiagnosticCode::UnsupportedRootItem, parser.source, start, end);
+        |syntax_trees|::syntax_trees_reject(@mutable parser.output, |syntax_trees|::ParseDiagnosticCode::UnsupportedRootItem, parser.source, start, end);
     }
 
-    machine prepare_use(parser: @mutable Parser, input: @TokenStream) {
+    machine prepare_use(parser: @mutable Parser, input: @|tokens|::TokenStream) {
         transition parser.output.root_count < 4096 {
             true -> use_capacity(parser, input),
             _ -> root_full(parser, input)
         }
     }
 
-    machine root_full(parser: @mutable Parser, input: @TokenStream) {
-        let token: Token = input.tokens[parser.current_index];
-        syntax_trees_reject(@mutable parser.output, ParseDiagnosticCode::RootCapacityExceeded,
+    machine root_full(parser: @mutable Parser, input: @|tokens|::TokenStream) {
+        let token: |tokens|::Token = input.tokens[parser.current_index];
+        |syntax_trees|::syntax_trees_reject(@mutable parser.output, |syntax_trees|::ParseDiagnosticCode::RootCapacityExceeded,
             parser.source,
             token.start,
             token.end
         );
     }
 
-    machine use_capacity(parser: @mutable Parser, input: @TokenStream) {
+    machine use_capacity(parser: @mutable Parser, input: @|tokens|::TokenStream) {
         transition parser.output.use_count < 1024 {
             true -> use_start(parser, input),
             _ -> use_full(parser, input)
         }
     }
 
-    machine use_full(parser: @mutable Parser, input: @TokenStream) {
-        let token: Token = input.tokens[parser.current_index];
-        syntax_trees_reject(@mutable parser.output, ParseDiagnosticCode::UseCapacityExceeded,
+    machine use_full(parser: @mutable Parser, input: @|tokens|::TokenStream) {
+        let token: |tokens|::Token = input.tokens[parser.current_index];
+        |syntax_trees|::syntax_trees_reject(@mutable parser.output, |syntax_trees|::ParseDiagnosticCode::UseCapacityExceeded,
             parser.source,
             token.start,
             token.end
         );
     }
 
-    machine use_start(parser: @mutable Parser, input: @TokenStream) {
+    machine use_start(parser: @mutable Parser, input: @|tokens|::TokenStream) {
         parser.use_first_member = parser.output.member_count as +Trapping;
-                parser_advance(parser, input);
+                |input|::parser_advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> first_member(parser, input),
             _ -> expected_member_at_end(parser)
         }
     }
 
-    machine first_member(parser: @mutable Parser, input: @TokenStream) {
-        load_current(parser, input);
-        let token: Token = input.tokens[parser.current_index];
+    machine first_member(parser: @mutable Parser, input: @|tokens|::TokenStream) {
+        |input|::load_current(parser, input);
+        let token: |tokens|::Token = input.tokens[parser.current_index];
         transition token.kind {
-            TokenKind::Identifier -> retain_member(parser, input,
+            |tokens|::TokenKind::Identifier -> retain_member(parser, input,
                 token.start,
                 token.end
             ),
-            TokenKind::Keyword { keyword, .. } -> member_keyword(parser, input,
+            |tokens|::TokenKind::Keyword { keyword, .. } -> member_keyword(parser, input,
                 keyword,
                 token.start,
                 token.end
@@ -676,20 +669,20 @@ crashes Trap
     }
 
 
-    machine member_keyword(parser: @mutable Parser, input: @TokenStream,
-        keyword: KeywordKind,
+    machine member_keyword(parser: @mutable Parser, input: @|tokens|::TokenStream,
+        keyword: |tokens|::KeywordKind,
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
         transition keyword {
-            KeywordKind::SelfValue -> expected_member(parser, start, end),
+            |tokens|::KeywordKind::SelfValue -> expected_member(parser, start, end),
             _ -> retain_member(parser, input, start, end)
         }
     }
 
     machine retain_member(
         parser: @mutable Parser,
-        input: @TokenStream,
+        input: @|tokens|::TokenStream,
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
@@ -701,26 +694,26 @@ crashes Trap
 
     machine retain_member_bounded(
         parser: @mutable Parser,
-        input: @TokenStream,
+        input: @|tokens|::TokenStream,
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
         parser.output.members[parser.output.member_count] = identifier_span(parser, start, end);
         parser.output.member_count = parser.output.member_count + 1;
-                parser_advance(parser, input);
+                |input|::parser_advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> path_tail(parser, input),
             _ -> expected_separator_at_end(parser)
         }
     }
 
-    machine path_tail(parser: @mutable Parser, input: @TokenStream) {
-        load_current(parser, input);
-        let token: Token = input.tokens[parser.current_index];
+    machine path_tail(parser: @mutable Parser, input: @|tokens|::TokenStream) {
+        |input|::load_current(parser, input);
+        let token: |tokens|::Token = input.tokens[parser.current_index];
         transition token.kind {
-            TokenKind::Punctuation { punctuation: PunctuationKind::Backslash, .. } -> separator(parser, input),
-            TokenKind::Punctuation { punctuation: PunctuationKind::ColonColon, .. } -> separator(parser, input),
-            TokenKind::Punctuation { punctuation: PunctuationKind::Semicolon, .. } -> retain_use(parser, input,
+            |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::Backslash, .. } -> separator(parser, input),
+            |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::ColonColon, .. } -> separator(parser, input),
+            |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::Semicolon, .. } -> retain_use(parser, input,
                 token.end
             ),
             _ -> expected_separator(parser, token.start,
@@ -730,23 +723,23 @@ crashes Trap
     }
 
 
-    machine separator(parser: @mutable Parser, input: @TokenStream) {
-                parser_advance(parser, input);
+    machine separator(parser: @mutable Parser, input: @|tokens|::TokenStream) {
+                |input|::parser_advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> next_member(parser, input),
             _ -> expected_member_at_end(parser)
         }
     }
 
-    machine next_member(parser: @mutable Parser, input: @TokenStream) {
-        load_current(parser, input);
-        let token: Token = input.tokens[parser.current_index];
+    machine next_member(parser: @mutable Parser, input: @|tokens|::TokenStream) {
+        |input|::load_current(parser, input);
+        let token: |tokens|::Token = input.tokens[parser.current_index];
         transition token.kind {
-            TokenKind::Identifier -> retain_member(parser, input,
+            |tokens|::TokenKind::Identifier -> retain_member(parser, input,
                 token.start,
                 token.end
             ),
-            TokenKind::Keyword { keyword, .. } -> member_keyword(parser, input,
+            |tokens|::TokenKind::Keyword { keyword, .. } -> member_keyword(parser, input,
                 keyword,
                 token.start,
                 token.end
@@ -756,16 +749,16 @@ crashes Trap
     }
 
 
-    machine retain_use(parser: @mutable Parser, input: @TokenStream, item_end: u64 in Trapping) {
+    machine retain_use(parser: @mutable Parser, input: @|tokens|::TokenStream, item_end: u64 in Trapping) {
         transition parser.output.use_count < 1024 {
             true -> retain_use_bounded(parser, input, item_end),
             _ -> retained_capacity_lost(parser)
         }
     }
 
-    machine retain_use_bounded(parser: @mutable Parser, input: @TokenStream, item_end: u64 in Trapping) {
+    machine retain_use_bounded(parser: @mutable Parser, input: @|tokens|::TokenStream, item_end: u64 in Trapping) {
         let use_index: u64 in Trapping = parser.output.use_count as +Trapping;
-        parser.output.uses[parser.output.use_count] = UseItem {
+        parser.output.uses[parser.output.use_count] = |syntax_trees|::UseItem {
             first_member: parser.use_first_member,
             member_count: (parser.output.member_count as +Trapping) - parser.use_first_member,
             source_span: parser_source_span(parser, parser.item_start, item_end)
@@ -776,7 +769,7 @@ crashes Trap
 
     machine retain_root(
         parser: @mutable Parser,
-        input: @TokenStream,
+        input: @|tokens|::TokenStream,
         item_end: u64 in Trapping,
         use_index: u64 in Trapping
     ) {
@@ -788,12 +781,12 @@ crashes Trap
 
     machine retain_root_bounded(
         parser: @mutable Parser,
-        input: @TokenStream,
+        input: @|tokens|::TokenStream,
         item_end: u64 in Trapping,
         use_index: u64 in Trapping
     ) {
-        parser.output.roots[parser.output.root_count] = RootItem {
-            kind: RootItemKind::Use,
+        parser.output.roots[parser.output.root_count] = |syntax_trees|::RootItem {
+            kind: |syntax_trees|::RootItemKind::Use,
             item_index: use_index,
             source_span: parser_source_span(parser, parser.item_start, item_end)
         };
@@ -803,35 +796,35 @@ crashes Trap
     }
 
     machine expected_item_after_public_at_end(parser: @mutable Parser) {
-        syntax_trees_reject(@mutable parser.output, ParseDiagnosticCode::ExpectedItemAfterPub, parser.source, parser.source_length, parser.source_length);
+        |syntax_trees|::syntax_trees_reject(@mutable parser.output, |syntax_trees|::ParseDiagnosticCode::ExpectedItemAfterPub, parser.source, parser.source_length, parser.source_length);
     }
 
     machine expected_item_after_public(parser: @mutable Parser, start: u64 in Trapping, end: u64 in Trapping) {
-        syntax_trees_reject(@mutable parser.output, ParseDiagnosticCode::ExpectedItemAfterPub, parser.source, start, end);
+        |syntax_trees|::syntax_trees_reject(@mutable parser.output, |syntax_trees|::ParseDiagnosticCode::ExpectedItemAfterPub, parser.source, start, end);
     }
 
     machine retained_capacity_lost(parser: @mutable Parser) {
-        syntax_trees_reject(@mutable parser.output, ParseDiagnosticCode::RootCapacityExceeded, parser.source, parser.item_start, parser.item_start);
+        |syntax_trees|::syntax_trees_reject(@mutable parser.output, |syntax_trees|::ParseDiagnosticCode::RootCapacityExceeded, parser.source, parser.item_start, parser.item_start);
     }
 
     machine expected_member_at_end(parser: @mutable Parser) {
-        syntax_trees_reject(@mutable parser.output, ParseDiagnosticCode::ExpectedPathMember, parser.source, parser.source_length, parser.source_length);
+        |syntax_trees|::syntax_trees_reject(@mutable parser.output, |syntax_trees|::ParseDiagnosticCode::ExpectedPathMember, parser.source, parser.source_length, parser.source_length);
     }
 
     machine expected_member(parser: @mutable Parser, start: u64 in Trapping, end: u64 in Trapping) {
-        syntax_trees_reject(@mutable parser.output, ParseDiagnosticCode::ExpectedPathMember, parser.source, start, end);
+        |syntax_trees|::syntax_trees_reject(@mutable parser.output, |syntax_trees|::ParseDiagnosticCode::ExpectedPathMember, parser.source, start, end);
     }
 
     machine expected_separator_at_end(parser: @mutable Parser) {
-        syntax_trees_reject(@mutable parser.output, ParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon, parser.source, parser.source_length, parser.source_length);
+        |syntax_trees|::syntax_trees_reject(@mutable parser.output, |syntax_trees|::ParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon, parser.source, parser.source_length, parser.source_length);
     }
 
     machine expected_separator(parser: @mutable Parser, start: u64 in Trapping, end: u64 in Trapping) {
-        syntax_trees_reject(@mutable parser.output, ParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon, parser.source, start, end);
+        |syntax_trees|::syntax_trees_reject(@mutable parser.output, |syntax_trees|::ParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon, parser.source, start, end);
     }
 
     machine member_full(parser: @mutable Parser, start: u64 in Trapping, end: u64 in Trapping) {
-        syntax_trees_reject(@mutable parser.output, ParseDiagnosticCode::PathMemberCapacityExceeded, parser.source, start, end);
+        |syntax_trees|::syntax_trees_reject(@mutable parser.output, |syntax_trees|::ParseDiagnosticCode::PathMemberCapacityExceeded, parser.source, start, end);
     }
 
     machine done() { }
@@ -839,32 +832,32 @@ crashes Trap
 
 // The head of a root `[public] machine` declaration starting at `start`; the
 // constructors below add a target name or `boundary`.
-machine root_machine_head(start: u64 in Trapping, is_public: bool) -> MachineHead {
-    MachineHead {
+machine root_machine_head(start: u64 in Trapping, is_public: bool) -> |machine_parser|::MachineHead {
+    |machine_parser|::MachineHead {
         start: start,
         is_public: is_public,
         has_target: false,
-        target_start: 0,
-        target_end: 0,
+        target_start: 0 as +Trapping,
+        target_end: 0 as +Trapping,
         is_boundary: false,
-        container: MachineContainer::Root
+        container: |syntax_trees|::MachineContainer::Root
     }
 }
 
-machine measure_head(start: u64 in Trapping) -> MachineHead {
-    MachineHead {
+machine measure_head(start: u64 in Trapping) -> |machine_parser|::MachineHead {
+    |machine_parser|::MachineHead {
         start: start,
         is_public: false,
         has_target: false,
-        target_start: 0,
-        target_end: 0,
+        target_start: 0 as +Trapping,
+        target_end: 0 as +Trapping,
         is_boundary: false,
-        container: MachineContainer::Measure
+        container: |syntax_trees|::MachineContainer::Measure
     }
 }
 
-machine target_machine_head(head: MachineHead, start: u64 in Trapping, end: u64 in Trapping) -> MachineHead {
-    MachineHead {
+machine target_machine_head(head: |machine_parser|::MachineHead, start: u64 in Trapping, end: u64 in Trapping) -> |machine_parser|::MachineHead {
+    |machine_parser|::MachineHead {
         start: head.start,
         is_public: head.is_public,
         has_target: true,
@@ -875,8 +868,8 @@ machine target_machine_head(head: MachineHead, start: u64 in Trapping, end: u64 
     }
 }
 
-machine boundary_machine_head(head: MachineHead) -> MachineHead {
-    MachineHead {
+machine boundary_machine_head(head: |machine_parser|::MachineHead) -> |machine_parser|::MachineHead {
+    |machine_parser|::MachineHead {
         start: head.start,
         is_public: head.is_public,
         has_target: head.has_target,

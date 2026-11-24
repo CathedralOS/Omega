@@ -86,8 +86,8 @@ pub mod sealing {
 
 pub use indexed_theorem_roots::verify_indexed_theorem_roots;
 pub use mathematical_proof_actual::{
-    MathematicalProofActualError, mathematical_carrier_key, verify_mathematical_proof_actual,
-    verify_module_mathematical_actuals,
+    MathematicalProofActualError, mathematical_carrier_key, theorem_implication_key,
+    verify_mathematical_proof_actual, verify_module_mathematical_actuals,
 };
 pub(crate) use psi_declaration_encoding::error as codec_error;
 pub(crate) mod cursor {

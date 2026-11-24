@@ -1298,6 +1298,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<
         E::SavedSubject(_)
         | E::Zero
         | E::Float(_)
+        | E::ErasedApplication(_)
         | E::ScalarApplication { .. }
         | E::ByteLiteral(_)
         | E::Integer(_)

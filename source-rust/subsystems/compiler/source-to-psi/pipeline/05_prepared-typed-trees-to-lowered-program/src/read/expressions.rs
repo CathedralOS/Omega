@@ -9,7 +9,7 @@ use crate::lowering::body::Qualification;
 use crate::source_state::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableNamePath, UnaryOperator,
 };
-use semantic_vocabulary::{IntegerType, MachineId, ScalarType};
+use semantic_vocabulary::{IntegerType, MachineId, ScalarTerm, ScalarType, ValueId};
 use symbols::{BuiltinTypeAtom, PrimitiveType};
 use terminal_check_tables::{Checked, Construct};
 
@@ -223,11 +223,10 @@ impl<'t> Program<'t> {
     }
 
     /// Reads the term at an erased position: an `[erased]` local's
-    /// initializer or the argument for an `[erased]` formal. It is a literal
-    /// or a scalar binding, relevant or erased. Anything that computes has a
-    /// formation condition (contracts.md, "Total arithmetic": "Exact
-    /// operations discharge representability before formation") that no
-    /// operation of the lowered form would own, and is refused.
+    /// initializer or the argument for an `[erased]` formal. Literals, scalar
+    /// bindings and eligible declaration applications contribute terms
+    /// without runtime operations. Partial computations need formation
+    /// evidence and cannot be introduced by an erased position.
     pub(super) fn erased_term(
         &mut self,
         id: MachineId,
@@ -268,6 +267,69 @@ impl<'t> Program<'t> {
                         return unserved("erased term of a data type");
                     }
                 }
+            }
+            ExpressionNode::Call(_) if let Some(scalar) = expected => {
+                use super::clause_calls::ClauseUse;
+                use super::contracts::{ClauseScope, ResultTerm};
+
+                let values = slots
+                    .iter()
+                    .enumerate()
+                    .map(|(index, slot)| {
+                        if slot.homed || slot.borrowed.is_some()
+                            || !matches!(slot.value_type, ValueType::Scalar(_, Qualification::NONE))
+                        {
+                            None
+                        } else {
+                            ValueId::new(index as u64 + 1)
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                let scope = ClauseScope {
+                    slots,
+                    values: &values,
+                    bound: &[],
+                    owner: self.lifetime_owner,
+                    result: ResultTerm::Absent("result in an erased term"),
+                    subject: None,
+                    formal_fields: false,
+                    logical: None,
+                };
+                let (operands, discarded) = self.with_clause_arguments(id, |program| {
+                    let mut operands = Vec::new();
+                    program.clause_term(
+                        id,
+                        &scope,
+                        handle,
+                        ClauseUse::Operand(ValueType::plain(scalar), &mut operands),
+                    )?.operand(id)?;
+                    Ok(operands)
+                })?;
+                if !discarded.is_empty() {
+                    return unserved("an erased application discards an operand that needs formation");
+                }
+                let term = crate::lowering::body::scalar_clause_value(operands);
+                if let Some(term) = &term {
+                    let mut pending = vec![term];
+                    while let Some(operand) = pending.pop() {
+                        match operand {
+                            ScalarTerm::DeclarationApplication { arguments, .. } => pending.extend(arguments),
+                            ScalarTerm::Value { .. } | ScalarTerm::Boolean(_)
+                            | ScalarTerm::Integer { .. } | ScalarTerm::IeeeFloatLiteral(_) => {}
+                            _ => return unserved("an erased application operand needs runtime formation"),
+                        }
+                    }
+                }
+                let kind = match term {
+                    Some(term @ ScalarTerm::DeclarationApplication { .. }) => {
+                        ExpressionKind::ErasedApplication(term)
+                    }
+                    Some(ScalarTerm::Value { id, .. }) => ExpressionKind::Slot(id.get() as usize - 1),
+                    Some(ScalarTerm::Integer { value, .. }) => ExpressionKind::Integer(value),
+                    Some(ScalarTerm::Boolean(value)) => ExpressionKind::Boolean(value),
+                    _ => return unserved("erased call without a denotational term"),
+                };
+                (kind, scalar)
             }
             _ => return unserved("erased term other than a literal or a binding"),
         };
@@ -2280,6 +2342,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 | ExpressionKind::SavedSubject(_)
                 | ExpressionKind::Integer(_)
                 | ExpressionKind::Float(_)
+                | ExpressionKind::ErasedApplication(_)
                 | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::StorageLocation { .. }

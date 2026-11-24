@@ -62,6 +62,7 @@ pub(crate) fn extend_membership<'tokens, 'source>(
                     .expressions
                     .insert(ExpressionNode::Binary(TableBinaryExpression {
                         policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                        negation: false,
                         left: expression,
                         operator,
                         right,

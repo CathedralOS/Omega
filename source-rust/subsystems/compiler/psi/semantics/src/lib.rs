@@ -15,6 +15,7 @@ pub mod calls;
 pub mod content_transformations;
 pub mod entry_values;
 pub mod evaluation_crashes;
+pub mod external_completions;
 pub mod evaluation_scope;
 pub mod scalar_conditions;
 pub mod synchronous_calls;

@@ -2,11 +2,11 @@
 // The driver includes the product binder and both resolver queries unchanged.
 // These tables supply just the rows the test reads. Rows 0 and 1 contain
 // integer literals. Call arguments start at row 5.
-data SyntaxTrees [copy] { left: IntegerLiteral; right: IntegerLiteral; }
+public data SyntaxTrees [copy] { left: IntegerLiteral; right: IntegerLiteral; }
 data GenericParameter [copy] { kind: GenericParameterKind; has_type_reference: bool; type_reference: u64 in Trapping; }
 data TraitItem [copy] { generic_parameter_count: u64 in Trapping; }
 data ConformanceItem [copy] { generic_parameter_count: u64 in Trapping; trait_type: u64 in Trapping; }
-data TypeReference [copy] {
+public data TypeReference [copy] {
     kind: TypeReferenceKind;
     lifetime_count: u64 in Trapping;
     has_domain: bool;
@@ -14,10 +14,7 @@ data TypeReference [copy] {
     argument_count: u64;
     literal: u64 in Trapping;
 }
-data NameResolution [copy] { binding_count: u64 in Trapping; machine_row: u64 in Trapping; }
-data Resolver [copy] { output: NameResolution; }
-data TypedReferences [copy] {}
-data Typer { output: TypedReferences; }
+public data NameResolution [copy] { binding_count: u64 in Trapping; machine_row: u64 in Trapping; }
 
 machine syntax_trees_type_reference(syntax: @SyntaxTrees, row: u64 in Trapping) -> TypeReference {
     transition row < 10 { true -> form(TypeReferenceKind::Literal, row, 0), _ -> named(row) }
@@ -25,7 +22,7 @@ machine syntax_trees_type_reference(syntax: @SyntaxTrees, row: u64 in Trapping) 
         transition row == 19 { true -> form(TypeReferenceKind::Named, row, 1), _ -> form(TypeReferenceKind::Named, row, 0) }
     }
     machine form(kind: TypeReferenceKind, row: u64 in Trapping, arguments: u64) -> TypeReference {
-        TypeReference { kind: kind, has_domain: false, lifetime_count: 0, access: ReferenceAccess::Shared, argument_count: arguments, literal: row }
+        TypeReference { kind: kind, has_domain: false, lifetime_count: 0 as +Trapping, access: ReferenceAccess::Shared, argument_count: arguments, literal: row }
     }
 }
 machine syntax_trees_integer_literal(syntax: @SyntaxTrees, row: u64 in Trapping) -> IntegerLiteral {
@@ -36,13 +33,13 @@ machine domain_binding_at(resolution: @NameResolution, row: u64 in Trapping) -> 
 machine name_resolution_domain_item(resolution: @NameResolution, row: u64 in Trapping) -> u64 in Trapping { 0u64 as +Trapping }
 machine type_binding_at(resolution: @NameResolution, row: u64 in Trapping) -> TypeBinding {
     transition row {
-        10 -> trait_contract(0),
-        11 -> trait_contract(1),
-        12 -> implementation(0),
-        13 -> implementation(1),
+        10 -> trait_contract(0 as +Trapping),
+        11 -> trait_contract(1 as +Trapping),
+        12 -> implementation(0 as +Trapping),
+        13 -> implementation(1 as +Trapping),
         14 -> data_item(),
-        15 -> implementation(2),
-        19 -> implementation(0),
+        15 -> implementation(2 as +Trapping),
+        19 -> implementation(0 as +Trapping),
         _ -> scalar_or_machine(resolution, row)
     }
     machine scalar_or_machine(resolution: @NameResolution, row: u64 in Trapping) -> TypeBinding {
@@ -50,19 +47,19 @@ machine type_binding_at(resolution: @NameResolution, row: u64 in Trapping) -> Ty
     }
     machine trait_contract(item: u64 in Trapping) -> TypeBinding { TypeBinding::Trait { item: item } }
     machine implementation(item: u64 in Trapping) -> TypeBinding { TypeBinding::Conformance { item: item } }
-    machine data_item() -> TypeBinding { TypeBinding::Data { item: 0 } }
+    machine data_item() -> TypeBinding { TypeBinding::Data { item: 0 as +Trapping } }
     machine literal() -> TypeBinding { TypeBinding::Literal }
     machine callee(row: u64 in Trapping) -> TypeBinding { TypeBinding::Machine { handle: row } }
     machine builtin() -> TypeBinding { TypeBinding::Builtin { builtin: BuiltinType::Bool } }
 }
 // Contract rows 10 and 11 are two distinct traits. Handles 0 and 1 name a
 // closed implementation for each one. Handle 2 still needs a static argument.
-machine trait_item(syntax: @SyntaxTrees, item: u64 in Trapping) -> TraitItem { TraitItem { generic_parameter_count: 0 } }
+machine trait_item(syntax: @SyntaxTrees, item: u64 in Trapping) -> TraitItem { TraitItem { generic_parameter_count: 0 as +Trapping } }
 machine conformance_item(syntax: @SyntaxTrees, item: u64 in Trapping) -> ConformanceItem {
     transition item {
-        0 -> contract(0, 10),
-        1 -> contract(0, 11),
-        _ -> contract(1, 10)
+        0 -> contract(0 as +Trapping, 10 as +Trapping),
+        1 -> contract(0 as +Trapping, 11 as +Trapping),
+        _ -> contract(1 as +Trapping, 10 as +Trapping)
     }
     machine contract(parameters: u64 in Trapping, reference: u64 in Trapping) -> ConformanceItem {
         ConformanceItem { generic_parameter_count: parameters, trait_type: reference }
@@ -75,16 +72,16 @@ machine syntax_trees_generic_parameter(syntax: @SyntaxTrees, row: u64 in Trappin
         1 -> parameter(GenericParameterKind::Type),
         _ -> parameter(GenericParameterKind::Machine)
     }
-    machine parameter(kind: GenericParameterKind) -> GenericParameter { GenericParameter { kind: kind, has_type_reference: false, type_reference: 0 } }
+    machine parameter(kind: GenericParameterKind) -> GenericParameter { GenericParameter { kind: kind, has_type_reference: false, type_reference: 0 as +Trapping } }
 }
 machine type_argument(syntax: @SyntaxTrees, row: u64 in Trapping) -> u64 in Trapping { row }
-machine reference_type(output: @TypedReferences, row: u64 in Trapping) -> u64 in Trapping { row }
-machine typer_bind(typer: @mutable Typer, handle: u64 in Trapping, argument: u64 in Trapping) crashes Trap {
+machine reference_type(output: @|typing_state|::TypedReferences, row: u64 in Trapping) -> u64 in Trapping { row }
+machine typer_bind(typer: @mutable |typing_state|::Typer, handle: u64 in Trapping, argument: u64 in Trapping) crashes Trap {
     transition handle == 1 && argument == 5 { true -> done(), _ -> wrong_binding() }
     machine done() {}
     machine wrong_binding() { crash Trap; }
 }
-machine bind_machine(typer: @mutable Typer, handle: u64 in Trapping, argument: MachineArgument) crashes Trap {
+machine bind_machine(typer: @mutable |typing_state|::Typer, handle: u64 in Trapping, argument: MachineArgument) crashes Trap {
     transition argument {
         MachineArgument::Declared { machine as selected } -> check(handle, selected),
         _ -> wrong_binding()
@@ -97,51 +94,51 @@ machine bind_machine(typer: @mutable Typer, handle: u64 in Trapping, argument: M
 }
 
 machine call_fits(syntax: @SyntaxTrees, machine_row: u64, count: u64, expected: bool) -> bool crashes Trap {
-    let mutable typer: Typer = Typer { output: TypedReferences {} };
+    let mutable typer: |typing_state|::Typer = |typing_state|::Typer { output: |typing_state|::TypedReferences {} };
     let resolution: NameResolution = NameResolution { binding_count: 9u64 as +Trapping, machine_row: machine_row as +Trapping };
-    let arguments: StaticArguments = StaticArguments { first: 5u64 as +Trapping, count: count as +Trapping };
-    let fits: bool = bind_static_arguments(@mutable typer, syntax, @resolution, 0u64 as +Trapping, 3u64 as +Trapping, arguments);
+    let arguments: |calls|::StaticArguments = |calls|::StaticArguments { first: 5u64 as +Trapping, count: count as +Trapping };
+    let fits: bool = |calls|::bind_static_arguments(@mutable typer, syntax, @resolution, 0u64 as +Trapping, 3u64 as +Trapping, arguments);
     fits == expected
 }
 
 machine same_integer(left: IntegerLiteral, right: IntegerLiteral, expected: bool) -> bool crashes Trap {
     let syntax: SyntaxTrees = SyntaxTrees { left: left, right: right };
-    let resolver: Resolver = Resolver { output: NameResolution { binding_count: 2u64 as +Trapping, machine_row: 6u64 as +Trapping } };
+    let resolver: |resolution_state|::Resolver = |resolution_state|::Resolver { output: NameResolution { binding_count: 2u64 as +Trapping, machine_row: 6u64 as +Trapping } };
     let zero: u64 in Trapping = 0u64 as +Trapping;
     let one: u64 in Trapping = 1u64 as +Trapping;
     let scope: TypeScope = TypeScope { lexical_machine: zero, first_generic_parameter: zero, generic_parameter_count: zero, first_outer_parameter: zero, outer_parameter_count: zero };
-    same_head(@resolver, @syntax, zero, one) == expected
-        && same_type_row(@resolver, @syntax, scope, zero, scope, one) == expected
+    |domains|::same_head(@resolver, @syntax, zero, one) == expected
+        && |machine_signatures|::same_type_row(@resolver, @syntax, scope, zero, scope, one) == expected
 }
 
 machine check_trait_static_slots(syntax: @SyntaxTrees) -> bool
 crashes Trap
 {
-    let resolution: NameResolution = NameResolution { binding_count: 20, machine_row: 6 };
-    let policy: GenericParameter = GenericParameter { kind: GenericParameterKind::Const, has_type_reference: true, type_reference: 10 };
-    let number: GenericParameter = GenericParameter { kind: GenericParameterKind::Const, has_type_reference: true, type_reference: 4 };
-    generic_annotation_role(GenericParameterKind::Const, true) == TypeRole::StaticParameter
-        && generic_annotation_role(GenericParameterKind::Const, false) == TypeRole::Type
-        && trait_name_admitted(TypeRole::StaticParameter, true) && !trait_name_admitted(TypeRole::Type, true)
-        && !trait_name_admitted(TypeRole::StaticParameter, false) && accepts(syntax, @resolution, policy, 12)
-        && !accepts(syntax, @resolution, policy, 13) && !accepts(syntax, @resolution, policy, 14)
-        && !accepts(syntax, @resolution, policy, 0) && !accepts(syntax, @resolution, policy, 15)
-        && !accepts(syntax, @resolution, policy, 19) && accepts(syntax, @resolution, number, 0)
-        && !accepts(syntax, @resolution, number, 12)
+    let resolution: NameResolution = NameResolution { binding_count: 20 as +Trapping, machine_row: 6 as +Trapping };
+    let policy: GenericParameter = GenericParameter { kind: GenericParameterKind::Const, has_type_reference: true, type_reference: 10 as +Trapping };
+    let number: GenericParameter = GenericParameter { kind: GenericParameterKind::Const, has_type_reference: true, type_reference: 4 as +Trapping };
+    |generic_scopes|::generic_annotation_role(GenericParameterKind::Const, true) == |type_names|::TypeRole::StaticParameter
+        && |generic_scopes|::generic_annotation_role(GenericParameterKind::Const, false) == |type_names|::TypeRole::Type
+        && |type_names|::trait_name_admitted(|type_names|::TypeRole::StaticParameter, true) && !|type_names|::trait_name_admitted(|type_names|::TypeRole::Type, true)
+        && !|type_names|::trait_name_admitted(|type_names|::TypeRole::StaticParameter, false) && accepts(syntax, @resolution, policy, 12 as +Trapping)
+        && !accepts(syntax, @resolution, policy, 13 as +Trapping) && !accepts(syntax, @resolution, policy, 14 as +Trapping)
+        && !accepts(syntax, @resolution, policy, 0 as +Trapping) && !accepts(syntax, @resolution, policy, 15 as +Trapping)
+        && !accepts(syntax, @resolution, policy, 19 as +Trapping) && accepts(syntax, @resolution, number, 0 as +Trapping)
+        && !accepts(syntax, @resolution, number, 12 as +Trapping)
 
     machine accepts(syntax: @SyntaxTrees, resolution: @NameResolution, parameter: GenericParameter, row: u64 in Trapping) -> bool {
         let binding: TypeBinding = type_binding_at(resolution, row);
-        trait_slot_accepts(syntax, resolution, parameter, row, binding)
+        |references|::trait_slot_accepts(syntax, resolution, parameter, row, binding)
     }
 }
 
 machine main() crashes Trap {
-    let four: IntegerLiteral = IntegerLiteral { magnitude: 4u64 as +Wrapping, exact: true, empty_digits: false, suffix: IntegerSuffix::None };
-    let hex: IntegerLiteral = IntegerLiteral { magnitude: 0x4u64 as +Wrapping, exact: true, empty_digits: false, suffix: IntegerSuffix::None };
-    let five: IntegerLiteral = IntegerLiteral { magnitude: 5u64 as +Wrapping, exact: true, empty_digits: false, suffix: IntegerSuffix::None };
-    let overflow: IntegerLiteral = IntegerLiteral { magnitude: four.magnitude, exact: false, empty_digits: false, suffix: IntegerSuffix::None };
-    let empty: IntegerLiteral = IntegerLiteral { magnitude: four.magnitude, exact: true, empty_digits: true, suffix: IntegerSuffix::None };
-    let suffixed: IntegerLiteral = IntegerLiteral { magnitude: four.magnitude, exact: true, empty_digits: false, suffix: IntegerSuffix::U8 };
+    let four: IntegerLiteral = IntegerLiteral { magnitude: 4u64 as +Wrapping, exact: true, empty_digits: false, suffix: |numeric|::IntegerSuffix::None };
+    let hex: IntegerLiteral = IntegerLiteral { magnitude: 0x4u64 as +Wrapping, exact: true, empty_digits: false, suffix: |numeric|::IntegerSuffix::None };
+    let five: IntegerLiteral = IntegerLiteral { magnitude: 5u64 as +Wrapping, exact: true, empty_digits: false, suffix: |numeric|::IntegerSuffix::None };
+    let overflow: IntegerLiteral = IntegerLiteral { magnitude: four.magnitude, exact: false, empty_digits: false, suffix: |numeric|::IntegerSuffix::None };
+    let empty: IntegerLiteral = IntegerLiteral { magnitude: four.magnitude, exact: true, empty_digits: true, suffix: |numeric|::IntegerSuffix::None };
+    let suffixed: IntegerLiteral = IntegerLiteral { magnitude: four.magnitude, exact: true, empty_digits: false, suffix: |numeric|::IntegerSuffix::U8 };
     let syntax: SyntaxTrees = SyntaxTrees { left: four, right: hex };
     transition check_trait_static_slots(@syntax) && same_integer(four, hex, true) && same_integer(four, five, false)
         && same_integer(overflow, four, false) && same_integer(four, empty, false) && same_integer(suffixed, suffixed, false)

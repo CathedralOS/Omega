@@ -309,7 +309,8 @@ impl<'source> Program<'source> {
                 types.push(value);
                 continue;
             }
-            let crate::source_state::data::TypeParameterKind::Const { type_reference } =
+            let (crate::source_state::data::TypeParameterKind::Const { type_reference }
+            | crate::source_state::data::TypeParameterKind::Value { type_reference }) =
                 parameter.kind
             else {
                 return Err(unavailable(

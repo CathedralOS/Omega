@@ -118,6 +118,7 @@ impl FunctionObjectSections {
                 byte_count: length,
             });
         }
+        object.layout.function_unwinds = function_unwinds(source, &functions)?;
         let profile = source.emission_facts().physical.contracts.profile();
         let catalogs = source
             .emission_facts()
@@ -205,15 +206,14 @@ impl FunctionObjectSections {
         }
         let bindings = source.bindings();
         object.check_bindings(bindings).map_err(Error::Mismatch)?;
-        let needs_windows_internet =
-            object.layout.normalized_imports.iter().any(|symbol| {
-                runtime_abi::imports_windows_internet_provider(symbol.locator.as_ref())
-            });
-        if needs_windows_internet != bindings.windows_internet.is_some() {
-            return Err(Error::Mismatch(
-                "Windows helper code differs from the object's import symbols",
-            ));
-        }
+        check_windows_internet_companion(
+            object
+                .layout
+                .normalized_imports
+                .iter()
+                .map(|symbol| symbol.locator.as_ref()),
+            bindings.windows_internet.is_some(),
+        )?;
         Ok(Self {
             object,
             relocations,
@@ -227,4 +227,108 @@ impl FunctionObjectSections {
             native_code_layout_pool,
         })
     }
+}
+
+fn check_windows_internet_companion<'a>(
+    imports: impl IntoIterator<Item = target::NormalizedImportLocatorRef<'a>>,
+    supplied: bool,
+) -> Result<(), Error> {
+    if runtime_abi::needs_windows_internet_companion(imports) == supplied {
+        Ok(())
+    } else {
+        Err(Error::Mismatch(
+            "Windows helper code differs from the object's import symbols",
+        ))
+    }
+}
+
+#[cfg(test)]
+#[path = "../../../tests/fixtures/windows-internet-provider/import_rosters.rs"]
+mod windows_import_rosters;
+
+#[test]
+fn checks_windows_companion_against_the_objects_imports() {
+    windows_import_rosters::check(|label, imports, expected| {
+        assert!(
+            check_windows_internet_companion(imports.iter().copied(), expected).is_ok(),
+            "{label}"
+        );
+        assert!(
+            check_windows_internet_companion(imports.iter().copied(), !expected).is_err(),
+            "{label}"
+        );
+    });
+}
+
+/// Carry each framed function's prologue and epilogue steps, as encoded in
+/// stage 11 and positioned by frame application in stage 13, onto its symbol.
+/// A frameless function gets no row: it moves neither the stack pointer nor a
+/// preserved register, so an unwinder needs nothing to undo.
+fn function_unwinds(
+    source: &ObjectPublication,
+    functions: &[ObjectFunctionLocation],
+) -> Result<Vec<crate::FunctionUnwindPlan>, Error> {
+    let code = source.body().code();
+    let protocol = &code.protocol;
+    let application = &code.frame_application;
+    let mut unwinds = Vec::new();
+    for function in functions {
+        let mut rows = protocol
+            .functions
+            .iter()
+            .filter(|row| row.machine == function.machine);
+        let (Some(row), None) = (rows.next(), rows.next()) else {
+            return Err(Error::Mismatch(
+                "placed function has no single frame protocol row",
+            ));
+        };
+        let steps = |span: machine_code::FrameProtocolStepSpan| {
+            span.steps(&protocol.steps)
+                .map(<[_]>::to_vec)
+                .ok_or(Error::Mismatch("frame protocol step span is out of range"))
+        };
+        let mut frame = calling_conventions::frame_unwind::FunctionFrameUnwind {
+            prologue: steps(row.prologue_steps)?,
+            epilogue: steps(row.epilogue_steps)?,
+            epilogue_offsets: Vec::new(),
+        };
+        if frame.is_frameless() {
+            continue;
+        }
+        let applied = application
+            .functions
+            .iter()
+            .find(|applied| applied.machine == function.machine)
+            .ok_or(Error::Mismatch("framed function has no frame application"))?;
+        let byte_count = u64::try_from(function.byte_count).map_err(|_| Error::Overflow)?;
+        if applied.prologue_function_offset != 0
+            || applied.prologue_byte_count != u64::from(frame.prologue_byte_count())
+            || applied.prologue_byte_count > byte_count
+        {
+            return Err(Error::Mismatch(
+                "frame application moved the prologue away from the function start",
+            ));
+        }
+        frame.epilogue_offsets.reserve(applied.epilogues.len());
+        for epilogue in &applied.epilogues {
+            let end = epilogue
+                .function_offset
+                .checked_add(epilogue.byte_count)
+                .ok_or(Error::Overflow)?;
+            if epilogue.byte_count != u64::from(frame.epilogue_byte_count()) || end > byte_count {
+                return Err(Error::Mismatch(
+                    "frame application placed an epilogue outside its function",
+                ));
+            }
+            frame
+                .epilogue_offsets
+                .push(u32::try_from(epilogue.function_offset).map_err(|_| Error::Overflow)?);
+        }
+        frame.epilogue_offsets.sort_unstable();
+        unwinds.push(crate::FunctionUnwindPlan {
+            symbol: function.symbol,
+            frame,
+        });
+    }
+    Ok(unwinds)
 }

@@ -1,0 +1,58 @@
+use representations/source_files/source.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+
+// The enclosing expression determines whether a name denotes a value, callee,
+// target, constructor or pattern binding.
+public data NameRole [copy] {
+    case Value;
+    case Callee;
+    case Target;
+    case Construction;
+    case CasePattern;
+    case WholeSubjectBinder;
+}
+
+public data Resolver {
+    output: |symbol_resolved_trees|::NameResolution;
+    // Name-resolution scratch: what each expression's position lets it name.
+    name_roles: [NameRole; 131072];
+    overload_heads: [|symbol_resolved_trees|::OverloadLinks; 10240];
+}
+
+machine initialize(resolver: @mutable Resolver) {
+    |symbol_resolved_trees|::name_resolution_clear(@mutable resolver.output, |source|::SourceId { value: 0 as +Trapping });
+}
+
+machine resolver_set_role(resolver: @mutable Resolver, index: u64 in Trapping, role: NameRole)
+crashes Trap
+{
+    transition index < 131072 {
+        true -> store(resolver, index, role),
+        _ -> invalid()
+    }
+
+    machine store(resolver: @mutable Resolver, index: u64 in Trapping, role: NameRole) {
+        resolver.name_roles[index as -Trapping] = role;
+    }
+
+    machine invalid() {
+        crash Trap;
+    }
+}
+
+machine resolver_role(resolver: @Resolver, index: u64 in Trapping) -> NameRole
+crashes Trap
+{
+    transition index < 131072 {
+        true -> read(resolver, index),
+        _ -> invalid()
+    }
+
+    machine read(resolver: @Resolver, index: u64 in Trapping) -> NameRole {
+        resolver.name_roles[index as -Trapping]
+    }
+
+    machine invalid() -> NameRole {
+        crash Trap;
+    }
+}

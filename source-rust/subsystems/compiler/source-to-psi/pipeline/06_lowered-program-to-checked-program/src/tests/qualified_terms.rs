@@ -152,6 +152,13 @@ ensures (result as -Classified) == value
 "#;
 
 fn invocation(text: &str) -> Checked<crate::lowering::Elaboration> {
+    invocation_for(text, &[])
+}
+
+fn invocation_for(
+    text: &str,
+    subjects: &[Option<semantic_vocabulary::PackageKeyIdentity>],
+) -> Checked<crate::lowering::Elaboration> {
     let typed = boundary_calls::typed(text);
     let entry = boundary_calls::entry(&typed);
     let frozen: crate::source_state::FrozenTypedTrees = typed.into();
@@ -163,7 +170,7 @@ fn invocation(text: &str) -> Checked<crate::lowering::Elaboration> {
 
             declaration_metadata: &[],
             entries: &[entry],
-            subjects: &[],
+            subjects,
             purpose: source_provenance::DependencyScope::Product,
             selected: &[],
             bindings: &[],
@@ -282,6 +289,84 @@ fn a_boundary_formal_keeps_its_domain_and_independent_requirement() {
         matches!(refused, RouteVerdict::Rejected { ref unproved, .. }
             if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
         "{refused:?}"
+    );
+}
+
+#[test]
+fn a_borrowed_domain_postcondition_belongs_to_its_declared_place() {
+    let source = r#"
+public domain [u16; 2]::Terminated requires self[1] == 0u16;
+public boundary trait Probe {
+    machine read(other: @[u16; 2], path: @[u16; 2] in Terminated) -> i32
+    ensures result >= 0i32 reaches none crashes none;
+}
+machine entry() -> i32 {
+    let other: [u16; 2] = [1u16, 1u16];
+    let path: [u16; 2] in Terminated = [1u16, 0u16] as +Terminated;
+    Probe::read(@other, @path)
+}
+"#;
+    let elaboration = invocation_for(source, &[None]).unwrap();
+    let [boundary] = elaboration.module.interfaces.boundary_machines.as_slice() else {
+        panic!("expected Probe::read")
+    };
+    let [other, path] = boundary.structural_parameters.as_slice() else {
+        panic!("expected the two borrowed parameters")
+    };
+    let declaration = elaboration
+        .static_schemas
+        .iter()
+        .flat_map(|schema| &schema.requirements)
+        .find(|requirement| {
+            Some(&requirement.declaration) == elaboration.boundaries.get(boundary.id)
+        })
+        .and_then(|requirement| requirement.signature.as_ref())
+        .unwrap();
+    declaration.validate_boundary_predicates(boundary).unwrap();
+    assert_eq!(boundary.scalar_requires.len(), 1);
+    assert_eq!(boundary.scalar_ensures.len(), 2);
+
+    let mut wrong = boundary.clone();
+    let replace_with = (other.place, Vec::new());
+    let mut changes = 0;
+    for postcondition in &mut wrong.scalar_ensures {
+        let moved = terminal_semantics::substitution::substitute_proposition_structural_places_with(
+            postcondition,
+            &|id| (id == path.place).then_some(&replace_with),
+        );
+        if *postcondition != moved {
+            *postcondition = moved;
+            changes += 1;
+        }
+    }
+    // The independent authored postcondition remains valid in the same account.
+    assert_eq!(changes, 1);
+    assert_eq!(
+        declaration.validate_boundary_predicates(&wrong),
+        Err("the declared normal-return predicates")
+    );
+
+    let mut missing = boundary.clone();
+    missing.scalar_requires.clear();
+    assert_eq!(
+        declaration.validate_boundary_predicates(&missing),
+        Err("the declared input predicates")
+    );
+
+    let mut extra = boundary.clone();
+    extra
+        .scalar_ensures
+        .push(semantic_vocabulary::Proposition::Falsehood);
+    assert_eq!(
+        declaration.validate_boundary_predicates(&extra),
+        Err("the declared normal-return predicates")
+    );
+
+    let mut wrong_mode = boundary.clone();
+    wrong_mode.structural_parameters[1].access = terminal_psi::StructuralAccess::MutableBorrow;
+    assert_eq!(
+        declaration.validate_boundary_predicates(&wrong_mode),
+        Err("the predicate's original parameter positions and borrow modes")
     );
 }
 

@@ -176,7 +176,12 @@ impl ExcludedRoots {
                 }
                 Ok(ExcludedRoot {
                     path: path.clone(),
-                    canonical: path.canonicalize().ok(),
+                    canonical: resolver_execution::canonicalize_exclusion_root(path).map_err(
+                        |error| SourceResolveError::GitExecutableInvalid {
+                            path: path.clone(),
+                            message: error.to_string(),
+                        },
+                    )?,
                 })
             })
             .collect::<Result<_, _>>()?;
@@ -235,6 +240,21 @@ mod tests {
     use crate::git::executable::validation::is_direct_windows_git_executable;
     #[cfg(unix)]
     use crate::test_support::temp_root;
+
+    #[test]
+    fn an_uninspectable_exclusion_refuses_primary_git_selection() {
+        let future = crate::test_support::temp_root("git-exclusion-root");
+        assert!(
+            super::capture_primary_git_optional(None, None, std::slice::from_ref(&future))
+                .unwrap()
+                .is_none()
+        );
+        let invalid = future.join("invalid\0root");
+        assert!(matches!(
+            super::capture_primary_git_optional(None, None, std::slice::from_ref(&invalid)),
+            Err(super::SourceResolveError::GitExecutableInvalid { path, .. }) if path == invalid
+        ));
+    }
 
     #[cfg(unix)]
     fn write_fake_git(directory: &Path) -> PathBuf {

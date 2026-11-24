@@ -254,7 +254,12 @@ impl<'module> AcceptedDeclarations<'module> {
                 .state_signature_parameters(signature)
                 .get(position)
                 .ok_or_else(mismatch)?;
-            if !field_domains::retained(self.accepted, formal, parameter.type_reference) {
+            if !field_domains::retained(
+                self.accepted,
+                formal.structural_type,
+                &formal.projected_qualifications,
+                parameter.type_reference,
+            ) {
                 return Err(mismatch());
             }
             for &id in &formal.qualifications {
@@ -305,6 +310,54 @@ impl<'module> AcceptedDeclarations<'module> {
             return Err(mismatch());
         }
         Ok(())
+    }
+
+    fn validate_boundary_predicates(
+        &self,
+        signature: &StateSignature,
+        requirement: &PackageReviewNominalIdentity,
+        boundary: &BoundaryMachineDeclaration,
+        contracts: &[review_evidence::record::PackageReviewCallableContract],
+    ) -> Result<(), Vec<Diagnostic>> {
+        let missing = |part: &str| {
+            unavailable(format!(
+                "{part} of boundary requirement `{}`",
+                requirement.path()
+            ))
+        };
+        let (owner, _) = self
+            .accepted
+            .source()
+            .trait_machine_signature(signature.symbol)
+            .ok_or_else(|| missing("the original declaring trait"))?;
+        let schemas = &self.accepted.closure().elaboration().static_schemas;
+        let original = schemas
+            .binary_search_by_key(&symbol_key(owner.symbol), |schema| {
+                symbol_key(schema.declaration)
+            })
+            .ok()
+            .and_then(|index| {
+                schemas[index]
+                    .requirements
+                    .iter()
+                    .find(|row| row.declaration == signature.symbol)?
+                    .signature
+                    .as_ref()
+            });
+        match original {
+            Some(original) => original
+                .validate_boundary_predicates(boundary)
+                .map_err(missing),
+            // An open template may have no concrete predicate signature in this
+            // form. An empty account is complete only if neither side has a fact.
+            None if boundary.scalar_requires.is_empty()
+                && boundary.scalar_ensures.is_empty()
+                && contracts.is_empty() =>
+            {
+                Ok(())
+            }
+            None => Err(missing("the checked declaration predicate signature")),
+        }
     }
 
     fn has_authored_reach(&self, owner: SymbolHandle) -> bool {
@@ -726,7 +779,9 @@ impl PolicySource<'_> {
             let mut requirements = Vec::new();
             for signature in signatures {
                 let requirement = self.requirement(declaration, signature)?;
-                review.callables.push(self.declared_boundary(&requirement)?);
+                review
+                    .callables
+                    .push(self.declared_boundary(declaration, &requirement)?);
                 requirements.push(requirement);
             }
             requirements.sort_by(|left, right| left.identity.cmp(&right.identity));
@@ -748,8 +803,9 @@ impl PolicySource<'_> {
     }
 
     /// A boundary requirement's declaration is reviewable even when no body calls it.
-    pub(super) fn declared_boundary(
+    fn declared_boundary(
         &self,
+        owner: &source_compiler::representations::source_state::trait_definition::TraitDefinition,
         requirement: &review_evidence::record::PackagePolicyTraitRequirement,
     ) -> Result<PackagePolicyCallable, Vec<Diagnostic>> {
         let reach = requirement
@@ -761,15 +817,37 @@ impl PolicySource<'_> {
             .clone()
             .ok_or_else(|| unavailable("a boundary requirement's explicit crash ceiling"))?;
         let installation = requirement.service_reach_is_installation_bound;
+        // The callable is also published outside its trait. Its contract keeps
+        // the same binder ordinals it had inside the trait and method scopes.
+        let mut type_parameters = self.type_parameters(owner.symbol)?;
+        type_parameters.extend_from_slice(&requirement.type_parameters);
+        let mut conformance_bounds = self.conformance_bounds(
+            owner.symbol,
+            &owner.lifetime_parameters,
+            &owner.conformance_bounds,
+        )?;
+        let parent_bounds = u32::try_from(conformance_bounds.len())
+            .map_err(|_| unavailable("a boundary callable's conformance binder count"))?;
+        for bound in &requirement.conformance_bounds {
+            let mut bound = bound.clone();
+            bound.binder_ordinal = parent_bounds
+                .checked_add(bound.binder_ordinal)
+                .ok_or_else(|| unavailable("a boundary callable's conformance binder ordinal"))?;
+            conformance_bounds.push(bound);
+        }
         Ok(PackagePolicyCallable {
             target_context: PackagePolicyTargetContext::TargetIndependent,
             role: PackagePolicyCallableRole::Boundary,
             identity: requirement.identity.clone(),
             supply: PackageReviewCallableSupply::Boundary,
             spelling: requirement.spelling,
-            lifetime_parameter_count: requirement.lifetime_parameter_count,
-            type_parameters: requirement.type_parameters.clone(),
-            conformance_bounds: requirement.conformance_bounds.clone(),
+            lifetime_parameter_count: owner
+                .lifetime_parameters
+                .len()
+                .checked_add(requirement.lifetime_parameter_count)
+                .ok_or_else(|| unavailable("a boundary callable's lifetime binder count"))?,
+            type_parameters,
+            conformance_bounds,
             parameters: requirement.parameters.clone(),
             return_type: requirement.return_type.clone(),
             conformances: Vec::new(),
@@ -1408,8 +1486,7 @@ impl PolicySource<'_> {
             matches!(clause.kind, source_compiler::representations::source_state::signature::SignatureContractKind::Crashes { .. })
         });
         declarations.validate_parameter_domains(signature, &requirement, boundary, &contracts)?;
-        use review_evidence::record::PackageReviewContractKind;
-        let has_clause = |kind| contracts.iter().any(|clause| clause.kind == kind);
+        declarations.validate_boundary_predicates(signature, &requirement, boundary, &contracts)?;
         let mut fields = Vec::new();
         macro_rules! unretained {
             ($field:expr, $when:expr) => {
@@ -1451,14 +1528,6 @@ impl PolicySource<'_> {
             );
             unretained!(parameter.additional_input_qualifications);
         }
-        unretained!(
-            boundary.scalar_requires,
-            !boundary.scalar_requires.is_empty() && !has_clause(PackageReviewContractKind::Requires)
-        );
-        unretained!(
-            boundary.scalar_ensures,
-            !boundary.scalar_ensures.is_empty() && !has_clause(PackageReviewContractKind::Ensures)
-        );
         unretained!(boundary.normal_qualifications);
         unretained!(boundary.reference_outputs);
         unretained!(boundary.program_local_root_introductions);
@@ -1471,7 +1540,17 @@ impl PolicySource<'_> {
                     && result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
             );
             unretained!(result.qualifications);
-            unretained!(result.projected_qualifications);
+            let fields_retained = if completes_normally {
+                field_domains::retained(
+                    declarations.accepted,
+                    result.structural_type,
+                    &result.projected_qualifications,
+                    signature.return_type,
+                )
+            } else {
+                result.projected_qualifications.is_empty()
+            };
+            unretained!(result.projected_qualifications, !fields_retained);
         }
         if !fields.is_empty() {
             fields.sort_unstable();

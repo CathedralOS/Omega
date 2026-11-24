@@ -71,9 +71,7 @@ fn machine(
     })?;
     result(&mut scope, signature.return_type.as_ref())?;
     parameters(&scope, nesting + 1)?;
-    for contract in &signature.contracts {
-        contracts::contract(contract, &scope, nesting + 1)?;
-    }
+    contracts::roster(&signature.contracts, &scope, nesting + 1)?;
     behavior::validate(
         &signature.published_crash,
         &signature.service_reach,

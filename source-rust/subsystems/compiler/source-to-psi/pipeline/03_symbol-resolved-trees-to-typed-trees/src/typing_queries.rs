@@ -7,8 +7,8 @@ use crate::source_state::{
     TypedTrees,
     data::DataField,
     expression::{
-        BinaryOperator, CollectionMeasure, ExpressionHandle, ExpressionNode, MemberSelection,
-        TableNamePath, TableStructLiteral, UnaryOperator,
+        CollectionMeasure, ExpressionHandle, ExpressionNode, MemberSelection, TableNamePath,
+        TableStructLiteral, UnaryOperator,
     },
     signature::StateParameter,
     types::{TypeReferenceHandle, TypeReferenceNode},
@@ -1652,6 +1652,55 @@ impl DeclaredExpressionTypes {
         result
     }
 
+    /// Selection supplies the exact declared return type of an operator
+    /// declaration that needs no static application, before an enclosing cast
+    /// is accounted. No contract or membership evidence is inferred.
+    fn selected_operator_result(
+        &mut self,
+        program: &TypedTrees,
+        owner: SymbolHandle,
+        expression: ExpressionHandle,
+    ) -> Option<TypeReferenceHandle> {
+        let span = program.expression_table.source_span(expression);
+        for form in crate::typing::operator_calls::forms(program, expression)
+            .into_iter()
+            .flatten()
+        {
+            let mut operands = Vec::with_capacity(form.operands().len());
+            for operand in form.operands() {
+                operands.push(
+                    if crate::source_state::closed_numeric::has_anonymous_numeric_results(
+                        program, *operand,
+                    ) {
+                        None
+                    } else {
+                        Some(self.get(program, owner, *operand)?)
+                    },
+                );
+            }
+            let Some(target) = crate::typing::operator_calls::selection_for_operands(
+                program, form, &operands, span,
+            )
+            .ok()
+            .flatten() else {
+                continue;
+            };
+            if !target.arguments.is_empty() {
+                return None;
+            }
+            return program
+                .machine_by_symbol(target.target)
+                .and_then(|machine| program.machine_states(machine).first())
+                .map(|state| state.return_type)
+                .filter(|reference| {
+                    program
+                        .type_reference_table
+                        .contains_type_reference(*reference)
+                });
+        }
+        None
+    }
+
     fn read(
         &mut self,
         program: &TypedTrees,
@@ -1748,6 +1797,11 @@ impl DeclaredExpressionTypes {
                 }
                 joined
             }
+            ExpressionNode::Indexed(_)
+                if let Some(result) = self.selected_operator_result(program, owner, expression) =>
+            {
+                Some(result)
+            }
             ExpressionNode::Integer(_)
             | ExpressionNode::Float(_)
             | ExpressionNode::Boolean(_)
@@ -1797,35 +1851,19 @@ impl DeclaredExpressionTypes {
                         },
                     );
                 }
-                if binary.policy == ArithmeticDomain::Exact
-                    && let Some(spelling) =
-                        crate::source_state::operator::binary_operator_spelling(binary.operator)
-                    && let Some(target) = crate::typing::operator_calls::selection_for_operands(
-                        program,
-                        spelling,
-                        &operands,
-                        table.source_span(expression),
-                    )
-                    .ok()
-                    .flatten()
-                    && target.arguments.is_empty()
-                {
-                    return program
-                        .machine_by_symbol(target.target)
-                        .and_then(|machine| program.machine_states(machine).first())
-                        .map(|state| state.return_type)
-                        .filter(|reference| {
-                            program
-                                .type_reference_table
-                                .contains_type_reference(*reference)
-                        });
+                if let Some(result) = self.selected_operator_result(program, owner, expression) {
+                    return Some(result);
                 }
                 let [left, right] = operands.as_slice() else {
                     unreachable!("binary operator has two operands")
                 };
-                if let Some(result) =
-                    core_integer_result(program, binary.operator, binary.policy, *left, *right)
-                {
+                if let Some(result) = crate::source_state::operator::core_integer_result(
+                    program,
+                    binary.operator,
+                    binary.policy,
+                    *left,
+                    *right,
+                ) {
                     return Some(result);
                 }
                 // Keep the existing bare float and open-carrier queries.
@@ -1855,54 +1893,6 @@ impl DeclaredExpressionTypes {
             }
             _ => None,
         }
-    }
-}
-
-/// What a core integer operator returns before any enclosing cast. An
-/// anonymous numeric operand lands in a known carrier as a plain operand.
-fn core_integer_result(
-    program: &TypedTrees,
-    operator: BinaryOperator,
-    written: ArithmeticDomain,
-    left: Option<TypeReferenceHandle>,
-    right: Option<TypeReferenceHandle>,
-) -> Option<TypeReferenceHandle> {
-    let read = |reference| match reference {
-        Some(reference) => {
-            crate::source_state::operator::core_integer_operand(program, reference).map(Some)
-        }
-        None => Some(None),
-    };
-    let left_type = read(left)?;
-    let right_type = read(right)?;
-    let policy = |operand: Option<(TypeReferenceHandle, BuiltinTypeAtom, ArithmeticDomain)>| {
-        operand.map_or(ArithmeticDomain::Exact, |(_, _, policy)| policy)
-    };
-    if written != ArithmeticDomain::Exact
-        && [policy(left_type), policy(right_type)]
-            .into_iter()
-            .any(|policy| policy != ArithmeticDomain::Exact)
-    {
-        return None;
-    }
-    if operator.is_shift() {
-        // The count can land an anonymous value's carrier, but the result
-        // of shifting that value still carries no count qualification.
-        return left.or_else(|| right_type.map(|(bare, _, _)| bare));
-    }
-    if let (Some((_, left_carrier, _)), Some((_, right_carrier, _))) = (left_type, right_type)
-        && left_carrier != right_carrier
-    {
-        return None;
-    }
-    let result_policy = operator.core_integer_policy(policy(left_type), policy(right_type))?;
-    if result_policy == ArithmeticDomain::Exact {
-        return left_type.or(right_type).map(|(bare, _, _)| bare);
-    }
-    if policy(left_type) == result_policy {
-        left
-    } else {
-        right
     }
 }
 

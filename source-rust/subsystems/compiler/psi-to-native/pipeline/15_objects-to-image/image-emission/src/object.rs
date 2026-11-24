@@ -688,6 +688,17 @@ pub(crate) mod private_object_composition {
                 .ok_or(Error::Overflow)?;
             linked.relocations.push_record(relocated);
         }
+        // Unwind rows are function-relative, so composition only renames their symbol.
+        for unwind in &body.object.layout.function_unwinds {
+            linked
+                .object
+                .layout
+                .function_unwinds
+                .push(object_file::FunctionUnwindPlan {
+                    symbol: remap(&bindings, unwind.symbol)?,
+                    frame: unwind.frame.clone(),
+                });
+        }
         linked.text_bytes.extend_from_slice(&body.text_bytes);
         linked.data_bytes.extend_from_slice(&body.data_bytes);
         if !linked.data_bytes.is_empty()

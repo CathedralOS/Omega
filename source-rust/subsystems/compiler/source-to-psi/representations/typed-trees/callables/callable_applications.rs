@@ -3787,18 +3787,30 @@ mod declaration_invocations {
             let mut public_bindings = Vec::with_capacity(required.len());
             let mut public_arguments = Vec::with_capacity(required.len());
             for ((required, authored), supplied) in required.iter().zip(authored).zip(supplied) {
-                let crate::source_state::data::TypeParameterKind::Const {
+                // A `const` or value binder; the conformance check already
+                // matched the requirement's binder kinds with the member's.
+                let (crate::source_state::data::TypeParameterKind::Const {
                     type_reference: expected,
-                } = required.kind
+                }
+                | crate::source_state::data::TypeParameterKind::Value {
+                    type_reference: expected,
+                }) = required.kind
                 else {
                     return Err("selected public application has an unserved binder kind");
                 };
-                let crate::source_state::data::TypeParameterKind::Const {
+                let (crate::source_state::data::TypeParameterKind::Const {
                     type_reference: actual,
-                } = supplied.kind
+                }
+                | crate::source_state::data::TypeParameterKind::Value {
+                    type_reference: actual,
+                }) = supplied.kind
                 else {
                     return Err("selected realization has another binder kind");
                 };
+                if std::mem::discriminant(&required.kind) != std::mem::discriminant(&supplied.kind)
+                {
+                    return Err("selected realization has another binder kind");
+                }
                 let primitive = self
                     .primitive_type_reference(expected)
                     .filter(|expected| self.primitive_type_reference(actual) == Some(*expected))

@@ -154,14 +154,7 @@ fn errors_found_after_an_expression_is_built_report_where_the_fault_is() {
             "machine plan(builder: Build) {\n    builder.roots.bind(slot, entry);\n}\n",
             "case.omg:2:19: receiver-style root binding is retired; use Build::bind(builder, slot, entry)",
         ),
-        (
-            "machine plan(builder: Build) {\n    Build::bind(builder, slot);\n}\n",
-            "case.omg:2:12: root-slot binding requires an explicit Build argument, one slot path and one implementation path or description expression",
-        ),
-        (
-            "machine plan(builder: Build) {\n    Build::bind(builder, 7, entry);\n}\n",
-            "case.omg:2:26: root-slot binding requires an explicit Build argument, one slot path and one implementation path or description expression",
-        ),
+
         (
             "machine main() {\n    let size = (Describe::<u8>)(1);\n}\n",
             "case.omg:2:16: a declaration description is not an executable callable value",

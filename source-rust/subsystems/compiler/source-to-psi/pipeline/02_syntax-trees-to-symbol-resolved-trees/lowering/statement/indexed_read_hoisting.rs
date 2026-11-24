@@ -66,6 +66,7 @@ fn rewrite_children(
                 expression,
                 ExpressionNode::Binary(TableBinaryExpression {
                     policy: binary.policy,
+                    negation: binary.negation,
                     left,
                     operator: binary.operator,
                     right,

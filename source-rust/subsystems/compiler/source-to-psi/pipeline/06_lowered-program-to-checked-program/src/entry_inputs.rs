@@ -187,6 +187,7 @@ fn describe_calls(
             ranking_bindings: &prepared.ranking_bindings,
             declared: &declared,
             unreached: &beyond,
+            law_instances: &[],
         },
         &mut tables,
         &mut decided,
@@ -714,7 +715,7 @@ fn derived(
         context,
         &assumptions,
         &axioms,
-        &tables.values,
+        &*tables.values,
         activity,
     );
     let mut found = Derived {
@@ -784,7 +785,7 @@ pub(crate) fn known_at(
         context,
         &assumptions,
         &axioms,
-        &tables.values,
+        &*tables.values,
     ))
 }
 
@@ -1372,7 +1373,7 @@ pub(super) fn require(
                     .and_then(|position| old.get(position))
                     .cloned()
                     .unwrap_or_else(|| {
-                        terminal_check_tables::names::ClauseText(vec![
+                        terminal_check_tables::names::ClauseText::from(vec![
                             terminal_check_tables::names::Piece::Text(String::from(
                                 "inferred input condition",
                             )),

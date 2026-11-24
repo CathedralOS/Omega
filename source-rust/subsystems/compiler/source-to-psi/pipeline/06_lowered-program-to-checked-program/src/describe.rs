@@ -247,6 +247,12 @@ fn established_predicate_arrival(
                 owner(names, site)
             ));
         }
+        EstablishedCondition::FixedRankBound => {
+            return Some(format!(
+                "cannot prove the fixed bound of `Nat::IncreasingTo` is unchanged on the recursive transfer in {}",
+                owner(names, site)
+            ));
+        }
         EstablishedCondition::RankRange => {
             return Some(format!(
                 "cannot prove the normalized `terminates by` measure lies in its declared rank range in {}",

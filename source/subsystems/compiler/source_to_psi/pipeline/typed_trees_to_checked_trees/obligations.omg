@@ -970,7 +970,7 @@ public machine operand_count(expression: Expression) -> u64 in Trapping {
     }
 
     machine two() -> u64 in Trapping {
-        2
+        2 as +Trapping
     }
 
     machine arguments(count: u64 in Trapping) -> u64 in Trapping {

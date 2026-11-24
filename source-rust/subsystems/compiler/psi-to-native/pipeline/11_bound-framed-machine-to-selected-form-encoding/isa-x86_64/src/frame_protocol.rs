@@ -2,16 +2,22 @@
 We encode and validate x86-64 fixed-frame stack transport, 4 KiB page-granule
 stack-commit probes (`X86_64StackProbe`), callee-saved slot save/restore
 (`X86_64FrameSlot`), over-aligned frame home rounding, and pointer memory
-accesses across System V AMD64 and Microsoft x64 frames.
+accesses across System V AMD64 and Microsoft x64 frames. Each prologue and
+epilogue instruction also records its unwind effect (`FrameProtocolStep`), so
+image writers can describe the frame without decoding these bytes.
 */
 
+use calling_conventions::MachineRegister;
+use calling_conventions::frame_unwind::{
+    EncodedFrameProtocol, FrameProtocolEffect, FrameProtocolSteps,
+};
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 pub use target_x86_64::frame_protocol::*;
 
 pub fn encode_planned_system_v_amd64_frame_protocol(
     model: &ValidatedPhysicalRegisterModel,
     plan: &X86_64FrameProtocolPlan,
-) -> Result<(Vec<u8>, Vec<u8>), X86_64FrameProtocolError> {
+) -> Result<EncodedFrameProtocol, X86_64FrameProtocolError> {
     if model.identity() != plan.model() {
         return Err(X86_64FrameProtocolError::PhysicalRegisterModelMismatch);
     }
@@ -20,14 +26,21 @@ pub fn encode_planned_system_v_amd64_frame_protocol(
     let slots = plan.slots();
     let mut prologue = Vec::new();
     let mut epilogue = Vec::new();
+    let mut prologue_steps = FrameProtocolSteps::default();
+    let mut epilogue_steps = FrameProtocolSteps::default();
     if probe.touches == 0 {
-        append_stack_adjust(&mut prologue, frame_size_bytes, true)?;
+        append_stack_adjust(&mut prologue, &mut prologue_steps, frame_size_bytes, true)?;
     } else {
         let mut remaining = frame_size_bytes;
         loop {
             let chunk = remaining.min(X86_64_STACK_PROBE_INTERVAL_BYTES);
-            append_stack_adjust(&mut prologue, chunk, true)?;
+            append_stack_adjust(&mut prologue, &mut prologue_steps, chunk, true)?;
             prologue.extend_from_slice(&[0x80, 0x3c, 0x24, 0x00]);
+            record(
+                &mut prologue_steps,
+                &prologue,
+                FrameProtocolEffect::Unchanged,
+            )?;
             remaining -= chunk;
             if remaining == 0 {
                 break;
@@ -35,23 +48,22 @@ pub fn encode_planned_system_v_amd64_frame_protocol(
         }
     }
     for slot in slots {
-        append_register_memory(
-            &mut prologue,
-            register_code(model, slot.view)?,
-            slot.offset_bytes,
-            false,
-        )?;
+        let code = register_code(model, slot.view)?;
+        append_register_memory(&mut prologue, code, slot.offset_bytes, false)?;
+        record(&mut prologue_steps, &prologue, saved_register(code, slot)?)?;
     }
     for slot in slots.iter().rev() {
-        append_register_memory(
-            &mut epilogue,
-            register_code(model, slot.view)?,
-            slot.offset_bytes,
-            true,
-        )?;
+        let code = register_code(model, slot.view)?;
+        append_register_memory(&mut epilogue, code, slot.offset_bytes, true)?;
+        record(&mut epilogue_steps, &epilogue, saved_register(code, slot)?)?;
     }
-    append_stack_adjust(&mut epilogue, frame_size_bytes, false)?;
-    Ok((prologue, epilogue))
+    append_stack_adjust(&mut epilogue, &mut epilogue_steps, frame_size_bytes, false)?;
+    Ok(EncodedFrameProtocol {
+        prologue,
+        epilogue,
+        prologue_steps: prologue_steps.into_steps(),
+        epilogue_steps: epilogue_steps.into_steps(),
+    })
 }
 
 pub fn encode_system_v_amd64_frame_protocol(
@@ -59,11 +71,50 @@ pub fn encode_system_v_amd64_frame_protocol(
     frame_size_bytes: u64,
     probe: X86_64StackProbe,
     slots: &[X86_64FrameSlot],
-) -> Result<(Vec<u8>, Vec<u8>), X86_64FrameProtocolError> {
+) -> Result<EncodedFrameProtocol, X86_64FrameProtocolError> {
     encode_planned_system_v_amd64_frame_protocol(
         model,
         &plan_system_v_amd64_frame_protocol(model, frame_size_bytes, probe, slots)?,
     )
+}
+
+fn record(
+    steps: &mut FrameProtocolSteps,
+    bytes: &[u8],
+    effect: FrameProtocolEffect,
+) -> Result<(), X86_64FrameProtocolError> {
+    steps
+        .push(bytes, effect)
+        .ok_or(X86_64FrameProtocolError::InvalidFrameSize)
+}
+
+fn saved_register(
+    code: u8,
+    slot: &X86_64FrameSlot,
+) -> Result<FrameProtocolEffect, X86_64FrameProtocolError> {
+    const REGISTERS: [MachineRegister; 16] = [
+        MachineRegister::X86Rax,
+        MachineRegister::X86Rcx,
+        MachineRegister::X86Rdx,
+        MachineRegister::X86Rbx,
+        MachineRegister::X86Rsp,
+        MachineRegister::X86Rbp,
+        MachineRegister::X86Rsi,
+        MachineRegister::X86Rdi,
+        MachineRegister::X86R8,
+        MachineRegister::X86R9,
+        MachineRegister::X86R10,
+        MachineRegister::X86R11,
+        MachineRegister::X86R12,
+        MachineRegister::X86R13,
+        MachineRegister::X86R14,
+        MachineRegister::X86R15,
+    ];
+    Ok(FrameProtocolEffect::Register {
+        register: REGISTERS[usize::from(code & 15)],
+        frame_offset_bytes: u32::try_from(slot.offset_bytes)
+            .map_err(|_| X86_64FrameProtocolError::OffsetOutOfRange)?,
+    })
 }
 
 fn register_code(
@@ -98,6 +149,7 @@ fn register_code(
 
 fn append_stack_adjust(
     bytes: &mut Vec<u8>,
+    steps: &mut FrameProtocolSteps,
     amount: u64,
     subtract: bool,
 ) -> Result<(), X86_64FrameProtocolError> {
@@ -105,15 +157,20 @@ fn append_stack_adjust(
         return Ok(());
     }
     let operation = if subtract { 0xec } else { 0xc4 };
+    let amount = i32::try_from(amount).map_err(|_| X86_64FrameProtocolError::InvalidFrameSize)?;
     if amount <= 127 {
         bytes.extend_from_slice(&[0x48, 0x83, operation, amount as u8]);
     } else {
-        let amount =
-            i32::try_from(amount).map_err(|_| X86_64FrameProtocolError::InvalidFrameSize)?;
         bytes.extend_from_slice(&[0x48, 0x81, operation]);
         crate::codec_bytes::push_encoded(bytes, amount.to_le_bytes());
     }
-    Ok(())
+    record(
+        steps,
+        bytes,
+        FrameProtocolEffect::AdjustStack {
+            bytes: amount as u32,
+        },
+    )
 }
 
 fn append_register_memory(
@@ -202,7 +259,7 @@ fn encode_memory(
             4 => Some(0xf3),
             8 => Some(0xf2),
             16 => None,
-            _ => return Err(X86_64FrameProtocolError::OffsetOutOfRange),
+            _ => return Err(X86_64FrameProtocolError::UnsupportedTransferWidth(byte_size)),
         };
         if let Some(prefix) = prefix {
             bytes.push(prefix);
@@ -221,7 +278,7 @@ fn encode_memory(
         return Ok(bytes);
     }
     if !matches!(byte_size, 1 | 2 | 4 | 8) {
-        return Err(X86_64FrameProtocolError::OffsetOutOfRange);
+        return Err(X86_64FrameProtocolError::UnsupportedTransferWidth(byte_size));
     }
     if byte_size == 2 && !load {
         bytes.push(0x66);
@@ -236,7 +293,7 @@ fn encode_memory(
         (true, 4 | 8) => bytes.push(0x8b),
         (false, 1) => bytes.push(0x88),
         (false, _) => bytes.push(0x89),
-        _ => return Err(X86_64FrameProtocolError::OffsetOutOfRange),
+        _ => return Err(X86_64FrameProtocolError::UnsupportedTransferWidth(byte_size)),
     }
     append_memory_operand(&mut bytes, register, base, offset_bytes)?;
     Ok(bytes)
@@ -414,6 +471,10 @@ mod tests {
         X86_64_STACK_PROBE_INTERVAL_BYTES, X86_64FrameProtocolError, X86_64FrameSlot,
         X86_64StackProbe, encode_system_v_amd64_frame_protocol,
     };
+    use calling_conventions::MachineRegister;
+    use calling_conventions::frame_unwind::{
+        EncodedFrameProtocol, FrameProtocolEffect, FrameProtocolStep,
+    };
     use register_model::validate_physical_register_model;
 
     const NO_PROBE: X86_64StackProbe = X86_64StackProbe {
@@ -434,6 +495,19 @@ mod tests {
         }
         let integer = model.model().view_named("r15").unwrap().id;
         assert!(super::encode_x86_64_frame_memory(&model, integer, 8, 16, false).is_err());
+    }
+
+    #[test]
+    fn frame_transfer_reports_the_unsupported_width_for_each_register_class() {
+        let model =
+            validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
+        for name in ["rsi", "xmm8"] {
+            let view = model.model().view_named(name).unwrap().id;
+            assert_eq!(
+                super::encode_x86_64_frame_memory(&model, view, 0, 3, true),
+                Err(super::X86_64FrameProtocolError::UnsupportedTransferWidth(3))
+            );
+        }
     }
 
     #[test]
@@ -511,7 +585,9 @@ mod tests {
             validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
         let rbx = model.model().view_named("rbx").unwrap().id;
         let r12 = model.model().view_named("r12").unwrap().id;
-        let (prologue, epilogue) = encode_system_v_amd64_frame_protocol(
+        let EncodedFrameProtocol {
+            prologue, epilogue, ..
+        } = encode_system_v_amd64_frame_protocol(
             &model,
             24,
             NO_PROBE,
@@ -542,7 +618,7 @@ mod tests {
             interval_bytes: X86_64_STACK_PROBE_INTERVAL_BYTES,
             touches: u32::try_from(frame_size.div_ceil(X86_64_STACK_PROBE_INTERVAL_BYTES)).unwrap(),
         };
-        let (_, epilogue) =
+        let EncodedFrameProtocol { epilogue, .. } =
             encode_system_v_amd64_frame_protocol(&model, 0x7fff_f000, probe(0x7fff_f000), &[])
                 .unwrap();
         assert_eq!(epilogue, [0x48, 0x81, 0xc4, 0x00, 0xf0, 0xff, 0x7f]);
@@ -581,7 +657,9 @@ mod tests {
             interval_bytes: X86_64_STACK_PROBE_INTERVAL_BYTES,
             touches: 2,
         };
-        let (prologue, epilogue) = encode_system_v_amd64_frame_protocol(
+        let EncodedFrameProtocol {
+            prologue, epilogue, ..
+        } = encode_system_v_amd64_frame_protocol(
             &model,
             8_192,
             probe,
@@ -606,6 +684,57 @@ mod tests {
     }
 
     #[test]
+    fn steps_name_each_instruction_and_what_it_does_to_the_frame() {
+        let model =
+            validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
+        let rbx = model.model().view_named("rbx").unwrap().id;
+        let r12 = model.model().view_named("r12").unwrap().id;
+        let probe = X86_64StackProbe {
+            interval_bytes: X86_64_STACK_PROBE_INTERVAL_BYTES,
+            touches: 2,
+        };
+        let slot = |view, offset_bytes| X86_64FrameSlot {
+            view,
+            offset_bytes,
+            size_bytes: 8,
+        };
+        let encoded = encode_system_v_amd64_frame_protocol(
+            &model,
+            8_192,
+            probe,
+            &[slot(rbx, 0), slot(r12, 8)],
+        )
+        .unwrap();
+        let step = |end_offset, effect| FrameProtocolStep { end_offset, effect };
+        let save = |register, frame_offset_bytes| FrameProtocolEffect::Register {
+            register,
+            frame_offset_bytes,
+        };
+        let page = FrameProtocolEffect::AdjustStack { bytes: 4_096 };
+        assert_eq!(
+            encoded.prologue_steps,
+            [
+                step(7, page),
+                step(11, FrameProtocolEffect::Unchanged),
+                step(18, page),
+                step(22, FrameProtocolEffect::Unchanged),
+                step(26, save(MachineRegister::X86Rbx, 0)),
+                step(31, save(MachineRegister::X86R12, 8)),
+            ]
+        );
+        assert_eq!(encoded.prologue.len(), 31);
+        assert_eq!(
+            encoded.epilogue_steps,
+            [
+                step(5, save(MachineRegister::X86R12, 8)),
+                step(9, save(MachineRegister::X86Rbx, 0)),
+                step(16, FrameProtocolEffect::AdjustStack { bytes: 8_192 }),
+            ]
+        );
+        assert_eq!(encoded.epilogue.len(), 16);
+    }
+
+    #[test]
     fn probed_frame_touches_the_partial_tail_chunk() {
         let model =
             validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
@@ -613,7 +742,7 @@ mod tests {
             interval_bytes: X86_64_STACK_PROBE_INTERVAL_BYTES,
             touches: 2,
         };
-        let (prologue, _) =
+        let EncodedFrameProtocol { prologue, .. } =
             encode_system_v_amd64_frame_protocol(&model, 4_097, probe, &[]).unwrap();
         assert_eq!(
             &prologue,
@@ -628,7 +757,7 @@ mod tests {
     fn frame_inside_one_granule_emits_no_probe() {
         let model =
             validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
-        let (prologue, _) =
+        let EncodedFrameProtocol { prologue, .. } =
             encode_system_v_amd64_frame_protocol(&model, 4_096, NO_PROBE, &[]).unwrap();
         assert_eq!(&prologue, &[0x48, 0x81, 0xec, 0x00, 0x10, 0x00, 0x00]);
     }

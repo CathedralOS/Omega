@@ -1,0 +1,267 @@
+// A declaration reference can start with a file alias in the same grammar
+// positions that accept an ordinary path. Leave punctuation in its original
+// position when it does not form that prefix.
+machine OmegaParser::reference_token(&mut self, source: &[u8]) -> OmegaTokenKind {
+    transition self.scan.token_kind {
+        OmegaTokenKind::Punctuation -> punctuation()
+        _ -> return self.scan.token_kind
+    }
+    state punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Pipe -> qualify(self.scan.token_start)
+            _ -> return OmegaTokenKind::Punctuation
+        }
+    }
+    state qualify(start: i32) {
+        transition self.file_selected_name(source, start) {
+            1 -> return OmegaTokenKind::Identifier
+            _ -> restore(start)
+        }
+    }
+    state restore(start: i32) {
+        self.cursor = start;
+        self.scan.scan_preflighted_stage(source, start);
+        return OmegaTokenKind::Punctuation;
+    }
+}
+
+// Qualifying a name identifies one declaration. Keep the whole reference in
+// the usual type or expression span so later static members still select on
+// that declaration and source diagnostics retain the authored spelling.
+machine OmegaParser::file_selected_name(&mut self, source: &[u8], start: i32) -> i32 {
+    self.cursor = start + 1;
+    transition self.scan_significant_token(source) {
+        OmegaParserScanResult::Token -> alias()
+        _ -> return 0
+    }
+    state alias() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> retain_alias()
+            _ -> return 0
+        }
+    }
+    state retain_alias() {
+        self.selector_alias.start = self.scan.token_start;
+        self.selector_alias.end = self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition self.scan_significant_token(source) {
+            OmegaParserScanResult::Token -> close()
+            _ -> return 0
+        }
+    }
+    state close() {
+        transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "|") {
+            1 -> separator()
+            _ -> return 0
+        }
+    }
+    state separator() {
+        self.cursor = self.scan.next_cursor;
+        transition self.scan_significant_token(source) {
+            OmegaParserScanResult::Token -> separator_token()
+            _ -> return 0
+        }
+    }
+    state separator_token() {
+        transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "::") {
+            1 -> member()
+            _ -> return 0
+        }
+    }
+    state member() {
+        self.cursor = self.scan.next_cursor;
+        transition self.scan_significant_token(source) {
+            OmegaParserScanResult::Token -> member_name()
+            _ -> return 0
+        }
+    }
+    state member_name() {
+        transition self.ordinary_name_token() {
+            1 -> retain_member()
+            _ -> return 0
+        }
+    }
+    state retain_member() {
+        self.selector_member.start = self.scan.token_start;
+        self.selector_member.end = self.scan.token_end;
+        self.scan.token_start = start;
+        self.scan.token_kind = OmegaTokenKind::Identifier;
+        return 1;
+    }
+}
+
+// A file import owns its package-relative filename. Its one name in this
+// file is the explicit alias, or the stem when the stem is a legal alias.
+machine OmegaParser::file_import(&mut self, source: &[u8], initial: i32) -> i32 {
+    self.uses[self.use_count].file_path.start = 0;
+    self.uses[self.use_count].file_path.end = 0;
+    self.uses[self.use_count].package_root.start = 0;
+    self.uses[self.use_count].package_root.end = 0;
+    transition self.scan_significant_token(source) {
+        OmegaParserScanResult::Token -> start(self.scan.token_start)
+        _ -> legacy()
+    }
+    state start(offset: i32) {
+        transition source[offset] == '{' {
+            true -> root()
+            _ -> component(offset, offset, offset)
+        }
+    }
+    state root() {
+        self.cursor = self.scan.next_cursor;
+        transition self.scan_significant_token(source) {
+            OmegaParserScanResult::Token -> root_name()
+            _ -> return -1
+        }
+    }
+    state root_name() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> retain_root()
+            _ -> return -1
+        }
+    }
+    state retain_root() {
+        self.uses[self.use_count].package_root.start = self.scan.token_start;
+        self.uses[self.use_count].package_root.end = self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition self.scan_significant_token(source) {
+            OmegaParserScanResult::Token -> root_end()
+            _ -> return -1
+        }
+    }
+    state root_end() {
+        transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "}") {
+            1 -> root_separator()
+            _ -> return -1
+        }
+    }
+    state root_separator() {
+        self.cursor = self.scan.next_cursor;
+        transition self.scan_significant_token(source) {
+            OmegaParserScanResult::Token -> slash()
+            _ -> return -1
+        }
+    }
+    state slash() {
+        transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "/") {
+            1 -> after_root()
+            _ -> return -1
+        }
+    }
+    state after_root() {
+        self.cursor = self.scan.next_cursor;
+        transition self.scan_significant_token(source) {
+            OmegaParserScanResult::Token -> component(self.scan.token_start, self.scan.token_start, self.scan.token_start)
+            _ -> return -1
+        }
+    }
+    state component(first: i32, stem: i32, cursor: i32) {
+        transition cursor < source.len {
+            true -> byte(first, stem, cursor, source[cursor])
+            _ -> legacy()
+        }
+    }
+    state byte(first: i32, stem: i32, cursor: i32, value: i32) {
+        transition (omega_is_identifier_continue(value) == 1) || (value == '-') {
+            true -> component(first, stem, cursor + 1)
+            _ -> delimiter(first, stem, cursor, value)
+        }
+    }
+    state delimiter(first: i32, stem: i32, cursor: i32, value: i32) {
+        transition (cursor > stem) && (value == '/') {
+            true -> component(first, cursor + 1, cursor + 1)
+            _ -> suffix(first, stem, cursor)
+        }
+    }
+    state suffix(first: i32, stem: i32, cursor: i32) {
+        transition (cursor > stem) && (source.len - cursor >= 4) {
+            true -> extension(first, stem, cursor)
+            _ -> legacy()
+        }
+    }
+    state extension(first: i32, stem: i32, cursor: i32) {
+        transition self.scan.span_equals(source, cursor, cursor + 4, ".omg") {
+            1 -> filename(first, stem, cursor)
+            _ -> legacy()
+        }
+    }
+    state filename(first: i32, stem: i32, dot: i32) {
+        self.sources.units[self.unit_index].has_file_import = 1;
+        self.uses[self.use_count].file_path.start = first;
+        self.uses[self.use_count].file_path.end = dot + 4;
+        self.cursor = dot + 4;
+        transition self.scan_significant_token(source) {
+            OmegaParserScanResult::Token -> alias(stem, dot)
+            _ -> return -1
+        }
+    }
+    state alias(stem: i32, dot: i32) {
+        transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "as") {
+            1 -> explicit()
+            _ -> default_alias(stem, dot)
+        }
+    }
+    state default_alias(stem: i32, dot: i32) {
+        transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, ";") {
+            1 -> legal_alias(stem, dot)
+            _ -> return -1
+        }
+    }
+    state explicit() {
+        self.cursor = self.scan.next_cursor;
+        transition self.scan_significant_token(source) {
+            OmegaParserScanResult::Token -> explicit_name()
+            _ -> return -1
+        }
+    }
+    state explicit_name() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> semicolon(self.scan.token_start, self.scan.token_end)
+            _ -> return -1
+        }
+    }
+    state semicolon(first: i32, end: i32) {
+        self.cursor = self.scan.next_cursor;
+        transition self.scan_significant_token(source) {
+            OmegaParserScanResult::Token -> default_alias(first, end)
+            _ -> return -1
+        }
+    }
+    state legal_alias(first: i32, end: i32) {
+        transition (self.sources.identifier_range(source, first, end) == 1) &&
+            (self.reserved_namespace(source, first, end) == 0) {
+            true -> alias_token(first, end, self.scan.token_start)
+            _ -> return -1
+        }
+    }
+    state alias_token(first: i32, end: i32, semicolon: i32) {
+        self.scan.scan_preflighted_stage(source[0..end], first);
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> restore(first, end, semicolon)
+            _ -> return -1
+        }
+    }
+    state restore(first: i32, end: i32, semicolon: i32) {
+        self.scan.scan_preflighted_stage(source, semicolon);
+        transition true { true -> capacity(first, end) }
+    }
+    state capacity(first: i32, end: i32) {
+        transition self.member_count < 16384 {
+            true -> retain(first, end)
+            _ -> return 2
+        }
+    }
+    state retain(first: i32, end: i32) {
+        self.members[self.member_count].start = first;
+        self.members[self.member_count].end = end;
+        self.member_count = self.member_count + 1;
+        return 1;
+    }
+    state legacy() {
+        self.cursor = initial;
+        transition self.uses[self.use_count].package_root.end > 0 {
+            true -> return -1
+            _ -> return 0
+        }
+    }
+}

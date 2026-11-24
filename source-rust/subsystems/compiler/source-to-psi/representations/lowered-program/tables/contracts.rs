@@ -182,6 +182,56 @@ impl StaticSignature {
             )
     }
 
+    /// Declarative predicates use their formal lanes for scalar values and storage
+    /// places. Compare both phases and their storage bindings before treating a
+    /// boundary's published predicates as covered by the source signature.
+    pub fn validate_boundary_predicates(
+        &self,
+        boundary: &terminal_psi::BoundaryMachineDeclaration,
+    ) -> Result<(), &'static str> {
+        use language_core::ReferenceAccess;
+        use terminal_psi::{BoundaryParameterKind, StructuralAccess};
+
+        if self.requires != boundary.scalar_requires {
+            return Err("the declared input predicates");
+        }
+        if self.ensures != boundary.scalar_ensures {
+            return Err("the declared normal-return predicates");
+        }
+        if self.requires.is_empty() && self.ensures.is_empty() {
+            return Ok(());
+        }
+        let same_formals = self.erased.is_empty()
+            && boundary.has_valid_parameter_order()
+            && self.parameters.len() == boundary.parameter_order.len()
+            && boundary
+                .parameter_order
+                .iter()
+                .enumerate()
+                .all(|(position, kind)| {
+                    self.is_place(position) == (*kind == BoundaryParameterKind::Structural)
+                })
+            && boundary
+                .parameter_positions(BoundaryParameterKind::Structural)
+                .zip(&boundary.structural_parameters)
+                .enumerate()
+                .all(|(lane, (position, formal))| {
+                    let access = match self.borrowed(position).map(|formal| formal.access) {
+                        None => StructuralAccess::Owned,
+                        Some(ReferenceAccess::Shared) => StructuralAccess::SharedBorrow,
+                        Some(ReferenceAccess::Mutable) => StructuralAccess::MutableBorrow,
+                        Some(ReferenceAccess::WriteOnly) => StructuralAccess::WriteOnlyBorrow,
+                    };
+                    formal.position as usize == lane
+                        && formal.place.get() == u64::from(formal.position) + 1
+                        && formal.access == access
+                });
+        if !same_formals {
+            return Err("the predicate's original parameter positions and borrow modes");
+        }
+        Ok(())
+    }
+
     pub fn formal_values(&self) -> Vec<Option<ValueId>> {
         formal_value_ids(
             self.parameters.iter().enumerate().map(|(position, value)| {

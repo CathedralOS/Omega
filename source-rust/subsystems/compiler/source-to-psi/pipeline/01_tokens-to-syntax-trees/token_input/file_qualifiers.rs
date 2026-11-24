@@ -3,14 +3,22 @@
 use language_core::build_operations::BuildOperation;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
-use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::Identifier;
+use syntax_trees::item::{GenericConformanceBound, Item, TypeParameter, TypeParameterKind};
+use syntax_trees::types::TypeReferenceNode;
+use syntax_trees::{ParsedRootItems, SyntaxTrees};
 
 #[derive(Default)]
 pub(crate) struct FileQualifiers<'source> {
     // Parsing can visit a name more than once. Its opening bar identifies one occurrence.
-    uses: RefCell<BTreeMap<usize, (&'source str, bool)>>,
+    uses: RefCell<BTreeMap<usize, (&'source str, QualifierUse)>>,
+}
+
+enum QualifierUse {
+    Host,
+    Product,
+    RootOperand(Option<String>),
 }
 
 impl<'source> FileQualifiers<'source> {
@@ -18,17 +26,64 @@ impl<'source> FileQualifiers<'source> {
         self.uses
             .borrow_mut()
             .entry(start)
-            .or_insert((alias, false));
+            .or_insert((alias, QualifierUse::Host));
     }
 
-    pub(crate) fn mark_product_operand(&self, path: &[Identifier]) {
+    fn mark(&self, path: &[Identifier], role: QualifierUse) {
         if let Some(head) = path.first()
             && let Some((_, product)) = self
                 .uses
                 .borrow_mut()
                 .get_mut(&head.source_span().span.start)
         {
-            *product = true;
+            *product = role;
+        }
+    }
+
+    pub(crate) fn mark_root_operand(&self, path: &[Identifier]) {
+        self.mark(path, QualifierUse::RootOperand(None));
+    }
+
+    /// After a machine body closes, its inner machines already recorded their own binders.
+    pub(crate) fn record_build_binder(
+        &self,
+        trees: &SyntaxTrees,
+        body: source_text::Span,
+        binders: arena::HandleSpan<TypeParameter>,
+        bounds: &[GenericConformanceBound],
+    ) {
+        let explicit = bounds
+            .iter()
+            .any(|bound| bound.binder.as_str(trees) == "Build");
+        let schema = trees
+            .items
+            .type_parameters(binders)
+            .iter()
+            .find_map(|parameter| {
+                if parameter.name.as_str(trees) == "Build"
+                    && let TypeParameterKind::Const { type_reference } = parameter.kind
+                {
+                    match trees.type_references.type_reference(type_reference) {
+                        TypeReferenceNode::Named(name)
+                        | TypeReferenceNode::Generic {
+                            base_name: name, ..
+                        } => Some(name.as_str(trees)),
+                        _ => None,
+                    }
+                } else {
+                    None
+                }
+            });
+        if explicit || schema.is_some() {
+            for (_, (_, role)) in self.uses.borrow_mut().range_mut(body.start..body.end) {
+                if matches!(role, QualifierUse::RootOperand(None)) {
+                    *role = if explicit {
+                        QualifierUse::Host
+                    } else {
+                        QualifierUse::RootOperand(schema.map(str::to_owned))
+                    };
+                }
+            }
         }
     }
 
@@ -63,15 +118,48 @@ impl<'source> FileQualifiers<'source> {
         }
         for (position, argument) in call.machine_arguments.iter().enumerate() {
             if operation.product_operand_role(position).is_some() {
-                self.mark_product_operand(&argument.path);
+                self.mark(&argument.path, QualifierUse::Product);
             }
         }
     }
 
-    pub(crate) fn only_product_operands(&self) -> BTreeSet<&'source str> {
+    pub(crate) fn only_product_operands(
+        &self,
+        trees: &SyntaxTrees,
+        roots: &ParsedRootItems,
+    ) -> BTreeSet<&'source str> {
         let mut aliases = BTreeMap::new();
-        for (alias, product) in self.uses.borrow().values().copied() {
-            *aliases.entry(alias).or_insert(true) &= product;
+        let uses = self.uses.borrow();
+        if uses.is_empty() {
+            return BTreeSet::new();
+        }
+        let mut traits = BTreeSet::new();
+        let mut named_record = false;
+        for root in &roots.items {
+            match trees.root_item(*root) {
+                Item::Trait(schema) => {
+                    let name = schema.name.as_str(trees);
+                    traits.insert(name);
+                    named_record |= name == "Build";
+                }
+                Item::Conformance(record) => {
+                    named_record |= record
+                        .alias
+                        .as_ref()
+                        .is_some_and(|name| name.as_str(trees) == "Build");
+                }
+                _ => {}
+            }
+        }
+        for (alias, role) in uses.values() {
+            let product = match role {
+                QualifierUse::Product => true,
+                QualifierUse::Host => false,
+                QualifierUse::RootOperand(schema) => {
+                    !named_record && !schema.as_deref().is_some_and(|name| traits.contains(name))
+                }
+            };
+            *aliases.entry(*alias).or_insert(true) &= product;
         }
         aliases
             .into_iter()

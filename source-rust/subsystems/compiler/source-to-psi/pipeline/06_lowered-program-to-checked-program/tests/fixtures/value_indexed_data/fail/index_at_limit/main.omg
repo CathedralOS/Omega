@@ -1,0 +1,18 @@
+// Expected: rejected, `value < Limit` does not hold at `Limit = 5`.
+// `Index<5>` holds a value below 5: the value binder `Limit` is an index of
+// the type, not a field, and constructing an instance owes `value < Limit`
+// at the argument (generics.md, "Value binders and const requirements").
+// The run twin `run/index` constructs `Index { value: 4u32 }`.
+data Index<Limit: u32>
+requires
+    value < Limit
+{
+    value: u32;
+}
+
+machine main() crashes Trap {
+    let index: Index<5> = Index { value: 5u32 };
+    transition index.value == 4 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

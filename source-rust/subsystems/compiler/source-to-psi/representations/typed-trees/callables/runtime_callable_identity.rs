@@ -807,6 +807,11 @@ fn with_proposition_scope<T>(
     let mut scopes = context.application_scopes.to_vec();
     scopes.push(AppliedTypeIdentityScope {
         declaration: declaration.symbol,
+        argument_owner: if context.application_argument_owner.is_valid() {
+            context.application_argument_owner
+        } else {
+            context.application_owner
+        },
         arguments: &replacements,
         lifetimes: &[],
     });

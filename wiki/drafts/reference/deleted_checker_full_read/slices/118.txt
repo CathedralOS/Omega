@@ -1,0 +1,2 @@
+# slice 118: 4216 lines in 1 file range(s)
+omega-rust/psi/compilation/validation/src/machine_calls_core.rs	1	4216

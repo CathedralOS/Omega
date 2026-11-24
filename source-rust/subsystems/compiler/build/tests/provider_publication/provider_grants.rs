@@ -226,13 +226,13 @@ fn selected_provider_preserves_the_domains_of_each_record_field() {
         public data Envelope [copy] { left: Ticket in Stamped; right: Ticket in Other; }
         public data Swapped [copy] { left: Ticket in Other; right: Ticket in Stamped; }
         public boundary trait Reading {
-            machine read(first: Envelope, second: Swapped) -> u32 reaches none crashes none;
+            machine read(first: Envelope, second: Swapped) -> Envelope reaches none crashes none;
         }
-        public machine run(first: Envelope, second: Swapped) -> u32 reaches Reading {
+        public machine run(first: Envelope, second: Swapped) -> Envelope reaches Reading {
             Reading::read(first, second)
         }
         Provider satisfies Reading {
-            machine read(first: Envelope, second: Swapped) -> u32 { 1u32 }
+            machine read(first: Envelope, second: Swapped) -> Envelope { first }
         }
     "#,
     )
@@ -256,6 +256,11 @@ fn selected_provider_preserves_the_domains_of_each_record_field() {
     )
     .unwrap();
     let method = &recovered.selected_providers.plans[0].methods[0];
+    let returned_record = method.signature.result.as_ref().unwrap();
+    assert_eq!(
+        returned_record,
+        &method.signature.parameters[0].type_identity
+    );
     assert!(
         method.signature.parameters[0]
             .type_identity

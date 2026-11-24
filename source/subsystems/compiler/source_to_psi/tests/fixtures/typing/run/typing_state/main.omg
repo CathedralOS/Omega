@@ -1,0 +1,38 @@
+// Expected exit: 0
+use pipeline/symbol_resolved_trees_to_typed_trees/typing_state.omg;
+use representations/source_files/source.omg;
+use representations/syntax_trees/syntax_trees.omg as syntax;
+use representations/typed_trees/typed_trees.omg as types;
+
+machine start() crashes Trap {
+    let mutable typer: |typing_state|::Typer;
+    let mutable span: |source|::SourceSpan;
+    typer.output.types.row_count = 1;
+    let builtin = |typing_state|::typer_intern(@mutable typer, |types|::type_row_of(|types|::TypeKind::Builtin), span);
+    let mutable reference = |types|::type_row_of(|types|::TypeKind::Reference);
+    reference.inner = builtin;
+    let shared = |typing_state|::typer_intern(@mutable typer, reference, span);
+    reference.access = |syntax|::ReferenceAccess::WriteOnly;
+    let write_only = |typing_state|::typer_intern(@mutable typer, reference, span);
+    let shared_value = |typing_state|::typer_read_type(@typer, shared);
+    let write_value = |typing_state|::typer_read_type(@typer, write_only);
+    let target = |typing_state|::typer_referent(@typer, write_only);
+
+    typer.output.reference_count = 1;
+    |types|::set_reference_type(@mutable typer.output, 0 as +Trapping, shared);
+    let declared = |typing_state|::declared_result(@typer, true, 0 as +Trapping, write_only);
+    let fallback = |typing_state|::declared_result(@typer, false, 0 as +Trapping, write_only);
+
+    |typing_state|::mark_typed(@mutable typer, 131071 as +Trapping, true);
+    let marked = |typing_state|::is_typed(@typer, 131071 as +Trapping);
+    let neighbor = |typing_state|::is_typed(@typer, 131070 as +Trapping);
+    |typing_state|::mark_typed(@mutable typer, 131071 as +Trapping, false);
+    let cleared = |typing_state|::is_typed(@typer, 131071 as +Trapping);
+    transition builtin == 1 && shared == 2 && write_only == 3
+        && shared_value == builtin && write_value == write_only && target == builtin
+        && declared == shared && fallback == write_only && marked && !neighbor && !cleared {
+        true -> done(), _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

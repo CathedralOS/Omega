@@ -1,5 +1,6 @@
-//! A receiver reconstructs proof supplies from their retained derivations.
-//! Merely matching a mathematical type never grants certificate assumptions.
+//! A theorem supply records its invocation, source and complete mathematical type.
+//! Source checking proves the implication. Canonical decoding checks the recorded
+//! relationships; authorization and assumption grants belong to the receiving host.
 
 use mathematical_kernel::Budget;
 use semantic_vocabulary::{InvocationSite, ProofTerm};
@@ -91,25 +92,7 @@ pub fn theorem_citation_actual(
         .ok_or("theorem supply has no expected mathematical carrier")?;
     match citation.source {
         TheoremSource::Formal(position) => {
-            if !citation.derivations.is_empty() {
-                return Err("forwarded theorem acquired an unrelated derivation");
-            }
-            terminal_semantics::theorems::parameter(module, context.owner.id, position)?;
-            let source = context
-                .owner
-                .contract
-                .erased_proof_formals
-                .get(position as usize)
-                .ok_or("forwarded theorem has no exact invocation formal")?;
-            let source_carrier = module
-                .types
-                .mathematical_carriers
-                .iter()
-                .find(|row| row.type_identity == source.type_identity)
-                .ok_or("forwarded theorem lost its mathematical type")?;
-            if source_carrier.carrier_key != carrier.carrier_key {
-                return Err("forwarded theorem has another complete implication");
-            }
+            validate_forwarded_theorem(module, citation, &context, position, &carrier.carrier_key)?;
             Ok(ProofTerm::InvocationFormal { position })
         }
         TheoremSource::Named(source) => {
@@ -122,7 +105,7 @@ pub fn theorem_citation_actual(
                 &citation.derivations,
                 budget,
             )?;
-            let actual_key = crate::mathematical_carrier_key(
+            let actual_key = crate::theorem_implication_key(
                 &theorem.denotation.arena,
                 &theorem.denotation.certificate,
             )
@@ -149,6 +132,37 @@ pub fn theorem_citation_actual(
     }
 }
 
+fn validate_forwarded_theorem(
+    module: &TerminalModule,
+    citation: &TheoremCitation,
+    context: &TheoremCitationContext<'_>,
+    position: u32,
+    expected_key: &[u8],
+) -> Result<(), &'static str> {
+    if !citation.derivations.is_empty() {
+        return Err("forwarded theorem acquired an unrelated derivation");
+    }
+    terminal_semantics::theorems::parameter(module, context.owner.id, position)?;
+    let source = context
+        .owner
+        .contract
+        .erased_proof_formals
+        .get(position as usize)
+        .ok_or("forwarded theorem has no exact invocation formal")?;
+    let source_carrier = module
+        .types
+        .mathematical_carriers
+        .iter()
+        .find(|row| row.type_identity == source.type_identity)
+        .ok_or("forwarded theorem lost its mathematical type")?;
+    if source_carrier.carrier_key != expected_key {
+        return Err("forwarded theorem has another complete implication");
+    }
+    Ok(())
+}
+
+/// Explicitly verify each carried derivation against its source and complete
+/// implication. This entails a kernel check and cannot grant execution authority.
 pub fn validate_theorem_evidence(
     module: &TerminalModule,
     budget: &mut Budget,
@@ -167,9 +181,7 @@ pub fn validate_theorem_evidence(
     Ok(())
 }
 
-/// The source checker has already checked each supplied proof before installing
-/// it. Check the complete invocation roster without replaying those proofs;
-/// foreign artifact ingress still calls `validate_theorem_evidence`.
+/// Check the complete invocation roster independently of theorem derivation.
 pub fn validate_theorem_supply_sites(module: &TerminalModule) -> Result<(), &'static str> {
     let mut previous = None;
     for citation in &module.proofs.theorem_citations {
@@ -184,6 +196,22 @@ pub fn validate_theorem_supply_sites(module: &TerminalModule) -> Result<(), &'st
             .get(citation.proof_position as usize)
             .ok_or("call lost an explicit theorem argument")?;
     }
+    let mut logical_callees: Vec<_> = module
+        .machines
+        .iter()
+        .filter(|machine| {
+            machine.contract.erased_proof_formals.iter().any(|formal| {
+                matches!(
+                    formal.source,
+                    terminal_psi::ProofFormalSource::GenericParameter(_)
+                )
+            })
+        })
+        .collect();
+    if logical_callees.is_empty() {
+        return Ok(());
+    }
+    logical_callees.sort_unstable_by_key(|machine| machine.id);
     for owner in &module.machines {
         for operation in owner.blocks.iter().flat_map(|block| &block.operations) {
             let (callee, actuals) = match &operation.kind {
@@ -209,18 +237,11 @@ pub fn validate_theorem_supply_sites(module: &TerminalModule) -> Result<(), &'st
                 } => (*callee, erased_proof_arguments.as_slice()),
                 _ => continue,
             };
-            let callee = module
-                .machine(callee)
-                .ok_or("theorem call has no declared callee")?;
-            let logical = callee.contract.erased_proof_formals.iter().any(|formal| {
-                matches!(
-                    formal.source,
-                    terminal_psi::ProofFormalSource::GenericParameter(_)
-                )
-            });
-            if !logical {
+            let Ok(index) = logical_callees.binary_search_by_key(&callee, |machine| machine.id)
+            else {
                 continue;
-            }
+            };
+            let callee = logical_callees[index];
             if actuals.len() != callee.contract.erased_proof_formals.len() {
                 return Err("call lost its complete proof argument telescope");
             }
@@ -229,11 +250,22 @@ pub fn validate_theorem_supply_sites(module: &TerminalModule) -> Result<(), &'st
             let start = rows.partition_point(|row| (row.machine, row.site) < site);
             let end = rows.partition_point(|row| (row.machine, row.site) <= site);
             let citations = &rows[start..end];
-            if citations.len() != actuals.len()
-                || citations
-                    .iter()
-                    .enumerate()
-                    .any(|(position, row)| row.proof_position as usize != position)
+            let logical_positions = callee
+                .contract
+                .erased_proof_formals
+                .iter()
+                .enumerate()
+                .filter_map(|(position, formal)| {
+                    matches!(
+                        formal.source,
+                        terminal_psi::ProofFormalSource::GenericParameter(_)
+                    )
+                    .then_some(position)
+                });
+            if !citations
+                .iter()
+                .map(|row| row.proof_position as usize)
+                .eq(logical_positions)
             {
                 return Err("call lost the exact source of a proof argument");
             }
@@ -242,20 +274,13 @@ pub fn validate_theorem_supply_sites(module: &TerminalModule) -> Result<(), &'st
     Ok(())
 }
 
+/// Validate the lowered source's correspondence between a declared implication
+/// and its independent mathematical type before the checker uses it.
 pub fn validate_theorem_parameters(module: &TerminalModule) -> Result<(), &'static str> {
-    if module.proofs.theorem_parameters.windows(2).any(|pair| {
-        (pair[0].machine, pair[0].proof_position) >= (pair[1].machine, pair[1].proof_position)
-    }) {
-        return Err("logical parameters are duplicated or unordered");
-    }
-    for row in &module.proofs.theorem_parameters {
-        let parameter =
-            terminal_semantics::theorems::parameter(module, row.machine, row.proof_position)?;
-        let expected = terminal_semantics::theorems::contract_type(
-            &parameter.contract,
-            &mut Budget::default(),
-        )?;
-        let key = crate::mathematical_carrier_key(
+    validate_parameters_with(module, |contract, stored| {
+        let expected =
+            terminal_semantics::theorems::contract_type(contract, &mut Budget::default())?;
+        let key = crate::theorem_implication_key(
             &expected.arena,
             &mathematical_kernel::MathematicalCertificate {
                 signature: expected.signature,
@@ -266,6 +291,113 @@ pub fn validate_theorem_parameters(module: &TerminalModule) -> Result<(), &'stat
             },
         )
         .map_err(|_| "logical parameter has no canonical mathematical type")?;
+        if key != stored {
+            return Err("logical parameter differs from its complete aliased implication");
+        }
+        Ok(())
+    })
+}
+
+/// Read the recorded type, proof source, ordered judgments and the exact type
+/// carried by the actual. The host separately authorizes these precise bytes.
+pub(crate) fn validate_received_theorems(module: &TerminalModule) -> Result<(), &'static str> {
+    validate_parameters_with(module, |contract, stored| {
+        terminal_semantics::theorems::contract_subjects(contract)?;
+        let decoded = crate::decode_mathematical_certificate(stored)
+            .map_err(|_| "logical parameter has no canonical mathematical type")?;
+        if decoded.certificate.level_arity != 0
+            || !decoded.certificate.context.is_empty()
+            || crate::theorem_implication_key(&decoded.arena, &decoded.certificate)
+                .map_err(|_| "logical parameter key has an invalid dependency")?
+                != stored
+        {
+            return Err("logical parameter has a noncanonical or open mathematical type");
+        }
+        Ok(())
+    })?;
+    validate_theorem_supply_sites(module)?;
+    for citation in &module.proofs.theorem_citations {
+        let context = theorem_citation_context(module, citation)?;
+        let expected =
+            &context.callee.contract.erased_proof_formals[citation.proof_position as usize];
+        let carrier = module
+            .types
+            .mathematical_carriers
+            .iter()
+            .find(|row| row.type_identity == expected.type_identity)
+            .ok_or("theorem supply has no expected mathematical carrier")?;
+        let actual = context
+            .actuals
+            .get(citation.proof_position as usize)
+            .ok_or("call lost an explicit theorem argument")?;
+        match (citation.source, actual) {
+            (TheoremSource::Formal(source), ProofTerm::InvocationFormal { position })
+                if source == *position =>
+            {
+                validate_forwarded_theorem(
+                    module,
+                    citation,
+                    &context,
+                    source,
+                    &carrier.carrier_key,
+                )?;
+            }
+            (
+                TheoremSource::Named(source),
+                ProofTerm::Mathematical {
+                    type_identity,
+                    certificate,
+                },
+            ) => {
+                let supplied = module
+                    .machine(source)
+                    .ok_or("cited theorem has no source machine")?;
+                let goals = terminal_semantics::theorems::recorded_citation_goals(
+                    &context.parameter.contract,
+                    &supplied.contract,
+                )?;
+                if citation.derivations.len() != goals.len()
+                    || citation.derivations.iter().zip(goals).enumerate().any(
+                        |(index, (derivation, goal))| {
+                            derivation.identity.get() != index as u64 + 1
+                                || derivation.proof_system_marker
+                                    != terminal_psi::ProofSystemMarker::CURRENT
+                                || derivation.proof.conclusion != goal
+                        },
+                    )
+                {
+                    return Err("theorem derivation lost its declared judgment or role");
+                }
+                let decoded = crate::decode_mathematical_certificate(certificate)
+                    .map_err(|_| "theorem supply has no canonical mathematical certificate")?;
+                if module.identities.text(expected.type_identity) != Some(type_identity.as_str())
+                    || decoded.certificate.level_arity != 0
+                    || !decoded.certificate.context.is_empty()
+                    || crate::theorem_implication_key(&decoded.arena, &decoded.certificate)
+                        .map_err(|_| "theorem supply has an invalid type dependency")?
+                        != carrier.carrier_key
+                {
+                    return Err("theorem supply has another mathematical carrier");
+                }
+            }
+            _ => return Err("theorem argument differs from its recorded source"),
+        }
+    }
+    Ok(())
+}
+
+fn validate_parameters_with(
+    module: &TerminalModule,
+    check_carrier: impl Fn(&terminal_psi::TheoremContract, &[u8]) -> Result<(), &'static str>,
+) -> Result<(), &'static str> {
+    if module.proofs.theorem_parameters.windows(2).any(|pair| {
+        (pair[0].machine, pair[0].proof_position) >= (pair[1].machine, pair[1].proof_position)
+    }) {
+        return Err("logical parameters are duplicated or unordered");
+    }
+    for row in &module.proofs.theorem_parameters {
+        let parameter =
+            terminal_semantics::theorems::parameter(module, row.machine, row.proof_position)?;
         let owner = module
             .machine(row.machine)
             .ok_or("logical parameter has no owning machine")?;
@@ -276,14 +408,14 @@ pub fn validate_theorem_parameters(module: &TerminalModule) -> Result<(), &'stat
             .iter()
             .find(|row| row.type_identity == formal.type_identity)
             .ok_or("logical parameter has no retained mathematical carrier")?;
-        if carrier.carrier_key != key
-            || module
-                .identities
-                .text(formal.type_identity)
-                .is_none_or(str::is_empty)
+        if module
+            .identities
+            .text(formal.type_identity)
+            .is_none_or(str::is_empty)
         {
-            return Err("logical parameter differs from its complete aliased implication");
+            return Err("logical parameter has no exact type identity");
         }
+        check_carrier(&parameter.contract, &carrier.carrier_key)?;
     }
     for machine in &module.machines {
         let mut logical = 0;

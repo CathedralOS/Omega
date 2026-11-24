@@ -18,6 +18,7 @@ crate produces canonical package evidence; git command policy belongs to
 
 #![deny(unsafe_op_in_unsafe_fn)]
 
+mod path_custody;
 mod resolver_execution;
 
 pub use bounded_process::{
@@ -26,4 +27,5 @@ pub use bounded_process::{
     BoundedProcessExitStatus as ResolverExecutionExitStatus,
     BoundedProcessPrepared as ResolverPreparedExecution,
 };
+pub use path_custody::canonicalize_exclusion_root;
 pub use resolver_execution::{ResolverExecutionBackend, ResolverExecutionPhase};

@@ -243,7 +243,7 @@ crashes Trap
     }
 
     machine read(typing: @Typing, row: u64 in Trapping) -> u64 in Trapping {
-        typing.reference_types[row] as +Trapping
+        typing.reference_types[row as -Trapping] as +Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -260,7 +260,7 @@ crashes Trap
     }
 
     machine write(typing: @mutable Typing, row: u64 in Trapping, handle: u64 in Trapping) {
-        typing.reference_types[row] = handle as u64;
+        typing.reference_types[row as -Trapping] = handle as -Trapping;
     }
 
     machine invalid() {
@@ -277,7 +277,7 @@ crashes Trap
     }
 
     machine read(typing: @Typing, index: u64 in Trapping) -> u64 in Trapping {
-        typing.expression_types[index] as +Trapping
+        typing.expression_types[index as -Trapping] as +Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -294,7 +294,7 @@ crashes Trap
     }
 
     machine write(typing: @mutable Typing, index: u64 in Trapping, handle: u64 in Trapping) {
-        typing.expression_types[index] = handle as u64;
+        typing.expression_types[index as -Trapping] = handle as -Trapping;
     }
 
     machine invalid() {
@@ -311,7 +311,7 @@ crashes Trap
     }
 
     machine read(typing: @Typing, index: u64 in Trapping) -> Selection {
-        typing.selections[index]
+        typing.selections[index as -Trapping]
     }
 
     machine invalid() -> Selection {
@@ -328,7 +328,7 @@ crashes Trap
     }
 
     machine write(typing: @mutable Typing, index: u64 in Trapping, selection: Selection) {
-        typing.selections[index] = selection;
+        typing.selections[index as -Trapping] = selection;
     }
 
     machine invalid() {
@@ -345,7 +345,7 @@ crashes Trap
     }
 
     machine read(typing: @Typing, index: u64 in Trapping) -> Adaptation {
-        typing.adaptations[index]
+        typing.adaptations[index as -Trapping]
     }
 
     machine invalid() -> Adaptation {
@@ -362,7 +362,7 @@ crashes Trap
     }
 
     machine write(typing: @mutable Typing, index: u64 in Trapping, adaptation: Adaptation) {
-        typing.adaptations[index] = adaptation;
+        typing.adaptations[index as -Trapping] = adaptation;
     }
 
     machine invalid() {
@@ -379,7 +379,7 @@ crashes Trap
     }
 
     machine read(typing: @Typing, index: u64 in Trapping) -> ExactInteger {
-        typing.values[index]
+        typing.values[index as -Trapping]
     }
 
     machine invalid() -> ExactInteger {
@@ -407,7 +407,11 @@ crashes Trap
             || expression.kind == ExpressionKind::Unary || expression.kind == ExpressionKind::Binary;
         typing.accepted && adaptation == Adaptation::Landed && numeric
             && row.kind == TypeKind::Builtin && is_carrier(row.builtin)
-            && typing_denominator(typing, handle) == 1
+            && integral_denominator(typing, handle)
+    }
+    machine integral_denominator(typing: @Typing, handle: u64 in Trapping) -> bool {
+        let denominator: u64 in Trapping = typing_denominator(typing, handle);
+        denominator == 1
     }
     machine no() -> bool { false }
 }
@@ -432,7 +436,7 @@ crashes Trap
     }
 
     machine read(typing: @Typing, index: u64 in Trapping) -> u64 in Trapping {
-        let stored: u64 = typing.rosters[index];
+        let stored: u64 = typing.rosters[index as -Trapping];
         stored as +Trapping
     }
 
@@ -450,7 +454,7 @@ crashes Trap
     }
 
     machine write(typing: @mutable Typing, index: u64 in Trapping, roster: u64 in Trapping) {
-        typing.rosters[index] = roster as u64;
+        typing.rosters[index as -Trapping] = roster as -Trapping;
     }
 
     machine invalid() {
@@ -468,7 +472,7 @@ crashes Trap
     }
 
     machine read(typing: @Typing, index: u64 in Trapping) -> u64 in Trapping {
-        let stored: u64 = typing.denominators[index];
+        let stored: u64 = typing.denominators[index as -Trapping];
         transition stored > 1 {
             true -> fraction(stored),
             _ -> integral()
@@ -480,7 +484,7 @@ crashes Trap
     }
 
     machine integral() -> u64 in Trapping {
-        1
+        1 as +Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -497,7 +501,7 @@ crashes Trap
         _ -> invalid()
     }
     machine read(typing: @Typing, index: u64 in Trapping) -> u64 in Trapping {
-        typing.fractional_origins[index] as +Trapping
+        typing.fractional_origins[index as -Trapping] as +Trapping
     }
     machine invalid() -> u64 in Trapping { crash Trap; }
 }
@@ -511,8 +515,8 @@ crashes Trap
     }
 
     machine write(typing: @mutable Typing, index: u64 in Trapping, value: Rational, origin: u64 in Trapping) {
-        typing.values[index] = value.numerator;
-        typing.denominators[index] = value.denominator as u64;
+        typing.values[index as -Trapping] = value.numerator;
+        typing.denominators[index as -Trapping] = value.denominator as -Wrapping;
         transition origin > 0 || value.denominator <= 1 {
             true -> inherited(typing, index, origin),
             _ -> fractional(typing, index)
@@ -520,11 +524,11 @@ crashes Trap
     }
 
     machine inherited(typing: @mutable Typing, index: u64 in Trapping, origin: u64 in Trapping) {
-        typing.fractional_origins[index] = origin as u64;
+        typing.fractional_origins[index as -Trapping] = origin as -Trapping;
     }
 
     machine fractional(typing: @mutable Typing, index: u64 in Trapping) {
-        typing.fractional_origins[index] = (index + 1) as u64;
+        typing.fractional_origins[index as -Trapping] = (index + 1) as -Trapping;
     }
 
     machine invalid() {
@@ -541,9 +545,9 @@ crashes Trap
     }
 
     machine write(typing: @mutable Typing, index: u64 in Trapping, value: ExactInteger) {
-        typing.values[index] = value;
-        typing.denominators[index] = 0;
-        typing.fractional_origins[index] = 0;
+        typing.values[index as -Trapping] = value;
+        typing.denominators[index as -Trapping] = 0;
+        typing.fractional_origins[index as -Trapping] = 0;
     }
 
     machine invalid() {
@@ -560,7 +564,7 @@ crashes Trap
     }
 
     machine read(typing: @Typing, field: u64 in Trapping) -> MemberTarget {
-        typing.construct_targets[field]
+        typing.construct_targets[field as -Trapping]
     }
 
     machine invalid() -> MemberTarget {
@@ -577,7 +581,7 @@ crashes Trap
     }
 
     machine write(typing: @mutable Typing, field: u64 in Trapping, target: MemberTarget) {
-        typing.construct_targets[field] = target;
+        typing.construct_targets[field as -Trapping] = target;
     }
 
     machine invalid() {
@@ -594,7 +598,7 @@ crashes Trap
     }
 
     machine read(typing: @Typing, field: u64 in Trapping) -> MemberTarget {
-        typing.binder_members[field]
+        typing.binder_members[field as -Trapping]
     }
 
     machine invalid() -> MemberTarget {
@@ -611,7 +615,7 @@ crashes Trap
     }
 
     machine write(typing: @mutable Typing, field: u64 in Trapping, target: MemberTarget) {
-        typing.binder_members[field] = target;
+        typing.binder_members[field as -Trapping] = target;
     }
 
     machine invalid() {
@@ -628,7 +632,7 @@ crashes Trap
     }
 
     machine read(typing: @Typing, field: u64 in Trapping) -> u64 in Trapping {
-        typing.binder_types[field] as +Trapping
+        typing.binder_types[field as -Trapping] as +Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -645,7 +649,7 @@ crashes Trap
     }
 
     machine write(typing: @mutable Typing, field: u64 in Trapping, handle: u64 in Trapping) {
-        typing.binder_types[field] = handle as u64;
+        typing.binder_types[field as -Trapping] = handle as -Trapping;
     }
 
     machine invalid() {
@@ -659,13 +663,13 @@ public machine type_row_of(kind: TypeKind) -> TypeRow {
         kind: kind,
         builtin: BuiltinType::Bool,
         domain: DomainBinding::Unqualified,
-        domain_item: 0,
-        item: 0,
+        domain_item: 0 as +Trapping,
+        item: 0 as +Trapping,
         access: ReferenceAccess::Shared,
-        inner: 0,
-        length: 0,
-        first_argument: 0,
-        argument_count: 0
+        inner: 0 as +Trapping,
+        length: 0 as +Trapping,
+        first_argument: 0 as +Trapping,
+        argument_count: 0 as +Trapping
     }
 }
 
@@ -678,12 +682,19 @@ crashes Trap
     }
 
     machine read(table: @TypeTable, handle: u64 in Trapping) -> TypeRow {
-        table.rows[handle]
+        table.rows[handle as -Trapping]
     }
 
     machine invalid() -> TypeRow {
         crash Trap;
     }
+}
+
+public machine never_type(table: @TypeTable, handle: u64 in Trapping) -> bool
+crashes Trap
+{
+    let row: TypeRow = type_table_row(table, handle);
+    row.kind == TypeKind::Builtin && row.builtin == BuiltinType::Never
 }
 
 public machine type_table_argument(table: @TypeTable, index: u64 in Trapping) -> u64 in Trapping
@@ -695,7 +706,7 @@ crashes Trap
     }
 
     machine read(table: @TypeTable, index: u64 in Trapping) -> u64 in Trapping {
-        table.arguments[index] as u64 +Trapping
+        table.arguments[index as -Trapping] as +Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -714,7 +725,7 @@ crashes Trap
     }
 
     machine push(table: @mutable TypeTable, argument: u64 in Trapping) -> bool {
-        table.arguments[table.argument_count] = argument as u64;
+        table.arguments[table.argument_count] = argument as -Trapping;
         table.argument_count = table.argument_count + 1;
         true
     }
@@ -730,7 +741,7 @@ crashes Trap
 public machine type_table_intern(table: @mutable TypeTable, row: TypeRow) -> u64 in Trapping
 crashes Trap
 {
-    transition { _ -> scan(table, row, 1) }
+    transition { _ -> scan(table, row, 1 as +Trapping) }
 
     machine scan(table: @mutable TypeTable, row: TypeRow, index: u64 in Trapping) -> u64 in Trapping {
         transition index < table.row_count {
@@ -760,7 +771,7 @@ crashes Trap
     machine release(table: @mutable TypeTable, first_argument: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping
     requires first_argument <= 4096
     {
-        table.argument_count = first_argument as u64;
+        table.argument_count = first_argument as -Trapping;
         transition { _ -> result(index) }
     }
 
@@ -772,8 +783,8 @@ crashes Trap
     }
 
     machine store(table: @mutable TypeTable, row: TypeRow) -> u64 in Trapping {
-        let handle: u64 in Trapping = table.row_count as u64 +Trapping;
-        table.rows[handle] = row;
+        let handle: u64 in Trapping = table.row_count as +Trapping;
+        table.rows[handle as -Trapping] = row;
         table.row_count = table.row_count + 1;
         transition { _ -> result(handle) }
     }
@@ -783,7 +794,7 @@ crashes Trap
     }
 
     machine full() -> u64 in Trapping {
-        0
+        0 as +Trapping
     }
 }
 
@@ -800,7 +811,7 @@ crashes Trap
         && left.inner == right.inner
         && left.length == right.length
         && left.argument_count == right.argument_count {
-        true -> arguments(table, left, right, 0),
+        true -> arguments(table, left, right, 0 as +Trapping),
         _ -> different()
     }
 
@@ -833,7 +844,7 @@ crashes Trap
 public machine type_row_carrier(row: TypeRow) -> TypeRow {
     let mutable carrier: TypeRow = row;
     carrier.domain = DomainBinding::Unqualified;
-    carrier.domain_item = 0;
+    carrier.domain_item = 0 as +Trapping;
     carrier
 }
 
@@ -847,7 +858,7 @@ crashes Trap
 {
     let row: TypeRow = type_table_row(@typing.types, handle);
     transition row.kind == TypeKind::Reference {
-        true -> inner(typing, row.inner, 0),
+        true -> inner(typing, row.inner, 0 as +Trapping),
         _ -> result(handle)
     }
 
@@ -919,23 +930,23 @@ crashes Trap
 public machine carrier_width(row: TypeRow) -> u64 in Trapping {
     transition row.kind == TypeKind::Builtin {
         true -> builtin(row.builtin),
-        _ -> width(0)
+        _ -> width(0 as +Trapping)
     }
 
     machine builtin(builtin: BuiltinType) -> u64 in Trapping {
         transition builtin {
-            BuiltinType::Bool -> width(1),
-            BuiltinType::U8 -> width(1),
-            BuiltinType::I8 -> width(1),
-            BuiltinType::U16 -> width(2),
-            BuiltinType::I16 -> width(2),
-            BuiltinType::U32 -> width(4),
-            BuiltinType::I32 -> width(4),
-            BuiltinType::F32 -> width(4),
-            BuiltinType::U64 -> width(8),
-            BuiltinType::I64 -> width(8),
-            BuiltinType::F64 -> width(8),
-            _ -> width(0)
+            BuiltinType::Bool -> width(1 as +Trapping),
+            BuiltinType::U8 -> width(1 as +Trapping),
+            BuiltinType::I8 -> width(1 as +Trapping),
+            BuiltinType::U16 -> width(2 as +Trapping),
+            BuiltinType::I16 -> width(2 as +Trapping),
+            BuiltinType::U32 -> width(4 as +Trapping),
+            BuiltinType::I32 -> width(4 as +Trapping),
+            BuiltinType::F32 -> width(4 as +Trapping),
+            BuiltinType::U64 -> width(8 as +Trapping),
+            BuiltinType::I64 -> width(8 as +Trapping),
+            BuiltinType::F64 -> width(8 as +Trapping),
+            _ -> width(0 as +Trapping)
         }
     }
 

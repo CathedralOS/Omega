@@ -1,74 +1,46 @@
-use representations\source_files\SourceSet;
-use representations\symbol_resolved_trees\BuiltinType;
-use representations\symbol_resolved_trees\DomainBinding;
-use representations\symbol_resolved_trees\NameResolution;
-use representations\symbol_resolved_trees\TypeBinding;
-use representations\symbol_resolved_trees\domain_binding_at;
-use representations\symbol_resolved_trees\name_resolution_domain_item;
-use representations\symbol_resolved_trees\type_binding_at;
-use representations\syntax_trees\ConformanceItem;
-use representations\syntax_trees\DataItem;
-use representations\syntax_trees\GenericParameter;
-use representations\syntax_trees\GenericParameterKind;
-use representations\syntax_trees\IntegerLiteral;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\TraitItem;
-use representations\syntax_trees\TypeReference;
-use representations\syntax_trees\TypeReferenceKind;
-use representations\syntax_trees\conformance_item;
-use representations\syntax_trees\static_integer_is_valid;
-use representations\syntax_trees\syntax_trees_data_item;
-use representations\syntax_trees\syntax_trees_generic_parameter;
-use representations\syntax_trees\syntax_trees_integer_literal;
-use representations\syntax_trees\syntax_trees_type_reference;
-use representations\syntax_trees\trait_item;
-use representations\syntax_trees\type_argument;
-use representations\typed_trees\TypeDiagnosticCode;
-use representations\typed_trees\TypeKind;
-use representations\typed_trees\TypeRow;
-use representations\typed_trees\reference_type;
-use representations\typed_trees\set_reference_type;
-use representations\typed_trees\type_row_of;
-use representations\typed_trees\type_table_intern;
-use representations\typed_trees\type_table_push_argument;
-use representations\typed_trees\type_table_row;
-use representations\typed_trees\typing_reject;
+use pipeline/symbol_resolved_trees_to_typed_trees/typing_state.omg;
+
+use representations/source_files/source.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/typed_trees/typed_trees.omg;
 
 // Every written type, row by row. A type's rows follow their children in the
 // syntax table, so one pass in table order meets each row after the rows it
 // names and interns it from their types and its own binding. Integer static
 // arguments and array lengths use their decoded values; a named static value
 // (a `const` parameter) has no value before evaluation exists and rejects.
-public machine type_references(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution)
+public machine type_references(typer: @mutable |typing_state|::Typer, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution)
 crashes Trap
 {
     typer.output.reference_count = syntax.type_reference_count;
-    transition { _ -> next(typer, sources, syntax, resolution, 0) }
+    transition { _ -> next(typer, sources, syntax, resolution, 0 as +Trapping) }
 
-    machine next(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping) {
+    machine next(typer: @mutable |typing_state|::Typer, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, index: u64 in Trapping) {
         transition index < typer.output.reference_count && index < 65536 && typer.output.accepted {
             true -> row(typer, sources, syntax, resolution, index),
             _ -> done()
         }
     }
 
-    machine row(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping)
+    machine row(typer: @mutable |typing_state|::Typer, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, index: u64 in Trapping)
     requires index < 65536
     {
-        let reference: TypeReference = syntax_trees_type_reference(syntax, index);
-        let binding: TypeBinding = resolution.type_bindings[index];
-        let domain: DomainBinding = resolution.domain_bindings[index];
+        let reference: |syntax_trees|::TypeReference = |syntax_trees|::syntax_trees_type_reference(syntax, index);
+        let slot: u64 = index as -Trapping;
+        let binding: |symbol_resolved_trees|::TypeBinding = resolution.type_bindings[slot];
+        let domain: |symbol_resolved_trees|::DomainBinding = resolution.domain_bindings[slot];
         transition binding {
-            TypeBinding::Builtin { builtin } -> builtin(typer, sources, syntax, resolution, index, reference, builtin, domain),
-            TypeBinding::Data { item } -> data(typer, sources, syntax, resolution, index, reference, item, domain),
-            TypeBinding::GenericParameter { parameter } -> generic(typer, sources, syntax, resolution, index, reference, parameter, domain),
-            TypeBinding::Reference -> referenced(typer, sources, syntax, resolution, index, reference),
-            TypeBinding::Array -> array(typer, sources, syntax, resolution, index, reference, domain),
-            TypeBinding::Slice -> slice(typer, sources, syntax, resolution, index, reference, domain),
-            TypeBinding::Literal -> literal(typer, sources, syntax, resolution, index, reference),
-            TypeBinding::Trait { item } -> trait_application(typer, sources, syntax, resolution, index, item),
-            TypeBinding::Machine { handle } -> application(typer, sources, syntax, resolution, index),
-            TypeBinding::Conformance { item } -> conformance_argument(typer, sources, syntax, resolution, index, reference),
+            |symbol_resolved_trees|::TypeBinding::Builtin { builtin as selected_builtin } -> builtin(typer, sources, syntax, resolution, index, reference, selected_builtin, domain),
+            |symbol_resolved_trees|::TypeBinding::Data { item } -> data(typer, sources, syntax, resolution, index, reference, item, domain),
+            |symbol_resolved_trees|::TypeBinding::GenericParameter { parameter } -> generic(typer, sources, syntax, resolution, index, reference, parameter, domain),
+            |symbol_resolved_trees|::TypeBinding::Reference -> referenced(typer, sources, syntax, resolution, index, reference),
+            |symbol_resolved_trees|::TypeBinding::Array -> array(typer, sources, syntax, resolution, index, reference, domain),
+            |symbol_resolved_trees|::TypeBinding::Slice -> slice(typer, sources, syntax, resolution, index, reference, domain),
+            |symbol_resolved_trees|::TypeBinding::Literal -> literal(typer, sources, syntax, resolution, index, reference),
+            |symbol_resolved_trees|::TypeBinding::Trait { item } -> trait_application(typer, sources, syntax, resolution, index, item),
+            |symbol_resolved_trees|::TypeBinding::Machine { handle } -> application(typer, sources, syntax, resolution, index),
+            |symbol_resolved_trees|::TypeBinding::Conformance { item } -> conformance_argument(typer, sources, syntax, resolution, index, reference),
             _ -> unsupported(typer, reference)
         }
     }
@@ -78,14 +50,14 @@ crashes Trap
     // machine are not types: the row takes none, and an application's
     // arguments' rows intern as ever. Every argument must occupy the slot
     // of its declared kind, in the order the trait wrote its telescope.
-    machine trait_application(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, item: u64 in Trapping) {
-        set_reference_type(@mutable typer.output, index, 0);
+    machine trait_application(typer: @mutable |typing_state|::Typer, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, index: u64 in Trapping, item: u64 in Trapping) {
+        |typed_trees|::set_reference_type(@mutable typer.output, index, 0 as +Trapping);
         check_trait_telescope(typer, syntax, resolution, index, item);
         transition { _ -> next(typer, sources, syntax, resolution, index + 1) }
     }
 
-    machine application(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping) {
-        set_reference_type(@mutable typer.output, index, 0);
+    machine application(typer: @mutable |typing_state|::Typer, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, index: u64 in Trapping) {
+        |typed_trees|::set_reference_type(@mutable typer.output, index, 0 as +Trapping);
         transition { _ -> next(typer, sources, syntax, resolution, index + 1) }
     }
 
@@ -93,7 +65,7 @@ crashes Trap
     // application lists it. A call's static argument naming a conformance
     // stays unsupported: this typer does not yet bind a machine's separate
     // evidence telescope.
-    machine conformance_argument(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, reference: TypeReference) {
+    machine conformance_argument(typer: @mutable |typing_state|::Typer, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, index: u64 in Trapping, reference: |syntax_trees|::TypeReference) {
         let admitted: bool = trait_slot_argument(syntax, resolution, index);
         transition admitted {
             true -> application(typer, sources, syntax, resolution, index),
@@ -102,20 +74,20 @@ crashes Trap
     }
 
     machine builtin(
-        typer: @mutable Typer,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
+        typer: @mutable |typing_state|::Typer,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
         index: u64 in Trapping,
-        reference: TypeReference,
-        builtin: BuiltinType,
-        domain: DomainBinding
+        reference: |syntax_trees|::TypeReference,
+        builtin: |symbol_resolved_trees|::BuiltinType,
+        domain: |symbol_resolved_trees|::DomainBinding
     ) {
         let admitted: bool = domain_admitted(builtin, domain);
-        let mutable row: TypeRow = type_row_of(TypeKind::Builtin);
+        let mutable row: |typed_trees|::TypeRow = |typed_trees|::type_row_of(|typed_trees|::TypeKind::Builtin);
         row.builtin = builtin;
         row.domain = domain;
-        row.domain_item = name_resolution_domain_item(resolution, index);
+        row.domain_item = |symbol_resolved_trees|::name_resolution_domain_item(resolution, index);
         transition admitted {
             true -> intern(typer, sources, syntax, resolution, index, reference, row),
             _ -> domain_rejected(typer, reference)
@@ -126,46 +98,46 @@ crashes Trap
     // match the declaration's generic parameters, lifetimes aside, which an
     // application does not spell.
     machine data(
-        typer: @mutable Typer,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
+        typer: @mutable |typing_state|::Typer,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
         index: u64 in Trapping,
-        reference: TypeReference,
+        reference: |syntax_trees|::TypeReference,
         item: u64 in Trapping,
-        domain: DomainBinding
+        domain: |symbol_resolved_trees|::DomainBinding
     ) {
-        let expected: u64 in Trapping = applied_parameter_count(syntax, item);
-        transition domain == DomainBinding::Unqualified || domain == DomainBinding::Declared {
+        let expected: u64 in Trapping = |syntax_trees|::applied_parameter_count(syntax, item);
+        transition domain == |symbol_resolved_trees|::DomainBinding::Unqualified || domain == |symbol_resolved_trees|::DomainBinding::Declared {
             true -> data_arity(typer, sources, syntax, resolution, index, reference, item, expected),
             _ -> domain_rejected(typer, reference)
         }
     }
 
     machine data_arity(
-        typer: @mutable Typer,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
+        typer: @mutable |typing_state|::Typer,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
         index: u64 in Trapping,
-        reference: TypeReference,
+        reference: |syntax_trees|::TypeReference,
         item: u64 in Trapping,
         expected: u64 in Trapping
     ) {
         let first: u64 in Trapping = typer.output.types.argument_count as +Trapping;
         transition reference.argument_count == expected {
-            true -> data_argument(typer, sources, syntax, resolution, index, reference, item, first, 0),
+            true -> data_argument(typer, sources, syntax, resolution, index, reference, item, first, 0 as +Trapping),
             _ -> arity_rejected(typer, reference)
         }
     }
 
     machine data_argument(
-        typer: @mutable Typer,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
+        typer: @mutable |typing_state|::Typer,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
         index: u64 in Trapping,
-        reference: TypeReference,
+        reference: |syntax_trees|::TypeReference,
         item: u64 in Trapping,
         first: u64 in Trapping,
         offset: u64 in Trapping
@@ -177,19 +149,19 @@ crashes Trap
     }
 
     machine data_argument_push(
-        typer: @mutable Typer,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
+        typer: @mutable |typing_state|::Typer,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
         index: u64 in Trapping,
-        reference: TypeReference,
+        reference: |syntax_trees|::TypeReference,
         item: u64 in Trapping,
         first: u64 in Trapping,
         offset: u64 in Trapping
     ) {
-        let argument_row: u64 in Trapping = type_argument(syntax, reference.first_argument + offset);
-        let argument: u64 in Trapping = reference_type(@typer.output, argument_row);
-        let kept: bool = type_table_push_argument(@mutable typer.output.types, argument);
+        let argument_row: u64 in Trapping = |syntax_trees|::type_argument(syntax, reference.first_argument + offset);
+        let argument: u64 in Trapping = |typed_trees|::reference_type(@typer.output, argument_row);
+        let kept: bool = |typed_trees|::type_table_push_argument(@mutable typer.output.types, argument);
         transition kept {
             true -> data_argument(typer, sources, syntax, resolution, index, reference, item, first, offset + 1),
             _ -> full(typer, reference)
@@ -197,107 +169,107 @@ crashes Trap
     }
 
     machine data_row(
-        typer: @mutable Typer,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
+        typer: @mutable |typing_state|::Typer,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
         index: u64 in Trapping,
-        reference: TypeReference,
+        reference: |syntax_trees|::TypeReference,
         item: u64 in Trapping,
         first: u64 in Trapping
     ) {
-        let mutable row: TypeRow = type_row_of(TypeKind::Data);
+        let mutable row: |typed_trees|::TypeRow = |typed_trees|::type_row_of(|typed_trees|::TypeKind::Data);
         row.item = item;
         row.first_argument = first;
         row.argument_count = reference.argument_count;
-        row.domain = domain_binding_at(resolution, index);
-        row.domain_item = name_resolution_domain_item(resolution, index);
+        row.domain = |symbol_resolved_trees|::domain_binding_at(resolution, index);
+        row.domain_item = |symbol_resolved_trees|::name_resolution_domain_item(resolution, index);
         transition { _ -> intern(typer, sources, syntax, resolution, index, reference, row) }
     }
 
     machine generic(
-        typer: @mutable Typer,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
+        typer: @mutable |typing_state|::Typer,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
         index: u64 in Trapping,
-        reference: TypeReference,
+        reference: |syntax_trees|::TypeReference,
         parameter: u64 in Trapping,
-        domain: DomainBinding
+        domain: |symbol_resolved_trees|::DomainBinding
     ) {
-        let declared: GenericParameter = syntax_trees_generic_parameter(syntax, parameter);
+        let declared: |syntax_trees|::GenericParameter = |syntax_trees|::syntax_trees_generic_parameter(syntax, parameter);
         transition static_parameter_annotation(resolution, declared) {
-            TypeBinding::Trait { item } -> unsupported(typer, reference),
+            |symbol_resolved_trees|::TypeBinding::Trait { item } -> unsupported(typer, reference),
             _ -> generic_type(typer, sources, syntax, resolution, index, reference, parameter, domain)
         }
     }
 
     machine generic_type(
-        typer: @mutable Typer,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
+        typer: @mutable |typing_state|::Typer,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
         index: u64 in Trapping,
-        reference: TypeReference,
+        reference: |syntax_trees|::TypeReference,
         parameter: u64 in Trapping,
-        domain: DomainBinding
+        domain: |symbol_resolved_trees|::DomainBinding
     ) {
-        let mutable row: TypeRow = type_row_of(TypeKind::GenericParameter);
+        let mutable row: |typed_trees|::TypeRow = |typed_trees|::type_row_of(|typed_trees|::TypeKind::GenericParameter);
         row.item = parameter;
-        transition domain == DomainBinding::Unqualified {
+        transition domain == |symbol_resolved_trees|::DomainBinding::Unqualified {
             true -> intern(typer, sources, syntax, resolution, index, reference, row),
             _ -> domain_rejected(typer, reference)
         }
     }
 
     machine referenced(
-        typer: @mutable Typer,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
+        typer: @mutable |typing_state|::Typer,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
         index: u64 in Trapping,
-        reference: TypeReference
+        reference: |syntax_trees|::TypeReference
     ) {
-        let mutable row: TypeRow = type_row_of(TypeKind::Reference);
+        let mutable row: |typed_trees|::TypeRow = |typed_trees|::type_row_of(|typed_trees|::TypeKind::Reference);
         row.access = reference.access;
-        row.inner = reference_type(@typer.output, reference.inner);
+        row.inner = |typed_trees|::reference_type(@typer.output, reference.inner);
         transition { _ -> intern(typer, sources, syntax, resolution, index, reference, row) }
     }
 
     machine array(
-        typer: @mutable Typer,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
+        typer: @mutable |typing_state|::Typer,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
         index: u64 in Trapping,
-        reference: TypeReference,
-        domain: DomainBinding
+        reference: |syntax_trees|::TypeReference,
+        domain: |symbol_resolved_trees|::DomainBinding
     ) {
-        let length_row: TypeReference = syntax_trees_type_reference(syntax, reference.length);
-        let length: u64 in Trapping = reference_type(@typer.output, reference.length);
-        let extent: TypeRow = type_table_row(@typer.output.types, length);
+        let length_row: |syntax_trees|::TypeReference = |syntax_trees|::syntax_trees_type_reference(syntax, reference.length);
+        let length: u64 in Trapping = |typed_trees|::reference_type(@typer.output, reference.length);
+        let extent: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typer.output.types, length);
         let parameter: bool = const_parameter(syntax, extent);
-        transition extent.kind == TypeKind::StaticInteger || parameter {
+        transition extent.kind == |typed_trees|::TypeKind::StaticInteger || parameter {
             true -> array_length(typer, sources, syntax, resolution, index, reference, domain),
             _ -> length_rejected(typer, length_row)
         }
     }
 
     machine array_length(
-        typer: @mutable Typer,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
+        typer: @mutable |typing_state|::Typer,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
         index: u64 in Trapping,
-        reference: TypeReference,
-        domain: DomainBinding
+        reference: |syntax_trees|::TypeReference,
+        domain: |symbol_resolved_trees|::DomainBinding
     ) {
-        let length: u64 in Trapping = reference_type(@typer.output, reference.length);
-        let mutable row: TypeRow = type_row_of(TypeKind::Array);
-        row.inner = reference_type(@typer.output, reference.inner);
+        let length: u64 in Trapping = |typed_trees|::reference_type(@typer.output, reference.length);
+        let mutable row: |typed_trees|::TypeRow = |typed_trees|::type_row_of(|typed_trees|::TypeKind::Array);
+        row.inner = |typed_trees|::reference_type(@typer.output, reference.inner);
         row.length = length;
         row.domain = domain;
-        row.domain_item = name_resolution_domain_item(resolution, index);
+        row.domain_item = |symbol_resolved_trees|::name_resolution_domain_item(resolution, index);
         let admitted: bool = collection_qualifier(domain);
         transition admitted {
             true -> intern(typer, sources, syntax, resolution, index, reference, row),
@@ -306,18 +278,18 @@ crashes Trap
     }
 
     machine slice(
-        typer: @mutable Typer,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
+        typer: @mutable |typing_state|::Typer,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
         index: u64 in Trapping,
-        reference: TypeReference,
-        domain: DomainBinding
+        reference: |syntax_trees|::TypeReference,
+        domain: |symbol_resolved_trees|::DomainBinding
     ) {
-        let mutable row: TypeRow = type_row_of(TypeKind::Slice);
-        row.inner = reference_type(@typer.output, reference.inner);
+        let mutable row: |typed_trees|::TypeRow = |typed_trees|::type_row_of(|typed_trees|::TypeKind::Slice);
+        row.inner = |typed_trees|::reference_type(@typer.output, reference.inner);
         row.domain = domain;
-        row.domain_item = name_resolution_domain_item(resolution, index);
+        row.domain_item = |symbol_resolved_trees|::name_resolution_domain_item(resolution, index);
         let admitted: bool = collection_qualifier(domain);
         transition admitted {
             true -> intern(typer, sources, syntax, resolution, index, reference, row),
@@ -326,61 +298,61 @@ crashes Trap
     }
 
     machine literal(
-        typer: @mutable Typer,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
+        typer: @mutable |typing_state|::Typer,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
         index: u64 in Trapping,
-        reference: TypeReference
+        reference: |syntax_trees|::TypeReference
     ) {
-        let value: IntegerLiteral = syntax_trees_integer_literal(syntax, reference.literal);
-        let mutable row: TypeRow = type_row_of(TypeKind::StaticInteger);
-        row.length = value.magnitude as u64 +Trapping;
-        transition static_integer_is_valid(value) {
+        let value: |syntax_trees|::IntegerLiteral = |syntax_trees|::syntax_trees_integer_literal(syntax, reference.literal);
+        let mutable row: |typed_trees|::TypeRow = |typed_trees|::type_row_of(|typed_trees|::TypeKind::StaticInteger);
+        row.length = (value.magnitude as -Wrapping) as +Trapping;
+        transition |syntax_trees|::static_integer_is_valid(value) {
             true -> intern(typer, sources, syntax, resolution, index, reference, row),
             _ -> literal_rejected(typer, reference)
         }
     }
 
     machine intern(
-        typer: @mutable Typer,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
+        typer: @mutable |typing_state|::Typer,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
         index: u64 in Trapping,
-        reference: TypeReference,
-        row: TypeRow
+        reference: |syntax_trees|::TypeReference,
+        row: |typed_trees|::TypeRow
     ) {
-        let handle: u64 in Trapping = type_table_intern(@mutable typer.output.types, row);
-        set_reference_type(@mutable typer.output, index, handle);
+        let handle: u64 in Trapping = |typed_trees|::type_table_intern(@mutable typer.output.types, row);
+        |typed_trees|::set_reference_type(@mutable typer.output, index, handle);
         transition handle > 0 {
             true -> next(typer, sources, syntax, resolution, index + 1),
             _ -> full(typer, reference)
         }
     }
 
-    machine unsupported(typer: @mutable Typer, reference: TypeReference) {
-        typing_reject(@mutable typer.output, TypeDiagnosticCode::UnsupportedTypeForm, reference.source_span);
+    machine unsupported(typer: @mutable |typing_state|::Typer, reference: |syntax_trees|::TypeReference) {
+        |typed_trees|::typing_reject(@mutable typer.output, |typed_trees|::TypeDiagnosticCode::UnsupportedTypeForm, reference.source_span);
     }
 
-    machine domain_rejected(typer: @mutable Typer, reference: TypeReference) {
-        typing_reject(@mutable typer.output, TypeDiagnosticCode::UnsupportedDomain, reference.source_span);
+    machine domain_rejected(typer: @mutable |typing_state|::Typer, reference: |syntax_trees|::TypeReference) {
+        |typed_trees|::typing_reject(@mutable typer.output, |typed_trees|::TypeDiagnosticCode::UnsupportedDomain, reference.source_span);
     }
 
-    machine arity_rejected(typer: @mutable Typer, reference: TypeReference) {
-        typing_reject(@mutable typer.output, TypeDiagnosticCode::GenericArgumentCount, reference.source_span);
+    machine arity_rejected(typer: @mutable |typing_state|::Typer, reference: |syntax_trees|::TypeReference) {
+        |typed_trees|::typing_reject(@mutable typer.output, |typed_trees|::TypeDiagnosticCode::GenericArgumentCount, reference.source_span);
     }
 
-    machine length_rejected(typer: @mutable Typer, length_row: TypeReference) {
-        typing_reject(@mutable typer.output, TypeDiagnosticCode::UnsupportedArrayLength, length_row.source_span);
+    machine length_rejected(typer: @mutable |typing_state|::Typer, length_row: |syntax_trees|::TypeReference) {
+        |typed_trees|::typing_reject(@mutable typer.output, |typed_trees|::TypeDiagnosticCode::UnsupportedArrayLength, length_row.source_span);
     }
 
-    machine literal_rejected(typer: @mutable Typer, reference: TypeReference) {
-        typing_reject(@mutable typer.output, TypeDiagnosticCode::UnsupportedLiteral, reference.source_span);
+    machine literal_rejected(typer: @mutable |typing_state|::Typer, reference: |syntax_trees|::TypeReference) {
+        |typed_trees|::typing_reject(@mutable typer.output, |typed_trees|::TypeDiagnosticCode::UnsupportedLiteral, reference.source_span);
     }
 
-    machine full(typer: @mutable Typer, reference: TypeReference) {
-        typing_reject(@mutable typer.output, TypeDiagnosticCode::TypeCapacityExceeded, reference.source_span);
+    machine full(typer: @mutable |typing_state|::Typer, reference: |syntax_trees|::TypeReference) {
+        |typed_trees|::typing_reject(@mutable typer.output, |typed_trees|::TypeDiagnosticCode::TypeCapacityExceeded, reference.source_span);
     }
 
     machine done() {}
@@ -392,12 +364,12 @@ crashes Trap
 // and anything may stay unqualified
 // (wiki/spec/language/numeric_values.md#overflow-policies). A case's implied
 // domain qualifies data, never a builtin.
-machine domain_admitted(builtin: BuiltinType, domain: DomainBinding) -> bool {
+machine domain_admitted(builtin: |symbol_resolved_trees|::BuiltinType, domain: |symbol_resolved_trees|::DomainBinding) -> bool {
     transition domain {
-        DomainBinding::Unqualified -> yes(),
-        DomainBinding::Finite -> float(builtin),
-        DomainBinding::Declared -> yes(),
-        DomainBinding::Case -> no(),
+        |symbol_resolved_trees|::DomainBinding::Unqualified -> yes(),
+        |symbol_resolved_trees|::DomainBinding::Finite -> float(builtin),
+        |symbol_resolved_trees|::DomainBinding::Declared -> yes(),
+        |symbol_resolved_trees|::DomainBinding::Case -> no(),
         _ -> integer(builtin)
     }
 
@@ -405,11 +377,11 @@ machine domain_admitted(builtin: BuiltinType, domain: DomainBinding) -> bool {
         false
     }
 
-    machine float(builtin: BuiltinType) -> bool {
-        builtin == BuiltinType::F32 || builtin == BuiltinType::F64
+    machine float(builtin: |symbol_resolved_trees|::BuiltinType) -> bool {
+        builtin == |symbol_resolved_trees|::BuiltinType::F32 || builtin == |symbol_resolved_trees|::BuiltinType::F64
     }
 
-    machine integer(builtin: BuiltinType) -> bool {
+    machine integer(builtin: |symbol_resolved_trees|::BuiltinType) -> bool {
         let fixed: bool = fixed_integer(builtin);
         fixed
     }
@@ -419,55 +391,24 @@ machine domain_admitted(builtin: BuiltinType, domain: DomainBinding) -> bool {
     }
 }
 
-// Whether `builtin` is a fixed-width integer carrier.
-public machine fixed_integer(builtin: BuiltinType) -> bool {
-    builtin == BuiltinType::I8 || builtin == BuiltinType::I16 || builtin == BuiltinType::I32
-        || builtin == BuiltinType::I64 || builtin == BuiltinType::U8 || builtin == BuiltinType::U16
-        || builtin == BuiltinType::U32 || builtin == BuiltinType::U64
-}
-
-// The generic parameters an application of data `item` spells: every
-// declared parameter except lifetimes.
-machine applied_parameter_count(syntax: @SyntaxTrees, item: u64 in Trapping) -> u64 in Trapping
-crashes Trap
-{
-    let data_item: DataItem = syntax_trees_data_item(syntax, item);
-    transition { _ -> count(syntax, data_item, 0, 0) }
-
-    machine count(syntax: @SyntaxTrees, data_item: DataItem, offset: u64 in Trapping, applied: u64 in Trapping) -> u64 in Trapping {
-        transition offset < data_item.generic_parameter_count {
-            true -> parameter(syntax, data_item, offset, applied),
-            _ -> result(applied)
-        }
-    }
-
-    machine parameter(syntax: @SyntaxTrees, data_item: DataItem, offset: u64 in Trapping, applied: u64 in Trapping) -> u64 in Trapping {
-        let generic: GenericParameter = syntax_trees_generic_parameter(syntax, data_item.first_generic_parameter + offset);
-        transition generic.kind == GenericParameterKind::Lifetime {
-            true -> count(syntax, data_item, offset + 1, applied),
-            _ -> count(syntax, data_item, offset + 1, applied + 1)
-        }
-    }
-
-    machine result(applied: u64 in Trapping) -> u64 in Trapping {
-        applied
-    }
+public machine fixed_integer(builtin: |symbol_resolved_trees|::BuiltinType) -> bool {
+    |symbol_resolved_trees|::fixed_integer(builtin)
 }
 
 // Whether a type row is a `const` generic parameter, the only binder an
 // inline array's static extent may name
 // (wiki/spec/language/generics.md#value-binders-and-const-requirements).
-public machine const_parameter(syntax: @SyntaxTrees, row: TypeRow) -> bool
+public machine const_parameter(syntax: @|syntax_trees|::SyntaxTrees, row: |typed_trees|::TypeRow) -> bool
 crashes Trap
 {
-    transition row.kind == TypeKind::GenericParameter {
+    transition row.kind == |typed_trees|::TypeKind::GenericParameter {
         true -> declared(syntax, row.item),
         _ -> no()
     }
 
-    machine declared(syntax: @SyntaxTrees, parameter: u64 in Trapping) -> bool {
-        let generic: GenericParameter = syntax_trees_generic_parameter(syntax, parameter);
-        generic.kind == GenericParameterKind::Const
+    machine declared(syntax: @|syntax_trees|::SyntaxTrees, parameter: u64 in Trapping) -> bool {
+        let generic: |syntax_trees|::GenericParameter = |syntax_trees|::syntax_trees_generic_parameter(syntax, parameter);
+        generic.kind == |syntax_trees|::GenericParameterKind::Const
     }
 
     machine no() -> bool {
@@ -478,13 +419,13 @@ crashes Trap
 // The qualifiers an array or slice type takes: none, an arithmetic policy
 // its integer or Boolean elements read under
 // (wiki/spec/language/numeric_values.md), or a declared domain.
-public machine collection_qualifier(domain: DomainBinding) -> bool {
+public machine collection_qualifier(domain: |symbol_resolved_trees|::DomainBinding) -> bool {
     transition domain {
-        DomainBinding::Unqualified -> yes(),
-        DomainBinding::Wrapping -> yes(),
-        DomainBinding::Saturating -> yes(),
-        DomainBinding::Trapping -> yes(),
-        DomainBinding::Declared -> yes(),
+        |symbol_resolved_trees|::DomainBinding::Unqualified -> yes(),
+        |symbol_resolved_trees|::DomainBinding::Wrapping -> yes(),
+        |symbol_resolved_trees|::DomainBinding::Saturating -> yes(),
+        |symbol_resolved_trees|::DomainBinding::Trapping -> yes(),
+        |symbol_resolved_trees|::DomainBinding::Declared -> yes(),
         _ -> no()
     }
 
@@ -500,40 +441,40 @@ public machine collection_qualifier(domain: DomainBinding) -> bool {
 // Whether type-reference `row` is an argument of some trait application.
 // The parent's binding is enough: argument rows are typed before the parent
 // root, and resolution has already recorded which root is a trait.
-public machine trait_slot_argument(syntax: @SyntaxTrees, resolution: @NameResolution, row: u64 in Trapping) -> bool
+public machine trait_slot_argument(syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, row: u64 in Trapping) -> bool
 crashes Trap
 {
-    transition { _ -> parent(syntax, resolution, row, 0) }
+    transition { _ -> parent(syntax, resolution, row, 0 as +Trapping) }
 
-    machine parent(syntax: @SyntaxTrees, resolution: @NameResolution, row: u64 in Trapping, index: u64 in Trapping) -> bool {
+    machine parent(syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, row: u64 in Trapping, index: u64 in Trapping) -> bool {
         transition index < syntax.type_reference_count {
             true -> kind(syntax, resolution, row, index),
             _ -> no()
         }
     }
 
-    machine kind(syntax: @SyntaxTrees, resolution: @NameResolution, row: u64 in Trapping, index: u64 in Trapping) -> bool {
-        let binding: TypeBinding = type_binding_at(resolution, index);
+    machine kind(syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, row: u64 in Trapping, index: u64 in Trapping) -> bool {
+        let binding: |symbol_resolved_trees|::TypeBinding = |symbol_resolved_trees|::type_binding_at(resolution, index);
         transition binding {
-            TypeBinding::Trait { item } -> arguments(syntax, resolution, row, index),
+            |symbol_resolved_trees|::TypeBinding::Trait { item } -> arguments(syntax, resolution, row, index),
             _ -> parent(syntax, resolution, row, index + 1)
         }
     }
 
-    machine arguments(syntax: @SyntaxTrees, resolution: @NameResolution, row: u64 in Trapping, index: u64 in Trapping) -> bool {
-        let reference: TypeReference = syntax_trees_type_reference(syntax, index);
-        transition { _ -> argument(syntax, resolution, row, index, reference, 0) }
+    machine arguments(syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, row: u64 in Trapping, index: u64 in Trapping) -> bool {
+        let reference: |syntax_trees|::TypeReference = |syntax_trees|::syntax_trees_type_reference(syntax, index);
+        transition { _ -> argument(syntax, resolution, row, index, reference, 0 as +Trapping) }
     }
 
-    machine argument(syntax: @SyntaxTrees, resolution: @NameResolution, row: u64 in Trapping, index: u64 in Trapping, reference: TypeReference, offset: u64 in Trapping) -> bool {
+    machine argument(syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, row: u64 in Trapping, index: u64 in Trapping, reference: |syntax_trees|::TypeReference, offset: u64 in Trapping) -> bool {
         transition offset < reference.argument_count {
             true -> listed(syntax, resolution, row, index, reference, offset),
             _ -> parent(syntax, resolution, row, index + 1)
         }
     }
 
-    machine listed(syntax: @SyntaxTrees, resolution: @NameResolution, row: u64 in Trapping, index: u64 in Trapping, reference: TypeReference, offset: u64 in Trapping) -> bool {
-        let handle: u64 in Trapping = type_argument(syntax, reference.first_argument + offset);
+    machine listed(syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, row: u64 in Trapping, index: u64 in Trapping, reference: |syntax_trees|::TypeReference, offset: u64 in Trapping) -> bool {
+        let handle: u64 in Trapping = |syntax_trees|::type_argument(syntax, reference.first_argument + offset);
         transition handle == row {
             true -> yes(),
             _ -> argument(syntax, resolution, row, index, reference, offset + 1)
@@ -550,21 +491,21 @@ crashes Trap
 }
 
 // Non-lifetime binders of one telescope. Lifetimes are a separate argument run.
-machine runtime_binder_count(syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
+machine runtime_binder_count(syntax: @|syntax_trees|::SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    transition { _ -> next(syntax, first, count, 0, 0) }
+    transition { _ -> next(syntax, first, count, 0 as +Trapping, 0 as +Trapping) }
 
-    machine next(syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping, counted: u64 in Trapping) -> u64 in Trapping {
+    machine next(syntax: @|syntax_trees|::SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping, counted: u64 in Trapping) -> u64 in Trapping {
         transition offset < count {
             true -> one(syntax, first, count, offset, counted),
             _ -> result(counted)
         }
     }
 
-    machine one(syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping, counted: u64 in Trapping) -> u64 in Trapping {
-        let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, first + offset);
-        transition parameter.kind == GenericParameterKind::Lifetime {
+    machine one(syntax: @|syntax_trees|::SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping, counted: u64 in Trapping) -> u64 in Trapping {
+        let parameter: |syntax_trees|::GenericParameter = |syntax_trees|::syntax_trees_generic_parameter(syntax, first + offset);
+        transition parameter.kind == |syntax_trees|::GenericParameterKind::Lifetime {
             true -> next(syntax, first, count, offset + 1, counted),
             _ -> next(syntax, first, count, offset + 1, counted + 1)
         }
@@ -580,69 +521,69 @@ crashes Trap
 // binder. A type slot takes a type. A const slot takes a static integer or
 // a const binder. A value slot also permits a runtime-capable value binder.
 // Order is the caller's: this predicate does not search.
-public machine slot_accepts(syntax: @SyntaxTrees, kind: GenericParameterKind, binding: TypeBinding) -> bool
+public machine slot_accepts(syntax: @|syntax_trees|::SyntaxTrees, kind: |syntax_trees|::GenericParameterKind, binding: |symbol_resolved_trees|::TypeBinding) -> bool
 crashes Trap
 {
     transition kind {
-        GenericParameterKind::Evidence -> evidence(syntax, binding),
-        GenericParameterKind::Type -> type_slot(syntax, binding),
-        GenericParameterKind::Const -> const_slot(syntax, binding),
-        GenericParameterKind::Value -> value_slot(syntax, binding),
-        GenericParameterKind::Machine -> machine_slot(syntax, binding),
+        |syntax_trees|::GenericParameterKind::Evidence -> evidence(syntax, binding),
+        |syntax_trees|::GenericParameterKind::Type -> type_slot(syntax, binding),
+        |syntax_trees|::GenericParameterKind::Const -> const_slot(syntax, binding),
+        |syntax_trees|::GenericParameterKind::Value -> value_slot(syntax, binding),
+        |syntax_trees|::GenericParameterKind::Machine -> machine_slot(syntax, binding),
         _ -> no()
     }
 
-    machine evidence(syntax: @SyntaxTrees, binding: TypeBinding) -> bool {
+    machine evidence(syntax: @|syntax_trees|::SyntaxTrees, binding: |symbol_resolved_trees|::TypeBinding) -> bool {
         transition binding {
-            TypeBinding::Conformance { item } -> yes(),
-            TypeBinding::GenericParameter { parameter } -> generic_kind(syntax, parameter, GenericParameterKind::Evidence),
+            |symbol_resolved_trees|::TypeBinding::Conformance { item } -> yes(),
+            |symbol_resolved_trees|::TypeBinding::GenericParameter { parameter } -> generic_kind(syntax, parameter, |syntax_trees|::GenericParameterKind::Evidence),
             _ -> no()
         }
     }
 
-    machine type_slot(syntax: @SyntaxTrees, binding: TypeBinding) -> bool {
+    machine type_slot(syntax: @|syntax_trees|::SyntaxTrees, binding: |symbol_resolved_trees|::TypeBinding) -> bool {
         transition binding {
-            TypeBinding::Builtin { builtin } -> yes(),
-            TypeBinding::Data { item } -> yes(),
-            TypeBinding::Reference -> yes(),
-            TypeBinding::Array -> yes(),
-            TypeBinding::Slice -> yes(),
-            TypeBinding::GenericParameter { parameter } -> generic_kind(syntax, parameter, GenericParameterKind::Type),
+            |symbol_resolved_trees|::TypeBinding::Builtin { builtin } -> yes(),
+            |symbol_resolved_trees|::TypeBinding::Data { item } -> yes(),
+            |symbol_resolved_trees|::TypeBinding::Reference -> yes(),
+            |symbol_resolved_trees|::TypeBinding::Array -> yes(),
+            |symbol_resolved_trees|::TypeBinding::Slice -> yes(),
+            |symbol_resolved_trees|::TypeBinding::GenericParameter { parameter } -> generic_kind(syntax, parameter, |syntax_trees|::GenericParameterKind::Type),
             _ -> no()
         }
     }
 
-    machine const_slot(syntax: @SyntaxTrees, binding: TypeBinding) -> bool {
+    machine const_slot(syntax: @|syntax_trees|::SyntaxTrees, binding: |symbol_resolved_trees|::TypeBinding) -> bool {
         transition binding {
-            TypeBinding::Literal -> yes(),
-            TypeBinding::GenericParameter { parameter } -> generic_kind(syntax, parameter, GenericParameterKind::Const),
+            |symbol_resolved_trees|::TypeBinding::Literal -> yes(),
+            |symbol_resolved_trees|::TypeBinding::GenericParameter { parameter } -> generic_kind(syntax, parameter, |syntax_trees|::GenericParameterKind::Const),
             _ -> no()
         }
     }
 
-    machine machine_slot(syntax: @SyntaxTrees, binding: TypeBinding) -> bool {
+    machine machine_slot(syntax: @|syntax_trees|::SyntaxTrees, binding: |symbol_resolved_trees|::TypeBinding) -> bool {
         transition binding {
-            TypeBinding::Machine { handle } -> yes(),
-            TypeBinding::GenericParameter { parameter } -> generic_kind(syntax, parameter, GenericParameterKind::Machine),
+            |symbol_resolved_trees|::TypeBinding::Machine { handle } -> yes(),
+            |symbol_resolved_trees|::TypeBinding::GenericParameter { parameter } -> generic_kind(syntax, parameter, |syntax_trees|::GenericParameterKind::Machine),
             _ -> no()
         }
     }
 
-    machine value_slot(syntax: @SyntaxTrees, binding: TypeBinding) -> bool {
+    machine value_slot(syntax: @|syntax_trees|::SyntaxTrees, binding: |symbol_resolved_trees|::TypeBinding) -> bool {
         transition binding {
-            TypeBinding::Literal -> yes(),
-            TypeBinding::GenericParameter { parameter } -> value_parameter(syntax, parameter),
+            |symbol_resolved_trees|::TypeBinding::Literal -> yes(),
+            |symbol_resolved_trees|::TypeBinding::GenericParameter { parameter } -> value_parameter(syntax, parameter),
             _ -> no()
         }
     }
 
-    machine value_parameter(syntax: @SyntaxTrees, parameter: u64 in Trapping) -> bool {
-        let declared: GenericParameter = syntax_trees_generic_parameter(syntax, parameter);
-        declared.kind == GenericParameterKind::Value || declared.kind == GenericParameterKind::Const
+    machine value_parameter(syntax: @|syntax_trees|::SyntaxTrees, parameter: u64 in Trapping) -> bool {
+        let declared: |syntax_trees|::GenericParameter = |syntax_trees|::syntax_trees_generic_parameter(syntax, parameter);
+        declared.kind == |syntax_trees|::GenericParameterKind::Value || declared.kind == |syntax_trees|::GenericParameterKind::Const
     }
 
-    machine generic_kind(syntax: @SyntaxTrees, parameter: u64 in Trapping, expected: GenericParameterKind) -> bool {
-        let declared: GenericParameter = syntax_trees_generic_parameter(syntax, parameter);
+    machine generic_kind(syntax: @|syntax_trees|::SyntaxTrees, parameter: u64 in Trapping, expected: |syntax_trees|::GenericParameterKind) -> bool {
+        let declared: |syntax_trees|::GenericParameter = |syntax_trees|::syntax_trees_generic_parameter(syntax, parameter);
         declared.kind == expected
     }
 
@@ -659,56 +600,56 @@ crashes Trap
 // Lifetimes are not in this argument run. A short or long run rejects as a
 // count; a run of the right length with a binder in the wrong category
 // rejects at that argument.
-public machine check_trait_telescope(typer: @mutable Typer, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, item: u64 in Trapping)
+public machine check_trait_telescope(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, index: u64 in Trapping, item: u64 in Trapping)
 crashes Trap
 {
-    let reference: TypeReference = syntax_trees_type_reference(syntax, index);
-    let declared: TraitItem = trait_item(syntax, item);
+    let reference: |syntax_trees|::TypeReference = |syntax_trees|::syntax_trees_type_reference(syntax, index);
+    let declared: |syntax_trees|::TraitItem = |syntax_trees|::trait_item(syntax, item);
     let expected: u64 in Trapping = runtime_binder_count(syntax, declared.first_generic_parameter, declared.generic_parameter_count);
     transition reference.argument_count == expected {
-        true -> parameter(typer, syntax, resolution, declared, reference, 0, 0),
+        true -> parameter(typer, syntax, resolution, declared, reference, 0 as +Trapping, 0 as +Trapping),
         _ -> count_rejected(typer, reference)
     }
 
-    machine parameter(typer: @mutable Typer, syntax: @SyntaxTrees, resolution: @NameResolution, declared: TraitItem, reference: TypeReference, offset: u64 in Trapping, position: u64 in Trapping) {
+    machine parameter(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, declared: |syntax_trees|::TraitItem, reference: |syntax_trees|::TypeReference, offset: u64 in Trapping, position: u64 in Trapping) {
         transition offset < declared.generic_parameter_count && typer.output.accepted {
             true -> kind(typer, syntax, resolution, declared, reference, offset, position),
             _ -> done()
         }
     }
 
-    machine kind(typer: @mutable Typer, syntax: @SyntaxTrees, resolution: @NameResolution, declared: TraitItem, reference: TypeReference, offset: u64 in Trapping, position: u64 in Trapping) {
-        let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, declared.first_generic_parameter + offset);
-        transition parameter.kind {
-            GenericParameterKind::Lifetime -> parameter(typer, syntax, resolution, declared, reference, offset + 1, position),
-            _ -> slot(typer, syntax, resolution, declared, reference, offset, position, parameter)
+    machine kind(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, declared: |syntax_trees|::TraitItem, reference: |syntax_trees|::TypeReference, offset: u64 in Trapping, position: u64 in Trapping) {
+        let current_parameter: |syntax_trees|::GenericParameter = |syntax_trees|::syntax_trees_generic_parameter(syntax, declared.first_generic_parameter + offset);
+        transition current_parameter.kind {
+            |syntax_trees|::GenericParameterKind::Lifetime -> parameter(typer, syntax, resolution, declared, reference, offset + 1, position),
+            _ -> slot(typer, syntax, resolution, declared, reference, offset, position, current_parameter)
         }
     }
 
-    machine slot(typer: @mutable Typer, syntax: @SyntaxTrees, resolution: @NameResolution, declared: TraitItem, reference: TypeReference, offset: u64 in Trapping, position: u64 in Trapping, parameter: GenericParameter) {
+    machine slot(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, declared: |syntax_trees|::TraitItem, reference: |syntax_trees|::TypeReference, offset: u64 in Trapping, position: u64 in Trapping, parameter: |syntax_trees|::GenericParameter) {
         transition position < reference.argument_count {
             true -> classify(typer, syntax, resolution, declared, reference, offset, position, parameter),
             _ -> count_rejected(typer, reference)
         }
     }
 
-    machine classify(typer: @mutable Typer, syntax: @SyntaxTrees, resolution: @NameResolution, declared: TraitItem, reference: TypeReference, offset: u64 in Trapping, position: u64 in Trapping, parameter: GenericParameter) {
-        let argument: u64 in Trapping = type_argument(syntax, reference.first_argument + position);
-        let binding: TypeBinding = type_binding_at(resolution, argument);
-        let fits: bool = trait_slot_accepts(syntax, resolution, parameter, argument, binding);
+    machine classify(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, declared: |syntax_trees|::TraitItem, reference: |syntax_trees|::TypeReference, offset: u64 in Trapping, position: u64 in Trapping, current_parameter: |syntax_trees|::GenericParameter) {
+        let argument: u64 in Trapping = |syntax_trees|::type_argument(syntax, reference.first_argument + position);
+        let binding: |symbol_resolved_trees|::TypeBinding = |symbol_resolved_trees|::type_binding_at(resolution, argument);
+        let fits: bool = trait_slot_accepts(syntax, resolution, current_parameter, argument, binding);
         transition fits {
             true -> parameter(typer, syntax, resolution, declared, reference, offset + 1, position + 1),
             _ -> slot_rejected(typer, syntax, argument)
         }
     }
 
-    machine slot_rejected(typer: @mutable Typer, syntax: @SyntaxTrees, argument: u64 in Trapping) {
-        let row: TypeReference = syntax_trees_type_reference(syntax, argument);
-        typing_reject(@mutable typer.output, TypeDiagnosticCode::UnsupportedTypeForm, row.source_span);
+    machine slot_rejected(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, argument: u64 in Trapping) {
+        let row: |syntax_trees|::TypeReference = |syntax_trees|::syntax_trees_type_reference(syntax, argument);
+        |typed_trees|::typing_reject(@mutable typer.output, |typed_trees|::TypeDiagnosticCode::UnsupportedTypeForm, row.source_span);
     }
 
-    machine count_rejected(typer: @mutable Typer, reference: TypeReference) {
-        typing_reject(@mutable typer.output, TypeDiagnosticCode::GenericArgumentCount, reference.source_span);
+    machine count_rejected(typer: @mutable |typing_state|::Typer, reference: |syntax_trees|::TypeReference) {
+        |typed_trees|::typing_reject(@mutable typer.output, |typed_trees|::TypeDiagnosticCode::GenericArgumentCount, reference.source_span);
     }
 
     machine done() {}
@@ -716,53 +657,53 @@ crashes Trap
 
 // Resolution gives a typed static parameter its annotation's identity. A
 // parameter describing an implementation supplies no runtime value type.
-machine static_parameter_annotation(resolution: @NameResolution, parameter: GenericParameter) -> TypeBinding
+machine static_parameter_annotation(resolution: @|symbol_resolved_trees|::NameResolution, parameter: |syntax_trees|::GenericParameter) -> |symbol_resolved_trees|::TypeBinding
 crashes Trap
 {
-    transition parameter.kind == GenericParameterKind::Const && parameter.has_type_reference {
+    transition parameter.kind == |syntax_trees|::GenericParameterKind::Const && parameter.has_type_reference {
         true -> read(resolution, parameter.type_reference),
         _ -> absent()
     }
-    machine read(resolution: @NameResolution, row: u64 in Trapping) -> TypeBinding { type_binding_at(resolution, row) }
-    machine absent() -> TypeBinding { TypeBinding::Unresolved }
+    machine read(resolution: @|symbol_resolved_trees|::NameResolution, row: u64 in Trapping) -> |symbol_resolved_trees|::TypeBinding { |symbol_resolved_trees|::type_binding_at(resolution, row) }
+    machine absent() -> |symbol_resolved_trees|::TypeBinding { |symbol_resolved_trees|::TypeBinding::Unresolved }
 }
 
 // Match a closed implementation to the exact trait required by this slot.
 // An applied or forwarded map needs substitution evidence of its own.
-machine trait_slot_accepts(syntax: @SyntaxTrees, resolution: @NameResolution, parameter: GenericParameter, argument: u64 in Trapping, binding: TypeBinding) -> bool
+machine trait_slot_accepts(syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, parameter: |syntax_trees|::GenericParameter, argument: u64 in Trapping, binding: |symbol_resolved_trees|::TypeBinding) -> bool
 crashes Trap
 {
     transition static_parameter_annotation(resolution, parameter) {
-        TypeBinding::Trait { item } -> contract(syntax, resolution, parameter.type_reference, item, argument, binding),
+        |symbol_resolved_trees|::TypeBinding::Trait { item } -> contract(syntax, resolution, parameter.type_reference, item, argument, binding),
         _ -> ordinary(syntax, parameter.kind, binding)
     }
-    machine ordinary(syntax: @SyntaxTrees, kind: GenericParameterKind, binding: TypeBinding) -> bool {
+    machine ordinary(syntax: @|syntax_trees|::SyntaxTrees, kind: |syntax_trees|::GenericParameterKind, binding: |symbol_resolved_trees|::TypeBinding) -> bool {
         slot_accepts(syntax, kind, binding)
     }
-    machine contract(syntax: @SyntaxTrees, resolution: @NameResolution, required: u64 in Trapping, item: u64 in Trapping, argument: u64 in Trapping, binding: TypeBinding) -> bool {
-        let trait_definition: TraitItem = trait_item(syntax, item);
+    machine contract(syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, required: u64 in Trapping, item: u64 in Trapping, argument: u64 in Trapping, binding: |symbol_resolved_trees|::TypeBinding) -> bool {
+        let trait_definition: |syntax_trees|::TraitItem = |syntax_trees|::trait_item(syntax, item);
         transition trait_definition.generic_parameter_count == 0 && plain_static_name(syntax, required) && plain_static_name(syntax, argument) {
             true -> selected(syntax, resolution, item, binding),
             _ -> no()
         }
     }
-    machine selected(syntax: @SyntaxTrees, resolution: @NameResolution, expected: u64 in Trapping, binding: TypeBinding) -> bool {
+    machine selected(syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, expected: u64 in Trapping, binding: |symbol_resolved_trees|::TypeBinding) -> bool {
         transition binding {
-            TypeBinding::Conformance { item } -> declaration(syntax, resolution, expected, item),
+            |symbol_resolved_trees|::TypeBinding::Conformance { item } -> declaration(syntax, resolution, expected, item),
             _ -> no()
         }
     }
-    machine declaration(syntax: @SyntaxTrees, resolution: @NameResolution, expected: u64 in Trapping, item: u64 in Trapping) -> bool {
-        let selected: ConformanceItem = conformance_item(syntax, item);
+    machine declaration(syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, expected: u64 in Trapping, item: u64 in Trapping) -> bool {
+        let selected: |syntax_trees|::ConformanceItem = |syntax_trees|::conformance_item(syntax, item);
         transition selected.generic_parameter_count == 0 && plain_static_name(syntax, selected.trait_type) {
             true -> identity(resolution, expected, selected.trait_type),
             _ -> no()
         }
     }
-    machine identity(resolution: @NameResolution, expected: u64 in Trapping, supplied: u64 in Trapping) -> bool {
-        let actual: TypeBinding = type_binding_at(resolution, supplied);
+    machine identity(resolution: @|symbol_resolved_trees|::NameResolution, expected: u64 in Trapping, supplied: u64 in Trapping) -> bool {
+        let actual: |symbol_resolved_trees|::TypeBinding = |symbol_resolved_trees|::type_binding_at(resolution, supplied);
         transition actual {
-            TypeBinding::Trait { item } -> same(expected, item),
+            |symbol_resolved_trees|::TypeBinding::Trait { item } -> same(expected, item),
             _ -> no()
         }
     }
@@ -770,9 +711,9 @@ crashes Trap
     machine no() -> bool { false }
 }
 
-machine plain_static_name(syntax: @SyntaxTrees, index: u64 in Trapping) -> bool
+machine plain_static_name(syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) -> bool
 crashes Trap
 {
-    let row: TypeReference = syntax_trees_type_reference(syntax, index);
-    row.kind == TypeReferenceKind::Named && row.argument_count == 0 && row.lifetime_count == 0 && !row.has_domain
+    let row: |syntax_trees|::TypeReference = |syntax_trees|::syntax_trees_type_reference(syntax, index);
+    row.kind == |syntax_trees|::TypeReferenceKind::Named && row.argument_count == 0 && row.lifetime_count == 0 && !row.has_domain
 }

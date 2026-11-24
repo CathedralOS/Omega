@@ -106,6 +106,48 @@ fn canonical_bytes_pin_geometry_and_scalar_identity() {
 }
 
 #[test]
+fn borrowed_storage_rows_fit_the_root_and_each_repeated_element() {
+    let mut scalar = layout();
+    scalar.byte_size = 6; // The 13-bit stored field occupies bytes 4..6.
+    let valid = NativeBorrowedStorageLayouts::seal(vec![scalar.clone()]).unwrap();
+    assert_eq!(
+        NativeBorrowedStorageLayouts::decode(valid.canonical_bytes()).unwrap(),
+        valid
+    );
+    let mut short_wire = valid.canonical_bytes().to_vec();
+    let size_offset = b"omega.native-borrowed-storage.v1\0".len() + 8 + 8;
+    short_wire[size_offset..size_offset + 4].copy_from_slice(&5u32.to_le_bytes());
+    assert!(NativeBorrowedStorageLayouts::decode(&short_wire).is_err());
+    scalar.byte_size = 5;
+    assert!(NativeBorrowedStorageLayouts::seal(vec![scalar]).is_err());
+
+    let mut repeated = full_layout();
+    repeated.byte_size = 31; // The last opaque region occupies bytes 24..32.
+    assert!(NativeBorrowedStorageLayouts::seal(vec![repeated]).is_err());
+
+    let mut tag = full_layout();
+    discriminator_mut(&mut tag).byte_offset = 13; // Last tag would end at 33.
+    assert!(NativeBorrowedStorageLayouts::seal(vec![tag]).is_err());
+
+    let mut empty = full_layout();
+    let region = empty.opaque_regions()[0].repetitions;
+    empty.repetitions.span_mut(region).unwrap()[0].length = 0;
+    empty.opaque_storage.span_mut(empty.opaque_regions).unwrap()[0].byte_size = u32::MAX;
+    assert!(NativeBorrowedStorageLayouts::seal(vec![empty]).is_ok());
+
+    let mut overflow = full_layout();
+    let field = overflow.fields()[0].repetitions;
+    overflow.repetitions.span_mut(field).unwrap()[0].length = u64::MAX;
+    assert!(NativeBorrowedStorageLayouts::seal(vec![overflow]).is_err());
+
+    for alignment in [0, 3] {
+        let mut invalid = layout();
+        invalid.alignment = alignment;
+        assert!(NativeBorrowedStorageLayouts::seal(vec![invalid]).is_err());
+    }
+}
+
+#[test]
 fn complete_geometry_round_trips_and_binds_each_row() {
     let original = full_layout();
     let roster = NativeBorrowedStorageLayouts::seal(vec![original.clone()]).unwrap();
@@ -121,7 +163,7 @@ fn complete_geometry_round_trips_and_binds_each_row() {
     );
     let mutations: [fn(&mut NativeBorrowedStorageLayout); 9] = [
         |layout| layout.byte_size += 1,
-        |layout| layout.alignment += 1,
+        |layout| layout.alignment *= 2,
         |layout| layout.storage.span_mut(layout.fields).unwrap()[0].byte_offset += 1,
         |layout| {
             let span = layout.fields()[0].repetitions;
@@ -140,7 +182,7 @@ fn complete_geometry_round_trips_and_binds_each_row() {
                 .opaque_storage
                 .span_mut(layout.opaque_regions)
                 .unwrap()[0]
-                .byte_size += 1
+                .byte_size -= 1
         },
     ];
     for mutate in mutations {
@@ -216,6 +258,18 @@ fn foreign_encoding_refuses_truncation_and_noncanonical_tails() {
     let mut hostile = roster.canonical_bytes()[..33].to_vec();
     hostile.extend_from_slice(&u64::MAX.to_le_bytes());
     assert!(NativeBorrowedStorageLayouts::decode(&hostile).is_err());
+}
+
+#[test]
+fn incomplete_layout_reports_its_position_in_the_roster() {
+    let mut second = layout();
+    second.structural_type = StructuralTypeId::new(2).unwrap();
+    let roster = NativeBorrowedStorageLayouts::seal(vec![layout(), second]).unwrap();
+    let bytes = roster.canonical_bytes();
+    assert!(NativeBorrowedStorageLayouts::decode(bytes).is_ok());
+    let error = NativeBorrowedStorageLayouts::decode(&bytes[..bytes.len() - 1]).unwrap_err();
+    assert_eq!(error.layout, 1);
+    assert_eq!(error.reason, "truncated layout encoding");
 }
 
 #[test]

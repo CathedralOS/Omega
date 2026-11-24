@@ -2,13 +2,55 @@ use crate::ValueDeclaration;
 use crate::TerminalIdentityIndex;
 use semantic_vocabulary::{EvidenceTermId, MachineId, Proposition};
 
-/// A transparent scalar predicate, not evidence that its body holds.
-/// Its terms must form under these arbitrary inputs before any use.
+/// A transparent mathematical definition. Its body must form under the
+/// declared scalar and erased type inputs before a caller can unfold it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScalarPredicateDefinition {
     pub declaration: TerminalIdentityIndex,
     pub parameters: Vec<ValueDeclaration>,
-    pub body: Proposition,
+    /// Source ordinals of erased inputs of sort Type<0>. Other inputs are
+    /// the scalar parameters, in their original relative order.
+    pub type_parameters: Vec<u32>,
+    pub body: MathematicalPredicateBody,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MathematicalPredicateBody {
+    Proposition(Proposition),
+    TypeParameter(u32),
+}
+
+impl ScalarPredicateDefinition {
+    /// A type-valued projection must name an erased type in this telescope.
+    pub fn clause_body(&self) -> Result<Option<&Proposition>, &'static str> {
+        let arity = self
+            .parameters
+            .len()
+            .checked_add(self.type_parameters.len())
+            .ok_or("mathematical parameter count overflow")?;
+        if self
+            .type_parameters
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+            || self
+                .type_parameters
+                .last()
+                .is_some_and(|&slot| slot as usize >= arity)
+        {
+            return Err("invalid mathematical type parameter ordinals");
+        }
+        match &self.body {
+            MathematicalPredicateBody::Proposition(body) => Ok(Some(body)),
+            MathematicalPredicateBody::TypeParameter(slot)
+                if self.type_parameters.binary_search(slot).is_ok() =>
+            {
+                Ok(None)
+            }
+            MathematicalPredicateBody::TypeParameter(_) => {
+                Err("mathematical body names an undeclared type parameter")
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

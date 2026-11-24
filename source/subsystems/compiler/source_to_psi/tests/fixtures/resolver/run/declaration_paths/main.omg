@@ -1,0 +1,43 @@
+// Expected exit: 0
+use pipeline/syntax_trees_to_symbol_resolved_trees/declarations.omg;
+use representations/source_files/source.omg;
+use representations/syntax_trees/syntax_trees.omg as syntax;
+
+machine start() crashes Trap {
+    let mutable sources: |source|::SourceSet;
+    sources.unit_count = 1;
+    sources.byte_count = 2;
+    sources.units[0] = |source|::SourceRange { start: 0 as +Trapping, length: 2 as +Trapping };
+    sources.bytes[0] = 65u8;
+    sources.bytes[1] = 66u8;
+    let unit = |source|::SourceId { value: 0 as +Trapping };
+    let owner = |source|::SourceSpan { source: unit, span: |source|::Span { start: 0 as +Trapping, end: 1 as +Trapping } };
+    let name = |source|::SourceSpan { source: unit, span: |source|::Span { start: 1 as +Trapping, end: 2 as +Trapping } };
+
+    let mutable tree: |syntax|::SyntaxTrees;
+    tree.constant_count = 2;
+    let mutable item: |syntax|::ConstantItem;
+    item.owner = |syntax|::IdentifierSpan { source_span: owner };
+    item.name = |syntax|::IdentifierSpan { source_span: name };
+    item.has_owner = true;
+    item.is_public = true;
+    tree.constants[0] = item;
+    item.has_owner = false;
+    item.is_public = false;
+    tree.constants[1] = item;
+
+    let kind = |declarations|::DeclarationKind::Constant;
+    let count = |declarations|::declaration_count(@tree, kind);
+    let owned = |declarations|::declaration_path(@tree, kind, 0 as +Trapping);
+    let plain = |declarations|::declaration_path(@tree, kind, 1 as +Trapping);
+    let owned_matches = |declarations|::path_spells(@sources, owned, true, owner, name);
+    let wrong_owner = |declarations|::path_spells(@sources, owned, true, name, name);
+    let plain_matches = |declarations|::path_spells(@sources, plain, false, name, name);
+    let plain_as_owned = |declarations|::path_spells(@sources, plain, true, owner, name);
+    transition count == 2 && owned.is_public && !plain.is_public
+        && owned_matches && !wrong_owner && plain_matches && !plain_as_owned {
+        true -> done(), _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

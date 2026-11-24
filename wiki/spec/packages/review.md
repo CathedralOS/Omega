@@ -114,7 +114,7 @@ Criticality selects mandatory highlighting and acceptance obligations, not
 which effects exist. A provider interface is not critical merely because it
 is a boundary trait or requires Build selection.
 
-The standard critical set contains fourteen exact `omega\core` service identities.
+The standard critical set contains the following exact core service identities.
 
 | Area | Critical services |
 | --- | --- |
@@ -122,6 +122,7 @@ The standard critical set contains fourteen exact `omega\core` service identitie
 | File metadata | `FilesystemMetadataQuery`, `FilesystemMetadataMutation` |
 | Filesystem names | `DirectoryEnumeration`, `FilesystemNamespaceMutation` |
 | Processes | `StandardInput`, `StandardOutput`, `ProcessExit` |
+| [Networking](../build/platform_services.md#network-reach) | `Network`, including reach through its boundary children |
 | [Hardware](../build/permissions.md#privileged-services) | `InterruptControl`, `InterruptEntry`, `PortIo`, `RootMemoryAccess`, `MachineControl` |
 
 Capability-only declarations may be empty boundary traits;

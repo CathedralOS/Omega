@@ -1,208 +1,174 @@
-use foundation\ExactInteger;
-use representations\lowered_program\ScalarLayout;
-use representations\lowered_program\ScalarLayoutKind;
-use representations\lowered_program\ScalarOperation;
-use representations\lowered_program\ScalarOperationKind;
-use representations\lowered_program\scalar_operation;
-use representations\lowered_program\ScalarParameter;
-use representations\lowered_program\ScalarStatus;
-use representations\lowered_program\scalar_layout_at;
-use representations\symbol_resolved_trees\BuiltinType;
-use representations\symbol_resolved_trees\DomainBinding;
-use representations\symbol_resolved_trees\NameResolution;
-use representations\symbol_resolved_trees\ValueBinding;
-use representations\symbol_resolved_trees\value_binding;
-use representations\syntax_trees\ConstructField;
-use representations\syntax_trees\DataField;
-use representations\syntax_trees\DataItem;
-use representations\syntax_trees\Expression;
-use representations\syntax_trees\ExpressionKind;
-use representations\syntax_trees\MachineItem;
-use representations\syntax_trees\OperatorKind;
-use representations\syntax_trees\ReferenceAccess;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\machine_item;
-use representations\syntax_trees\syntax_trees_argument;
-use representations\syntax_trees\syntax_trees_construct_field;
-use representations\syntax_trees\syntax_trees_data_item;
-use representations\syntax_trees\syntax_trees_expression;
-use representations\syntax_trees\syntax_trees_field;
-use representations\typed_trees\Adaptation;
-use representations\typed_trees\MemberTarget;
-use representations\typed_trees\Selection;
-use representations\typed_trees\TypeKind;
-use representations\typed_trees\TypeRow;
-use representations\typed_trees\Typing;
-use representations\typed_trees\construct_target;
-use representations\typed_trees\reference_type;
-use representations\typed_trees\type_table_row;
-use representations\typed_trees\typing_adaptation;
-use representations\typed_trees\typing_denominator;
-use representations\typed_trees\typing_expression_type;
-use representations\typed_trees\typing_landed_integer;
-use representations\typed_trees\typing_selection;
-use representations\typed_trees\typing_value;
+use pipeline/checked_trees_to_scalar_operations/layout.omg;
+use pipeline/checked_trees_to_scalar_operations/lowerer.omg;
+use pipeline/checked_trees_to_scalar_operations/storage.omg;
+
+use foundation/integers.omg;
+use representations/lowered_program/layouts.omg;
+use representations/lowered_program/scalar.omg as program;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/typed_trees/typed_trees.omg;
 
 // An explicit stack retains source evaluation order and distinguishes an
 // address request from a value read. Assignment destinations and borrows do
 // not read uninitialized storage; aggregate values snapshot before later
 // siblings can change their original place. Short-circuit nodes resume after
 // their left child and branch around the right child's complete operation run.
-public machine scalar_expression(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, root: u64 in Trapping, place: bool)
+public machine scalar_expression(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, root: u64 in Trapping, place: bool)
 crashes Trap
 {
     lowerer.work_count = 0 as u64 +Trapping;
     scalar_push_expression(lowerer, root, place);
     transition { _ -> next(lowerer, syntax, resolution, typing) }
 
-    machine next(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing) {
+    machine next(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing) {
         let count: u64 = lowerer.work_count as -Trapping;
-        transition lowerer.output.status == ScalarStatus::Complete && count > 0 && count <= 4096 {
+        transition lowerer.output.status == |program|::ScalarStatus::Complete && count > 0 && count <= 4096 {
             true -> node(lowerer, syntax, resolution, typing, count - 1),
             _ -> done()
         }
     }
-    machine node(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, slot: u64) {
+    machine node(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, slot: u64) {
         let handle: u64 in Trapping = lowerer.work[slot];
-        let expression: Expression = syntax_trees_expression(syntax, handle);
+        let expression: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, handle);
         transition lowerer.ready[slot] {
             true -> completed(lowerer, syntax, resolution, typing, handle, expression, slot),
             _ -> typed(lowerer, syntax, resolution, typing, handle, expression, slot)
         }
     }
-    machine typed(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression, slot: u64) {
-        let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
-        scalar_require_layout(lowerer, syntax, typing, type_handle);
+    machine typed(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression, slot: u64) {
+        let type_handle: u64 in Trapping = |typed_trees|::typing_expression_type(typing, handle);
+        |layout|::scalar_require_layout(lowerer, syntax, typing, type_handle);
         transition lowerer.output.status {
-            ScalarStatus::Complete -> classify(lowerer, syntax, resolution, typing, handle, expression, slot),
+            |program|::ScalarStatus::Complete -> classify(lowerer, syntax, resolution, typing, handle, expression, slot),
             _ -> done()
         }
     }
-    machine classify(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression, slot: u64) {
-        let landed: bool = typing_landed_integer(typing, handle, expression);
+    machine classify(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression, slot: u64) {
+        let landed: bool = |typed_trees|::typing_landed_integer(typing, handle, expression);
         transition landed && !lowerer.place_mode[slot] {
             true -> literal(lowerer, syntax, resolution, typing, handle),
             _ -> form(lowerer, syntax, resolution, typing, handle, expression, slot)
         }
     }
-    machine form(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression, slot: u64) {
+    machine form(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression, slot: u64) {
         transition expression.kind {
-            ExpressionKind::Integer -> literal(lowerer, syntax, resolution, typing, handle),
-            ExpressionKind::Boolean -> boolean(lowerer, syntax, resolution, typing, handle, expression),
-            ExpressionKind::Name -> name(lowerer, syntax, resolution, typing, handle),
-            ExpressionKind::Field -> field_child(lowerer, syntax, resolution, typing, expression, slot),
-            ExpressionKind::Index -> index_children(lowerer, syntax, resolution, typing, expression, slot),
-            ExpressionKind::Unary -> unary_child(lowerer, syntax, resolution, typing, expression, slot),
-            ExpressionKind::Cast -> cast_child(lowerer, syntax, resolution, typing, expression, slot),
-            ExpressionKind::Binary -> binary_children(lowerer, syntax, resolution, typing, expression, slot),
-            ExpressionKind::Call -> arguments(lowerer, syntax, resolution, typing, expression, slot, false),
-            ExpressionKind::Array -> arguments(lowerer, syntax, resolution, typing, expression, slot, false),
-            ExpressionKind::Construct -> arguments(lowerer, syntax, resolution, typing, expression, slot, true),
+            |syntax_trees|::ExpressionKind::Integer -> literal(lowerer, syntax, resolution, typing, handle),
+            |syntax_trees|::ExpressionKind::Boolean -> boolean(lowerer, syntax, resolution, typing, handle, expression),
+            |syntax_trees|::ExpressionKind::Name -> name(lowerer, syntax, resolution, typing, handle),
+            |syntax_trees|::ExpressionKind::Field -> field_child(lowerer, syntax, resolution, typing, expression, slot),
+            |syntax_trees|::ExpressionKind::Index -> index_children(lowerer, syntax, resolution, typing, expression, slot),
+            |syntax_trees|::ExpressionKind::Unary -> unary_child(lowerer, syntax, resolution, typing, expression, slot),
+            |syntax_trees|::ExpressionKind::Cast -> cast_child(lowerer, syntax, resolution, typing, expression, slot),
+            |syntax_trees|::ExpressionKind::Binary -> binary_children(lowerer, syntax, resolution, typing, expression, slot),
+            |syntax_trees|::ExpressionKind::Call -> arguments(lowerer, syntax, resolution, typing, expression, slot, false),
+            |syntax_trees|::ExpressionKind::Array -> arguments(lowerer, syntax, resolution, typing, expression, slot, false),
+            |syntax_trees|::ExpressionKind::Construct -> arguments(lowerer, syntax, resolution, typing, expression, slot, true),
             _ -> unsupported(lowerer)
         }
     }
-    machine literal(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping) {
-        let value: ExactInteger = typing_value(typing, handle);
-        let denominator: u64 in Trapping = typing_denominator(typing, handle);
+    machine literal(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping) {
+        let value: |integers|::ExactInteger = |typed_trees|::typing_value(typing, handle);
+        let denominator: u64 in Trapping = |typed_trees|::typing_denominator(typing, handle);
         transition !value.negative && denominator <= 1 {
             true -> constant(lowerer, syntax, resolution, typing, handle, (value.magnitude as -Wrapping) as +Trapping),
             _ -> unsupported(lowerer)
         }
     }
-    machine boolean(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression) {
+    machine boolean(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression) {
         transition expression.flag {
             true -> constant(lowerer, syntax, resolution, typing, handle, 1 as u64 +Trapping),
             _ -> constant(lowerer, syntax, resolution, typing, handle, 0 as u64 +Trapping)
         }
     }
-    machine constant(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, value: u64 in Trapping) {
-        let result: u64 in Trapping = scalar_append(lowerer, ScalarOperationKind::IntegerConstant, value, 0 as u64 +Trapping, 0 as u64 +Trapping);
+    machine constant(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, value: u64 in Trapping) {
+        let result: u64 in Trapping = |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::IntegerConstant, value, 0 as u64 +Trapping, 0 as u64 +Trapping);
         transition { _ -> record(lowerer, syntax, resolution, typing, handle, result) }
     }
-    machine name(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping) {
-        let binding: ValueBinding = value_binding(resolution, handle);
+    machine name(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping) {
+        let binding: |symbol_resolved_trees|::ValueBinding = |symbol_resolved_trees|::value_binding(resolution, handle);
         transition binding {
-            ValueBinding::MatchedSubject { subject } -> saved_subject(lowerer, syntax, resolution, typing, handle, subject),
-            ValueBinding::Local { statement } -> local(lowerer, syntax, resolution, typing, handle, statement),
-            ValueBinding::Parameter { parameter } -> parameter(lowerer, syntax, resolution, typing, handle, parameter),
+            |symbol_resolved_trees|::ValueBinding::MatchedSubject { subject } -> saved_subject(lowerer, syntax, resolution, typing, handle, subject),
+            |symbol_resolved_trees|::ValueBinding::Local { statement } -> local(lowerer, syntax, resolution, typing, handle, statement),
+            |symbol_resolved_trees|::ValueBinding::Parameter { parameter as selected_parameter } -> parameter(lowerer, syntax, resolution, typing, handle, selected_parameter),
             _ -> unsupported(lowerer)
         }
     }
-    machine saved_subject(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, subject: u64 in Trapping) {
-        let saved: u64 in Trapping = scalar_value(lowerer, subject);
+    machine saved_subject(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, subject: u64 in Trapping) {
+        let saved: u64 in Trapping = |lowerer|::scalar_value(lowerer, subject);
         transition !scalar_place_mode(lowerer) {
             true -> record(lowerer, syntax, resolution, typing, handle, saved),
             _ -> unsupported(lowerer)
         }
     }
-    machine local(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, statement: u64 in Trapping) {
-        let storage: u64 in Trapping = scalar_local(lowerer, statement);
+    machine local(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, statement: u64 in Trapping) {
+        let storage: u64 in Trapping = |lowerer|::scalar_local(lowerer, statement);
         transition storage > 0 {
             true -> named_place(lowerer, syntax, resolution, typing, handle, storage - 1),
             _ -> unsupported(lowerer)
         }
     }
-    machine parameter(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, parameter: u64 in Trapping) {
+    machine parameter(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, parameter: u64 in Trapping) {
         transition parameter < lowerer.output.parameter_count && parameter < 32768 {
             true -> parameter_place(lowerer, syntax, resolution, typing, handle, parameter),
             _ -> unsupported(lowerer)
         }
     }
-    machine parameter_place(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, parameter: u64 in Trapping) {
-        let parameter_row: ScalarParameter = lowerer.output.parameters[(parameter) as -Trapping];
+    machine parameter_place(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, parameter: u64 in Trapping) {
+        let parameter_row: |program|::ScalarParameter = lowerer.output.parameters[(parameter) as -Trapping];
         transition { _ -> named_place(lowerer, syntax, resolution, typing, handle, parameter_row.offset) }
     }
-    machine named_place(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, offset: u64 in Trapping) {
-        let address: u64 in Trapping = scalar_append(lowerer, ScalarOperationKind::FrameAddress, offset, 0 as u64 +Trapping, 0 as u64 +Trapping);
+    machine named_place(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, offset: u64 in Trapping) {
+        let address: u64 in Trapping = |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::FrameAddress, offset, 0 as u64 +Trapping, 0 as u64 +Trapping);
         transition { _ -> place_value(lowerer, syntax, resolution, typing, handle, address) }
     }
-    machine field_child(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, slot: u64) {
+    machine field_child(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, slot: u64) {
         lowerer.ready[slot] = true;
         scalar_push_collection(lowerer, typing, expression.left);
         transition { _ -> next(lowerer, syntax, resolution, typing) }
     }
-    machine index_children(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, slot: u64) {
+    machine index_children(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, slot: u64) {
         lowerer.ready[slot] = true;
         scalar_push_expression(lowerer, expression.right, false);
         scalar_push_collection(lowerer, typing, expression.left);
         transition { _ -> next(lowerer, syntax, resolution, typing) }
     }
-    machine unary_child(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, slot: u64) {
-        let borrowed: bool = expression.operator == OperatorKind::Borrow
-            || expression.operator == OperatorKind::BorrowMutable || expression.operator == OperatorKind::BorrowWrite;
-        transition borrowed || expression.operator == OperatorKind::Not {
+    machine unary_child(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, slot: u64) {
+        let borrowed: bool = expression.operator == |syntax_trees|::OperatorKind::Borrow
+            || expression.operator == |syntax_trees|::OperatorKind::BorrowMutable || expression.operator == |syntax_trees|::OperatorKind::BorrowWrite;
+        transition borrowed || expression.operator == |syntax_trees|::OperatorKind::Not {
             true -> unary_push(lowerer, syntax, resolution, typing, expression, slot, borrowed),
             _ -> unsupported(lowerer)
         }
     }
-    machine unary_push(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, slot: u64, borrowed: bool) {
+    machine unary_push(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, slot: u64, borrowed: bool) {
         lowerer.ready[slot] = true;
         scalar_push_expression(lowerer, expression.left, borrowed);
         transition { _ -> next(lowerer, syntax, resolution, typing) }
     }
-    machine cast_child(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, slot: u64) {
+    machine cast_child(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, slot: u64) {
         lowerer.ready[slot] = true;
         scalar_push_expression(lowerer, expression.left, false);
         transition { _ -> next(lowerer, syntax, resolution, typing) }
     }
-    machine binary_children(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, slot: u64) {
+    machine binary_children(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, slot: u64) {
         lowerer.ready[slot] = true;
-        transition expression.operator == OperatorKind::And || expression.operator == OperatorKind::Or {
+        transition expression.operator == |syntax_trees|::OperatorKind::And || expression.operator == |syntax_trees|::OperatorKind::Or {
             true -> short_left(lowerer, syntax, resolution, typing, expression, slot),
             _ -> binary_push(lowerer, syntax, resolution, typing, expression)
         }
     }
-    machine short_left(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, slot: u64) {
-        lowerer.stages[slot] = ScalarExpressionStage::ShortCircuitLeft;
+    machine short_left(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, slot: u64) {
+        lowerer.stages[slot] = |lowerer|::ScalarExpressionStage::ShortCircuitLeft;
         scalar_push_expression(lowerer, expression.left, false);
         transition { _ -> next(lowerer, syntax, resolution, typing) }
     }
-    machine binary_push(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression) {
+    machine binary_push(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression) {
         scalar_push_expression(lowerer, expression.right, false);
         scalar_push_expression(lowerer, expression.left, false);
         transition { _ -> next(lowerer, syntax, resolution, typing) }
     }
-    machine arguments(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, slot: u64, construction: bool) {
+    machine arguments(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, slot: u64, construction: bool) {
         lowerer.ready[slot] = true;
         let count: u64 = lowerer.work_count as -Trapping;
         let needed: u64 = expression.count as -Trapping;
@@ -211,250 +177,250 @@ crashes Trap
             _ -> full(lowerer)
         }
     }
-    machine argument(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, remaining: u64 in Trapping, construction: bool) {
+    machine argument(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, remaining: u64 in Trapping, construction: bool) {
         transition remaining > 0 {
             true -> argument_kind(lowerer, syntax, resolution, typing, expression, remaining - 1, construction),
             _ -> next(lowerer, syntax, resolution, typing)
         }
     }
-    machine argument_kind(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, offset: u64 in Trapping, construction: bool) {
+    machine argument_kind(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, offset: u64 in Trapping, construction: bool) {
         transition construction {
             true -> construct_child(lowerer, syntax, resolution, typing, expression, offset),
             _ -> ordinary_child(lowerer, syntax, resolution, typing, expression, offset)
         }
     }
-    machine construct_child(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, offset: u64 in Trapping) {
-        let field: ConstructField = syntax_trees_construct_field(syntax, expression.first + offset);
+    machine construct_child(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, offset: u64 in Trapping) {
+        let field: |syntax_trees|::ConstructField = |syntax_trees|::syntax_trees_construct_field(syntax, expression.first + offset);
         scalar_push_expression(lowerer, field.value, false);
         transition { _ -> argument(lowerer, syntax, resolution, typing, expression, offset, true) }
     }
-    machine ordinary_child(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, offset: u64 in Trapping) {
-        let value: u64 in Trapping = syntax_trees_argument(syntax, expression.first + offset);
+    machine ordinary_child(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, offset: u64 in Trapping) {
+        let value: u64 in Trapping = |syntax_trees|::syntax_trees_argument(syntax, expression.first + offset);
         scalar_push_expression(lowerer, value, false);
         transition { _ -> argument(lowerer, syntax, resolution, typing, expression, offset, false) }
     }
-    machine completed(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression, slot: u64) {
+    machine completed(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression, slot: u64) {
         transition expression.kind {
-            ExpressionKind::Field -> field(lowerer, syntax, resolution, typing, handle, expression),
-            ExpressionKind::Index -> indexed(lowerer, syntax, resolution, typing, handle, expression),
-            ExpressionKind::Unary -> unary(lowerer, syntax, resolution, typing, handle, expression),
-            ExpressionKind::Cast -> cast(lowerer, syntax, resolution, typing, handle, expression),
-            ExpressionKind::Call -> call(lowerer, syntax, resolution, typing, handle, expression),
-            ExpressionKind::Construct -> constructed(lowerer, syntax, resolution, typing, handle, expression),
-            ExpressionKind::Array -> constructed(lowerer, syntax, resolution, typing, handle, expression),
-            ExpressionKind::Binary -> binary_stage(lowerer, syntax, resolution, typing, handle, expression, slot),
+            |syntax_trees|::ExpressionKind::Field -> field(lowerer, syntax, resolution, typing, handle, expression),
+            |syntax_trees|::ExpressionKind::Index -> indexed(lowerer, syntax, resolution, typing, handle, expression),
+            |syntax_trees|::ExpressionKind::Unary -> unary(lowerer, syntax, resolution, typing, handle, expression),
+            |syntax_trees|::ExpressionKind::Cast -> cast(lowerer, syntax, resolution, typing, handle, expression),
+            |syntax_trees|::ExpressionKind::Call -> call(lowerer, syntax, resolution, typing, handle, expression),
+            |syntax_trees|::ExpressionKind::Construct -> constructed(lowerer, syntax, resolution, typing, handle, expression),
+            |syntax_trees|::ExpressionKind::Array -> constructed(lowerer, syntax, resolution, typing, handle, expression),
+            |syntax_trees|::ExpressionKind::Binary -> binary_stage(lowerer, syntax, resolution, typing, handle, expression, slot),
             _ -> unsupported(lowerer)
         }
     }
-    machine field(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression) {
-        let selection: Selection = typing_selection(typing, handle);
+    machine field(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression) {
+        let selection: |typed_trees|::Selection = |typed_trees|::typing_selection(typing, handle);
         transition selection {
-            Selection::Field { field } -> field_address(lowerer, syntax, resolution, typing, handle, expression, field),
-            Selection::Length -> length(lowerer, syntax, resolution, typing, handle, expression),
+            |typed_trees|::Selection::Field { field } -> field_address(lowerer, syntax, resolution, typing, handle, expression, field),
+            |typed_trees|::Selection::Length -> length(lowerer, syntax, resolution, typing, handle, expression),
             _ -> unsupported(lowerer)
         }
     }
-    machine field_address(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression, field: u64 in Trapping) {
+    machine field_address(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression, field: u64 in Trapping) {
         let base_type: u64 in Trapping = scalar_collection_type(typing, expression.left);
-        let row: TypeRow = type_table_row(@typing.types, base_type);
-        transition row.kind == TypeKind::Data {
+        let row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, base_type);
+        transition row.kind == |typed_trees|::TypeKind::Data {
             true -> field_owner(lowerer, syntax, resolution, typing, handle, expression, field, row.item),
             _ -> unsupported(lowerer)
         }
     }
-    machine field_owner(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression, field: u64 in Trapping, owner: u64 in Trapping) {
-        let item: DataItem = syntax_trees_data_item(syntax, owner);
-        let base: u64 in Trapping = scalar_value(lowerer, expression.left);
+    machine field_owner(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression, field: u64 in Trapping, owner: u64 in Trapping) {
+        let item: |syntax_trees|::DataItem = |syntax_trees|::syntax_trees_data_item(syntax, owner);
+        let base: u64 in Trapping = |lowerer|::scalar_value(lowerer, expression.left);
         transition field < 1024 && field >= item.first_field
             && field < item.first_field + item.field_count && base > 0 {
             true -> field_offset(lowerer, syntax, resolution, typing, handle, field, base),
             _ -> unsupported(lowerer)
         }
     }
-    machine field_offset(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, field: u64 in Trapping, base: u64 in Trapping) {
+    machine field_offset(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, field: u64 in Trapping, base: u64 in Trapping) {
         let offset: u64 in Trapping = lowerer.output.field_offsets[(field) as -Trapping] as u64 +Trapping;
-        let address: u64 in Trapping = scalar_append(lowerer, ScalarOperationKind::AddressOffset, base - 1, offset, 0 as u64 +Trapping);
+        let address: u64 in Trapping = |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::AddressOffset, base - 1, offset, 0 as u64 +Trapping);
         transition { _ -> place_value(lowerer, syntax, resolution, typing, handle, address) }
     }
-    machine length(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression) {
+    machine length(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression) {
         let base_type: u64 in Trapping = scalar_collection_type(typing, expression.left);
-        let layout: ScalarLayout = scalar_layout_at(@lowerer.output, base_type);
-        transition layout.kind == ScalarLayoutKind::Array {
+        let layout: |layouts|::ScalarLayout = |layouts|::scalar_layout_at(@lowerer.output, base_type);
+        transition layout.kind == |layouts|::ScalarLayoutKind::Array {
             true -> constant(lowerer, syntax, resolution, typing, handle, layout.length),
             _ -> unsupported(lowerer)
         }
     }
-    machine indexed(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression) {
-        let selection: Selection = typing_selection(typing, handle);
+    machine indexed(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression) {
+        let selection: |typed_trees|::Selection = |typed_trees|::typing_selection(typing, handle);
         transition selection {
-            Selection::None -> index_type(lowerer, syntax, resolution, typing, handle, expression),
+            |typed_trees|::Selection::None -> index_type(lowerer, syntax, resolution, typing, handle, expression),
             _ -> unsupported(lowerer)
         }
     }
-    machine index_type(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression) {
+    machine index_type(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression) {
         let base_type: u64 in Trapping = scalar_collection_type(typing, expression.left);
-        let row: TypeRow = type_table_row(@typing.types, base_type);
+        let row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, base_type);
         let selector_type: u64 in Trapping = scalar_runtime_type(typing, expression.right);
-        let selector: TypeRow = type_table_row(@typing.types, selector_type);
+        let selector: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, selector_type);
         let plain: bool = scalar_plain_unsigned(selector);
-        transition row.kind == TypeKind::Array && row.domain == DomainBinding::Unqualified && plain {
+        transition row.kind == |typed_trees|::TypeKind::Array && row.domain == |symbol_resolved_trees|::DomainBinding::Unqualified && plain {
             true -> index_layout(lowerer, syntax, resolution, typing, handle, expression, base_type),
             _ -> unsupported(lowerer)
         }
     }
-    machine index_layout(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression, base_type: u64 in Trapping) {
-        let layout: ScalarLayout = scalar_layout_at(@lowerer.output, base_type);
-        transition layout.kind == ScalarLayoutKind::Array {
+    machine index_layout(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression, base_type: u64 in Trapping) {
+        let layout: |layouts|::ScalarLayout = |layouts|::scalar_layout_at(@lowerer.output, base_type);
+        transition layout.kind == |layouts|::ScalarLayoutKind::Array {
             true -> index_address(lowerer, syntax, resolution, typing, handle, expression, layout),
             _ -> unsupported(lowerer)
         }
     }
-    machine index_address(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression, layout: ScalarLayout) {
-        let element: ScalarLayout = scalar_layout_at(@lowerer.output, layout.inner);
-        let base: u64 in Trapping = scalar_value(lowerer, expression.left);
-        let index: u64 in Trapping = scalar_value(lowerer, expression.right);
-        let address: u64 in Trapping = scalar_append(lowerer, ScalarOperationKind::AddressIndex, base - 1, index - 1, element.size);
+    machine index_address(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression, layout: |layouts|::ScalarLayout) {
+        let element: |layouts|::ScalarLayout = |layouts|::scalar_layout_at(@lowerer.output, layout.inner);
+        let base: u64 in Trapping = |lowerer|::scalar_value(lowerer, expression.left);
+        let index: u64 in Trapping = |lowerer|::scalar_value(lowerer, expression.right);
+        let address: u64 in Trapping = |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::AddressIndex, base - 1, index - 1, element.size);
         transition { _ -> place_value(lowerer, syntax, resolution, typing, handle, address) }
     }
-    machine place_value(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, address: u64 in Trapping) {
-        let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
-        let row: TypeRow = type_table_row(@typing.types, type_handle);
-        let adaptation: Adaptation = typing_adaptation(typing, handle);
-        let place: bool = scalar_place_mode(lowerer) || adaptation == Adaptation::SharedLend;
+    machine place_value(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, address: u64 in Trapping) {
+        let type_handle: u64 in Trapping = |typed_trees|::typing_expression_type(typing, handle);
+        let row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, type_handle);
+        let adaptation: |typed_trees|::Adaptation = |typed_trees|::typing_adaptation(typing, handle);
+        let place: bool = scalar_place_mode(lowerer) || adaptation == |typed_trees|::Adaptation::SharedLend;
         // A reference binding denotes its referent, whereas the frame slot
         // stores the pointer. Records containing reference fields are outside
         // this first layout so this rule cannot rebind a field accidentally.
-        transition place && row.kind != TypeKind::Reference {
+        transition place && row.kind != |typed_trees|::TypeKind::Reference {
             true -> record(lowerer, syntax, resolution, typing, handle, address),
             _ -> read(lowerer, syntax, resolution, typing, handle, type_handle, address)
         }
     }
-    machine read(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, type_handle: u64 in Trapping, address: u64 in Trapping) {
-        let value: u64 in Trapping = scalar_read_storage(lowerer, syntax, typing, type_handle, address);
+    machine read(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, type_handle: u64 in Trapping, address: u64 in Trapping) {
+        let value: u64 in Trapping = |storage|::scalar_read_storage(lowerer, syntax, typing, type_handle, address);
         transition { _ -> record(lowerer, syntax, resolution, typing, handle, value) }
     }
-    machine unary(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression) {
-        let value: u64 in Trapping = scalar_value(lowerer, expression.left);
-        transition expression.operator == OperatorKind::Not {
+    machine unary(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression) {
+        let value: u64 in Trapping = |lowerer|::scalar_value(lowerer, expression.left);
+        transition expression.operator == |syntax_trees|::OperatorKind::Not {
             true -> inverted(lowerer, syntax, resolution, typing, handle, value),
             _ -> record(lowerer, syntax, resolution, typing, handle, value)
         }
     }
-    machine inverted(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, value: u64 in Trapping) {
-        let result: u64 in Trapping = scalar_append(lowerer, ScalarOperationKind::BooleanNot, value - 1, 0 as u64 +Trapping, 0 as u64 +Trapping);
+    machine inverted(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, value: u64 in Trapping) {
+        let result: u64 in Trapping = |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::BooleanNot, value - 1, 0 as u64 +Trapping, 0 as u64 +Trapping);
         transition { _ -> record(lowerer, syntax, resolution, typing, handle, result) }
     }
-    machine cast(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression) {
-        let target: u64 in Trapping = typing_expression_type(typing, handle);
+    machine cast(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression) {
+        let target: u64 in Trapping = |typed_trees|::typing_expression_type(typing, handle);
         let operand: u64 in Trapping = scalar_runtime_type(typing, expression.left);
-        let target_layout: ScalarLayout = scalar_layout_at(@lowerer.output, target);
-        let operand_layout: ScalarLayout = scalar_layout_at(@lowerer.output, operand);
-        let scalars: bool = target_layout.kind == ScalarLayoutKind::Scalar && operand_layout.kind == ScalarLayoutKind::Scalar;
-        let references: bool = target_layout.kind == ScalarLayoutKind::Reference && operand_layout.kind == ScalarLayoutKind::Reference;
+        let target_layout: |layouts|::ScalarLayout = |layouts|::scalar_layout_at(@lowerer.output, target);
+        let operand_layout: |layouts|::ScalarLayout = |layouts|::scalar_layout_at(@lowerer.output, operand);
+        let scalars: bool = target_layout.kind == |layouts|::ScalarLayoutKind::Scalar && operand_layout.kind == |layouts|::ScalarLayoutKind::Scalar;
+        let references: bool = target_layout.kind == |layouts|::ScalarLayoutKind::Reference && operand_layout.kind == |layouts|::ScalarLayoutKind::Reference;
         transition scalars || references {
             true -> cast_value(lowerer, syntax, resolution, typing, handle, expression),
             _ -> unsupported(lowerer)
         }
     }
-    machine cast_value(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression) {
-        let result: u64 in Trapping = scalar_value(lowerer, expression.left);
+    machine cast_value(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression) {
+        let result: u64 in Trapping = |lowerer|::scalar_value(lowerer, expression.left);
         transition { _ -> record(lowerer, syntax, resolution, typing, handle, result) }
     }
-    machine call(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression) {
+    machine call(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression) {
         let value: u64 in Trapping = scalar_call(lowerer, syntax, typing, handle, expression);
         transition { _ -> record(lowerer, syntax, resolution, typing, handle, value) }
     }
-    machine constructed(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression) {
+    machine constructed(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression) {
         let value: u64 in Trapping = scalar_construct(lowerer, syntax, typing, handle, expression);
         transition { _ -> record(lowerer, syntax, resolution, typing, handle, value) }
     }
-    machine binary_stage(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression, slot: u64) {
+    machine binary_stage(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression, slot: u64) {
         transition lowerer.stages[slot] {
-            ScalarExpressionStage::ShortCircuitLeft -> short_right(lowerer, syntax, resolution, typing, handle, expression, slot),
-            ScalarExpressionStage::ShortCircuitRight -> short_result(lowerer, syntax, resolution, typing, handle, expression, slot),
+            |lowerer|::ScalarExpressionStage::ShortCircuitLeft -> short_right(lowerer, syntax, resolution, typing, handle, expression, slot),
+            |lowerer|::ScalarExpressionStage::ShortCircuitRight -> short_result(lowerer, syntax, resolution, typing, handle, expression, slot),
             _ -> binary(lowerer, syntax, resolution, typing, handle, expression)
         }
     }
-    machine short_right(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression, slot: u64) {
-        let left: u64 in Trapping = scalar_value(lowerer, expression.left);
-        let temporary: u64 in Trapping = scalar_temporary(lowerer, 1 as u64 +Trapping);
-        transition temporary > 0 && left > 0 && lowerer.output.status == ScalarStatus::Complete {
+    machine short_right(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression, slot: u64) {
+        let left: u64 in Trapping = |lowerer|::scalar_value(lowerer, expression.left);
+        let temporary: u64 in Trapping = |storage|::scalar_temporary(lowerer, 1 as u64 +Trapping);
+        transition temporary > 0 && left > 0 && lowerer.output.status == |program|::ScalarStatus::Complete {
             true -> short_store(lowerer, syntax, resolution, typing, expression, slot, left, temporary),
             _ -> stopped(lowerer)
         }
     }
-    machine short_store(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, slot: u64, left: u64 in Trapping, temporary: u64 in Trapping) {
-        let ignored: u64 in Trapping = scalar_append(lowerer, ScalarOperationKind::Store, temporary - 1, left - 1, 1 as u64 +Trapping);
+    machine short_store(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, slot: u64, left: u64 in Trapping, temporary: u64 in Trapping) {
+        let ignored: u64 in Trapping = |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::Store, temporary - 1, left - 1, 1 as u64 +Trapping);
         lowerer.temporaries[slot] = temporary as -Trapping;
         transition expression.operator {
-            OperatorKind::And -> short_branch(lowerer, syntax, resolution, typing, expression, slot, left, ScalarOperationKind::BranchZero),
-            _ -> short_branch(lowerer, syntax, resolution, typing, expression, slot, left, ScalarOperationKind::BranchNonzero)
+            |syntax_trees|::OperatorKind::And -> short_branch(lowerer, syntax, resolution, typing, expression, slot, left, |program|::ScalarOperationKind::BranchZero),
+            _ -> short_branch(lowerer, syntax, resolution, typing, expression, slot, left, |program|::ScalarOperationKind::BranchNonzero)
         }
     }
-    machine short_branch(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, slot: u64, left: u64 in Trapping, kind: ScalarOperationKind) {
-        let skip: u64 in Trapping = scalar_append(lowerer, kind, left - 1, 0 as u64 +Trapping, 0 as u64 +Trapping);
+    machine short_branch(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, slot: u64, left: u64 in Trapping, kind: |program|::ScalarOperationKind) {
+        let skip: u64 in Trapping = |lowerer|::scalar_append(lowerer, kind, left - 1, 0 as u64 +Trapping, 0 as u64 +Trapping);
         lowerer.pending[slot] = skip as -Trapping;
-        lowerer.stages[slot] = ScalarExpressionStage::ShortCircuitRight;
+        lowerer.stages[slot] = |lowerer|::ScalarExpressionStage::ShortCircuitRight;
         scalar_push_expression(lowerer, expression.right, false);
         transition { _ -> next(lowerer, syntax, resolution, typing) }
     }
-    machine short_result(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression, slot: u64) {
+    machine short_result(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression, slot: u64) {
         let temporary: u64 in Trapping = lowerer.temporaries[slot] as u64 +Trapping;
         let skip: u64 in Trapping = lowerer.pending[slot] as u64 +Trapping;
-        let right: u64 in Trapping = scalar_value(lowerer, expression.right);
-        let stored: u64 in Trapping = scalar_append(lowerer, ScalarOperationKind::Store, temporary - 1, right - 1, 1 as u64 +Trapping);
+        let right: u64 in Trapping = |lowerer|::scalar_value(lowerer, expression.right);
+        let stored: u64 in Trapping = |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::Store, temporary - 1, right - 1, 1 as u64 +Trapping);
         let target: u64 in Trapping = lowerer.output.operation_count;
-        let label: u64 in Trapping = scalar_append(lowerer, ScalarOperationKind::Label, 0 as u64 +Trapping, 0 as u64 +Trapping, 0 as u64 +Trapping);
-        scalar_patch_branch(lowerer, skip, target);
-        let result: u64 in Trapping = scalar_append(lowerer, ScalarOperationKind::Load, temporary - 1, 1 as u64 +Trapping, 0 as u64 +Trapping);
+        let label: u64 in Trapping = |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::Label, 0 as u64 +Trapping, 0 as u64 +Trapping, 0 as u64 +Trapping);
+        |lowerer|::scalar_patch_branch(lowerer, skip, target);
+        let result: u64 in Trapping = |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::Load, temporary - 1, 1 as u64 +Trapping, 0 as u64 +Trapping);
         transition { _ -> record(lowerer, syntax, resolution, typing, handle, result) }
     }
-    machine binary(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression) {
+    machine binary(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression) {
         let result: u64 in Trapping = scalar_binary(lowerer, typing, handle, expression);
         transition { _ -> record(lowerer, syntax, resolution, typing, handle, result) }
     }
-    machine record(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, result: u64 in Trapping) {
-        transition result > 0 && handle < 131072 && lowerer.output.status == ScalarStatus::Complete {
+    machine record(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, result: u64 in Trapping) {
+        transition result > 0 && handle < 131072 && lowerer.output.status == |program|::ScalarStatus::Complete {
             true -> adaptation(lowerer, syntax, resolution, typing, handle, result),
             _ -> stopped(lowerer)
         }
     }
-    machine adaptation(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, result: u64 in Trapping) {
-        let adaptation: Adaptation = typing_adaptation(typing, handle);
-        transition !scalar_place_mode(lowerer) && adaptation == Adaptation::Read {
+    machine adaptation(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, result: u64 in Trapping) {
+        let adaptation: |typed_trees|::Adaptation = |typed_trees|::typing_adaptation(typing, handle);
+        transition !scalar_place_mode(lowerer) && adaptation == |typed_trees|::Adaptation::Read {
             true -> observe(lowerer, syntax, resolution, typing, handle, result),
             _ -> store(lowerer, syntax, resolution, typing, handle, result)
         }
     }
-    machine observe(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, result: u64 in Trapping) {
-        let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
+    machine observe(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, result: u64 in Trapping) {
+        let type_handle: u64 in Trapping = |typed_trees|::typing_expression_type(typing, handle);
         let read: u64 in Trapping = scalar_observe_reference(lowerer, typing, type_handle, result);
-        transition read > 0 && lowerer.output.status == ScalarStatus::Complete {
+        transition read > 0 && lowerer.output.status == |program|::ScalarStatus::Complete {
             true -> store(lowerer, syntax, resolution, typing, handle, read),
             _ -> stopped(lowerer)
         }
     }
-    machine store(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, result: u64 in Trapping) {
+    machine store(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, result: u64 in Trapping) {
         let count: u64 = lowerer.work_count as -Trapping;
         transition count > 0 && count <= 4096 {
             true -> stored(lowerer, syntax, resolution, typing, handle, result, count),
             _ -> unsupported(lowerer)
         }
     }
-    machine stored(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, result: u64 in Trapping, count: u64) {
+    machine stored(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, result: u64 in Trapping, count: u64) {
         lowerer.values[(handle) as -Trapping] = result;
         lowerer.work_count = (count - 1) as u64 +Trapping;
         transition { _ -> next(lowerer, syntax, resolution, typing) }
     }
-    machine stopped(lowerer: @mutable ScalarLowerer) {
-        transition lowerer.output.status { ScalarStatus::Complete -> unsupported(lowerer), _ -> done() }
+    machine stopped(lowerer: @mutable |lowerer|::ScalarLowerer) {
+        transition lowerer.output.status { |program|::ScalarStatus::Complete -> unsupported(lowerer), _ -> done() }
     }
-    machine unsupported(lowerer: @mutable ScalarLowerer) { lowerer.output.status = ScalarStatus::Unsupported; }
-    machine full(lowerer: @mutable ScalarLowerer) { lowerer.output.status = ScalarStatus::Capacity; }
+    machine unsupported(lowerer: @mutable |lowerer|::ScalarLowerer) { lowerer.output.status = |program|::ScalarStatus::Unsupported; }
+    machine full(lowerer: @mutable |lowerer|::ScalarLowerer) { lowerer.output.status = |program|::ScalarStatus::Capacity; }
     machine done() {}
 }
 
-machine scalar_place_mode(lowerer: @ScalarLowerer) -> bool
+machine scalar_place_mode(lowerer: @|lowerer|::ScalarLowerer) -> bool
 crashes Trap
 {
     let count: u64 = lowerer.work_count as -Trapping;
@@ -462,48 +428,48 @@ crashes Trap
         true -> read(lowerer, count - 1),
         _ -> invalid()
     }
-    machine read(lowerer: @ScalarLowerer, slot: u64) -> bool { lowerer.place_mode[slot] }
+    machine read(lowerer: @|lowerer|::ScalarLowerer, slot: u64) -> bool { lowerer.place_mode[slot] }
     machine invalid() -> bool { crash Trap; }
 }
 
-machine scalar_push_expression(lowerer: @mutable ScalarLowerer, handle: u64 in Trapping, place: bool)
+machine scalar_push_expression(lowerer: @mutable |lowerer|::ScalarLowerer, handle: u64 in Trapping, place: bool)
 crashes Trap
 {
     let count: u64 = lowerer.work_count as -Trapping;
-    transition count < 4096 && lowerer.output.status == ScalarStatus::Complete {
+    transition count < 4096 && lowerer.output.status == |program|::ScalarStatus::Complete {
         true -> push(lowerer, handle, place, count),
         _ -> full(lowerer)
     }
-    machine push(lowerer: @mutable ScalarLowerer, handle: u64 in Trapping, place: bool, slot: u64) {
+    machine push(lowerer: @mutable |lowerer|::ScalarLowerer, handle: u64 in Trapping, place: bool, slot: u64) {
         lowerer.work[slot] = handle;
         lowerer.ready[slot] = false;
         lowerer.place_mode[slot] = place;
-        lowerer.stages[slot] = ScalarExpressionStage::Ready;
+        lowerer.stages[slot] = |lowerer|::ScalarExpressionStage::Ready;
         lowerer.pending[slot] = 0;
         lowerer.temporaries[slot] = 0;
         lowerer.work_count = (slot + 1) as u64 +Trapping;
     }
-    machine full(lowerer: @mutable ScalarLowerer) {
-        transition lowerer.output.status { ScalarStatus::Complete -> capacity(lowerer), _ -> done() }
+    machine full(lowerer: @mutable |lowerer|::ScalarLowerer) {
+        transition lowerer.output.status { |program|::ScalarStatus::Complete -> capacity(lowerer), _ -> done() }
     }
-    machine capacity(lowerer: @mutable ScalarLowerer) { lowerer.output.status = ScalarStatus::Capacity; }
+    machine capacity(lowerer: @mutable |lowerer|::ScalarLowerer) { lowerer.output.status = |program|::ScalarStatus::Capacity; }
     machine done() {}
 }
 
-machine scalar_push_collection(lowerer: @mutable ScalarLowerer, typing: @Typing, expression: u64 in Trapping)
+machine scalar_push_collection(lowerer: @mutable |lowerer|::ScalarLowerer, typing: @|typed_trees|::Typing, expression: u64 in Trapping)
 crashes Trap
 {
-    let type_handle: u64 in Trapping = typing_expression_type(typing, expression);
-    let row: TypeRow = type_table_row(@typing.types, type_handle);
-    scalar_push_expression(lowerer, expression, row.kind != TypeKind::Reference);
+    let type_handle: u64 in Trapping = |typed_trees|::typing_expression_type(typing, expression);
+    let row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, type_handle);
+    scalar_push_expression(lowerer, expression, row.kind != |typed_trees|::TypeKind::Reference);
 }
 
-public machine scalar_collection_type(typing: @Typing, expression: u64 in Trapping) -> u64 in Trapping
+public machine scalar_collection_type(typing: @|typed_trees|::Typing, expression: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    let type_handle: u64 in Trapping = typing_expression_type(typing, expression);
-    let row: TypeRow = type_table_row(@typing.types, type_handle);
-    transition row.kind == TypeKind::Reference {
+    let type_handle: u64 in Trapping = |typed_trees|::typing_expression_type(typing, expression);
+    let row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, type_handle);
+    transition row.kind == |typed_trees|::TypeKind::Reference {
         true -> result(row.inner),
         _ -> result(type_handle)
     }
@@ -513,78 +479,78 @@ crashes Trap
 // A read adaptation has already been authorized by ordinary typing and
 // checking. Retain that distinction when an operation chooses its carrier;
 // an arbitrary reference type is not itself a scalar operand.
-public machine scalar_runtime_type(typing: @Typing, expression: u64 in Trapping) -> u64 in Trapping
+public machine scalar_runtime_type(typing: @|typed_trees|::Typing, expression: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    let written: u64 in Trapping = typing_expression_type(typing, expression);
-    let adaptation: Adaptation = typing_adaptation(typing, expression);
-    transition adaptation == Adaptation::Read {
+    let written: u64 in Trapping = |typed_trees|::typing_expression_type(typing, expression);
+    let adaptation: |typed_trees|::Adaptation = |typed_trees|::typing_adaptation(typing, expression);
+    transition adaptation == |typed_trees|::Adaptation::Read {
         true -> read(typing, written, typing.types.row_count as u64 +Trapping),
         _ -> result(written)
     }
-    machine read(typing: @Typing, handle: u64 in Trapping, remaining: u64 in Trapping) -> u64 in Trapping {
-        let row: TypeRow = type_table_row(@typing.types, handle);
-        transition row.kind == TypeKind::Reference && row.access != ReferenceAccess::WriteOnly && remaining > 0 {
+    machine read(typing: @|typed_trees|::Typing, handle: u64 in Trapping, remaining: u64 in Trapping) -> u64 in Trapping {
+        let row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, handle);
+        transition row.kind == |typed_trees|::TypeKind::Reference && row.access != |syntax_trees|::ReferenceAccess::WriteOnly && remaining > 0 {
             true -> read(typing, row.inner, remaining - 1),
             _ -> scalar(handle, row)
         }
     }
-    machine scalar(handle: u64 in Trapping, row: TypeRow) -> u64 in Trapping {
-        transition row.kind == TypeKind::Builtin { true -> result(handle), _ -> result(0 as u64 +Trapping) }
+    machine scalar(handle: u64 in Trapping, row: |typed_trees|::TypeRow) -> u64 in Trapping {
+        transition row.kind == |typed_trees|::TypeKind::Builtin { true -> result(handle), _ -> result(0 as u64 +Trapping) }
     }
     machine result(handle: u64 in Trapping) -> u64 in Trapping { handle }
 }
 
-machine scalar_observe_reference(lowerer: @mutable ScalarLowerer, typing: @Typing, type_handle: u64 in Trapping, value: u64 in Trapping) -> u64 in Trapping
+machine scalar_observe_reference(lowerer: @mutable |lowerer|::ScalarLowerer, typing: @|typed_trees|::Typing, type_handle: u64 in Trapping, value: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> layer(lowerer, typing, type_handle, value, typing.types.row_count as u64 +Trapping) }
-    machine layer(lowerer: @mutable ScalarLowerer, typing: @Typing, type_handle: u64 in Trapping, value: u64 in Trapping, remaining: u64 in Trapping) -> u64 in Trapping {
-        let row: TypeRow = type_table_row(@typing.types, type_handle);
-        transition row.kind == TypeKind::Reference && row.access != ReferenceAccess::WriteOnly && remaining > 0 && value > 0 {
+    machine layer(lowerer: @mutable |lowerer|::ScalarLowerer, typing: @|typed_trees|::Typing, type_handle: u64 in Trapping, value: u64 in Trapping, remaining: u64 in Trapping) -> u64 in Trapping {
+        let row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, type_handle);
+        transition row.kind == |typed_trees|::TypeKind::Reference && row.access != |syntax_trees|::ReferenceAccess::WriteOnly && remaining > 0 && value > 0 {
             true -> load(lowerer, typing, row.inner, value, remaining - 1),
             _ -> unsupported(lowerer)
         }
     }
-    machine load(lowerer: @mutable ScalarLowerer, typing: @Typing, type_handle: u64 in Trapping, value: u64 in Trapping, remaining: u64 in Trapping) -> u64 in Trapping {
-        let layout: ScalarLayout = scalar_layout_at(@lowerer.output, type_handle);
-        transition layout.kind == ScalarLayoutKind::Scalar || layout.kind == ScalarLayoutKind::Reference {
+    machine load(lowerer: @mutable |lowerer|::ScalarLowerer, typing: @|typed_trees|::Typing, type_handle: u64 in Trapping, value: u64 in Trapping, remaining: u64 in Trapping) -> u64 in Trapping {
+        let layout: |layouts|::ScalarLayout = |layouts|::scalar_layout_at(@lowerer.output, type_handle);
+        transition layout.kind == |layouts|::ScalarLayoutKind::Scalar || layout.kind == |layouts|::ScalarLayoutKind::Reference {
             true -> loaded(lowerer, typing, type_handle, value, remaining, layout),
             _ -> unsupported(lowerer)
         }
     }
-    machine loaded(lowerer: @mutable ScalarLowerer, typing: @Typing, type_handle: u64 in Trapping, value: u64 in Trapping, remaining: u64 in Trapping, layout: ScalarLayout) -> u64 in Trapping {
-        let read: u64 in Trapping = scalar_append(lowerer, ScalarOperationKind::Load, value - 1, layout.size, 0 as u64 +Trapping);
-        transition read > 0 && lowerer.output.status == ScalarStatus::Complete {
+    machine loaded(lowerer: @mutable |lowerer|::ScalarLowerer, typing: @|typed_trees|::Typing, type_handle: u64 in Trapping, value: u64 in Trapping, remaining: u64 in Trapping, layout: |layouts|::ScalarLayout) -> u64 in Trapping {
+        let read: u64 in Trapping = |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::Load, value - 1, layout.size, 0 as u64 +Trapping);
+        transition read > 0 && lowerer.output.status == |program|::ScalarStatus::Complete {
             true -> result_or_layer(lowerer, typing, type_handle, read, remaining, layout),
             _ -> absent()
         }
     }
-    machine result_or_layer(lowerer: @mutable ScalarLowerer, typing: @Typing, type_handle: u64 in Trapping, value: u64 in Trapping, remaining: u64 in Trapping, layout: ScalarLayout) -> u64 in Trapping {
-        transition layout.kind == ScalarLayoutKind::Reference {
+    machine result_or_layer(lowerer: @mutable |lowerer|::ScalarLowerer, typing: @|typed_trees|::Typing, type_handle: u64 in Trapping, value: u64 in Trapping, remaining: u64 in Trapping, layout: |layouts|::ScalarLayout) -> u64 in Trapping {
+        transition layout.kind == |layouts|::ScalarLayoutKind::Reference {
             true -> layer(lowerer, typing, type_handle, value, remaining),
             _ -> result(value)
         }
     }
     machine result(value: u64 in Trapping) -> u64 in Trapping { value }
     machine absent() -> u64 in Trapping { 0 as u64 +Trapping }
-    machine unsupported(lowerer: @mutable ScalarLowerer) -> u64 in Trapping {
-        lowerer.output.status = ScalarStatus::Unsupported;
+    machine unsupported(lowerer: @mutable |lowerer|::ScalarLowerer) -> u64 in Trapping {
+        lowerer.output.status = |program|::ScalarStatus::Unsupported;
         0 as u64 +Trapping
     }
 }
 
-machine scalar_plain_unsigned(row: TypeRow) -> bool {
-    row.kind == TypeKind::Builtin && row.domain == DomainBinding::Unqualified
-        && (row.builtin == BuiltinType::U8 || row.builtin == BuiltinType::U16
-            || row.builtin == BuiltinType::U32 || row.builtin == BuiltinType::U64)
+machine scalar_plain_unsigned(row: |typed_trees|::TypeRow) -> bool {
+    row.kind == |typed_trees|::TypeKind::Builtin && row.domain == |symbol_resolved_trees|::DomainBinding::Unqualified
+        && (row.builtin == |symbol_resolved_trees|::BuiltinType::U8 || row.builtin == |symbol_resolved_trees|::BuiltinType::U16
+            || row.builtin == |symbol_resolved_trees|::BuiltinType::U32 || row.builtin == |symbol_resolved_trees|::BuiltinType::U64)
 }
 
 // A constant low-byte mask can use the little-endian bytes of a value's
 // existing slot. Both operands have already executed in source order.
-machine scalar_mask_width(operation: ScalarOperation) -> u64 in Trapping {
+machine scalar_mask_width(operation: |program|::ScalarOperation) -> u64 in Trapping {
     transition operation.kind {
-        ScalarOperationKind::IntegerConstant -> mask(operation.left as -Trapping),
+        |program|::ScalarOperationKind::IntegerConstant -> mask(operation.left as -Trapping),
         _ -> width(0)
     }
     machine mask(bits: u64) -> u64 in Trapping {
@@ -598,80 +564,80 @@ machine scalar_mask_width(operation: ScalarOperation) -> u64 in Trapping {
     machine width(bytes: u64) -> u64 in Trapping { bytes as +Trapping }
 }
 
-machine scalar_binary(lowerer: @mutable ScalarLowerer, typing: @Typing, handle: u64 in Trapping, expression: Expression) -> u64 in Trapping
+machine scalar_binary(lowerer: @mutable |lowerer|::ScalarLowerer, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression) -> u64 in Trapping
 crashes Trap
 {
-    let selection: Selection = typing_selection(typing, handle);
+    let selection: |typed_trees|::Selection = |typed_trees|::typing_selection(typing, handle);
     transition selection {
-        Selection::None -> types(lowerer, typing, handle, expression),
+        |typed_trees|::Selection::None -> types(lowerer, typing, handle, expression),
         _ -> unsupported(lowerer)
     }
-    machine types(lowerer: @mutable ScalarLowerer, typing: @Typing, handle: u64 in Trapping, expression: Expression) -> u64 in Trapping {
-        let result: u64 in Trapping = typing_expression_type(typing, handle);
+    machine types(lowerer: @mutable |lowerer|::ScalarLowerer, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression) -> u64 in Trapping {
+        let result: u64 in Trapping = |typed_trees|::typing_expression_type(typing, handle);
         let left: u64 in Trapping = scalar_runtime_type(typing, expression.left);
         let right: u64 in Trapping = scalar_runtime_type(typing, expression.right);
-        let result_row: TypeRow = type_table_row(@typing.types, result);
-        let left_row: TypeRow = type_table_row(@typing.types, left);
-        let right_row: TypeRow = type_table_row(@typing.types, right);
+        let result_row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, result);
+        let left_row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, left);
+        let right_row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, right);
         let integers: bool = scalar_plain_unsigned(left_row) && scalar_plain_unsigned(right_row);
-        transition result_row.kind == TypeKind::Builtin && result_row.builtin == BuiltinType::Bool
-            && result_row.domain == DomainBinding::Unqualified {
+        transition result_row.kind == |typed_trees|::TypeKind::Builtin && result_row.builtin == |symbol_resolved_trees|::BuiltinType::Bool
+            && result_row.domain == |symbol_resolved_trees|::DomainBinding::Unqualified {
             true -> comparison(lowerer, expression, left_row, right_row, integers),
             _ -> arithmetic_type(lowerer, expression, result_row, left_row, right_row, integers)
         }
     }
-    machine comparison(lowerer: @mutable ScalarLowerer, expression: Expression, left_row: TypeRow, right_row: TypeRow, integers: bool) -> u64 in Trapping {
-        let booleans: bool = left_row.kind == TypeKind::Builtin && left_row.builtin == BuiltinType::Bool
-            && right_row.kind == TypeKind::Builtin && right_row.builtin == BuiltinType::Bool
-            && left_row.domain == DomainBinding::Unqualified && right_row.domain == DomainBinding::Unqualified;
-        let equality: bool = expression.operator == OperatorKind::Equal || expression.operator == OperatorKind::NotEqual;
+    machine comparison(lowerer: @mutable |lowerer|::ScalarLowerer, expression: |syntax_trees|::Expression, left_row: |typed_trees|::TypeRow, right_row: |typed_trees|::TypeRow, integers: bool) -> u64 in Trapping {
+        let booleans: bool = left_row.kind == |typed_trees|::TypeKind::Builtin && left_row.builtin == |symbol_resolved_trees|::BuiltinType::Bool
+            && right_row.kind == |typed_trees|::TypeKind::Builtin && right_row.builtin == |symbol_resolved_trees|::BuiltinType::Bool
+            && left_row.domain == |symbol_resolved_trees|::DomainBinding::Unqualified && right_row.domain == |symbol_resolved_trees|::DomainBinding::Unqualified;
+        let equality: bool = expression.operator == |syntax_trees|::OperatorKind::Equal || expression.operator == |syntax_trees|::OperatorKind::NotEqual;
         transition integers || (booleans && equality) {
             true -> compare(lowerer, expression),
             _ -> unsupported(lowerer)
         }
     }
-    machine compare(lowerer: @mutable ScalarLowerer, expression: Expression) -> u64 in Trapping {
-        let left: u64 in Trapping = scalar_value(lowerer, expression.left);
-        let right: u64 in Trapping = scalar_value(lowerer, expression.right);
+    machine compare(lowerer: @mutable |lowerer|::ScalarLowerer, expression: |syntax_trees|::Expression) -> u64 in Trapping {
+        let left: u64 in Trapping = |lowerer|::scalar_value(lowerer, expression.left);
+        let right: u64 in Trapping = |lowerer|::scalar_value(lowerer, expression.right);
         transition expression.operator {
-            OperatorKind::Equal -> operation(lowerer, ScalarOperationKind::IntegerEqual, left, right, false),
-            OperatorKind::NotEqual -> operation(lowerer, ScalarOperationKind::IntegerEqual, left, right, true),
-            OperatorKind::Less -> operation(lowerer, ScalarOperationKind::UnsignedLess, left, right, false),
-            OperatorKind::Greater -> operation(lowerer, ScalarOperationKind::UnsignedLess, right, left, false),
-            OperatorKind::LessEqual -> operation(lowerer, ScalarOperationKind::UnsignedLess, right, left, true),
-            OperatorKind::GreaterEqual -> operation(lowerer, ScalarOperationKind::UnsignedLess, left, right, true),
+            |syntax_trees|::OperatorKind::Equal -> operation(lowerer, |program|::ScalarOperationKind::IntegerEqual, left, right, false),
+            |syntax_trees|::OperatorKind::NotEqual -> operation(lowerer, |program|::ScalarOperationKind::IntegerEqual, left, right, true),
+            |syntax_trees|::OperatorKind::Less -> operation(lowerer, |program|::ScalarOperationKind::UnsignedLess, left, right, false),
+            |syntax_trees|::OperatorKind::Greater -> operation(lowerer, |program|::ScalarOperationKind::UnsignedLess, right, left, false),
+            |syntax_trees|::OperatorKind::LessEqual -> operation(lowerer, |program|::ScalarOperationKind::UnsignedLess, right, left, true),
+            |syntax_trees|::OperatorKind::GreaterEqual -> operation(lowerer, |program|::ScalarOperationKind::UnsignedLess, left, right, true),
             _ -> unsupported(lowerer)
         }
     }
-    machine arithmetic_type(lowerer: @mutable ScalarLowerer, expression: Expression, result_row: TypeRow, left_row: TypeRow, right_row: TypeRow, integers: bool) -> u64 in Trapping {
+    machine arithmetic_type(lowerer: @mutable |lowerer|::ScalarLowerer, expression: |syntax_trees|::Expression, result_row: |typed_trees|::TypeRow, left_row: |typed_trees|::TypeRow, right_row: |typed_trees|::TypeRow, integers: bool) -> u64 in Trapping {
         let supported: bool = scalar_plain_unsigned(result_row);
         transition integers && supported && result_row.builtin == left_row.builtin && left_row.builtin == right_row.builtin {
             true -> arithmetic(lowerer, expression, result_row),
             _ -> unsupported(lowerer)
         }
     }
-    machine arithmetic(lowerer: @mutable ScalarLowerer, expression: Expression, row: TypeRow) -> u64 in Trapping {
-        let left: u64 in Trapping = scalar_value(lowerer, expression.left);
-        let right: u64 in Trapping = scalar_value(lowerer, expression.right);
+    machine arithmetic(lowerer: @mutable |lowerer|::ScalarLowerer, expression: |syntax_trees|::Expression, row: |typed_trees|::TypeRow) -> u64 in Trapping {
+        let left: u64 in Trapping = |lowerer|::scalar_value(lowerer, expression.left);
+        let right: u64 in Trapping = |lowerer|::scalar_value(lowerer, expression.right);
         transition expression.operator {
-            OperatorKind::Add -> operation(lowerer, ScalarOperationKind::ExactIntegerAdd, left, right, false),
-            OperatorKind::Subtract -> operation(lowerer, ScalarOperationKind::ExactIntegerSubtract, left, right, false),
-            OperatorKind::Multiply -> operation(lowerer, ScalarOperationKind::ExactIntegerMultiply, left, right, false),
-            OperatorKind::Divide -> quotient(lowerer, row, ScalarOperationKind::ExactIntegerDivide, left, right),
-            OperatorKind::Modulo -> quotient(lowerer, row, ScalarOperationKind::ExactIntegerRemainder, left, right),
-            OperatorKind::BitAnd -> masked_operands(lowerer, left, right),
+            |syntax_trees|::OperatorKind::Add -> operation(lowerer, |program|::ScalarOperationKind::ExactIntegerAdd, left, right, false),
+            |syntax_trees|::OperatorKind::Subtract -> operation(lowerer, |program|::ScalarOperationKind::ExactIntegerSubtract, left, right, false),
+            |syntax_trees|::OperatorKind::Multiply -> operation(lowerer, |program|::ScalarOperationKind::ExactIntegerMultiply, left, right, false),
+            |syntax_trees|::OperatorKind::Divide -> quotient(lowerer, row, |program|::ScalarOperationKind::ExactIntegerDivide, left, right),
+            |syntax_trees|::OperatorKind::Modulo -> quotient(lowerer, row, |program|::ScalarOperationKind::ExactIntegerRemainder, left, right),
+            |syntax_trees|::OperatorKind::BitAnd -> masked_operands(lowerer, left, right),
             _ -> unsupported(lowerer)
         }
     }
-    machine masked_operands(lowerer: @mutable ScalarLowerer, left: u64 in Trapping, right: u64 in Trapping) -> u64 in Trapping {
+    machine masked_operands(lowerer: @mutable |lowerer|::ScalarLowerer, left: u64 in Trapping, right: u64 in Trapping) -> u64 in Trapping {
         transition left > 0 && right > 0 {
             true -> mask(lowerer, left, right),
             _ -> unsupported(lowerer)
         }
     }
-    machine mask(lowerer: @mutable ScalarLowerer, left: u64 in Trapping, right: u64 in Trapping) -> u64 in Trapping {
-        let left_value: ScalarOperation = scalar_operation(@lowerer.output, left - 1);
-        let right_value: ScalarOperation = scalar_operation(@lowerer.output, right - 1);
+    machine mask(lowerer: @mutable |lowerer|::ScalarLowerer, left: u64 in Trapping, right: u64 in Trapping) -> u64 in Trapping {
+        let left_value: |program|::ScalarOperation = |program|::scalar_operation(@lowerer.output, left - 1);
+        let right_value: |program|::ScalarOperation = |program|::scalar_operation(@lowerer.output, right - 1);
         let left_width: u64 in Trapping = scalar_mask_width(left_value);
         let right_width: u64 in Trapping = scalar_mask_width(right_value);
         transition right_width > 0 {
@@ -679,109 +645,109 @@ crashes Trap
             _ -> low_bytes(lowerer, right, left_width)
         }
     }
-    machine low_bytes(lowerer: @mutable ScalarLowerer, value: u64 in Trapping, width: u64 in Trapping) -> u64 in Trapping {
+    machine low_bytes(lowerer: @mutable |lowerer|::ScalarLowerer, value: u64 in Trapping, width: u64 in Trapping) -> u64 in Trapping {
         transition width > 0 {
             true -> emit_mask(lowerer, value, width),
             _ -> unsupported(lowerer)
         }
     }
-    machine emit_mask(lowerer: @mutable ScalarLowerer, value: u64 in Trapping, width: u64 in Trapping) -> u64 in Trapping {
-        scalar_append(lowerer, ScalarOperationKind::LowBytes, value - 1, 0 as u64 +Trapping, width)
+    machine emit_mask(lowerer: @mutable |lowerer|::ScalarLowerer, value: u64 in Trapping, width: u64 in Trapping) -> u64 in Trapping {
+        |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::LowBytes, value - 1, 0 as u64 +Trapping, width)
     }
     // Alpha division is signed. Stored u8/u16/u32 values fit its positive
     // signed range; full-width unsigned division needs a separate lowering.
-    machine quotient(lowerer: @mutable ScalarLowerer, row: TypeRow, kind: ScalarOperationKind, left: u64 in Trapping, right: u64 in Trapping) -> u64 in Trapping {
-        transition row.builtin != BuiltinType::U64 {
+    machine quotient(lowerer: @mutable |lowerer|::ScalarLowerer, row: |typed_trees|::TypeRow, kind: |program|::ScalarOperationKind, left: u64 in Trapping, right: u64 in Trapping) -> u64 in Trapping {
+        transition row.builtin != |symbol_resolved_trees|::BuiltinType::U64 {
             true -> operation(lowerer, kind, left, right, false),
             _ -> unsupported(lowerer)
         }
     }
-    machine operation(lowerer: @mutable ScalarLowerer, kind: ScalarOperationKind, left: u64 in Trapping, right: u64 in Trapping, invert: bool) -> u64 in Trapping {
+    machine operation(lowerer: @mutable |lowerer|::ScalarLowerer, kind: |program|::ScalarOperationKind, left: u64 in Trapping, right: u64 in Trapping, invert: bool) -> u64 in Trapping {
         transition left > 0 && right > 0 {
             true -> emitted(lowerer, kind, left, right, invert),
             _ -> unsupported(lowerer)
         }
     }
-    machine emitted(lowerer: @mutable ScalarLowerer, kind: ScalarOperationKind, left: u64 in Trapping, right: u64 in Trapping, invert: bool) -> u64 in Trapping {
-        let result: u64 in Trapping = scalar_append(lowerer, kind, left - 1, right - 1, 0 as u64 +Trapping);
-        transition invert && result > 0 && lowerer.output.status == ScalarStatus::Complete {
+    machine emitted(lowerer: @mutable |lowerer|::ScalarLowerer, kind: |program|::ScalarOperationKind, left: u64 in Trapping, right: u64 in Trapping, invert: bool) -> u64 in Trapping {
+        let result: u64 in Trapping = |lowerer|::scalar_append(lowerer, kind, left - 1, right - 1, 0 as u64 +Trapping);
+        transition invert && result > 0 && lowerer.output.status == |program|::ScalarStatus::Complete {
             true -> inverted(lowerer, result),
             _ -> value(result)
         }
     }
-    machine inverted(lowerer: @mutable ScalarLowerer, result: u64 in Trapping) -> u64 in Trapping {
-        scalar_append(lowerer, ScalarOperationKind::BooleanNot, result - 1, 0 as u64 +Trapping, 0 as u64 +Trapping)
+    machine inverted(lowerer: @mutable |lowerer|::ScalarLowerer, result: u64 in Trapping) -> u64 in Trapping {
+        |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::BooleanNot, result - 1, 0 as u64 +Trapping, 0 as u64 +Trapping)
     }
     machine value(result: u64 in Trapping) -> u64 in Trapping { result }
-    machine unsupported(lowerer: @mutable ScalarLowerer) -> u64 in Trapping {
-        lowerer.output.status = ScalarStatus::Unsupported;
+    machine unsupported(lowerer: @mutable |lowerer|::ScalarLowerer) -> u64 in Trapping {
+        lowerer.output.status = |program|::ScalarStatus::Unsupported;
         0 as u64 +Trapping
     }
 }
 
-machine scalar_call(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, expression: Expression) -> u64 in Trapping
+machine scalar_call(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression) -> u64 in Trapping
 crashes Trap
 {
-    let selection: Selection = typing_selection(typing, handle);
+    let selection: |typed_trees|::Selection = |typed_trees|::typing_selection(typing, handle);
     transition selection {
-        Selection::Machine { handle as callee } -> signature(lowerer, syntax, expression, callee),
+        |typed_trees|::Selection::Machine { handle as callee } -> signature(lowerer, syntax, expression, callee),
         _ -> unsupported(lowerer)
     }
-    machine signature(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, expression: Expression, callee: u64 in Trapping) -> u64 in Trapping {
-        let item: MachineItem = machine_item(syntax, callee);
+    machine signature(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, expression: |syntax_trees|::Expression, callee: u64 in Trapping) -> u64 in Trapping {
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, callee);
         transition callee < syntax.machine_count && expression.count == item.parameter_count && expression.count <= 32768 {
             true -> room(lowerer, syntax, expression, callee),
             _ -> unsupported(lowerer)
         }
     }
-    machine room(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, expression: Expression, callee: u64 in Trapping) -> u64 in Trapping {
+    machine room(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, expression: |syntax_trees|::Expression, callee: u64 in Trapping) -> u64 in Trapping {
         transition lowerer.output.argument_count <= 65536 && expression.count <= 65536 - lowerer.output.argument_count {
             true -> capacity(lowerer, syntax, expression, callee),
             _ -> full(lowerer)
         }
     }
-    machine capacity(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, expression: Expression, callee: u64 in Trapping) -> u64 in Trapping {
+    machine capacity(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, expression: |syntax_trees|::Expression, callee: u64 in Trapping) -> u64 in Trapping {
         transition expression.count > lowerer.argument_capacity {
             true -> larger(lowerer, syntax, expression, callee),
             _ -> begin(lowerer, syntax, expression, callee)
         }
     }
-    machine larger(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, expression: Expression, callee: u64 in Trapping) -> u64 in Trapping {
+    machine larger(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, expression: |syntax_trees|::Expression, callee: u64 in Trapping) -> u64 in Trapping {
         lowerer.argument_capacity = expression.count;
         transition { _ -> begin(lowerer, syntax, expression, callee) }
     }
-    machine begin(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, expression: Expression, callee: u64 in Trapping) -> u64 in Trapping {
+    machine begin(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, expression: |syntax_trees|::Expression, callee: u64 in Trapping) -> u64 in Trapping {
         let first: u64 in Trapping = lowerer.output.argument_count;
         transition { _ -> argument(lowerer, syntax, expression, callee, first, 0 as u64 +Trapping) }
     }
-    machine argument(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, expression: Expression, callee: u64 in Trapping, first: u64 in Trapping, offset: u64 in Trapping) -> u64 in Trapping {
+    machine argument(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, expression: |syntax_trees|::Expression, callee: u64 in Trapping, first: u64 in Trapping, offset: u64 in Trapping) -> u64 in Trapping {
         transition offset < expression.count {
             true -> value(lowerer, syntax, expression, callee, first, offset),
             _ -> invoke(lowerer, expression, callee, first)
         }
     }
-    machine value(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, expression: Expression, callee: u64 in Trapping, first: u64 in Trapping, offset: u64 in Trapping) -> u64 in Trapping {
-        let expression_handle: u64 in Trapping = syntax_trees_argument(syntax, expression.first + offset);
-        let value: u64 in Trapping = scalar_value(lowerer, expression_handle);
+    machine value(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, expression: |syntax_trees|::Expression, callee: u64 in Trapping, first: u64 in Trapping, offset: u64 in Trapping) -> u64 in Trapping {
+        let expression_handle: u64 in Trapping = |syntax_trees|::syntax_trees_argument(syntax, expression.first + offset);
+        let value: u64 in Trapping = |lowerer|::scalar_value(lowerer, expression_handle);
         transition value > 0 && lowerer.output.argument_count < 65536 {
             true -> store(lowerer, syntax, expression, callee, first, offset, value),
             _ -> unsupported(lowerer)
         }
     }
-    machine store(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, expression: Expression, callee: u64 in Trapping, first: u64 in Trapping, offset: u64 in Trapping, value: u64 in Trapping) -> u64 in Trapping {
+    machine store(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, expression: |syntax_trees|::Expression, callee: u64 in Trapping, first: u64 in Trapping, offset: u64 in Trapping, value: u64 in Trapping) -> u64 in Trapping {
         lowerer.output.arguments[(lowerer.output.argument_count) as -Trapping] = (value - 1) as -Trapping;
         lowerer.output.argument_count = lowerer.output.argument_count + 1;
         transition { _ -> argument(lowerer, syntax, expression, callee, first, offset + 1) }
     }
-    machine invoke(lowerer: @mutable ScalarLowerer, expression: Expression, callee: u64 in Trapping, first: u64 in Trapping) -> u64 in Trapping {
-        scalar_append(lowerer, ScalarOperationKind::Call, callee, first, expression.count)
+    machine invoke(lowerer: @mutable |lowerer|::ScalarLowerer, expression: |syntax_trees|::Expression, callee: u64 in Trapping, first: u64 in Trapping) -> u64 in Trapping {
+        |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::Call, callee, first, expression.count)
     }
-    machine unsupported(lowerer: @mutable ScalarLowerer) -> u64 in Trapping {
-        lowerer.output.status = ScalarStatus::Unsupported;
+    machine unsupported(lowerer: @mutable |lowerer|::ScalarLowerer) -> u64 in Trapping {
+        lowerer.output.status = |program|::ScalarStatus::Unsupported;
         0 as u64 +Trapping
     }
-    machine full(lowerer: @mutable ScalarLowerer) -> u64 in Trapping {
-        lowerer.output.status = ScalarStatus::Capacity;
+    machine full(lowerer: @mutable |lowerer|::ScalarLowerer) -> u64 in Trapping {
+        lowerer.output.status = |program|::ScalarStatus::Capacity;
         0 as u64 +Trapping
     }
 }
@@ -790,83 +756,83 @@ crashes Trap
 // storage now, so a field initializer cannot observe earlier stores into the
 // final assignment destination. Omitted fields use the zero establishment
 // ordinary checking admitted; no source name identifies a special record.
-machine scalar_construct(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, expression: Expression) -> u64 in Trapping
+machine scalar_construct(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression) -> u64 in Trapping
 crashes Trap
 {
-    let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
-    let layout: ScalarLayout = scalar_layout_at(@lowerer.output, type_handle);
-    transition (expression.kind == ExpressionKind::Construct && layout.kind == ScalarLayoutKind::Record)
-        || (expression.kind == ExpressionKind::Array && layout.kind == ScalarLayoutKind::Array && expression.count == layout.length) {
+    let type_handle: u64 in Trapping = |typed_trees|::typing_expression_type(typing, handle);
+    let layout: |layouts|::ScalarLayout = |layouts|::scalar_layout_at(@lowerer.output, type_handle);
+    transition (expression.kind == |syntax_trees|::ExpressionKind::Construct && layout.kind == |layouts|::ScalarLayoutKind::Record)
+        || (expression.kind == |syntax_trees|::ExpressionKind::Array && layout.kind == |layouts|::ScalarLayoutKind::Array && expression.count == layout.length) {
         true -> allocate(lowerer, syntax, typing, type_handle, expression, layout),
         _ -> unsupported(lowerer)
     }
-    machine allocate(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, type_handle: u64 in Trapping, expression: Expression, layout: ScalarLayout) -> u64 in Trapping {
-        let address: u64 in Trapping = scalar_temporary(lowerer, layout.size);
-        transition address > 0 && lowerer.output.status == ScalarStatus::Complete {
+    machine allocate(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, type_handle: u64 in Trapping, expression: |syntax_trees|::Expression, layout: |layouts|::ScalarLayout) -> u64 in Trapping {
+        let address: u64 in Trapping = |storage|::scalar_temporary(lowerer, layout.size);
+        transition address > 0 && lowerer.output.status == |program|::ScalarStatus::Complete {
             true -> zero(lowerer, syntax, typing, type_handle, expression, layout, address),
             _ -> absent()
         }
     }
-    machine zero(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, type_handle: u64 in Trapping, expression: Expression, layout: ScalarLayout, address: u64 in Trapping) -> u64 in Trapping {
-        let ignored: u64 in Trapping = scalar_append(lowerer, ScalarOperationKind::Zero, address - 1, layout.size, 0 as u64 +Trapping);
+    machine zero(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, type_handle: u64 in Trapping, expression: |syntax_trees|::Expression, layout: |layouts|::ScalarLayout, address: u64 in Trapping) -> u64 in Trapping {
+        let ignored: u64 in Trapping = |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::Zero, address - 1, layout.size, 0 as u64 +Trapping);
         transition { _ -> field(lowerer, syntax, typing, type_handle, expression, layout, address, 0 as u64 +Trapping) }
     }
-    machine field(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, type_handle: u64 in Trapping, expression: Expression, layout: ScalarLayout, address: u64 in Trapping, offset: u64 in Trapping) -> u64 in Trapping {
-        transition lowerer.output.status == ScalarStatus::Complete {
+    machine field(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, type_handle: u64 in Trapping, expression: |syntax_trees|::Expression, layout: |layouts|::ScalarLayout, address: u64 in Trapping, offset: u64 in Trapping) -> u64 in Trapping {
+        transition lowerer.output.status == |program|::ScalarStatus::Complete {
             true -> remaining(lowerer, syntax, typing, type_handle, expression, layout, address, offset),
             _ -> absent()
         }
     }
-    machine remaining(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, type_handle: u64 in Trapping, expression: Expression, layout: ScalarLayout, address: u64 in Trapping, offset: u64 in Trapping) -> u64 in Trapping {
+    machine remaining(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, type_handle: u64 in Trapping, expression: |syntax_trees|::Expression, layout: |layouts|::ScalarLayout, address: u64 in Trapping, offset: u64 in Trapping) -> u64 in Trapping {
         transition offset < expression.count {
             true -> kind(lowerer, syntax, typing, type_handle, expression, layout, address, offset),
             _ -> result(address)
         }
     }
-    machine kind(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, type_handle: u64 in Trapping, expression: Expression, layout: ScalarLayout, address: u64 in Trapping, offset: u64 in Trapping) -> u64 in Trapping {
-        transition layout.kind == ScalarLayoutKind::Array {
+    machine kind(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, type_handle: u64 in Trapping, expression: |syntax_trees|::Expression, layout: |layouts|::ScalarLayout, address: u64 in Trapping, offset: u64 in Trapping) -> u64 in Trapping {
+        transition layout.kind == |layouts|::ScalarLayoutKind::Array {
             true -> element(lowerer, syntax, typing, type_handle, expression, layout, address, offset),
             _ -> member(lowerer, syntax, typing, type_handle, expression, layout, address, offset)
         }
     }
-    machine element(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, type_handle: u64 in Trapping, expression: Expression, layout: ScalarLayout, address: u64 in Trapping, offset: u64 in Trapping) -> u64 in Trapping {
-        let element_layout: ScalarLayout = scalar_layout_at(@lowerer.output, layout.inner);
-        let value: u64 in Trapping = syntax_trees_argument(syntax, expression.first + offset);
+    machine element(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, type_handle: u64 in Trapping, expression: |syntax_trees|::Expression, layout: |layouts|::ScalarLayout, address: u64 in Trapping, offset: u64 in Trapping) -> u64 in Trapping {
+        let element_layout: |layouts|::ScalarLayout = |layouts|::scalar_layout_at(@lowerer.output, layout.inner);
+        let value: u64 in Trapping = |syntax_trees|::syntax_trees_argument(syntax, expression.first + offset);
         transition { _ -> transfer(lowerer, syntax, typing, type_handle, expression, layout, address, offset, element_layout, offset * element_layout.size, value) }
     }
-    machine member(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, type_handle: u64 in Trapping, expression: Expression, layout: ScalarLayout, address: u64 in Trapping, offset: u64 in Trapping) -> u64 in Trapping {
-        let target: MemberTarget = construct_target(typing, expression.first + offset);
+    machine member(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, type_handle: u64 in Trapping, expression: |syntax_trees|::Expression, layout: |layouts|::ScalarLayout, address: u64 in Trapping, offset: u64 in Trapping) -> u64 in Trapping {
+        let target: |typed_trees|::MemberTarget = |typed_trees|::construct_target(typing, expression.first + offset);
         transition target {
-            MemberTarget::Common { field } -> member_scope(lowerer, syntax, typing, type_handle, expression, layout, address, offset, field),
+            |typed_trees|::MemberTarget::Common { field } -> member_scope(lowerer, syntax, typing, type_handle, expression, layout, address, offset, field),
             _ -> unsupported(lowerer)
         }
     }
-    machine member_scope(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, type_handle: u64 in Trapping, expression: Expression, layout: ScalarLayout, address: u64 in Trapping, offset: u64 in Trapping, field: u64 in Trapping) -> u64 in Trapping {
-        let row: TypeRow = type_table_row(@typing.types, type_handle);
-        let item: DataItem = syntax_trees_data_item(syntax, row.item);
+    machine member_scope(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, type_handle: u64 in Trapping, expression: |syntax_trees|::Expression, layout: |layouts|::ScalarLayout, address: u64 in Trapping, offset: u64 in Trapping, field: u64 in Trapping) -> u64 in Trapping {
+        let row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, type_handle);
+        let item: |syntax_trees|::DataItem = |syntax_trees|::syntax_trees_data_item(syntax, row.item);
         transition field < 1024 && field >= item.first_field && field < item.first_field + item.field_count {
             true -> member_layout(lowerer, syntax, typing, type_handle, expression, layout, address, offset, field),
             _ -> unsupported(lowerer)
         }
     }
-    machine member_layout(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, type_handle: u64 in Trapping, expression: Expression, layout: ScalarLayout, address: u64 in Trapping, offset: u64 in Trapping, field: u64 in Trapping) -> u64 in Trapping {
-        let declaration: DataField = syntax_trees_field(syntax, field);
-        let field_type: u64 in Trapping = reference_type(typing, declaration.type_reference);
-        let field_layout: ScalarLayout = scalar_layout_at(@lowerer.output, field_type);
+    machine member_layout(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, type_handle: u64 in Trapping, expression: |syntax_trees|::Expression, layout: |layouts|::ScalarLayout, address: u64 in Trapping, offset: u64 in Trapping, field: u64 in Trapping) -> u64 in Trapping {
+        let declaration: |syntax_trees|::DataField = |syntax_trees|::syntax_trees_field(syntax, field);
+        let field_type: u64 in Trapping = |typed_trees|::reference_type(typing, declaration.type_reference);
+        let field_layout: |layouts|::ScalarLayout = |layouts|::scalar_layout_at(@lowerer.output, field_type);
         let field_offset: u64 in Trapping = lowerer.output.field_offsets[(field) as -Trapping] as u64 +Trapping;
-        let written: ConstructField = syntax_trees_construct_field(syntax, expression.first + offset);
+        let written: |syntax_trees|::ConstructField = |syntax_trees|::syntax_trees_construct_field(syntax, expression.first + offset);
         transition { _ -> transfer(lowerer, syntax, typing, type_handle, expression, layout, address, offset, field_layout, field_offset, written.value) }
     }
-    machine transfer(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, type_handle: u64 in Trapping, expression: Expression, layout: ScalarLayout, address: u64 in Trapping, offset: u64 in Trapping, field_layout: ScalarLayout, field_offset: u64 in Trapping, expression_value: u64 in Trapping) -> u64 in Trapping {
-        let destination: u64 in Trapping = scalar_append(lowerer, ScalarOperationKind::AddressOffset, address - 1, field_offset, 0 as u64 +Trapping);
-        let value: u64 in Trapping = scalar_value(lowerer, expression_value);
-        scalar_transfer(lowerer, field_layout, destination, value);
+    machine transfer(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, type_handle: u64 in Trapping, expression: |syntax_trees|::Expression, layout: |layouts|::ScalarLayout, address: u64 in Trapping, offset: u64 in Trapping, field_layout: |layouts|::ScalarLayout, field_offset: u64 in Trapping, expression_value: u64 in Trapping) -> u64 in Trapping {
+        let destination: u64 in Trapping = |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::AddressOffset, address - 1, field_offset, 0 as u64 +Trapping);
+        let value: u64 in Trapping = |lowerer|::scalar_value(lowerer, expression_value);
+        |storage|::scalar_transfer(lowerer, field_layout, destination, value);
         transition { _ -> field(lowerer, syntax, typing, type_handle, expression, layout, address, offset + 1) }
     }
     machine result(value: u64 in Trapping) -> u64 in Trapping { value }
     machine absent() -> u64 in Trapping { 0 as u64 +Trapping }
-    machine unsupported(lowerer: @mutable ScalarLowerer) -> u64 in Trapping {
-        lowerer.output.status = ScalarStatus::Unsupported;
+    machine unsupported(lowerer: @mutable |lowerer|::ScalarLowerer) -> u64 in Trapping {
+        lowerer.output.status = |program|::ScalarStatus::Unsupported;
         0 as u64 +Trapping
     }
 }

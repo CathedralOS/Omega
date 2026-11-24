@@ -6,6 +6,7 @@
 //! only at a finite nonzero literal, whose meaning has one representation.
 //! In particular, an equality with zero cannot discard a negative zero sign.
 
+use crate::float_meaning::meaning;
 use bignum::BigInt;
 use numerics::float_semantics::{
     FloatMeaning, FloatSemanticEvaluationError, FloatSemanticOperand, FloatSemanticOperation,
@@ -23,13 +24,6 @@ pub enum FloatIntegerError {
     Transport(crate::PredicateDenotationError),
     Unsupported(&'static str),
     NotEstablished,
-}
-
-fn meaning(value: IeeeFloatValue) -> FloatMeaning {
-    match value {
-        IeeeFloatValue::Binary32(bits) => FloatMeaning::from_f32(f32::from_bits(bits)),
-        IeeeFloatValue::Binary64(bits) => FloatMeaning::from_f64(f64::from_bits(bits)),
-    }
 }
 
 /// A closed leaf decision, shared by the explicit certificate primitive and

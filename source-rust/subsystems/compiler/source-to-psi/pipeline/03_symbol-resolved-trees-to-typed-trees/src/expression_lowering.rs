@@ -146,6 +146,7 @@ pub(crate) mod expression {
                 expression_table_mut(target).insert(typed::expression::ExpressionNode::Binary(
                     typed::expression::TableBinaryExpression {
                         policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                        negation: false,
                         left: value,
                         operator,
                         right: case_reference,
@@ -372,6 +373,7 @@ pub(crate) mod expression {
                     expression_table_mut(target).insert(typed::expression::ExpressionNode::Binary(
                         typed::expression::TableBinaryExpression {
                             policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                            negation: false,
                             left: combined,
                             operator: typed::expression::BinaryOperator::And,
                             right: fact,
@@ -779,6 +781,7 @@ pub(crate) mod expression {
                             let tag = self.target().insert(ExpressionNode::Binary(
                                 TableBinaryExpression {
                                     policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                                    negation: false,
                                     left: saved,
                                     operator: BinaryOperator::CaseMembership,
                                     right: head,
@@ -787,6 +790,7 @@ pub(crate) mod expression {
                             self.target()
                                 .insert(ExpressionNode::Binary(TableBinaryExpression {
                                     policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                                    negation: false,
                                     left: tag,
                                     operator: BinaryOperator::And,
                                     right: predicate,
@@ -1346,6 +1350,7 @@ pub(crate) mod expression {
                                 operator: lower_binary_operator(binary.operator),
                                 right,
                                 policy: binary.policy,
+                                negation: binary.negation,
                             },
                         )))
                 }

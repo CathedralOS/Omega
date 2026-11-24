@@ -9,6 +9,8 @@
 #![forbid(unsafe_code)]
 
 mod declaration_contracts;
+mod clause_identity;
+pub use clause_identity::{ClauseCarrier, ClauseDeclaration, ClauseIdentity, ClauseOperand, ClauseValue};
 pub use self::declaration_contracts::{
     BlockingInterface, BlockingPlan, BlockingSummary, ExternalBindingId, ExternalBindingIdentity,
     ExternalBindingMechanism, RANKING_VIEW_CORE_SOURCE, RankingViewDeclaration, RankingViewId,
@@ -870,6 +872,9 @@ pub mod compiler_evaluation {
             (DeclarationCustody::Missing, _) | (_, DeclarationCustody::Missing) => {
                 Err("build-time invocation lacks compiler-owned source/package provenance")
             }
+            (DeclarationCustody::UnownedUser, _) | (_, DeclarationCustody::UnownedUser) => {
+                Err("build-time invocation has user source without reconciled package custody")
+            }
             (DeclarationCustody::ToolchainContract, DeclarationCustody::Package(_))
             | (DeclarationCustody::Package(_), DeclarationCustody::ToolchainContract) => {
                 Err("build-time invocation crosses closed-contract/package custody")
@@ -879,9 +884,6 @@ pub mod compiler_evaluation {
             | (_, DeclarationCustody::Toolchain) => Ok(None),
             (DeclarationCustody::Package(requester), DeclarationCustody::Package(owner)) => {
                 Ok(Some(DeclarationAuthorityRequest { requester, owner }))
-            }
-            (DeclarationCustody::UnownedUser, _) | (_, DeclarationCustody::UnownedUser) => {
-                Err("build-time invocation has user source without reconciled package custody")
             }
         }
     }

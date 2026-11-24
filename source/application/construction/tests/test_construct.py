@@ -78,7 +78,7 @@ class BuildSourceTests(unittest.TestCase):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 self.frame(**changes)
 
-    def test_fixture_packages_do_not_change_the_compiler_input(self):
+    def test_compiler_input_keeps_nested_build_sources(self):
         with tempfile.TemporaryDirectory() as temp, patch.object(construct, 'ROOT', Path(temp)):
             for _, package, _ in construct.PACKAGES:
                 root = Path(temp) / package
@@ -87,14 +87,25 @@ class BuildSourceTests(unittest.TestCase):
                 (root / 'main.omg').write_text('machine entry_start() {}')
             psi = Path(temp) / 'source/subsystems/compiler/source_to_psi'
             before = [construct.compiler_input(scoped)[0] for scoped in (False, True)]
-            fixture = psi / 'tests/fixtures/example'
-            fixture.mkdir(parents=True)
-            (fixture / 'build.omg').write_text('machine build(builder: @mutable Build) {}')
-            (fixture / 'main.omg').write_text('machine main() -> u8 { 42 }')
+            for directory in ('tests/fixtures/example', 'build', '.git', 'tools/.git'):
+                excluded = psi / directory
+                excluded.mkdir(parents=True)
+                (excluded / 'build.omg').write_text('machine build(builder: @mutable Build) {}')
+                (excluded / 'main.omg').write_text('machine main() -> u8 { 42 }')
+            nested = psi / 'tools/build/reader.omg'
+            nested.parent.mkdir(parents=True)
+            contents = b'machine read() -> u8 { 7 }'
+            nested.write_bytes(contents)
+            for scoped in (False, True):
+                with self.subTest(scoped=scoped):
+                    packet, manifest = construct.compiler_input(scoped)
+                    path = nested.relative_to(construct.ROOT).as_posix()
+                    unit, = (row for row in manifest['units'] if row['path'] == path)
+                    arena = packet[-struct.unpack_from('<I', packet, 32)[0]:]
+                    self.assertEqual(arena[unit['start']:unit['end']], contents)
+                    self.assertEqual(arena[unit['path_start']:unit['path_end']], b'tools/build/reader.omg')
+            nested.unlink()
             self.assertEqual(before, [construct.compiler_input(scoped)[0] for scoped in (False, True)])
-            (psi / 'main.omg').write_text('machine changed() {}')
-            for scoped, original in zip((False, True), before):
-                self.assertNotEqual(original, construct.compiler_input(scoped)[0])
 
     def test_complete_capture_preserves_product_coordinates(self):
         legacy, before = construct.compiler_input()

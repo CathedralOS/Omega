@@ -4,7 +4,7 @@
 // through bounded scanner stages. State purposes select parser-local grammar
 // positions; no purpose or preflight fact escapes this invocation.
 //
-// The retained syntax currently owns ordinary `use path\member;`, basic
+// The parser accepts exact-file imports, legacy directory imports, basic
 // `[public] data` and boundary-trait declarations, and machine roots with source-ordered
 // states, state parameters, optional immediate return types, and bodies
 // containing neutral path calls, simple assignments, or restricted transition
@@ -138,6 +138,7 @@ machine OmegaParser::parse_set(&mut self, source: &[u8]) {
 // components enter the ordinary name resolver. The basename contributes none.
 machine OmegaParser::retain_unit_namespace(&mut self, source: &[u8], index: i32,
     path: OmegaRelativeSpan) {
+    self.sources.units[index].has_file_import = 0;
     self.sources.units[index].first_module_member = self.member_count;
     self.sources.units[index].module_end = path.start;
     self.sources.units[index].module_member_count = 0;
@@ -1407,7 +1408,12 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.first_member = self.member_count;
         self.path_destination = OmegaPathDestination::Use;
         self.cursor = self.scan.next_cursor;
-        transition true { true -> scan_semantic(1) }
+        transition self.file_import(source, self.cursor) {
+            0 -> scan_semantic(1)
+            1 -> retain_use()
+            2 -> resource_failure(OmegaParserResource::PathMembers, 16384, self.member_count + 1)
+            _ -> syntax_failure(OmegaParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon, self.scan.token_start, self.scan.token_end)
+        }
     }
 
     state begin_machine_root() {
@@ -2306,7 +2312,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state satisfies_trait_token() {
-        transition self.scan.token_kind {
+        transition self.reference_token(source) {
             OmegaTokenKind::Identifier -> retain_satisfies_trait()
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedSatisfiesTrait,
@@ -2684,7 +2690,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state termination_subject_token() {
-        transition self.scan.token_kind {
+        transition self.reference_token(source) {
             OmegaTokenKind::Identifier -> retain_termination_subject_member()
             _ -> incomplete_root()
         }
@@ -2754,7 +2760,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state termination_view_token() {
-        transition self.scan.token_kind {
+        transition self.reference_token(source) {
             OmegaTokenKind::Identifier -> retain_termination_view_member()
             _ -> incomplete_root()
         }
@@ -2871,7 +2877,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state reach_service_token() {
-        transition self.scan.token_kind {
+        transition self.reference_token(source) {
             OmegaTokenKind::Identifier -> retain_reach_service()
             _ -> incomplete_root()
         }
@@ -3028,7 +3034,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state state_body_token() {
-        transition self.scan.token_kind {
+        transition self.reference_token(source) {
             OmegaTokenKind::Punctuation -> state_body_punctuation()
             OmegaTokenKind::Identifier -> state_body_identifier()
             OmegaTokenKind::Integer -> begin_integer_expression_statement()
@@ -3478,7 +3484,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state transition_subject_token() {
-        transition self.scan.token_kind {
+        transition self.reference_token(source) {
             OmegaTokenKind::Punctuation -> transition_subject_punctuation()
             OmegaTokenKind::Identifier -> begin_named_transition_subject()
             OmegaTokenKind::Integer -> begin_integer_transition_subject()
@@ -3600,7 +3606,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         transition true { true -> scan_semantic(105) }
     }
     state borrow_access_or_operand_token() {
-        transition self.scan.token_kind {
+        transition self.reference_token(source) {
             OmegaTokenKind::Identifier -> borrow_access_or_operand_identifier()
             _ -> assignment_value_token()
         }
@@ -4500,7 +4506,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state membership_domain_token() {
-        transition self.scan.token_kind {
+        transition self.reference_token(source) {
             OmegaTokenKind::Identifier -> retain_path_expression_member()
             OmegaTokenKind::Keyword -> membership_domain_keyword()
             _ -> syntax_failure(
@@ -4754,7 +4760,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state transition_condition_token() {
-        transition self.scan.token_kind {
+        transition self.reference_token(source) {
             OmegaTokenKind::Identifier -> condition_name()
             OmegaTokenKind::Punctuation -> condition_punctuation()
             _ -> begin_condition()
@@ -4783,7 +4789,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state transition_pattern_token() {
-        transition self.scan.token_kind {
+        transition self.reference_token(source) {
             OmegaTokenKind::Punctuation -> transition_arm_punctuation()
             OmegaTokenKind::Identifier -> transition_arm_identifier()
             OmegaTokenKind::Integer -> transition_arm_integer()
@@ -5084,7 +5090,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state transition_pattern_field_value_token() {
-        transition self.scan.token_kind {
+        transition self.reference_token(source) {
             OmegaTokenKind::Identifier -> begin_named_transition_pattern_value()
             OmegaTokenKind::Keyword -> transition_pattern_field_value_keyword()
             _ -> incomplete_root()
@@ -5265,6 +5271,12 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     // A bare target followed by parentheses transfers control. Other targets
     // are result values, including a qualified case with named payloads.
     state transition_target_token() {
+        transition self.reference_token(source) {
+            OmegaTokenKind::Identifier -> call_path_prefix(2)
+            _ -> ordinary_transition_target()
+        }
+    }
+    state ordinary_transition_target() {
         transition self.ordinary_name_token() {
             1 -> call_path_prefix(2)
             _ -> transition_target_non_name()
@@ -6189,7 +6201,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state call_static_argument_token() {
-        transition self.scan.token_kind {
+        transition self.reference_token(source) {
             OmegaTokenKind::Identifier -> begin_call_static_argument()
             OmegaTokenKind::Keyword -> call_static_argument_keyword()
             _ -> incomplete_root()
@@ -6495,7 +6507,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state call_argument_or_end_token() {
-        transition self.scan.token_kind {
+        transition self.reference_token(source) {
             OmegaTokenKind::Punctuation -> call_argument_or_end_punctuation()
             OmegaTokenKind::Identifier -> begin_named_call_argument()
             OmegaTokenKind::Integer -> begin_call_integer_argument()
@@ -8008,7 +8020,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state assignment_value_token() {
-        transition self.scan.token_kind {
+        transition self.reference_token(source) {
             OmegaTokenKind::Punctuation -> assignment_value_punctuation()
             OmegaTokenKind::Identifier -> begin_named_assignment_value()
             OmegaTokenKind::Integer -> check_integer_expression()
@@ -8724,7 +8736,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         transition true { true -> scan_semantic(141) }
     }
     state implementation_trait_name() {
-        transition self.scan.token_kind {
+        transition self.reference_token(source) {
             OmegaTokenKind::Identifier -> retain_implementation_trait()
             _ -> syntax_failure(OmegaParseDiagnosticCode::ExpectedTraitName, self.scan.token_start, self.scan.token_end)
         }
@@ -9309,7 +9321,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state requirement_token() {
-        transition self.scan.token_kind {
+        transition self.reference_token(source) {
             OmegaTokenKind::Identifier -> begin_named_assignment_value()
             OmegaTokenKind::Integer -> check_integer_expression()
             OmegaTokenKind::StringLiteral -> retain_string_expression()
@@ -9958,7 +9970,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state type_token() {
-        transition self.scan.token_kind {
+        transition self.reference_token(source) {
             OmegaTokenKind::Identifier -> type_identifier()
             OmegaTokenKind::Keyword -> type_keyword()
             OmegaTokenKind::Punctuation -> type_punctuation()
@@ -10116,7 +10128,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state type_reference_access_or_type_token() {
-        transition self.scan.token_kind {
+        transition self.reference_token(source) {
             OmegaTokenKind::Identifier -> type_reference_access_or_type_identifier()
             OmegaTokenKind::Keyword -> type_token()
             OmegaTokenKind::Punctuation -> type_reference_prefix_punctuation()
@@ -10266,7 +10278,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state array_element_token() {
-        transition self.scan.token_kind {
+        transition self.reference_token(source) {
             OmegaTokenKind::Identifier -> array_element_identifier()
             OmegaTokenKind::Keyword -> array_element_keyword()
             OmegaTokenKind::Punctuation -> array_element_punctuation()
@@ -10633,7 +10645,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state type_domain_token() {
-        transition self.scan.token_kind {
+        transition self.reference_token(source) {
             OmegaTokenKind::Identifier -> retain_type_domain()
             OmegaTokenKind::Keyword -> type_domain_keyword()
             _ -> syntax_failure(
@@ -10871,7 +10883,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state cast_domain_token() {
-        transition self.scan.token_kind {
+        transition self.reference_token(source) {
             OmegaTokenKind::Identifier -> retain_cast_domain()
             OmegaTokenKind::Keyword -> cast_domain_keyword()
             _ -> syntax_failure(

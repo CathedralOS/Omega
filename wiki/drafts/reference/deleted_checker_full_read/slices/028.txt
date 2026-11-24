@@ -1,0 +1,2 @@
+# slice 028: 5500 lines in 1 file range(s)
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_contracts.rs	6446	11945

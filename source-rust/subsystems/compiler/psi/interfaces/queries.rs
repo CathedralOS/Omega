@@ -73,9 +73,7 @@ impl Psi {
         &self,
         id: semantic_vocabulary::BoundaryMachineId,
     ) -> Option<&BoundaryMachineDeclaration> {
-        self.interfaces.boundary_machines
-            .iter()
-            .find(|declaration| declaration.id == id)
+        find_boundary_machine(&self.interfaces.boundary_machines, id)
     }
 
     /// Exact requirements whose selected service rows remain to be supplied.

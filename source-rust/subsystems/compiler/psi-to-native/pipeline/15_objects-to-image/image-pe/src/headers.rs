@@ -29,6 +29,8 @@ pub(crate) struct PeHeaderInput {
     pub(crate) file_characteristics: u16,
     pub(crate) export_directory_rva: u32,
     pub(crate) export_directory_size: usize,
+    pub(crate) exception_directory_rva: u32,
+    pub(crate) exception_directory_size: usize,
 }
 
 pub(crate) fn write_dos_header(bytes: &mut Vec<u8>) {
@@ -92,6 +94,10 @@ pub(crate) fn write_pe_headers(bytes: &mut Vec<u8>, input: PeHeaderInput) {
             1 => {
                 write_u32(bytes, input.import_directory_rva);
                 write_u32(bytes, input.import_directory_size as u32);
+            }
+            3 => {
+                write_u32(bytes, input.exception_directory_rva);
+                write_u32(bytes, input.exception_directory_size as u32);
             }
             5 => {
                 write_u32(bytes, input.reloc_directory_rva);

@@ -1,0 +1,4 @@
+# slice 062: 7758 lines in 3 file range(s)
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow_mutation.rs	1	4932
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow_observations.rs	1	1690
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow_operand_contexts.rs	1	1136

@@ -114,6 +114,13 @@ mod value_equalities {
                 | Proposition::IntegerIeeeFloatExact { source, .. } => {
                     *source = self.scalar(source, budget, depth + 1, &mut Vec::new())?;
                 }
+                Proposition::DeclarationIdentity(clause) => {
+                    for value in &mut clause.values {
+                        if let semantic_vocabulary::ClauseOperand::Scalar(term) = &mut value.operand {
+                            *term = self.scalar(term, budget, depth + 1, &mut Vec::new())?;
+                        }
+                    }
+                }
                 Proposition::FloatMeaningEqual(clause) => {
                     *clause = clause.map_sources(|source| {
                         self.scalar(source, budget, depth + 1, &mut Vec::new())
@@ -217,6 +224,9 @@ mod value_equalities {
                 super::scalar_term_binary_operands!(left, right) => {
                     **left = self.scalar(left, budget, depth + 1, active)?;
                     **right = self.scalar(right, budget, depth + 1, active)?;
+                }
+                ScalarTerm::DeclarationApplication { .. } => {
+                    return Err("a declaration application requires its mathematical signature".into());
                 }
                 ScalarTerm::Application { .. }
                 | ScalarTerm::Value { .. }

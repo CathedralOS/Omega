@@ -1,16 +1,13 @@
-use representations\source_files\SourceSpan;
-use representations\syntax_trees\ConformanceItem;
-use representations\syntax_trees\MachineContainer;
-use representations\syntax_trees\MachineItem;
-use representations\syntax_trees\ParseDiagnosticCode;
-use representations\syntax_trees\RootItem;
-use representations\syntax_trees\RootItemKind;
-use representations\syntax_trees\machine_item;
-use representations\syntax_trees\syntax_trees_reject;
-use representations\tokens\KeywordKind;
-use representations\tokens\PunctuationKind;
-use representations\tokens\Token;
-use representations\tokens\TokenStream;
+use pipeline/tokens_to_syntax_trees/generics.omg;
+use pipeline/tokens_to_syntax_trees/input.omg;
+use pipeline/tokens_to_syntax_trees/traits.omg;
+use pipeline/tokens_to_syntax_trees/types.omg;
+use pipeline/tokens_to_syntax_trees/machine.omg as machine_parser;
+use pipeline/tokens_to_syntax_trees/parser.omg;
+
+use representations/source_files/source.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/tokens/tokens.omg;
 
 // `[public] Name [<generic parameters>] satisfies Trait<arguments> { member* }`,
 // entered at the implementation's name. The name identifies a closed map of
@@ -23,8 +20,8 @@ use representations\tokens\TokenStream;
 // parser does (wiki/spec/language/conformances.md). The item and its root are
 // retained at the closing `}`.
 public machine parse_conformance(
-    parser: @mutable Parser,
-    input: @TokenStream,
+    parser: @mutable |parser|::Parser,
+    input: @|tokens|::TokenStream,
     item_start: u64 in Trapping,
     is_public: bool
 )
@@ -34,41 +31,41 @@ crashes Trap
     parser.declaration_is_public = is_public;
     transition parser.output.conformance_count < 256 {
         true -> implementation_name(parser, input),
-        _ -> reject(parser, input, ParseDiagnosticCode::ConformanceCapacityExceeded)
+        _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::ConformanceCapacityExceeded)
     }
 
-    machine implementation_name(parser: @mutable Parser, input: @TokenStream) {
+    machine implementation_name(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         parser.declaration_first_generic = parser.output.generic_parameter_count as +Trapping;
-        take_current(parser, input);
+        |input|::take_current(parser, input);
         parser.declaration_name_start = parser.token_start;
         parser.declaration_name_end = parser.token_end;
-        let generic: bool = at_punctuation(parser, input, PunctuationKind::Less);
+        let generic: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Less);
         transition generic {
             true -> generics(parser, input),
             _ -> satisfies_word(parser, input)
         }
     }
 
-    machine generics(parser: @mutable Parser, input: @TokenStream) {
-        parse_generic_parameters(parser, input);
+    machine generics(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |generics|::parse_generic_parameters(parser, input);
         transition parser.output.accepted {
             true -> satisfies_word(parser, input),
             _ -> done()
         }
     }
 
-    machine satisfies_word(parser: @mutable Parser, input: @TokenStream) {
+    machine satisfies_word(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         parser.declaration_generic_count = (parser.output.generic_parameter_count as +Trapping) - parser.declaration_first_generic;
-        let relation: bool = at_word(parser, input, "satisfies");
+        let relation: bool = |input|::at_word(parser, input, "satisfies");
         transition relation {
             true -> trait_application(parser, input),
-            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedConformanceSatisfies)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedConformanceSatisfies)
         }
     }
 
-    machine trait_application(parser: @mutable Parser, input: @TokenStream) {
-        take_current(parser, input);
-        parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedConformanceTrait);
+    machine trait_application(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
+        |types|::parse_type_reference(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedConformanceTrait);
         parser.declaration_type = parser.type_result;
         transition parser.output.accepted {
             true -> body(parser, input),
@@ -76,8 +73,8 @@ crashes Trap
         }
     }
 
-    machine body(parser: @mutable Parser, input: @TokenStream) {
-        expect_punctuation(parser, input, PunctuationKind::LeftBrace, ParseDiagnosticCode::ExpectedConformanceBody);
+    machine body(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::expect_punctuation(parser, input, |tokens|::PunctuationKind::LeftBrace, |syntax_trees|::ParseDiagnosticCode::ExpectedConformanceBody);
         parser.declaration_first_machine = parser.output.machine_count as +Trapping;
         transition parser.output.accepted {
             true -> member(parser, input),
@@ -85,26 +82,26 @@ crashes Trap
         }
     }
 
-    machine member(parser: @mutable Parser, input: @TokenStream) {
-        let closing: bool = at_punctuation(parser, input, PunctuationKind::RightBrace);
+    machine member(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        let closing: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::RightBrace);
         transition closing {
             true -> close(parser, input),
             _ -> machine_member(parser, input)
         }
     }
 
-    machine machine_member(parser: @mutable Parser, input: @TokenStream) {
-        let checked: bool = at_keyword(parser, input, KeywordKind::Machine);
+    machine machine_member(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        let checked: bool = |input|::at_keyword(parser, input, |tokens|::KeywordKind::Machine);
         transition checked {
             true -> checked_member(parser, input),
-            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedConformanceMember)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedConformanceMember)
         }
     }
 
-    machine checked_member(parser: @mutable Parser, input: @TokenStream) {
-        let token: Token = input.tokens[parser.current_index];
-        let head: MachineHead = member_machine_head(token.start, MachineContainer::Conformance);
-        parse_machine(parser, input, head);
+    machine checked_member(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        let token: |tokens|::Token = input.tokens[parser.current_index];
+        let head: |machine_parser|::MachineHead = |traits|::member_machine_head(token.start, |syntax_trees|::MachineContainer::Conformance);
+        |machine_parser|::parse_machine(parser, input, head);
         transition parser.output.accepted {
             true -> checked_body(parser, input),
             _ -> done()
@@ -113,40 +110,40 @@ crashes Trap
 
     // A member supplies its requirement's implementation, so it has a
     // checked body; a bodyless one rejects at the `;` that ended it.
-    machine checked_body(parser: @mutable Parser, input: @TokenStream) {
+    machine checked_body(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         let handle: u64 in Trapping = parser.machine_result;
-        let checked: MachineItem = machine_item(@parser.output, handle);
+        let checked: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(@parser.output, handle);
         transition checked.has_body {
             true -> member(parser, input),
             _ -> bodyless(parser)
         }
     }
 
-    machine bodyless(parser: @mutable Parser) {
-        syntax_trees_reject(@mutable parser.output, ParseDiagnosticCode::ExpectedConformanceMachineBody,
+    machine bodyless(parser: @mutable |parser|::Parser) {
+        |syntax_trees|::syntax_trees_reject(@mutable parser.output, |syntax_trees|::ParseDiagnosticCode::ExpectedConformanceMachineBody,
             parser.source, parser.token_start, parser.token_end);
     }
 
-    machine close(parser: @mutable Parser, input: @TokenStream) {
-        take_current(parser, input);
+    machine close(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
         transition parser.output.conformance_count < 256 {
             true -> root_capacity(parser, input),
-            _ -> reject(parser, input, ParseDiagnosticCode::ConformanceCapacityExceeded)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::ConformanceCapacityExceeded)
         }
     }
 
-    machine root_capacity(parser: @mutable Parser, input: @TokenStream) {
+    machine root_capacity(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         transition parser.output.root_count < 4096 {
             true -> retain(parser),
-            _ -> reject(parser, input, ParseDiagnosticCode::RootCapacityExceeded)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::RootCapacityExceeded)
         }
     }
 
-    machine retain(parser: @mutable Parser) {
+    machine retain(parser: @mutable |parser|::Parser) {
         let conformance: u64 in Trapping = parser.output.conformance_count as +Trapping;
-        let span: SourceSpan = parser_source_span(parser, parser.declaration_start, parser.token_end);
-        parser.output.conformances[parser.output.conformance_count] = ConformanceItem {
-            name: identifier_span(parser, parser.declaration_name_start, parser.declaration_name_end),
+        let span: |source|::SourceSpan = |parser|::parser_source_span(parser, parser.declaration_start, parser.token_end);
+        parser.output.conformances[parser.output.conformance_count] = |syntax_trees|::ConformanceItem {
+            name: |parser|::identifier_span(parser, parser.declaration_name_start, parser.declaration_name_end),
             first_generic_parameter: parser.declaration_first_generic,
             generic_parameter_count: parser.declaration_generic_count,
             trait_type: parser.declaration_type,
@@ -156,16 +153,16 @@ crashes Trap
             source_span: span
         };
         parser.output.conformance_count = parser.output.conformance_count + 1;
-        parser.output.roots[parser.output.root_count] = RootItem {
-            kind: RootItemKind::Conformance,
+        parser.output.roots[parser.output.root_count] = |syntax_trees|::RootItem {
+            kind: |syntax_trees|::RootItemKind::Conformance,
             item_index: conformance,
             source_span: span
         };
         parser.output.root_count = parser.output.root_count + 1;
     }
 
-    machine reject(parser: @mutable Parser, input: @TokenStream, code: ParseDiagnosticCode) {
-        reject_current(parser, input, code);
+    machine reject(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, code: |syntax_trees|::ParseDiagnosticCode) {
+        |input|::reject_current(parser, input, code);
     }
 
     machine done() {}

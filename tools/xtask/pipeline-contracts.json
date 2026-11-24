@@ -22148,6 +22148,40 @@
         "independent object readback"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "function:check_windows_internet_companion#1",
+      "kind": "checker",
+      "meaning": "Reject Windows helper code unless its presence matches the object's actual normalized imports.",
+      "producer": "native body object publication",
+      "signature": "968903790fa5648c06a5355a580345620a7556e35b45bec4057ab104369f6f6b"
+    },
+    {
+      "consumers": [
+        "native object publication unit tests"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "module:windows_import_rosters#1",
+      "kind": "definition",
+      "meaning": "Load the shared Windows import rosters for the object-publication unit test.",
+      "producer": "native object publication tests",
+      "signature": "98aaeb0ccb377fe775e432be789f809da5b19da5033ba25a652fce19fb602721"
+    },
+    {
+      "consumers": [
+        "native object publication unit tests"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "function:checks_windows_companion_against_the_objects_imports#1",
+      "kind": "definition",
+      "meaning": "Test matching and inverted helper claims against the actual import checker.",
+      "producer": "native object publication tests",
+      "signature": "f7b143dfd7e77abe15aa58a36b5cfad553e9ca1457c14710680c471329058e86"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
       "item": "function:find_object_function#1",
       "kind": "definition",
       "meaning": "Resolve a semantic machine to its object-local function symbol and extent.",
@@ -22212,7 +22246,7 @@
       "kind": "definition",
       "meaning": "Place all sections, declare symbols and resolve each body reference to a relocation before image composition.",
       "producer": "native body object publication",
-      "signature": "43232a9d6fe2989aa101ba2c0f28cc5f347d32bc5fc81e86369d2db1166fd0c3"
+      "signature": "c2ccf18610c98aa9772a69f864288d86c16d85ac1d222a0eab9b7a3fd2a01784"
     },
     {
       "consumers": [
@@ -22224,7 +22258,19 @@
       "kind": "producer",
       "meaning": "Place all sections, declare symbols and resolve each body reference to a relocation before image composition.",
       "producer": "native body object publication",
-      "signature": "ce4fd53b0a0eeaebf6ffc24d457c06b21cf9662ebb41132de98446b29d9e812c"
+      "signature": "eb6de8138510131afd040e1998fb332e6384c99d4488f9448adb263b390eb133"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "PE unwind record emission"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "function:function_unwinds#1",
+      "kind": "producer",
+      "meaning": "Carry each framed function's encoded prologue and epilogue steps, placed by frame application, onto its object symbol so image writers can emit unwind records.",
+      "producer": "native body object publication",
+      "signature": "1f83ee7afba4a8c6969ef28973704b4ede41741bec79040453e49de344916ca2"
     },
     {
       "consumers": [

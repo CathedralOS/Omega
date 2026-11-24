@@ -79,6 +79,20 @@ fn a_record_retains_the_length_and_elements_of_a_reborrowed_slice() {
     assert_both("reborrowed_record_slice");
 }
 
+/// A `@'a mutable [u32]` formal moved into a local keeps the formal's
+/// pointer-and-count view natively: a write through the local reaches only the
+/// selected element of the caller's array, and a local a `match` joins from
+/// two such formals keeps the length of the view that arrived.
+#[test]
+fn a_mutable_slice_formal_reborrowed_into_a_local_writes_the_callers_element() {
+    assert_both("reborrowed_mutable_slice_local");
+}
+
+#[test]
+fn a_nested_state_writes_only_the_selected_borrowed_slice_element() {
+    assert_both("indexed_borrowed_element_store");
+}
+
 #[test]
 fn recursive_transitions_forward_the_slice_and_return_the_matched_element() {
     assert_both("recursive_typed_slice");

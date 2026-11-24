@@ -512,6 +512,7 @@ impl<'a> Lowering<'a> {
             current: None,
             point: None,
             slots: vec![None; slot_types.len()],
+            erased_applications: Vec::new(),
             selected: Vec::new(),
             observed: Vec::new(),
             scalar_subjects: Vec::new(),
@@ -530,6 +531,7 @@ impl<'a> Lowering<'a> {
             pending_build: None,
             block_ranks: IdTable::default(),
             active_rank: None,
+            member_rank_bound: None,
             successor_ranks: Vec::new(),
         }
     }
@@ -838,6 +840,7 @@ struct Lowering<'a> {
     /// The program point after the last thing emitted in `current`.
     point: Option<ProgramPoint>,
     slots: Vec<Option<Bound>>,
+    erased_applications: Vec<semantic_vocabulary::ScalarTerm>,
     /// The dispatch arms the open block lies in, outermost first: for a case
     /// arm the sum it selected on, the case, and the block parameter each
     /// scalar payload field arrived as.
@@ -877,6 +880,7 @@ struct Lowering<'a> {
     /// blocks. Tail transfers separately measure the successor's actual values.
     block_ranks: IdTable<BlockId, Option<Vec<terminal_psi::TerminalIntegerRankValue>>>,
     active_rank: Option<Vec<terminal_psi::TerminalIntegerRankValue>>,
+    member_rank_bound: Option<terminal_psi::TerminalIntegerRankValue>,
     successor_ranks: Vec<(
         BlockId,
         MachineId,

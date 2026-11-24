@@ -158,6 +158,7 @@ pub(crate) fn hoist_comparison_match_subject(
         guard_expression,
         ExpressionNode::Binary(TableBinaryExpression {
             policy: outer.policy,
+            negation: outer.negation,
             left: name_reference,
             operator: outer.operator,
             right: outer.right,

@@ -1,0 +1,2 @@
+# slice 046: 5339 lines in 1 file range(s)
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution_scalar_computations.rs	5825	11163

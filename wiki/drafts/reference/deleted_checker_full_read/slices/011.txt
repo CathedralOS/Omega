@@ -1,0 +1,2 @@
+# slice 011: 7006 lines in 1 file range(s)
+omega-rust/psi/compilation/build-time-evaluation/src/machine_execution.rs	1	7006

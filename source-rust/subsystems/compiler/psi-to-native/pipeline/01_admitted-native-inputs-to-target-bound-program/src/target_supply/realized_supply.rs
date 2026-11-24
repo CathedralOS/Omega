@@ -256,18 +256,7 @@ impl RealizedTargetSupply {
             }
             let mut matches = module.interfaces.boundary_machines.iter().filter(|boundary| {
                 boundary.declaration.as_ref().is_some_and(|declaration| {
-                    module.identities.text(
-                        if boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Trait
-                            || declaration.execution
-                                != terminal_psi::CheckedBoundaryExecution::Provider
-                        {
-                            declaration.source.semantic_declaration
-                        } else {
-                            declaration.source.machine.identity()
-                        },
-                    ) == Some(leaf.declaration_identity.as_str())
-                        && module.identities.text(declaration.source.callable)
-                            == Some(leaf.callable_identity.as_str())
+                    super::matches_direct_leaf(&module.identities, boundary.kind, declaration, leaf)
                 })
             });
             let (Some(boundary), None) = (matches.next(), matches.next()) else {

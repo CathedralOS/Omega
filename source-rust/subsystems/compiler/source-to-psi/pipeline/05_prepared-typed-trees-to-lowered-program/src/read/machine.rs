@@ -611,8 +611,8 @@ impl<'t> Program<'t> {
         let bound = self
             .conformer_requirement(id, machine)?
             .map(|(owner, required)| (owner, required.symbol));
-        if let Some(bound) = bound
-            && bound != (declaring_trait, requirement)
+        if let Some((owner, required)) = bound
+            && (owner != declaring_trait || !self.applies_requirement(required, requirement))
         {
             return Err(refuse(
                 id,
@@ -713,9 +713,17 @@ impl<'t> Program<'t> {
         ) || (self.rigid && matches!(reading, Reading::Implementation))
         {
             let (machine, _) = self.declaration(id, symbol)?;
+            // The signature already retained each logical parameter's contract
+            // and header position. Only unresolved source binders belong here.
             let mut binders = self
                 .generic_parameters(id, machine)?
-                .iter()
+                .into_iter()
+                .filter(|parameter| {
+                    !matches!(
+                        parameter.kind,
+                        crate::source_state::data::TypeParameterKind::Proof { .. }
+                    )
+                })
                 .map(|parameter| parameter.symbol)
                 .collect::<Vec<_>>();
             binders.extend(
@@ -750,6 +758,7 @@ impl<'t> Program<'t> {
                         parameter.kind,
                         crate::source_state::data::TypeParameterKind::Type
                             | crate::source_state::data::TypeParameterKind::Const { .. }
+                            | crate::source_state::data::TypeParameterKind::Value { .. }
                     )
                 })
             {
@@ -899,6 +908,17 @@ impl<'t> Program<'t> {
         Ok(id)
     }
 
+    /// Whether `applied` is `requirement` itself or one closed application
+    /// of it: a generic member's instance (`keep<u8>`) is bound to the
+    /// requirement `keep<T>` it was prepared from.
+    fn applies_requirement(&self, applied: SymbolHandle, requirement: SymbolHandle) -> bool {
+        applied == requirement
+            || self
+                .typed
+                .closed_requirement_application(applied)
+                .is_some_and(|closed| closed.template == requirement)
+    }
+
     /// The requirement `requirement` as `declaring_trait` declares it.
     pub(super) fn declared_requirement(
         &self,
@@ -971,7 +991,7 @@ impl<'t> Program<'t> {
         if let Some(machine) = self.typed.machine_by_symbol(implementation)
             && let Some((owner, applied)) = self.conformer_requirement(id, machine)?
         {
-            if owner != declaring_trait || applied.symbol != requirement {
+            if owner != declaring_trait || !self.applies_requirement(applied.symbol, requirement) {
                 return Err(refuse(
                     id,
                     Construct::Machine,
@@ -1676,6 +1696,7 @@ impl<'t> Program<'t> {
                         crate::source_state::data::TypeParameterKind::Implementation
                         | crate::source_state::data::TypeParameterKind::Const { .. }
                         | crate::source_state::data::TypeParameterKind::Proof { .. }
+                        | crate::source_state::data::TypeParameterKind::Value { .. }
                         | crate::source_state::data::TypeParameterKind::Machine {
                             contract:
                                 crate::source_state::data::MachineParameterContract::Structural(_)
@@ -1705,6 +1726,7 @@ impl<'t> Program<'t> {
                         crate::source_state::data::TypeParameterKind::Type
                             | crate::source_state::data::TypeParameterKind::Const { .. }
                             | crate::source_state::data::TypeParameterKind::Proof { .. }
+                            | crate::source_state::data::TypeParameterKind::Value { .. }
                             | crate::source_state::data::TypeParameterKind::Machine {
                                 contract: crate::source_state::data::MachineParameterContract::Structural(
                                     _
@@ -1823,12 +1845,13 @@ impl<'t> Program<'t> {
         let binders = parameters
             .iter()
             .filter_map(|parameter| match parameter.kind {
-                TypeParameterKind::Const { .. }
+                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
                     if self.record_parameter(parameter.symbol).is_some() =>
                 {
                     None
                 }
-                TypeParameterKind::Const { type_reference } => {
+                TypeParameterKind::Const { type_reference }
+                | TypeParameterKind::Value { type_reference } => {
                     Some((parameter.symbol, type_reference))
                 }
                 _ => None,
@@ -1884,7 +1907,8 @@ impl<'t> Program<'t> {
             .requirement_parameters(id, requirement)?
             .iter()
             .filter_map(|parameter| match parameter.kind {
-                TypeParameterKind::Const { type_reference } => {
+                TypeParameterKind::Const { type_reference }
+                | TypeParameterKind::Value { type_reference } => {
                     Some((parameter.symbol, type_reference))
                 }
                 _ => None,
@@ -1996,7 +2020,8 @@ impl<'t> Program<'t> {
     fn value_binders(&self, id: MachineId, machine: &Machine) -> Checked<Vec<ValueBinder>> {
         let mut binders = Vec::new();
         for parameter in self.generic_parameters(id, machine)? {
-            let crate::source_state::data::TypeParameterKind::Const { type_reference } =
+            let (crate::source_state::data::TypeParameterKind::Const { type_reference }
+            | crate::source_state::data::TypeParameterKind::Value { type_reference }) =
                 parameter.kind
             else {
                 continue;
@@ -2183,6 +2208,7 @@ impl<'t> Program<'t> {
                         matches!(
                             parameter.kind,
                             crate::source_state::data::TypeParameterKind::Const { .. }
+                                | crate::source_state::data::TypeParameterKind::Value { .. }
                         )
                         .then_some(parameter.symbol)
                     }),
@@ -2484,6 +2510,7 @@ impl<'t> Program<'t> {
                 parameter.kind,
                 crate::source_state::data::TypeParameterKind::Type
                     | crate::source_state::data::TypeParameterKind::Const { .. }
+                    | crate::source_state::data::TypeParameterKind::Value { .. }
             ) || parameter.bounds != crate::source_state::data::DataProperties::default()
         }) {
             return Err(unserved("applied trait parameter eligibility"));
@@ -2721,7 +2748,8 @@ impl<'t> Program<'t> {
         }
         let mut binders = Vec::with_capacity(required.len());
         for (parameter, &(_, expected)) in parameters.iter().zip(required) {
-            let crate::source_state::data::TypeParameterKind::Const { type_reference } =
+            let (crate::source_state::data::TypeParameterKind::Const { type_reference }
+            | crate::source_state::data::TypeParameterKind::Value { type_reference }) =
                 parameter.kind
             else {
                 return Err(unserved(
@@ -2797,7 +2825,8 @@ impl<'t> Program<'t> {
             if parameter.bounds != crate::source_state::data::DataProperties::default() {
                 return unserved("requirement value parameter eligibility");
             }
-            let crate::source_state::data::TypeParameterKind::Const { type_reference } =
+            let (crate::source_state::data::TypeParameterKind::Const { type_reference }
+            | crate::source_state::data::TypeParameterKind::Value { type_reference }) =
                 parameter.kind
             else {
                 return Err(refuse_parameters(
@@ -4912,6 +4941,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
         | ExpressionKind::Float(_)
+        | ExpressionKind::ErasedApplication(_)
         | ExpressionKind::ScalarApplication { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::MachineValue { .. }

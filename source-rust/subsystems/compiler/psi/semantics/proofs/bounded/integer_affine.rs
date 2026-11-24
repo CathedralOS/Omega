@@ -3234,7 +3234,7 @@ mod witness_checking {
         > {
             if !matches!(target, ScalarTerm::Value { .. })
                 || target.scalar_type() != ScalarType::Integer(integer_type)
-                || !matches!(integer_type.bits(), Some(8 | 16 | 32 | 64))
+                || !crate::integer_rules::fixed_integer::has_native_width(integer_type)
             {
                 return None;
             }

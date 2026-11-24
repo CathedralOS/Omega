@@ -491,7 +491,20 @@ impl Program<'_> {
         } else {
             crate::lowering::StorageShape::Sum(case_types)
         };
-        let constant_input_owner = self.storage_constant_input_owner(id, &shape)?;
+        // An argument that is this reading's own `const` or value input
+        // (`Index<Limit>` while `Limit` is rigid) makes the requires name that
+        // input, so the record belongs to this checking machine like an array
+        // sized by one.
+        let (bound, bound_owner) = self.application_values(id, symbol, application.as_ref())?;
+        let storage_owner = self.storage_constant_input_owner(id, &shape)?;
+        let constant_input_owner = match (storage_owner, bound_owner) {
+            (Some(left), Some(right)) if left != right => {
+                return Err(unserved(
+                    "storage combines constants from different checking machines",
+                ));
+            }
+            (left, right) => left.or(right),
+        };
         let identity = storage_identity_for_inputs(identity, constant_input_owner);
         let record: StructuralTypeId = self.records.push(RecordType {
             multiplicity: crate::lowering::body::source_multiplicity(data.properties.multiplicity),
@@ -525,7 +538,7 @@ impl Program<'_> {
         let scope = ClauseScope {
             slots: &[],
             values: &[],
-            bound: &[],
+            bound: &bound,
             owner: SymbolHandle::invalid(),
             result: ResultTerm::Absent("result in a data clause"),
             formal_fields: false,
@@ -544,10 +557,30 @@ impl Program<'_> {
             id,
             "data requires span",
         )?;
-        let mut requires = Vec::with_capacity(facts.len());
-        for fact in facts {
-            requires.push(self.clause(id, &scope, self.fact(id, fact)?)?);
+        // The `requires` name the template's binders. Under an application
+        // each stands for its argument, so `T == i32` in `Value<T>` read as
+        // `Value<i32>` compares `i32` with `i32`. The arguments are written
+        // in the application's own source frame.
+        let clause_frame = application.as_ref().map(|application| {
+            std::sync::Arc::new(crate::source_state::SourceTypeScope {
+                parent: Some(application.scope.clone()),
+                substitutions: application.substitutions.clone(),
+                rigid_parameters: Vec::new(),
+            })
+        });
+        let outer_frame =
+            clause_frame.map(|frame| std::mem::replace(&mut self.source_scope, frame));
+        let read = facts
+            .iter()
+            .map(|fact| {
+                let fact = self.fact(id, fact)?;
+                self.clause(id, &scope, fact)
+            })
+            .collect::<Checked<Vec<_>>>();
+        if let Some(outer) = outer_frame {
+            self.source_scope = outer;
         }
+        let mut requires = read?;
         // dependent_values.md: "A data declaration's field qualifications
         // and `requires` clauses define its default domain". A field in a
         // domain with predicates owes them as clauses of this type, over
@@ -759,6 +792,78 @@ impl Program<'_> {
             ));
         }
         Ok((identity, value_type))
+    }
+
+    /*
+        The value each `const` or value parameter of an applied declaration
+        stands for. `data Index<const Limit: u32> requires value < Limit`
+        applied as `Index<5>` owes `value < 5`: its `requires` names the
+        template's `Limit`, and the application supplies the argument
+        (generics.md, "Value binders and const requirements": "Constructing
+        an instance owes the coupling"). A type parameter binds no value.
+        An argument may be a binder this reading holds rigid, `Index<N>` in
+        `machine f<const N: u32>`; it stands for that machine's input, which
+        is returned as the owner of the values.
+    */
+    fn application_values(
+        &self,
+        id: MachineId,
+        declaration: SymbolHandle,
+        application: Option<&crate::source_state::SourceTypeApplication>,
+    ) -> Checked<(
+        Vec<(SymbolHandle, semantic_vocabulary::ScalarTerm)>,
+        Option<MachineId>,
+    )> {
+        use crate::source_state::data::TypeParameterKind;
+        use crate::source_state::types::TypeReferenceNode;
+        let Some(application) = application else {
+            return Ok((Vec::new(), None));
+        };
+        let template = self
+            .typed
+            .unique_data_definition_by_symbol(declaration)
+            .ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Typing("applied data lost its template"),
+                )
+            })?;
+        let mut bound = Vec::new();
+        let mut owner = None;
+        for parameter in self.typed.data_type_parameters(template) {
+            let (TypeParameterKind::Const { type_reference }
+            | TypeParameterKind::Value { type_reference }) = parameter.kind
+            else {
+                continue;
+            };
+            let Some((_, argument)) = application
+                .substitutions
+                .iter()
+                .find(|(binder, _)| *binder == parameter.symbol)
+            else {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Typing("applied data without an argument for its value parameter"),
+                ));
+            };
+            let scalar_type = self.scalar_type(id, type_reference)?;
+            if let TypeReferenceNode::Named { symbol, .. } =
+                self.typed.type_reference_table.type_reference(*argument)
+                && self
+                    .const_scope
+                    .iter()
+                    .any(|input| input.symbol == *symbol && input.owner == id)
+            {
+                owner = Some(id);
+            }
+            bound.push((
+                parameter.symbol,
+                self.bound_scalar_value(id, scalar_type, *argument, true)?,
+            ));
+        }
+        Ok((bound, owner))
     }
 
     fn source(&self, id: MachineId, record: StructuralTypeId) -> Checked<&RecordSource> {

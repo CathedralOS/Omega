@@ -16,53 +16,150 @@ pub(crate) struct SelectedOperator {
     pub arguments: Vec<ClosedOperatorApplicationArgument>,
 }
 
+/// One way an occurrence can apply an operator declaration: the fixed token
+/// and the operand expressions the declaration receives, in parameter order
+/// (expressions.md, "Operator families"). `indexed` marks indexing, whose
+/// collection operand matches under the collection-view rules.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct OperatorForm {
+    pub spelling: language_core::operator_spelling::OperatorSpelling,
+    operands: [crate::source_state::expression::ExpressionHandle; 3],
+    count: usize,
+    pub indexed: bool,
+}
+
+impl OperatorForm {
+    fn new(
+        spelling: language_core::operator_spelling::OperatorSpelling,
+        written: &[crate::source_state::expression::ExpressionHandle],
+        indexed: bool,
+    ) -> Self {
+        let mut operands = [crate::source_state::expression::ExpressionHandle::invalid(); 3];
+        operands[..written.len()].copy_from_slice(written);
+        Self {
+            spelling,
+            operands,
+            count: written.len(),
+            indexed,
+        }
+    }
+
+    pub(crate) fn operands(&self) -> &[crate::source_state::expression::ExpressionHandle] {
+        &self.operands[..self.count]
+    }
+}
+
+/// The forms an occurrence may apply, the more specific first. Prefix
+/// negation `-x` applies a one-operand `-` before its `0 - x` meaning;
+/// `c[i]` applies `[]` to the collection and index, and `c[a..b]` applies
+/// `[..]` to the collection and both written endpoints. Suffixed policy
+/// operators bind no declaration, and a range with an omitted or inclusive
+/// end has no operand tuple a declaration could receive.
+pub(crate) fn forms(
+    program: &TypedTrees,
+    handle: crate::source_state::expression::ExpressionHandle,
+) -> [Option<OperatorForm>; 2] {
+    use language_core::operator_spelling::OperatorSpelling;
+    match program.expression_table.expression(handle) {
+        ExpressionNode::Binary(binary)
+            if binary.policy == numerics::arithmetic::ArithmeticDomain::Exact =>
+        {
+            let Some(spelling) =
+                crate::source_state::operator::binary_operator_spelling(binary.operator)
+            else {
+                return [None, None];
+            };
+            let both = OperatorForm::new(spelling, &[binary.left, binary.right], false);
+            if binary.negation {
+                [
+                    Some(OperatorForm::new(spelling, &[binary.right], false)),
+                    Some(both),
+                ]
+            } else {
+                [Some(both), None]
+            }
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let table = &program.expression_table;
+            let form = match table.range_node(indexed.index) {
+                None => OperatorForm::new(
+                    OperatorSpelling::Index,
+                    &[indexed.collection, indexed.index],
+                    true,
+                ),
+                Some(range)
+                    if !range.end_inclusive
+                        && table.expression_is_valid(range.start)
+                        && table.expression_is_valid(range.end) =>
+                {
+                    OperatorForm::new(
+                        OperatorSpelling::Range,
+                        &[indexed.collection, range.start, range.end],
+                        true,
+                    )
+                }
+                Some(_) => return [None, None],
+            };
+            [Some(form), None]
+        }
+        _ => [None, None],
+    }
+}
+
 /// One declaration/type query shared by call preparation and domain-cast result
-/// accounting. Unknown nonliteral types never act as wildcard operands.
+/// accounting. Unknown nonliteral types never act as wildcard operands. The
+/// first form with a matching declaration is the occurrence's selection.
 pub(crate) fn selection(
     program: &TypedTrees,
     types: &mut crate::typing::typing_queries::DeclaredExpressionTypes,
     owner: symbols::SymbolHandle,
     handle: crate::source_state::expression::ExpressionHandle,
-) -> Result<Option<SelectedOperator>, Diagnostic> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(handle) else {
-        return Ok(None);
-    };
-    if binary.policy != numerics::arithmetic::ArithmeticDomain::Exact {
-        return Ok(None);
-    }
-    let Some(spelling) = crate::source_state::operator::binary_operator_spelling(binary.operator)
-    else {
-        return Ok(None);
-    };
-    let mut operands = Vec::with_capacity(2);
-    for operand in [binary.left, binary.right] {
-        let reference = types.get(program, owner, operand);
-        if reference.is_none()
-            && !crate::source_state::closed_numeric::has_anonymous_numeric_results(program, operand)
-        {
-            return Ok(None);
-        }
-        operands.push(reference);
-    }
+) -> Result<Option<(SelectedOperator, OperatorForm)>, Diagnostic> {
     let span = program.expression_table.source_span(handle);
-    selection_for_operands(program, spelling, &operands, span)
+    'forms: for form in forms(program, handle).into_iter().flatten() {
+        let mut operands = [None; 3];
+        for (slot, operand) in operands.iter_mut().zip(form.operands()) {
+            let reference = types.get(program, owner, *operand);
+            if reference.is_none()
+                && !crate::source_state::closed_numeric::has_anonymous_numeric_results(
+                    program, *operand,
+                )
+            {
+                continue 'forms;
+            }
+            *slot = reference;
+        }
+        if let Some(selected) =
+            selection_for_operands(program, form, &operands[..form.count], span)?
+        {
+            return Ok(Some((selected, form)));
+        }
+    }
+    Ok(None)
 }
 
 pub(crate) fn selection_for_operands(
     program: &TypedTrees,
-    spelling: language_core::operator_spelling::OperatorSpelling,
+    form: OperatorForm,
     operands: &[Option<crate::source_state::types::TypeReferenceHandle>],
     span: source_text::SourceSpan,
 ) -> Result<Option<SelectedOperator>, Diagnostic> {
+    let spelling = form.spelling;
     // An anonymous arithmetic tree has no declared home. Like the existing
     // builtin-meaning query, keep it builtin rather than letting every family
     // match a tuple of wildcard operands.
     if operands.iter().all(Option::is_none) {
         return Ok(None);
     }
-    let candidates = crate::source_state::operator::resolve_spelling_for_operands(
-        program, spelling, operands, span,
-    );
+    let candidates = if form.indexed {
+        crate::source_state::operator::resolve_indexed_spelling_for_operands(
+            program, spelling, operands, span,
+        )
+    } else {
+        crate::source_state::operator::resolve_spelling_for_operands(
+            program, spelling, operands, span,
+        )
+    };
     let selected = match candidates.as_slice() {
         [] => return Ok(None),
         [selected] => selected,
@@ -118,38 +215,67 @@ pub(crate) fn selection_for_operands(
     else {
         return Ok(None);
     };
-    let Some(arguments) = crate::source_state::operator::closed_operator_application_for_operands(
-        program,
-        selected.operator,
-        operands,
-    ) else {
+    let application = if form.indexed {
+        crate::source_state::operator::closed_indexed_operator_application_for_operands
+    } else {
+        crate::source_state::operator::closed_operator_application_for_operands
+    };
+    let Some(arguments) = application(program, selected.operator, operands) else {
         return Ok(None);
     };
+    // A call passes each operand as written. A collection value that would
+    // need a loan to reach a reference parameter is not lent here; that
+    // occurrence stays unselected and the lowered-form reader refuses it.
+    if form.indexed && needs_collection_view(program, selected.operator, operands) {
+        return Ok(None);
+    }
     Ok(Some(SelectedOperator {
         target: machine.symbol,
         arguments,
     }))
 }
 
+/// Whether a declaration whose collection parameter is a reference was
+/// matched to a written collection that is not one, through indexing's
+/// collection-view adaptation (expressions.md, "Operator families").
+fn needs_collection_view(
+    program: &TypedTrees,
+    operator: &crate::source_state::operator::OperatorDefinition,
+    operands: &[Option<crate::source_state::types::TypeReferenceHandle>],
+) -> bool {
+    use crate::source_state::types::TypeReferenceNode;
+    let table = &program.type_reference_table;
+    let reference_access = |reference| {
+        let reference =
+            crate::source_state::operator::unconstrained_type_reference(program, reference)?;
+        match table.type_reference(reference) {
+            TypeReferenceNode::Reference { access, .. } => Some(*access),
+            _ => None,
+        }
+    };
+    let Some(parameter) = program.operator_parameters(operator).first() else {
+        return false;
+    };
+    reference_access(parameter.type_reference).is_some()
+        && operands
+            .first()
+            .copied()
+            .flatten()
+            .is_some_and(|written| reference_access(written).is_none())
+}
+
+/// Every occurrence after `frontier` that has a form a declaration could
+/// apply: an unsuffixed binary or prefix-negation operator, or an index.
 pub(crate) fn sites(
     program: &TypedTrees,
     frontier: usize,
-) -> Vec<(
-    crate::source_state::expression::ExpressionHandle,
-    crate::source_state::expression::TableBinaryExpression,
-)> {
+) -> Vec<crate::source_state::expression::ExpressionHandle> {
     program
         .expression_table
         .iter_expressions()
-        .filter_map(|(handle, node)| match node {
-            ExpressionNode::Binary(binary)
-                if handle.arena_index() as usize > frontier
-                    && binary.policy == numerics::arithmetic::ArithmeticDomain::Exact =>
-            {
-                crate::source_state::operator::binary_operator_spelling(binary.operator)
-                    .map(|_| (handle, *binary))
-            }
-            _ => None,
+        .filter_map(|(handle, _)| {
+            (handle.arena_index() as usize > frontier && forms(program, handle)[0].is_some())
+                .then_some(handle)
         })
         .collect()
 }
@@ -255,7 +381,7 @@ fn declared_domains(
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum SelectedMeaning {
-    Declaration(SelectedOperator),
+    Declaration((SelectedOperator, OperatorForm)),
     Core(numerics::intrinsics::CoreIntegerOperatorSignature),
 }
 
@@ -371,15 +497,20 @@ pub(crate) fn prepare_site(
     owners: &crate::source_state::references::ProgramOperandOwners,
     types: &mut crate::typing::typing_queries::DeclaredExpressionTypes,
     handle: crate::source_state::expression::ExpressionHandle,
-    binary: crate::source_state::expression::TableBinaryExpression,
 ) -> Result<(), Diagnostic> {
     let span = program.expression_table.source_span(handle);
+    let binary = match program.expression_table.expression(handle) {
+        ExpressionNode::Binary(binary) => Some(*binary),
+        _ => None,
+    };
     let mut answer = None;
     let mut caller = symbols::SymbolHandle::invalid();
     for owner in owners.expression_owners(handle) {
         let selected = match selection(program, types, owner, handle)? {
             Some(selected) => Some(SelectedMeaning::Declaration(selected)),
-            None => core_application(program, types, owner, binary).map(SelectedMeaning::Core),
+            None => binary
+                .and_then(|binary| core_application(program, types, owner, binary))
+                .map(SelectedMeaning::Core),
         };
         if answer
             .as_ref()
@@ -397,6 +528,7 @@ pub(crate) fn prepare_site(
     }
     let Some(Some(selected)) = answer else {
         if answer.is_some()
+            && let Some(binary) = binary
             && let Some(error) = qualified_builtin_operand(program, types, caller, handle, binary)
         {
             return Err(error);
@@ -409,6 +541,7 @@ pub(crate) fn prepare_site(
         }
         SelectedMeaning::Declaration(selected) => selected,
     };
+    let (selected, form) = selected;
     let target = selected.target;
     let Some(machine) = program.machine_by_symbol(target) else {
         return Err(
@@ -465,7 +598,7 @@ pub(crate) fn prepare_site(
     }
     let arguments = program
         .expression_table
-        .insert_expression_handles([binary.left, binary.right]);
+        .insert_expression_handles(form.operands().iter().copied());
     let (machine_arguments, application, result_type) =
         retain_application(program, &selected, caller, &label, result_type, span)?;
     *program.expression_table.expression_mut(handle) = ExpressionNode::Call(TableCallExpression {

@@ -1,19 +1,8 @@
-use representations\source_files\SourceSet;
-use representations\source_files\SourceSpan;
-use representations\source_files\spans_equal;
-use representations\symbol_resolved_trees\BinderContract;
-use representations\symbol_resolved_trees\ResolveDiagnosticCode;
-use representations\symbol_resolved_trees\binder_contract;
-use representations\symbol_resolved_trees\name_resolution_reject;
-use representations\symbol_resolved_trees\set_binder_contract;
-use representations\syntax_trees\Contract;
-use representations\syntax_trees\GenericParameter;
-use representations\syntax_trees\GenericParameterKind;
-use representations\syntax_trees\MachineItem;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\machine_item;
-use representations\syntax_trees\syntax_trees_contract;
-use representations\syntax_trees\syntax_trees_generic_parameter;
+use pipeline/syntax_trees_to_symbol_resolved_trees/resolution_state.omg;
+
+use representations/source_files/source.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
 
 // Machine binder contracts (wiki/spec/language/generics.md, Static machine
 // binder categories). Each `requires machine Name(...)` contract of a machine
@@ -22,86 +11,86 @@ use representations\syntax_trees\syntax_trees_generic_parameter;
 // than inferring it from calls, so a contract naming no such binder, or a
 // second contract for one binder, rejects. A binder without a contract has
 // none: calling it rejects in typing.
-public machine bind_machine_contracts(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
+public machine bind_machine_contracts(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> clear(resolver, sources, syntax, 0) }
+    transition { _ -> clear(resolver, sources, syntax, 0 as +Trapping) }
 
-    machine clear(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, parameter: u64 in Trapping) {
+    machine clear(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, parameter: u64 in Trapping) {
         transition parameter < syntax.generic_parameter_count {
             true -> cleared(resolver, sources, syntax, parameter),
-            _ -> next_machine(resolver, sources, syntax, 0)
+            _ -> next_machine(resolver, sources, syntax, 0 as +Trapping)
         }
     }
 
-    machine cleared(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, parameter: u64 in Trapping) {
-        set_binder_contract(@mutable resolver.output, parameter, BinderContract { present: false, contract: 0 });
+    machine cleared(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, parameter: u64 in Trapping) {
+        |symbol_resolved_trees|::set_binder_contract(@mutable resolver.output, parameter, |symbol_resolved_trees|::BinderContract { present: false, contract: 0 as +Trapping });
         transition { _ -> clear(resolver, sources, syntax, parameter + 1) }
     }
 
-    machine next_machine(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine next_machine(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count && resolver.output.accepted {
             true -> machine(resolver, sources, syntax, index),
             _ -> done()
         }
     }
 
-    machine machine(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
-        let item: MachineItem = machine_item(syntax, index);
-        transition { _ -> next_contract(resolver, sources, syntax, index, item, 0) }
+    machine machine(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, index);
+        transition { _ -> next_contract(resolver, sources, syntax, index, item, 0 as +Trapping) }
     }
 
-    machine next_contract(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+    machine next_contract(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, item: |syntax_trees|::MachineItem, offset: u64 in Trapping) {
         transition offset < item.contract_count && resolver.output.accepted {
             true -> contract(resolver, sources, syntax, index, item, offset),
             _ -> next_machine(resolver, sources, syntax, index + 1)
         }
     }
 
-    machine contract(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+    machine contract(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, item: |syntax_trees|::MachineItem, offset: u64 in Trapping) {
         let handle: u64 in Trapping = item.first_contract + offset;
-        let written: Contract = syntax_trees_contract(syntax, handle);
+        let written: |syntax_trees|::Contract = |syntax_trees|::syntax_trees_contract(syntax, handle);
         let binder: u64 in Trapping = contract_binder(sources, syntax, item, written.name.source_span);
         transition binder < item.generic_parameter_count {
             true -> named(resolver, sources, syntax, index, item, offset, handle, written, item.first_generic_parameter + binder),
-            _ -> reject(resolver, ResolveDiagnosticCode::ContractNamesNoBinder, written.name.source_span)
+            _ -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::ContractNamesNoBinder, written.name.source_span)
         }
     }
 
     machine named(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         index: u64 in Trapping,
-        item: MachineItem,
+        item: |syntax_trees|::MachineItem,
         offset: u64 in Trapping,
         handle: u64 in Trapping,
-        written: Contract,
+        written: |syntax_trees|::Contract,
         parameter: u64 in Trapping
     ) {
-        let existing: BinderContract = binder_contract(@resolver.output, parameter);
+        let existing: |symbol_resolved_trees|::BinderContract = |symbol_resolved_trees|::binder_contract(@resolver.output, parameter);
         transition existing.present {
-            true -> reject(resolver, ResolveDiagnosticCode::DuplicateContract, written.name.source_span),
+            true -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::DuplicateContract, written.name.source_span),
             _ -> bound(resolver, sources, syntax, index, item, offset, handle, parameter)
         }
     }
 
     machine bound(
-        resolver: @mutable Resolver,
-        sources: @SourceSet,
-        syntax: @SyntaxTrees,
+        resolver: @mutable |resolution_state|::Resolver,
+        sources: @|source|::SourceSet,
+        syntax: @|syntax_trees|::SyntaxTrees,
         index: u64 in Trapping,
-        item: MachineItem,
+        item: |syntax_trees|::MachineItem,
         offset: u64 in Trapping,
         handle: u64 in Trapping,
         parameter: u64 in Trapping
     ) {
-        set_binder_contract(@mutable resolver.output, parameter, BinderContract { present: true, contract: handle });
+        |symbol_resolved_trees|::set_binder_contract(@mutable resolver.output, parameter, |symbol_resolved_trees|::BinderContract { present: true, contract: handle });
         transition { _ -> next_contract(resolver, sources, syntax, index, item, offset + 1) }
     }
 
-    machine reject(resolver: @mutable Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
-        name_resolution_reject(@mutable resolver.output, code, source_span);
+    machine reject(resolver: @mutable |resolution_state|::Resolver, code: |symbol_resolved_trees|::ResolveDiagnosticCode, source_span: |source|::SourceSpan) {
+        |symbol_resolved_trees|::name_resolution_reject(@mutable resolver.output, code, source_span);
     }
 
     machine done() {}
@@ -109,22 +98,22 @@ crashes Trap
 
 // The offset among `item`'s generic parameters of its `machine` binder
 // spelled `name`; the parameter count when none is.
-machine contract_binder(sources: @SourceSet, syntax: @SyntaxTrees, item: MachineItem, name: SourceSpan) -> u64 in Trapping
+machine contract_binder(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, item: |syntax_trees|::MachineItem, name: |source|::SourceSpan) -> u64 in Trapping
 crashes Trap
 {
-    transition { _ -> next(sources, syntax, item, name, 0) }
+    transition { _ -> next(sources, syntax, item, name, 0 as +Trapping) }
 
-    machine next(sources: @SourceSet, syntax: @SyntaxTrees, item: MachineItem, name: SourceSpan, offset: u64 in Trapping) -> u64 in Trapping {
+    machine next(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, item: |syntax_trees|::MachineItem, name: |source|::SourceSpan, offset: u64 in Trapping) -> u64 in Trapping {
         transition offset < item.generic_parameter_count {
             true -> candidate(sources, syntax, item, name, offset),
             _ -> found(item.generic_parameter_count)
         }
     }
 
-    machine candidate(sources: @SourceSet, syntax: @SyntaxTrees, item: MachineItem, name: SourceSpan, offset: u64 in Trapping) -> u64 in Trapping {
-        let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, item.first_generic_parameter + offset);
-        let spelled: bool = spans_equal(sources, parameter.name.source_span, name);
-        transition spelled && parameter.kind == GenericParameterKind::Machine {
+    machine candidate(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, item: |syntax_trees|::MachineItem, name: |source|::SourceSpan, offset: u64 in Trapping) -> u64 in Trapping {
+        let parameter: |syntax_trees|::GenericParameter = |syntax_trees|::syntax_trees_generic_parameter(syntax, item.first_generic_parameter + offset);
+        let spelled: bool = |source|::spans_equal(sources, parameter.name.source_span, name);
+        transition spelled && parameter.kind == |syntax_trees|::GenericParameterKind::Machine {
             true -> found(offset),
             _ -> next(sources, syntax, item, name, offset + 1)
         }

@@ -3079,6 +3079,26 @@ fn complete_storage_family_refuses_missing_capture_unknown_and_stale_inputs() {
 }
 
 #[test]
+fn storage_queries_reject_duplicate_machine_ids() {
+    let (types, first) = mixed_storage_arrival();
+    let (_, second) = mixed_storage_arrival();
+    let id = first.id;
+    let graph = [first, second];
+    let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(&types, &graph);
+    let point = (semantic_vocabulary::BlockId::new(2).unwrap(), 0);
+    let captured = location(3);
+    assert_eq!(
+        analysis.captured_storage_family(id, point, &captured),
+        Err("captured storage machine is absent or stale")
+    );
+    assert_eq!(analysis.location(id, point, &captured), None);
+    assert_eq!(
+        analysis.flow(id).err(),
+        Some(DescriptorGraphError::MissingOrAmbiguousMachine(id))
+    );
+}
+
+#[test]
 fn branch_selected_storage_keeps_every_backing_origin() {
     let tag = StructuralTypeId::new(1).unwrap();
     let empty = semantic_vocabulary::StructuralCaseId::new(1).unwrap();

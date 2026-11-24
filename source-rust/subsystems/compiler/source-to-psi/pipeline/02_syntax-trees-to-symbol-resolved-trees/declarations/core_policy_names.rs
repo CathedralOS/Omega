@@ -1,18 +1,6 @@
-/*
-    `Wrapping`, `Saturating` and `Trapping` are core's arithmetic-policy
-    domains, not reserved words (domains.md, "Domain composition and
-    operators"; numeric_values.md, "Policy domains"). Parsing never consults
-    name lookup, so `u8 in Wrapping` and `x as +Wrapping` arrive here as
-    ordinary domain names. A package that declares its own `domain
-    u8::Wrapping;` means that declaration wherever it is visible, so the
-    spelling stays a domain name and typing selects it like any other domain.
-    A spelling that reaches no declared domain means core's policy: this pass
-    rewrites it to the policy constraint or the cast's policy before any other
-    preparation reads the forest.
-
-    Whether a visible declared `Wrapping` should instead compete with core's
-    policy is open (`OWNER_QUESTIONS.md`, "core-policy-domain-names").
-*/
+// Existing callers still use bare policy names. Until those callers import the
+// core declarations, this pass translates an unresolved policy spelling to the
+// old compiler representation. OPERATION-ARITHMETIC-POLICY tracks its removal.
 
 use super::declaration_selection::ConstantSelection;
 use diagnostics::Diagnostic;

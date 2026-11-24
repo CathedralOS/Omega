@@ -13,10 +13,9 @@
   edited blocks, and digest rosters.
 */
 
-use operation_evidence::provenance::PsiProvenance;
-use operation_evidence::provenance::WorkSettlement;
 use register_model::encode_constraint_key;
-use semantic_vocabulary::{IntegerSign, ScalarType};
+pub(crate) use target_vocabulary::encode_scalar_type;
+use target_vocabulary::encode_work;
 
 use crate::codec_bytes::push_encoded;
 use crate::effects::program::identity::{encode_ids, encode_kind};
@@ -691,56 +690,6 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
     encode_work(bytes, &successor.work);
 }
 
-fn encode_work(bytes: &mut Vec<u8>, work: &[WorkSettlement]) {
-    push_encoded(bytes, (work.len() as u64).to_le_bytes());
-    for settlement in work {
-        match settlement.site {
-            PsiProvenance::Operation(operation) => {
-                bytes.push(0);
-                push_encoded(bytes, operation.get().to_le_bytes());
-            }
-            PsiProvenance::Edge(edge) => {
-                bytes.push(1);
-                push_encoded(bytes, edge.get().to_le_bytes());
-            }
-        }
-        push_encoded(bytes, settlement.units.to_le_bytes());
-    }
-}
-
-pub(crate) fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarType) {
-    match scalar_type {
-        ScalarType::Callable(contract) => {
-            bytes.push(3);
-            push_encoded(bytes, contract.get().to_le_bytes());
-        }
-        ScalarType::Boolean => bytes.push(0),
-        ScalarType::Integer(integer) => {
-            bytes.push(1);
-            bytes.push(match integer.carrier() {
-                semantic_vocabulary::IntegerCarrier::Fixed => 0,
-                semantic_vocabulary::IntegerCarrier::Address => 1,
-            });
-            bytes.push(match integer.sign() {
-                IntegerSign::Signed => 0,
-                IntegerSign::Unsigned => 1,
-            });
-            // Raw plan identity preserves a rigid parameter; it cannot grant
-            // the concrete carrier required by published native execution.
-            integer
-                .width()
-                .write_identity(|part| bytes.extend_from_slice(part));
-        }
-        ScalarType::IeeeFloat(format) => {
-            bytes.push(2);
-            bytes.push(match format {
-                semantic_vocabulary::IeeeFloatFormat::Binary32 => 0,
-                semantic_vocabulary::IeeeFloatFormat::Binary64 => 1,
-            });
-        }
-    }
-}
-
 fn encode_option_u16(bytes: &mut Vec<u8>, value: Option<u16>) {
     match value {
         Some(value) => {
@@ -1328,6 +1277,45 @@ mod tests {
     };
     use optimization_core::AcceptedObligationFactIdentity;
     use register_model::RegisterConstraintKey;
+
+    #[test]
+    fn scalar_and_work_identity_preserve_their_wire_bytes() {
+        use operation_evidence::provenance::{PsiProvenance, WorkSettlement};
+        use semantic_vocabulary::{
+            CallableContractId, EdgeId, IeeeFloatFormat, OperationId, ScalarType,
+        };
+
+        let mut scalars = Vec::new();
+        for scalar in [
+            ScalarType::Boolean,
+            ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+            ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+            ScalarType::Callable(CallableContractId::new(7).unwrap()),
+        ] {
+            super::encode_scalar_type(&mut scalars, scalar);
+        }
+        assert_eq!(scalars, [0, 2, 0, 2, 1, 3, 7, 0, 0, 0, 0, 0, 0, 0]);
+
+        let mut work = Vec::new();
+        let settlements = [
+            WorkSettlement {
+                site: PsiProvenance::Operation(OperationId::new(3).unwrap()),
+                units: 5,
+            },
+            WorkSettlement {
+                site: PsiProvenance::Edge(EdgeId::new(4).unwrap()),
+                units: 6,
+            },
+        ];
+        super::encode_work(&mut work, &settlements);
+        let mut expected = 2_u64.to_le_bytes().to_vec();
+        for (tag, id, units) in [(0, 3_u64, 5_u64), (1, 4, 6)] {
+            expected.push(tag);
+            expected.extend(id.to_le_bytes());
+            expected.extend(units.to_le_bytes());
+        }
+        assert_eq!(work, expected);
+    }
 
     #[test]
     fn scalar_width_identity_keeps_fixed_bytes_and_scopes_parameters() {

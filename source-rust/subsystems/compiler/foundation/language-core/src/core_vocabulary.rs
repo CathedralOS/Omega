@@ -656,6 +656,7 @@ const ROWS: &[CoreVocabularyRow] = &[
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CoreSource {
     Activation,
+    Content,
     Atomic,
     Relation,
     FloatOperations,
@@ -673,6 +674,7 @@ const CORE_SOURCES: &[(CoreSource, &str, BundledFile)] = &[
         BundledFile::CoreActivation,
     ),
     (CoreSource::Atomic, "Atomic/atomic.omg", BundledFile::CoreAtomic),
+    (CoreSource::Content, "content.omg", BundledFile::CoreContent),
     (
         CoreSource::Relation,
         "relation.omg",

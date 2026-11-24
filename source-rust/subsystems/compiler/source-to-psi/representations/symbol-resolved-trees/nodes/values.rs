@@ -470,6 +470,7 @@ pub mod expression {
             let expected = table.insert(ExpressionNode::Boolean(true));
             let equality = table.insert(ExpressionNode::Binary(TableBinaryExpression {
                 policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                negation: false,
                 left: observed,
                 operator: BinaryOperator::Equal,
                 right: expected,
@@ -477,6 +478,7 @@ pub mod expression {
             let guard = table.insert(ExpressionNode::Boolean(true));
             let condition = table.insert(ExpressionNode::Binary(TableBinaryExpression {
                 policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                negation: false,
                 left: equality,
                 operator: BinaryOperator::And,
                 right: guard,
@@ -681,6 +683,7 @@ pub mod expression {
             let hall = source.insert(ExpressionNode::String((&b"Hall"[..]).into()));
             let open = source.insert(ExpressionNode::Binary(TableBinaryExpression {
                 policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                negation: false,
                 left: room,
                 operator: BinaryOperator::Equal,
                 right: field,
@@ -1087,6 +1090,7 @@ pub mod expression {
             let thirteen = table.insert(ExpressionNode::Integer(IntegerLiteral::from_value(13)));
             let proof = table.insert(ExpressionNode::Binary(TableBinaryExpression {
                 policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                negation: false,
                 left: eleven,
                 operator: BinaryOperator::Add,
                 right: thirteen,
@@ -1221,7 +1225,7 @@ expression #37 = Range(TableRangeExpression { start: #36, end: #0@0, end_inclusi
 expression #38 = String([72, 97, 108, 108]) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #39 = Integer(IntegerLiteral { text: "11", landing: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #40 = Integer(IntegerLiteral { text: "13", landing: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
-expression #41 = Binary(TableBinaryExpression { left: #39, operator: Add, right: #40, policy: Exact }) at 0:0..0 exposure None partition None occurrences #0@0+0
+expression #41 = Binary(TableBinaryExpression { left: #39, operator: Add, right: #40, policy: Exact, negation: false }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #42 = Name(TableNamePath { members: #13+1, member_symbols: #7+1, head_symbol: #3, symbol: #3, static_application: #0@0, reserved_result_of: #0@0 }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #43 = Integer(IntegerLiteral { text: "3", landing: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #44 = Indexed(TableIndexedExpression { collection: #42, index: #43 }) at 0:0..0 exposure None partition None occurrences #0@0+0
@@ -2216,6 +2220,11 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
         /// The policy an operator suffix chose for this one operation
         /// (`+%`, `+|`, `+!`); `Exact` for the bare operator.
         pub policy: numerics::arithmetic::ArithmeticDomain,
+        /// `true` when the parser formed this subtraction from prefix negation
+        /// `-right`; `left` is then the implied zero. Operator selection reads
+        /// it to select a declared one-operand `-` (expressions.md, "Operator
+        /// families"); with no such declaration the meaning stays `0 - right`.
+        pub negation: bool,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]

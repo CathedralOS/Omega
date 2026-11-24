@@ -73,6 +73,16 @@ impl PredicateBudget {
                 self.count(left.path().len())?;
                 self.count(right.path().len())?;
             }
+            Proposition::DeclarationIdentity(clause) => {
+                self.count(clause.values.len())?;
+                for value in &clause.values {
+                    match &value.operand {
+                        semantic_vocabulary::ClauseOperand::Scalar(term) => self.scalar(term, depth + 1)?,
+                        semantic_vocabulary::ClauseOperand::Application { arguments, .. } => self.count(arguments.len())?,
+                        _ => {}
+                    }
+                }
+            }
             Proposition::FloatIntegerConversion(clause) => {
                 self.scalar(&clause.source, depth + 1)?;
                 self.scalar(&clause.result, depth + 1)?;
@@ -145,6 +155,11 @@ impl PredicateBudget {
     pub fn scalar(&mut self, value: &ScalarTerm, depth: usize) -> Result<(), PredicateSizeLimit> {
         self.step(depth)?;
         match value {
+            ScalarTerm::DeclarationApplication { arguments, .. } => {
+                for argument in arguments {
+                    self.scalar(argument, depth + 1)?;
+                }
+            }
             ScalarTerm::Application { .. }
             | ScalarTerm::Value { .. }
             | ScalarTerm::Boolean(_)

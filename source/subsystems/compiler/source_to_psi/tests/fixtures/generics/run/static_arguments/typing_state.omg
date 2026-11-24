@@ -1,0 +1,2 @@
+public data TypedReferences [copy] {}
+public data Typer { output: TypedReferences; }

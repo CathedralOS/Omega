@@ -1875,3 +1875,29 @@ fn explicit_empty_rows_spell_none() {
         crate::tests::expect_error(&error, message);
     }
 }
+
+#[test]
+fn contextual_declaration_names_can_start_later_domain_facts() {
+    for separator in [";", ","] {
+        for predicate in ["operator < 2", "domain[0] > 0", "trait == 1", "const > 0"] {
+            let source = format!(
+                "domain i32::Ready requires self >= 0{separator} {predicate}; domain i32::Next requires true;"
+            );
+            let tree =
+                crate::tests::parse_source(&source, "two predicates followed by another domain");
+            let domains = crate::tests::root_domains(&tree);
+            assert_eq!(domains.len(), 2);
+            assert_eq!(tree.items.proof_facts(domains[0].facts).len(), 2);
+            assert_eq!(tree.items.proof_facts(domains[1].facts).len(), 1);
+        }
+    }
+}
+
+#[test]
+fn adjacent_domains_without_a_separator_keep_their_own_predicates() {
+    let source = (0..12)
+        .map(|n| format!("domain i32::Ready{n} requires true\n"))
+        .collect::<String>();
+    let tree = crate::tests::parse_source(&source, "domain sequence");
+    assert_eq!(crate::tests::root_domains(&tree).len(), 12);
+}

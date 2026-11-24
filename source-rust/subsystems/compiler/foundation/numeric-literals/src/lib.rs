@@ -85,11 +85,50 @@ pub struct IntegerLanding {
 
 pub use numerics::intrinsics::FloatFormat;
 
-#[derive(Debug, Clone, record_storage::Record)]
+#[derive(Debug, Clone)]
 pub struct FloatLiteral {
     text: Arc<str>,
     landing: Option<FloatFormat>,
     presented: Option<(FloatFormat, u64)>,
+}
+
+impl record_storage::Record for FloatLiteral {
+    fn write(
+        &self,
+        output: &mut record_storage::RecordWriter,
+    ) -> Result<(), record_storage::RecordError> {
+        output.record(|output| {
+            self.text.write(output)?;
+            self.landing.write(output)?;
+            self.presented.write(output)
+        })
+    }
+
+    fn read<Context>(
+        input: &mut record_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, record_storage::RecordError> {
+        input.record(|input| {
+            let text = Arc::<str>::read(input)?;
+            let landing = Option::<FloatFormat>::read(input)?;
+            let presented = Option::<(FloatFormat, u64)>::read(input)?;
+            if let Some((format, bits)) = presented {
+                let literal = Self::from_bits(format, bits)
+                    .ok_or_else(|| input.error("floating representation exceeds its format"))?;
+                if landing != Some(format) || literal.text != text {
+                    return Err(
+                        input.error("floating representation differs from its retained literal")
+                    );
+                }
+            } else if !bignum::ExactFloat::accepts_decimal_str(&text) {
+                return Err(input.error("invalid decimal floating literal"));
+            }
+            Ok(Self {
+                text,
+                landing,
+                presented,
+            })
+        })
+    }
 }
 
 impl PartialEq for FloatLiteral {
@@ -675,6 +714,48 @@ mod tests {
         FixedInteger, FloatFormat, FloatLiteral, IntegerLanding, IntegerLiteral, IntegerRadix,
         LandedIntegerType,
     };
+
+    #[test]
+    fn recovered_float_literals_retain_valid_text_and_exact_presentations() {
+        use record_storage::{RecordLimits, decode, encode};
+        for literal in [
+            FloatLiteral::parse("+1.25e-1f32").unwrap(),
+            FloatLiteral::from_f64(f64::NEG_INFINITY),
+            FloatLiteral::from_bits(FloatFormat::F32, 0xff80_0123).unwrap(),
+            FloatLiteral::from_bits(FloatFormat::F64, (-0.0f64).to_bits()).unwrap(),
+        ] {
+            let bytes = encode(&literal, RecordLimits::default()).unwrap();
+            let restored: FloatLiteral = decode(&bytes, RecordLimits::default()).unwrap();
+            assert_eq!(restored, literal);
+            assert_eq!(restored.landing(), literal.landing());
+        }
+        for (text, landing, presented) in [
+            ("wrong", None, None),
+            ("1e+", Some(FloatFormat::F32), None),
+            (
+                "0.0",
+                Some(FloatFormat::F32),
+                Some((FloatFormat::F32, 1u64 << 32)),
+            ),
+            (
+                "1.0",
+                Some(FloatFormat::F64),
+                Some((FloatFormat::F32, 1.0f32.to_bits().into())),
+            ),
+            (
+                "2.0",
+                Some(FloatFormat::F64),
+                Some((FloatFormat::F64, 1.0f64.to_bits())),
+            ),
+        ] {
+            let fields = (std::sync::Arc::<str>::from(text), landing, presented);
+            let bytes = encode(&fields, RecordLimits::default()).unwrap();
+            assert!(
+                decode::<FloatLiteral>(&bytes, RecordLimits::default()).is_err(),
+                "{fields:?}"
+            );
+        }
+    }
 
     #[test]
     fn formatted_infinities_round_trip_through_literal_text() {

@@ -1,0 +1,3 @@
+# slice 037: 7021 lines in 2 file range(s)
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_multiplicity_borrowed_windows.rs	1	2003
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_multiplicity_claim_outcomes.rs	1	5018

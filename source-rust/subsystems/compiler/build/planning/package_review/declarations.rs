@@ -652,6 +652,25 @@ impl<'a> PolicySource<'a> {
                     .builtin_index_element_type(expression, indexed, scope, depth)
                     .map(Some);
             }
+            ExpressionNode::Binary(binary) if binary.operator.is_arithmetic() => {
+                use source_compiler::representations::source_state::{
+                    closed_numeric::has_anonymous_numeric_results, operator::core_integer_result,
+                };
+                if has_anonymous_numeric_results(typed, expression) {
+                    return Ok(None);
+                }
+                // The expression projection independently checks the selected operator.
+                // Use the same carrier judgment as typing when its result is an operand.
+                return core_integer_result(
+                    typed,
+                    binary.operator,
+                    binary.policy,
+                    self.operand_type(binary.left, scope, depth + 1)?,
+                    self.operand_type(binary.right, scope, depth + 1)?,
+                )
+                .map(Some)
+                .ok_or_else(|| unavailable("a computed contract operand's exact integer carrier"));
+            }
             ExpressionNode::Cast(cast) if cast.result_type.is_valid() => {
                 return Ok(Some(cast.result_type));
             }

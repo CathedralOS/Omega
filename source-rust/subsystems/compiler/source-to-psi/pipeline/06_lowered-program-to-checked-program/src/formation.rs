@@ -155,6 +155,10 @@ pub fn prepare_replay<'source>(
 pub(crate) struct FormedModule<'a> {
     module: &'a TerminalModule,
     nominal_calls: &'a [terminal_psi::generic_calls::NominalCallArgument],
+    domain_sources: &'a arena::IdTable<
+        semantic_vocabulary::DomainSemanticId,
+        terminal_check_tables::program::DomainSource,
+    >,
 }
 
 impl<'a> FormedModule<'a> {
@@ -164,6 +168,18 @@ impl<'a> FormedModule<'a> {
 
     pub(crate) fn source(self) -> &'a TerminalModule {
         self.module
+    }
+
+    /// The authored name of a structural domain, for a diagnostic.
+    pub(crate) fn domain_label(self, domain: semantic_vocabulary::StructuralDomainId) -> String {
+        self.module
+            .types
+            .structural_domains
+            .iter()
+            .find(|row| row.id == domain)
+            .and_then(|row| self.domain_sources.get(row.semantic_domain))
+            .map(|source| source.label.clone())
+            .unwrap_or_else(|| format!("structural domain {}", domain.get()))
     }
 }
 
@@ -175,6 +191,7 @@ impl ReplayScope<'_> {
         FormedModule {
             module: &self.elaboration.module,
             nominal_calls: &self.elaboration.nominal_calls,
+            domain_sources: &self.elaboration.domain_sources,
         }
     }
 
@@ -301,6 +318,7 @@ impl ReplayScope<'_> {
             FormedModule {
                 module: &self.elaboration.module,
                 nominal_calls: &self.elaboration.nominal_calls,
+                domain_sources: &self.elaboration.domain_sources,
             },
             &self.elaboration.domains,
             &mut self.elaboration.tables,
@@ -1055,14 +1073,19 @@ pub(crate) fn module(
                 "qualified mathematical predicate input is not supported",
             ));
         }
-        PropositionContext::from_value_types(
+        let context = PropositionContext::from_value_types(
             definition
                 .parameters
                 .iter()
                 .map(|parameter| (parameter.id, parameter.scalar_type)),
         )
-        .and_then(|context| context.validate(&definition.body))
         .map_err(|error| invalid(&format!("mathematical predicate formal scope: {error:?}")))?;
+        let Some(body) = definition.clause_body().map_err(invalid)? else {
+            continue;
+        };
+        context
+            .validate(body)
+            .map_err(|error| invalid(&format!("mathematical predicate formal scope: {error:?}")))?;
         let mut scope = Scope {
             module,
             diagnostic,
@@ -1076,7 +1099,7 @@ pub(crate) fn module(
         };
         // The body defines a proposition; it supplies no premise, including
         // when a conjunct states a bound another conjunct would need.
-        substitute_clause(&definition.body, &mut scope).map_err(|error| {
+        substitute_clause(body, &mut scope).map_err(|error| {
             let owner = source.map_or_else(
                 || "mathematical definition".to_owned(),
                 |source| format!("named predicate `{}`", source.name),

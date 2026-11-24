@@ -1,16 +1,9 @@
-use representations\lowered_program\ScalarLayout;
-use representations\lowered_program\ScalarLayoutKind;
-use representations\lowered_program\ScalarOperationKind;
-use representations\lowered_program\ScalarStatus;
-use representations\lowered_program\scalar_layout_at;
-use representations\syntax_trees\DataItem;
-use representations\syntax_trees\DataMultiplicity;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\syntax_trees_data_item;
-use representations\typed_trees\TypeKind;
-use representations\typed_trees\TypeRow;
-use representations\typed_trees\Typing;
-use representations\typed_trees\type_table_row;
+use pipeline/checked_trees_to_scalar_operations/lowerer.omg;
+
+use representations/lowered_program/layouts.omg;
+use representations/lowered_program/scalar.omg as program;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/typed_trees/typed_trees.omg;
 
 // Value slots hold scalars or internal Alpha addresses. Owned storage lives
 // separately in the activation; a mutable binding never aliases an old value
@@ -18,25 +11,25 @@ use representations\typed_trees\type_table_row;
 // expressions run. Checked affine moves need retained move disposition before
 // they can use this copying path, so they remain explicitly unsupported here.
 
-public machine scalar_copyable(syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping) -> bool
+public machine scalar_copyable(syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping) -> bool
 crashes Trap
 {
     transition { _ -> type_row(syntax, typing, handle, typing.types.row_count as u64 +Trapping) }
-    machine type_row(syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, remaining: u64 in Trapping) -> bool {
-        let row: TypeRow = type_table_row(@typing.types, handle);
+    machine type_row(syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, remaining: u64 in Trapping) -> bool {
+        let row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, handle);
         transition row.kind {
-            TypeKind::Builtin -> yes(),
-            TypeKind::Unit -> yes(),
-            TypeKind::Data -> record(syntax, row),
-            TypeKind::Array -> element(syntax, typing, row, remaining),
+            |typed_trees|::TypeKind::Builtin -> yes(),
+            |typed_trees|::TypeKind::Unit -> yes(),
+            |typed_trees|::TypeKind::Data -> record(syntax, row),
+            |typed_trees|::TypeKind::Array -> element(syntax, typing, row, remaining),
             _ -> no()
         }
     }
-    machine record(syntax: @SyntaxTrees, row: TypeRow) -> bool {
-        let item: DataItem = syntax_trees_data_item(syntax, row.item);
-        item.multiplicity == DataMultiplicity::Unrestricted
+    machine record(syntax: @|syntax_trees|::SyntaxTrees, row: |typed_trees|::TypeRow) -> bool {
+        let item: |syntax_trees|::DataItem = |syntax_trees|::syntax_trees_data_item(syntax, row.item);
+        item.multiplicity == |syntax_trees|::DataMultiplicity::Unrestricted
     }
-    machine element(syntax: @SyntaxTrees, typing: @Typing, row: TypeRow, remaining: u64 in Trapping) -> bool {
+    machine element(syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, row: |typed_trees|::TypeRow, remaining: u64 in Trapping) -> bool {
         transition remaining > 0 {
             true -> type_row(syntax, typing, row.inner, remaining - 1),
             _ -> no()
@@ -46,26 +39,26 @@ crashes Trap
     machine no() -> bool { false }
 }
 
-public machine scalar_storage_allocate(lowerer: @mutable ScalarLowerer, size: u64 in Trapping) -> u64 in Trapping
+public machine scalar_storage_allocate(lowerer: @mutable |lowerer|::ScalarLowerer, size: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition size <= 33554432 {
         true -> bounded(lowerer, size),
         _ -> full(lowerer)
     }
-    machine bounded(lowerer: @mutable ScalarLowerer, size: u64 in Trapping) -> u64 in Trapping {
+    machine bounded(lowerer: @mutable |lowerer|::ScalarLowerer, size: u64 in Trapping) -> u64 in Trapping {
         transition lowerer.storage_size <= 33554432 - size {
             true -> allocate(lowerer, size),
             _ -> full(lowerer)
         }
     }
-    machine allocate(lowerer: @mutable ScalarLowerer, size: u64 in Trapping) -> u64 in Trapping {
+    machine allocate(lowerer: @mutable |lowerer|::ScalarLowerer, size: u64 in Trapping) -> u64 in Trapping {
         let offset: u64 in Trapping = lowerer.storage_size;
         lowerer.storage_size = offset + size;
         offset
     }
-    machine full(lowerer: @mutable ScalarLowerer) -> u64 in Trapping {
-        lowerer.output.status = ScalarStatus::Capacity;
+    machine full(lowerer: @mutable |lowerer|::ScalarLowerer) -> u64 in Trapping {
+        lowerer.output.status = |program|::ScalarStatus::Capacity;
         0 as u64 +Trapping
     }
 }
@@ -73,91 +66,91 @@ crashes Trap
 // Return an ordinary operation identity naming fresh owned storage. Allocation
 // does not read or initialize it; callers explicitly emit Zero or a complete
 // transfer after evaluating source children in their required order.
-public machine scalar_temporary(lowerer: @mutable ScalarLowerer, size: u64 in Trapping) -> u64 in Trapping
+public machine scalar_temporary(lowerer: @mutable |lowerer|::ScalarLowerer, size: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     let offset: u64 in Trapping = scalar_storage_allocate(lowerer, size);
     transition lowerer.output.status {
-        ScalarStatus::Complete -> address(lowerer, offset),
+        |program|::ScalarStatus::Complete -> address(lowerer, offset),
         _ -> absent()
     }
-    machine address(lowerer: @mutable ScalarLowerer, offset: u64 in Trapping) -> u64 in Trapping {
-        scalar_append(lowerer, ScalarOperationKind::FrameAddress, offset, 0 as u64 +Trapping, 0 as u64 +Trapping)
+    machine address(lowerer: @mutable |lowerer|::ScalarLowerer, offset: u64 in Trapping) -> u64 in Trapping {
+        |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::FrameAddress, offset, 0 as u64 +Trapping, 0 as u64 +Trapping)
     }
     machine absent() -> u64 in Trapping { 0 as u64 +Trapping }
 }
 
-public machine scalar_transfer(lowerer: @mutable ScalarLowerer, layout: ScalarLayout, address: u64 in Trapping, value: u64 in Trapping)
+public machine scalar_transfer(lowerer: @mutable |lowerer|::ScalarLowerer, layout: |layouts|::ScalarLayout, address: u64 in Trapping, value: u64 in Trapping)
 crashes Trap
 {
-    transition address > 0 && value > 0 && lowerer.output.status == ScalarStatus::Complete {
+    transition address > 0 && value > 0 && lowerer.output.status == |program|::ScalarStatus::Complete {
         true -> kind(lowerer, layout, address, value),
         _ -> absent(lowerer)
     }
-    machine kind(lowerer: @mutable ScalarLowerer, layout: ScalarLayout, address: u64 in Trapping, value: u64 in Trapping) {
+    machine kind(lowerer: @mutable |lowerer|::ScalarLowerer, layout: |layouts|::ScalarLayout, address: u64 in Trapping, value: u64 in Trapping) {
         transition layout.kind {
-            ScalarLayoutKind::Record -> operation(lowerer, layout, address, value, ScalarOperationKind::Copy),
-            ScalarLayoutKind::Array -> operation(lowerer, layout, address, value, ScalarOperationKind::Copy),
-            ScalarLayoutKind::Unit -> done(),
-            ScalarLayoutKind::Scalar -> operation(lowerer, layout, address, value, ScalarOperationKind::Store),
-            ScalarLayoutKind::Reference -> operation(lowerer, layout, address, value, ScalarOperationKind::Store),
+            |layouts|::ScalarLayoutKind::Record -> operation(lowerer, layout, address, value, |program|::ScalarOperationKind::Copy),
+            |layouts|::ScalarLayoutKind::Array -> operation(lowerer, layout, address, value, |program|::ScalarOperationKind::Copy),
+            |layouts|::ScalarLayoutKind::Unit -> done(),
+            |layouts|::ScalarLayoutKind::Scalar -> operation(lowerer, layout, address, value, |program|::ScalarOperationKind::Store),
+            |layouts|::ScalarLayoutKind::Reference -> operation(lowerer, layout, address, value, |program|::ScalarOperationKind::Store),
             _ -> absent(lowerer)
         }
     }
-    machine operation(lowerer: @mutable ScalarLowerer, layout: ScalarLayout, address: u64 in Trapping, value: u64 in Trapping, kind: ScalarOperationKind) {
-        let ignored: u64 in Trapping = scalar_append(lowerer, kind, address - 1, value - 1, layout.size);
+    machine operation(lowerer: @mutable |lowerer|::ScalarLowerer, layout: |layouts|::ScalarLayout, address: u64 in Trapping, value: u64 in Trapping, kind: |program|::ScalarOperationKind) {
+        let ignored: u64 in Trapping = |lowerer|::scalar_append(lowerer, kind, address - 1, value - 1, layout.size);
     }
-    machine absent(lowerer: @mutable ScalarLowerer) {
+    machine absent(lowerer: @mutable |lowerer|::ScalarLowerer) {
         transition lowerer.output.status {
-            ScalarStatus::Complete -> unsupported(lowerer),
+            |program|::ScalarStatus::Complete -> unsupported(lowerer),
             _ -> done()
         }
     }
-    machine unsupported(lowerer: @mutable ScalarLowerer) { lowerer.output.status = ScalarStatus::Unsupported; }
+    machine unsupported(lowerer: @mutable |lowerer|::ScalarLowerer) { lowerer.output.status = |program|::ScalarStatus::Unsupported; }
     machine done() {}
 }
 
 // Materialize a checked read from an existing place. Reference values carry
 // their address; dereferencing one is a separate operation authorized by the
 // expression's checked read adaptation, never by its layout alone.
-public machine scalar_read_storage(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, type_handle: u64 in Trapping, address: u64 in Trapping) -> u64 in Trapping
+public machine scalar_read_storage(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, type_handle: u64 in Trapping, address: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    let layout: ScalarLayout = scalar_layout_at(@lowerer.output, type_handle);
-    transition address > 0 && lowerer.output.status == ScalarStatus::Complete {
+    let layout: |layouts|::ScalarLayout = |layouts|::scalar_layout_at(@lowerer.output, type_handle);
+    transition address > 0 && lowerer.output.status == |program|::ScalarStatus::Complete {
         true -> kind(lowerer, syntax, typing, type_handle, layout, address),
         _ -> absent()
     }
-    machine kind(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, type_handle: u64 in Trapping, layout: ScalarLayout, address: u64 in Trapping) -> u64 in Trapping {
+    machine kind(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, type_handle: u64 in Trapping, layout: |layouts|::ScalarLayout, address: u64 in Trapping) -> u64 in Trapping {
         transition layout.kind {
-            ScalarLayoutKind::Scalar -> load(lowerer, layout, address),
-            ScalarLayoutKind::Reference -> load(lowerer, layout, address),
-            ScalarLayoutKind::Record -> copyable(lowerer, syntax, typing, type_handle, layout, address),
-            ScalarLayoutKind::Array -> copyable(lowerer, syntax, typing, type_handle, layout, address),
-            ScalarLayoutKind::Unit -> unit(lowerer),
+            |layouts|::ScalarLayoutKind::Scalar -> load(lowerer, layout, address),
+            |layouts|::ScalarLayoutKind::Reference -> load(lowerer, layout, address),
+            |layouts|::ScalarLayoutKind::Record -> copyable(lowerer, syntax, typing, type_handle, layout, address),
+            |layouts|::ScalarLayoutKind::Array -> copyable(lowerer, syntax, typing, type_handle, layout, address),
+            |layouts|::ScalarLayoutKind::Unit -> unit(lowerer),
             _ -> unsupported(lowerer)
         }
     }
-    machine load(lowerer: @mutable ScalarLowerer, layout: ScalarLayout, address: u64 in Trapping) -> u64 in Trapping {
-        scalar_append(lowerer, ScalarOperationKind::Load, address - 1, layout.size, 0 as u64 +Trapping)
+    machine load(lowerer: @mutable |lowerer|::ScalarLowerer, layout: |layouts|::ScalarLayout, address: u64 in Trapping) -> u64 in Trapping {
+        |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::Load, address - 1, layout.size, 0 as u64 +Trapping)
     }
-    machine copyable(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, type_handle: u64 in Trapping, layout: ScalarLayout, address: u64 in Trapping) -> u64 in Trapping {
+    machine copyable(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, type_handle: u64 in Trapping, layout: |layouts|::ScalarLayout, address: u64 in Trapping) -> u64 in Trapping {
         let supported: bool = scalar_copyable(syntax, typing, type_handle);
         transition supported {
             true -> snapshot(lowerer, layout, address),
             _ -> unsupported(lowerer)
         }
     }
-    machine snapshot(lowerer: @mutable ScalarLowerer, layout: ScalarLayout, address: u64 in Trapping) -> u64 in Trapping {
+    machine snapshot(lowerer: @mutable |lowerer|::ScalarLowerer, layout: |layouts|::ScalarLayout, address: u64 in Trapping) -> u64 in Trapping {
         let destination: u64 in Trapping = scalar_temporary(lowerer, layout.size);
         scalar_transfer(lowerer, layout, destination, address);
         destination
     }
-    machine unit(lowerer: @mutable ScalarLowerer) -> u64 in Trapping {
-        scalar_append(lowerer, ScalarOperationKind::IntegerConstant, 0 as u64 +Trapping, 0 as u64 +Trapping, 0 as u64 +Trapping)
+    machine unit(lowerer: @mutable |lowerer|::ScalarLowerer) -> u64 in Trapping {
+        |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::IntegerConstant, 0 as u64 +Trapping, 0 as u64 +Trapping, 0 as u64 +Trapping)
     }
-    machine unsupported(lowerer: @mutable ScalarLowerer) -> u64 in Trapping {
-        lowerer.output.status = ScalarStatus::Unsupported;
+    machine unsupported(lowerer: @mutable |lowerer|::ScalarLowerer) -> u64 in Trapping {
+        lowerer.output.status = |program|::ScalarStatus::Unsupported;
         0 as u64 +Trapping
     }
     machine absent() -> u64 in Trapping { 0 as u64 +Trapping }

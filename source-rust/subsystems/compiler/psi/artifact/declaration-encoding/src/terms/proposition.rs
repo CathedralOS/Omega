@@ -108,6 +108,74 @@ impl TermEncoding for PropositionTable {
     }
 }
 
+/// The checker orders input clauses before building the kernel signature.
+fn write_checking_identity(
+    writer: &mut Writer,
+    clause: &semantic_vocabulary::ClauseIdentity,
+) -> Result<(), CodecError> {
+    use semantic_vocabulary::{ClauseCarrier, ClauseOperand};
+    clause
+        .validate()
+        .map_err(CodecError::MalformedProposition)?;
+    writer.u8(23);
+    writer.len("clause operands", clause.values.len())?;
+    for value in &clause.values {
+        match value.carrier {
+            ClauseCarrier::Parameter(binder) => {
+                writer.u8(0);
+                writer.u32(binder);
+            }
+            ClauseCarrier::Scalar(ty) => {
+                writer.u8(1);
+                crate::terms::scalar_types::encode_scalar_type(writer, ty)?;
+            }
+            ClauseCarrier::Structural(ty) => {
+                writer.u8(2);
+                writer.id(ty);
+            }
+        }
+        match &value.operand {
+            ClauseOperand::Input(subject) => {
+                writer.u8(0);
+                encode_canonical_structural_field(
+                    writer,
+                    subject.root(),
+                    subject.path(),
+                    "identity subject",
+                )?;
+            }
+            ClauseOperand::Scalar(term) => {
+                writer.u8(1);
+                encode_scalar_term(writer, term)?;
+            }
+            ClauseOperand::Formal(position) => {
+                writer.u8(2);
+                writer.u32(*position);
+            }
+            ClauseOperand::Application {
+                declaration,
+                arguments,
+            } => {
+                writer.u8(3);
+                writer.u8(u8::from(declaration.supplier.is_some()));
+                if let Some((slot, generation)) = declaration.supplier {
+                    writer.u32(slot);
+                    writer.u32(generation);
+                }
+                writer.u32(declaration.member.0);
+                writer.u32(declaration.member.1);
+                writer.len("clause arguments", arguments.len())?;
+                for &argument in arguments {
+                    writer.u32(argument);
+                }
+            }
+        }
+    }
+    writer.u32(clause.left);
+    writer.u32(clause.right);
+    Ok(())
+}
+
 fn write_proposition_row(writer: &mut Writer, proposition: &Proposition) -> Result<(), CodecError> {
     match proposition {
         Proposition::Truth => writer.u8(1),
@@ -194,6 +262,14 @@ fn write_proposition_row(writer: &mut Writer, proposition: &Proposition) -> Resu
                 "structural case subject path",
             )?;
             writer.id(*case);
+        }
+        Proposition::DeclarationIdentity(clause) => {
+            if !writer.is_checking_identity() {
+                return Err(CodecError::MalformedStructuralFoundation(
+                    "a declaration Identity needs its checked mathematical signature for publication",
+                ));
+            }
+            write_checking_identity(writer, clause)?;
         }
         Proposition::FloatMeaningEqual(clause) => {
             writer.u8(19);

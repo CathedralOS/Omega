@@ -825,6 +825,8 @@ pub enum RecoveryReanalysisError {
 
 #[derive(Clone)]
 pub struct UnsealedRecoveryFacts {
+    selected: selected_instructions::SelectedInstructionPlanIdentity,
+    availability: register_homes::AllocatorAvailabilityIdentity,
     liveness_functions: Vec<Arc<selected_instructions::FunctionLiveness>>,
     liveness_materialized: Vec<bool>,
     range_functions: Vec<Arc<selected_instructions::FunctionLiveRanges>>,
@@ -839,6 +841,8 @@ impl UnsealedRecoveryFacts {
     ) -> Self {
         let count = liveness.plan().functions.len();
         Self {
+            selected: liveness.plan().selected,
+            availability: legality.plan().allocator_availability,
             liveness_functions: liveness.plan().functions.clone(),
             liveness_materialized: vec![true; count],
             range_functions: ranges.plan().functions.clone(),
@@ -862,74 +866,82 @@ impl UnsealedRecoveryFacts {
         physical: &register_model::ValidatedPhysicalRegisterModel,
         reservations: &register_model::ValidatedRegisterReservationProfile,
     ) -> Result<Self, RecoveryReanalysisError> {
+        if !self.belongs_to(previous)
+            || availability.receipt().physical() != physical.identity()
+            || availability.receipt().reservations != reservations.identity()
+            || selected.selected_plan().target != reservations.target()
+        {
+            return Err(RecoveryReanalysisError::Legality(
+                AllocationLegalityError::RootMismatch,
+            ));
+        }
         let prev_plan = previous.selected_plan();
         let next_plan = selected.selected_plan();
         let count = next_plan.functions.len();
-        let mut changed = vec![false; count];
+        let availability_unchanged = self.availability == availability.receipt().identity();
+        let mut next = Self {
+            selected: selected.selected_identity(),
+            availability: availability.receipt().identity(),
+            liveness_functions: Vec::with_capacity(count),
+            liveness_materialized: Vec::with_capacity(count),
+            range_functions: Vec::with_capacity(count),
+            legality_functions: Vec::with_capacity(count),
+        };
         for (index, function) in next_plan.functions.iter().enumerate() {
-            if !(prev_plan
+            let function_unchanged = prev_plan
                 .functions
                 .shares_function_storage(&next_plan.functions, index)
-                || prev_plan.functions.get(index) == Some(function))
-            {
-                changed[index] = true;
-            }
-        }
-        let mut liveness_functions = self.liveness_functions.clone();
-        let mut liveness_materialized = self.liveness_materialized.clone();
-        if liveness_materialized.len() < count {
-            liveness_materialized.resize(count, false);
-        }
-        for (index, function) in next_plan.functions.iter().enumerate() {
-            if changed[index] {
-                liveness_functions[index] = Arc::new(
-                    liveness::compute::compute_function_for_ranges(index, function)
-                        .map_err(RecoveryReanalysisError::Liveness)?,
-                );
-                liveness_materialized[index] = false;
-            }
-        }
-        let mut range_functions = self.range_functions.clone();
-        for (index, function) in next_plan.functions.iter().enumerate() {
-            if changed[index] {
-                range_functions[index] = Arc::new(
-                    live_ranges::compute::compute_function(
-                        index,
-                        function,
-                        &liveness_functions[index],
-                    )
-                    .map_err(RecoveryReanalysisError::Ranges)?,
-                );
-            }
-        }
-        let mut legality_functions = self.legality_functions.clone();
-        for index in 0..count {
-            if changed[index] {
-                let prior_pair = self
+                || prev_plan.functions.get(index) == Some(function);
+            let (liveness, materialized, ranges) = if function_unchanged {
+                (
+                    Arc::clone(&self.liveness_functions[index]),
+                    self.liveness_materialized[index],
+                    Arc::clone(&self.range_functions[index]),
+                )
+            } else {
+                let liveness = liveness::compute::compute_function_for_ranges(index, function)
+                    .map_err(RecoveryReanalysisError::Liveness)?;
+                let ranges = live_ranges::compute::compute_function(index, function, &liveness)
+                    .map_err(RecoveryReanalysisError::Ranges)?;
+                (Arc::new(liveness), false, Arc::new(ranges))
+            };
+            let legality = if function_unchanged && availability_unchanged {
+                Arc::clone(&self.legality_functions[index])
+            } else {
+                let prior = self
                     .range_functions
                     .get(index)
                     .zip(self.legality_functions.get(index))
-                    .map(|(r, l)| (r.as_ref(), l.as_ref()));
-                let computed = allocation_legality::compute::compute_function_reusing(
+                    .filter(|_| availability_unchanged)
+                    .map(|(ranges, legality)| (ranges.as_ref(), legality.as_ref()));
+                let legality = allocation_legality::compute::compute_function_reusing(
                     index,
-                    &range_functions[index],
+                    &ranges,
                     availability,
                     physical,
                     reservations,
-                    prior_pair,
+                    prior,
                 )
                 .map_err(RecoveryReanalysisError::Legality)?;
-                allocation_legality::validate::FunctionCounts::new(&computed, index)
+                allocation_legality::validate::FunctionCounts::new(&legality, index)
                     .map_err(RecoveryReanalysisError::Legality)?;
-                legality_functions[index] = Arc::new(computed);
-            }
+                Arc::new(legality)
+            };
+            next.liveness_functions.push(liveness);
+            next.liveness_materialized.push(materialized);
+            next.range_functions.push(ranges);
+            next.legality_functions.push(legality);
         }
-        Ok(Self {
-            liveness_functions,
-            liveness_materialized,
-            range_functions,
-            legality_functions,
-        })
+        Ok(next)
+    }
+
+    fn belongs_to(&self, selected: &impl SelectedProgramView) -> bool {
+        let count = selected.selected_plan().functions.len();
+        self.selected == selected.selected_identity()
+            && self.liveness_functions.len() == count
+            && self.liveness_materialized.len() == count
+            && self.range_functions.len() == count
+            && self.legality_functions.len() == count
     }
 
     pub fn seal(
@@ -949,14 +961,19 @@ impl UnsealedRecoveryFacts {
         ),
         AllocationLegalityError,
     > {
+        if !self.belongs_to(selected)
+            || self.availability != availability.receipt().identity()
+            || availability.receipt().register_environment() != register_environment
+        {
+            return Err(AllocationLegalityError::RootMismatch);
+        }
         let anchor_plan = anchor_selected.selected_plan();
         let next_plan = selected.selected_plan();
         let mut liveness_functions = self.liveness_functions;
-        for (index, materialized) in self.liveness_materialized.iter().copied().enumerate() {
-            if !materialized
-                && let Some(function) = next_plan.functions.get(index)
-                && let Ok(full) = liveness::compute::compute_function(index, function)
-            {
+        for (index, materialized) in self.liveness_materialized.into_iter().enumerate() {
+            if !materialized {
+                let full = liveness::compute::compute_function(index, &next_plan.functions[index])
+                    .map_err(|_| AllocationLegalityError::RootMismatch)?;
                 liveness_functions[index] = Arc::new(full);
             }
         }
@@ -1033,6 +1050,258 @@ impl UnsealedRecoveryFacts {
             &anchor_legality.function_counts,
         )?;
         Ok((validated_liveness, validated_ranges, validated_legality))
+    }
+}
+
+#[cfg(test)]
+mod recovery_tests {
+    use super::*;
+
+    #[test]
+    fn reanalysis_refreshes_legality_after_an_allocator_policy_change() {
+        use register_environment::baseline_target_register_environment;
+        use register_homes::AllocatorAvailabilityPolicy;
+        use semantic_vocabulary::{CallableContractId, ValueId};
+        use target::NativeTarget;
+        use target_vocabulary::NativeCallTarget;
+
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let keys = environment.allocation_constraint_keys();
+        let availability = |policy| {
+            materialize_allocator_availability(
+                environment.identity(),
+                target,
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                &keys,
+                policy,
+            )
+            .unwrap()
+        };
+        let all = availability(AllocatorAvailabilityPolicy::AllEnvironmentAllocatableViewsV1);
+        let mut selected = machine_effects::indirect_call_tests::selected_call(
+            &environment,
+            target,
+            NativeCallTarget::Callable {
+                callee: ValueId::new(1).unwrap(),
+                contract: CallableContractId::new(1).unwrap(),
+            },
+        );
+        // The indirect target stays live across the fence before its fixed call operand.
+        let plan = Arc::make_mut(&mut selected.plan);
+        let block = &mut plan.functions[0].blocks[0];
+        let fence_constraint = register_model::find_register_constraint(
+            &environment.constraints().catalog().constraints,
+            keys.atomic_fence.unwrap(),
+        )
+        .unwrap();
+        block.instructions.insert(
+            0,
+            selected_instructions::SelectedInstruction {
+                id: selected_instructions::SelectedInstructionId(2),
+                kind: selected_instructions::SelectedInstructionKind::AtomicFence,
+                constraint: fence_constraint.key,
+                operands: Vec::new(),
+                implicit_uses: fence_constraint.implicit_uses.clone(),
+                implicit_defs: fence_constraint.implicit_defs.clone(),
+                clobbers: fence_constraint.clobbers.clone(),
+                provenance: block.instructions[0].provenance.clone(),
+            },
+        );
+        selected.identity = selected_instructions::selected_instruction_plan_identity(plan);
+        let liveness = analyze_liveness(&selected).unwrap();
+        let ranges = analyze_live_ranges(&selected, &liveness).unwrap();
+        let analyze = |availability: &ValidatedAllocatorAvailability| {
+            analyze_allocation_legality(
+                &ranges,
+                availability,
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                &keys,
+            )
+        };
+        let unrestricted = analyze(&all).unwrap();
+        let allowed = unrestricted.plan().functions[0].virtual_registers[0].spans[0].candidates[0];
+        let restricted = availability(
+            AllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 {
+                views: vec![allowed],
+            },
+        );
+        let fresh = analyze(&restricted).unwrap();
+        assert_ne!(unrestricted.plan().functions, fresh.plan().functions);
+        let cache = UnsealedRecoveryFacts::from_validated(&liveness, &ranges, &unrestricted);
+        let seal = |facts: UnsealedRecoveryFacts, availability: &ValidatedAllocatorAvailability| {
+            facts.seal(
+                &selected,
+                &liveness,
+                &ranges,
+                &unrestricted,
+                &selected,
+                availability,
+                environment.identity(),
+            )
+        };
+        let no_views = availability(
+            AllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 { views: Vec::new() },
+        );
+        let windows = baseline_target_register_environment(NativeTarget::windows_x64()).unwrap();
+        assert!(matches!(
+            cache.clone().seal(
+                &selected,
+                &liveness,
+                &ranges,
+                &unrestricted,
+                &selected,
+                &all,
+                windows.identity(),
+            ),
+            Err(AllocationLegalityError::RootMismatch)
+        ));
+        assert!(matches!(
+            cache.reanalyze_changed_functions(
+                &selected,
+                &selected,
+                &all,
+                environment.physical(),
+                windows.reservations(),
+            ),
+            Err(RecoveryReanalysisError::Legality(
+                AllocationLegalityError::RootMismatch
+            ))
+        ));
+        assert!(matches!(
+            analyze(&no_views),
+            Err(AllocationLegalityError::NoCandidateViews { .. })
+        ));
+        assert!(matches!(
+            cache.reanalyze_changed_functions(
+                &selected,
+                &selected,
+                &no_views,
+                environment.physical(),
+                environment.reservations(),
+            ),
+            Err(RecoveryReanalysisError::Legality(
+                AllocationLegalityError::NoCandidateViews { .. }
+            ))
+        ));
+        let refreshed = cache
+            .reanalyze_changed_functions(
+                &selected,
+                &selected,
+                &restricted,
+                environment.physical(),
+                environment.reservations(),
+            )
+            .unwrap();
+        assert!(Arc::ptr_eq(
+            &cache.range_functions()[0],
+            &refreshed.range_functions()[0]
+        ));
+        assert_eq!(seal(refreshed, &restricted).unwrap().2.plan(), fresh.plan());
+        assert!(matches!(
+            seal(cache, &restricted),
+            Err(AllocationLegalityError::RootMismatch)
+        ));
+    }
+
+    #[test]
+    fn reanalysis_tracks_added_and_removed_functions_and_seals_only_its_selection() {
+        use register_environment::baseline_target_register_environment;
+        use register_homes::AllocatorAvailabilityPolicy;
+        use selected_instructions::selected_instruction_plan_identity;
+        use semantic_vocabulary::MachineId;
+        use target::NativeTarget;
+        use target_vocabulary::NativeCallTarget;
+
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let keys = environment.allocation_constraint_keys();
+        let availability = materialize_allocator_availability(
+            environment.identity(),
+            target,
+            environment.physical(),
+            environment.constraints(),
+            environment.reservations(),
+            &keys,
+            AllocatorAvailabilityPolicy::AllEnvironmentAllocatableViewsV1,
+        )
+        .unwrap();
+
+        let first = machine_effects::indirect_call_tests::selected_call(
+            &environment,
+            target,
+            NativeCallTarget::Machine(MachineId::new(1).unwrap()),
+        );
+        let mut two = first.clone();
+        let plan = Arc::make_mut(&mut two.plan);
+        let mut helper = plan.functions[0].clone();
+        helper.machine = MachineId::new(2).unwrap();
+        plan.functions.push(helper);
+        two.identity = selected_instruction_plan_identity(plan);
+
+        let analyze = |selected: &selected_instructions::SelectedProgram| {
+            let liveness = analyze_liveness(selected).unwrap();
+            let ranges = analyze_live_ranges(selected, &liveness).unwrap();
+            let legality = analyze_allocation_legality(
+                &ranges,
+                &availability,
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                &keys,
+            )
+            .unwrap();
+            (liveness, ranges, legality)
+        };
+        let (liveness, ranges, legality) = analyze(&first);
+        let original = UnsealedRecoveryFacts::from_validated(&liveness, &ranges, &legality);
+        let reanalyze = |facts: &UnsealedRecoveryFacts,
+                         old: &selected_instructions::SelectedProgram,
+                         new: &selected_instructions::SelectedProgram| {
+            facts
+                .reanalyze_changed_functions(
+                    old,
+                    new,
+                    &availability,
+                    environment.physical(),
+                    environment.reservations(),
+                )
+                .unwrap()
+        };
+        let seal = |facts: UnsealedRecoveryFacts,
+                    selected: &selected_instructions::SelectedProgram| {
+            facts.seal(
+                &first,
+                &liveness,
+                &ranges,
+                &legality,
+                selected,
+                &availability,
+                environment.identity(),
+            )
+        };
+        let grown = reanalyze(&original, &first, &two);
+        assert!(matches!(
+            seal(grown.clone(), &first),
+            Err(AllocationLegalityError::RootMismatch)
+        ));
+        let recovered = seal(grown.clone(), &two).unwrap();
+        let fresh = analyze(&two);
+        assert_eq!(recovered.0.plan(), fresh.0.plan());
+        assert_eq!(recovered.1.plan(), fresh.1.plan());
+        assert_eq!(recovered.2.plan(), fresh.2.plan());
+
+        let reduced = reanalyze(&grown, &two, &first);
+        let recovered = seal(reduced, &first).unwrap();
+        assert_eq!(recovered.0.plan(), liveness.plan());
+        assert_eq!(recovered.1.plan(), ranges.plan());
+        assert_eq!(recovered.2.plan(), legality.plan());
     }
 }
 

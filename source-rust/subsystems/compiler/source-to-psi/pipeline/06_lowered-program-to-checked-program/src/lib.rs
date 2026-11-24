@@ -58,6 +58,7 @@ mod ceilings;
 mod crashes;
 mod describe;
 mod entry_inputs;
+mod equality;
 mod external_providers;
 mod formation;
 mod generic_storage;
@@ -174,6 +175,8 @@ pub enum TargetCondition {
 /// What discharged one obligation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Discharged {
+    /// A typed source Identity checked against its actual mathematical term.
+    Identity(equality::Judgment),
     /// A certificate the kernel accepted.
     Certificate(Evidence),
     /// A ground prerequisite still owed in its actual target closure.
@@ -232,7 +235,7 @@ impl Discharged {
     pub const fn certificate(&self) -> Option<&Evidence> {
         match self {
             Self::Certificate(evidence) => Some(evidence),
-            Self::TargetCondition(_)
+            Self::Identity(_) | Self::TargetCondition(_)
             | Self::PendingNormalGuarantee(_)
             | Self::EveryExit(_)
             | Self::Window(_)
@@ -531,6 +534,14 @@ fn discharge_inner(
     scope.infer_inputs(&mut unreached, &inhabitation, activity)?;
     scope.infer_results(&mut unreached, &inhabitation, activity)?;
     scope.finalize_callable_refinements(activity)?;
+    let mut law_instances = scope.source().static_schemas.iter()
+        .flat_map(|schema| &schema.bindings).flat_map(|binding| &binding.members)
+        .flat_map(|member| member.instances.iter().map(|instance| instance.machine))
+        .collect::<Vec<_>>();
+    law_instances.sort_unstable();
+    if !law_instances.is_empty() {
+        static_contracts::admit(scope.source())?;
+    }
     let (formed, domains, checking, sources, requirements) = scope.checking();
     let module = formed.source();
     let inputs = machine_inputs::PreparedMachineInputs::new(
@@ -583,6 +594,7 @@ fn discharge_inner(
                 &beyond,
                 inputs.carried.map(|position| &carried[position]),
                 inputs.branches,
+                &law_instances,
                 &empty_contracts,
                 borrow_ends,
                 activity,
@@ -695,6 +707,7 @@ fn machine(
     unreached: &[ValueId],
     carried: Option<&Carried<'_>>,
     branches: &[terminal_check_tables::program::Branch],
+    law_instances: &[MachineId],
     empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
     borrow_ends: Option<&[(EdgeId, PlaceId)]>,
     activity: &mut ProofSearchActivity,
@@ -722,6 +735,7 @@ fn machine(
                 tables,
                 unreached,
                 carried,
+                law_instances,
                 empty_contracts,
                 borrow_ends,
                 activity,
@@ -742,6 +756,7 @@ fn check_prepared_machine(
     tables: &mut MachineTables,
     unreached: &[ValueId],
     carried: Option<&Carried<'_>>,
+    law_instances: &[MachineId],
     empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
     borrow_ends: Option<&[(EdgeId, PlaceId)]>,
     activity: &mut ProofSearchActivity,
@@ -798,6 +813,7 @@ fn check_prepared_machine(
             ranking_bindings,
             declared: &declared,
             unreached,
+            law_instances,
         },
         tables,
         &mut decided,
@@ -893,6 +909,11 @@ fn check_prepared_machine(
             ranking_bindings,
         )
         .and_then(|goal| {
+            if let Proposition::DeclarationIdentity(clause) = &goal {
+                return equality::discharge(
+                    module, lowered, tables, graph, row.created_at, obligation, clause, law_instances,
+                ).map(Discharged::Identity);
+            }
             if let Some(carry) = &carrier
                 && let Ok(evidence) = carry.certify(
                     context,
@@ -1504,6 +1525,24 @@ fn with_prepared_machine<Outcome>(
             &types,
             &mut references,
         )?;
+        // domains.md: "Mutation invalidates subject-bound facts unless
+        // preserved or re-established." A routed domain is re-established
+        // only by a machine its declaration names, so any other machine
+        // that changes part of such a value cannot keep the domain on it.
+        if let Some((operation, domain)) = storage.unauthorized_routed_write() {
+            return Err(refusal(
+                RefusalReason::Violation,
+                id,
+                Construct::Operation(operation),
+                &format!(
+                    "this statement changes, or lends for change, part of a value that carries \
+                     {} in a machine that is not one of the domain's establishment routes: only \
+                     a machine the domain's declaration names may change such a value and keep \
+                     the domain on it",
+                    formed.domain_label(domain),
+                ),
+            ));
+        }
         let ranking_bindings = rankings::admit(lowered, tables, &graph, &storage, &mut references)?;
         if fill {
             storage.owed_are_minted(tables)?;
@@ -1612,7 +1651,7 @@ fn published(
         };
         let position = usize::try_from(obligation.get() - 1).unwrap_or(usize::MAX);
         match decided.get(position) {
-            Some(Some(Ok(Discharged::Certificate(_)))) => exits.push(obligation),
+            Some(Some(Ok(Discharged::Certificate(_) | Discharged::Identity(_)))) => exits.push(obligation),
             _ => return Err(unproved("a normal return does not establish this clause")),
         }
     }
@@ -1831,6 +1870,17 @@ pub(crate) fn substitute_goal(
         {
             goal_from_observed_parts(clause, bindings)
         }
+        // An erased actual can make a previously scalar equality mention
+        // a declaration application. Use the same typed form as authored
+        // clause applications, and keep the ordinary scalar route otherwise.
+        Ok(Proposition::Equal(left, right))
+            if [&left, &right].into_iter().any(|term| matches!(
+                term, ScalarTerm::DeclarationApplication { .. }
+            )) =>
+        {
+            terminal_codec::contract_forms::equal(left, right)
+                .map_err(|_| Unbound::Unsupported("an erased equality has no canonical form"))
+        }
         result => result,
     }
 }
@@ -1928,12 +1978,15 @@ fn erased_actuals(
         .iter()
         .zip(supplied)
         .map(|(formal, term)| match term {
-            ScalarTerm::Value { .. } | ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_) => {
+            ScalarTerm::Value { .. }
+            | ScalarTerm::Integer { .. }
+            | ScalarTerm::Boolean(_)
+            | ScalarTerm::DeclarationApplication { .. } => {
                 Ok((formal.id, term.clone()))
             }
             _ => Err(refuse(
                 RefusalReason::Unsupported,
-                "erased actual outside values and literals",
+                "erased actual outside values, literals, and declaration applications",
             )),
         })
         .collect()
@@ -1951,6 +2004,9 @@ pub(crate) struct ErasedTerms<'a> {
 
 impl Bindings for ErasedTerms<'_> {
     type Error = Unbound;
+    fn whole_input(&mut self, root: PlaceId) -> Result<PlaceId, Unbound> {
+        self.runtime.whole_input(root)
+    }
     fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
         self.runtime.validate_float_meaning_source(source)
     }
@@ -2352,7 +2408,7 @@ fn decide(
     if let Some(narrowed) = connected(&goal, &hypotheses)
         && let Ok(certificate) = search_certificate(
             context,
-            &tables.values,
+            &*tables.values,
             id,
             obligation,
             &goal,
@@ -2366,7 +2422,7 @@ fn decide(
     }
     let certificate = search_certificate(
         context,
-        &tables.values,
+        &*tables.values,
         id,
         obligation,
         &goal,
@@ -2635,7 +2691,7 @@ fn verify_certificate(
     axioms: &[Proposition],
     certificate: &CertificateEnvelope,
 ) -> Checked<AcceptedFact> {
-    verify_obligation(
+    let accepted = verify_obligation(
         context,
         &Obligation {
             id: obligation,
@@ -2653,7 +2709,19 @@ fn verify_certificate(
             UnprovedCause::KernelRefused,
             format!("kernel {error:?}"),
         )
-    })
+    })?;
+    if goal.contains_declaration_identity()
+        && !matches!(&accepted.route, proof_admission::AcceptedFactRoute::CertificateDerived { acceptance, .. }
+            if matches!(acceptance.mathematical_core, proof_admission::MathematicalCoreDecision::Judged(_)))
+    {
+        return Err(unproved(
+            id,
+            obligation,
+            UnprovedCause::NoRuleForGoalForm,
+            "the mathematical kernel could not judge this compound Identity proposition".into(),
+        ));
+    }
+    Ok(accepted)
 }
 
 /// The scalar value an operation defines, if any: a call's result value.

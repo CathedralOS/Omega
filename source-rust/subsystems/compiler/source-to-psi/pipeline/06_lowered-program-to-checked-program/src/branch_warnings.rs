@@ -250,7 +250,7 @@ fn refutation(
         context,
         &known.assumptions,
         &known.axioms,
-        &tables.values,
+        &*tables.values,
         activity,
     );
     let proof = prover.prove(&Proposition::Falsehood).ok()?;

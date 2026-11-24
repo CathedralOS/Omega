@@ -1,46 +1,30 @@
-use representations\lowered_program\ScalarLayout;
-use representations\lowered_program\ScalarLayoutKind;
-use representations\lowered_program\ScalarStatus;
-use representations\lowered_program\scalar_layout_at;
-use representations\symbol_resolved_trees\BuiltinType;
-use representations\symbol_resolved_trees\DomainBinding;
-use representations\syntax_trees\DataField;
-use representations\syntax_trees\DataItem;
-use representations\syntax_trees\DataMultiplicity;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\syntax_trees_data_item;
-use representations\syntax_trees\syntax_trees_field;
-use representations\typed_trees\TypeKind;
-use representations\typed_trees\TypeRow;
-use representations\typed_trees\Typing;
-use representations\typed_trees\reference_type;
-use representations\typed_trees\type_table_row;
+use pipeline/checked_trees_to_scalar_operations/lowerer.omg;
 
-public data ScalarLayoutState [copy] {
-    case Unseen;
-    case Visiting;
-    case Complete;
-}
+use representations/lowered_program/layouts.omg;
+use representations/lowered_program/scalar.omg as program;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/typed_trees/typed_trees.omg;
 
 // Clear only the dense type authority for this invocation. Unsupported types
 // may remain unused; requesting one fails instead of borrowing another row's
 // layout. No previous compilation supplies layout evidence.
-public machine scalar_layout_clear(lowerer: @mutable ScalarLowerer, typing: @Typing)
+public machine scalar_layout_clear(lowerer: @mutable |lowerer|::ScalarLowerer, typing: @|typed_trees|::Typing)
 crashes Trap
 {
     lowerer.output.layout_count = typing.types.row_count;
     lowerer.layout_work_count = 0 as u64 +Trapping;
     transition { _ -> row(lowerer, 0 as u64 +Trapping) }
-    machine row(lowerer: @mutable ScalarLowerer, index: u64 in Trapping) {
+    machine row(lowerer: @mutable |lowerer|::ScalarLowerer, index: u64 in Trapping) {
         transition index < lowerer.output.layout_count && index < 8192 {
             true -> clear(lowerer, index),
             _ -> done()
         }
     }
-    machine clear(lowerer: @mutable ScalarLowerer, index: u64 in Trapping) {
-        lowerer.layout_states[(index) as -Trapping] = ScalarLayoutState::Unseen;
-        lowerer.output.layouts[(index) as -Trapping] = ScalarLayout {
-            kind: ScalarLayoutKind::Absent, size: 0 as u64 +Trapping,
+    machine clear(lowerer: @mutable |lowerer|::ScalarLowerer, index: u64 in Trapping) {
+        lowerer.layout_states[(index) as -Trapping] = |lowerer|::ScalarLayoutState::Unseen;
+        lowerer.output.layouts[(index) as -Trapping] = |layouts|::ScalarLayout {
+            kind: |layouts|::ScalarLayoutKind::Absent, size: 0 as u64 +Trapping,
             inner: 0 as u64 +Trapping, length: 0 as u64 +Trapping
         };
         transition { _ -> row(lowerer, index + 1) }
@@ -52,51 +36,51 @@ crashes Trap
 // owned representations, generic layouts, sums, linear cleanup and unknown
 // qualification remain coverage refusals. Reference cycles are also outside
 // this first bounded representation; they never become zero-sized records.
-public machine scalar_require_layout(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping)
+public machine scalar_require_layout(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping)
 crashes Trap
 {
     lowerer.layout_work_count = 0 as u64 +Trapping;
     transition { _ -> require(lowerer, syntax, typing, handle) }
 
-    machine require(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping) {
+    machine require(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping) {
         transition handle > 0 && handle < lowerer.output.layout_count && handle < 8192 {
             true -> color(lowerer, syntax, typing, handle),
             _ -> unsupported(lowerer)
         }
     }
-    machine color(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping) {
+    machine color(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping) {
         transition lowerer.layout_states[(handle) as -Trapping] {
-            ScalarLayoutState::Unseen -> push(lowerer, syntax, typing, handle),
-            ScalarLayoutState::Complete -> next(lowerer, syntax, typing),
+            |lowerer|::ScalarLayoutState::Unseen -> push(lowerer, syntax, typing, handle),
+            |lowerer|::ScalarLayoutState::Complete -> next(lowerer, syntax, typing),
             _ -> unsupported(lowerer)
         }
     }
-    machine push(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping) {
+    machine push(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping) {
         transition lowerer.layout_work_count < 8192 {
             true -> pushed(lowerer, syntax, typing, handle),
             _ -> full(lowerer)
         }
     }
-    machine pushed(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping) {
+    machine pushed(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping) {
         lowerer.layout_work[(lowerer.layout_work_count) as -Trapping] = handle as -Trapping;
         lowerer.layout_work_count = lowerer.layout_work_count + 1;
-        lowerer.layout_states[(handle) as -Trapping] = ScalarLayoutState::Visiting;
+        lowerer.layout_states[(handle) as -Trapping] = |lowerer|::ScalarLayoutState::Visiting;
         lowerer.layout_cursors[(handle) as -Trapping] = 0;
         lowerer.layout_sizes[(handle) as -Trapping] = 0;
         transition { _ -> next(lowerer, syntax, typing) }
     }
-    machine next(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing) {
+    machine next(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing) {
         transition lowerer.layout_work_count > 0 && lowerer.layout_work_count <= 8192 {
             true -> top(lowerer, syntax, typing),
             _ -> done()
         }
     }
-    machine top(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing) {
+    machine top(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing) {
         let handle: u64 in Trapping = lowerer.layout_work[(lowerer.layout_work_count - 1) as -Trapping] as u64 +Trapping;
-        let row: TypeRow = type_table_row(@typing.types, handle);
-        let policy: bool = row.domain == DomainBinding::Unqualified
-            || row.domain == DomainBinding::Wrapping || row.domain == DomainBinding::Saturating
-            || row.domain == DomainBinding::Trapping;
+        let row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, handle);
+        let policy: bool = row.domain == |symbol_resolved_trees|::DomainBinding::Unqualified
+            || row.domain == |symbol_resolved_trees|::DomainBinding::Wrapping || row.domain == |symbol_resolved_trees|::DomainBinding::Saturating
+            || row.domain == |symbol_resolved_trees|::DomainBinding::Trapping;
         // Work entries are plain stored words. Re-establish their type-table
         // bound before dispatching helpers that index the per-type arrays.
         transition handle < 8192 && policy {
@@ -104,56 +88,56 @@ crashes Trap
             _ -> unsupported(lowerer)
         }
     }
-    machine form(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, row: TypeRow) {
+    machine form(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, row: |typed_trees|::TypeRow) {
         transition row.kind {
-            TypeKind::Unit -> finish(lowerer, syntax, typing, handle, ScalarLayoutKind::Unit, 0 as u64 +Trapping, 0 as u64 +Trapping, 0 as u64 +Trapping),
-            TypeKind::Builtin -> builtin(lowerer, syntax, typing, handle, row),
-            TypeKind::Array -> array(lowerer, syntax, typing, handle, row),
-            TypeKind::Reference -> reference(lowerer, syntax, typing, handle, row),
-            TypeKind::Data -> record(lowerer, syntax, typing, handle, row),
+            |typed_trees|::TypeKind::Unit -> finish(lowerer, syntax, typing, handle, |layouts|::ScalarLayoutKind::Unit, 0 as u64 +Trapping, 0 as u64 +Trapping, 0 as u64 +Trapping),
+            |typed_trees|::TypeKind::Builtin -> builtin(lowerer, syntax, typing, handle, row),
+            |typed_trees|::TypeKind::Array -> array(lowerer, syntax, typing, handle, row),
+            |typed_trees|::TypeKind::Reference -> reference(lowerer, syntax, typing, handle, row),
+            |typed_trees|::TypeKind::Data -> record(lowerer, syntax, typing, handle, row),
             _ -> unsupported(lowerer)
         }
     }
-    machine builtin(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, row: TypeRow) {
+    machine builtin(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, row: |typed_trees|::TypeRow) {
         transition row.builtin {
-            BuiltinType::Bool -> boolean(lowerer, syntax, typing, handle, row),
-            BuiltinType::U8 -> scalar(lowerer, syntax, typing, handle, 1 as u64 +Trapping),
-            BuiltinType::U16 -> scalar(lowerer, syntax, typing, handle, 2 as u64 +Trapping),
-            BuiltinType::U32 -> scalar(lowerer, syntax, typing, handle, 4 as u64 +Trapping),
-            BuiltinType::U64 -> scalar(lowerer, syntax, typing, handle, 8 as u64 +Trapping),
+            |symbol_resolved_trees|::BuiltinType::Bool -> boolean(lowerer, syntax, typing, handle, row),
+            |symbol_resolved_trees|::BuiltinType::U8 -> scalar(lowerer, syntax, typing, handle, 1 as u64 +Trapping),
+            |symbol_resolved_trees|::BuiltinType::U16 -> scalar(lowerer, syntax, typing, handle, 2 as u64 +Trapping),
+            |symbol_resolved_trees|::BuiltinType::U32 -> scalar(lowerer, syntax, typing, handle, 4 as u64 +Trapping),
+            |symbol_resolved_trees|::BuiltinType::U64 -> scalar(lowerer, syntax, typing, handle, 8 as u64 +Trapping),
             _ -> unsupported(lowerer)
         }
     }
-    machine boolean(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, row: TypeRow) {
-        transition row.domain == DomainBinding::Unqualified {
+    machine boolean(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, row: |typed_trees|::TypeRow) {
+        transition row.domain == |symbol_resolved_trees|::DomainBinding::Unqualified {
             true -> scalar(lowerer, syntax, typing, handle, 1 as u64 +Trapping),
             _ -> unsupported(lowerer)
         }
     }
-    machine scalar(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, size: u64 in Trapping) {
-        transition { _ -> finish(lowerer, syntax, typing, handle, ScalarLayoutKind::Scalar, size, 0 as u64 +Trapping, 0 as u64 +Trapping) }
+    machine scalar(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, size: u64 in Trapping) {
+        transition { _ -> finish(lowerer, syntax, typing, handle, |layouts|::ScalarLayoutKind::Scalar, size, 0 as u64 +Trapping, 0 as u64 +Trapping) }
     }
-    machine array(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, row: TypeRow) {
-        let extent: TypeRow = type_table_row(@typing.types, row.length);
-        transition extent.kind == TypeKind::StaticInteger && row.inner > 0 && row.inner < 8192 {
+    machine array(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, row: |typed_trees|::TypeRow) {
+        let extent: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, row.length);
+        transition extent.kind == |typed_trees|::TypeKind::StaticInteger && row.inner > 0 && row.inner < 8192 {
             true -> array_child(lowerer, syntax, typing, handle, row, extent.length),
             _ -> unsupported(lowerer)
         }
     }
-    machine array_child(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, row: TypeRow, length: u64 in Trapping) {
-        transition lowerer.layout_states[(row.inner) as -Trapping] == ScalarLayoutState::Complete {
+    machine array_child(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, row: |typed_trees|::TypeRow, length: u64 in Trapping) {
+        transition lowerer.layout_states[(row.inner) as -Trapping] == |lowerer|::ScalarLayoutState::Complete {
             true -> array_size(lowerer, syntax, typing, handle, row, length),
             _ -> require(lowerer, syntax, typing, row.inner)
         }
     }
-    machine array_size(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, row: TypeRow, length: u64 in Trapping) {
-        let element: ScalarLayout = scalar_layout_at(@lowerer.output, row.inner);
-        transition element.kind == ScalarLayoutKind::Reference {
+    machine array_size(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, row: |typed_trees|::TypeRow, length: u64 in Trapping) {
+        let element: |layouts|::ScalarLayout = |layouts|::scalar_layout_at(@lowerer.output, row.inner);
+        transition element.kind == |layouts|::ScalarLayoutKind::Reference {
             true -> unsupported(lowerer),
             _ -> array_bounded(lowerer, syntax, typing, handle, row, length, element)
         }
     }
-    machine array_bounded(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, row: TypeRow, length: u64 in Trapping, element: ScalarLayout) {
+    machine array_bounded(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, row: |typed_trees|::TypeRow, length: u64 in Trapping, element: |layouts|::ScalarLayout) {
         // Both factors are bounded before multiplication, and the product
         // is at most 2^50 here. Oversized frames remain explicit capacity.
         transition length <= 33554432 && element.size <= 33554432 {
@@ -161,98 +145,98 @@ crashes Trap
             _ -> full(lowerer)
         }
     }
-    machine array_product(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, row: TypeRow, length: u64 in Trapping, size: u64 in Trapping) {
+    machine array_product(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, row: |typed_trees|::TypeRow, length: u64 in Trapping, size: u64 in Trapping) {
         transition size <= 33554432 {
-            true -> finish(lowerer, syntax, typing, handle, ScalarLayoutKind::Array, size, row.inner, length),
+            true -> finish(lowerer, syntax, typing, handle, |layouts|::ScalarLayoutKind::Array, size, row.inner, length),
             _ -> full(lowerer)
         }
     }
-    machine reference(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, row: TypeRow) {
-        transition row.domain == DomainBinding::Unqualified && row.inner > 0 && row.inner < 8192 {
+    machine reference(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, row: |typed_trees|::TypeRow) {
+        transition row.domain == |symbol_resolved_trees|::DomainBinding::Unqualified && row.inner > 0 && row.inner < 8192 {
             true -> reference_child(lowerer, syntax, typing, handle, row),
             _ -> unsupported(lowerer)
         }
     }
-    machine reference_child(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, row: TypeRow) {
-        let referent: TypeRow = type_table_row(@typing.types, row.inner);
+    machine reference_child(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, row: |typed_trees|::TypeRow) {
+        let referent: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, row.inner);
         // The current place representation follows one reference binding.
         // Nested reference projection and assignment need a retained path of
         // dereferences; treating a pointer slot as its eventual record is wrong.
-        transition referent.kind == TypeKind::Reference {
+        transition referent.kind == |typed_trees|::TypeKind::Reference {
             true -> unsupported(lowerer),
             _ -> reference_layout(lowerer, syntax, typing, handle, row)
         }
     }
-    machine reference_layout(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, row: TypeRow) {
-        transition lowerer.layout_states[(row.inner) as -Trapping] == ScalarLayoutState::Complete {
-            true -> finish(lowerer, syntax, typing, handle, ScalarLayoutKind::Reference, 8 as u64 +Trapping, row.inner, 0 as u64 +Trapping),
+    machine reference_layout(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, row: |typed_trees|::TypeRow) {
+        transition lowerer.layout_states[(row.inner) as -Trapping] == |lowerer|::ScalarLayoutState::Complete {
+            true -> finish(lowerer, syntax, typing, handle, |layouts|::ScalarLayoutKind::Reference, 8 as u64 +Trapping, row.inner, 0 as u64 +Trapping),
             _ -> require(lowerer, syntax, typing, row.inner)
         }
     }
-    machine record(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, row: TypeRow) {
-        let item: DataItem = syntax_trees_data_item(syntax, row.item);
-        transition row.domain == DomainBinding::Unqualified && row.argument_count == 0
+    machine record(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, row: |typed_trees|::TypeRow) {
+        let item: |syntax_trees|::DataItem = |syntax_trees|::syntax_trees_data_item(syntax, row.item);
+        transition row.domain == |symbol_resolved_trees|::DomainBinding::Unqualified && row.argument_count == 0
             && item.generic_parameter_count == 0 && item.case_count == 0 && !item.is_boundary
-            && item.multiplicity != DataMultiplicity::Linear {
+            && item.multiplicity != |syntax_trees|::DataMultiplicity::Linear {
             true -> fields(lowerer, syntax, typing, handle, item),
             _ -> unsupported(lowerer)
         }
     }
-    machine fields(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, item: DataItem) {
+    machine fields(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, item: |syntax_trees|::DataItem) {
         let offset: u64 in Trapping = lowerer.layout_cursors[(handle) as -Trapping] as u64 +Trapping;
         let size: u64 in Trapping = lowerer.layout_sizes[(handle) as -Trapping] as u64 +Trapping;
         transition offset < item.field_count {
             true -> field(lowerer, syntax, typing, handle, item.first_field + offset, size),
-            _ -> finish(lowerer, syntax, typing, handle, ScalarLayoutKind::Record, size, 0 as u64 +Trapping, 0 as u64 +Trapping)
+            _ -> finish(lowerer, syntax, typing, handle, |layouts|::ScalarLayoutKind::Record, size, 0 as u64 +Trapping, 0 as u64 +Trapping)
         }
     }
-    machine field(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, field: u64 in Trapping, size: u64 in Trapping) {
-        let declaration: DataField = syntax_trees_field(syntax, field);
-        let child: u64 in Trapping = reference_type(typing, declaration.type_reference);
+    machine field(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, field: u64 in Trapping, size: u64 in Trapping) {
+        let declaration: |syntax_trees|::DataField = |syntax_trees|::syntax_trees_field(syntax, field);
+        let child: u64 in Trapping = |typed_trees|::reference_type(typing, declaration.type_reference);
         transition field < 1024 && child > 0 && child < 8192 {
             true -> field_child(lowerer, syntax, typing, handle, field, size, child),
             _ -> unsupported(lowerer)
         }
     }
-    machine field_child(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, field: u64 in Trapping, size: u64 in Trapping, child: u64 in Trapping) {
-        transition lowerer.layout_states[(child) as -Trapping] == ScalarLayoutState::Complete {
+    machine field_child(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, field: u64 in Trapping, size: u64 in Trapping, child: u64 in Trapping) {
+        transition lowerer.layout_states[(child) as -Trapping] == |lowerer|::ScalarLayoutState::Complete {
             true -> field_size(lowerer, syntax, typing, handle, field, size, child),
             _ -> require(lowerer, syntax, typing, child)
         }
     }
-    machine field_size(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, field: u64 in Trapping, size: u64 in Trapping, child: u64 in Trapping) {
-        let layout: ScalarLayout = scalar_layout_at(@lowerer.output, child);
-        transition layout.kind == ScalarLayoutKind::Reference {
+    machine field_size(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, field: u64 in Trapping, size: u64 in Trapping, child: u64 in Trapping) {
+        let layout: |layouts|::ScalarLayout = |layouts|::scalar_layout_at(@lowerer.output, child);
+        transition layout.kind == |layouts|::ScalarLayoutKind::Reference {
             true -> unsupported(lowerer),
             _ -> field_bounded(lowerer, syntax, typing, handle, field, size, layout)
         }
     }
-    machine field_bounded(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, field: u64 in Trapping, size: u64 in Trapping, layout: ScalarLayout) {
+    machine field_bounded(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, field: u64 in Trapping, size: u64 in Trapping, layout: |layouts|::ScalarLayout) {
         transition layout.size <= 33554432 && size <= 33554432 - layout.size {
             true -> field_offset(lowerer, syntax, typing, handle, field, size, layout.size),
             _ -> full(lowerer)
         }
     }
-    machine field_offset(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, field: u64 in Trapping, size: u64 in Trapping, width: u64 in Trapping) {
+    machine field_offset(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, field: u64 in Trapping, size: u64 in Trapping, width: u64 in Trapping) {
         let cursor: u64 = lowerer.layout_cursors[(handle) as -Trapping];
         transition cursor < 1024 {
             true -> field_stored(lowerer, syntax, typing, handle, field, size, width, cursor),
             _ -> full(lowerer)
         }
     }
-    machine field_stored(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, field: u64 in Trapping, size: u64 in Trapping, width: u64 in Trapping, cursor: u64) {
+    machine field_stored(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, field: u64 in Trapping, size: u64 in Trapping, width: u64 in Trapping, cursor: u64) {
         lowerer.output.field_offsets[(field) as -Trapping] = size as -Trapping;
         lowerer.layout_sizes[(handle) as -Trapping] = (size + width) as -Trapping;
         lowerer.layout_cursors[(handle) as -Trapping] = cursor + 1;
         transition { _ -> next(lowerer, syntax, typing) }
     }
-    machine finish(lowerer: @mutable ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, kind: ScalarLayoutKind, size: u64 in Trapping, inner: u64 in Trapping, length: u64 in Trapping) {
-        lowerer.output.layouts[(handle) as -Trapping] = ScalarLayout { kind: kind, size: size, inner: inner, length: length };
-        lowerer.layout_states[(handle) as -Trapping] = ScalarLayoutState::Complete;
+    machine finish(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, kind: |layouts|::ScalarLayoutKind, size: u64 in Trapping, inner: u64 in Trapping, length: u64 in Trapping) {
+        lowerer.output.layouts[(handle) as -Trapping] = |layouts|::ScalarLayout { kind: kind, size: size, inner: inner, length: length };
+        lowerer.layout_states[(handle) as -Trapping] = |lowerer|::ScalarLayoutState::Complete;
         lowerer.layout_work_count = lowerer.layout_work_count - 1;
         transition { _ -> next(lowerer, syntax, typing) }
     }
-    machine unsupported(lowerer: @mutable ScalarLowerer) { lowerer.output.status = ScalarStatus::Unsupported; }
-    machine full(lowerer: @mutable ScalarLowerer) { lowerer.output.status = ScalarStatus::Capacity; }
+    machine unsupported(lowerer: @mutable |lowerer|::ScalarLowerer) { lowerer.output.status = |program|::ScalarStatus::Unsupported; }
+    machine full(lowerer: @mutable |lowerer|::ScalarLowerer) { lowerer.output.status = |program|::ScalarStatus::Capacity; }
     machine done() {}
 }

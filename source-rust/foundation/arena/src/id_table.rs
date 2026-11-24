@@ -7,7 +7,7 @@ pub trait NumericId: Copy + Eq + Ord + std::hash::Hash {
     fn get(self) -> u64;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct IdTable<Id, T> {
     first: u64,
     values: Vec<T>,

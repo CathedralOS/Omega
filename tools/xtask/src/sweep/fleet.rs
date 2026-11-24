@@ -296,18 +296,21 @@ fn unix_job(run: &Run, assignment: &Assignment) -> String {
     }
     script.push_str(&format!(
         "if [ ! -e {checkout}/.git ]; then\n\
-         \x20 st fetching \"cloning {origin}\"\n\
-         \x20 git clone -q {origin_q} {checkout} || {{ st failed \"cannot clone {origin} into {checkout_plain}\"; exit 1; }}\n\
+         \x20 st fetching {cloning}\n\
+         \x20 git clone -q {origin_q} {checkout} || {{ st failed {clone_failed}; exit 1; }}\n\
          fi\n\
-         cd {checkout} || {{ st failed \"no checkout at {checkout_plain}\"; exit 1; }}\n\
+         cd {checkout} || {{ st failed {no_checkout}; exit 1; }}\n\
          st fetching \"\"\n\
-         if [ -n \"$(git status --porcelain --untracked-files=no)\" ]; then st failed \"{checkout_plain} has local changes; fleet only uses a clean clone\"; exit 1; fi\n\
-         git fetch -q origin {commit} && git checkout -q --detach {commit} || {{ st failed \"cannot check out {commit}\"; exit 1; }}\n",
+         if [ -n \"$(git status --porcelain --untracked-files=no)\" ]; then st failed {dirty}; exit 1; fi\n\
+         git fetch -q origin {commit} && git checkout -q --detach {commit} || {{ st failed {no_commit}; exit 1; }}\n",
         checkout = q(&host.checkout),
-        checkout_plain = host.checkout,
-        origin = run.origin,
+        cloning = q(&format!("cloning {}", run.origin)),
+        clone_failed = q(&format!("cannot clone {} into {}", run.origin, host.checkout)),
+        no_checkout = q(&format!("no checkout at {}", host.checkout)),
+        dirty = q(&format!("{} has local changes; fleet only uses a clean clone", host.checkout)),
+        no_commit = q(&format!("cannot check out {}", run.commit)),
         origin_q = q(&run.origin),
-        commit = run.commit,
+        commit = q(&run.commit),
     ));
     for (key, value) in &host.env {
         script.push_str(&format!("export {key}={}\n", q(value)));
@@ -402,7 +405,7 @@ fn windows_job(run: &Run, assignment: &Assignment) -> Result<String, String> {
         dirty = q(&format!(
             "{checkout} has local changes; fleet only uses a clean clone"
         )),
-        commit = run.commit,
+        commit = q(&run.commit),
         no_commit = q(&format!("cannot check out {}", run.commit)),
         no_fetch = q(&format!("cannot fetch {} from origin", run.commit)),
     );
@@ -1026,6 +1029,7 @@ fn collect(args: &[String]) -> Result<(), String> {
     let run = load_run(id.as_deref())?;
     let local = runs_dir()?.join(&run.id);
     fs::create_dir_all(&local).map_err(|error| format!("{}: {error}", local.display()))?;
+    let root = std::env::current_dir().map_err(|error| error.to_string())?;
     let mut parts = Vec::new();
     let mut problems = Vec::new();
     for assignment in &run.assignments {
@@ -1039,10 +1043,11 @@ fn collect(args: &[String]) -> Result<(), String> {
                 fs::write(&path, &bytes).map_err(|error| format!("{}: {error}", path.display()))?;
                 let text = String::from_utf8_lossy(&bytes);
                 match record::parse_output(&text) {
-                    Ok((header, rows)) => {
-                        if let Err(error) = matches_run(&run, assignment, &header) {
+                    Ok((mut header, rows)) => {
+                        if let Err(error) = matches_run(&root, &run, assignment, &header) {
                             problems.push(format!("{name}: {error}"));
                         } else {
+                            header.commit.clone_from(&run.commit);
                             parts.push((path, header, rows));
                         }
                     }
@@ -1066,7 +1071,7 @@ fn collect(args: &[String]) -> Result<(), String> {
     let (header, rows) = record::merge(&parts)?;
     // Beside the shards, never over the run record `<id>.json`.
     let out = out.unwrap_or_else(|| local.join("merged.json"));
-    record::write_output(&out, &header, &rows, super::render_rows)?;
+    record::write_output(&out, &header, &rows)?;
     print!("{}", super::summary(&rows));
     println!(
         "\nfleet: merged {} shards of run {} into {} rows for {} at {}; wrote {}",
@@ -1081,8 +1086,13 @@ fn collect(args: &[String]) -> Result<(), String> {
 }
 
 /// A collected shard has to be the one this run launched there.
-fn matches_run(run: &Run, assignment: &Assignment, header: &Header) -> Result<(), String> {
-    if !run.commit.starts_with(&header.commit) || header.commit.is_empty() {
+fn matches_run(
+    root: &Path,
+    run: &Run,
+    assignment: &Assignment,
+    header: &Header,
+) -> Result<(), String> {
+    if !super::matches_commit(root, &run.commit, &header.commit) {
         return Err(format!(
             "output is for commit {}, the run is at {}",
             header.commit, run.commit
@@ -1244,18 +1254,92 @@ mod tests {
     }
 
     #[test]
+    fn a_shard_must_identify_the_commit_the_fleet_launched() {
+        let (mut run, assignment) = sample_run(Os::Unix);
+        let root = crate::execution::reserve_directory(
+            &std::env::temp_dir().join("omega-fleet-commit-tests"),
+        )
+        .unwrap();
+        git(&root, &["init", "-q"]).unwrap();
+        git(
+            &root,
+            &[
+                "-c",
+                "user.name=Test",
+                "-c",
+                "user.email=test@example.invalid",
+                "-c",
+                "commit.gpgSign=false",
+                "commit",
+                "--allow-empty",
+                "-qm",
+                "fixture",
+            ],
+        )
+        .unwrap();
+        run.commit = git(&root, &["rev-parse", "--verify", "HEAD"]).unwrap();
+        let mut header = Header {
+            commit: run.commit[..1].to_owned(),
+            target: run.target.clone(),
+            shard: assignment.shard,
+            selection: 1,
+            total: 1,
+            fingerprint: record::fingerprint(["samples/app/main.omg"]),
+        };
+        assert!(matches_run(&root, &run, &assignment, &header).is_err());
+        header.commit = git(&root, &["rev-parse", "--short=10", "HEAD"]).unwrap();
+        assert!(matches_run(&root, &run, &assignment, &header).is_ok());
+        assert!(matches_run(&root.join("absent"), &run, &assignment, &header).is_err());
+        let out = root.join("shard.json");
+        let row = crate::sweep::row("samples/app/main.omg", 0, 3, "");
+        let (mut journal, _) = record::Journal::open(&root, &out, &header).unwrap();
+        journal.append(&row).unwrap();
+        drop(journal);
+        header.commit.clone_from(&run.commit);
+        assert!(matches_run(&root.join("absent"), &run, &assignment, &header).is_ok());
+        let (journal, restored) = record::Journal::open(&root, &out, &header).unwrap();
+        assert_eq!(restored, [row]);
+        drop(journal);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn the_unix_job_takes_the_lock_and_runs_its_own_shard() {
         let (run, assignment) = sample_run(Os::Unix);
         let job = unix_job(&run, &assignment);
         assert!(job.contains("while ! mkdir \"$lock\""));
         assert!(job.contains("trap 'rm -rf \"$lock\"' EXIT"));
-        assert!(job.contains("git checkout -q --detach 0123456789abcdef"));
+        assert!(job.contains("git checkout -q --detach '0123456789abcdef'"));
         assert!(job.contains("export MBX_CACHE_DIR='/home/me/cache'"));
         assert!(job.contains(
             "'--filter' 'samples/cli/' '--target' 'windows_x86_64' '--shard' '2-3/5' \
              '--jobs' '10' '--out' '/r/run-1/shard-2-3-of-5.json'"
         ));
         assert!(job.contains("st building"));
+    }
+
+    #[test]
+    fn unix_status_messages_keep_repository_and_checkout_names_literal() {
+        let (mut run, mut assignment) = sample_run(Os::Unix);
+        run.origin = "/mirror/Morgan's projects".to_owned();
+        assignment.host.checkout = "/work/Omega \"release candidate\"".to_owned();
+        let job = unix_job(&run, &assignment);
+        for (state, message) in [
+            ("fetching", format!("cloning {}", run.origin)),
+            (
+                "failed",
+                format!(
+                    "cannot clone {} into {}",
+                    run.origin, assignment.host.checkout
+                ),
+            ),
+            (
+                "failed",
+                format!("no checkout at {}", assignment.host.checkout),
+            ),
+        ] {
+            assert!(job.contains(&format!("st {state} {}", sh_quote(&message))));
+        }
     }
 
     #[test]

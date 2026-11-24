@@ -1,0 +1,6 @@
+# slice 063: 7942 lines in 5 file range(s)
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow_operand_values.rs	1	1193
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow_ownership.rs	1	2002
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow_place.rs	1	2245
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow_reference_places.rs	1	1108
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow_retained_borrows.rs	1	1394

@@ -70,6 +70,7 @@ mod validation {
                     Ok(())
                 }
                 Self::Application { .. }
+                | Self::DeclarationApplication { .. }
                 | Self::Value { .. }
                 | Self::BooleanField { .. }
                 | Self::IntegerField { .. }
@@ -336,7 +337,8 @@ mod value_queries {
     impl ScalarTerm {
         pub fn scalar_type(&self) -> ScalarType {
             match self {
-                Self::Application { scalar_type, .. } => *scalar_type,
+                Self::Application { scalar_type, .. }
+                | Self::DeclarationApplication { scalar_type, .. } => *scalar_type,
                 Self::IeeeFloatLiteral(value) => ScalarType::IeeeFloat(value.format()),
                 Self::IeeeFloatField { format, .. } => ScalarType::IeeeFloat(*format),
                 Self::Value { scalar_type, .. } | Self::StructuralRead { scalar_type, .. } => {
@@ -974,6 +976,12 @@ impl From<CanonicalStructuralPathSegment> for ScalarReadProjection {
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
 pub enum ScalarTerm {
+    /// An erased application, interpreted by the mathematical checker.
+    DeclarationApplication {
+        declaration: crate::ClauseDeclaration,
+        arguments: Vec<ScalarTerm>,
+        scalar_type: ScalarType,
+    },
     Application {
         application: crate::ScalarApplicationId,
         scalar_type: ScalarType,
@@ -1343,6 +1351,9 @@ macro_rules! integer_shift_term {
 macro_rules! append_scalar_operands {
     ($term:expr, $operands:ident, $iter:ident, $borrow:ident) => {
         match $term {
+            ScalarTerm::DeclarationApplication { arguments, .. } => {
+                $operands.extend(arguments.$iter());
+            }
             ScalarTerm::StructuralRead { path, .. } => {
                 $operands.extend(path.$iter().filter_map(|segment| match segment {
                     ScalarReadProjection::Index(index) => Some(index.$borrow()),

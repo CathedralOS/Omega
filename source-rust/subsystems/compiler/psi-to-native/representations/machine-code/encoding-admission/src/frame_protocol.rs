@@ -1,4 +1,6 @@
 //! Check frame byte arenas against exact target recipes and issued layouts.
+use calling_conventions::frame_unwind::{EncodedFrameProtocol, FrameProtocolStep};
+use machine_code::FrameProtocolStepSpan;
 use register_environment::ValidatedTargetRegisterEnvironment;
 
 pub use machine_code::{
@@ -37,7 +39,7 @@ fn encode_frame_function(
     environment: &ValidatedTargetRegisterEnvironment,
     function: &machine_code::FunctionTargetFrameLayout,
     committed_bytes: u64,
-) -> Result<(Vec<u8>, Vec<u8>), TargetFrameProtocolEncodingError> {
+) -> Result<EncodedFrameProtocol, TargetFrameProtocolEncodingError> {
     Ok(match codec {
         FrameProtocolCodec::X86_64 => {
             let slots = function
@@ -111,6 +113,7 @@ fn validate_bytes(
         .ok_or(TargetFrameProtocolEncodingError::UnsupportedTarget)?
         .continuation;
     let mut cursor = 0;
+    let mut step_cursor = 0;
     for (row, function) in candidate.functions.iter().zip(&frame.plan().functions) {
         if row.machine != function.machine {
             return Err(TargetFrameProtocolEncodingError::NonCanonicalEncoding);
@@ -120,12 +123,23 @@ fn validate_bytes(
         if !continuation.admits(function.return_address) {
             return Err(TargetFrameProtocolEncodingError::UnsupportedReturnAddressCustody);
         }
-        let (prologue, epilogue) =
-            encode_frame_function(codec, environment, function, committed_bytes)?;
-        cursor = validate_span(&candidate.bytes, cursor, row.prologue, &prologue)?;
-        cursor = validate_span(&candidate.bytes, cursor, row.epilogue, &epilogue)?;
+        let encoded = encode_frame_function(codec, environment, function, committed_bytes)?;
+        cursor = validate_span(&candidate.bytes, cursor, row.prologue, &encoded.prologue)?;
+        cursor = validate_span(&candidate.bytes, cursor, row.epilogue, &encoded.epilogue)?;
+        step_cursor = validate_step_span(
+            &candidate.steps,
+            step_cursor,
+            row.prologue_steps,
+            &encoded.prologue_steps,
+        )?;
+        step_cursor = validate_step_span(
+            &candidate.steps,
+            step_cursor,
+            row.epilogue_steps,
+            &encoded.epilogue_steps,
+        )?;
     }
-    if cursor != candidate.bytes.len() {
+    if cursor != candidate.bytes.len() || step_cursor != candidate.steps.len() {
         return Err(TargetFrameProtocolEncodingError::NonCanonicalEncoding);
     }
     Ok(())
@@ -136,6 +150,24 @@ fn validate_span(
     cursor: usize,
     span: FrameProtocolByteSpan,
     expected: &[u8],
+) -> Result<usize, TargetFrameProtocolEncodingError> {
+    let end = cursor
+        .checked_add(expected.len())
+        .ok_or(TargetFrameProtocolEncodingError::ByteArenaOverflow)?;
+    if usize::try_from(span.offset).ok() != Some(cursor)
+        || usize::try_from(span.length).ok() != Some(expected.len())
+        || arena.get(cursor..end) != Some(expected)
+    {
+        return Err(TargetFrameProtocolEncodingError::NonCanonicalEncoding);
+    }
+    Ok(end)
+}
+
+fn validate_step_span(
+    arena: &[FrameProtocolStep],
+    cursor: usize,
+    span: FrameProtocolStepSpan,
+    expected: &[FrameProtocolStep],
 ) -> Result<usize, TargetFrameProtocolEncodingError> {
     let end = cursor
         .checked_add(expected.len())

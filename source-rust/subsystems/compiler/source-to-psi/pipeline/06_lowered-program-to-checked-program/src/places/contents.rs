@@ -518,10 +518,12 @@ impl EntryOwner<'_, '_> {
 
 impl crate::checking::Bindings for EntryOwner<'_, '_> {
     type Error = crate::checking::Unbound;
-    fn value(&mut self, _: ValueId, _: ScalarType) -> Result<ScalarTerm, crate::checking::Unbound> {
-        Err(crate::checking::Unbound::Unsupported(
-            "a data clause names a value that is no field of its own value",
-        ))
+    fn value(
+        &mut self,
+        value: ValueId,
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+        super::clause_input(self.tables, value, scalar_type)
     }
 
     fn field(

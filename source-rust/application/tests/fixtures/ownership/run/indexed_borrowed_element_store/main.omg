@@ -1,0 +1,18 @@
+machine set(words: @mutable [u64], index: u64, value: u64)
+requires index < words.length {
+    transition { _ -> store(words, index, value) }
+    machine store(words: @mutable [u64], index: u64, value: u64)
+    requires index < words.length {
+        words[index] = value;
+    }
+}
+
+machine main() crashes Trap {
+    let mutable words: [u64; 2] = [3u64, 7u64];
+    set(@mutable words[..], 1u64, 42u64);
+    transition words[0u64] == 3u64 && words[1u64] == 42u64 {
+        true -> done(), false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

@@ -1,0 +1,84 @@
+// Expected exit: 0
+use pipeline/symbol_resolved_trees_to_typed_trees/quoted_literals.omg;
+use pipeline/symbol_resolved_trees_to_typed_trees/literals.omg;
+use representations/source_files/source.omg;
+use representations/syntax_trees/syntax_trees.omg as trees;
+use representations/tokens/numeric.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg as names;
+
+machine start() crashes Trap {
+    check_integers();
+    // Each input contains the opening quote, the source escape spellings and the closing quote.
+    check_spelling("\"\\x41\"", 1 as +Trapping, 15 as +Trapping);
+    check_spelling("\"\\xC0\"", 1 as +Trapping, 10 as +Trapping);
+    check_spelling("\"\\xC2\\xA2\"", 2 as +Trapping, 11 as +Trapping);
+    check_spelling("\"\\xC2\"", 1 as +Trapping, 10 as +Trapping);
+    check_spelling("\"\\xE0\\xA0\\x80\"", 3 as +Trapping, 11 as +Trapping);
+    check_spelling("\"\\xE0\\x9F\\x80\"", 3 as +Trapping, 10 as +Trapping);
+    check_spelling("\"\\xED\\xA0\\x80\"", 3 as +Trapping, 10 as +Trapping);
+    check_spelling("\"\\xF4\\x8F\\xBF\\xBF\"", 4 as +Trapping, 11 as +Trapping);
+    check_spelling("\"\\xF4\\x90\\x80\\x80\"", 4 as +Trapping, 10 as +Trapping);
+    check_spelling("\"\\0\"", 1 as +Trapping, 13 as +Trapping);
+    check_spelling("\"\"", 0 as +Trapping, 7 as +Trapping);
+}
+
+machine check_integers() crashes Trap {
+    let mutable syntax: |trees|::SyntaxTrees;
+    syntax.integer_literal_count = 3;
+    syntax.integer_literals[0] = |trees|::IntegerLiteral {
+        magnitude: 65535 as +Wrapping, exact: true, empty_digits: false, suffix: |numeric|::IntegerSuffix::U16
+    };
+    syntax.integer_literals[1] = |trees|::IntegerLiteral {
+        magnitude: 37 as +Wrapping, exact: true, empty_digits: false, suffix: |numeric|::IntegerSuffix::None
+    };
+    syntax.integer_literals[2] = |trees|::IntegerLiteral {
+        magnitude: 0 as +Wrapping, exact: false, empty_digits: false, suffix: |numeric|::IntegerSuffix::U64
+    };
+    let suffixed: |literals|::LiteralValue = |literals|::literal_value(@syntax, 0 as +Trapping);
+    let anonymous = |literals|::literal_value(@syntax, 1 as +Trapping);
+    let inexact = |literals|::literal_value(@syntax, 2 as +Trapping);
+    transition suffixed.valid && suffixed.has_suffix && suffixed.suffix == |names|::BuiltinType::U16
+        && suffixed.magnitude == 65535 && anonymous.valid && !anonymous.has_suffix
+        && anonymous.magnitude == 37 && !inexact.valid {
+        true -> done(), _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
+
+machine check_spelling(spelling: @[u8], length: u64 in Trapping, roster: u64 in Trapping) crashes Trap {
+    let mutable sources: |source|::SourceSet;
+    transition spelling.length <= 8388608 {
+        true -> copy(@mutable sources, spelling, 0, length, roster),
+        _ -> wrong()
+    }
+    machine copy(sources: @mutable |source|::SourceSet, spelling: @[u8], index: u64, length: u64 in Trapping, roster: u64 in Trapping)
+    requires spelling.length <= 8388608
+    {
+        transition index < spelling.length {
+            true -> byte(sources, spelling, index, length, roster),
+            _ -> inspect(sources, spelling.length, length, roster)
+        }
+    }
+    machine byte(sources: @mutable |source|::SourceSet, spelling: @[u8], index: u64, length: u64 in Trapping, roster: u64 in Trapping)
+    requires index < spelling.length && spelling.length <= 8388608
+    {
+        sources.bytes[index] = spelling[index];
+        transition { _ -> copy(sources, spelling, index + 1, length, roster) }
+    }
+    machine inspect(sources: @mutable |source|::SourceSet, extent: u64, length: u64 in Trapping, roster: u64 in Trapping)
+    requires extent <= 8388608
+    {
+        sources.unit_count = 1;
+        sources.byte_count = extent;
+        sources.units[0] = |source|::SourceRange { start: 0 as +Trapping, length: extent as +Trapping };
+        let span = |source|::SourceSpan {
+            source: |source|::SourceId { value: 0 as +Trapping },
+            span: |source|::Span { start: 0 as +Trapping, end: extent as +Trapping }
+        };
+        let result = |quoted_literals|::inspect_quoted(@sources, span);
+        transition result.length == length && result.roster == roster { true -> done(), _ -> wrong() }
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

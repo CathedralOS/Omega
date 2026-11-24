@@ -151,7 +151,8 @@ pub(crate) struct PredicateDefinition {
     pub symbol: SymbolHandle,
     pub diagnostic: MachineId,
     pub parameters: Vec<terminal_psi::ValueDeclaration>,
-    pub body: semantic_vocabulary::Proposition,
+    pub type_parameters: Vec<u32>,
+    pub body: terminal_psi::MathematicalPredicateBody,
 }
 
 pub(crate) struct Program<'t> {
@@ -290,6 +291,8 @@ pub(crate) struct Program<'t> {
     reading_schema: bool,
     /// Runtime carriers keep their original binder even in applied callees.
     rigid_storage: Vec<Option<type_parameters::ParameterStorage>>,
+    /// Binds sibling operations while reading a law supplied by this record.
+    clause_supplier: Option<SymbolHandle>,
     /// `scope` of each machine, pushed with its signature and restored
     /// when its body is read.
     scopes: IdTable<MachineId, Vec<(SymbolHandle, ValueType)>>,
@@ -298,6 +301,10 @@ pub(crate) struct Program<'t> {
     nominal_calls: Vec<nominal_applications::NominalCallSource>,
     const_scope: Vec<ConstBinding>,
     const_scopes: IdTable<MachineId, Vec<ConstBinding>>,
+    /// While a generic data declaration's template is read
+    /// (`subjects::generic_data`), the next input identity for a type
+    /// equation its rigid binders leave open. `None` everywhere else.
+    open_equation_inputs: Option<u64>,
     /// The generic machines a generic check form's entry calls at its own
     /// type parameters, each read once per tuple with its actual body. These
     /// applications also retain their independent template checks.
@@ -555,10 +562,12 @@ impl<'t> Program<'t> {
             source_scopes: IdTable::default(),
             reading_schema: false,
             rigid_storage: Vec::new(),
+            clause_supplier: None,
             scopes: IdTable::default(),
             nominal_calls: Vec::new(),
             const_scope: Vec::new(),
             const_scopes: IdTable::default(),
+            open_equation_inputs: None,
             applications: Vec::new(),
             applied: Vec::new(),
             alternative: None,
@@ -1432,6 +1441,7 @@ mod tests {
             .insert(ExpressionNode::Boolean(false));
         let node = ExpressionNode::Binary(TableBinaryExpression {
             policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            negation: false,
             left,
             operator: BinaryOperator::CaseMembership,
             right,
@@ -1461,6 +1471,7 @@ mod tests {
                 .expression_table
                 .insert(ExpressionNode::Binary(TableBinaryExpression {
                     policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    negation: false,
                     left,
                     operator,
                     right,
@@ -1854,6 +1865,7 @@ mod tests {
                     operator: BinaryOperator::Add,
                     right: literal,
                     policy: numerics::arithmetic::ArithmeticDomain::Wrapping,
+                    negation: false,
                 }))
         };
         let computed = wrapped_sum(&mut typed, named);
@@ -1891,6 +1903,7 @@ mod tests {
                     operator: BinaryOperator::Equal,
                     right: named,
                     policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    negation: false,
                 }));
         let completion = crate::source_state::signature::SignatureContract {
             kind: crate::source_state::signature::SignatureContractKind::Ensures,
@@ -2860,6 +2873,7 @@ mod tests {
                 operator: crate::source_state::expression::BinaryOperator::Subtract,
                 right: initial,
                 policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                negation: false,
             },
         ));
         let borrowed = [Slot {
@@ -3172,6 +3186,7 @@ mod tests {
                 .expression_table
                 .insert(ExpressionNode::Binary(TableBinaryExpression {
                     policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    negation: false,
                     left,
                     operator,
                     right,

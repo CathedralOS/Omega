@@ -1,4 +1,5 @@
 use super::*;
+use arena::IdTable;
 use semantic_vocabulary::{IntegerSign, OperationId};
 use terminal_check_tables::values::{ValueOrigin, ValueRow};
 
@@ -1373,6 +1374,53 @@ fn sibling_disjunctions_in_one_premise_remain_separate_cuts() {
             .is_err()
         );
     }
+}
+
+// A machine that lends a large array through its joins has a value for every
+// element at every join: std's Windows removal walk has about 66,000. One
+// proof context names a few of them. Each prepared context, the root and every
+// case branch, used to fill rows over the whole namespace, so checking std for
+// four targets reached 48.7 GB. Rows follow the named values.
+#[test]
+fn each_case_branch_allocates_rows_only_for_the_values_it_names() {
+    const NAMESPACE: usize = 200_000;
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let values = IdTable::from_rows((0..NAMESPACE).map(|position| {
+        (
+            ValueId::new(1 + u64::try_from(position).unwrap()).unwrap(),
+            ValueRow {
+                scalar_type,
+                origin: ValueOrigin::MachineParameter {
+                    position: u32::try_from(position).unwrap(),
+                },
+                rigid: None,
+            },
+        )
+    }))
+    .unwrap();
+    let id = values.identity_at(NAMESPACE - 1).unwrap();
+    let input = ScalarTerm::value(id, scalar_type);
+    let literal = |n| ScalarTerm::integer(integer, IntegerValue::Unsigned(n)).unwrap();
+    let cut = Proposition::Disjunction(vec![
+        Proposition::LessThan(input.clone(), literal(10)),
+        Proposition::LessOrEqual(literal(20), input),
+    ]);
+    let context = PropositionContext::from_value_types([(id, scalar_type)]).unwrap();
+    let assumptions = [cut];
+    let mut activity = ProofSearchActivity::default();
+    let mut prover = Prover::new(&context, &assumptions, &[], &values, &mut activity);
+    prover.remaining_case_branches = 2;
+    let proof = prover.split(&Proposition::Truth).unwrap();
+    proof_admission::accept_certificate(&context, &Proposition::Truth, &assumptions, &[], &proof)
+        .unwrap();
+    assert_eq!(prover.activity.started, 3, "the root and both branches");
+    assert!(
+        prover.activity.value_rows <= 3 * 4,
+        "{} rows for {} contexts naming one value",
+        prover.activity.value_rows,
+        prover.activity.started
+    );
 }
 
 #[test]

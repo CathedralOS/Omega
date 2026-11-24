@@ -1683,8 +1683,11 @@ mod tests {
                     offset: 1,
                     length: 1,
                 },
+                prologue_steps: Default::default(),
+                epilogue_steps: Default::default(),
             }],
             bytes: vec![0xaa, 0xbb],
+            steps: Vec::new(),
         }
     }
 

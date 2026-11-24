@@ -492,7 +492,10 @@ fn canonical_const_result_in_application(
     substitution: &GenericApplicationSubstitution,
 ) -> Result<CanonicalConstValue, String> {
     let required = substituted_type_label(syntax, type_reference, substitution, selection)?;
-    if required == "Rat" {
+    if required == "Rat"
+        && nominal_const_origin(syntax, type_reference, selection, substitution)
+            != Some(source_admission::SourceOrigin::User)
+    {
         validate_canonical_rat(&node)?;
     }
     Ok(CanonicalConstValue::new(
@@ -500,6 +503,41 @@ fn canonical_const_result_in_application(
         node.encoding(),
         node.display(),
     ))
+}
+
+// A user record can have the same label as core's rational. Follow the
+// receiving binder once, then select the declaration in its own source.
+// Without an identified user declaration the existing rational check applies.
+fn nominal_const_origin(
+    syntax: &SyntaxTrees,
+    mut reference: TypeReferenceHandle,
+    selection: Option<&ConstantSelection>,
+    substitution: &GenericApplicationSubstitution,
+) -> Option<source_admission::SourceOrigin> {
+    let selection = selection?;
+    let mut receiving_bindings = Some(substitution);
+    loop {
+        match syntax.type_references.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Named(name) => {
+                if let Some(argument) = receiving_bindings
+                    .take()
+                    .and_then(|scope| scope.get(name.as_str(syntax)))
+                {
+                    reference = *argument;
+                    continue;
+                }
+                let declaration = selection.data(syntax, name).ok()?;
+                return Some(
+                    selection
+                        .header_symbols()
+                        .source_file(declaration.name.source_span())?
+                        .origin,
+                );
+            }
+            _ => return None,
+        }
+    }
 }
 
 fn selected_type_label(

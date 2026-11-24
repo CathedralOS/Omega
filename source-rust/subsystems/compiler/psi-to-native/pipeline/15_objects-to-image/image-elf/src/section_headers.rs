@@ -517,7 +517,7 @@ pub(crate) mod section_header_bytes {
     use crate::bytes::{write_u32, write_u64};
     use crate::constants::{ELF64_SECTION_HEADER_SIZE, SECTION_COUNT, SHF_ALLOC};
     use crate::dynamic_executable::checked::{
-        checked_product, checked_sum, decode_section_header_rows, read_u64, require,
+        checked_product, checked_sum, decode_section_header_rows, read_u64, require, require_count,
     };
     use crate::dynamic_executable::section_headers::section_roster::{
         ElfDynamicRosterSectionKind, ElfNumericSectionDescriptor, ValidatedElfDynamicSectionRoster,
@@ -701,9 +701,10 @@ pub(crate) mod section_header_bytes {
         roster: &ValidatedElfDynamicSectionRoster,
         contents: &ElfSectionHeaderTableTemplateContents,
     ) -> Result<(), Diagnostic> {
-        require(
-            roster.section_count() == SECTION_COUNT,
-            "ELF section-header serialization requires the exact thirteen-row roster",
+        require_count(
+            roster.section_count(),
+            SECTION_COUNT,
+            "ELF section-header roster rows",
         )?;
         let decoded = decode_section_header_rows(&contents.bytes, roster.section_count())?;
         require(
@@ -741,17 +742,19 @@ pub(crate) mod section_header_bytes {
         rows: &[ElfNumericSectionDescriptor],
         fixups: &[ElfSectionHeaderPlacementFixup],
     ) -> Result<(), Diagnostic> {
-        require(
-            fixups.len() == PLACEMENT_FIXUP_COUNT,
-            "ELF section-header placement-fixup count is not exactly twenty-three",
+        require_count(
+            fixups.len(),
+            PLACEMENT_FIXUP_COUNT,
+            "ELF section-header placement fixups",
         )?;
         let allocated_count = rows
             .iter()
             .filter(|row| row.index != 0 && row.flags & SHF_ALLOC != 0)
             .count();
-        require(
-            allocated_count == VIRTUAL_ADDRESS_FIXUP_COUNT,
-            "ELF section-header roster does not own exactly eleven allocated rows",
+        require_count(
+            allocated_count,
+            VIRTUAL_ADDRESS_FIXUP_COUNT,
+            "ELF allocated section-header rows",
         )?;
 
         let mut expected_ordinal = 0usize;
@@ -945,6 +948,17 @@ pub(crate) mod section_header_bytes {
                 );
                 validate_contents(template.roster(), &template.contents).unwrap();
             }
+        }
+
+        #[test]
+        fn missing_fixup_reports_the_actual_and_required_counts() {
+            let mut candidate = candidate(TargetProfile::LinuxX64);
+            candidate.contents.placement_fixups.pop();
+            let error = validate_candidate(candidate).expect_err("one fixup is missing");
+            assert_eq!(
+                error.diagnostic.message,
+                "ELF section-header placement fixups: expected 25, found 24"
+            );
         }
 
         #[test]

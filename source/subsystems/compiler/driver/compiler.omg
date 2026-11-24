@@ -1,13 +1,12 @@
+use {psi}/pipeline/syntax_trees_to_symbol_resolved_trees/resolution_state.omg;
+use {psi}/pipeline/syntax_trees_to_symbol_resolved_trees/resolver.omg;
+use {psi}/pipeline/symbol_resolved_trees_to_typed_trees/typer.omg;
+use {psi}/pipeline/symbol_resolved_trees_to_typed_trees/typing_state.omg;
+use {psi}/pipeline/checked_trees_to_scalar_operations/scalar.omg;
+use {psi}/pipeline/checked_trees_to_scalar_operations/lowerer.omg;
 use compiler_alpha\AlphaEmitter;
-use psi\pipeline\checked_trees_to_scalar_operations\ScalarLowerer;
-use psi\pipeline\checked_trees_to_scalar_operations\scalar_lower;
 use psi\pipeline\source_files_to_tokens\Lexer;
 use psi\pipeline\source_files_to_tokens\tokenize;
-use psi\pipeline\symbol_resolved_trees_to_typed_trees\Typer;
-use psi\pipeline\symbol_resolved_trees_to_typed_trees\type_check;
-use psi\pipeline\syntax_trees_to_symbol_resolved_trees\Resolver;
-use psi\pipeline\syntax_trees_to_symbol_resolved_trees\resolve;
-use psi\pipeline\syntax_trees_to_symbol_resolved_trees\resolver_initialize;
 use psi\pipeline\tokens_to_syntax_trees\Parser;
 use psi\pipeline\tokens_to_syntax_trees\parse;
 use psi\pipeline\tokens_to_syntax_trees\parser_initialize;
@@ -145,23 +144,22 @@ crashes Trap
         }
     }
     machine resolve_program(compilation: @mutable Compilation, selected: u64 in Trapping) {
-        let mutable resolver: Resolver;
-        resolver_initialize(@mutable resolver);
-        resolve(@mutable resolver, @compilation.sources, @compilation.parser.output);
+        let mutable resolver: |resolution_state|::Resolver;
+        |resolver|::resolve(@mutable resolver, @compilation.sources, @compilation.parser.output);
         transition resolver.output.accepted {
             true -> type_program(compilation, selected, @resolver),
             _ -> resolution_failed(compilation)
         }
     }
-    machine type_program(compilation: @mutable Compilation, selected: u64 in Trapping, resolver: @Resolver) {
-        let mutable typer: Typer;
-        type_check(@mutable typer, @compilation.sources, @compilation.parser.output, @resolver.output);
+    machine type_program(compilation: @mutable Compilation, selected: u64 in Trapping, resolver: @|resolution_state|::Resolver) {
+        let mutable typer: |typing_state|::Typer;
+        |typer|::type_check(@mutable typer, @compilation.sources, @compilation.parser.output, @resolver.output);
         transition typer.output.accepted {
             true -> check(compilation, selected, resolver, @typer),
             _ -> typing_failed(compilation)
         }
     }
-    machine check(compilation: @mutable Compilation, selected: u64 in Trapping, resolver: @Resolver, typer: @Typer) {
+    machine check(compilation: @mutable Compilation, selected: u64 in Trapping, resolver: @|resolution_state|::Resolver, typer: @|typing_state|::Typer) {
         let mutable checker: Checker;
         checker_check(@mutable checker, @compilation.parser.output, @resolver.output, @typer.output);
         transition checker.output.accepted {
@@ -169,16 +167,16 @@ crashes Trap
             _ -> checking_failed(compilation)
         }
     }
-    machine lower(compilation: @mutable Compilation, selected: u64 in Trapping, resolver: @Resolver, typer: @Typer, checker: @Checker) {
-        let mutable lowerer: ScalarLowerer;
-        scalar_lower(@mutable lowerer, @compilation.parser.output, @resolver.output, @typer.output, @checker.output, selected);
+    machine lower(compilation: @mutable Compilation, selected: u64 in Trapping, resolver: @|resolution_state|::Resolver, typer: @|typing_state|::Typer, checker: @Checker) {
+        let mutable lowerer: |lowerer|::ScalarLowerer;
+        |scalar|::scalar_lower(@mutable lowerer, @compilation.parser.output, @resolver.output, @typer.output, @checker.output, selected);
         transition lowerer.output.status {
             ScalarStatus::Complete -> emit(compilation, @lowerer),
             ScalarStatus::Capacity -> full(compilation),
             _ -> unsupported(compilation)
         }
     }
-    machine emit(compilation: @mutable Compilation, lowerer: @ScalarLowerer) {
+    machine emit(compilation: @mutable Compilation, lowerer: @|lowerer|::ScalarLowerer) {
         compiler_alpha\alpha_emit(@mutable compilation.output, @lowerer.output);
         transition compilation.output.complete {
             true -> complete(compilation),

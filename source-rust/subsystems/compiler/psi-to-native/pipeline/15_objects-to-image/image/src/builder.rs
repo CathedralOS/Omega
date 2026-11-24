@@ -8,7 +8,8 @@ relocation records in a single deterministic pass.
 mod copies {
     use crate::final_image::{
         FinalDataRegion, FinalDataRegionOrigin, FinalExecutableRegion, FinalExecutableRegionOrigin,
-        FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageRelocation, FinalImageSymbol,
+        FinalFunctionUnwind, FinalImage, FinalImageImport, FinalImageImportPlan,
+        FinalImageRelocation, FinalImageSymbol,
     };
     use crate::symbols::{final_image_section, final_image_symbol_handle};
     use arena::Handle;
@@ -56,6 +57,21 @@ mod copies {
                     })
                 }),
         );
+    }
+
+    pub(super) fn copy_object_function_unwinds(image: &mut FinalImage, object: &ObjectPlan) {
+        image
+            .function_unwinds
+            .extend(
+                object
+                    .layout
+                    .function_unwinds
+                    .iter()
+                    .map(|unwind| FinalFunctionUnwind {
+                        symbol: final_image_symbol_handle(unwind.symbol),
+                        frame: unwind.frame.clone(),
+                    }),
+            );
     }
 
     pub(super) fn copy_object_data_regions(image: &mut FinalImage) {
@@ -195,6 +211,7 @@ impl FinalImageInput<'_, machine_code::import_code::EncodedImportProgram> {
         image.import_program = self.import_program;
         copies::copy_object_symbols(&mut image, self.object);
         copies::copy_object_executable_regions(&mut image, self.object);
+        copies::copy_object_function_unwinds(&mut image, self.object);
         copies::copy_object_data_regions(&mut image);
         copies::copy_object_imports(&mut image, self.object);
         copies::copy_object_relocations(&mut image, self.relocations);

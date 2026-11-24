@@ -4305,8 +4305,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     state compare_name(index: i32, previous: i32) {
         let name: OmegaRelativeSpan = self.declaration_name(OmegaDeclarationKind::Machine, index);
         let other: OmegaRelativeSpan = self.declaration_name(OmegaDeclarationKind::Machine, previous);
-        transition (self.same_module(source, self.parser.sources.unit_at(name.start),
-            self.parser.sources.unit_at(other.start)) == 1) &&
+        transition (self.parser.sources.unit_at(name.start) == self.parser.sources.unit_at(other.start)) &&
             (self.span_equals(source, name.start, name.end, source[other.start..other.end]) == 1) {
             true -> duplicate_arity(index, previous, name.start)
             _ -> check_duplicate(index, previous + 1)
@@ -5864,6 +5863,46 @@ machine OmegaScalarCompiler::array_element_stride(&mut self, source: &[u8], kind
     }
 }
 
+// A field may contain a record declared later, including as an array's
+// element. Form that record before reading the field's size. Array headers
+// for fields retain their declaring types across source-unit changes.
+machine OmegaScalarCompiler::field_type_size(&mut self, source: &[u8], kind: i32) -> i32 {
+    transition true { true -> visit(kind, self.layout_depth) }
+    state visit(element: i32, depth: i32) {
+        transition depth < 64 {
+            true -> inspect(element, depth + 1)
+            _ -> return 0
+        }
+    }
+    state inspect(element: i32, depth: i32) {
+        transition (element >= 100000) && (element - 100000 < self.parser.data_count) {
+            true -> form(element - 100000, depth, self.layout_depth)
+            _ -> array(self.fixed_array_row(element), depth)
+        }
+    }
+    state array(row: i32, depth: i32) {
+        transition row >= 0 {
+            true -> child(self.array_element_kind(source, row), self.array_count(source, row), depth)
+            _ -> return self.type_size(source, kind)
+        }
+    }
+    state child(element: i32, count: i32, depth: i32) {
+        transition (count > 0) && (element != 8) {
+            true -> visit(element, depth)
+            _ -> return self.type_size(source, kind)
+        }
+    }
+    state form(index: i32, depth: i32, outer_depth: i32) {
+        self.layout_depth = depth;
+        let ready: i32 = self.layout_data(source, index);
+        self.layout_depth = outer_depth;
+        transition ready {
+            1 -> return self.type_size(source, kind)
+            _ -> return 0
+        }
+    }
+}
+
 machine OmegaScalarCompiler::type_size_inner(&mut self, source: &[u8], kind: i32) -> i32 {
     transition kind {
         1 -> return 8
@@ -5884,8 +5923,8 @@ machine OmegaScalarCompiler::type_size_inner(&mut self, source: &[u8], kind: i32
         }
     }
     state record(index: i32) {
-        transition self.layout_data(source, index) {
-            1 -> return self.data_sizes[index]
+        transition (index < self.parser.data_count) && (self.data_colors[index] == 2) {
+            true -> return self.data_sizes[index]
             _ -> return 0
         }
     }
@@ -6145,7 +6184,7 @@ machine OmegaScalarCompiler::layout_case_payload(&mut self, source: &[u8], case_
     }
     state kind(slot: i32, limit: i32, size: i32, kind: i32) {
         transition (kind > 0) && (kind != 2) && (kind < 400000) {
-            true -> extent(slot, limit, size, kind, self.type_size(source, kind))
+            true -> extent(slot, limit, size, kind, self.field_type_size(source, kind))
             _ -> unsupported(slot)
         }
     }
@@ -6338,7 +6377,7 @@ machine OmegaScalarCompiler::layout_data(&mut self, source: &[u8], index: i32) -
         self.field_offsets[slot] = size;
         self.field_upper_bounds[slot] = -1;
         transition (kind > 0) && (kind != 2) && (kind < 400000) {
-            true -> field_size(offset, size, slot, self.type_size(source, kind))
+            true -> field_size(offset, size, slot, self.field_type_size(source, kind))
             _ -> unsupported()
         }
     }

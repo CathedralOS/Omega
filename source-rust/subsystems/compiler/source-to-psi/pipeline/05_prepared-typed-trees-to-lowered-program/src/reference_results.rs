@@ -563,7 +563,7 @@ fn publish_parents(
     };
     let module = &elaboration.module;
     let unavailable = |machine, reason| refuse(machine, Construct::Machine, Unserved::Call(reason));
-    let mut updates = Vec::new();
+    let mut queries = Vec::new();
     for machine in &module.machines {
         let tables = elaboration.tables.machines.get(machine.id).ok_or_else(|| {
             unavailable(
@@ -754,8 +754,18 @@ fn publish_parents(
         if view_reborrows.is_empty() && children.iter().all(|(_, child)| child.is_none()) {
             continue;
         }
-        let graph = terminal_borrowed_storage_graph_from(module, [machine.id], &[])
-            .map_err(|error| graph_unavailable(module, error))?;
+        queries.push((machine, tables, children, view_reborrows));
+    }
+    if queries.is_empty() {
+        return Ok(());
+    }
+    let roots = queries.iter().map(|(machine, _, _, _)| machine.id);
+    let graph = terminal_borrowed_storage_graph_from(module, roots, &[])
+        .map_err(|error| graph_unavailable(module, error))?;
+    let mut updates = Vec::new();
+    for (machine, tables, mut children, view_reborrows) in queries {
+        // Calls share one immutable graph. Saved storage states are needed
+        // only while finding the parents of this machine's loans.
         let mut analysis =
             DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, &graph);
         let flow = analysis

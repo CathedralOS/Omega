@@ -455,22 +455,51 @@ impl StorageNames {
     }
 }
 
-pub fn storage_names(machine: &TerminalMachine, block: BlockId, root: PlaceId) -> StorageNames {
-    let mut behind: BTreeMap<BlockId, BTreeSet<PlaceId>> = BTreeMap::new();
-    let mut pending = vec![(block, root)];
-    while let Some((block, root)) = pending.pop() {
-        if !behind.entry(block).or_default().insert(root) {
-            continue;
-        }
-        for predecessor in &machine.blocks {
-            let reaches = crate::control_graph::reaches_by_case(predecessor, block)
-                || crate::control_graph::forwarded_bindings(predecessor)
-                    .any(|binding| binding.target == block);
-            if reaches && let Some(before) = root_before_edge(machine, block, predecessor, root)
+/// The incoming blocks that can forward a storage name to each destination.
+pub(crate) struct StoragePredecessors<'a> {
+    machine: &'a TerminalMachine,
+    incoming: Vec<(BlockId, usize)>,
+}
+
+impl<'a> StoragePredecessors<'a> {
+    pub(crate) fn new(machine: &'a TerminalMachine) -> Self {
+        let mut incoming: Vec<_> = machine
+            .blocks
+            .iter()
+            .enumerate()
+            .flat_map(|(source, block)| {
+                crate::control_graph::forwarded_bindings(block)
+                    .map(move |binding| (binding.target, source))
+            })
+            .collect();
+        incoming.sort_unstable();
+        // Several arms of one branch may reach the same block.
+        incoming.dedup();
+        Self { machine, incoming }
+    }
+
+    pub(crate) fn storage_names(&self, block: BlockId, root: PlaceId) -> StorageNames {
+        let mut behind: BTreeMap<BlockId, BTreeSet<PlaceId>> = BTreeMap::new();
+        let mut pending = vec![(block, root)];
+        while let Some((block, root)) = pending.pop() {
+            if !behind.entry(block).or_default().insert(root) {
+                continue;
+            }
+            let first = self.incoming.partition_point(|&(target, _)| target < block);
+            for &(_, source) in self.incoming[first..]
+                .iter()
+                .take_while(|&&(target, _)| target == block)
             {
-                pending.push((predecessor.id, before));
+                let predecessor = &self.machine.blocks[source];
+                if let Some(before) = root_before_edge(self.machine, block, predecessor, root) {
+                    pending.push((predecessor.id, before));
+                }
             }
         }
+        StorageNames { behind }
     }
-    StorageNames { behind }
+}
+
+pub fn storage_names(machine: &TerminalMachine, block: BlockId, root: PlaceId) -> StorageNames {
+    StoragePredecessors::new(machine).storage_names(block, root)
 }

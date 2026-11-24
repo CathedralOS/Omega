@@ -4,9 +4,15 @@ page-granule stack-commit probes (`Aarch64StackProbe`), and frame/pointer memory
 accesses. Because Linux AArch64 (4 KiB) and Darwin AArch64 (16 KiB) commit stack
 pages at different granules, we emit ordered probe loads across newly entered
 pages before establishing callee-saved register slots (`Aarch64FrameSlot`) and
-frame-relative addresses.
+frame-relative addresses. Each prologue and epilogue instruction also records
+its unwind effect (`FrameProtocolStep`), so image writers can describe the
+frame without decoding these bytes.
 */
 
+use calling_conventions::MachineRegister;
+use calling_conventions::frame_unwind::{
+    EncodedFrameProtocol, FrameProtocolEffect, FrameProtocolSteps,
+};
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 pub use target_aarch64::frame_protocol::*;
 
@@ -17,7 +23,7 @@ use crate::immediate_offset::{
 pub fn encode_planned_aapcs64_frame_protocol(
     model: &ValidatedPhysicalRegisterModel,
     plan: &Aarch64FrameProtocolPlan,
-) -> Result<(Vec<u8>, Vec<u8>), Aarch64FrameProtocolError> {
+) -> Result<EncodedFrameProtocol, Aarch64FrameProtocolError> {
     if model.identity() != plan.model() {
         return Err(Aarch64FrameProtocolError::PhysicalRegisterModelMismatch);
     }
@@ -27,14 +33,21 @@ pub fn encode_planned_aapcs64_frame_protocol(
     let scratch = plan.address_scratch();
     let mut prologue = Vec::new();
     let mut epilogue = Vec::new();
+    let mut prologue_steps = FrameProtocolSteps::default();
+    let mut epilogue_steps = FrameProtocolSteps::default();
     if probe.touches == 0 {
-        append_stack_adjust(&mut prologue, frame_size_bytes, true);
+        append_stack_adjust(&mut prologue, &mut prologue_steps, frame_size_bytes, true)?;
     } else {
         let mut remaining = frame_size_bytes;
         loop {
             let chunk = remaining.min(probe.interval_bytes);
-            append_stack_adjust(&mut prologue, chunk, true);
+            append_stack_adjust(&mut prologue, &mut prologue_steps, chunk, true)?;
             append_probe_touch(&mut prologue);
+            record(
+                &mut prologue_steps,
+                &prologue,
+                FrameProtocolEffect::Unchanged,
+            )?;
             remaining -= chunk;
             if remaining == 0 {
                 break;
@@ -42,25 +55,32 @@ pub fn encode_planned_aapcs64_frame_protocol(
         }
     }
     for slot in slots {
-        append_memory(
+        append_slot(
             &mut prologue,
-            register(model, slot.view)?,
-            slot.offset_bytes,
+            &mut prologue_steps,
+            model,
+            slot,
             scratch,
             false,
         )?;
     }
     for slot in slots.iter().rev() {
-        append_memory(
+        append_slot(
             &mut epilogue,
-            register(model, slot.view)?,
-            slot.offset_bytes,
+            &mut epilogue_steps,
+            model,
+            slot,
             scratch,
             true,
         )?;
     }
-    append_stack_adjust(&mut epilogue, frame_size_bytes, false);
-    Ok((prologue, epilogue))
+    append_stack_adjust(&mut epilogue, &mut epilogue_steps, frame_size_bytes, false)?;
+    Ok(EncodedFrameProtocol {
+        prologue,
+        epilogue,
+        prologue_steps: prologue_steps.into_steps(),
+        epilogue_steps: epilogue_steps.into_steps(),
+    })
 }
 
 pub fn encode_aapcs64_frame_protocol(
@@ -68,10 +88,57 @@ pub fn encode_aapcs64_frame_protocol(
     frame_size_bytes: u64,
     probe: Aarch64StackProbe,
     slots: &[Aarch64FrameSlot],
-) -> Result<(Vec<u8>, Vec<u8>), Aarch64FrameProtocolError> {
+) -> Result<EncodedFrameProtocol, Aarch64FrameProtocolError> {
     encode_planned_aapcs64_frame_protocol(
         model,
         &plan_aapcs64_frame_protocol(model, frame_size_bytes, probe, slots)?,
+    )
+}
+
+fn record(
+    steps: &mut FrameProtocolSteps,
+    bytes: &[u8],
+    effect: FrameProtocolEffect,
+) -> Result<(), Aarch64FrameProtocolError> {
+    steps
+        .push(bytes, effect)
+        .ok_or(Aarch64FrameProtocolError::InvalidFrameSize)
+}
+
+/// Save or reload one slot. A slot beyond the scaled 12-bit displacement first
+/// forms its address in the scratch register; those words change nothing an
+/// unwinder restores, and the final store or load moves the register.
+fn append_slot(
+    bytes: &mut Vec<u8>,
+    steps: &mut FrameProtocolSteps,
+    model: &ValidatedPhysicalRegisterModel,
+    slot: &Aarch64FrameSlot,
+    scratch: Option<u8>,
+    load: bool,
+) -> Result<(), Aarch64FrameProtocolError> {
+    let start = bytes.len();
+    let saved = register(model, slot.view)?;
+    append_memory(bytes, saved, slot.offset_bytes, scratch, load)?;
+    let words = (bytes.len() - start) / 4;
+    for word in 1..words {
+        record(
+            steps,
+            &bytes[..start + 4 * word],
+            FrameProtocolEffect::Unchanged,
+        )?;
+    }
+    let register = match saved {
+        Register::X(number) => MachineRegister::Aarch64X(number),
+        Register::D(number) | Register::Q(number) => MachineRegister::Aarch64V(number),
+    };
+    record(
+        steps,
+        bytes,
+        FrameProtocolEffect::Register {
+            register,
+            frame_offset_bytes: u32::try_from(slot.offset_bytes)
+                .map_err(|_| Aarch64FrameProtocolError::OffsetOutOfRange)?,
+        },
     )
 }
 
@@ -79,7 +146,12 @@ fn append_probe_touch(bytes: &mut Vec<u8>) {
     append_word(bytes, 0xf940_03ff);
 }
 
-fn append_stack_adjust(bytes: &mut Vec<u8>, amount: u64, subtract: bool) {
+fn append_stack_adjust(
+    bytes: &mut Vec<u8>,
+    steps: &mut FrameProtocolSteps,
+    amount: u64,
+    subtract: bool,
+) -> Result<(), Aarch64FrameProtocolError> {
     let mut words = Vec::new();
     let opcode = if subtract {
         SUBTRACT_IMMEDIATE
@@ -89,7 +161,20 @@ fn append_stack_adjust(bytes: &mut Vec<u8>, amount: u64, subtract: bool) {
     append_offset_steps(&mut words, opcode, 31, 31, amount);
     for word in words {
         append_word(bytes, word);
+        // Each `add`/`sub` immediate moves sp by imm12, shifted left 12 when bit 22 is set.
+        let immediate = (word >> 10) & 0xfff;
+        let moved = if word & (1 << 22) != 0 {
+            immediate << 12
+        } else {
+            immediate
+        };
+        record(
+            steps,
+            bytes,
+            FrameProtocolEffect::AdjustStack { bytes: moved },
+        )?;
     }
+    Ok(())
 }
 
 fn append_memory(
@@ -291,6 +376,10 @@ mod tests {
         MAX_STACK_PROBE_INTERVAL_BYTES, encode_aapcs64_frame_protocol,
         encode_planned_aapcs64_frame_protocol, plan_aapcs64_frame_protocol,
     };
+    use calling_conventions::MachineRegister;
+    use calling_conventions::frame_unwind::{
+        EncodedFrameProtocol, FrameProtocolEffect, FrameProtocolStep,
+    };
     use register_model::validate_physical_register_model;
 
     const NO_PROBE: Aarch64StackProbe = Aarch64StackProbe {
@@ -408,7 +497,9 @@ mod tests {
             validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
         let x19 = model.model().view_named("x19").unwrap().id;
         let x30 = model.model().view_named("x30").unwrap().id;
-        let (prologue, epilogue) = encode_aapcs64_frame_protocol(
+        let EncodedFrameProtocol {
+            prologue, epilogue, ..
+        } = encode_aapcs64_frame_protocol(
             &model,
             16,
             NO_PROBE,
@@ -437,8 +528,9 @@ mod tests {
     fn frame_past_one_instruction_uses_shifted_then_unshifted_adjust() {
         let model =
             validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
-        let (prologue, epilogue) =
-            encode_aapcs64_frame_protocol(&model, 4_208, DARWIN_PROBE, &[]).unwrap();
+        let EncodedFrameProtocol {
+            prologue, epilogue, ..
+        } = encode_aapcs64_frame_protocol(&model, 4_208, DARWIN_PROBE, &[]).unwrap();
         assert_eq!(
             &prologue,
             &[0xd140_07ff_u32.to_le_bytes(), 0xd101_c3ff_u32.to_le_bytes()].concat()
@@ -458,8 +550,9 @@ mod tests {
             interval_bytes: 4_096,
             touches: 2,
         };
-        let (prologue, epilogue) =
-            encode_aapcs64_frame_protocol(&model, 8_192, probe, &[frame_slot(x19, 0, 8)]).unwrap();
+        let EncodedFrameProtocol {
+            prologue, epilogue, ..
+        } = encode_aapcs64_frame_protocol(&model, 8_192, probe, &[frame_slot(x19, 0, 8)]).unwrap();
         let chunk = [0xd140_07ff_u32.to_le_bytes(), 0xf940_03ff_u32.to_le_bytes()].concat();
         assert_eq!(&prologue[..8], &chunk);
         assert_eq!(&prologue[8..16], &chunk);
@@ -479,7 +572,8 @@ mod tests {
             interval_bytes: 4_096,
             touches: 2,
         };
-        let (prologue, _) = encode_aapcs64_frame_protocol(&model, 4_208, probe, &[]).unwrap();
+        let EncodedFrameProtocol { prologue, .. } =
+            encode_aapcs64_frame_protocol(&model, 4_208, probe, &[]).unwrap();
         assert_eq!(
             &prologue,
             &[
@@ -500,7 +594,9 @@ mod tests {
             [("x19", 65_536), ("d8", 65_544), ("x30", 65_552)].map(|(name, offset_bytes)| {
                 frame_slot(model.model().view_named(name).unwrap().id, offset_bytes, 8)
             });
-        let (prologue, epilogue) = encode_aapcs64_frame_protocol(
+        let EncodedFrameProtocol {
+            prologue, epilogue, ..
+        } = encode_aapcs64_frame_protocol(
             &model,
             65_568,
             Aarch64StackProbe {
@@ -539,13 +635,70 @@ mod tests {
     }
 
     #[test]
+    fn steps_split_address_words_from_the_slot_transfer() {
+        let model =
+            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
+        let slots = [("x19", 8), ("x30", 65_552)].map(|(name, offset_bytes)| {
+            frame_slot(model.model().view_named(name).unwrap().id, offset_bytes, 8)
+        });
+        let encoded = encode_aapcs64_frame_protocol(
+            &model,
+            65_568,
+            Aarch64StackProbe {
+                touches: 5,
+                ..DARWIN_PROBE
+            },
+            &slots,
+        )
+        .unwrap();
+        let step = |end_offset, effect| FrameProtocolStep { end_offset, effect };
+        let granule = FrameProtocolEffect::AdjustStack { bytes: 16_384 };
+        let probe = FrameProtocolEffect::Unchanged;
+        let saved = |register, frame_offset_bytes| FrameProtocolEffect::Register {
+            register,
+            frame_offset_bytes,
+        };
+        assert_eq!(
+            encoded.prologue_steps,
+            [
+                step(4, granule),
+                step(8, probe),
+                step(12, granule),
+                step(16, probe),
+                step(20, granule),
+                step(24, probe),
+                step(28, granule),
+                step(32, probe),
+                step(36, FrameProtocolEffect::AdjustStack { bytes: 32 }),
+                step(40, probe),
+                step(44, saved(MachineRegister::Aarch64X(19), 8)),
+                step(48, FrameProtocolEffect::Unchanged),
+                step(52, saved(MachineRegister::Aarch64X(30), 65_552)),
+            ]
+        );
+        assert_eq!(encoded.prologue.len(), 52);
+        assert_eq!(
+            encoded.epilogue_steps,
+            [
+                step(4, FrameProtocolEffect::Unchanged),
+                step(8, saved(MachineRegister::Aarch64X(30), 65_552)),
+                step(12, saved(MachineRegister::Aarch64X(19), 8)),
+                step(16, FrameProtocolEffect::AdjustStack { bytes: 65_536 }),
+                step(20, FrameProtocolEffect::AdjustStack { bytes: 32 }),
+            ]
+        );
+    }
+
+    #[test]
     fn frame_past_sixteen_mebibytes_steps_its_release_and_slot_addresses() {
         let model =
             validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
         let slots = [("x19", 33_554_448), ("x30", 33_554_456)].map(|(name, offset_bytes)| {
             frame_slot(model.model().view_named(name).unwrap().id, offset_bytes, 8)
         });
-        let (prologue, epilogue) = encode_aapcs64_frame_protocol(
+        let EncodedFrameProtocol {
+            prologue, epilogue, ..
+        } = encode_aapcs64_frame_protocol(
             &model,
             33_554_464,
             Aarch64StackProbe {
@@ -607,7 +760,9 @@ mod tests {
             Some(17),
             "physical planning reserves the free scratch before encoding"
         );
-        let (prologue, epilogue) = encode_planned_aapcs64_frame_protocol(&model, &plan).unwrap();
+        let EncodedFrameProtocol {
+            prologue, epilogue, ..
+        } = encode_planned_aapcs64_frame_protocol(&model, &plan).unwrap();
         let save = [0x9140_43f1_u32.to_le_bytes(), 0xf900_0233_u32.to_le_bytes()].concat();
         assert!(prologue.ends_with(&save));
         assert_eq!(

@@ -137,24 +137,21 @@ pub fn materialize_allocator_availability(
         selected_keys,
         policy,
     )?;
-    seal_allocator_availability(plan)
-}
-
-seal_plan!(
-    seal_allocator_availability(AllocatorAvailabilityPlan)
-        -> ValidatedAllocatorAvailability: AllocatorAvailabilityValidationReceipt
-        = register_homes::allocator_availability_identity, AllocatorAvailabilityError
-    {
+    let receipt = AllocatorAvailabilityValidationReceipt {
+        identity: register_homes::allocator_availability_identity(&plan),
         register_environment,
-        physical
-    }
-);
+        physical: physical.identity(),
+        reservations: reservations.identity(),
+    };
+    Ok(ValidatedAllocatorAvailability { plan, receipt })
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AllocatorAvailabilityValidationReceipt {
     pub(crate) identity: AllocatorAvailabilityIdentity,
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
     pub(crate) physical: PhysicalRegisterModelIdentity,
+    pub(crate) reservations: register_model::RegisterReservationProfileIdentity,
 }
 
 impl AllocatorAvailabilityValidationReceipt {

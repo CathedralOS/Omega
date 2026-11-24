@@ -1,0 +1,2 @@
+# slice 125: 5773 lines in 1 file range(s)
+omega-rust/psi/compilation/validation/src/proof_contracts_core.rs	5819	11591

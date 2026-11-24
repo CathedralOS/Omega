@@ -16,6 +16,20 @@ pub fn contract_type(
     contract: &TheoremContract,
     budget: &mut proof_admission::Budget,
 ) -> Result<proof_admission::BoundedImplicationType, &'static str> {
+    let subjects = contract_subjects(contract)?;
+    proof_admission::denote_bounded_implication_type(
+        &subjects,
+        &contract.requires,
+        &conjunction(contract.ensures.clone()),
+        budget,
+    )
+    .map_err(|_| "logical contract has no well-formed mathematical implication")
+}
+
+/// Check the stored contract's subject and clause vocabulary without proving a judgment.
+pub fn contract_subjects(
+    contract: &TheoremContract,
+) -> Result<Vec<(ValueId, ScalarType)>, &'static str> {
     let mut subjects = Vec::with_capacity(contract.parameters.len());
     for (position, formal) in contract.parameters.iter().enumerate() {
         if formal.id.get() != position as u64 + 1
@@ -61,13 +75,7 @@ pub fn contract_type(
             _ => return Err("logical clause has no complete fixed mathematical denotation"),
         }
     }
-    proof_admission::denote_bounded_implication_type(
-        &subjects,
-        &contract.requires,
-        &conjunction(contract.ensures.clone()),
-        budget,
-    )
-    .map_err(|_| "logical contract has no well-formed mathematical implication")
+    Ok(subjects)
 }
 
 pub fn parameter(
@@ -223,6 +231,27 @@ pub fn citation_goals(
     expected: &TheoremContract,
     supplied: &terminal_psi::MachineContract,
 ) -> Result<[Proposition; 3], &'static str> {
+    citation_goals_with(expected, supplied, |contract| {
+        contract_type(contract, &mut proof_admission::Budget::default()).map(drop)
+    })
+}
+
+/// Recover the root judgments and their subjects from the recorded declarations.
+/// Canonical inspection checks their coordinates without rechecking their proofs.
+pub fn recorded_citation_goals(
+    expected: &TheoremContract,
+    supplied: &terminal_psi::MachineContract,
+) -> Result<[Proposition; 3], &'static str> {
+    citation_goals_with(expected, supplied, |contract| {
+        contract_subjects(contract).map(drop)
+    })
+}
+
+fn citation_goals_with(
+    expected: &TheoremContract,
+    supplied: &terminal_psi::MachineContract,
+    check: impl Fn(&TheoremContract) -> Result<(), &'static str>,
+) -> Result<[Proposition; 3], &'static str> {
     if supplied.parameters != expected.parameters
         || supplied
             .parameter_order
@@ -258,8 +287,8 @@ pub fn citation_goals(
             .map(|clause| clause.proposition.clone())
             .collect(),
     };
-    contract_type(expected, &mut proof_admission::Budget::default())?;
-    contract_type(&actual, &mut proof_admission::Budget::default())?;
+    check(expected)?;
+    check(&actual)?;
     let aliases = conjunction(expected.requires.clone());
     let requires = conjunction(actual.requires);
     let ensures = conjunction(actual.ensures);

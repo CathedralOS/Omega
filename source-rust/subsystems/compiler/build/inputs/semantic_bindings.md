@@ -20,7 +20,7 @@ bind through `new_service`, with no plan digest or generated provider.
 Filesystem permissions are written against the current 50-method schema in
 six portable facets (`ContentRead`, `ContentWrite`, `MetadataQuery`,
 `DirectoryEnumeration`, `NamespaceMutation`, `MetadataMutation`), taken from
-the fourteen-class terminal-authority vocabulary. The
+the compiler's terminal-authority vocabulary. The
 [filesystem policy](../../../../../wiki/spec/build/permissions.md#portable-filesystem-control-and-lifecycle-authority)
 governs each mechanism. A missing entry is not an empty grant.
 Classification keeps exact requirement and mechanism identities; narrowing a

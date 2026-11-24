@@ -84,11 +84,7 @@ pub fn plan_function_body(
     {
         return Err("private function reference escaped its exact physical program namespace");
     }
-    let windows_internet = import_locators
-        .iter()
-        .copied()
-        .any(runtime_abi::imports_windows_internet_provider)
-        .then(crate::windows_internet::plan_windows_internet_provider);
+    let windows_internet = plan_windows_internet_companion(&import_locators);
     let imports = plan_import_program(
         frame.instructions.target,
         import_locators
@@ -204,4 +200,26 @@ fn resources(
         ImportRecipe::Aarch64Indirect => (record(&[R::Aarch64X(16)], &[R::Aarch64X(16)], 0), None),
         ImportRecipe::Empty | ImportRecipe::X86Indirect => (record(&[], &[], 0), None),
     }
+}
+
+fn plan_windows_internet_companion(
+    imports: &[target::NormalizedImportLocatorRef<'_>],
+) -> Option<crate::windows_internet::WindowsInternetProgram> {
+    runtime_abi::needs_windows_internet_companion(imports.iter().copied())
+        .then(crate::windows_internet::plan_windows_internet_provider)
+}
+
+#[cfg(test)]
+#[path = "../../../../tests/fixtures/windows-internet-provider/import_rosters.rs"]
+mod windows_import_rosters;
+
+#[test]
+fn plans_windows_companion_only_for_imports_it_can_supply() {
+    windows_import_rosters::check(|label, imports, expected| {
+        assert_eq!(
+            plan_windows_internet_companion(imports).is_some(),
+            expected,
+            "{label}"
+        );
+    });
 }

@@ -13,6 +13,18 @@ from compiled import ROOT, add_invocation_budget, execute, stamp
 
 def cases():
     encode = runpy.run_path(str(ROOT / "source/application/construction/construct.py"))["encode"]
+    # Only the selected file can supply answer. A sibling with the same name
+    # remains present when the selected declaration is renamed.
+    file_caller = b"use two.omg;machine main()->u8{|two|::answer()}"
+    sibling_answer = b"public machine answer()->u8{42}"
+    for name, declaration_name in [("exact-file-member", b"answer"), ("missing-file-member", b"other")]:
+        selected_source = b"public machine " + declaration_name + b"()->u8{7}"
+        wire, _, _, rows = encode([("app", 0)], [], [(0, file_caller), (0, sibling_answer), (0, selected_source)],
+                                  0, b"main", paths=["main.omg", "one.omg", "two.omg"])
+        expected = 7 if declaration_name == b"answer" else struct.pack(
+            "<BII", 0, 1, rows[0][1] + file_caller.index(b"|two|"))
+        yield name, wire, expected
+
     select = b"use first\\score; machine main() -> u8 { score() }"
     sibling = b"machine main() -> u8 { score() }"
     constant = b"machine main() -> u8 { 42 }"
@@ -587,6 +599,38 @@ def nominal_sum_cases(encode):
 
 
 
+SYNTAX_FILE = "representations/syntax_trees/syntax_trees.omg"
+NUMERIC_FILE = "representations/tokens/numeric.omg"
+SOURCE_FILE = "representations/source_files/source.omg"
+
+
+def syntax_units(definitions, declarations, *, source_spans=False):
+    """Keep product types and functions in the files that declare them."""
+    product = ROOT / "source/subsystems/compiler/source_to_psi"
+    numeric = (product / NUMERIC_FILE).read_bytes()
+    units = [(NUMERIC_FILE, copy_declaration(numeric, b"IntegerSuffix"))]
+    if source_spans:
+        source = (product / SOURCE_FILE).read_bytes()
+        units.append((SOURCE_FILE, b"\n".join(copy_declaration(source, name)
+                      for name in (b"SourceId", b"Span", b"SourceSpan"))))
+    imports = [f"use {path};".encode() for path, _ in units]
+    for statement in imports:
+        assert statement in definitions.splitlines(), statement
+    return [(SYNTAX_FILE, b"\n".join([*imports, *declarations])), *units]
+
+
+def full_syntax_data(definitions):
+    header = rb"(?m)^public data [A-Za-z_][A-Za-z_0-9]*(?: \[copy\])?\s*(?:\{|\nrequires)"
+    return [declaration(definitions, match.group()) for match in re.finditer(header, definitions)]
+
+
+def syntax_request(encode, main, units):
+    sources = [("main.omg", main), *units]
+    request, _, _, _ = encode([("app", 0)], [], [(0, source) for _, source in sources],
+                              0, b"main", paths=[path for path, _ in sources])
+    return request
+
+
 def sum_equality_cases(encode):
     """Intrinsic nominal equality, including the product's type-form fields."""
     def packet(source):
@@ -629,25 +673,20 @@ def sum_equality_cases(encode):
     # Preserve the actual product's declarations. The projection guard is the
     # front of syntax_trees::same_type_form; unrelated fields are omitted here.
     definitions = (ROOT / "source/subsystems/compiler/source_to_psi/representations/syntax_trees/syntax_trees.omg").read_bytes()
-    numeric = (ROOT / "source/subsystems/compiler/source_to_psi/representations/tokens/numeric.omg").read_bytes()
-    integer = (copy_declaration(numeric, b"IntegerSuffix") +
-               copy_declaration(definitions, b"IntegerLiteral") +
-               declaration(definitions, b"public machine static_integer_is_valid("))
-    # Execute the entire original product machine, not a rewritten stand-in.
+    units = syntax_units(definitions, [copy_declaration(definitions, b"IntegerLiteral"),
+                                     declaration(definitions, b"public machine static_integer_is_valid(")])
     for name, exact, empty, suffix, negate in [
         ("valid", b"true", b"false", b"None", b""),
         ("inexact", b"false", b"false", b"None", b"!"),
         ("empty", b"true", b"true", b"None", b"!"),
         ("suffixed", b"true", b"false", b"U8", b"!"),
     ]:
-        main = (b"machine main()->u8{let value:IntegerLiteral=IntegerLiteral{"
+        main = (f"use {SYNTAX_FILE} as syntax;\nuse {NUMERIC_FILE};\n".encode() +
+                b"machine main()->u8{let value:|syntax|::IntegerLiteral=|syntax|::IntegerLiteral{"
                 b"magnitude:42 as u64 +Wrapping,exact:" + exact +
-                b",empty_digits:" + empty + b",suffix:IntegerSuffix::" + suffix +
-                b"};transition " + negate + b"static_integer_is_valid(value)" + finish + b"}")
-        # Keep the declarations in a different source unit from their caller.
-        wire, _, _, _ = encode([("app", 0)], [], [(0, main), (0, integer)], 0, b"main",
-                               paths=["main.omg", "integers.omg"])
-        yield "sum-equality-product-static-integer-" + name, wire, 42
+                b",empty_digits:" + empty + b",suffix:|numeric|::IntegerSuffix::" + suffix +
+                b"};transition " + negate + b"|syntax|::static_integer_is_valid(value)" + finish + b"}")
+        yield "sum-equality-product-static-integer-" + name, syntax_request(encode, main, units), 42
 
     kinds = copy_declaration(definitions, b"TypeReferenceKind")
     access = copy_declaration(definitions, b"ReferenceAccess")
@@ -812,27 +851,19 @@ def storage_window_cases(encode):
         wire, start = packet(source)
         yield name, wire, struct.pack("<BII", 0, 2, start + source.index(marker))
 
-    # Retain every original SyntaxTrees field, capacity, constraint and all
-    # of its data dependencies. Only their containing source unit is composed.
-    base = ROOT / "source/subsystems/compiler/source_to_psi/representations"
-    syntax = (base / "syntax_trees/syntax_trees.omg").read_bytes()
-    files = (base / "source_files/source.omg").read_bytes()
-    numeric = (base / "tokens/numeric.omg").read_bytes()
-    dependencies = b"".join(copy_declaration(files, name)
-                             for name in (b"SourceId", b"Span", b"SourceSpan"))
-    dependencies += copy_declaration(numeric, b"IntegerSuffix")
-    headers = re.finditer(rb"(?m)^public data [A-Za-z_][A-Za-z_0-9]*(?: \[copy\])?\s*(?:\{|\nrequires)", syntax)
-    declarations = b"".join(declaration(syntax, header.group()) for header in headers)
+    definitions = (ROOT / "source/subsystems/compiler/source_to_psi" / SYNTAX_FILE).read_bytes()
+    units = syntax_units(definitions, full_syntax_data(definitions), source_spans=True)
     # Both complete 45,156,664-byte owners are live at once. Calls touch the
     # final word and an earlier constrained field independently; aliasing or
     # result/parameter backing reuse changes the observable result.
-    main = (b"machine mark(tree:@mutable SyntaxTrees){tree.accepted=true;tree.root_count=42;}"
-            b"machine poison(tree:@mutable SyntaxTrees){tree.accepted=false;tree.root_count=7;}"
-            b"machine inspect(a:@SyntaxTrees,b:@SyntaxTrees)->bool{"
+    main = (f"use {SYNTAX_FILE} as syntax;\n".encode() +
+            b"machine mark(tree:@mutable |syntax|::SyntaxTrees){tree.accepted=true;tree.root_count=42;}"
+            b"machine poison(tree:@mutable |syntax|::SyntaxTrees){tree.accepted=false;tree.root_count=7;}"
+            b"machine inspect(a:@|syntax|::SyntaxTrees,b:@|syntax|::SyntaxTrees)->bool{"
             b"a.accepted && !b.accepted && a.root_count==42 && b.root_count==7}"
-            b"machine main()->u8{let mutable a:SyntaxTrees;let mutable b:SyntaxTrees;"
+            b"machine main()->u8{let mutable a:|syntax|::SyntaxTrees;let mutable b:|syntax|::SyntaxTrees;"
             b"mark(@mutable a);poison(@mutable b);transition inspect(@a,@b){true->42,_->7}}")
-    yield "storage-product-two-complete-syntax-trees", packet(dependencies + declarations + main)[0], 42
+    yield "storage-product-two-complete-syntax-trees", syntax_request(encode, main, units), 42
 
 
 def nominal_array_cases(encode):
@@ -1199,33 +1230,40 @@ def private_arrival_sources():
     yield 'tightened-index-bad-arrival', tighten.replace(b'index<1',b'index<2').replace(b'choose(0)',b'choose(1)'), (2,55)
 
 
-def private_arrival_full_sources():
-    import re
-    directory = ROOT / "source/subsystems/compiler/source_to_psi/representations"
-    syntax = (directory / "syntax_trees/syntax_trees.omg").read_bytes()
-    files = (directory / "source_files/source.omg").read_bytes()
-    numeric = (directory / "tokens/numeric.omg").read_bytes()
-    data = b"".join(copy_declaration(files, name) for name in (b"SourceId", b"Span", b"SourceSpan"))
-    data += copy_declaration(numeric, b"IntegerSuffix")
-    data += b"".join(declaration(syntax, match.group()) for match in re.finditer(
-        rb"public data [A-Za-z_][A-Za-z_0-9]*(?: \[copy\])?\s*(?:\{|\nrequires)", syntax))
-    functions = b"".join(declaration(syntax, b"public machine " + name + b"(") for name in
-        (b"static_integer_is_valid", b"same_type_form", b"syntax_trees_integer_literal"))
-    yield "full-product-compile", data + functions + b"machine main()->u8{42}", 42
-    caller = b'machine main()->u8 crashes Trap {let mutable store:SyntaxTrees;store.integer_literal_count=2;store.integer_literals[0]=IntegerLiteral{magnitude:4u64 as +Wrapping,exact:true,empty_digits:false,suffix:IntegerSuffix::None};store.integer_literals[1]=IntegerLiteral{magnitude:4u64 as +Wrapping,exact:true,empty_digits:false,suffix:IntegerSuffix::None};let left:TypeReference=TypeReference{kind:TypeReferenceKind::Literal,literal:0u64 as +Trapping,..};let right:TypeReference=TypeReference{kind:TypeReferenceKind::Literal,literal:1u64 as +Trapping,..};let first:IntegerLiteral=syntax_trees_integer_literal(@store,0 as +Trapping);transition first.magnitude==4u64 as +Wrapping && same_type_form(@store,left,right){true->42,_ ->7}}'
-    yield "full-product-equal", data + functions + caller, 42
-    changed = caller.replace(b"magnitude:4u64 as +Wrapping,exact:true,empty_digits:false,suffix:IntegerSuffix::None};let left", b"magnitude:5u64 as +Wrapping,exact:true,empty_digits:false,suffix:IntegerSuffix::None};let left")
-    assert changed != caller
-    yield "full-product-changed", data + functions + changed, 7
+def private_arrival_full_cases(encode):
+    syntax = (ROOT / "source/subsystems/compiler/source_to_psi" / SYNTAX_FILE).read_bytes()
+    operations = [declaration(syntax, b"public machine " + name + b"(") for name in
+                  (b"static_integer_is_valid", b"same_type_form", b"syntax_trees_integer_literal")]
+    units = syntax_units(syntax, full_syntax_data(syntax) + operations, source_spans=True)
+    yield "private-arrival-full-product-compile", syntax_request(encode, b"machine main()->u8{42}", units), 42
+    def caller(second_magnitude):
+        return (f"use {SYNTAX_FILE} as syntax;\nuse {NUMERIC_FILE};\n".encode() +
+                b"machine main()->u8 crashes Trap {let mutable store:|syntax|::SyntaxTrees;"
+                b"store.integer_literal_count=2;"
+                b"store.integer_literals[0]=|syntax|::IntegerLiteral{magnitude:4u64 as +Wrapping,"
+                b"exact:true,empty_digits:false,suffix:|numeric|::IntegerSuffix::None};"
+                b"store.integer_literals[1]=|syntax|::IntegerLiteral{magnitude:" + second_magnitude +
+                b"u64 as +Wrapping,exact:true,empty_digits:false,suffix:|numeric|::IntegerSuffix::None};"
+                b"let left:|syntax|::TypeReference=|syntax|::TypeReference{kind:|syntax|::TypeReferenceKind::Literal,"
+                b"literal:0u64 as +Trapping,..};"
+                b"let right:|syntax|::TypeReference=|syntax|::TypeReference{kind:|syntax|::TypeReferenceKind::Literal,"
+                b"literal:1u64 as +Trapping,..};"
+                b"let first:|syntax|::IntegerLiteral=|syntax|::syntax_trees_integer_literal(@store,0 as +Trapping);"
+                b"transition first.magnitude==4u64 as +Wrapping && |syntax|::same_type_form(@store,left,right)"
+                b"{true->42,_ ->7}}")
+
+    yield "private-arrival-full-product-equal", syntax_request(encode, caller(b"4"), units), 42
+    yield "private-arrival-full-product-changed", syntax_request(encode, caller(b"5"), units), 7
 
 
 def private_arrival_cases(encode):
-    for name, source, expected in (*private_arrival_sources(), *private_arrival_full_sources()):
+    for name, source, expected in private_arrival_sources():
         request, _, _, rows = encode([("app", 0)], [], [(0, source)], 0, b"main", paths=["main.omg"])
         if isinstance(expected, tuple):
             status, coordinate = expected
             expected = struct.pack("<BII", 0, status, rows[0][1] + coordinate)
         yield "private-arrival-" + name, request, expected
+    yield from private_arrival_full_cases(encode)
 
 
 def main():

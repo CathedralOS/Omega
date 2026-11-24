@@ -65,6 +65,21 @@ pub(crate) fn require_regular_file(path: &Path, name: &str) -> io::Result<()> {
     Ok(())
 }
 
+/// A controlled root may be reserved before its directory is created.
+pub fn canonicalize_exclusion_root(root: &Path) -> io::Result<Option<PathBuf>> {
+    match root.canonicalize() {
+        Ok(canonical) => Ok(Some(canonical)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(io::Error::new(
+            error.kind(),
+            format!(
+                "cannot resolve package-controlled root {}: {error}",
+                root.display()
+            ),
+        )),
+    }
+}
+
 pub(crate) fn require_outside_roots(
     path: &Path,
     roots: &[impl AsRef<Path>],
@@ -74,7 +89,7 @@ pub(crate) fn require_outside_roots(
         let root = root.as_ref();
         require_absolute(root, "package-controlled root")?;
         require_lexically_canonical_bounded_path(root, "package-controlled root")?;
-        let canonical_root = root.canonicalize().ok();
+        let canonical_root = canonicalize_exclusion_root(root)?;
         if path.starts_with(root)
             || canonical_root
                 .as_ref()

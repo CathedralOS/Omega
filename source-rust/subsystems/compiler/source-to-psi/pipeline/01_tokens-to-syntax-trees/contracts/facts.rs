@@ -49,13 +49,13 @@ pub(crate) fn parse_proof_facts_until<'tokens, 'source>(
 pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-    is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
+    mut is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
     machine_final_semicolon: bool,
 ) -> Result<(HandleSpan<ProofFact>, Input<'tokens, 'source>), ParseError> {
     parse_fact_list(
         syntax_trees,
         input,
-        is_terminator,
+        |input, _| is_terminator(input),
         machine_final_semicolon,
         false,
         false,
@@ -65,13 +65,13 @@ pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
 pub(crate) fn parse_required_proof_facts_until<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-    is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
+    mut is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
     machine_final_semicolon: bool,
 ) -> Result<(HandleSpan<ProofFact>, Input<'tokens, 'source>), ParseError> {
     parse_fact_list(
         syntax_trees,
         input,
-        is_terminator,
+        |input, _| is_terminator(input),
         machine_final_semicolon,
         false,
         true,
@@ -81,7 +81,7 @@ pub(crate) fn parse_required_proof_facts_until<'tokens, 'source>(
 pub(crate) fn parse_required_logical_proof_facts_until<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-    is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
+    is_terminator: impl FnMut(Input<'tokens, 'source>, bool) -> bool,
 ) -> Result<(HandleSpan<ProofFact>, Input<'tokens, 'source>), ParseError> {
     parse_fact_list(syntax_trees, input, is_terminator, true, true, true)
 }
@@ -89,7 +89,7 @@ pub(crate) fn parse_required_logical_proof_facts_until<'tokens, 'source>(
 fn parse_fact_list<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-    mut is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
+    mut is_terminator: impl FnMut(Input<'tokens, 'source>, bool) -> bool,
     machine_final_semicolon: bool,
     logical_subject: bool,
     requires_first_fact: bool,
@@ -97,7 +97,9 @@ fn parse_fact_list<'tokens, 'source>(
     let mut input = input;
     let mut facts = arena::HandleSpan::empty();
 
-    while (requires_first_fact && facts.is_empty()) || !is_terminator(input) {
+    let mut after_separator = false;
+    while (requires_first_fact && facts.is_empty()) || !is_terminator(input, after_separator) {
+        after_separator = false;
         if input.tokens.is_empty() {
             return Err(input.error_here("expected proof fact terminator"));
         }
@@ -171,6 +173,7 @@ fn parse_fact_list<'tokens, 'source>(
                     chain_expression = syntax_trees.expressions.insert(ExpressionNode::Binary(
                         TableBinaryExpression {
                             policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                            negation: false,
                             left: chain_expression,
                             operator,
                             right: membership,
@@ -231,7 +234,7 @@ fn parse_fact_list<'tokens, 'source>(
                 facts.push_contiguous(handle);
             }
         } else {
-            let expression = if input.at_name_like() && !is_terminator(input) {
+            let expression = if input.at_name_like() && !is_terminator(input, false) {
                 let (predicate, rest) = input.take_identifier()?;
                 input = rest;
                 syntax_trees
@@ -263,7 +266,7 @@ fn parse_fact_list<'tokens, 'source>(
                 .set_proof_fact_source_span(handle, authored_source_span);
         }
 
-        if is_terminator(input) {
+        if is_terminator(input, false) {
             continue;
         } else if input.at_punctuation(PunctuationKind::Semicolon) {
             let after = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
@@ -272,8 +275,10 @@ fn parse_fact_list<'tokens, 'source>(
             {
                 break;
             }
+            after_separator = true;
             input = after;
         } else if input.at_punctuation(PunctuationKind::Comma) {
+            after_separator = true;
             input = input.take_punctuation(PunctuationKind::Comma, ",")?;
         } else {
             return Err(input.error_here("expected `;`, `,`, or end of proof facts"));
@@ -294,6 +299,7 @@ fn range_membership_expression(
         .expressions
         .insert(ExpressionNode::Binary(TableBinaryExpression {
             policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            negation: false,
             left: value,
             operator: BinaryOperator::GreaterOrEqual,
             right: start,
@@ -302,6 +308,7 @@ fn range_membership_expression(
         .expressions
         .insert(ExpressionNode::Binary(TableBinaryExpression {
             policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            negation: false,
             left: value,
             operator: if end_inclusive {
                 BinaryOperator::LessOrEqual
@@ -314,6 +321,7 @@ fn range_membership_expression(
         .expressions
         .insert(ExpressionNode::Binary(TableBinaryExpression {
             policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            negation: false,
             left: lower,
             operator: BinaryOperator::And,
             right: upper,

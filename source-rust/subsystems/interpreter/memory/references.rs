@@ -2202,7 +2202,7 @@ impl TerminalExecution<'_> {
         crate::boundary::structural_inputs::case_membership::validate_case_projection(
             &types,
             &self.structural_values,
-            self.structural_cases.as_map(),
+            &self.array_initialization.cases(&self.structural_cases),
             place,
             prefix,
         )?;
@@ -2236,7 +2236,7 @@ impl TerminalExecution<'_> {
                 crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
                     &types,
                     root,
-                    self.structural_cases.as_map(),
+                    &self.array_initialization.cases(&self.structural_cases),
                     &entry.path,
                 )
             },
@@ -2819,7 +2819,7 @@ impl TerminalExecution<'_> {
             crate::boundary::structural_inputs::case_membership::active_projected_qualifications(
                 &self.structural_types(),
                 &referent,
-                self.structural_cases.as_map(),
+                &self.array_initialization.cases(&self.structural_cases),
                 &required_paths,
             )?;
         for domain in &required_whole {
@@ -2863,7 +2863,7 @@ impl TerminalExecution<'_> {
             crate::boundary::structural_inputs::case_membership::active_projected_qualifications(
                 &self.structural_types(),
                 &referent,
-                self.structural_cases.as_map(),
+                &self.array_initialization.cases(&self.structural_cases),
                 &referent.projected_qualifications,
             )?;
         let mut projected = Vec::new();
@@ -3274,7 +3274,7 @@ impl TerminalExecution<'_> {
         if !consume_affine_projection_if_present(
             &self.structural_types(),
             &self.structural_values,
-            self.structural_cases.as_map(),
+            &self.array_initialization.cases(&self.structural_cases),
             &mut frontier,
             &argument,
         )? && !Self::owns_unrestricted_carrier(
@@ -3786,7 +3786,7 @@ impl TerminalExecution<'_> {
             if !crate::boundary::structural_inputs::case_membership::case_projection_in_value_is_active(
                 &types,
                 &value,
-                self.structural_cases.as_map(),
+                &self.array_initialization.cases(&self.structural_cases),
                 prefix,
             )? {
                 return Ok(None);
@@ -4353,7 +4353,7 @@ impl TerminalExecution<'_> {
             if !crate::boundary::structural_inputs::case_membership::case_projection_in_value_is_active(
                 &self.structural_types(),
                 carrier,
-                self.structural_cases.as_map(),
+                &self.array_initialization.cases(&self.structural_cases),
                 &origin.path,
             )? {
                 continue;

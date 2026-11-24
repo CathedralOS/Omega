@@ -1,78 +1,64 @@
-use representations\symbol_resolved_trees\NameResolution;
-use representations\symbol_resolved_trees\PathBinding;
-use representations\symbol_resolved_trees\ValueBinding;
-use representations\symbol_resolved_trees\path_binding_at;
-use representations\symbol_resolved_trees\value_binding;
-use representations\syntax_trees\DomainItem;
-use representations\syntax_trees\Expression;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\syntax_trees_domain_item;
-use representations\syntax_trees\syntax_trees_expression;
-use representations\typed_trees\TypeDiagnosticCode;
-use representations\typed_trees\TypeKind;
-use representations\typed_trees\TypeRow;
-use representations\typed_trees\reference_type;
-use representations\typed_trees\same_carrier;
-use representations\typed_trees\set_expression_type;
-use representations\typed_trees\type_table_row;
-use representations\typed_trees\typing_expression_type;
-use representations\typed_trees\typing_reject;
+use pipeline/symbol_resolved_trees_to_typed_trees/typing_state.omg;
+
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/typed_trees/typed_trees.omg;
 
 // A membership `value in Domain` or `value in Type::Case`
 // (wiki/spec/language/domains.md#refinement-and-tests) is a Boolean. A case
 // membership names a case of the value's data, through references, and a
 // declared domain's carrier is the value's carrier. Joined domains (`&`,
 // `|`) bind no domain at resolution yet.
-public machine type_membership(typer: @mutable Typer, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, expression: Expression)
+public machine type_membership(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, index: u64 in Trapping, expression: |syntax_trees|::Expression)
 crashes Trap
 {
-    let value_type: u64 in Trapping = typing_expression_type(@typer.output, expression.left);
-    let base: u64 in Trapping = typer_referent(typer, value_type);
-    let row: TypeRow = type_table_row(@typer.output.types, base);
+    let value_type: u64 in Trapping = |typed_trees|::typing_expression_type(@typer.output, expression.left);
+    let base: u64 in Trapping = |typing_state|::typer_referent(typer, value_type);
+    let row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typer.output.types, base);
     let boolean: u64 in Trapping = typer.output.boolean;
-    set_expression_type(@mutable typer.output, index, boolean);
-    let binding: ValueBinding = value_binding(resolution, index);
+    |typed_trees|::set_expression_type(@mutable typer.output, index, boolean);
+    let binding: |symbol_resolved_trees|::ValueBinding = |symbol_resolved_trees|::value_binding(resolution, index);
     transition value_type > 0 {
         true -> classified(typer, syntax, resolution, expression, row, binding),
-        _ -> rejected(typer, syntax, expression, TypeDiagnosticCode::NotAValue)
+        _ -> rejected(typer, syntax, expression, |typed_trees|::TypeDiagnosticCode::NotAValue)
     }
 
-    machine classified(typer: @mutable Typer, syntax: @SyntaxTrees, resolution: @NameResolution, expression: Expression, row: TypeRow, binding: ValueBinding) {
+    machine classified(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, expression: |syntax_trees|::Expression, row: |typed_trees|::TypeRow, binding: |symbol_resolved_trees|::ValueBinding) {
         transition binding {
-            ValueBinding::DataCase { item, data_case } -> case(typer, syntax, expression, row, item),
+            |symbol_resolved_trees|::ValueBinding::DataCase { item, data_case } -> case(typer, syntax, expression, row, item),
             _ -> domain(typer, syntax, resolution, expression, row)
         }
     }
 
-    machine case(typer: @mutable Typer, syntax: @SyntaxTrees, expression: Expression, row: TypeRow, item: u64 in Trapping) {
-        transition row.kind == TypeKind::Data && row.item == item {
+    machine case(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, expression: |syntax_trees|::Expression, row: |typed_trees|::TypeRow, item: u64 in Trapping) {
+        transition row.kind == |typed_trees|::TypeKind::Data && row.item == item {
             true -> done(),
-            _ -> rejected(typer, syntax, expression, TypeDiagnosticCode::CaseOfOtherData)
+            _ -> rejected(typer, syntax, expression, |typed_trees|::TypeDiagnosticCode::CaseOfOtherData)
         }
     }
 
-    machine domain(typer: @mutable Typer, syntax: @SyntaxTrees, resolution: @NameResolution, expression: Expression, row: TypeRow) {
-        let path: PathBinding = path_binding_at(resolution, expression.first);
+    machine domain(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, expression: |syntax_trees|::Expression, row: |typed_trees|::TypeRow) {
+        let path: |symbol_resolved_trees|::PathBinding = |symbol_resolved_trees|::path_binding_at(resolution, expression.first);
         transition path {
-            PathBinding::Domain { item } -> declared(typer, syntax, expression, row, item),
-            _ -> rejected(typer, syntax, expression, TypeDiagnosticCode::UnsupportedExpression)
+            |symbol_resolved_trees|::PathBinding::Domain { item } -> declared(typer, syntax, expression, row, item),
+            _ -> rejected(typer, syntax, expression, |typed_trees|::TypeDiagnosticCode::UnsupportedExpression)
         }
     }
 
-    machine declared(typer: @mutable Typer, syntax: @SyntaxTrees, expression: Expression, row: TypeRow, item: u64 in Trapping) {
-        let declaration: DomainItem = syntax_trees_domain_item(syntax, item);
-        let carrier: u64 in Trapping = reference_type(@typer.output, declaration.carrier);
-        let carrier_row: TypeRow = type_table_row(@typer.output.types, carrier);
-        let same: bool = same_carrier(@typer.output.types, carrier_row, row);
+    machine declared(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, expression: |syntax_trees|::Expression, row: |typed_trees|::TypeRow, item: u64 in Trapping) {
+        let declaration: |syntax_trees|::DomainItem = |syntax_trees|::syntax_trees_domain_item(syntax, item);
+        let carrier: u64 in Trapping = |typed_trees|::reference_type(@typer.output, declaration.carrier);
+        let carrier_row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typer.output.types, carrier);
+        let same: bool = |typed_trees|::same_carrier(@typer.output.types, carrier_row, row);
         transition same {
             true -> done(),
-            _ -> rejected(typer, syntax, expression, TypeDiagnosticCode::MismatchedTypes)
+            _ -> rejected(typer, syntax, expression, |typed_trees|::TypeDiagnosticCode::MismatchedTypes)
         }
     }
 
-    machine rejected(typer: @mutable Typer, syntax: @SyntaxTrees, expression: Expression, code: TypeDiagnosticCode) {
-        let value: Expression = syntax_trees_expression(syntax, expression.left);
-        typing_reject(@mutable typer.output, code, value.source_span);
+    machine rejected(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees, expression: |syntax_trees|::Expression, code: |typed_trees|::TypeDiagnosticCode) {
+        let value: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, expression.left);
+        |typed_trees|::typing_reject(@mutable typer.output, code, value.source_span);
     }
 
     machine done() {}
