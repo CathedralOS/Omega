@@ -439,7 +439,7 @@ fn formed_product_type_inputs(typed: &TypedTrees) -> Membership<ProductTypeInput
                     retain(&input, typed.type_reference_symbol(reference), &names);
                 }
                 if let TypeReferenceNode::Constrained { constraints, .. } =
-                    typed.type_reference_node(reference)
+                    typed.type_reference_table.type_reference(reference)
                 {
                     for constraint in typed.type_reference_table.constraints(*constraints) {
                         if let TypeConstraintNode::Domain(domain) = constraint
