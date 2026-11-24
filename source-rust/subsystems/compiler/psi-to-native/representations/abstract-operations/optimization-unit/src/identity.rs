@@ -5722,3 +5722,70 @@ mod float_meaning_identity_tests {
         assert_ne!(bytes(clause), bytes(changed));
     }
 }
+
+#[cfg(test)]
+mod declaration_identity_tests {
+    use semantic_vocabulary::{
+        ClauseCarrier, ClauseDeclaration, ClauseIdentity, ClauseOperand, ClauseValue,
+        IntegerSign, IntegerType, Proposition, ScalarType,
+    };
+
+    fn bytes(clause: ClauseIdentity) -> Vec<u8> {
+        let mut bytes = super::unit_encoding::CanonicalBytes::collect();
+        super::proposition_encoding::encode_proposition(
+            &mut bytes,
+            &Proposition::DeclarationIdentity(clause),
+        );
+        bytes.finish()
+    }
+
+    #[test]
+    fn declaration_identity_keeps_carriers_operands_and_sides() {
+        let carrier = ClauseCarrier::Scalar(ScalarType::Integer(
+            IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+        ));
+        let clause = ClauseIdentity {
+            values: vec![
+                ClauseValue {
+                    carrier,
+                    operand: ClauseOperand::Formal(0),
+                },
+                ClauseValue {
+                    carrier,
+                    operand: ClauseOperand::Application {
+                        declaration: ClauseDeclaration {
+                            supplier: Some((4, 1)),
+                            member: (7, 2),
+                        },
+                        arguments: vec![0],
+                    },
+                },
+            ],
+            left: 0,
+            right: 1,
+        };
+        let original = bytes(clause.clone());
+        assert_eq!(original[0], 23);
+        let mut changed = clause.clone();
+        std::mem::swap(&mut changed.left, &mut changed.right);
+        assert_ne!(original, bytes(changed));
+        let mut changed = clause.clone();
+        changed.values[0].operand = ClauseOperand::Formal(1);
+        assert_ne!(original, bytes(changed));
+        let mut changed = clause.clone();
+        let ClauseOperand::Application { declaration, .. } = &mut changed.values[1].operand else {
+            unreachable!()
+        };
+        declaration.supplier = None;
+        assert_ne!(original, bytes(changed));
+        let mut changed = clause.clone();
+        let ClauseOperand::Application { declaration, .. } = &mut changed.values[1].operand else {
+            unreachable!()
+        };
+        declaration.member = (7, 3);
+        assert_ne!(original, bytes(changed));
+        let mut changed = clause;
+        changed.values[1].carrier = ClauseCarrier::Parameter(0);
+        assert_ne!(original, bytes(changed));
+    }
+}
