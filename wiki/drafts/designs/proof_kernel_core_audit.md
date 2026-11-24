@@ -1384,7 +1384,23 @@ type), and the clause's `ClauseScope` says what each name denotes there.
     (`psi/semantics/src/substitution/clauses.rs`); it returns a decided
     Boolean and has about thirty implementations across stage 06 and
     `psi/semantics`, so the change reaches the Psi-side checker as well as
-    the source compiler.
+    the source compiler. Two designs were read out of the code. (1) Stage 06
+    answers "which case does this place hold" from the stores that reach a
+    point (`Asked::Case` in `Storage::reaching`), and answers `Unknown` at a
+    call's result (`(Stored::Established, Asked::Case(..))`) and at entry.
+    Tables of the cases a callee's `ensures` and the machine's own
+    `requires` state as conjuncts of their own, consulted at those two
+    places, would serve `ensures result in Result::Ok` and `requires x in
+    S::C`; a test under `||` would stay refused, because an unknown test
+    cannot be assumed true there without knowing its polarity. (2) Scalar
+    contents already work the other way: the lowered program names the
+    content of each scalar leaf at entry and after each call as a value
+    (`ValueOrigin::StorageContent`), and clauses are propositions over those
+    values, so `||`, `==` and import all come for free. Naming a sum's case
+    the same way would serve every form, including `Model::valid(..) ==
+    (result in Result::Ok)`, at the cost of a new content kind in the
+    lowered program and in Terminal Psi. (2) is the general mechanism; (1)
+    is a narrower first slice.
   - "Identity operand has no term at its written carrier" for a field of a
     record formal outside the mathematical signature: the field arm serves
     data that contains itself only.
