@@ -58,6 +58,7 @@ pub fn settle_rejoined_build_slice(
         entry,
         packages,
         anonymous_source,
+        &Arc::default(),
         subject_validation != BuildSubjectValidation::EntryOnly,
         timings,
     )?;
@@ -151,6 +152,7 @@ pub(crate) fn check_subject_before_execution(
     executed: &source_compiler::representations::source_state::TypedTrees,
     build_source: package_compilation::BuildSourceSelection,
     anonymous_source: &package_compilation::AnonymousSourceCapture,
+    libraries: &[package_compilation::source_imports::SuppliedBuildLibrary],
     timings: &mut artifacts::compile_timings::CompileTimings,
 ) -> Result<BuildConstants, CompileFailure> {
     let owner = anonymous_source
@@ -161,7 +163,19 @@ pub(crate) fn check_subject_before_execution(
             .symbol;
     let judged = timings
         .record_result(BUILD_SOURCE_JUDGMENT, || {
-            source_compiler::CheckedBuildInvocation::judge(check_only, entry, &[Some(owner)], None)
+            let scope =
+                package_compilation::source_imports::SuppliedBuildLibrary::declaration_scope(
+                    libraries,
+                    Some(owner),
+                )
+                .map(Arc::new);
+            source_compiler::CheckedBuildInvocation::judge(
+                check_only,
+                entry,
+                &[Some(owner)],
+                scope,
+                None,
+            )
         })
         .map_err(|failure| CompileFailure::from(failure.diagnostics))?;
     let unowned = executed.symbols.source_map().ok_or_else(|| {
@@ -222,6 +236,7 @@ pub(crate) fn prepare_admitted_build(
     entry: symbols::SymbolHandle,
     packages: Option<&PackageCompilationInputs>,
     anonymous_source: Option<&package_compilation::AnonymousSourceCapture>,
+    libraries: &Arc<[package_compilation::source_imports::SuppliedBuildLibrary]>,
     check_subject: bool,
     timings: &mut artifacts::compile_timings::CompileTimings,
 ) -> Result<
@@ -242,18 +257,26 @@ pub(crate) fn prepare_admitted_build(
         ));
     }
     let subject = check_subject.then(|| packages.map(PackageCompilationInputs::root));
-    let judged = timings.record_result(BUILD_SOURCE_JUDGMENT, || {
-        source_compiler::CheckedBuildInvocation::judge(
-            typed,
-            entry,
-            subject.as_slice(),
-            anonymous_source.map(|capture| Arc::new(capture.clone()) as Arc<_>),
-        )
-    })
-    .map_err(|failure| CompileFailure::source_completion(failure.diagnostics, failure.accounting))?;
+    let providers =
+        super::provider_execution::BuildProviderPlans::for_packages(packages, libraries);
+    let judged = timings
+        .record_result(BUILD_SOURCE_JUDGMENT, || {
+            source_compiler::CheckedBuildInvocation::judge(
+                typed,
+                entry,
+                subject.as_slice(),
+                providers
+                    .selection_scope(build_declarations::DependencyPurpose::Build)
+                    .map(Arc::new),
+                anonymous_source.map(|capture| capture.invocation_consent(Arc::clone(libraries))),
+            )
+        })
+        .map_err(|failure| {
+            CompileFailure::source_completion(failure.diagnostics, failure.accounting)
+        })?;
     Ok((
         judged.invocation,
-        super::provider_execution::BuildProviderPlans::for_packages(packages),
+        providers,
         BuildConstants {
             folded_under_providers: false,
             read: judged.constants,

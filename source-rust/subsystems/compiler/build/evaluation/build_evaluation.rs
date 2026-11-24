@@ -289,12 +289,26 @@ pub fn prepare_build_evaluation(
     } else {
         BuildSubjectValidation::Checked
     };
+    let capture = anonymous_source
+        .filter(|owner| package_inputs.is_none() && std::ptr::eq(owner.sources().as_ref(), sources))
+        .and_then(|owner| owner.acquired_for(typed));
+    let libraries = match source_acquisition {
+        Some(stage) => capture
+            .and_then(|capture| stage.supplied_libraries_for(capture, typed))
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "the Build library inputs belong to another source activation",
+                )]
+            })?,
+        None => Arc::default(),
+    };
     let (prepared, providers, entry_constants, source_completion_accounting) =
         crate::admission::checking::prepare_admitted_build(
             typed,
             selected_machine,
             package_inputs,
             anonymous_source,
+            &libraries,
             subject_validation == BuildSubjectValidation::Checked,
             timings,
         )?;
@@ -304,6 +318,7 @@ pub fn prepare_build_evaluation(
             typed,
             build_source,
             capture,
+            &libraries,
             timings,
         )
         .map_err(|failure| {
@@ -344,21 +359,6 @@ pub fn prepare_build_evaluation(
                 accounting: source_completion_accounting.clone(),
             });
         }
-        let capture = anonymous_source
-            .filter(|owner| {
-                package_inputs.is_none() && std::ptr::eq(owner.sources().as_ref(), sources)
-            })
-            .and_then(|owner| owner.acquired_for(typed));
-        let libraries = match source_acquisition {
-            Some(stage) => capture
-                .and_then(|capture| stage.supplied_libraries_for(capture, typed))
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "the Build library inputs belong to another source activation",
-                    )]
-                })?,
-            None => Arc::default(),
-        };
         let original_sources = capture.map(|capture| {
             Arc::new(crate::activation::OriginalBuildSources {
                 capture: capture.clone(),
