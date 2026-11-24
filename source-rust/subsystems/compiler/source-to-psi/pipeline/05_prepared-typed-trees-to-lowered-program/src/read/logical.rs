@@ -1562,13 +1562,27 @@ pub(crate) fn projected_arrival(
     let (schema, _) = typed
         .trait_machine_signature(required.symbol)
         .ok_or_else(|| identity(entry, "logical requirement lost its exact declaring schema"))?;
+    // The proof calls the exact instance above. The executable closure checks
+    // its static bindings. Only the authored declaration has a source anchor.
+    let mut declaration = supplied;
+    let mut copies = Vec::new();
+    while let Some(template) = typed
+        .executable_application_template(declaration)
+        .map_err(|detail| identity(callee, detail))?
+    {
+        if copies.contains(&declaration) {
+            return Err(identity(callee, "cyclic callable specialization"));
+        }
+        copies.push(declaration);
+        declaration = template;
+    }
     Ok(CallableArrivalWitness {
         slot: String::new(),
         semantic_schema: crate::source_symbols::retain_declaration(&typed.symbols, schema.symbol)
             .map_err(|detail| identity(entry, detail))?,
         requirement: crate::source_symbols::retain_declaration(&typed.symbols, required.symbol)
             .map_err(|detail| identity(entry, detail))?,
-        implementation: crate::source_symbols::retain_declaration(&typed.symbols, supplied)
+        implementation: crate::source_symbols::retain_declaration(&typed.symbols, declaration)
             .map_err(|detail| identity(entry, detail))?,
         callee_requirement,
         elaboration,
