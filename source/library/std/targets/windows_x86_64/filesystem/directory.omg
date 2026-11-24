@@ -25,7 +25,8 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 machine windows_filesystem_read_dir_is_empty(path: @[u8] in |paths|::Path) -> EmptyResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
 {
-    let result: IoResult = block windows_filesystem_read_dir_count(path);
+    let present: i64 = block WindowsFilesystemHost::directory_has_entry(path);
+    let result: IoResult = |errors|::windows_filesystem_transferred(present, 1);
     transition result {
         IoResult::Error { kind } -> (EmptyResult::Error { kind: kind }),
         IoResult::Ok { count } -> from_count(count)
