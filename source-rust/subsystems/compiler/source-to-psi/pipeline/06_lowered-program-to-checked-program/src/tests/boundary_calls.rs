@@ -2174,6 +2174,35 @@ pub(super) fn compilation_results_for_subjects(
 }
 
 #[test]
+fn an_executable_satisfier_keeps_its_concrete_trait_requirement() {
+    let good = r#"
+trait Convert<T> {
+    machine read(tag: T, x: u32) -> u32 ensures result == x crashes none;
+}
+machine narrow(tag: u8, x: u32) -> u32 satisfies Convert<u8>::read { x }
+machine wide(tag: u16, x: u32) -> u32 satisfies Convert<u16>::read { x }
+machine entry() -> u32 ensures result == 17u32 { narrow(1u8, wide(2u16, 17u32)) }
+"#;
+    let accepted = declared_verdicts(good);
+    assert!(
+        accepted
+            .iter()
+            .all(|verdict| matches!(verdict, RouteVerdict::Accepted(_))),
+        "{accepted:?}"
+    );
+
+    let wrong = good.replace("Convert<u16>::read { x }", "Convert<u16>::read { 0u32 }");
+    let refused = declared_verdicts(&wrong);
+    assert!(
+        refused.iter().any(
+            |verdict| matches!(verdict, RouteVerdict::Rejected { unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. })))
+        ),
+        "{refused:?}"
+    );
+}
+
+#[test]
 fn a_declared_conformers_name_invokes_its_requirement() {
     let text = declared_source("", "input - 1", "7", "ensures result < 7");
     let mut verdicts = declared_verdicts(&text);
