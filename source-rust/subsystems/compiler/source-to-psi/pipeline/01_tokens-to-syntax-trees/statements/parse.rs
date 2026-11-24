@@ -5,7 +5,7 @@ use crate::statements::destructuring::{
     parse_data_pattern_let, reject_retired_proof_output_binding, try_parse_proof_output_binding,
 };
 use crate::statements::expressions::{
-    expression_handle_to_statement_call, root_binding_declaration,
+    expression_handle_to_statement_call, reject_retired_root_receiver,
 };
 use crate::statements::local_data::{
     copy_compound_assignment_target, parse_discard_statement_handle,
@@ -140,16 +140,30 @@ fn parse_statement_handle<'tokens, 'source>(
 
     let (expression, input) = parse_expression_handle(syntax_trees, input)?;
 
-    if let Some(binding) = root_binding_declaration(syntax_trees, expression)? {
-        if let Some(uses) = input.file_qualifiers {
-            uses.mark_product_operand(&binding.slot);
-            uses.mark_product_operand(&binding.implementation);
+    reject_retired_root_receiver(syntax_trees, expression)?;
+    if let ExpressionNode::Call(call) = syntax_trees.expressions.expression(expression)
+        && syntax_trees::root_bindings::is_root_binding_candidate(syntax_trees, call)
+    {
+        // The terminated statement can select an operation record in resolution.
+        // Keep the existing root-binding diagnostic on an unterminated statement.
+        if !input.at_punctuation(PunctuationKind::Semicolon) {
+            syntax_trees::root_bindings::root_binding_declaration(syntax_trees, call).map_err(
+                |error| {
+                    crate::ParseError::at_source_span(
+                        error.message,
+                        error.source_span.unwrap_or(call.target.source_span()),
+                    )
+                },
+            )?;
+            input.take_punctuation(PunctuationKind::Semicolon, ";")?;
         }
-        return finish_semicolon_statement(
-            syntax_trees,
-            StatementNode::RootBinding(binding),
-            input,
-        );
+        if let Some(uses) = input.file_qualifiers
+            && let Ok(binding) =
+                syntax_trees::root_bindings::root_binding_declaration(syntax_trees, call)
+        {
+            uses.mark_root_operand(&binding.slot);
+            uses.mark_root_operand(&binding.implementation);
+        }
     }
 
     if input.at_punctuation(PunctuationKind::Equal) {

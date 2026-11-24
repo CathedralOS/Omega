@@ -702,6 +702,33 @@ fn provider_selection_retains_one_explicit_composition_mode_argument() {
 }
 
 #[test]
+fn a_build_operation_record_keeps_its_ordinary_statement_call() {
+    let body = "machine call() { Build::bind(a, b); Build::bind(a, b, c); }";
+    let implementation = "Build satisfies Writer { Writer::bind = write; }";
+    for source in [
+        format!("{body} {implementation}"),
+        format!("{implementation} {body}"),
+        "trait Writer { machine bind(); } machine call<const Build: Writer>() {
+             Build::bind(a, b); Build::bind(a, b, c); }"
+            .to_owned(),
+    ] {
+        let parsed = crate::tests::parse_source_verbose(
+            &source,
+            "tokenize record call",
+            "parse record call",
+        );
+        let statements = first_machine_statements(&parsed);
+        assert_eq!(statements.len(), 2);
+        for &statement in statements {
+            assert!(matches!(
+                parsed.statements.statement(statement),
+                StatementNode::Call(_)
+            ));
+        }
+    }
+}
+
+#[test]
 fn root_binding_statement_retains_operand_paths_and_the_authored_bind_span() {
     let source = r#"
         machine build(builder: @mutable Build) {
@@ -714,12 +741,14 @@ fn root_binding_statement_retains_operand_paths_and_the_authored_bind_span() {
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
-    let StatementNode::RootBinding(binding) = parsed
+    let StatementNode::Call(call) = parsed
         .statements
         .statement(parsed.items.statements(state.statements)[0])
     else {
-        panic!("expected a dedicated root-binding statement");
+        panic!("expected a statement call");
     };
+    let binding =
+        syntax_trees::root_bindings::root_binding_declaration(&parsed, call.call(&parsed)).unwrap();
     assert_eq!(
         binding
             .slot
@@ -751,15 +780,25 @@ fn root_binding_statement_rejects_malformed_operands() {
         "12, Entry",
         "Slot::, Entry",
     ] {
-        let source =
-            format!("machine build(builder: @mutable Build) {{ Build::bind(builder, {operands}); }}");
+        let source = format!(
+            "machine build(builder: @mutable Build) {{ Build::bind(builder, {operands}); }}"
+        );
         let tokens = Lexer::new(&source)
             .tokenize()
             .expect("tokenize malformed root binding");
-        assert!(
-            parse_syntax_trees(&tokens).is_err(),
-            "accepted operands: {operands}"
-        );
+        if let Ok(parsed) = parse_syntax_trees(&tokens) {
+            let [handle] = first_machine_statements(&parsed) else {
+                panic!("expected one statement")
+            };
+            let StatementNode::Call(call) = parsed.statements.statement(*handle) else {
+                panic!("expected a call")
+            };
+            assert!(
+                syntax_trees::root_bindings::root_binding_declaration(&parsed, call.call(&parsed))
+                    .is_err(),
+                "accepted operands: {operands}"
+            );
+        }
     }
 }
 
@@ -778,12 +817,15 @@ fn root_binding_statement_retains_computed_operands_without_a_declaration_path()
         let state = parsed
             .items
             .state(parsed.items.state_handles(machine.states)[0]);
-        let StatementNode::RootBinding(binding) = parsed
+        let StatementNode::Call(call) = parsed
             .statements
             .statement(parsed.items.statements(state.statements)[0])
         else {
-            panic!("expected root binding");
+            panic!("expected a statement call");
         };
+        let binding =
+            syntax_trees::root_bindings::root_binding_declaration(&parsed, call.call(&parsed))
+                .unwrap();
         assert!(binding.implementation.is_empty());
         assert!(binding.implementation_operand.is_valid());
     }
