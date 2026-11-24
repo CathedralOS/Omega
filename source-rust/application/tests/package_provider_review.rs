@@ -332,6 +332,37 @@ public trait CallingPolicy { machine plan(signature: u32) -> PlanResult; }"#;
     assert!(field("field returned_borrow_origins {").starts_with("sequence 0 {"));
 }
 
+#[test]
+fn review_preserves_the_owning_record_of_an_invariant_field() {
+    let project = TemporaryDirectory::create("review-invariant-field", false).unwrap();
+    fs::write(
+        project.path().join("build.omg"),
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "review_scope"); }"#,
+    )
+    .unwrap();
+    let source = "public data OtherCounters { used: u64; }
+public data ReviewedCounters requires used <= 64, self.used <= 64 { used: u64; }";
+    let (status, report) = audit_reader_with_options(&project, source, &["--details"]);
+    assert_eq!(status, Some(0), "{report}");
+    let invariants = report
+        .split_once(r#"string "reader.omg::ReviewedCounters""#)
+        .unwrap()
+        .1
+        .split_once("field invariants {")
+        .unwrap()
+        .1
+        .split_once("field members {")
+        .unwrap()
+        .0;
+    assert!(
+        invariants.trim_start().starts_with("sequence 1 {"),
+        "{invariants}"
+    );
+    assert!(invariants.contains("tag domain_subject 10"));
+    assert!(invariants.contains(r#"string "reader.omg::ReviewedCounters::used""#));
+    assert!(!invariants.contains("OtherCounters"));
+}
+
 fn audit_reader(project: &TemporaryDirectory, source: &str) -> (Option<i32>, String) {
     audit_reader_with_options(project, source, &[])
 }

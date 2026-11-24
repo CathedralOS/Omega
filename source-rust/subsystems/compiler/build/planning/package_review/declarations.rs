@@ -583,6 +583,19 @@ impl<'a> PolicySource<'a> {
         }
     }
 
+    // Record invariants can name a field without writing `self`. Only an
+    // exact field declared directly by this predicate's owner has that receiver.
+    fn subject_field_type(
+        &self,
+        scope: ContractScope<'_>,
+        symbol: SymbolHandle,
+    ) -> Option<TypeReferenceHandle> {
+        scope.subject?;
+        let typed = self.typed();
+        let field = typed.unique_declared_field_by_symbol(symbol)?;
+        (typed.symbols.get(field.symbol).parent == scope.owner).then_some(field.type_reference)
+    }
+
     fn operand_type(
         &self,
         expression: ExpressionHandle,
@@ -605,6 +618,9 @@ impl<'a> PolicySource<'a> {
                     && name.symbol == symbol
                 {
                     return Ok(Some(value_type));
+                }
+                if let Some(field) = self.subject_field_type(scope, name.symbol) {
+                    return Ok(Some(field));
                 }
                 if let Some(parameter) = scope.statics.iter().find(|p| p.symbol == name.symbol) {
                     return match parameter.kind {
@@ -870,6 +886,12 @@ impl<'a> PolicySource<'a> {
                     .is_some_and(|(symbol, _)| symbol.is_valid() && name.symbol == symbol)
                 {
                     Expression::DomainSubject
+                } else if self.subject_field_type(scope, name.symbol).is_some() {
+                    Expression::Member {
+                        receiver: Box::new(Expression::DomainSubject),
+                        member: self.nominal(name.symbol)?,
+                        case_variant: None,
+                    }
                 } else if let Some(position) =
                     scope.statics.iter().position(|p| p.symbol == name.symbol)
                 {
