@@ -1,7 +1,7 @@
 //! Copy a record from a byte array only after its decoded contents satisfy the declaration.
 
 use super::{
-    OperationFlow, RuntimeRows, ScalarType, StructuralPathSegment, StructuralRuntimePlace,
+    OperationFlow, RuntimeRows, StructuralPathSegment, StructuralRuntimePlace,
     StructuralScalarRuntimeField, TerminalExecution, TerminalInterpretError,
     TerminalStructuralValue, malformed,
 };
