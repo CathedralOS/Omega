@@ -69,7 +69,7 @@ pub mod cast_form {
         Recast(crate::ReferenceAccess), // Re-view the same backing with the stated reference access.
         // One `=D`, `-D` or `+D` operation. Typing accounts for the entire
         // run and sets each entry's result type. Lowering and package review
-        // retain the operation and the domain it selected.
+        // read the operation with the domain it selected.
         Entry(CastEntry),
     }
 
