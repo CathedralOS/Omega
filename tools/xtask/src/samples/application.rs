@@ -1,5 +1,6 @@
 //! Compare the two engines on the sample's actual application entry.
 
+use super::file_outputs;
 use super::{SampleProject, host_target, optional_text, parse_header_oracle, with_source_inputs};
 use crate::execution;
 use std::{
@@ -13,21 +14,29 @@ pub(super) struct Oracle {
     stdout: Option<Vec<u8>>,
     stdout_contains: Option<String>,
     stderr: Option<Vec<u8>>,
+    files: file_outputs::ObservedFiles,
 }
 
 impl Oracle {
     pub(super) fn load(
-        directory: &Path,
+        project: &SampleProject,
         entry: &Path,
         target: &str,
         has_input: bool,
+        evidence: &Path,
     ) -> Result<Self, String> {
+        let directory = &project.directory;
         let (exit, stdout_contains) = parse_header_oracle(entry)?;
         let mut oracle = Self {
             exit,
             stdout: None,
             stdout_contains,
             stderr: None,
+            files: file_outputs::expected(
+                directory,
+                &project.output_files,
+                &evidence.join("expected-files"),
+            )?,
         };
         if has_input {
             let target_exit = directory.join(format!("expected_native_exit.{target}.txt"));
@@ -52,6 +61,7 @@ impl Oracle {
             && self.stdout.is_none()
             && self.stdout_contains.is_none()
             && self.stderr.is_none()
+            && self.files.is_empty()
     }
 
     fn check(&self, observation: &Observation) -> Result<(), String> {
@@ -77,7 +87,7 @@ impl Oracle {
         if let Some(expected) = &self.stderr {
             equal_bytes("expected stderr", expected, &observation.stderr)?;
         }
-        Ok(())
+        file_outputs::compare(&self.files, &observation.files)
     }
 }
 
@@ -115,6 +125,7 @@ struct Observation {
     trap: Option<bool>,
     stdout: Vec<u8>,
     stderr: Vec<u8>,
+    files: file_outputs::ObservedFiles,
 }
 
 impl Observation {
@@ -166,6 +177,7 @@ impl Observation {
             trap,
             stdout: execution::read_bounded(&directory.join("stdout"))?,
             stderr: execution::read_bounded(&directory.join("stderr"))?,
+            files: Default::default(),
         })
     }
 }
@@ -182,6 +194,7 @@ fn native_trap(fields: &[&str]) -> Result<Option<bool>, String> {
 fn agreement(native: &Observation, psi: &Observation) -> Result<(), String> {
     equal_bytes("stdout", &native.stdout, &psi.stdout)?;
     equal_bytes("stderr", &native.stderr, &psi.stderr)?;
+    file_outputs::compare(&native.files, &psi.files)?;
     if let Some(code) = psi.exit {
         if psi.returned_unit && !native.returned_unit && native.exit == Some(0) {
             return Err("unavailable: the native program can exit the process; wait status 0 cannot establish a unit return".into());
@@ -269,7 +282,10 @@ pub(super) fn compare(
                 String::from_utf8_lossy(&output.stderr)
             ));
         }
-        observation
+        let mut observation = observation?;
+        observation.files =
+            file_outputs::collect(&scratch, &oracle.files, &directory.join("files"))?;
+        Ok(observation)
     };
     let native = run("native");
     let psi = run("psi");

@@ -1,6 +1,7 @@
 //! Check samples and compare native/Psi execution (`cargo xtask sample-gate`).
 
 mod application;
+mod file_outputs;
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -26,6 +27,7 @@ pub struct SampleProject {
     pub entry: Option<PathBuf>,
     pub role: String,
     pub source_inputs: Vec<String>, // The same explicit caller inventory for preparation and execution.
+    pub(crate) output_files: file_outputs::Declarations,
     pub rejection: Vec<String>,
     pub rejection_any: Vec<String>,
     pub rejection_casefold: bool,
@@ -205,6 +207,7 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
         entry,
         role,
         source_inputs,
+        output_files: file_outputs::declarations(meta.get("output_files"), &meta_path)?,
         rejection,
         rejection_any,
         rejection_casefold,
@@ -727,7 +730,7 @@ pub fn verify_sample(
     let has_input = input
         .try_exists()
         .map_err(|error| format!("{}: {error}", input.display()))?;
-    let oracle = application::Oracle::load(&project.directory, entry, target, has_input)?;
+    let oracle = application::Oracle::load(project, entry, target, has_input, evidence)?;
     if !has_input && oracle.is_empty() {
         if project.rel_path.split('/').any(|p| p == "probes") {
             return Ok("no-oracle".to_owned());
@@ -1281,9 +1284,10 @@ mod tests {
         .unwrap();
         fs::write(directory.join("build.omg"), format!(
             "machine build(builder: @mutable Build) {{ Build::application(builder, \"sample\"); Build::bind(builder, {}\\ProgramEntry, main); }}\n", host_target())).unwrap();
+        fs::write(directory.join("empty.img"), []).unwrap();
         fs::write(
             directory.join("sample.json"),
-            r#"{"source_inputs":["main.omg","build.omg"]}"#,
+            r#"{"source_inputs":["main.omg","build.omg"],"output_files":{"guest-state":"empty.img","lock":null}}"#,
         )
         .unwrap();
         let cli = directory.join("compiler");
@@ -1319,7 +1323,7 @@ case "$1" in
     [ "$2" = --engine ] && [ "$4" = --outputs ] || exit 94
     mkdir "$5" || exit 95
     [ ! -e guest-state ] || exit 98
-    touch guest-state
+    if [ "$3" != psi ] || [ ! -f "${0%/*}/omit-file" ]; then touch guest-state; fi
     cat > "$5/stdout"
     printf 'spoofed status -- native exit 9\377' > "$5/stderr"
     case "$3" in
@@ -1356,6 +1360,23 @@ esac
                 .unwrap()
                 .starts_with("pass")
         );
+        fs::write(directory.join("omit-file"), []).unwrap();
+        let missing = verify_sample(
+            &cli,
+            &project,
+            host_target(),
+            &directory.join("one-missing"),
+        )
+        .unwrap_err();
+        assert!(
+            missing.contains("Psi expectation: guest-state differs: present vs absent"),
+            "{missing}"
+        );
+        assert!(
+            missing.contains("comparison: guest-state differs: present vs absent"),
+            "{missing}"
+        );
+        fs::remove_file(directory.join("omit-file")).unwrap();
         fs::write(directory.join("diverge"), []).unwrap();
         let mismatch =
             verify_sample(&cli, &project, host_target(), &directory.join("mismatch")).unwrap_err();
@@ -1526,6 +1547,7 @@ mod result_file_tests {
             entry: None,
             role: "program".to_owned(),
             source_inputs: Vec::new(),
+            output_files: Default::default(),
             rejection: Vec::new(),
             rejection_any: Vec::new(),
             rejection_casefold: false,
