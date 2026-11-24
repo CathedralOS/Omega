@@ -7516,6 +7516,9 @@ pub(crate) mod trait_scopes {
                     }
                     Some(&prepared.signature)
                 })
+                // A Build may close a provider's entire public contract without
+                // a source call ever requesting a separate applied signature.
+                .or_else(|| self.closed_requirement_in_scope(application, requirement))
         }
 
         /// The already closed header of a requirement with no local arguments
@@ -7525,16 +7528,16 @@ pub(crate) mod trait_scopes {
             scope: &AppliedTraitScope<'_>,
             template: SymbolHandle,
         ) -> Option<&signature::StateSignature> {
-            self.closed_requirement_applications()
-                .find(|closed| {
-                    closed.template == template
-                        && closed.local_arguments.is_empty()
-                        && self.requirement_application_matches_contract_scope(
-                            closed.signature.symbol,
-                            scope,
-                        )
-                })
-                .map(|closed| closed.signature)
+            let mut matching = self.closed_requirement_applications().filter(|closed| {
+                closed.template == template
+                    && closed.local_arguments.is_empty()
+                    && self.requirement_application_matches_contract_scope(
+                        closed.signature.symbol,
+                        scope,
+                    )
+            });
+            let header = matching.next()?.signature;
+            matching.next().is_none().then_some(header)
         }
 
         /// A concrete conformance supplies its required header even when no
