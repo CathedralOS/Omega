@@ -24,7 +24,7 @@ use semantic_vocabulary::{
 use std::collections::VecDeque;
 use terminal_check_tables::edges::Callee;
 use terminal_check_tables::obligations::{ObligationKind, ObligationRow};
-use terminal_check_tables::program::{Elaboration, SourceOrigin};
+use terminal_check_tables::program::{Elaboration, MachineSources, SourceOrigin};
 use terminal_check_tables::values::Justification;
 use terminal_check_tables::{
     Checked, Construct, InvocationId, MachineTables, ProgramPoint, RefusalReason,
@@ -33,8 +33,8 @@ use terminal_psi::{OperationKind, TerminalMachine, Terminator};
 use terminal_semantics::substitution::clauses::substitute_clause_with_computation_names;
 
 use crate::checking::{
-    Bindings, Unbound, graph::Graph, joins, prepare_with_inhabitation, refusal, scalar_actuals,
-    terminal_machine,
+    Bindings, PreparedMachine, Unbound, graph::Graph, joins, refusal, scalar_actuals,
+    terminal_machine, with_prepared_machine,
 };
 
 mod inferred_calls;
@@ -111,7 +111,7 @@ fn describe_calls(
     scope: &crate::checking::ReplayScope<'_>,
     id: MachineId,
     sites: &CallSites,
-    mut transfers: Option<&mut recursive::Transfers>,
+    transfers: Option<&mut recursive::Transfers>,
     incoming: &mut IdTable<MachineId, Vec<Proposition>>,
     unreached: &mut crate::checking::Unreached,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
@@ -127,78 +127,109 @@ fn describe_calls(
         &[][..]
     };
     let recursive = transfers.is_some();
-    let includes_call = |index: usize| {
-        !recursive
-            || sites
-                .heads
-                .get(sites.arrivals[index].callee)
-                .is_some_and(|heads| !heads.is_empty())
-    };
-    if !outgoing.iter().any(|&index| includes_call(index)) && edges.is_empty() {
+    let mut calls = outgoing
+        .iter()
+        .map(|&index| &sites.arrivals[index])
+        .filter(|site| {
+            !recursive
+                || sites
+                    .heads
+                    .get(site.callee)
+                    .is_some_and(|heads| !heads.is_empty())
+        })
+        .peekable();
+    if calls.peek().is_none() && edges.is_empty() {
         return Ok(());
     }
-    // One caller's construction scratch; the final evidence tables remain
-    // untouched. No typed trees or completed proof products are copied.
+    // Work on this caller's table copy. Its checked storage and loan history
+    // serve every arrival described here.
     let mut tables = original.clone();
-    let prepared = prepare_with_inhabitation(
+    with_prepared_machine(
         scope.formed(),
         &elaboration.domains,
         id,
         &mut tables,
         inhabitation,
+        |prepared, tables| {
+            describe_arrivals(
+                prepared,
+                tables,
+                &elaboration.sources,
+                calls,
+                edges,
+                transfers,
+                incoming,
+                unreached,
+                activity,
+            )
+        },
     )?;
-    let lowered = terminal_machine(&elaboration.module.machines, id, id)?;
-    let mut references = prepared.references(&elaboration.module.types.structural_types);
-    let storage = crate::checking::places::Storage::new(
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn describe_arrivals<'calls>(
+    prepared: PreparedMachine<'_, '_>,
+    tables: &mut MachineTables,
+    sources: &IdTable<MachineId, MachineSources>,
+    calls: impl Iterator<Item = &'calls Arrival>,
+    edges: &[(EdgeId, MachineId)],
+    mut transfers: Option<&mut recursive::Transfers>,
+    incoming: &mut IdTable<MachineId, Vec<Proposition>>,
+    unreached: &mut crate::checking::Unreached,
+    activity: &mut crate::checking::ProofSearchActivity,
+) -> Checked<()> {
+    let PreparedMachine {
+        module,
         id,
         lowered,
-        &elaboration.module,
-        &elaboration.domains,
-        &prepared.graph,
-        &tables,
-        &prepared.types,
-        &mut references,
-    )?;
+        storage,
+        references,
+        graph,
+        context,
+        types,
+        ranking_bindings,
+    } = prepared;
     let declared = joins::prepare(
         lowered,
         id,
-        &mut tables,
-        &prepared.graph,
-        &prepared.context,
-        &elaboration.module.proofs.scalar_block_invariants,
-        &storage,
-        &mut references,
+        tables,
+        graph,
+        context,
+        &module.proofs.scalar_block_invariants,
+        storage,
+        references,
         activity,
     )?;
 
     let mut decided = (0..tables.obligations.len())
         .map(|_| None)
         .collect::<Vec<_>>();
-    let beyond = unreached.values(lowered, &tables);
+    let beyond = unreached.values(lowered, tables);
     joins::check(
         &joins::Machine {
-            module: &elaboration.module,
+            module,
             lowered,
-            storage: &storage,
+            storage,
             id,
-            types: &prepared.types,
-            graph: &prepared.graph,
-            context: &prepared.context,
-            ranking_bindings: &prepared.ranking_bindings,
+            types,
+            graph,
+            context,
+            ranking_bindings,
             declared: &declared,
             unreached: &beyond,
             law_instances: &[],
         },
-        &mut tables,
+        tables,
         &mut decided,
         activity,
-        &mut references,
+        references,
     )?;
     // Identify what each member's inputs hold at its physical head, before
     // inspecting the outgoing transfers in this copy of the component.
     let mut heads = Vec::new();
     if !edges.is_empty() {
-        let sources = terminal_check_tables::row(&elaboration.sources, id, id, Construct::Machine)?;
+        let sources = terminal_check_tables::row(sources, id, id, Construct::Machine)?;
         for &(head, owner) in &sources.heads {
             let block = lowered
                 .blocks
@@ -212,15 +243,15 @@ fn describe_calls(
                         "recursive transfer names no member head",
                     )
                 })?;
-            let machine = terminal_machine(&elaboration.module.machines, owner, id)?;
+            let machine = terminal_machine(&module.machines, owner, id)?;
             let arguments: Vec<_> = block
                 .structural_parameters
                 .iter()
                 .map(|formal| terminal_psi::StructuralArgument::whole(formal.place, formal.access))
                 .collect();
             let mut fields = storage.at_join(
-                &mut references,
-                &tables,
+                references,
+                tables,
                 &machine.structural_parameters,
                 &arguments,
                 &[],
@@ -241,12 +272,12 @@ fn describe_calls(
     }
     for &(edge, callee) in edges {
         let (_, actuals, structural) = storage.arrival(edge, Construct::Edge(edge))?;
-        let target = terminal_machine(&elaboration.module.machines, callee, id)?;
+        let target = terminal_machine(&module.machines, callee, id)?;
         let point = ProgramPoint::Edge(edge);
-        let known = known_at(&tables, &prepared.graph, &prepared.context, id, point)?;
+        let known = known_at(tables, graph, context, id, point)?;
         let mut fields = storage.at_join(
-            &mut references,
-            &tables,
+            references,
+            tables,
             &target.structural_parameters,
             structural,
             &[],
@@ -266,19 +297,19 @@ fn describe_calls(
             target,
             denotation: crate::checking::known::TransportInputs::new(known.equations.len()),
             known: &known,
-            context: &prepared.context,
+            context,
             fields: observations,
             equal: None,
         };
-        let predicate = describe(&known, &prepared.context, &crossing, &mut bindings);
+        let predicate = describe(&known, context, &crossing, &mut bindings);
         let arrivals = incoming.get_mut(callee).expect("callee was indexed");
         if let Some(transfers) = transfers.as_deref_mut() {
             let mut source = None;
             for (head, owner, names) in &heads {
                 let head = ProgramPoint::BlockEntry(*head);
-                if prepared.graph.dominates(head, point)?
+                if graph.dominates(head, point)?
                     && match source {
-                        Some((previous, _, _)) => prepared.graph.dominates(previous, head)?,
+                        Some((previous, _, _)) => graph.dominates(previous, head)?,
                         None => true,
                     }
                 {
@@ -297,11 +328,7 @@ fn describe_calls(
         }
         arrivals.push(predicate);
     }
-    for &index in outgoing {
-        if !includes_call(index) {
-            continue;
-        }
-        let site = &sites.arrivals[index];
+    for site in calls {
         let callee = site.callee;
         let call = terminal_check_tables::row(
             &tables.invocations,
@@ -310,17 +337,17 @@ fn describe_calls(
             Construct::Invocation(site.invocation),
         )?;
         let actuals = scalar_actuals(&call.actuals);
-        let target = terminal_machine(&elaboration.module.machines, callee, id)?;
+        let target = terminal_machine(&module.machines, callee, id)?;
         let crossing: Vec<_> = target
             .parameters
             .iter()
             .zip(&actuals)
             .map(|(formal, actual)| (ScalarTerm::value(formal.id, formal.scalar_type), *actual))
             .collect();
-        let known = known_at(&tables, &prepared.graph, &prepared.context, id, site.before)?;
+        let known = known_at(tables, graph, context, id, site.before)?;
         let mut fields = storage.at_call(
-            &mut references,
-            &tables,
+            references,
+            tables,
             &call.actuals,
             (&target.structural_parameters, Some(target.id)),
             call.site,
@@ -333,14 +360,14 @@ fn describe_calls(
         described.extend(observations.field_crossings());
         let predicate = describe(
             &known,
-            &prepared.context,
+            context,
             &described,
             &mut InputBindings {
                 actuals: &actuals,
                 target,
                 denotation: crate::checking::known::TransportInputs::new(known.equations.len()),
                 known: &known,
-                context: &prepared.context,
+                context,
                 fields: observations,
                 equal: None,
             },
@@ -351,9 +378,9 @@ fn describe_calls(
         // (`preserved - 100` after `step(total)`), and the arrival proves
         // it like every other part of the inferred condition.
         let derived = derived(
-            &tables,
-            &prepared.graph,
-            &prepared.context,
+            tables,
+            graph,
+            context,
             id,
             site.before,
             &crossing,
