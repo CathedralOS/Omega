@@ -1,16 +1,73 @@
-//! A public data field's exact type already discloses its declared domains.
-//! Reconcile those source fields with the checked membership roster before
-//! using the data declaration as the review evidence for a boundary.
+//! Reconcile a structural boundary value with its reviewed data declaration.
+//! That declaration carries ownership and the domains written on its fields.
 use arena::IdSet;
 use semantic_vocabulary::StructuralTypeId;
 use source_compiler::publication::AcceptedTerminalSource;
+use source_compiler::representations::source_state::data::DataDefinition;
 use source_compiler::representations::source_state::types::{
     DomainConstraintSubject, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 use std::collections::BTreeSet;
-use terminal_psi::{StructuralPathQualification, StructuralPathSegment};
+use terminal_psi::{
+    BoundaryStructuralResultDeclaration, StructuralMultiplicity, StructuralPathQualification,
+    StructuralPathSegment,
+};
 
-pub(super) fn retained(
+fn declared_data(
+    accepted: &AcceptedTerminalSource,
+    root: StructuralTypeId,
+    reference: TypeReferenceHandle,
+) -> Option<&DataDefinition> {
+    let records = accepted.source_records();
+    let owner = &records[records.binary_search_by_key(&root, |row| row.record).ok()?];
+    let source = accepted.source();
+    let data = source.closed_data_definition(reference)?;
+    if data.symbol != owner.declaration
+        || owner.application.as_ref().is_some_and(|application| {
+            application.type_identity(source) != source.normalized_type_identity(reference)
+        })
+    {
+        return None;
+    }
+    Some(data)
+}
+
+pub(super) fn result_multiplicity_retained(
+    accepted: &AcceptedTerminalSource,
+    result: &BoundaryStructuralResultDeclaration,
+    reference: TypeReferenceHandle,
+) -> bool {
+    if result.multiplicity == StructuralMultiplicity::Unrestricted {
+        return true;
+    }
+    let table = &accepted.source().type_reference_table;
+    if !table.contains_type_reference(reference) {
+        return false;
+    }
+    // A borrow's referent does not declare the borrow's ownership.
+    let reference = table.unconstrained_type_reference(reference);
+    let Some(data) = declared_data(accepted, result.structural_type, reference) else {
+        return false;
+    };
+    data.is_public
+        && data.supply_mode == language_core::DataSupplyMode::CheckedShape
+        && accepted
+            .module()
+            .structural_type(result.structural_type)
+            .is_some_and(|declaration| declaration.multiplicity == result.multiplicity)
+        && matches!(
+            (data.properties.multiplicity, result.multiplicity),
+            (
+                language_core::Multiplicity::Affine,
+                StructuralMultiplicity::Affine
+            ) | (
+                language_core::Multiplicity::Linear,
+                StructuralMultiplicity::Linear
+            )
+        )
+}
+
+pub(super) fn field_domains_retained(
     accepted: &AcceptedTerminalSource,
     root: StructuralTypeId,
     published: &[StructuralPathQualification],
@@ -20,24 +77,12 @@ pub(super) fn retained(
         if !reference.is_valid() {
             return false;
         }
-        let records = accepted.source_records();
-        let Ok(index) = records.binary_search_by_key(&root, |row| row.record) else {
-            return false;
-        };
-        let owner = &records[index];
-        let source = accepted.source();
-        let table = &source.type_reference_table;
+        let table = &accepted.source().type_reference_table;
         let mut reference = table.unconstrained_type_reference(reference);
         if let TypeReferenceNode::Reference { referee, .. } = table.type_reference(reference) {
             reference = table.unconstrained_type_reference(*referee);
         }
-        if source
-            .closed_data_definition(reference)
-            .is_none_or(|data| data.symbol != owner.declaration)
-            || owner.application.as_ref().is_some_and(|application| {
-                application.type_identity(source) != source.normalized_type_identity(reference)
-            })
-        {
+        if declared_data(accepted, root, reference).is_none() {
             return false;
         }
     }
