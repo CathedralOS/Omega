@@ -2,7 +2,7 @@
 //! A package may disclose its public requirement without installing a
 //! realization.
 
-mod field_domains;
+mod structural_data;
 
 use super::declarations::unavailable;
 use super::input::PolicySource;
@@ -254,7 +254,7 @@ impl<'module> AcceptedDeclarations<'module> {
                 .state_signature_parameters(signature)
                 .get(position)
                 .ok_or_else(mismatch)?;
-            if !field_domains::retained(
+            if !structural_data::field_domains_retained(
                 self.accepted,
                 formal.structural_type,
                 &formal.projected_qualifications,
@@ -1539,11 +1539,15 @@ impl PolicySource<'_> {
             unretained!(
                 result.multiplicity,
                 completes_normally
-                    && result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+                    && !structural_data::result_multiplicity_retained(
+                        declarations.accepted,
+                        result,
+                        signature.return_type,
+                    )
             );
             unretained!(result.qualifications);
             let fields_retained = if completes_normally {
-                field_domains::retained(
+                structural_data::field_domains_retained(
                     declarations.accepted,
                     result.structural_type,
                     &result.projected_qualifications,

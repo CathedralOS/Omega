@@ -62,6 +62,7 @@ impl DiagnosticStage {
 pub enum BuildDiagnosticContext {
     PreparingDependency,
     ResumingBuild,
+    RunningRegisteredTests,
 }
 
 impl BuildDiagnosticContext {
@@ -69,6 +70,7 @@ impl BuildDiagnosticContext {
         match self {
             Self::PreparingDependency => "preparing the dependency",
             Self::ResumingBuild => "resuming the Build after dependency preparation",
+            Self::RunningRegisteredTests => "running registered tests",
         }
     }
 }

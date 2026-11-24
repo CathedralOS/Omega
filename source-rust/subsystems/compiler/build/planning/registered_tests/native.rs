@@ -27,7 +27,7 @@ pub(super) fn capture(
     } else {
         BoundedProcessInput::Null
     };
-    run_bounded_process(
+    let output = run_bounded_process(
         prepared,
         stdin,
         limits.capture,
@@ -55,7 +55,13 @@ pub(super) fn capture(
         other => {
             EngineError::Incomplete(format!("cannot collect the running test's result: {other}"))
         }
-    })
+    })?;
+    if let Some(limit) = output.limits_reached.first() {
+        return Err(EngineError::Incomplete(format!(
+            "test exhausted its {limit} allowance"
+        )));
+    }
+    Ok(output)
 }
 
 #[cfg(all(test, target_os = "linux"))]
@@ -96,6 +102,13 @@ mod tests {
     }
 
     #[test]
+    fn a_signal_with_no_resource_report_keeps_its_native_status() {
+        let output = capture(shell("kill -TERM $$"), NativeEntryLimits::INSTALLED, None).unwrap();
+        assert_eq!(output.status.unix_signal(), Some(15));
+        assert!(output.limits_reached.is_empty());
+    }
+
+    #[test]
     fn only_a_test_that_started_can_exhaust_its_deadline() {
         let mut limits = NativeEntryLimits::INSTALLED;
         limits.capture.timeout = Duration::from_secs(1);
@@ -106,5 +119,21 @@ mod tests {
         );
         let absent = capture(Command::new("/nonexistent/omega-test"), limits, None).unwrap_err();
         assert!(matches!(absent, EngineError::Unavailable(_)), "{absent:?}");
+    }
+}
+
+#[cfg(all(test, windows))]
+mod windows_tests {
+    use super::*;
+
+    #[test]
+    fn a_returning_test_cannot_hide_a_job_limit() {
+        let mut command = Command::new("cmd.exe");
+        command.args(["/d", "/c", "cmd /d /c exit 0 & exit /b 0"]);
+        let result = capture(command, NativeEntryLimits::INSTALLED, None).unwrap_err();
+        assert!(
+            matches!(&result, EngineError::Incomplete(reason) if reason.contains("active process count")),
+            "{result:?}"
+        );
     }
 }

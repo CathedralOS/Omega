@@ -16,7 +16,6 @@ use std::ptr::null_mut;
 use windows_sys::Win32::Foundation::{FALSE, WAIT_TIMEOUT};
 use windows_sys::Win32::System::IO::GetQueuedCompletionStatus;
 use windows_sys::Win32::System::SystemServices::JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO;
-#[cfg(test)]
 use windows_sys::Win32::System::SystemServices::{
     JOB_OBJECT_MSG_ACTIVE_PROCESS_LIMIT, JOB_OBJECT_MSG_END_OF_JOB_TIME,
     JOB_OBJECT_MSG_JOB_MEMORY_LIMIT, JOB_OBJECT_MSG_PROCESS_MEMORY_LIMIT,
@@ -31,16 +30,7 @@ use super::launch::assign_and_resume;
 use super::limits::WindowsJobLimits;
 use super::native::{KernelHandle, raw_os_error_is};
 use super::termination::{terminate_and_reap_child, terminate_job};
-use crate::BoundedProcessLimits;
-
-#[cfg(test)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum JobLimitEvent {
-    ActiveProcess,
-    ProcessMemory,
-    AggregateMemory,
-    AggregateCpu,
-}
+use crate::{BoundedProcessLimits, ProcessLimit};
 
 #[derive(Debug)]
 pub(crate) struct WindowsJobChild {
@@ -49,11 +39,14 @@ pub(crate) struct WindowsJobChild {
     completion_port: KernelHandle, // I/O completion port receiving job notifications.
     primary_status: Option<ExitStatus>, // Latched exit status of the primary child once reaped.
     active_processes_zero: bool, // True once `JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO` arrives.
-    #[cfg(test)]
-    pub(super) limit_events: Vec<JobLimitEvent>,
+    limit_events: Vec<ProcessLimit>,
 }
 
 impl WindowsJobChild {
+    pub(crate) fn take_limit_events(&mut self) -> Vec<ProcessLimit> {
+        std::mem::take(&mut self.limit_events)
+    }
+
     pub(crate) fn resource_usage(&self) -> crate::ProcessResourceUsage {
         use std::os::windows::io::AsRawHandle;
         super::super::resource_usage::windows_usage(self.child.as_raw_handle())
@@ -114,7 +107,6 @@ impl WindowsJobChild {
             completion_port,
             primary_status: None,
             active_processes_zero: false,
-            #[cfg(test)]
             limit_events: Vec::new(),
         })
     }
@@ -186,7 +178,6 @@ impl WindowsJobChild {
             if message == JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO {
                 self.active_processes_zero = true;
             }
-            #[cfg(test)]
             if let Some(event) = job_limit_event(message)
                 && !self.limit_events.contains(&event)
             {
@@ -196,13 +187,12 @@ impl WindowsJobChild {
     }
 }
 
-#[cfg(test)]
-fn job_limit_event(message: u32) -> Option<JobLimitEvent> {
+fn job_limit_event(message: u32) -> Option<ProcessLimit> {
     match message {
-        JOB_OBJECT_MSG_ACTIVE_PROCESS_LIMIT => Some(JobLimitEvent::ActiveProcess),
-        JOB_OBJECT_MSG_PROCESS_MEMORY_LIMIT => Some(JobLimitEvent::ProcessMemory),
-        JOB_OBJECT_MSG_JOB_MEMORY_LIMIT => Some(JobLimitEvent::AggregateMemory),
-        JOB_OBJECT_MSG_END_OF_JOB_TIME => Some(JobLimitEvent::AggregateCpu),
+        JOB_OBJECT_MSG_ACTIVE_PROCESS_LIMIT => Some(ProcessLimit::ActiveProcess),
+        JOB_OBJECT_MSG_PROCESS_MEMORY_LIMIT => Some(ProcessLimit::ProcessMemory),
+        JOB_OBJECT_MSG_JOB_MEMORY_LIMIT => Some(ProcessLimit::AggregateMemory),
+        JOB_OBJECT_MSG_END_OF_JOB_TIME => Some(ProcessLimit::AggregateCpu),
         _ => None,
     }
 }

@@ -2,8 +2,7 @@
 //
 // `--both` is a differential comparison request (native vs. Terminal Psi), not
 // a third engine name, so combining `--engine` with `--both` is rejected up
-// front. Case runs (`--inputs` or `--input` paired with `--outputs`) always
-// execute on the host and therefore reject `--target`.
+// front. Native case runs execute on the host. Psi case runs may select a target.
 
 use crate::execution::ExecutionSelection;
 
@@ -23,7 +22,7 @@ pub(crate) struct RunArguments {
 
 macro_rules! run_help {
     (synopsis) => {
-        "omega run [--engine <native|psi> | --both] [--psi-work-budget <positive-u64>] [--keep] [--build-input <path>]... [--optional-build-input <path>]... [--entry-ram <position>=<hex-bytes>]... [--target <name> | --inputs <dir> | --input <file>...] [--outputs <dir>] [--trusted-artifact <manifest-id>] <root.omg|program.psi>"
+        "omega run [--engine <native|psi> | --both] [--psi-work-budget <positive-u64>] [--keep] [--build-input <path>]... [--optional-build-input <path>]... [--entry-ram <position>=<hex-bytes>]... [--target <name>] [--inputs <dir> | --input <file>...] [--outputs <dir>] [--trusted-artifact <manifest-id>] <root.omg|program.psi>"
     };
     (host_packages) => {
         "For saved Psi, OMEGA_HOST_PACKAGE_LOCK selects an absolute path to the host's reviewed omega.lock. Set OMEGA_HOST_PACKAGE_LOCK_SHA256 to its approved SHA-256 digest."
@@ -218,11 +217,11 @@ pub(super) fn parse_arguments(
     if outputs.is_some() && !cases && (both || (!terminal && target_name.is_some())) {
         return Err("--outputs requires an executing single engine or an input case list".into());
     }
-    if cases && target_name.is_some() {
-        return Err("case runs execute on the host; they cannot take --target".into());
-    }
-    if cases && terminal {
-        return Err("case runs do not yet support --engine psi; use --both".into());
+    if cases && target_name.is_some() && !terminal {
+        return Err(
+            "native case runs require host execution; --target with cases requires --engine psi"
+                .into(),
+        );
     }
     if psi_work_budget.is_some() && !terminal && (!both || target_name.is_some()) {
         return Err("--psi-work-budget requires --engine psi or --both host execution".into());
@@ -345,7 +344,20 @@ mod tests {
     }
 
     #[test]
-    fn inputs_need_outputs_and_exclude_a_foreign_target() {
+    fn inputs_need_outputs_and_only_psi_can_select_a_target() {
+        let psi = parse(&[
+            "--engine",
+            "psi",
+            "--target",
+            "linux_arm64",
+            "--inputs",
+            "data",
+            "--outputs",
+            "out",
+            "main.omg",
+        ])
+        .unwrap();
+        assert_eq!(psi.target_name.as_deref(), Some("linux_arm64"));
         assert!(parse(&["--inputs", "data", "main.omg"]).is_err());
         for engine in ["native", "psi"] {
             assert!(parse(&["--engine", engine, "--outputs", "out", "main.omg"]).is_ok());
@@ -465,15 +477,6 @@ mod tests {
             vec!["--engine", "main.omg"],
             vec!["--engine", "native", "--engine", "psi", "main.omg"],
             vec!["--engine", "native", "--psi-work-budget", "5", "main.omg"],
-            vec![
-                "--engine",
-                "psi",
-                "--inputs",
-                "d",
-                "--outputs",
-                "o",
-                "main.omg",
-            ],
         ] {
             assert!(parse(&arguments).is_err(), "{arguments:?} should reject");
         }

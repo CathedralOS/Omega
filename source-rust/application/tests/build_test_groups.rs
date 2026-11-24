@@ -107,10 +107,13 @@ fn build_with(
         .stdin(std::process::Stdio::null())
         .output()
         .expect("omega runs");
-    if flags.contains(&"--report-file") && output.status.success() {
+    if flags.contains(&"--report-file") {
         let report = std::fs::read_to_string(root.join("report.txt")).expect("build report");
         let stderr = String::from_utf8_lossy(&output.stderr);
-        for test in stderr.lines().filter(|line| line.starts_with("test `")) {
+        for test in stderr
+            .lines()
+            .filter(|line| line.starts_with("test plan for `") || line.starts_with("test `"))
+        {
             assert!(
                 report.lines().any(|row| row == test),
                 "{test} missing from {report}"
@@ -153,6 +156,21 @@ fn a_test_that_crashes_refuses_the_build() {
         ),
         "{output}"
     );
+    assert!(
+        output.contains("test `subtraction_is_correct` in group `Tests::arithmetic` (target `linux_x86_64`): passed on Psi interpreter"),
+        "{output}"
+    );
+    let verdict = output.find("failed on the Psi interpreter engine").unwrap();
+    for name in ["addition_is_correct", "subtraction_is_correct"] {
+        let planned = format!("test plan for `{name}` in group `Tests::arithmetic`");
+        let start = output.find(&planned).unwrap_or_else(|| panic!("{output}"));
+        assert!(start < verdict, "{output}");
+        let row = output[start..].lines().next().unwrap();
+        assert!(
+            row.contains("Psi interpreter scheduled") && row.contains("bindings"),
+            "{row}"
+        );
+    }
 }
 
 #[test]
@@ -200,7 +218,7 @@ fn comparing_registered_tests_reports_each_pair_and_keeps_failed_expectations() 
         "6u32",
         GROUP,
         host.target_name(),
-        &["--compare-tests"],
+        &["--compare-tests", "--report-file", "report.txt"],
     );
     assert!(!ok, "{output}");
     let failed = output
@@ -264,6 +282,109 @@ fn an_artifact_only_build_runs_its_groups_before_publishing_files() {
     }
 }
 
+fn rejected_roster(source: &str, requirement: &str) -> [String; 2] {
+    let scratch = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "test-entry-location",
+        false,
+    )
+    .unwrap();
+    let root = scratch.path();
+    std::fs::write(root.join("main.omg"), source).unwrap();
+    std::fs::write(
+        root.join("build.omg"),
+        format!(
+            r#"machine build(builder: @mutable Build) {{
+        Build::application(builder, "rejected_roster");
+        Build::bind(builder, linux_arm64\ProgramEntry, main);
+        _ = builder.tests.group::<{requirement}>();
+    }}"#
+        ),
+    )
+    .unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .args([
+            "build",
+            "--target",
+            "linux_arm64",
+            "--report-file",
+            "report.txt",
+            "build.omg",
+        ])
+        .current_dir(root)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let report = std::fs::read_to_string(root.join("report.txt")).unwrap();
+    [String::from_utf8(output.stderr).unwrap(), report]
+}
+
+#[test]
+fn a_rejected_test_entry_keeps_the_location_of_its_declaration() {
+    let source = "trait Checks { machine answer() -> u8; }\nmachine emits_byte() -> u8 satisfies Checks::answer { 7u8 }\nmachine main() {}";
+    for text in rejected_roster(source, "Checks::answer") {
+        assert!(
+            text.contains("test `emits_byte` in group `Checks::answer` cannot be produced"),
+            "{text}"
+        );
+        assert!(
+            text.contains("entry machine `emits_byte` returns a value"),
+            "{text}"
+        );
+        assert!(text.contains("main.omg:2:9"), "{text}");
+    }
+}
+
+#[test]
+fn discovery_reports_each_unrunnable_machine_in_roster_order() {
+    let source = "trait Checks { machine check(value: u8); }\n\
+machine zebra(value: u8) satisfies Checks::check {}\n\
+machine alpha(value: u8) satisfies Checks::check {}\n\
+machine main() {}";
+    for text in rejected_roster(source, "Checks::check") {
+        let (alpha, zebra) = text
+            .split_once("test `zebra` in group `Checks::check` is not runnable")
+            .unwrap_or_else(|| panic!("{text}"));
+        assert!(
+            alpha.contains("test `alpha` in group `Checks::check` is not runnable"),
+            "{text}"
+        );
+        assert!(alpha.contains("main.omg:3:9"), "{text}");
+        assert!(zebra.contains("main.omg:2:9"), "{text}");
+        assert!(
+            !text.contains("passed on") && !text.contains("registered with no tests"),
+            "{text}"
+        );
+    }
+}
+
+#[test]
+fn a_batch_build_announces_both_targets_before_any_test_verdict() {
+    let registration = format!(
+        r"Build::bind(builder, linux_arm64\ProgramEntry, main);
+{GROUP}"
+    );
+    let (ok, output) = build_with(
+        "batch_schedule",
+        "6u32",
+        &registration,
+        "linux_x86_64",
+        &["--target", "linux_arm64", "--report-file", "report.txt"],
+    );
+    assert!(!ok, "{output}");
+    let first_verdict = output
+        .find("failed on the Psi interpreter engine")
+        .unwrap_or_else(|| panic!("{output}"));
+    let before = &output[..first_verdict];
+    for target in ["linux_arm64", "linux_x86_64"] {
+        for test in ["addition_is_correct", "subtraction_is_correct"] {
+            let plan =
+                format!("test plan for `{test}` in group `Tests::arithmetic` (target `{target}`)");
+            assert!(before.contains(&plan), "{output}");
+        }
+    }
+}
+
 #[test]
 fn a_required_native_engine_on_another_target_leaves_the_build_incomplete() {
     let target =
@@ -314,7 +435,7 @@ fn explicit_process_exit_is_observed_on_both_engines_and_never_passes_the_test()
             "--build-dir",
         ])
         .arg(scratch.path())
-        .arg(fixture)
+        .arg(&fixture)
         .current_dir(scratch.path())
         .stdin(std::process::Stdio::null())
         .output()
@@ -348,5 +469,31 @@ fn explicit_process_exit_is_observed_on_both_engines_and_never_passes_the_test()
             "native/Psi comparison unavailable because the host"
         };
         assert!(row.contains(expected), "{row}");
+    }
+
+    // All three failures have the same cause. The ordinary concise report must
+    // still name each test and preserve the exact status supplied by Psi.
+    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .args(["build", "--target", host.target_name(), "--build-dir"])
+        .arg(scratch.path())
+        .arg(&fixture)
+        .current_dir(scratch.path())
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let report = String::from_utf8_lossy(&output.stderr);
+    for (name, code) in [
+        ("exits_with_zero", 0),
+        ("exits_with_23", 23),
+        ("exits_with_256", 256),
+    ] {
+        assert!(
+            report
+                .lines()
+                .any(|row| row.contains(&format!("test `{name}`"))
+                    && row.contains(&format!("exited the process with status {code}"))),
+            "{report}"
+        );
     }
 }

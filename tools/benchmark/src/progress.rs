@@ -16,7 +16,7 @@ use std::process::{Command, Stdio};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 pub const SCHEMA: &str = "omega-progress-record/1";
-pub const BENCHMARK_SET: &str = "omega-progress-set/3";
+pub const BENCHMARK_SET: &str = "omega-progress-set/4";
 
 /// `{build}` is replaced by a fresh empty build directory for each run.
 /// `clean` names a directory removed before each run so `omega run` cannot
@@ -28,6 +28,9 @@ struct Workload {
     clean: Option<&'static str>,
     accept: Option<&'static str>,
 }
+
+const SQUARE_SUM: &str = "samples/cli/arithmetic/wrapping_square_sum/main.omg";
+const SQUARE_SUM_BUILD: &str = "samples/cli/arithmetic/wrapping_square_sum/build";
 
 const WORKLOADS: &[Workload] = &[
     Workload {
@@ -75,13 +78,23 @@ const WORKLOADS: &[Workload] = &[
         accept: Some("tools/benchmark/tests/fixtures/proofs/pass/runtime_inductive_gauss_sum_exit"),
     },
     Workload {
-        name: "native_run_both",
+        name: "native_run",
+        arguments: &["run", "--engine", "native", SQUARE_SUM],
+        clean: Some(SQUARE_SUM_BUILD),
+        accept: None,
+    },
+    Workload {
+        name: "psi_run",
+        // The full sum uses 28,000,022 units on work schedule 1.
         arguments: &[
             "run",
-            "--both",
-            "samples/cli/arithmetic/wrapping_square_sum/main.omg",
+            "--engine",
+            "psi",
+            "--psi-work-budget",
+            "32000000",
+            SQUARE_SUM,
         ],
-        clean: Some("samples/cli/arithmetic/wrapping_square_sum/build"),
+        clean: Some(SQUARE_SUM_BUILD),
         accept: None,
     },
 ];

@@ -188,7 +188,7 @@ fn an_operation_outside_the_conformance_gets_no_license_from_it() {
 /// compiler rejects a machine owned by a data declaration before any proof),
 /// and `mod`, `div` and `gcd`, whose recursion is not on a field of the case.
 /// Every other declaration is the file's, unchanged.
-fn library_declarations() -> String {
+pub(super) fn library_declarations() -> String {
     let start = NAT.find("public data Nat {").expect("the data declaration");
     let operators = NAT
         .find("// Natural order and exact subtraction")

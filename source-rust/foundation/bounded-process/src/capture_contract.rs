@@ -44,6 +44,7 @@ pub struct BoundedProcessOutput {
     pub stdout: Vec<u8>,
     pub stderr: Vec<u8>,
     pub resource_usage: Option<crate::ProcessResourceUsage>,
+    pub limits_reached: Vec<crate::ProcessLimit>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

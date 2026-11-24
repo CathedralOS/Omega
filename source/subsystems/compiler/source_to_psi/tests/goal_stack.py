@@ -6,9 +6,10 @@ expression table, so a goal the stack drops can never be reported proved.
 
 import argparse
 import re
-import subprocess
 import tempfile
 from pathlib import Path
+
+from execution import check_silent_execution
 
 
 PACKAGE = Path(__file__).resolve().parents[1]
@@ -46,17 +47,7 @@ def main():
         (root / "facts.omg").write_text("\n\n".join([inputs, *facts]) + "\n")
         program = root / "main.omg"
         program.write_text("\n\n".join([*units, (fixture / "main.omg").read_text()]))
-        result = subprocess.run(
-            [args.omega.resolve(), "run", "--both", program],
-            stdin=subprocess.DEVNULL,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-        )
-        print(result.stdout, end="")
-        expected = {"native exit 0", "interp exit: 0"}
-        if result.returncode or not expected.issubset(result.stdout.splitlines()):
-            raise SystemExit(1)
+        check_silent_execution(args.omega.resolve(), root, entry=program)
 
 
 if __name__ == "__main__":

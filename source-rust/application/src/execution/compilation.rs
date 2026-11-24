@@ -1,5 +1,4 @@
-//! Prepare a saved or source program for the selected execution engine, then run
-//! the same target-bound Psi artifact with its published provisions.
+//! Prepare one target-bound product from source or a trusted saved program.
 use crate::saved_program::{ExecutionProduct, SavedProgramError};
 use diagnostics::Diagnostic;
 use package_compilation::build_execution::BuildSnapshotRequest;
@@ -8,15 +7,11 @@ use product_publication::{
     TerminalRuntimeProvisions,
 };
 use std::path::{Path, PathBuf};
-use terminal_runtime::{
-    TerminalDomainExitDelegation, TerminalRuntimeError, TerminalRuntimeObservation,
-    TerminalRuntimeRequest,
-};
 
 pub(super) struct RunProduct {
     root: PathBuf,
     product: CompletedProduct,
-    test_roster: Vec<String>,
+    pub(super) target: target::TargetProfile,
 }
 
 pub(super) struct RunArtifact<'product> {
@@ -37,7 +32,7 @@ impl RunProduct {
         })
     }
 
-    fn runtime(&self) -> Option<&TerminalRuntimeProvisions> {
+    pub(super) fn runtime(&self) -> Option<&TerminalRuntimeProvisions> {
         self.product.runtime_provisions()
     }
 
@@ -45,10 +40,6 @@ impl RunProduct {
         self.runtime()
             .map(|provisions| provisions.execution().private_entry_ram())
             .unwrap_or_default()
-    }
-
-    pub(super) fn test_roster(&self) -> Vec<String> {
-        self.test_roster.clone()
     }
 
     pub(super) fn publish(self, directory: &Path) -> Result<(Self, PathBuf), String> {
@@ -76,19 +67,16 @@ pub(super) struct ProjectInput {
     pub build_snapshot: Option<BuildSnapshotRequest>,
 }
 
-pub(super) struct ProbeCompilation {
-    pub report: RunProduct,
-    pub target_name: &'static str,
-    pub interpretations: Vec<Result<TerminalRuntimeObservation, TerminalRuntimeError>>, // One reference run per supplied input, in input order.
+pub(super) struct CompiledRun {
+    pub product: RunProduct,
+    pub tests: Option<project_build::RegisteredTestPlan>,
 }
 
 pub(super) fn compile(
     artifact: Option<psi_authorization::AuthorizedTerminalArtifact>,
     input: ProjectInput,
     requested: ExecutionProduct,
-    reference_inputs: Vec<std::fs::File>,
-    psi_work_budget: u64,
-) -> Result<ProbeCompilation, Vec<Diagnostic>> {
+) -> Result<CompiledRun, Vec<Diagnostic>> {
     let ProjectInput {
         root_path,
         build_directory,
@@ -96,7 +84,7 @@ pub(super) fn compile(
         private_entry_ram,
         build_snapshot,
     } = input;
-    let (report, target_name) = if let Some(artifact) = artifact {
+    let (product, target, tests) = if let Some(artifact) = artifact {
         if build_snapshot.is_some() {
             return Err(vec![Diagnostic::error(
                 "a saved Psi program cannot accept source build inputs",
@@ -117,14 +105,7 @@ pub(super) fn compile(
             SavedProgramError::Diagnostics(diagnostics) => diagnostics,
             other => vec![Diagnostic::error(other.to_string())],
         })?;
-        (
-            RunProduct {
-                test_roster: Vec::new(),
-                root: root_path,
-                product,
-            },
-            profile.target_name(),
-        )
+        (product, profile, None)
     } else {
         if root_path
             .extension()
@@ -170,70 +151,16 @@ pub(super) fn compile(
                 )]);
             }
         };
-        let test_roster =
-            stage.execute_registered_tests(profile, &[], project_build::TestExecution::Available)?;
-        (
-            RunProduct {
-                root: root_path,
-                product,
-                test_roster,
-            },
-            profile.target_name(),
-        )
+        let plan =
+            stage.plan_registered_tests(profile, &[], project_build::TestExecution::Available)?;
+        (product, profile, Some(plan))
     };
-    let interpretations = reference_inputs
-        .into_iter()
-        .map(|input| {
-            interpret_product(&report, Some(Box::new(input)), target_name, psi_work_budget)
-        })
-        .collect();
-    Ok(ProbeCompilation {
-        report,
-        target_name,
-        interpretations,
-    })
-}
-
-pub(super) fn interpret_product(
-    report: &RunProduct,
-    input: Option<Box<dyn std::io::Read + Send>>,
-    target: &str,
-    psi_work_budget: u64,
-) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
-    let program = report
-        .artifact()
-        .ok_or(TerminalRuntimeError::InvalidProvision(
-            "run lost its produced Psi artifact before execution",
-        ))?;
-    let runtime = report.runtime();
-    retained_image_runtime::execute(
-        TerminalRuntimeRequest {
-            entry: None,
-            filesystem: terminal_runtime::TerminalFilesystemDelegation::HostNamespace,
-            native_services: terminal_runtime::TerminalNativeServiceDelegation::MatchingHost,
-            native_provider: Some(native_provider_sponsor::for_adapters(
-                std::process::Command::new(std::env::current_exe().map_err(|error| {
-                    TerminalRuntimeError::MissingProvision {
-                        capability: "native-provider-sponsor",
-                        reason: error.to_string(),
-                    }
-                })?),
-                runtime
-                    .into_iter()
-                    .flat_map(|runtime| runtime.published_native_adapters()),
-            )),
-            x86_flags: terminal_runtime::capture_host_x86_flags(target)?,
-            memory_ordering:
-                terminal_runtime::TerminalMemoryOrderingEnvironment::private_sequential(target),
-            provider_proposal: None,
-            artifact: program.artifact,
-            target: Some(target),
-            provisions: runtime.map(|provisions| provisions.execution()),
-            work_budget: psi_work_budget,
-            domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
-            standard_input: input,
-            clock: Some(terminal_runtime::TerminalClockEnvironment::Host),
+    Ok(CompiledRun {
+        product: RunProduct {
+            root: root_path,
+            product,
+            target,
         },
-        program.image,
-    )
+        tests,
+    })
 }

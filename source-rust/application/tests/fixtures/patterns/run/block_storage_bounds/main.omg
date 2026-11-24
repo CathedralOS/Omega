@@ -23,11 +23,34 @@ machine select_ticket(mutable ticket: Ticket, branch: bool) -> Ticket {
     }, copied)
 }
 
+machine nested(first: bool, second: bool) -> u32 {
+    let mutable count: u32 = 4;
+    let chosen: u32 = match first {
+        true -> match second { true -> { count = 8; 0 }, false -> 1 },
+        false -> 2,
+    };
+    count + 1
+}
+
+machine nested_field(first: bool, second: bool) -> u32 {
+    let mutable cell: Stock = Stock { value: 3 };
+    let chosen: u32 = match first {
+        true -> {
+            cell.value = 5;
+            match second { true -> { cell.value = 7; 0 }, false -> 1 }
+        },
+        false -> 2,
+    };
+    1 + cell.value
+}
+
 machine main() crashes Trap {
     let selected: Ticket = select_ticket(Ticket { slot: 4 }, true);
     let { slot } = move selected;
     transition scalar(true) == 9 && scalar(false) == 5
-        && field(true) == 8 && field(false) == 4 && slot == 7 {
+        && field(true) == 8 && field(false) == 4 && slot == 7
+        && nested(true, true) == 9 && nested(true, false) == 5 && nested(false, true) == 5
+        && nested_field(true, true) == 8 && nested_field(true, false) == 6 && nested_field(false, true) == 4 {
         true -> success(), false -> failed(),
     }
     machine success() {}

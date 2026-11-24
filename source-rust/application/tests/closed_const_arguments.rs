@@ -14,11 +14,12 @@
 //! the source compiler's
 //! `pipeline/04_typed-trees-to-prepared-typed-trees/tests/prepared_value_inputs.rs`.
 
+#[path = "support/program.rs"]
+mod program;
 mod support;
 
-use platform_custody::temporary_directory::TemporaryDirectory;
+use program::invoke;
 use std::path::PathBuf;
-use std::process::{Command, Output, Stdio};
 
 fn fixture(tier: &str) -> PathBuf {
     support::repository_root()
@@ -29,35 +30,6 @@ fn fixture(tier: &str) -> PathBuf {
 
 fn read(tier: &str) -> String {
     std::fs::read_to_string(fixture(tier).join("main.omg")).unwrap()
-}
-
-/// Run `omega` on a copy of one source file, so nothing the compiler writes
-/// lands in the checkout.
-fn invoke(source: &str, arguments: &[&str]) -> (Output, String) {
-    let scratch = TemporaryDirectory::create("closed-const-argument", false).unwrap();
-    std::fs::write(scratch.path().join("main.omg"), source).unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(arguments)
-        .arg("main.omg")
-        .current_dir(scratch.path())
-        .stdin(Stdio::null())
-        .output()
-        .expect("the compiler runs on the fixture");
-    let report = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    eprintln!("{report}");
-    (output, report)
-}
-
-fn runs_in_both_engines(source: &str) {
-    let (output, report) = invoke(source, &["run", "--both"]);
-    assert_eq!(output.status.code(), Some(0), "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
-        assert!(report.lines().any(|line| line == receipt), "{report}");
-    }
 }
 
 fn refuses_at_buffer_argument(source: &str, expected: &str) {
@@ -83,7 +55,7 @@ fn refuses_at_buffer_argument(source: &str, expected: &str) {
 
 #[test]
 fn a_call_argument_and_the_literal_it_evaluates_to_are_one_type() {
-    runs_in_both_engines(&read("run"));
+    program::assert_silent_return(&read("run"));
 }
 
 #[test]
@@ -107,7 +79,7 @@ fn a_boolean_call_argument_closes_to_its_value() {
             .replace("Buffer<8>", "Buffer<true>")
             .replace("Buffer<width(7u8)>", "Buffer<width()>")
     };
-    runs_in_both_engines(&flags("true"));
+    program::assert_silent_return(&flags("true"));
     refuses_at_buffer_argument(
         &flags("false"),
         "type mismatch: the parameter it is passed for requires `Buffer` with `N = true` but this value supplies false",

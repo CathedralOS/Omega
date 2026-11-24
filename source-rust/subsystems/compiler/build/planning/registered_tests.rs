@@ -1,6 +1,8 @@
 //! Execute each Build-registered test as a separately published Product.
 #[path = "registered_tests/native.rs"]
 mod native;
+#[path = "registered_tests/plan.rs"]
+mod plan;
 #[path = "registered_tests/result.rs"]
 mod result;
 use self::result::{EngineError, NativeTermination, Observed, PsiTermination, Run, assess};
@@ -9,7 +11,6 @@ use compiler::{Artifact, CompileRequest, Program};
 use diagnostics::Diagnostic;
 use installation_conditions::InstallationEnvironmentAssumption;
 use product_publication::CompletedProduct;
-use provider_admission::IsolatedExecutionGrant;
 use source_compiler::registered_tests::{RegisteredTests, TestInvocationInputs};
 use target::TargetProfile;
 use terminal_runtime::{
@@ -27,13 +28,20 @@ pub enum TestExecution {
     Compare,
 }
 
+/// The invocation plan owns the exact compiled products it announced.
+#[derive(Default)]
+pub struct RegisteredTestPlan {
+    tests: Vec<plan::PlannedTest>,
+    notes: Vec<String>,
+}
+
 impl ProductStage<'_> {
-    pub fn execute_registered_tests(
+    pub fn plan_registered_tests(
         &self,
         profile: TargetProfile,
         assumptions: &[InstallationEnvironmentAssumption],
         execution: TestExecution,
-    ) -> Result<Vec<String>, Vec<Diagnostic>> {
+    ) -> Result<RegisteredTestPlan, Vec<Diagnostic>> {
         let target = profile.target_name();
         let disabled = self
             .product
@@ -42,70 +50,55 @@ impl ProductStage<'_> {
             .config
             .settings
             .tests_disabled;
-        let Some(suite) = RegisteredTests::discover(self.source(), target, disabled)? else {
-            return Ok(if execution == TestExecution::Compare {
-                vec![format!("0 registered test comparisons (target `{target}`)")]
-            } else {
-                Vec::new()
-            });
-        };
-        let mut roster = Vec::new();
-        for test in &suite.roots {
-            let prepare = || {
-                let mut native_target = self.native_target(profile, assumptions.to_vec())?;
-                let private_filesystem = test
-                    .inputs
-                    .private_filesystem
-                    .then(|| IsolatedExecutionGrant::private_linux_filesystem(profile))
-                    .flatten();
-                native_target.isolated_execution_grant = Some(
-                    private_filesystem.unwrap_or_else(IsolatedExecutionGrant::captured_process),
-                );
-                let program = Program::CheckedSource {
-                    publication: suite.compile(test, target)?,
-                    suppliers: self.product,
-                    runtime_consent: self.runtime_consent(profile)?,
-                    target: native_target,
-                };
-                let request = if TargetProfile::host_if_supported() == Some(profile) {
-                    CompileRequest::Native {
-                        program,
-                        entry_memory: &[],
-                    }
-                } else {
-                    // A foreign target can run in Psi without emitting a native test image.
-                    CompileRequest::Runtime {
-                        program,
-                        entry_memory: &[],
-                    }
-                };
-                compiler::compile(request, Default::default())
-                    .map(|output| output.artifact)
-                    .map_err(compiler::stage_validators::NativeValidationError::into_diagnostics)
-            };
-            let name = format!("test `{}` in group `{}`", test.name, test.group);
-            let result = prepare()
-                .map_err(|errors| {
-                    format!(
-                        "cannot be produced: {}",
-                        diagnostics::join_messages(&errors)
-                    )
-                })
-                .and_then(|product| run_test(product, profile, execution, &test.inputs));
-            roster.push(match result {
-                Ok(status) => Diagnostic::note(format!("{name} (target `{target}`): {status}")),
-                Err(reason) => Diagnostic::error(format!("{name} {reason} (target `{target}`)")),
-            });
+        let mut plan = RegisteredTestPlan::default();
+        if let Some(mut suite) = RegisteredTests::discover(self.source(), target, disabled)? {
+            let assumptions: Vec<_> = assumptions
+                .iter()
+                .filter(|a| a.profile() == profile)
+                .cloned()
+                .collect();
+            for root in std::mem::take(&mut suite.roots) {
+                plan.tests.push(plan::PlannedTest::prepare(
+                    self,
+                    &suite,
+                    root,
+                    profile,
+                    &assumptions,
+                    execution,
+                ));
+            }
+            plan.notes = suite.notes;
         }
-        if execution == TestExecution::Compare && suite.roots.is_empty() {
-            roster.push(Diagnostic::note(format!(
-                "0 registered test comparisons (target `{target}`)"
-            )));
+        if execution == TestExecution::Compare && plan.tests.is_empty() {
+            plan.notes.insert(
+                0,
+                format!("0 registered test comparisons (target `{target}`)"),
+            );
         }
-        roster.extend(suite.notes.into_iter().map(Diagnostic::note));
+        Ok(plan)
+    }
+}
+
+impl RegisteredTestPlan {
+    /// Describe the same admitted products that execution will consume.
+    pub fn rows(&self) -> impl Iterator<Item = String> + '_ {
+        self.tests
+            .iter()
+            .map(plan::PlannedTest::describe)
+            .chain(self.notes.iter().map(|note| format!("test plan: {note}")))
+    }
+
+    pub fn execute(self) -> Result<Vec<String>, Vec<Diagnostic>> {
+        let mut roster: Vec<_> = self
+            .tests
+            .into_iter()
+            .flat_map(plan::PlannedTest::execute)
+            .collect();
+        roster.extend(self.notes.into_iter().map(Diagnostic::note));
         if roster.iter().any(Diagnostic::is_error) {
-            if execution == TestExecution::Available {
-                roster.retain(Diagnostic::is_error);
+            for row in &mut roster {
+                row.build_context =
+                    Some(diagnostics::BuildDiagnosticContext::RunningRegisteredTests);
             }
             Err(roster)
         } else {
@@ -115,41 +108,23 @@ impl ProductStage<'_> {
 }
 
 fn run_test(
-    product: Artifact,
+    report: CompletedProduct,
+    engines: &plan::Engines,
+    inputs: &TestInvocationInputs,
     profile: TargetProfile,
     execution: TestExecution,
-    inputs: &TestInvocationInputs,
 ) -> Result<String, String> {
-    if inputs.private_filesystem
-        && !matches!(profile, TargetProfile::LinuxX64 | TargetProfile::LinuxArm64)
-    {
-        let unavailable = EngineError::Unavailable(format!(
-            "no private filesystem adapter for {}",
-            profile.target_name()
-        ));
-        return assess(Err(unavailable.clone()), Err(unavailable), execution);
-    }
-    let (interpreted, native) = match product {
-        Artifact::Runtime(report) => (
-            interpret(&report, profile, inputs),
-            Err(EngineError::Unavailable(
-                "its target does not execute on this host".into(),
-            )),
-        ),
-        Artifact::Native(report) => {
-            let interpreted = interpret(&report, profile, inputs);
-            let program = report
-                .retained_native_program()
-                .ok_or("the native test lost its Psi artifact")?;
-            let can_exit = program
-                .psi_artifact()
-                .semantic_module()
-                .can_end_the_process();
-            let native = execute_native(report, can_exit, inputs);
-            (interpreted, native)
-        }
-        Artifact::Psi(_) => return Err("the test lacks an admitted execution product".into()),
-    };
+    let interpreted = engines.psi.run(|| interpret(&report, profile, inputs));
+    let native = engines.native.run(|| {
+        let program = report.retained_native_program().ok_or_else(|| {
+            EngineError::Failed("the scheduled native test lost its retained Psi program".into())
+        })?;
+        let can_exit = program
+            .psi_artifact()
+            .semantic_module()
+            .can_end_the_process();
+        execute_native(report, can_exit, inputs)
+    });
     assess(interpreted, native, execution)
 }
 

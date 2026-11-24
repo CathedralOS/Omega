@@ -60,8 +60,8 @@ mod observation;
 
 use crate::arguments::RunArguments;
 use crate::execution::{
-    AgreedTermination, CaseRunRequest, ExecutionOutcome, ExecutionSelection, InterpreterComparison,
-    RunError, RunRequest, TerminalOutcome, run_project, run_project_cases,
+    AgreedTermination, CaseOutcome, CaseRunRequest, ExecutionOutcome, ExecutionSelection,
+    InterpreterComparison, RunError, RunRequest, TerminalOutcome, run_project, run_project_cases,
 };
 use compiler::CompilerRequestOutcome;
 use package_compilation::build_execution::BuildSnapshotRequest;
@@ -109,6 +109,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
             psi_work_budget: arguments.psi_work_budget,
             keep_artifacts: arguments.keep,
         },
+        |row| eprintln!("{row}"),
     ) {
         Ok(outcome) => outcome,
         Err(error) => {
@@ -124,9 +125,6 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
             std::process::exit(compile_failure_status(&error));
         }
     };
-    for entry in &outcome.test_roster {
-        eprintln!("{entry}");
-    }
     if let Some(directory) = arguments.outputs {
         if arguments.keep {
             eprintln!("build dir kept: {}", outcome.build_dir.display());
@@ -275,19 +273,17 @@ fn run_cases(
 ) -> ! {
     let cases = match &arguments.inputs {
         Some(inputs) => {
-            let mut cases = match std::fs::read_dir(inputs) {
-                Ok(entries) => entries
-                    .filter_map(|entry| entry.ok().map(|entry| entry.path()))
-                    .filter(|path| {
-                        path.extension()
-                            .is_some_and(|extension| extension == "stdin")
-                    })
-                    .collect::<Vec<_>>(),
+            let entries = std::fs::read_dir(inputs).and_then(|entries| {
+                entries.map(|entry| entry.map(|entry| entry.path())).collect::<std::io::Result<Vec<_>>>()
+            });
+            let mut cases = match entries {
+                Ok(paths) => paths,
                 Err(error) => {
                     eprintln!("cannot read --inputs {}: {error}", inputs.display());
                     std::process::exit(200);
                 }
             };
+            cases.retain(|path| path.extension().is_some_and(|extension| extension == "stdin"));
             cases.sort();
             if cases.is_empty() {
                 eprintln!("--inputs {} holds no *.stdin files", inputs.display());
@@ -305,12 +301,14 @@ fn run_cases(
                 .map(|inputs| BuildSnapshotRequest::scoped(Vec::new(), inputs)),
             private_entry_ram: arguments.private_entry_ram,
             root_path: arguments.main_path,
-            compare_interpreter: arguments.selection == ExecutionSelection::Both,
+            target_name: arguments.target_name,
+            selection: arguments.selection,
             psi_work_budget: arguments.psi_work_budget,
             inputs: cases,
             output_directory: outputs.clone(),
             keep_artifacts: arguments.keep,
         },
+        |row| eprintln!("{row}"),
     ) {
         Ok(outcome) => outcome,
         Err(error) => {
@@ -320,7 +318,22 @@ fn run_cases(
     };
     let mut status = 0;
     for case in &outcome.cases {
-        let interpreter = match &case.comparison {
+        let (name, exit, comparison) = match case {
+            CaseOutcome::Native {
+                name,
+                exit,
+                comparison,
+            } => (name, exit, comparison),
+            CaseOutcome::Psi { name, termination } => {
+                let (kind, detail) = termination.columns();
+                eprintln!("case {name}: Psi {kind} {detail}");
+                if !termination.complete() {
+                    status = 200;
+                }
+                continue;
+            }
+        };
+        let interpreter = match comparison {
             InterpreterComparison::NotRequested => String::new(),
             InterpreterComparison::Declined(reason) => {
                 // A divergence in another case (201) outranks an unchecked one.
@@ -354,11 +367,7 @@ fn run_cases(
                 format!("; Psi interpretation FAILED: {}", reasons.join("; "))
             }
         };
-        eprintln!(
-            "case {}: native {}{interpreter}",
-            case.name,
-            case.exit.describe()
-        );
+        eprintln!("case {name}: native {}{interpreter}", exit.describe());
     }
     eprintln!(
         "{} cases; streams and results.tsv in {}",

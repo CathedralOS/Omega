@@ -208,6 +208,60 @@ fn the_recovered_unlicensed_rearrangement_is_refused_at_its_satisfier_groups() {
 }
 
 #[test]
+fn laws_about_a_record_of_mathematical_values_compile() {
+    let (output, report) = check("record_law/pass/pair_of_peano");
+    assert_eq!(output.status.code(), Some(0), "{report}");
+}
+
+#[test]
+fn a_record_law_with_one_field_uncited_is_refused() {
+    let (output, report) = check("record_law/fail/pair_field_uncited");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains("cannot prove ensures contract for `add_pair_zero`")
+            && report.contains(UNPROVED),
+        "{report}"
+    );
+}
+
+#[test]
+fn a_hypothesis_about_part_of_a_sum_proves_a_named_proposition() {
+    let (output, report) = check("sum_hypothesis/pass/proposition_under_addition");
+    assert_eq!(output.status.code(), Some(0), "{report}");
+}
+
+#[test]
+fn a_named_proposition_without_its_hypothesis_is_refused() {
+    let (output, report) = check("sum_hypothesis/fail/proposition_without_its_hypothesis");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains(
+            "cannot prove ensures contract for `add_pair_keeps_difference`: \
+             same_difference(add_pair(a, b), add_pair(a2, b))"
+        ) && report.contains(UNPROVED),
+        "{report}"
+    );
+}
+
+#[test]
+fn a_law_proved_by_cases_inside_cases_compiles() {
+    let (output, report) = check("nested_cases/pass/order_is_transitive");
+    assert_eq!(output.status.code(), Some(0), "{report}");
+}
+
+#[test]
+fn a_law_with_its_innermost_case_uncited_is_refused() {
+    let (output, report) = check("nested_cases/fail/innermost_case_uncited");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains(
+            "cannot prove ensures contract for `order_is_transitive` in the case `Peano::Succ`"
+        ) && report.contains(UNPROVED),
+        "{report}"
+    );
+}
+
+#[test]
 fn a_satisfier_that_proves_nothing_is_refused_for_the_law_it_inherits() {
     let (output, report) = check("ring_law/fail/ring_law_unproven_rejected");
     assert_eq!(output.status.code(), Some(1), "{report}");

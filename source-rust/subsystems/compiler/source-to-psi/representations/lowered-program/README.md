@@ -56,7 +56,14 @@ closure in `PreparedCompilation::mathematics`:
   formal is that induction over the formal's data, and its entry records the
   motive and the branch of each case (`FunctionCases`), which is how stage 06
   computes it on a case without reading the shape of a term.
-- **Laws**: one per `ensures` equality of a machine over such data. A machine
+- **Records**: a record with no cases whose fields are all mathematical data
+  is one definition, the product of its fields' types (`Record`). It has no
+  constructor entry: a value is the tuple of its fields and a field is a
+  projection of it.
+- **Laws**: one per `ensures` equality of a machine over such data. A law's
+  proof is its body's citations, read per case when the body dispatches on a
+  formal (an induction), and per case of a further value where a case splits
+  again (`LawSplit`). A machine
   that also returns a value has a definition entry too, and its statement may
   name that result. The machine's `requires` equalities are the law's
   premises: the statement takes a proof of each after the formals. A law's

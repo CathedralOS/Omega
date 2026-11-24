@@ -26,6 +26,7 @@ build-execution = { path = "evaluation" }
 package-compilation = { path = "inputs" }
 terminal-runtime = { path = "../../interpreter/host" }
 target = { path = "../psi-to-native/targets/target" }
+target-vocabulary = { path = "../psi-to-native/representations/target-operations/target-vocabulary" }
 product-publication = { path = "publication" }
 compiler = { path = ".." }
 diagnostics = { path = "../../../foundation/diagnostics" }

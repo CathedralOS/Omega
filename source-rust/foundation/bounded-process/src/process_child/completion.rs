@@ -43,25 +43,52 @@ impl From<ExitStatus> for BoundedProcessExitStatus {
     }
 }
 
+/// Resource ceilings whose enforcement the host explicitly reported.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProcessLimit {
+    ActiveProcess,
+    ProcessMemory,
+    AggregateMemory,
+    AggregateCpu,
+}
+
+impl std::fmt::Display for ProcessLimit {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::ActiveProcess => "active process count",
+            Self::ProcessMemory => "per-process memory",
+            Self::AggregateMemory => "aggregate memory",
+            Self::AggregateCpu => "aggregate CPU time",
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundedProcessCompletion {
     status: BoundedProcessExitStatus,
     resource_usage: Option<ProcessResourceUsage>,
+    limits_reached: Vec<ProcessLimit>,
 }
 
 impl BoundedProcessCompletion {
     pub(super) const fn new(
         status: BoundedProcessExitStatus,
         resource_usage: Option<ProcessResourceUsage>,
+        limits_reached: Vec<ProcessLimit>,
     ) -> Self {
         Self {
             status,
             resource_usage,
+            limits_reached,
         }
     }
 
     pub const fn status(&self) -> BoundedProcessExitStatus {
         self.status
+    }
+
+    pub fn limits_reached(&self) -> &[ProcessLimit] {
+        &self.limits_reached
     }
 
     pub const fn resource_usage(&self) -> Option<&ProcessResourceUsage> {

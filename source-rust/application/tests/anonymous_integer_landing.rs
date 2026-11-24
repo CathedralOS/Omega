@@ -18,10 +18,11 @@
 //! `wholly_anonymous_arithmetic_lands_exactly_or_is_refused` in
 //! `pipeline/05_prepared-typed-trees-to-lowered-program/src/read.rs`.
 
+#[path = "support/program.rs"]
+mod program;
 mod support;
 
-use platform_custody::temporary_directory::TemporaryDirectory;
-use std::process::{Command, Output, Stdio};
+use program::invoke;
 
 fn fixture(tier: &str, case: &str) -> String {
     let path = support::repository_root()
@@ -32,34 +33,9 @@ fn fixture(tier: &str, case: &str) -> String {
     std::fs::read_to_string(path).unwrap()
 }
 
-/// Run `omega` on a copy of one source file, so nothing the compiler writes
-/// lands in the checkout.
-fn invoke(source: &str, arguments: &[&str]) -> (Output, String) {
-    let scratch = TemporaryDirectory::create("anonymous-integer-landing", false).unwrap();
-    std::fs::write(scratch.path().join("main.omg"), source).unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(arguments)
-        .arg("main.omg")
-        .current_dir(scratch.path())
-        .stdin(Stdio::null())
-        .output()
-        .expect("the compiler runs on the fixture");
-    let report = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    eprintln!("{report}");
-    (output, report)
-}
-
 #[test]
 fn as_lands_anonymous_calculations_exactly_natively_and_in_psi() {
-    let (output, report) = invoke(&fixture("run", "explicit_landing"), &["run", "--both"]);
-    assert_eq!(output.status.code(), Some(0), "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
-        assert!(report.lines().any(|line| line == receipt), "{report}");
-    }
+    program::assert_silent_return(&fixture("run", "explicit_landing"));
 }
 
 #[test]

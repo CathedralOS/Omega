@@ -1,0 +1,117 @@
+// A law proved by cases inside cases. `a <= b` is written
+// `monus(a, b) = Zero`, where `monus` subtracts and stops at zero. That the
+// order is transitive is an induction on `a` whose successor case splits on
+// `b`, and that case's successor case splits on `c`: only when all three are
+// successors does the law at the three predecessors apply. The two cases
+// where `b` or `c` is zero have a hypothesis no value satisfies, and need no
+// argument.
+use omega\language\core\ProcessExit;
+
+data Peano {
+    case Zero;
+    case Succ(pred: Peano);
+}
+
+machine before(a: Peano) -> Peano {
+    transition a {
+        Peano::Zero -> Peano::Zero,
+        Peano::Succ { pred } -> (pred)
+    }
+}
+
+machine monus(a: Peano, b: Peano) -> Peano
+terminates by b
+{
+    transition b {
+        Peano::Zero -> (a),
+        Peano::Succ { pred } -> (before(monus(a, pred)))
+    }
+}
+
+machine monus_zero_left(b: Peano)
+terminates by b
+ensures
+    core\Identity::<Peano>(monus(Peano::Zero, b), Peano::Zero)
+{
+    transition b {
+        Peano::Zero -> base(),
+        Peano::Succ { pred } -> step(pred)
+    }
+    machine base() {
+    }
+    machine step(pred: Peano) {
+        monus_zero_left(pred);
+    }
+}
+
+machine succ_monus_succ(a: Peano, b: Peano)
+terminates by b
+ensures
+    core\Identity::<Peano>(
+        monus(Peano::Succ { pred: a }, Peano::Succ { pred: b }),
+        monus(a, b)
+    )
+{
+    transition b {
+        Peano::Zero -> base(),
+        Peano::Succ { pred } -> step(a, pred)
+    }
+    machine base() {
+    }
+    machine step(a: Peano, pred: Peano) {
+        succ_monus_succ(a, pred);
+    }
+}
+
+machine order_is_transitive(a: Peano, b: Peano, c: Peano)
+terminates by a
+requires
+    core\Identity::<Peano>(monus(a, b), Peano::Zero),
+    core\Identity::<Peano>(monus(b, c), Peano::Zero)
+ensures
+    core\Identity::<Peano>(monus(a, c), Peano::Zero)
+{
+    transition a {
+        Peano::Zero -> least(c),
+        Peano::Succ { pred } -> after_a(pred, b, c)
+    }
+
+    machine least(c: Peano) {
+        monus_zero_left(c);
+    }
+
+    machine after_a(pa: Peano, b: Peano, c: Peano) {
+        transition b {
+            Peano::Zero -> impossible(),
+            Peano::Succ { pred } -> after_b(pa, pred, c)
+        }
+    }
+
+    machine after_b(pa: Peano, pb: Peano, c: Peano) {
+        transition c {
+            Peano::Zero -> impossible(),
+            Peano::Succ { pred } -> all_successors(pa, pb, pred)
+        }
+    }
+
+    machine all_successors(pa: Peano, pb: Peano, pc: Peano) {
+        succ_monus_succ(pa, pb);
+        succ_monus_succ(pb, pc);
+        succ_monus_succ(pa, pc);
+        order_is_transitive(pa, pb, pc);
+    }
+
+    machine impossible() {
+    }
+}
+
+data Main { }
+machine exit_with_status(main: @mutable Main) reaches ProcessExit {
+    ProcessExit::exit_process(0);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit {
+    let mutable entry_storage: Main;
+    block exit_with_status(@mutable entry_storage);
+}

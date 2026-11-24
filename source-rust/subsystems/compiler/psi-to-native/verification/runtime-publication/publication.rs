@@ -151,6 +151,11 @@ impl RuntimeExecutionProvisions {
         Self { plan, components }
     }
 
+    /// Every reachable published provider, including the ones selected by other providers.
+    pub fn components(&self) -> Result<&[Arc<RuntimeComponent>], &'static str> {
+        self.components.as_deref().map_err(|reason| *reason)
+    }
+
     pub fn root_components(&self) -> Result<Vec<&RuntimeComponent>, &'static str> {
         self.selected_components(self.plan.identity(), self.plan.host())
     }
@@ -168,7 +173,7 @@ impl RuntimeExecutionProvisions {
         receiver: TerminalPsiIdentity,
         host: &[TerminalRuntimeHostProvision],
     ) -> Result<Vec<&RuntimeComponent>, &'static str> {
-        let products = self.components.as_deref().map_err(|reason| *reason)?;
+        let products = self.components()?;
         let indices = component_indices(receiver, host, products.iter().map(AsRef::as_ref))?;
         Ok(indices
             .into_iter()

@@ -45,6 +45,38 @@ the case's goal outright, because no value satisfies it. Both are kernel
 terms built from the data's induction principle, checked with the rest of
 the proof.
 
+The search rewrites both sides of the goal with the equalities the case
+holds, smallest term first, until the two sides reach one term. It never
+uses an equality in the direction that puts its own left side inside its
+right side (`x` to `plus(x, Zero)`), which would apply to its own result
+without end; the other direction, applied from the other side of the goal,
+covers what that direction would have. A goal no equality proves therefore
+ends as "no proof", not as an exhausted budget.
+
+A law's proof follows its body. A body that dispatches on a formal is an
+induction on it; a case that dispatches again, on another formal or on a
+field, is a case split inside that case, to any depth (`Proving::split` in
+`laws.rs`). Each split states what its subject must satisfy as the goal for
+the variables bound after it and binds them again in every case. The
+induction binds the earlier formals again as well, so the law is a
+hypothesis for every value of them. A case whose premises no value
+satisfies needs no argument: the premise that equates two different
+constructors refutes it.
+
+A hypothesis or citation about some operands of a longer sum is used there
+too. `x + y = z` rewrites `x + w + y` to `z + w` when the conformance in
+scope lets addition regroup and reorder, and `x * c + w + y * c` to
+`z * c + w` when multiplication also distributes over it. The prover puts the
+sum in canonical form, rewrites it to hold the rule's left side as one
+operand, uses the rule and puts the result in canonical form again; each of
+those steps is a law of the conformance or the rule, and all are in the proof
+the kernel checks. Without such a conformance a rule applies only where its
+left side stands as written.
+
+A law about a record of mathematical values is proved inside the record's
+fields: the record is a tuple, each citation rewrites inside one component,
+and a tuple of every field of one value is that value.
+
 Normalizing keeps a defined function folded: `plus(a, b)` stays `plus(a, b)`
 until the argument it dispatches on is a constructor, and then unfolds one
 step. A term is normalized again after each rewrite, since the rewrite may
