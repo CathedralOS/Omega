@@ -1,8 +1,8 @@
 /*
 We extract canonical referenced ELF import requests (`ElfImportRequest`) from a
-`FinalImage`, pairing each referenced import's symbol handle and normalized
-versioned, component, or bootstrap locator with every relocation site that
-consumes it while rejecting unreferenced, duplicate, or malformed import rows.
+`FinalImage`. We validate the import rows, then return an `ElfImportRequest`
+for each import with a relocation. Each request retains the symbol handle,
+locator and consuming relocations.
 */
 
 use diagnostics::Diagnostic;

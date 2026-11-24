@@ -106,8 +106,8 @@ fn schema_is_demanded(
     Ok(false)
 }
 
-/// Preserve the exact failed canonical join for a caller that retains source
-/// labels. Labels are diagnostic only; matching continues to use these IDs.
+/// Identify the failed selection for diagnostics. The selector matches provider
+/// and owner IDs first, then compares the canonical requirement text within that group.
 #[derive(Debug)]
 pub enum ProviderSelectionError {
     MissingSupplies {
