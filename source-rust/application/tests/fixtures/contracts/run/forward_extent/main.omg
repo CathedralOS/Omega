@@ -1,0 +1,11 @@
+use {omega}/language/core/extent.omg as extent;
+
+machine keep(storage: |extent|::Extent) -> |extent|::Extent { storage }
+
+machine main() crashes Trap {
+    let retained = keep(|extent|::Extent { base: 0, length: 3u64 });
+    let { base, length } = retained;
+    transition length == 3u64 { true -> done(), false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

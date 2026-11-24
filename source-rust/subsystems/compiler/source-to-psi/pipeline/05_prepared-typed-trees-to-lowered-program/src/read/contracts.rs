@@ -1126,11 +1126,27 @@ impl Program<'_> {
         call: &TableCallExpression,
         preserve_type: bool,
     ) -> Checked<Proposition> {
-        let (subject_type, [left, right], _) = self.identity_inputs(id, scope, expression, call)?;
+        let (subject_type, [left, right], origin) =
+            self.identity_inputs(id, scope, expression, call)?;
         if self.typed.core_vocabulary(subject_type)
             == Some(language_core::core_vocabulary::CoreVocabulary::FloatMeaning)
         {
             return self.float_meaning_identity(id, scope, left, right);
+        }
+        // The mathematical signature owns recursive data and records containing it.
+        // A runtime contract can state an Identity over that data, but its terms
+        // need a mathematical interpretation before the checker can judge them.
+        if !self.mathematical
+            && self
+                .data_declaration(subject_type)
+                .is_some_and(|data| self.is_mathematical_data(data))
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("Identity over proof-only data in an executable contract"),
+            )
+            .with_source_span(origin.span()));
         }
         let carrier = self.value_type(id, call.machine_arguments[0].type_reference)?;
         let mut values = Vec::new();
