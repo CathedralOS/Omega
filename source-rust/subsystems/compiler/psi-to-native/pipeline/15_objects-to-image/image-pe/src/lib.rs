@@ -145,11 +145,6 @@ mod headers;
 mod imports;
 mod layout {
     pub(crate) use image::align_to;
-
-    pub(crate) fn align_to_u32(value: u32, alignment: usize) -> u32 {
-        let alignment = u32::try_from(alignment.max(1)).expect("alignment overflow");
-        value.div_ceil(alignment) * alignment
-    }
 }
 
 mod sections;
@@ -191,7 +186,7 @@ pub(crate) fn emit_pe(
 ) -> Result<ExecutableImageOutput, Diagnostic> {
     let isa = PeIsa::of(image.target)?;
     let import_thunks = install_import_thunks(&mut image, subsystem)?;
-    let rdata_rva = rdata_rva_after_text(&image);
+    let rdata_rva = rdata_rva_after_text(&image)?;
     let import_table = build_import_table(&import_thunks, rdata_rva);
     let (export_bytes, export_directory_rva, export_directory_size) = match &kind {
         PeImageKind::Executable => (Vec::new(), 0, 0),
@@ -224,7 +219,7 @@ pub(crate) fn emit_pe(
             unwind.directory_size,
         )
     };
-    let sections = plan_pe_sections(&image, rdata_bytes.len());
+    let sections = plan_pe_sections(&image, rdata_bytes.len())?;
     let layout = sections.final_image_layout();
 
     patch_import_thunks(&mut image, &layout, &import_thunks, &import_table)?;
@@ -563,7 +558,9 @@ mod tests {
             let error = emit_pe_executable(image, 3)
                 .expect_err("a .bss past the 32-bit RVA space must be refused");
             assert!(
-                error.message.contains("exceeds the 32-bit PE address space"),
+                error
+                    .message
+                    .contains("exceeds the 32-bit PE address space"),
                 "{bss_size:#x}: {}",
                 error.message
             );
