@@ -111,32 +111,23 @@ from application source or selects it as a runtime provider.
 Illustrative root `build.omg` (schematic APIs and abbreviated error handling):
 
 ```omega
-use build_support\deployment;
+use build_support/deployment.omg as deployment;
 
 machine build(builder: @mutable Build) {
     Build::application(builder, "payments_deployment");
-    let mutable topology_dependency: DependencyDescription = dependency\from_source(Source::Path {
-        location: "../topology"
-    });
-    dependency\with_alias(@mutable topology_dependency, "topology");
-    let topology_registration: DependencyRegistration = Build::build_dependency(builder, topology_dependency);
     Build::artifact_only(builder);
 
     let inputs = deployment_inputs(@mutable builder.source);
     let output = builder.output.require("payments.plan");
-    suspend Build::await_provider::<TopologyBuild, topology\DiagnosticTopology>(builder);
-    compose_payments(inputs, output);
+    |deployment|::compose_payments(inputs, output);
 }
 ```
 
-`TopologyBuild` is a requirement already known when this Build is checked.
-`topology\DiagnosticTopology` explicitly names the dependency's implementation;
-it is a deferred selection reference, not an ordinary import of unresolved code.
-The dependency request may proceed while `deployment_inputs` performs local work;
-provider readiness suspends only if the admitted implementation is not installed
-yet. The local deployment helper calls exact `TopologyBuild::operation`
-requirements through the installed Build-scoped static slot rather than
-importing unresolved dependency paths or receiving a routing value.
+The invoker supplies the topology package and selects the diagnostic
+implementation of `TopologyBuild` before the deployment Build runs. The
+local helper can import that package and call the checked requirement on its
+first invocation. A missing library or an incompatible implementation rejects
+before the Build creates the output.
 `deployment_inputs` captures the
 three exact component artifacts from permitted snapshot inputs and supplies
 explicit policy/storage configuration. The topology helper receives those

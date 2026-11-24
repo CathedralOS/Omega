@@ -75,3 +75,24 @@ The default build has neither service. The [network reach rules](wiki/spec/build
 ### 2. Must the checker derive record identity automatically from identities of all its fields?
 
 A caller can supply a proof that each field of two records is identical. Must the checker assemble those proofs into `core\Identity::<Record>(left, right)` without a cited record theorem? The [contract specification](wiki/spec/proofs/contracts.md#data-identity-in-facts) gives explicit Identity its kernel meaning. Its [comparison rules](wiki/spec/proofs/contracts.md#equality-bridges-and-comparison-facts) govern executable comparisons. Neither specifies this automatic proof from field identities. The [kernel audit](wiki/drafts/designs/proof_kernel_core_audit.md#open-questions) and the earlier proofs plan differ here. Until this is settled, field proofs alone cannot discharge the record goal.
+
+<a id="component-producer-and-host-build"></a>
+### 3. How do two independent Builds declare a supplier export and an initially empty host slot?
+
+An editor must build before either console library exists. The terminal library's Build selects a closed satisfaction to export. The editor's Build names the exact Console requirement, freezes the permitted imports and authority, and designates the installer. An independently built third supplier can qualify later. The host owns replaceability.
+
+The existing `Build::select_provider::<Slot, Provider>(b, CompositionMode::Independent)` names a concrete first provider. Which library-output declaration roots the satisfaction when shipping the library alone? Which form of provider selection leaves the host slot empty, takes precedence over a target default, and identifies its publisher? Show both Build files against one shared requirement, with no future provider name in the host. The existing component description already binds exact requirement contracts, target, image and export commitment. [Provider selection](wiki/spec/build/provider_selection.md) · [Component closure and exports](wiki/spec/build/component_publication.md#selection-and-component-closure)
+
+<a id="component-publication-authority"></a>
+### 4. How does the Build-designated installer obtain and exercise update authority for this instance?
+
+Two editors can run identical binaries. Each needs its own installer's exclusive right to publish to its Console slot. Build designates the operation and selects its backing. Executable placement supplies installed code. The remaining gap is the authored handoff between the installation that owns the slot and the code allowed to write it.
+
+Should the installer explicitly borrow the supervisor's linear authority, or should an installed boundary operation encapsulate that authority? Show its origin, the publication body with both destination and admitted export, and the return of custody on failure or delayed retirement. Use a zero-argument editor entry and demonstrate why a second instance cannot be changed through the first. If a standard generic installer belongs in core, specify its inputs, result and slot identity here. An application-specific boundary over ordinary operations is the other option. Source-visible service bindings are retired. [Slot and era rules](wiki/spec/build/component_publication.md#provider-slots-and-era-entry) · [Supervisor and retirement](wiki/spec/build/component_publication.md#replacement-and-coexistence) · [Placement lifecycle](wiki/spec/build/executable_installation.md#placement-lifecycle)
+
+<a id="component-first-binding-proof"></a>
+### 5. How does an installer expose successful first publication to its callers?
+
+A successful first bind makes a direct Console call legal in that installation. A helper that returns success after only reading the library files must fail to establish readiness. What existing checked contract or custody result exposes the exact bound-slot fact across a machine or boundary call? If the installer returns an ordinary result, show the postcondition its implementation must prove on the success arm. If it returns evidence, show how a startup caller uses it while keeping ordinary Console calls free of extra parameters.
+
+The control-flow requirement is settled. An early error may exit or retry. A join reachable from a failed first bind, or logging through Console before publication, must fail checking. A successful *replacement* keeps the occurrence bound and gives new entries the published provider. [First-binding contract](wiki/spec/build/component_publication.md#first-binding-of-a-runtime-bound-slot) · [Contract facts](wiki/spec/proofs/contracts.md)

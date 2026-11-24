@@ -267,10 +267,10 @@ legacy core carrier, compiler paths, authored fields/parameters, and fixtures.
 An exact closed boundary-trait application is a static provider slot. Source
 calls its requirements directly, for example `Console::write(bytes)`. Checked
 source retains the exact requirement application and call occurrence; provider
-planning must select one admitted realization for every demanded slot. Missing,
-ambiguous, wrong-target, incompatible, or unauthorized supply rejects before
-execution. Build/provider configuration chooses the realization, never the
-meaning of the source call.
+planning records each demanded slot and whether composition selects its first
+provider or explicitly leaves it runtime-bound. Every call must enter one
+admitted realization. Missing, ambiguous, wrong-target, incompatible or
+unauthorized supply prevents entry into code that requires the slot.
 
 Source-visible `Binding<R>` values are retired. A boundary trait is not a data
 carrier, provider object, capability, or source-visible vtable, and no hidden
@@ -305,6 +305,43 @@ slot; changing its ceiling does. Interrupt/bounded-context admissibility derives
 from complete entry/leave work, stack, suspension, blocking, reach/authority,
 and calling/state contracts, not an `isr_safe` switch. RCU, epochs, counters, or
 hazards are runtime choices.
+
+### First binding of a runtime-bound slot
+
+A Build may describe an independent slot without selecting its first provider.
+Composition fixes its exact requirement and permitted envelope. Runtime binding
+must be explicit. Omitting a required build-time selection still rejects.
+An authorized application or installer supplies the first compatible provider
+for that installation. Loading a candidate makes it available for installation.
+Binding publishes its admitted export to this particular slot. The installation
+owns the slot storage and gives its designated supervisor sole update authority
+for that occurrence. Publication requires both this authority and the admitted
+export backed by the installed realization. Success atomically redirects future
+entries from every caller wired to that occurrence. Another installation of the
+same program has its own occurrence. The right to call the requirement, possession
+of the image, and the ability to load native code each confer no publication right.
+
+Startup can run while the slot is empty. Every path into code that requires
+the slot, including through a helper or callback, must establish successful
+binding before entry. The checker rejects a path that could enter the consumer
+unbound. The installer checks the actual candidate at runtime. Failed first
+binding leaves the slot empty and preserves the caller's authority to retry,
+bind a separately admitted built-in provider, or exit. An empty slot performs
+no implicit no-op. A successful bind lets ordinary callers use the declared
+requirement directly.
+
+The success path of first publication establishes a bound-slot fact for that
+occurrence. A wrapper promising first binding must establish that fact on
+every successful return. Returning a success variant alone proves nothing.
+At a control-flow join, every incoming path that continues to a consumer must
+establish supply. This applies to error reporting, callbacks and the installer's
+own transitive callees. An installer cannot use the empty Console to report
+its first load failure. It can exit or retry without entering a Console consumer.
+
+Replacing a bound provider keeps the slot bound throughout cutover. On failure
+the previous provider continues serving. New calls enter a successfully
+published replacement. Outstanding calls and sessions retain their existing
+version under the custody rules below.
 
 ### Returned values and custody
 
@@ -383,6 +420,12 @@ Continuity-free replacement publishes/routes new calls first and drains the old
 era afterward. Resettable state alone requires no pause. Observable continuity
 is an explicit service promise proved through provider projections and migration
 theorems under the selected composition plan; no `HotSwappable` marker supplies it.
+For example, an editor may stage V2 while a read is blocked in V1, publish V2
+for new calls, then unload V1 once its calls, sessions and callbacks drain. If
+both versions need exclusive ownership of one device, prepare V2, quiesce the
+old owner and transfer custody under the service's cutover and recovery contract
+before publishing V2. A long-lived device service can retain ownership across
+console replacements. Splitting source modules alone transfers no device claim.
 If a cutover freezes entry, waiting must be allowed by the service contract.
 Otherwise the OS coordinates scheduler/caller topology. Pause authority threads
 linearly through a crash-free window or explicit supervisor recovery.
@@ -391,9 +434,11 @@ migrated, or admitted for indefinite retention. Routing and reclamation are
 separate completion states. Independently reclaimable mappings cannot share a
 page that one owner expects to unmap.
 
-The initial build supplies the stable slot/first era and any protocol-specific
-instance data, and grants one designated supervisor linear update authority. Candidates cannot
-publish themselves. The installer checks the frozen envelope and returns
+Initial composition defines the stable slot and its envelope. A build-bound
+selection supplies the first provider. An explicitly runtime-bound slot follows
+the first-binding rules above. The installation supplies required instance data
+and gives one designated supervisor linear update authority for that occurrence.
+Candidates cannot publish themselves. The installer checks the frozen envelope and returns
 staged lifecycle custody; publication, entry freeze, roots, retirement, and
 release are operational Type-side tokens, never erased theorem conclusions.
 

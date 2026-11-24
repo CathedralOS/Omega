@@ -107,6 +107,27 @@ compose checked target-specific leaves.
 An exact call to a realization machine delegates directly; spelling its operator
 inside the provider redispatches and can recurse.
 
+Build can instead describe an explicitly runtime-bound independent product
+slot and leave the first compatible provider to the application or installer.
+For a runtime-bound slot, the host product's root Build designates the boundary
+operation allowed to publish into it and selects a backing for that operation
+under ordinary provider selection. The backing may vary by target, or a common
+backing may call a target-selected executable installer. It must be available
+before the first call that needs it. Selection alone grants neither executable
+installation authority nor the right to widen the slot's frozen envelope.
+
+A supplier's own Build selects a closed satisfaction for independent library
+output. The resulting export identifies the exact requirement it implements.
+The consuming product owns the decision to make its slot replaceable. A host
+can be built before any supplier exists. Installation checks each later
+candidate against the slot's contract and envelope without a roster of future
+implementation names. The [Build authorship question](../../../OWNER_QUESTIONS.md#component-producer-and-host-build)
+covers the source forms for these two declarations.
+
+An initial provider supplied by Build can also be independently replaceable.
+The [first-binding rules](component_publication.md#first-binding-of-a-runtime-bound-slot)
+govern when calls become legal and who may publish a replacement.
+
 ### Build-owned target selection
 
 Target-prefixed machine declarations are retired. Different operating-system
@@ -238,45 +259,21 @@ selecting one benign provider now does not certify every later binding.
 
 ## Build provider readiness
 
-The owner-ratified `explicit-build-provider-backing` decision (2026-10-26)
-requires the caller to name both the exact boundary requirement
-application and its exact named implementation:
+The caller supplies the Build program's libraries before entry. Both the exact
+boundary requirement application and the selected implementation must be
+resolvable when the compiler checks the Build. For example, a caller can
+supply the topology interface and its diagnostic implementation from distinct
+packages. The compiler checks ownership, visibility and satisfaction of the
+whole requirement. Missing, incompatible or unauthorized supply rejects.
 
-```omega
-suspend Build::await_provider::<
-    topology_api\TopologyBuild,
-    topology_impl\DiagnosticTopology
->(builder);
-```
-
-Under `staged-build-capability-attenuation` (2026-10-28),
-`topology_api\TopologyBuild` must be available when its invoking continuation
-is checked, not necessarily before the first Build stage. Explicit dependency
-preparation admits ordinary shared non-core interfaces before that continuation
-executes; unresolved names cannot execute or be substituted structurally.
-`topology_impl` names the caller's explicitly registered build dependency;
-the rest of the qualified path names its implementation. Both operands support
-ordinary namespace qualification and retain exact declaration ownership. The
-dependency qualifier supplies the edge identity, so there is no redundant alias
-value argument and no fallback to the product-dependency namespace.
-
-The backing operand is an inert designated selection reference until dependency
-preparation resolves it against that exact immutable package instance. This uses
-Build's designated-selection mechanism, not execution through an unresolved
-import. Provider installation itself grants no general nameability, host
-authority or new source-level conformance evidence; ordinary imports follow
-the separately admitted dependency scope. The invoking continuation is checked
-against the exact requirement; preparation checks the implementation's visibility, exact
-satisfaction of that requirement, and admission for the Build execution profile
-before installing it. Matching names or signatures cannot replace nominal
-identity. Missing, inaccessible, mismatched, or unadmitted supply rejects rather
-than selecting another implementation.
-
-Readiness never searches for a satisfier, chooses the sole visible candidate,
-or consumes a dependency-selected default. Multiple exported implementations
-are unambiguous because the caller names one. An already-installed different
-backing does not satisfy this request or get silently replaced; distinct static
-roles require distinct exact requirement applications.
+The `explicit-build-provider-backing` decision requires an explicit
+implementation even if only one visible provider fits. Readiness of an already
+selected provider may require waiting. For example, when the invocation supplies
+the exact interface and implementation, a Build can wait on the existing
+`Build::await_provider::<|api|::TopologyBuild, |diagnostic|::DiagnosticTopology>(builder)`
+operation. Both operands resolve before entry. That wait never adds names or changes
+the program being resumed. Product provider selections and delegated host
+capabilities have their own checks. See [Build admission](execution.md#admission-before-execution).
 
 Named decision `build-declared-requirement-provider`, settled 2026-11-12: a
 Build program has no form that selects a provider for a requirement declared in
@@ -286,10 +283,8 @@ computation. A concrete need for replaceable Build-time services may propose a
 form later.
 
 After installation, calls use the exact static `R::operation(arguments)` slot.
-Readiness returns no routing value and resumes the same Terminal continuation
-without replay. Ordinary product `Build::select_provider` rows do not select or
-authorize this Build-host slot. See [Build execution](execution.md#admission-before-execution)
-for preparation and admission order.
+A wait for supplied backing resumes the same admitted code without replay. Ordinary product `Build::select_provider` rows select providers
+for the product's separate context.
 
 ## Toolchain-selected checked implementations
 

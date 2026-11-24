@@ -120,12 +120,13 @@ depend on its owner directly.
 
 ## Build helpers
 
-A build dependency registered as `generator` can supply a helper file.
-Import `use {generator}/tables.omg;` in the build source. After the build
-has registered and prepared that dependency, it can call
-`|tables|::generate_tables(builder)`. Importing a file does not acquire its
-source or run the helper. A product dependency of the same name belongs
-to a separate context. [Checked build stages](../spec/build/scoped_execution.md#checked-build-stages)
+For a local helper, write `use tables.omg;`. For a helper in a package that
+the caller supplies as `generator`, write `use {generator}/tables.omg;`.
+Either way, `|tables|::generate_tables(builder)` is an ordinary call. The
+compiler resolves the import before the Build starts. The invoker supplies
+the root's external libraries, and the parent supplies each child's. Product
+source sees the libraries selected for the product.
+[Checked Build stages](../spec/build/scoped_execution.md#checked-build-stages)
 
 A build helper runs on the machine doing the build, whatever the target is,
 and gets no network or credential access from the build.

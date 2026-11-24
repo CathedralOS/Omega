@@ -57,12 +57,11 @@ Existing compound tokens retain their lexical meaning. Write
 Similarly, `offset + |limits|::BASE` keeps plus separate from `+|`.
 
 Each import selects a file without executing code or acquiring dependencies.
-[Checked staged imports](../build/scoped_execution.md#checked-build-stages)
-may defer resolution of a rooted Build import until registration and preparation
-make it available. Check all uses, including types and contracts, before the
-dependent continuation executes. An unused deferred import normally warns
-without acquisition. Ordinary product imports resolve before checking their
-consumers.
+The compiler resolves Build imports against the bindings its caller supplied
+before the entry runs, including imports used only in conditional code.
+Unused valid imports retain ordinary warning behavior. Product imports resolve
+in the Product compilation against its frozen inputs.
+[Checked Build stages](../build/scoped_execution.md#checked-build-stages)
 
 Dependency authority is context-specific. Build entry/local-helper imports use
 build dependencies; product and generated-product imports use ordinary product
