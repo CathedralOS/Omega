@@ -2763,7 +2763,7 @@ pub(crate) mod unit_encoding {
         ValueDefinitionSite, ValueUse, WorkSettlement,
     };
 
-    const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v60\0";
+    const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v61\0";
     pub fn recompute_psi_optimization_unit_identity(
         unit: &PsiOptimizationUnit,
     ) -> OptimizationUnitIdentity {
@@ -3531,6 +3531,16 @@ pub(crate) mod unit_encoding {
 pub(crate) mod operation_encoding {
     use super::CanonicalBytes;
     use abstract_operations::AbstractOperation;
+    // Each family numbers its own tags, and several numbers repeat across
+    // families (Jump and IeeeFloatConstant both use 42). The family byte
+    // written first keeps two operations from different families apart.
+    const STRUCTURAL: u8 = 0;
+    const ATOMIC: u8 = 1;
+    const CALLS_AND_EFFECTS: u8 = 2;
+    const IEEE_FLOAT: u8 = 3;
+    const SCALAR: u8 = 4;
+    const CONTROL: u8 = 5;
+
     pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
         use AbstractOperation as O;
         match operation {
@@ -3561,9 +3571,15 @@ pub(crate) mod operation_encoding {
             | O::DecomposeStructuralValue { .. }
             | O::TransformContent { .. }
             | O::EstablishNativeCodeLayout { .. }
-            | O::EstablishRecord { .. } => structural::encode(bytes, operation),
+            | O::EstablishRecord { .. } => {
+                bytes.u8(STRUCTURAL);
+                structural::encode(bytes, operation)
+            }
 
-            O::AtomicEvent { .. } => atomic::encode(bytes, operation),
+            O::AtomicEvent { .. } => {
+                bytes.u8(ATOMIC);
+                atomic::encode(bytes, operation)
+            }
 
             O::CallStructural { .. }
             | O::SelectImplementation { .. }
@@ -3576,12 +3592,18 @@ pub(crate) mod operation_encoding {
             | O::ReadSegmentSelector { .. }
             | O::GlobalDescriptorTable { .. }
             | O::RegisterAccess { .. }
-            | O::Call { .. } => calls_and_effects::encode(bytes, operation),
+            | O::Call { .. } => {
+                bytes.u8(CALLS_AND_EFFECTS);
+                calls_and_effects::encode(bytes, operation)
+            }
 
             O::IeeeFloatConstant { .. }
             | O::FloatResultPolicy { .. }
             | O::NearestIeeeFloatFusedMultiplyAdd { .. }
-            | O::IeeeFloatCompare { .. } => ieee_float::encode(bytes, operation),
+            | O::IeeeFloatCompare { .. } => {
+                bytes.u8(IEEE_FLOAT);
+                ieee_float::encode(bytes, operation)
+            }
 
             O::IntegerConstant { .. }
             | O::BooleanConstant { .. }
@@ -3602,6 +3624,7 @@ pub(crate) mod operation_encoding {
             | abstract_operations::bitwise_and_or_view_pair_pattern!(..)
             | abstract_operations::bitwise_or_xor_pair_pattern!(..)
             | abstract_operations::integer_dispatch_triple_pattern!(..) => {
+                bytes.u8(SCALAR);
                 scalar::encode(bytes, operation)
             }
 
@@ -3612,7 +3635,10 @@ pub(crate) mod operation_encoding {
             | O::InvokeNoNormal { .. }
             | O::ExternalCompletion { .. }
             | O::EliminateEmpty { .. }
-            | O::Crash { .. } => control::encode(bytes, operation),
+            | O::Crash { .. } => {
+                bytes.u8(CONTROL);
+                control::encode(bytes, operation)
+            }
         }
     }
 
@@ -5822,5 +5848,65 @@ mod declaration_identity_tests {
         let mut changed = clause;
         std::mem::swap(&mut changed.left, &mut changed.right);
         assert_ne!(original, bytes(&changed));
+    }
+}
+
+#[cfg(test)]
+mod operation_family_identity_tests {
+    // Families reuse tag numbers (42, 43, 48, 88, 90, 253 and 255), so each
+    // operation starts with its family byte. These pairs once shared tag 42
+    // and tag 43; their first bytes must differ.
+    use super::CanonicalBytes;
+    use super::operation_encoding::encode_operation;
+    use abstract_operations::{AbstractOperation, AbstractSuccessor};
+    use semantic_vocabulary::{
+        BlockId, EdgeId, IeeeFloatFormat, IeeeFloatValue, OperationId, ValueId,
+    };
+
+    fn bytes(operation: &AbstractOperation) -> Vec<u8> {
+        let mut bytes = CanonicalBytes::collect();
+        encode_operation(&mut bytes, operation);
+        bytes.finish()
+    }
+
+    fn successor() -> AbstractSuccessor {
+        AbstractSuccessor {
+            psi_edge: EdgeId::new(1).unwrap(),
+            target: BlockId::new(1).unwrap(),
+            bindings: Vec::new(),
+            structural_bindings: Vec::new(),
+            cleanup_actions: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn operations_from_different_families_start_with_different_bytes() {
+        let jump = AbstractOperation::Jump {
+            psi_edge: EdgeId::new(1).unwrap(),
+            target: BlockId::new(1).unwrap(),
+            bindings: Vec::new(),
+            structural_bindings: Vec::new(),
+            cleanup_actions: Vec::new(),
+        };
+        let float_constant = AbstractOperation::IeeeFloatConstant {
+            psi_operation: OperationId::new(1).unwrap(),
+            result: ValueId::new(1).unwrap(),
+            value: IeeeFloatValue::Binary32(0),
+        };
+        let conditional = AbstractOperation::Conditional {
+            condition: ValueId::new(1).unwrap(),
+            when_true: successor(),
+            when_false: successor(),
+        };
+        let fused_multiply_add = AbstractOperation::NearestIeeeFloatFusedMultiplyAdd {
+            psi_operation: OperationId::new(1).unwrap(),
+            result: ValueId::new(1).unwrap(),
+            format: IeeeFloatFormat::Binary64,
+            left: ValueId::new(1).unwrap(),
+            right: ValueId::new(1).unwrap(),
+            addend: ValueId::new(1).unwrap(),
+        };
+        assert_ne!(bytes(&jump)[0], bytes(&float_constant)[0]);
+        assert_ne!(bytes(&conditional)[0], bytes(&fused_multiply_add)[0]);
     }
 }

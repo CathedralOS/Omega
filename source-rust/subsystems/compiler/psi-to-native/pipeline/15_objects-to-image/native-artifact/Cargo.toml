@@ -51,5 +51,6 @@ provider-admission = { path = "../../../verification/provider-admission" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
 
 [dev-dependencies]
+language-core = { path = "../../../../foundation/language-core" }
 operation-operands = { path = "../../../representations/operation-operands" }
 optimization-core = { path = "../../../representations/optimization-records" }

@@ -57,12 +57,15 @@ pub fn select(functions: &[EncodedLayoutFunction]) -> Result<SelectedFunctionLay
         })
     {
         Ok(SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1)
-    } else if functions.iter().all(is_admitted_canonical_shape) {
-        Ok(SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1)
+    } else if let Some(function) = functions
+        .iter()
+        .find(|function| !is_admitted_canonical_shape(function))
+    {
+        // Name the function that has no canonical shape, not whichever
+        // function happens to sit at a counted position.
+        Err(Error::UnsupportedFunctionShape(function.machine))
     } else {
-        Err(Error::UnsupportedFunctionShape(
-            functions[single_entry_count].machine,
-        ))
+        Ok(SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1)
     }
 }
 
@@ -357,4 +360,52 @@ pub fn is_single_entry(
             block.terminator,
             machine_code::layout_requirements::EncodedLayoutTerminator::Return { .. }
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::MachineId;
+
+    fn returning(machine: u64, block: u32) -> EncodedLayoutFunction {
+        EncodedLayoutFunction {
+            machine: MachineId::new(machine).unwrap(),
+            entry_block: SelectedBlockId(block),
+            blocks: vec![EncodedLayoutBlock {
+                id: SelectedBlockId(block),
+                instructions: Vec::new(),
+                terminator: EncodedLayoutTerminator::Return {
+                    instruction: EncodedLayoutRow {
+                        id: SelectedInstructionId(block),
+                        kind: EncodedLayoutOperation::Ordinary,
+                    },
+                },
+            }],
+        }
+    }
+
+    // A function with no blocks has no canonical shape. The refusal must name
+    // that function, wherever it sits relative to admitted functions.
+    #[test]
+    fn unsupported_shape_names_the_function_without_a_canonical_shape() {
+        let empty = EncodedLayoutFunction {
+            machine: MachineId::new(7).unwrap(),
+            entry_block: SelectedBlockId(9),
+            blocks: Vec::new(),
+        };
+        for functions in [
+            vec![empty.clone(), returning(1, 1)],
+            vec![returning(1, 1), empty.clone()],
+            vec![returning(1, 1), returning(2, 2), empty.clone()],
+        ] {
+            assert_eq!(
+                select(&functions),
+                Err(Error::UnsupportedFunctionShape(empty.machine))
+            );
+        }
+        assert_eq!(
+            select(&[returning(1, 1), returning(2, 2)]),
+            Ok(SelectedFunctionLayoutPolicy::SingleEntryBlockV1)
+        );
+    }
 }
