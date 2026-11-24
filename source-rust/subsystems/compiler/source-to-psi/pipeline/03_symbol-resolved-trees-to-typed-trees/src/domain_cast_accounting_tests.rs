@@ -697,3 +697,49 @@ fn a_static_value_types_the_captured_selector_only_in_its_own_scope() {
         typed.normalized_type_identity(type_reference),
     );
 }
+
+#[test]
+fn domain_index_literals_are_checked_against_the_selected_family() {
+    use crate::source_state::types::{TypeConstraintNode, TypeReferenceNode};
+    for family in [
+        "domain<const N: u8> u32::At<N>;",
+        "domain<T, const N: u8> T::At<N>;",
+    ] {
+        let check = |argument: &str| {
+            source_result(&format!(
+                "{family} machine entry(value: u32 in At<{argument}>) -> u32 {{ 0u32 }}"
+            ))
+            .1
+        };
+        for argument in ["4", "4u8"] {
+            let typed = check(argument).unwrap();
+            let mut normalized = false;
+            for (_, _, constraints) in typed
+                .type_reference_table
+                .constrained_type_reference_sites()
+            {
+                for constraint in typed.type_reference_table.constraints(constraints) {
+                    if let TypeConstraintNode::Domain(domain) = constraint {
+                        let [index] = domain.arguments.as_slice() else {
+                            continue;
+                        };
+                        let index = typed.type_reference_table.type_reference(*index);
+                        assert!(
+                            matches!(index, TypeReferenceNode::Named { name, .. } if name.as_str() == "4"),
+                            "{argument}: {index:?}"
+                        );
+                        normalized = true;
+                    }
+                }
+            }
+            assert!(normalized);
+        }
+        for argument in ["256", "4u64", "true"] {
+            let refusal = check(argument).expect_err("the index must fit the declared carrier");
+            assert!(
+                refusal.message.contains("must be a `u8`"),
+                "{family} with {argument}: {refusal:?}"
+            );
+        }
+    }
+}

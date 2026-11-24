@@ -752,6 +752,7 @@ pub(crate) mod const_arguments {
         use diagnostics::Diagnostic;
 
         pub(crate) fn normalize(
+            source: &crate::source_resolved::SymbolResolvedTrees,
             program: &mut TypedTrees,
             frontier: usize,
         ) -> Result<(), Diagnostic> {
@@ -786,6 +787,56 @@ pub(crate) mod const_arguments {
                     ))
                 })
                 .collect::<Vec<_>>();
+            // A qualifier applies the selected domain's own telescope. Resolve it with
+            // the same carrier and source visibility that establish its semantic identity.
+            for (site, carrier, constraints) in program
+                .type_reference_table
+                .constrained_type_reference_sites()
+            {
+                if site.arena_index() as usize <= frontier {
+                    continue;
+                }
+                for constraint in program.type_reference_table.constraints(constraints) {
+                    let crate::source_state::types::TypeConstraintNode::Domain(domain) = constraint
+                    else {
+                        continue;
+                    };
+                    if !domain.arguments.iter().any(|argument| {
+                        matches!(
+                            program.type_reference_table.type_reference(*argument),
+                            TypeReferenceNode::ConstExpression(_)
+                        )
+                    }) {
+                        continue;
+                    }
+                    let reference = domain
+                        .source_selection
+                        .map(|selection| selection.source_span)
+                        .filter(|span| span.span.start != span.span.end);
+                    let candidates =
+                        crate::typing::type_reference::domain_constraints::select_domain_candidates(
+                            source,
+                            program,
+                            carrier,
+                            domain.name.as_str(),
+                            reference,
+                            domain.symbol,
+                            &domain.arguments,
+                        );
+                    if let [selected] = candidates.as_slice() {
+                        let mut arguments = Vec::new();
+                        if crate::source_state::domain::has_generic_carrier(program, selected) {
+                            arguments.push(carrier);
+                        }
+                        arguments.extend_from_slice(&domain.arguments);
+                        applications.push((
+                            selected.symbol,
+                            arguments,
+                            program.type_reference_table.operand_lifetime_owner(site),
+                        ));
+                    }
+                }
+            }
             for service in program.service_reaches.definitions() {
                 let Some(application) = &service.application else {
                     continue;
@@ -1395,6 +1446,10 @@ pub(crate) mod const_arguments {
                 return None;
             }
             match program.symbols.get(declaration).kind {
+                symbols::SymbolKind::Domain => {
+                    let domain = program.domain_definition(declaration)?;
+                    Some(program.domain_type_parameters(domain).to_vec())
+                }
                 symbols::SymbolKind::Data => {
                     let data = program.unique_data_definition_by_symbol(declaration)?;
                     Some(program.data_type_parameters(data).to_vec())
@@ -1483,6 +1538,10 @@ pub(crate) mod const_arguments {
             use numeric_literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
             use numerics::arithmetic::ArithmeticDomain;
             use symbols::{SymbolKind, SymbolNameRef};
+
+            fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(), Diagnostic> {
+                super::normalize(&Default::default(), program, frontier)
+            }
 
             #[test]
             fn empty_const_admission_needs_no_unavailable_judgment() {
