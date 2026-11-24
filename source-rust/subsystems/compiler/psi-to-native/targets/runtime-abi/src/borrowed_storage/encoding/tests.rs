@@ -219,6 +219,18 @@ fn foreign_encoding_refuses_truncation_and_noncanonical_tails() {
 }
 
 #[test]
+fn incomplete_layout_reports_its_position_in_the_roster() {
+    let mut second = layout();
+    second.structural_type = StructuralTypeId::new(2).unwrap();
+    let roster = NativeBorrowedStorageLayouts::seal(vec![layout(), second]).unwrap();
+    let bytes = roster.canonical_bytes();
+    assert!(NativeBorrowedStorageLayouts::decode(bytes).is_ok());
+    let error = NativeBorrowedStorageLayouts::decode(&bytes[..bytes.len() - 1]).unwrap_err();
+    assert_eq!(error.layout, 1);
+    assert_eq!(error.reason, "truncated layout encoding");
+}
+
+#[test]
 fn ambiguous_geometry_rosters_refuse_without_reordering_rows() {
     let mut duplicate_discriminator = full_layout();
     let row = duplicate_discriminator

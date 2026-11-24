@@ -5,23 +5,27 @@ pub(super) fn decode(
     bytes: &[u8],
 ) -> Result<NativeBorrowedStorageLayouts, BorrowedStorageEncodingError> {
     let mut cursor = Cursor { bytes };
-    let result = (|| {
-        if cursor.take(33)? != b"omega.native-borrowed-storage.v1\0" {
-            return Err("unknown layout encoding");
-        }
-        let layouts = cursor.list(38, decode_layout)?;
-        if !cursor.bytes.is_empty() {
-            return Err("trailing layout bytes");
-        }
-        Ok(layouts)
-    })();
-    let layouts = result.map_err(|reason| BorrowedStorageEncodingError { layout: 0, reason })?;
+    let roster_error = |reason| BorrowedStorageEncodingError { layout: 0, reason };
+    if cursor.take(33).map_err(roster_error)? != b"omega.native-borrowed-storage.v1\0" {
+        return Err(roster_error("unknown layout encoding"));
+    }
+    let mut layout_index = 0;
+    let layouts = cursor
+        .list(38, |cursor| {
+            let layout = decode_layout(cursor)?;
+            layout_index += 1;
+            Ok(layout)
+        })
+        .map_err(|reason| BorrowedStorageEncodingError {
+            layout: layout_index,
+            reason,
+        })?;
+    if !cursor.bytes.is_empty() {
+        return Err(roster_error("trailing layout bytes"));
+    }
     let sealed = NativeBorrowedStorageLayouts::seal(layouts)?;
     if sealed.canonical_bytes() != bytes {
-        return Err(BorrowedStorageEncodingError {
-            layout: 0,
-            reason: "noncanonical layout encoding",
-        });
+        return Err(roster_error("noncanonical layout encoding"));
     }
     Ok(sealed)
 }
