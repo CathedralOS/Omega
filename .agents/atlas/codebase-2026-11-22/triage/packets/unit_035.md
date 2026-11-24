@@ -1,6 +1,6 @@
 # Atlas packet unit_035: x86-64 register model, target profiles and native verification
 
-**Status: in progress.** The receipts below are verified against current source; the focused fixture run is pending. Every unit_035 observation that the area 13 digest carries is reviewed below. None of them produces an accepted wrong result on current source. One is fixed by a merged repair (#5400). Two are still open: unresolved identity text in component verification, and a feature gap in the component entry kinds that verification derives. The remaining claims are intended behavior, refusals, or duplicates of already-recorded inventory notes. This packet adds no compiler code change.
+**Status: Packet complete.** Every unit_035 observation that the area 13 digest carries is reviewed below. None of them produces an accepted wrong result on current source. One is fixed by a merged repair (#5400). Two are still open: unresolved identity text in component verification, and a feature gap in the component entry kinds that verification derives. The remaining claims are intended behavior, refusals, or duplicates of already-recorded inventory notes. This packet adds no compiler code change.
 
 Evidence baseline: `main` at `24ad2700685e6cc6062026c87ed5fd24ed415265`. That revision is the same as `origin/main` when this review was done. The survey record was written at `4f3c255d`. Its line numbers are corrected below where the code has moved. Sources: [record](../../records/unit_035.md), [unit ranges](../../units/unit_035.tsv), [area digest](../../digests/13-native-targets-driver.md). `second_pass_ranges.tsv` has no gap row for these paths, so no supplemental range was skipped.
 
@@ -49,5 +49,5 @@ Not claims: D13:84 and D13:85 (two hand-written parsers, two whole-module walks)
 ## Validation
 
 - Read every cited line at `24ad2700` with `git grep`/`sed`. Each "Intended" or "Fixed" row names the consumer, spec page or fixture that decides it.
-- Ran `mbx test -p target-x86_64 --lib -- register_constraint_catalog_closes_the_required_x86_64_inventory scalar_float_roster_is_complete < /dev/null` on this branch. Result: RESULT_PLACEHOLDER
+- Ran `mbx test -p target-x86_64 --lib -- register_constraint_catalog_closes_the_required_x86_64_inventory scalar_float_roster_is_complete < /dev/null` on this branch. Result: 2 passed, 0 failed (`register_model::tests::register_constraint_catalog_closes_the_required_x86_64_inventory`, `register_model::float_scalar_calls::tests::scalar_float_roster_is_complete_and_binds_result_home_and_clobbers`).
 - No compiler source changed, so no Clippy, formatting or sample gate applies. No reproduction was attempted for #7.
