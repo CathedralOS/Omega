@@ -1142,12 +1142,21 @@ fn a_variable_byte_store_preserves_the_buffers_utf8_domain() {
     ))
     .replace("use omega\\language\\core\\byte_observation;", "")
     .replace("machine main()", "machine build_entry()");
-    let verdict = judge_build(&source).unwrap();
-    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
-    let invalid = source.replace("] = 48;", "] = 128;");
-    let verdict = judge_build(&invalid).unwrap();
-    assert!(
-        matches!(verdict, RouteVerdict::Rejected {
+    let multibyte = source.replace("ABCD", r"\xc3\xa9CD");
+    for valid in [&source, &multibyte] {
+        assert_eq!(verdict(valid), "accepted");
+    }
+    for invalid in [
+        source.replace("] = 48;", "] = 128;"),
+        multibyte.replace("index: 13 as", "index: 1 as"),
+        multibyte.replace(
+            "    (@mutable packet.line",
+            "    packet.index = 1 as +Wrapping;\n    (@mutable packet.line",
+        ),
+    ] {
+        let verdict = judge_build(&invalid).unwrap();
+        assert!(
+            matches!(verdict, RouteVerdict::Rejected {
             ref formations, ref violations, ref unproved, ref unestablished, ref conflicts, ref exceeded,
         } if formations.is_empty()
             && violations.is_empty()
@@ -1156,8 +1165,9 @@ fn a_variable_byte_store_preserves_the_buffers_utf8_domain() {
             && exceeded.is_empty()
             && !unproved.is_empty()
             && unproved.iter().all(|row| matches!(row.kind, ObligationKind::DataDomain { .. }))),
-        "an invalid continuation byte must fail Utf8 restoration: {verdict:?}"
-    );
+            "the write must fail Utf8 restoration: {verdict:?}"
+        );
+    }
 }
 
 #[test]
