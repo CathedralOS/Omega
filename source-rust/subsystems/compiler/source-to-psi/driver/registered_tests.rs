@@ -1,6 +1,6 @@
 //! Each registered satisfier receives its own checked ProgramEntry root.
 //! The application and every test start from the same captured source.
-use crate::compile_product::ProductSourceInputs;
+use crate::compile_product::{ProductRoots, ProductSourceInputs};
 use crate::driver::published_target;
 use crate::source_state::{TypedTrees, machine::resolve_satisfied_declaration};
 use crate::*;
@@ -14,15 +14,16 @@ pub struct TestRoot {
     group_declaration: RetainedDeclaration,
     selecting_machine: RetainedDeclaration,
     declaration: RetainedDeclaration,
+    adapter: Option<RetainedDeclaration>,
 }
 
 impl TestRoot {
     pub(super) fn bind(
         &self,
-        typed: &TypedTrees,
+        typed: &mut TypedTrees,
         groups: &[TestGroupRegistration],
         target: &str,
-    ) -> Result<RootBinding, Vec<Diagnostic>> {
+    ) -> Result<ProductRoots, Vec<Diagnostic>> {
         let group = source_symbols::rejoin_declaration(
             &self.group_declaration,
             &typed.symbols,
@@ -52,11 +53,66 @@ impl TestRoot {
             satisfiers(typed, registration).map(|m| m.symbol),
         )
         .map_err(|why| vec![Diagnostic::error(why)])?;
-        Ok(RootBinding {
+        let test = RootBinding {
             slot: format!("{target}::ProgramEntry"),
             implementation: typed.symbols.display_path(implementation, "::"),
             implementation_symbol: implementation,
             source_span: typed.symbols.symbol_source_span(implementation),
+        };
+        let adapter = match (&self.adapter, registration.adapter) {
+            (None, None) => return Ok(ProductRoots::Direct(vec![test])),
+            (Some(retained), Some(candidate)) => {
+                source_symbols::rejoin_declaration(retained, &typed.symbols, [candidate])
+                    .map_err(|why| vec![Diagnostic::error(why)])?
+            }
+            _ => {
+                return Err(vec![Diagnostic::error(
+                    "registered test lost its selected adapter",
+                )]);
+            }
+        };
+        use crate::source_state::data::{TypeParameter, TypeParameterKind};
+        use crate::source_state::expression::StaticMachineArgument;
+        use crate::source_state::name::Identifier;
+        let adapter_name = typed
+            .machine_by_symbol(adapter)
+            .filter(|machine| {
+                machine.body_is_present
+                    && matches!(
+                        typed.machine_callable_parameters(machine).as_slice(),
+                        [TypeParameter {
+                            kind: TypeParameterKind::Machine { .. },
+                            ..
+                        }]
+                    )
+            })
+            .map(|machine| machine.name.clone())
+            .ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+            "test adapter `{}` must define a body and take one static machine parameter",
+            typed.symbols.display_path(adapter, "::")
+        )).with_source_span(registration.source_span)]
+            })?;
+        let argument = StaticMachineArgument {
+            symbol: implementation,
+            path: vec![Identifier::from(typed.symbols.name(implementation))].into_boxed_slice(),
+            ..Default::default()
+        };
+        let application = typed.expression_table.retain_static_machine_application(
+            adapter,
+            adapter_name,
+            &[argument],
+        );
+        typed
+            .expression_table
+            .static_machine_application_mut(application)
+            .lexical_owner = owner;
+        Ok(ProductRoots::Applied {
+            test,
+            application: typed_trees_to_prepared_typed_trees::EntryApplication::new(
+                typed,
+                application,
+            ),
         })
     }
 }
@@ -133,10 +189,11 @@ impl<'a> RegisteredTests<'a> {
                     Some(
                         "a test must be a concrete machine with a body; wrap a generic satisfier in a concrete test",
                     )
-                } else if typed
-                    .machine_states(machine)
-                    .first()
-                    .is_some_and(|entry| entry.parameters.count() != 0)
+                } else if group.adapter.is_none()
+                    && typed
+                        .machine_states(machine)
+                        .first()
+                        .is_some_and(|entry| entry.parameters.count() != 0)
                 {
                     Some(
                         "its entry takes parameters, and no installed runner contract supplies them",
@@ -158,6 +215,7 @@ impl<'a> RegisteredTests<'a> {
                     group_declaration: retain(group.requirement)?,
                     selecting_machine: retain(group.selecting_machine)?,
                     declaration: retain(machine.symbol)?,
+                    adapter: group.adapter.map(retain).transpose()?,
                 });
             }
             if tests.is_empty() {

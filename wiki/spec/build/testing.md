@@ -73,6 +73,16 @@ ambiguous, or unauthorized supply rejects before invocation. Provider selection
 constructs no source routing value. Other fixture construction and parameterized helper
 calls are ordinary test code.
 
+A Build can install an ordinary adapter with
+`builder.tests.group::<Checks::modify, registers_fixture>()`. The adapter takes
+one static machine parameter. Build specializes it once for each concrete
+satisfier of the selected requirement and checks the resulting entry against the
+target's ordinary arrival contract. The adapter can initialize a local fixture,
+lend it to the selected machine, and inspect it on handback. Every normally
+returning path through the adapter must invoke that exact satisfier, directly or
+through another checked machine. Group registration and reported results retain
+the identity of the individual satisfier.
+
 For an explicitly fixture-bearing installed requirement, the registered exact
 trait application may name the fixture type as an ordinary trait argument, for
 example `Tests<ScanFixture>::memory`. The runner's installation must separately
