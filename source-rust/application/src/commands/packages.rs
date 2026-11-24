@@ -190,6 +190,13 @@ fn accept_pending_decisions(path: &Path) -> Result<usize, PackageCommandError> {
     Ok(accepted)
 }
 
+fn exit_status(status: PackageCommandStatus) -> i32 {
+    match status {
+        PackageCommandStatus::Published | PackageCommandStatus::ReviewDiscarded => 0,
+        PackageCommandStatus::ReviewRequired => 3,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -209,12 +216,5 @@ mod tests {
             original.replace(" pending", " accept")
         );
         assert_eq!(accept_pending_decisions(&path).unwrap(), 0);
-    }
-}
-
-fn exit_status(status: PackageCommandStatus) -> i32 {
-    match status {
-        PackageCommandStatus::Published | PackageCommandStatus::ReviewDiscarded => 0,
-        PackageCommandStatus::ReviewRequired => 3,
     }
 }

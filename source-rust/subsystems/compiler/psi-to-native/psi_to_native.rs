@@ -52,6 +52,10 @@ pub struct NativeProgram {
 }
 
 impl NativeProgram {
+    pub fn check_target(&self) -> Result<(), Vec<Diagnostic>> {
+        driver::inputs::check_target_inputs(&self.terminal, &mut Vec::new()).map(|_| ())
+    }
+
     /// The settled permissions and binding selections used by both execution paths.
     pub fn native_realization_proposal(
         &self,

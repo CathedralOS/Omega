@@ -20,6 +20,30 @@ pub(crate) struct PreparedNativeCompilation<'input> {
     pub(crate) scalars: Option<psi_scalar_applications::AdmittedScalarApplications>,
 }
 
+pub(crate) struct CheckedTargetInputs {
+    execution: PreparedNativeExecution,
+    scalars: Option<psi_scalar_applications::AdmittedScalarApplications>,
+}
+
+/// A selected entry determines which providers and layout-dependent constants it uses.
+pub(crate) fn check_target_inputs(
+    retained: &RetainedTerminalArtifact,
+    receipts: &mut Vec<native_scalar_inputs::EvaluationReceipt>,
+) -> Result<CheckedTargetInputs, Vec<Diagnostic>> {
+    let proposal = retained.native_realization_proposal();
+    let execution = provider_realization::native_execution::prepare_program(
+        proposal,
+        retained.authorization(),
+    )?;
+    let scalars = scalars::complete(
+        retained.shared_artifact(),
+        proposal,
+        execution.scope().reach().scalar_application_demand(),
+        receipts,
+    )?;
+    Ok(CheckedTargetInputs { execution, scalars })
+}
+
 pub(crate) fn prepare<'input>(
     retained: &'input RetainedTerminalArtifact,
     request: NativeCompileRequest<'input>,
@@ -31,10 +55,8 @@ pub(crate) fn prepare<'input>(
         proposal,
         request.installation_assumptions,
     )?;
-    let execution = provider_realization::native_execution::prepare_program(
-        proposal,
-        retained.authorization(),
-    )?;
+    let CheckedTargetInputs { execution, scalars } =
+        check_target_inputs(retained, request.scalar_receipts)?;
     let entry = proposal.scope_source().root().semantic_entry();
     let mut recipes = Vec::with_capacity(request.private_entry_ram.len());
     for initializer in request.private_entry_ram {
@@ -60,12 +82,6 @@ pub(crate) fn prepare<'input>(
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
         recipes.push(recipe);
     }
-    let scalars = scalars::complete(
-        artifact,
-        proposal,
-        execution.scope().reach().scalar_application_demand(),
-        request.scalar_receipts,
-    )?;
     Ok(PreparedNativeCompilation {
         retained,
         request,
