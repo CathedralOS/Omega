@@ -41,7 +41,15 @@ taken from the formal it is ranked on (`by_fuel` in `read/signature.rs`), and
 a law about its own result is read as an induction on that fuel. A call of a
 machine that has a `requires` owes it there: a premise of the defining
 machine is in hand, any other becomes a statement of its own, proved from
-what the body has cited. A named proposition declared as
+what the body has cited. A mathematical machine may be generic over other
+machines (`cauchy_at<machine Sequence, machine Modulus>`). Nothing
+instantiates it: it is read once, each machine parameter becomes one more
+formal of the definition or law, of that machine's function type, and a call
+of the parameter is an application of that formal (`read/templates.rs`). Its
+body is not lowered. A body of `let`s, citations and one value is read with
+the machine's contract, through the clause reader, each `let` standing for
+its value; any other body is refused. A clause that calls a machine with a
+`requires` must have that premise among the stating machine's own. A named proposition declared as
 one formula is read where a clause of such a machine applies it: the formula,
 with each parameter standing for the argument written for it. Its declaration
 adds nothing to the signature. The ordinary reader refuses the same data and machines when a

@@ -29,12 +29,14 @@ use crate::lowering::body::ValueType;
 use crate::lowering::canonical::{self, Repeated};
 use crate::lowering::{ClauseText, Piece, SourceOrigin, Unserved, refuse, reject};
 
-/// A named proposition whose formula a clause is being read through: its
-/// declaration, which owns what the formula writes, and each parameter with
-/// the argument written for it where the proposition was applied.
+/// Names a clause is being read through, each standing for an expression.
+/// For a named proposition: its declaration, which owns what its formula
+/// writes, and each parameter with the argument written for it where the
+/// proposition was applied. For the body of a generic mathematical machine:
+/// no declaration, and each `let` with its value.
 pub(super) struct AppliedProposition {
-    declaration: SymbolHandle,
-    arguments: Vec<(SymbolHandle, ExpressionHandle)>,
+    pub(super) declaration: Option<SymbolHandle>,
+    pub(super) arguments: Vec<(SymbolHandle, ExpressionHandle)>,
 }
 
 /// What a contract clause may name: the formals, and the result pseudo-value
@@ -300,12 +302,12 @@ impl Program<'_> {
         if self
             .applied_propositions
             .iter()
-            .any(|applied| applied.declaration == definition.symbol)
+            .any(|applied| applied.declaration == Some(definition.symbol))
         {
             return Err(unserved("recursive named proposition"));
         }
         self.applied_propositions.push(AppliedProposition {
-            declaration: definition.symbol,
+            declaration: Some(definition.symbol),
             arguments: parameters
                 .iter()
                 .zip(arguments)
@@ -919,8 +921,10 @@ impl Program<'_> {
         // An Identity in a named proposition's formula was written there.
         let owner = self
             .applied_propositions
-            .last()
-            .map_or(owner, |applied| applied.declaration);
+            .iter()
+            .rev()
+            .find_map(|applied| applied.declaration)
+            .unwrap_or(owner);
         if !typed.symbols.symbols().nodes().is_valid(owner) || application.lexical_owner != owner {
             return Err(unavailable(
                 "Identity application has a different lexical declaration",

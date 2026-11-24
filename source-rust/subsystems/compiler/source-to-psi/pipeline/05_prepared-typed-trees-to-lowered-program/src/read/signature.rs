@@ -38,7 +38,8 @@ use mathematical_kernel::{
     Declaration, Level, PlainData, Sort, Term, TermHandle, instantiate, shift,
 };
 use semantic_vocabulary::{
-    ClauseCarrier, ClauseIdentity, ClauseOperand, MachineId, Proposition, StructuralTypeId,
+    ClauseCarrier, ClauseIdentity, ClauseOperand, ClauseValue, MachineId, Proposition,
+    StructuralTypeId,
 };
 use symbols::SymbolHandle;
 use terminal_check_tables::mathematics::{
@@ -176,6 +177,9 @@ impl Program<'_> {
             functions,
             fueled: Vec::new(),
             result_as: None,
+            callable_scope: Vec::new(),
+            held: Vec::new(),
+            stating_premises: false,
         };
         let mut refused = Vec::new();
         let diagnostic = MachineId::new(1).expect("1 is nonzero");
@@ -465,6 +469,16 @@ struct Converter<'p, 't> {
     /// While a law is read for its induction on fuel: the machine and the
     /// term its clauses' `result` stands for.
     result_as: Option<(MachineId, TermHandle)>,
+    /// The machine parameters of the generic machine being read, each as
+    /// the variable it is under that machine's formals.
+    callable_scope: Vec<(SymbolHandle, TermHandle)>,
+    /// The premises of the machine being read that are read so far, as
+    /// terms under its formals: what a clause of it may rest a call on.
+    held: Vec<TermHandle>,
+    /// Set while a called machine's premises are stated at a call's
+    /// arguments: what those premises themselves call was owed where that
+    /// machine was declared.
+    stating_premises: bool,
 }
 
 fn unserved(id: MachineId, what: &'static str) -> Refusal {
@@ -497,7 +511,7 @@ fn index(id: MachineId, length: usize) -> Checked<u32> {
     u32::try_from(length).map_err(|_| unserved(id, "mathematical signature index overflow"))
 }
 
-impl Converter<'_, '_> {
+impl<'p> Converter<'p, '_> {
     fn constant(&mut self, declaration: u32) -> TermHandle {
         self.signature.arena.insert(Term::Constant {
             declaration,
@@ -865,7 +879,12 @@ impl Converter<'_, '_> {
             Some(Read::Function(entry)) => return Ok(entry),
             Some(_) => return Err(unserved(id, "term that calls a machine with no result")),
         }
+        let outer = (
+            std::mem::take(&mut self.callable_scope),
+            std::mem::take(&mut self.held),
+        );
         let read = self.read_function(id);
+        (self.callable_scope, self.held) = outer;
         self.finish(id, true, read.map(|entry| (entry, Read::Function(entry))))
     }
 
@@ -902,9 +921,47 @@ impl Converter<'_, '_> {
         let open: Vec<_> = (0..count)
             .map(|formal| self.variable((count - 1 - formal) as u32))
             .collect();
+        let template = self.template(id);
+        let callables = self.enter(id, count)?;
         let mut premises = Vec::with_capacity(signature.requires.len());
         for premise in &signature.requires {
-            premises.push(self.equality(id, premise, &open, None)?);
+            let premise = self.equality(id, premise, &open, None)?;
+            premises.push(premise);
+            self.held.push(premise);
+        }
+        if let Some(template) = template {
+            // A machine generic over machines: its value, read as a term
+            // with its contract, under its machine parameters and formals.
+            let value = template
+                .value
+                .ok_or_else(|| unserved(id, "generic mathematical machine without a value"))?;
+            let (terms, _) = self.operands(id, &template.values, &open, None)?;
+            let mut term = terms[value as usize];
+            let mut ty = result;
+            for &domain in formals
+                .iter()
+                .map(|(formal, _)| formal)
+                .rev()
+                .chain(callables.iter().rev())
+            {
+                term = self
+                    .signature
+                    .arena
+                    .insert(Term::Lambda { domain, body: term });
+                ty = self.signature.arena.insert(Term::Pi {
+                    domain,
+                    codomain: ty,
+                });
+            }
+            index(id, self.signature.declarations.len() + 1)?;
+            return Ok(self.push(
+                Declaration::definition(0, ty, term),
+                SignatureEntryKind::Function {
+                    machine: symbol,
+                    cases: None,
+                },
+                name,
+            ));
         }
         let ranked = match signature
             .ranking
@@ -1939,7 +1996,12 @@ impl Converter<'_, '_> {
             Some(Read::Cites { .. }) => return Ok(Vec::new()),
             Some(_) => return Err(unserved(id, "citation of a machine with a result")),
         }
+        let outer = (
+            std::mem::take(&mut self.callable_scope),
+            std::mem::take(&mut self.held),
+        );
         let read = self.read_laws(id);
+        (self.callable_scope, self.held) = outer;
         self.finish(
             id,
             false,
@@ -1969,6 +2031,17 @@ impl Converter<'_, '_> {
         let open: Vec<_> = (0..count)
             .map(|formal| self.variable((count - 1 - formal) as u32))
             .collect();
+        let template = self.template(id);
+        let callables = self.enter(id, count)?;
+        // The premises first, each resting on the ones before it: a clause
+        // may call a machine that has a premise only where that premise is
+        // one of this machine's own.
+        let mut premises = Vec::with_capacity(signature.requires.len());
+        for premise in &signature.requires {
+            let premise = self.equality(id, premise, &open, None)?;
+            premises.push(premise);
+            self.held.push(premise);
+        }
         let satisfaction = self
             .satisfactions
             .iter()
@@ -1989,10 +2062,6 @@ impl Converter<'_, '_> {
                 .map(|text| (names.authored(text), text.source));
             goals.push((goal, text));
         }
-        let mut premises = Vec::with_capacity(signature.requires.len());
-        for premise in &signature.requires {
-            premises.push(self.equality(id, premise, &open, None)?);
-        }
         let own = !goals.is_empty();
         let declared = match (own, declared.as_slice()) {
             (false, _) => {
@@ -2011,11 +2080,47 @@ impl Converter<'_, '_> {
         if goals.is_empty() {
             return Ok(Vec::new());
         }
-        let body = self
-            .bodies
-            .get(id)
-            .ok_or_else(|| unserved(id, "mathematical machine lost its body"))?;
-        let proof = self.script(id, body, &formals)?;
+        let proof = match template {
+            // A machine generic over machines argues by its citations
+            // alone, read as terms with its contract.
+            Some(template) => {
+                let (terms, _) = self.operands(id, &template.values, &open, None)?;
+                let mut script = LawCase::default();
+                for (cited, arguments) in &template.citations {
+                    let (machine, _) = program
+                        .symbols
+                        .iter()
+                        .find(|(_, known)| **known == *cited)
+                        .ok_or_else(|| unserved(id, "citation lost its machine"))?;
+                    let laws = self.laws(machine)?;
+                    if laws.is_empty() {
+                        return Err(unserved(
+                            id,
+                            "generic mathematical machine cites a machine that states no law",
+                        ));
+                    }
+                    for law in laws {
+                        script.citations.push(Citation {
+                            evidence: Evidence::Statement(
+                                self.signature.laws[law as usize].statement,
+                            ),
+                            arguments: arguments
+                                .iter()
+                                .map(|&argument| terms[argument as usize])
+                                .collect(),
+                        });
+                    }
+                }
+                LawProof::Direct(script)
+            }
+            None => {
+                let body = self
+                    .bodies
+                    .get(id)
+                    .ok_or_else(|| unserved(id, "mathematical machine lost its body"))?;
+                self.script(id, body, &formals)?
+            }
+        };
         let mut over_fuel = Vec::new();
         if matches!(proof, LawProof::Fuel { .. }) {
             if !own {
@@ -2062,9 +2167,14 @@ impl Converter<'_, '_> {
                     codomain: statement,
                 });
             }
-            for &(formal, _) in formals.iter().rev() {
+            for &domain in formals
+                .iter()
+                .map(|(formal, _)| formal)
+                .rev()
+                .chain(callables.iter().rev())
+            {
                 statement = self.signature.arena.insert(Term::Pi {
-                    domain: formal,
+                    domain,
                     codomain: statement,
                 });
             }
@@ -2078,7 +2188,13 @@ impl Converter<'_, '_> {
                 machine: symbol,
                 clause: clause as u32,
                 statement: entry,
-                formals: formals.iter().map(|(formal, _)| *formal).collect(),
+                // A machine parameter is a formal of the law like any other,
+                // bound before the value formals.
+                formals: callables
+                    .iter()
+                    .copied()
+                    .chain(formals.iter().map(|(formal, _)| *formal))
+                    .collect(),
                 premises: premises.clone(),
                 goal,
                 declared: declared.filter(|_| clause == 0),
@@ -2096,7 +2212,12 @@ impl Converter<'_, '_> {
                     },
                     other => other.clone(),
                 },
-                formal_names: names.formals.clone(),
+                formal_names: template
+                    .iter()
+                    .flat_map(|template| &template.callables)
+                    .map(|callable| callable.name.clone())
+                    .chain(names.formals.iter().cloned())
+                    .collect(),
                 machine_name: names.machine.clone(),
                 text,
                 source: source.or(names.declared),
@@ -2130,9 +2251,127 @@ impl Converter<'_, '_> {
         clause
             .validate()
             .map_err(|_| unserved(id, "malformed declaration Identity"))?;
-        let mut terms = Vec::<TermHandle>::with_capacity(clause.values.len());
-        let mut carriers = Vec::with_capacity(clause.values.len());
-        for value in &clause.values {
+        let (terms, carriers) = self.operands(id, &clause.values, formals, satisfaction)?;
+        let ty = self.constant(carriers[clause.left as usize]);
+        Ok(self.signature.arena.insert(Term::Id {
+            ty,
+            left: terms[clause.left as usize],
+            right: terms[clause.right as usize],
+        }))
+    }
+
+    /// The generic machine body read for `id`, when it is one
+    /// (`read::templates`).
+    fn template(&self, id: MachineId) -> Option<&'p super::templates::TemplateBody> {
+        let program = self.program;
+        program
+            .template_bodies
+            .iter()
+            .find(|(template, _)| *template == id)
+            .map(|(_, body)| body)
+    }
+
+    /// Start reading machine `id`, which has `count` formals: the type of
+    /// each of its machine parameters, in declared order, each now in scope
+    /// as a variable bound before the formals.
+    fn enter(&mut self, id: MachineId, count: usize) -> Checked<Vec<TermHandle>> {
+        let Some(template) = self.template(id) else {
+            return Ok(Vec::new());
+        };
+        let parameters = template.callables.len();
+        let mut types = Vec::with_capacity(parameters);
+        for (position, callable) in template.callables.iter().enumerate() {
+            let (mut ty, _) = self.ty(id, callable.result)?;
+            for &parameter in callable.parameters.iter().rev() {
+                let (domain, _) = self.ty(id, parameter)?;
+                ty = self.signature.arena.insert(Term::Pi {
+                    domain,
+                    codomain: ty,
+                });
+            }
+            types.push(ty);
+            let variable = self.variable((count + parameters - 1 - position) as u32);
+            self.callable_scope.push((callable.symbol, variable));
+        }
+        Ok(types)
+    }
+
+    /// What a call of the machine `member` at `operands` in a clause owes:
+    /// each premise of that machine at those arguments must be one of the
+    /// premises the machine being read already has. A clause has no body to
+    /// prove a premise in.
+    fn owed_in_clause(
+        &mut self,
+        id: MachineId,
+        member: SymbolHandle,
+        operands: &[TermHandle],
+    ) -> Checked<()> {
+        if self.stating_premises {
+            return Ok(());
+        }
+        let program = self.program;
+        let Some((machine, _)) = program.symbols.iter().find(|(_, known)| **known == member) else {
+            return Ok(());
+        };
+        let called = program
+            .signatures
+            .get(machine)
+            .ok_or_else(|| unserved(id, "call lost its machine's signature"))?;
+        if called.requires.is_empty() {
+            return Ok(());
+        }
+        // The called machine's own machine parameters stand for the
+        // functions passed for them, which come first.
+        let passed = self
+            .template(machine)
+            .map_or(&[][..], |template| template.callables.as_slice());
+        if operands.len() < passed.len() {
+            return Err(unserved(id, "generic machine applied to too few machines"));
+        }
+        let (functions, values) = operands.split_at(passed.len());
+        let outer = std::mem::replace(
+            &mut self.callable_scope,
+            passed
+                .iter()
+                .zip(functions)
+                .map(|(callable, &function)| (callable.symbol, function))
+                .collect(),
+        );
+        self.stating_premises = true;
+        let stated: Checked<Vec<_>> = called
+            .requires
+            .iter()
+            .map(|premise| self.equality(machine, premise, values, None))
+            .collect();
+        self.stating_premises = false;
+        self.callable_scope = outer;
+        for premise in stated? {
+            if !self
+                .held
+                .iter()
+                .any(|&held| self.signature.arena.structurally_equal(held, premise))
+            {
+                return Err(unserved(
+                    id,
+                    "clause calls a machine whose premise is not a premise of the machine that states it",
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// Each operand of a clause as a term under `formals`, and the entry of
+    /// each one's carrier.
+    fn operands(
+        &mut self,
+        id: MachineId,
+        values: &[ClauseValue],
+        formals: &[TermHandle],
+        satisfaction: Option<&Satisfaction>,
+    ) -> Checked<(Vec<TermHandle>, Vec<u32>)> {
+        let mut terms = Vec::<TermHandle>::with_capacity(values.len());
+        let mut carriers = Vec::with_capacity(values.len());
+        for value in values {
             let ClauseCarrier::Structural(record) = value.carrier else {
                 return Err(unserved(
                     id,
@@ -2176,7 +2415,7 @@ impl Converter<'_, '_> {
                         .collect();
                     // A field applied to a value is that component of it.
                     let field = match arguments.as_slice() {
-                        &[value] => match clause.values[value as usize].carrier {
+                        &[value] => match values[value as usize].carrier {
                             ClauseCarrier::Structural(record) => terminal_check_tables::row(
                                 &self.program.record_sources,
                                 record,
@@ -2191,10 +2430,21 @@ impl Converter<'_, '_> {
                         },
                         _ => None,
                     };
-                    match field {
-                        Some((entry, at)) => self.component(id, entry, operands[0], at)?.0,
-                        None => {
+                    let parameter = self
+                        .callable_scope
+                        .iter()
+                        .find(|(symbol, _)| *symbol == member)
+                        .map(|(_, variable)| *variable);
+                    match (field, parameter) {
+                        (Some((entry, at)), _) => self.component(id, entry, operands[0], at)?.0,
+                        // A machine parameter applied to its arguments, or
+                        // passed whole to a generic machine.
+                        (None, Some(variable)) => {
+                            self.signature.arena.apply_arguments(variable, &operands)
+                        }
+                        (None, None) => {
                             let head = self.declaration(id, member, satisfaction)?;
+                            self.owed_in_clause(id, member, &operands)?;
                             let head = self.constant(head);
                             self.signature.arena.apply_arguments(head, &operands)
                         }
@@ -2209,12 +2459,7 @@ impl Converter<'_, '_> {
             };
             terms.push(term);
         }
-        let ty = self.constant(carriers[clause.left as usize]);
-        Ok(self.signature.arena.insert(Term::Id {
-            ty,
-            left: terms[clause.left as usize],
-            right: terms[clause.right as usize],
-        }))
+        Ok((terms, carriers))
     }
 
     /// The entry a clause applies: a machine with a result, a case, or the
@@ -2227,13 +2472,6 @@ impl Converter<'_, '_> {
     ) -> Checked<u32> {
         let program = self.program;
         if let Some((machine, _)) = program.symbols.iter().find(|(_, known)| **known == member) {
-            if program
-                .signatures
-                .get(machine)
-                .is_some_and(|signature| !signature.requires.is_empty())
-            {
-                return Err(unserved(id, "clause applies a machine that has a premise"));
-            }
             return self.function(machine);
         }
         for &record in &program.self_containing {

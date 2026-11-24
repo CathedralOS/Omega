@@ -1,0 +1,34 @@
+// The twin of `pass/twice_a_fixed_point` without the premise that the
+// machine leaves `a` as it is. Nothing is then known about what it
+// returns, and the law is refused.
+use omega\language\core\ProcessExit;
+
+data Peano {
+    case Zero;
+    case Succ(pred: Peano);
+}
+
+machine twice<machine Step>(a: Peano) -> Peano
+requires machine Step(a: Peano) -> Peano terminates;
+{
+    let once: Peano = Step(a);
+    transition { _ -> (Step(once)) }
+}
+
+machine twice_keeps_a_fixed_point<machine Step>(a: Peano)
+requires machine Step(a: Peano) -> Peano terminates;
+ensures
+    core\Identity::<Peano>(twice::<Step>(a), a)
+{
+}
+
+data Main { }
+machine exit_with_status(main: @mutable Main) reaches ProcessExit {
+    ProcessExit::exit_process(0);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit {
+    let mutable entry_storage: Main;
+    block exit_with_status(@mutable entry_storage);
+}

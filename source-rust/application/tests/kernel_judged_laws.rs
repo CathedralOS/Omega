@@ -278,6 +278,23 @@ fn a_false_law_about_such_a_machine_is_refused() {
 }
 
 #[test]
+fn a_law_about_every_machine_of_a_signature_compiles() {
+    let (output, report) = check("generic_machine/pass/twice_a_fixed_point");
+    assert_eq!(output.status.code(), Some(0), "{report}");
+}
+
+#[test]
+fn a_generic_law_without_its_premise_is_refused() {
+    let (output, report) = check("generic_machine/fail/twice_without_the_fixed_point");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains("cannot prove ensures contract for `twice_keeps_a_fixed_point`")
+            && report.contains(UNPROVED),
+        "{report}"
+    );
+}
+
+#[test]
 fn a_satisfier_that_proves_nothing_is_refused_for_the_law_it_inherits() {
     let (output, report) = check("ring_law/fail/ring_law_unproven_rejected");
     assert_eq!(output.status.code(), Some(1), "{report}");

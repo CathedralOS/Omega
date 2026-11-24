@@ -1187,7 +1187,7 @@ names it.
   [proof-work policy](../../spec/build/configuration.md#proof-work-policy) yet,
   and the diagnostic does not say which limit stopped the proof.
 
-**Step 4 as built so far (2026-11-24): records, named propositions, hypotheses inside sums, cases inside cases, and the rationals.**
+**Step 4 as built (2026-11-24): records, named propositions, hypotheses inside sums, cases inside cases, the rationals, and machines generic over machines.**
 `core/int.omg` builds the integers as a record of two naturals, so step 4
 starts with records.
 
@@ -1275,10 +1275,27 @@ starts with records.
   `nat_gap_mul_right` at 11,784 of 65,536 conversion steps;
   `nat_gap_triangle` fell from 59,947 to 6,553, `mul_int_assoc` is 7,495,
   `rat_close_triangle_split` 9,327 and `mod`'s bound about 4,300.
+- **Machines generic over machines.** `cauchy.omg` states what it is for a
+  sequence of rationals to be Cauchy for any sequence and any modulus:
+  `cauchy_at<machine Sequence, machine Modulus>`. Such a machine is read
+  once, with one more formal per machine parameter, of that machine's
+  function type; a call of the parameter applies the formal, and
+  `cauchy_at::<Left, Right>(..)` in a clause passes functions. The body is
+  read through the clause reader with the machine's contract, each `let`
+  standing for its value, so only a body of `let`s, citations and one value
+  is read. A clause may call a machine that has a premise where that
+  premise is one of the stating machine's own, which is how these laws
+  state `cauchy_at` under the bounds it requires. With `cauchy.omg` added,
+  the five files give 96 judged laws; its four take 1,297 to 4,674
+  conversion steps.
 - **Not done:**
-  - `cauchy.omg` is refused first on `cauchy_at`, a machine generic over
-    two machines, which is step 6.
-  - `extent.omg` is not yet tried.
+  - A generic mathematical machine whose body dispatches, a citation of
+    one generic machine from another, and a concrete machine passed for a
+    machine parameter. Nothing in the library does any of these.
+  - `extent.omg`'s contract over `IntervalSet<Nat>` (the plan's
+    `extent.omg:219`) is a clause of a runtime boundary trait over generic
+    data. It is read by the scalar clause readers when a program reaches
+    it, not into this signature; moving it is part of step 5.
   - The `<=` and `-` machines of `nat.omg` are still left out of every
     test: the compiler rejects a machine that a data declaration owns.
   - A refused law whose goal names a field inside one case of an induction

@@ -396,7 +396,7 @@ impl Program<'_> {
             {
                 continue;
             }
-            if self.is_generic_template(machine) {
+            if self.is_generic_template(machine) && !self.mathematical_template(machine) {
                 return Err(self.read_failure_at(
                     refuse(
                         entry,
