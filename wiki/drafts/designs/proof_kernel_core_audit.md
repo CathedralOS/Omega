@@ -1085,15 +1085,34 @@ kernel, from the library file as it stands.
   13,358 kernel conversion steps each, about 67,000 together, every time
   such a program is compiled, because the library is compiled from source
   with it.
-- **Not done: the rest of `nat.omg`.** Nothing reads these yet: laws with a
-  `requires` premise (`add_cancel`, `le_of_succ_le`), machines that return
-  `bool` or dispatch on a computed value (`<=`, `saturating_sub`), and
-  recursion that is not on a field of the case (`mod`, `div`, `gcd`).
-  Separately, `<=` and `-` are written as machines the `Nat` declaration
-  owns (`machine <= Nat::less_or_equal`). Compiling the file's declarations
-  as a program was rejected there with "a data declaration cannot own a
-  machine; declare an ordinary static machine", before any proof was tried,
-  so that part of the library needs its source migrated first.
+- **Laws with a premise.** Eleven of `nat.omg`'s lemmas state a `requires`
+  equality (`add_cancel`, `le_of_succ_le`, `sub_lt`). A premise is bound in
+  the law's statement after its formals, is a hypothesis of each case, and is
+  proved at each citation from the case's other evidence in any order. The
+  prover takes two facts from any equality it holds: constructors are
+  injective (`Succ(x) = Succ(y)` gives `x = y`, which `add_cancel`'s
+  successor case needs to cite itself) and distinct (`Succ(r) = Zero` proves
+  the case, which `le_of_succ_le` and `pred_eq_succ` need). It also
+  normalizes again after each rewrite. With that, the kernel judges every
+  law in the file but the three below: 34 laws when the file's declarations
+  are compiled as a program (`every_law_of_nat_but_three_recursions_is_judged`).
+  The largest, `sub_lt_of_le`, takes 42,717 kernel conversion steps of the
+  65,536 budget, so the budget is close.
+- **Not done: `mod`, `div` and `gcd`.** Their recursion is on
+  `saturating_sub(a, b)`, not on a field of the dispatched case, so they need
+  recursion justified by a decreasing measure, which the signature does not
+  read.
+- **Not done: the two operator machines.** `<=` and `-` are written as
+  machines the `Nat` declaration owns (`machine <= Nat::less_or_equal`).
+  Compiling the file's declarations as a program was rejected there with "a
+  data declaration cannot own a machine; declare an ordinary static
+  machine", before any proof was tried, so that part of the library needs
+  its source migrated first.
+- **The library is judged only through a program.** A toolchain file is
+  never the subject of a check, and most of these lemmas are private, so no
+  program reaches them directly; the test compiles the file's text as a
+  program. A program that uses the library reaches the conformance and what
+  it cites, nothing more.
 
 The first version of this plan started with level binders and value-indexed
 type arguments because they move 66 samples. They move those samples to

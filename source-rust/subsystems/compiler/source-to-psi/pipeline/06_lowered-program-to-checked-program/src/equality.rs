@@ -1,6 +1,7 @@
 //! Rewrite a goal with the equality terms available at that program point.
 //! Each visited expression carries a proof from the original left endpoint.
 
+use proof_admission::PlainData;
 use proof_admission::{
     Budget, Context, CoreError, Term, TermArena, TermHandle, infer_type, shift, weak_head_normalize,
 };
@@ -145,8 +146,9 @@ fn spine(arena: &TermArena, term: TermHandle) -> (TermHandle, Vec<TermHandle>) {
     (head, arguments)
 }
 
-/// What each declaration of a signature is to the normalizer.
-pub(crate) struct Definitions(Vec<Definition>);
+/// What each declaration of a signature is to the normalizer, and the shape
+/// of each data declaration by its entry.
+pub(crate) struct Definitions(Vec<Definition>, Vec<(u32, PlainData)>);
 
 impl Definitions {
     /// A signature with no data: every body is an abbreviation.
@@ -161,6 +163,7 @@ impl Definitions {
                     None => Definition::Opaque,
                 })
                 .collect(),
+            Vec::new(),
         )
     }
 
@@ -198,6 +201,14 @@ impl Definitions {
                     SignatureEntryKind::Function { cases: None, .. } => Definition::Abbreviation,
                 })
                 .collect(),
+            entries
+                .iter()
+                .enumerate()
+                .filter_map(|(entry, described)| match &described.kind {
+                    SignatureEntryKind::Data { shape, .. } => Some((entry as u32, shape.clone())),
+                    _ => None,
+                })
+                .collect(),
         )
     }
 
@@ -229,6 +240,191 @@ impl Definitions {
             }
             _ => None,
         }
+    }
+
+    /// Both sides of an equality as cases of one data declaration, each
+    /// applied to all of its fields.
+    #[allow(clippy::type_complexity)]
+    fn cases(
+        &self,
+        arena: &TermArena,
+        equality: Equality,
+    ) -> Option<(
+        u32,
+        &PlainData,
+        (usize, Vec<TermHandle>),
+        (usize, Vec<TermHandle>),
+    )> {
+        let (head, _) = spine(arena, equality.from);
+        let Term::Constant { declaration, .. } = arena.get(head) else {
+            return None;
+        };
+        let Definition::Constructor { data, .. } = self.get(declaration) else {
+            return None;
+        };
+        let data = *data;
+        let (_, shape) = self.1.iter().find(|(entry, _)| *entry == data)?;
+        Some((
+            data,
+            shape,
+            self.constructed(arena, data, equality.from)?,
+            self.constructed(arena, data, equality.to)?,
+        ))
+    }
+
+    /// A proof of `goal` from an equality of two different cases, which no
+    /// value satisfies. A function sends the left side's case to one element
+    /// of `Two` and every other case to the other, so the equality becomes
+    /// an equality of those two elements, and a family of types that is
+    /// inhabited at the first and is `goal` at the second carries a proof
+    /// across it. `None` when the two sides are not different cases.
+    fn absurd(
+        &self,
+        arena: &mut TermArena,
+        equality: Equality,
+        goal: TermHandle,
+    ) -> Option<TermHandle> {
+        let (data, shape, (case, _), (other, _)) = self.cases(arena, equality)?;
+        if case == other {
+            return None;
+        }
+        let shape = shape.clone();
+        let ty = arena.insert(Term::Constant {
+            declaration: data,
+            levels: Vec::new(),
+        });
+        let two = arena.insert(Term::Two);
+        let (zero, one) = (arena.insert(Term::TwoZero), arena.insert(Term::TwoOne));
+        let motive = arena.insert(Term::Lambda {
+            domain: ty,
+            body: two,
+        });
+        let branches: Vec<_> = (0..shape.cases())
+            .map(|each| {
+                let body = if each == case { zero } else { one };
+                shape.branch(arena, data, motive, each, body)
+            })
+            .collect();
+        let subject = arena.insert(Term::Variable(0));
+        let selected = shape.induct(arena, data, motive, &branches, subject);
+        let discriminator = arena.insert(Term::Lambda {
+            domain: ty,
+            body: selected,
+        });
+        let apply = |arena: &mut TermArena, function, argument| {
+            arena.insert(Term::Apply { function, argument })
+        };
+        // The equality of the two sides' elements of `Two`.
+        let from = shift(arena, equality.from, 0, 2);
+        let left = apply(arena, discriminator, from);
+        let destination = arena.insert(Term::Variable(1));
+        let right = apply(arena, discriminator, destination);
+        let conclusion = arena.insert(Term::Id {
+            ty: two,
+            left,
+            right,
+        });
+        let value = apply(arena, discriminator, equality.from);
+        let base = arena.insert(Term::Refl { ty: two, value });
+        let distinct = Equality {
+            carrier: two,
+            from: value,
+            to: apply(arena, discriminator, equality.to),
+            proof: equality.eliminate(arena, conclusion, base),
+        };
+        // The family: an inhabited type at the first element, the goal at
+        // the second.
+        let universe = arena.insert(Term::Sort(proof_admission::Sort::Type(
+            proof_admission::Level::Constant(0),
+        )));
+        let family_motive = arena.insert(Term::Lambda {
+            domain: two,
+            body: universe,
+        });
+        let inhabited = arena.insert(Term::Id {
+            ty: two,
+            left: zero,
+            right: zero,
+        });
+        let goal_under = shift(arena, goal, 0, 2);
+        let scrutinee = arena.insert(Term::Variable(1));
+        let conclusion = arena.insert(Term::CaseTwo {
+            motive: family_motive,
+            zero_branch: inhabited,
+            one_branch: goal_under,
+            scrutinee,
+        });
+        let base = arena.insert(Term::Refl {
+            ty: two,
+            value: zero,
+        });
+        Some(distinct.eliminate(arena, conclusion, base))
+    }
+
+    /// What a constructor's injectivity gives from an equality of two values
+    /// of one case: the equality of each pair of fields. The proof applies
+    /// to both sides a function that returns that field of the case and
+    /// leaves every other case as it is, so it computes to the field on
+    /// each; the kernel checks that computation where the result is used.
+    fn injective(&self, arena: &mut TermArena, equality: Equality) -> Vec<Equality> {
+        let Some((data, shape, (case, left), (right_case, right))) = self.cases(arena, equality)
+        else {
+            return Vec::new();
+        };
+        if right_case != case {
+            return Vec::new();
+        }
+        let ty = arena.insert(Term::Constant {
+            declaration: data,
+            levels: Vec::new(),
+        });
+        let motive = arena.insert(Term::Lambda {
+            domain: ty,
+            body: ty,
+        });
+        let mut derived = Vec::with_capacity(left.len());
+        for field in 0..shape.arity(case) {
+            let branches: Vec<_> = (0..shape.cases())
+                .map(|other| {
+                    let body = if other == case {
+                        shape.field(arena, other, field, 0)
+                    } else {
+                        shape.case_value(arena, data, other, 0)
+                    };
+                    shape.branch(arena, data, motive, other, body)
+                })
+                .collect();
+            let subject = arena.insert(Term::Variable(0));
+            let selected = shape.induct(arena, data, motive, &branches, subject);
+            let projection = arena.insert(Term::Lambda {
+                domain: ty,
+                body: selected,
+            });
+            let apply = |arena: &mut TermArena, argument| {
+                arena.insert(Term::Apply {
+                    function: projection,
+                    argument,
+                })
+            };
+            let from = shift(arena, equality.from, 0, 2);
+            let left_side = apply(arena, from);
+            let destination = arena.insert(Term::Variable(1));
+            let right_side = apply(arena, destination);
+            let conclusion = arena.insert(Term::Id {
+                ty,
+                left: left_side,
+                right: right_side,
+            });
+            let value = apply(arena, equality.from);
+            let base = arena.insert(Term::Refl { ty, value });
+            derived.push(Equality {
+                carrier: ty,
+                from: left[field as usize],
+                to: right[field as usize],
+                proof: equality.eliminate(arena, conclusion, base),
+            });
+        }
+        derived
     }
 
     /// An induction applied to a motive, its branches and a subject is the
@@ -758,13 +954,26 @@ pub(crate) fn prove_under(
             right: to,
         } = arena.get(head)
         {
-            let equality = Equality {
+            // The equality as stated, then what injectivity gives from it,
+            // down to the fields of fields.
+            let mut stated = vec![Equality {
                 carrier,
                 from: normal(arena, context, definitions, from, conversion)?,
                 to: normal(arena, context, definitions, to, conversion)?,
                 proof,
-            };
-            rules.extend([equality, equality.reversed(arena)]);
+            }];
+            let mut next = 0;
+            while let Some(&equality) = stated.get(next) {
+                next += 1;
+                charge(&mut search_steps)?;
+                stated.extend(definitions.injective(arena, equality));
+            }
+            for equality in stated {
+                if let Some(proof) = definitions.absurd(arena, equality, goal) {
+                    return Ok(proof);
+                }
+                rules.extend([equality, equality.reversed(arena)]);
+            }
         }
     }
     if rules.is_empty() {
@@ -784,6 +993,10 @@ pub(crate) fn prove_under(
                 }
                 let replacement = shift(arena, rule.to, 0, depth);
                 let rewritten = plug(arena, &path, replacement, 0);
+                // The rewrite may have put a case where a function dispatches.
+                // The kernel converts the computed form, so the proof of the
+                // rewritten term is a proof of it too.
+                let rewritten = normal(arena, context, definitions, rewritten, conversion)?;
                 let mut seen = false;
                 for &(known, _) in &reached {
                     charge(&mut search_steps)?;

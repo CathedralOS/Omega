@@ -13,6 +13,7 @@ use proof_admission::{
     Budget, Context, CoreError, DEFAULT_CONVERSION_STEPS, Declaration, Level,
     MathematicalCertificate, MathematicalCoreDecision, MathematicalJudgmentReceipt, Signature,
     Sort, Term, TermArena, TermHandle, check_signature_with_attribution, convertible, instantiate,
+    shift,
 };
 use terminal_check_tables::UnprovedCause;
 use terminal_check_tables::mathematics::{
@@ -156,6 +157,27 @@ fn failure(case: Option<usize>, error: SearchError) -> Failure {
     }
 }
 
+/// Why a case's citations gave no evidence.
+enum Uncited {
+    Search(SearchError),
+    /// A cited law requires an equality the case cannot prove at the cited
+    /// arguments.
+    Premise,
+}
+
+impl Uncited {
+    fn failure(self, case: Option<usize>) -> Failure {
+        match self {
+            Self::Search(error) => failure(case, error),
+            Self::Premise => Failure {
+                case,
+                cause: UnprovedCause::NoDerivation,
+                detail: "a cited law's premise is not established at its citation".to_owned(),
+            },
+        }
+    }
+}
+
 fn kernel(error: CoreError) -> Failure {
     failure(None, error.into())
 }
@@ -198,7 +220,7 @@ pub(crate) fn judge(
     let mut judged = Vec::with_capacity(laws.len());
     let mut unproved = Vec::new();
     for law in &laws {
-        match prove_law(&mut arena, &declarations, &entries, &licenses, law) {
+        match prove_law(&mut arena, &declarations, &entries, &laws, &licenses, law) {
             Ok(judgment) => judged.push(judgment),
             Err(Failure {
                 case,
@@ -303,10 +325,137 @@ fn licenses(
     found.into_iter().map(|(_, license)| license).collect()
 }
 
+/// What a case of a law may cite, as kernel terms of that case's context.
+struct Cited<'c> {
+    arena: &'c mut TermArena,
+    context: &'c Context,
+    definitions: &'c Definitions,
+    licenses: &'c [License],
+    laws: &'c [Law],
+    law: &'c Law,
+    /// Each formal of the law and then each field of the case, as the
+    /// context names them: what a citation's arguments are written over.
+    names: &'c [TermHandle],
+    /// The induction hypothesis for a field, when the law dispatches.
+    hypothesis: &'c dyn Fn(&mut TermArena, u32) -> TermHandle,
+}
+
+impl Cited<'_> {
+    /// The equalities the case has: the law's premises as its hypotheses,
+    /// then each citation. A cited law's premises are proved here, at the
+    /// cited arguments, from the case's other evidence, in whatever order
+    /// the body wrote its citations. A citation whose premise cannot be
+    /// proved refuses the case: its law was cited where it does not apply.
+    fn evidence(
+        self,
+        citations: &[terminal_check_tables::mathematics::Citation],
+        budget: &mut Budget,
+    ) -> Result<Vec<TermHandle>, Uncited> {
+        let held = self.law.premises.len();
+        let mut evidence: Vec<_> = (0..held)
+            .map(|premise| variable(self.arena, held - 1 - premise))
+            .collect();
+        let mut waiting = Vec::new();
+        for citation in citations {
+            let arguments: Vec<_> = citation
+                .arguments
+                .iter()
+                .map(|&argument| instantiate(self.arena, argument, self.names))
+                .collect();
+            let (head, premises, actuals) = match citation.evidence {
+                Evidence::Statement(cited) => {
+                    let premises = self
+                        .laws
+                        .iter()
+                        .find(|law| law.statement == cited)
+                        .map_or(&[][..], |law| law.premises.as_slice());
+                    (constant(self.arena, cited), premises, arguments.clone())
+                }
+                Evidence::Hypothesis { field } => {
+                    // The law at a field: the field in the dispatched
+                    // formal's place, the citation's arguments in the others'.
+                    let LawProof::Cases { formal, .. } = &self.law.proof else {
+                        return Err(Uncited::Search(SearchError::NoProof));
+                    };
+                    let count = self.law.formals.len();
+                    let mut others = arguments.iter().copied();
+                    let actuals: Vec<_> = (0..count)
+                        .map(|position| {
+                            if position == *formal as usize {
+                                self.names.get(count + field as usize).copied()
+                            } else {
+                                others.next()
+                            }
+                        })
+                        .collect::<Option<_>>()
+                        .ok_or(Uncited::Search(SearchError::NoProof))?;
+                    (
+                        (self.hypothesis)(self.arena, field),
+                        self.law.premises.as_slice(),
+                        actuals,
+                    )
+                }
+            };
+            let term = self.arena.apply_arguments(head, &arguments);
+            let goals: Vec<_> = premises
+                .iter()
+                .map(|&premise| instantiate(self.arena, premise, &actuals))
+                .collect();
+            if goals.is_empty() {
+                evidence.push(term);
+            } else {
+                waiting.push((term, goals));
+            }
+        }
+        // Each round admits every waiting citation whose premises the
+        // evidence so far proves, until none waits or a round admits none.
+        while !waiting.is_empty() {
+            let mut refused = Vec::new();
+            let before = evidence.len();
+            for (mut term, goals) in waiting {
+                let mut proofs = Vec::with_capacity(goals.len());
+                for &goal in &goals {
+                    match prove_under(
+                        self.arena,
+                        self.context,
+                        self.definitions,
+                        goal,
+                        &evidence,
+                        self.licenses,
+                        SEARCH_STEPS,
+                        budget,
+                    ) {
+                        Ok(proof) => proofs.push(proof),
+                        Err(SearchError::NoProof) => break,
+                        Err(error) => return Err(Uncited::Search(error)),
+                    }
+                }
+                if proofs.len() < goals.len() {
+                    refused.push((term, goals));
+                    continue;
+                }
+                for proof in proofs {
+                    term = self.arena.insert(Term::Apply {
+                        function: term,
+                        argument: proof,
+                    });
+                }
+                evidence.push(term);
+            }
+            if evidence.len() == before {
+                return Err(Uncited::Premise);
+            }
+            waiting = refused;
+        }
+        Ok(evidence)
+    }
+}
+
 fn prove_law(
     arena: &mut TermArena,
     declarations: &[Declaration],
     entries: &[SignatureEntry],
+    laws: &[Law],
     granted: &[OperandLicense],
     law: &Law,
 ) -> Result<LawJudgment, Failure> {
@@ -316,6 +465,8 @@ fn prove_law(
     let closed = Context::empty().with_signature(Signature::from_declarations(prefix.clone()));
     let statement = declarations[law.statement as usize].ty;
     let count = law.formals.len();
+    // A proof of each premise is bound after the formals, innermost last.
+    let held = law.premises.len() as u32;
     let mut budget = Budget::default();
     let body = match &law.proof {
         LawProof::Direct(direct) => {
@@ -323,19 +474,30 @@ fn prove_law(
             for &formal in &law.formals {
                 context = context.extend(formal);
             }
-            let mut evidence = Vec::with_capacity(direct.citations.len());
-            for citation in &direct.citations {
-                let Evidence::Statement(cited) = citation.evidence else {
-                    return Err(failure(None, SearchError::NoProof));
-                };
-                let head = constant(arena, cited);
-                evidence.push(arena.apply_arguments(head, &citation.arguments));
+            for (position, &premise) in law.premises.iter().enumerate() {
+                context = context.extend(shift(arena, premise, 0, position as u32));
             }
+            let names: Vec<_> = (0..count)
+                .map(|formal| variable(arena, count - 1 - formal + held as usize))
+                .collect();
+            let goal = shift(arena, law.goal, 0, held);
+            let evidence = Cited {
+                arena,
+                context: &context,
+                definitions: &definitions,
+                licenses: &licenses,
+                laws,
+                law,
+                names: &names,
+                hypothesis: &|arena, _| arena.insert(Term::Dummy),
+            }
+            .evidence(&direct.citations, &mut budget)
+            .map_err(|error| error.failure(None))?;
             prove_under(
                 arena,
                 &context,
                 &definitions,
-                law.goal,
+                goal,
                 &evidence,
                 &licenses,
                 SEARCH_STEPS,
@@ -368,9 +530,31 @@ fn prove_law(
                     )
                     .collect()
             };
+            // What a value of the subject must satisfy: for the other
+            // formals and a proof of each premise at that value, the goal.
+            let conclusion = |arena: &mut TermArena, actuals: &[TermHandle]| {
+                let goal = instantiate(arena, law.goal, actuals);
+                let goal = shift(arena, goal, 0, held);
+                let premises: Vec<_> = law
+                    .premises
+                    .iter()
+                    .enumerate()
+                    .map(|(position, &premise)| {
+                        let premise = instantiate(arena, premise, actuals);
+                        shift(arena, premise, 0, position as u32)
+                    })
+                    .collect();
+                (premises, goal)
+            };
             let tree = variable(arena, rest);
             let actuals = outer(arena, tree);
-            let mut landing = instantiate(arena, law.goal, &actuals);
+            let (premises, mut landing) = conclusion(arena, &actuals);
+            for &premise in premises.iter().rev() {
+                landing = arena.insert(Term::Pi {
+                    domain: premise,
+                    codomain: landing,
+                });
+            }
             for &other in others.iter().rev() {
                 landing = arena.insert(Term::Pi {
                     domain: law.formals[other],
@@ -393,26 +577,31 @@ fn prove_law(
                     context = context.extend(law.formals[other]);
                 }
                 let value = shape.case_value(arena, *data, case, rest as u32);
-                let mut actuals = outer(arena, value);
-                let goal = instantiate(arena, law.goal, &actuals);
+                let actuals = outer(arena, value);
+                let (premises, goal) = conclusion(arena, &actuals);
+                for &premise in &premises {
+                    context = context.extend(premise);
+                }
+                let inner = rest as u32 + held;
+                let mut names: Vec<_> = actuals
+                    .iter()
+                    .map(|&actual| shift(arena, actual, 0, held))
+                    .collect();
                 for field in 0..shape.arity(case) {
-                    actuals.push(shape.field(arena, case, field, rest as u32));
+                    names.push(shape.field(arena, case, field, inner));
                 }
-                let mut evidence = Vec::with_capacity(script.citations.len());
-                for citation in &script.citations {
-                    let head = match citation.evidence {
-                        Evidence::Statement(cited) => constant(arena, cited),
-                        Evidence::Hypothesis { field } => {
-                            shape.hypothesis(arena, case, field, rest as u32)
-                        }
-                    };
-                    let arguments: Vec<_> = citation
-                        .arguments
-                        .iter()
-                        .map(|&argument| instantiate(arena, argument, &actuals))
-                        .collect();
-                    evidence.push(arena.apply_arguments(head, &arguments));
+                let evidence = Cited {
+                    arena,
+                    context: &context,
+                    definitions: &definitions,
+                    licenses: &licenses,
+                    laws,
+                    law,
+                    names: &names,
+                    hypothesis: &|arena, field| shape.hypothesis(arena, case, field, inner),
                 }
+                .evidence(&script.citations, &mut budget)
+                .map_err(|error| error.failure(Some(case)))?;
                 let mut branch = prove_under(
                     arena,
                     &context,
@@ -424,6 +613,12 @@ fn prove_law(
                     &mut budget,
                 )
                 .map_err(|error| failure(Some(case), error))?;
+                for &premise in premises.iter().rev() {
+                    branch = arena.insert(Term::Lambda {
+                        domain: premise,
+                        body: branch,
+                    });
+                }
                 for &other in others.iter().rev() {
                     branch = arena.insert(Term::Lambda {
                         domain: law.formals[other],
@@ -432,16 +627,25 @@ fn prove_law(
                 }
                 branches.push(shape.branch(arena, *data, motive, case, branch));
             }
-            let tree = variable(arena, count - 1 - subject);
+            let tree = variable(arena, count - 1 - subject + held as usize);
             let induction = shape.induct(arena, *data, motive, &branches, tree);
-            let arguments: Vec<_> = others
+            let mut arguments: Vec<_> = others
                 .iter()
-                .map(|&other| variable(arena, count - 1 - other))
+                .map(|&other| variable(arena, count - 1 - other + held as usize))
                 .collect();
+            arguments
+                .extend((0..held).map(|premise| variable(arena, (held - 1 - premise) as usize)));
             arena.apply_arguments(induction, &arguments)
         }
     };
     let mut proof = body;
+    for (position, &premise) in law.premises.iter().enumerate().rev() {
+        let domain = shift(arena, premise, 0, position as u32);
+        proof = arena.insert(Term::Lambda {
+            domain,
+            body: proof,
+        });
+    }
     for &formal in law.formals.iter().rev() {
         proof = arena.insert(Term::Lambda {
             domain: formal,

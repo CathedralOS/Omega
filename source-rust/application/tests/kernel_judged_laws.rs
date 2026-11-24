@@ -172,6 +172,23 @@ fn a_local_operation_gets_no_license_from_the_library_conformance() {
 }
 
 #[test]
+fn laws_with_a_premise_compile() {
+    let (output, report) = check("law_premise/pass/peano_cancellation");
+    assert_eq!(output.status.code(), Some(0), "{report}");
+}
+
+#[test]
+fn a_citation_without_its_premise_is_refused() {
+    let (output, report) = check("law_premise/fail/citation_without_its_premise");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains("cannot prove ensures contract for `cancels_without_its_premise`")
+            && report.contains("a cited law's premise is not established at its citation"),
+        "{report}"
+    );
+}
+
+#[test]
 fn a_satisfier_that_proves_nothing_is_refused_for_the_law_it_inherits() {
     let (output, report) = check("ring_law/fail/ring_law_unproven_rejected");
     assert_eq!(output.status.code(), Some(1), "{report}");
