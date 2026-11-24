@@ -164,6 +164,16 @@ fn the_build_refuses_malformed_group_requests_before_any_test_runs() {
             "test group registration repeats the same requirement",
         ),
         (
+            "wrong_adapter",
+            "    _ = builder.tests.group::<Tests::arithmetic, Tests>();",
+            "test group operand `Tests` must name one visible adapter machine with a body",
+        ),
+        (
+            "extra_adapter",
+            "    _ = builder.tests.group::<Tests::arithmetic, main, main>();",
+            "one exact trait machine requirement and an optional adapter machine",
+        ),
+        (
             "retired_service",
             "    _ = builder.tests.group::<Tests::arithmetic>();\n    _ = builder.tests.service::<Tests::arithmetic, FilesystemService>();",
             "this call has no visible declaration in its source scope",

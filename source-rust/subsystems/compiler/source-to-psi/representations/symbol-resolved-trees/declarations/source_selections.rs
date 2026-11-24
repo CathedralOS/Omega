@@ -51,6 +51,7 @@ pub struct ServiceAuditRegistration {
 pub struct TestGroupRegistration {
     pub configuration: crate::declaration_selection::TestGroupConfiguration,
     pub requirement: SymbolHandle,
+    pub adapter: Option<SymbolHandle>,
     pub selecting_machine: SymbolHandle,
     pub source_span: SourceSpan,
 }

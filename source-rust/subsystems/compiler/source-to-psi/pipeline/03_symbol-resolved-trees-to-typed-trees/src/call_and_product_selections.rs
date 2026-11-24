@@ -3872,7 +3872,7 @@ pub(crate) mod product_selections {
                 BuildOperation::ServiceExclusion
                 | BuildOperation::ServiceAudit
                 | BuildOperation::BoundaryAcceptance => "one bare declaration operand",
-                BuildOperation::TestGroupRegistration => "one exact trait machine requirement operand",
+                BuildOperation::TestGroupRegistration => "one exact trait machine requirement and an optional adapter machine",
                 BuildOperation::WireCompatibilityRequest =>
                     "four schema declaration operands and compatibility facts",
                 _ => "two bare declaration operands",

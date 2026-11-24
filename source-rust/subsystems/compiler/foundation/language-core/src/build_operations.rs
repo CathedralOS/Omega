@@ -103,6 +103,7 @@ pub enum ProductOperandRole {
     WireCompatibilityFact,
     Formal,
     Field,
+    CheckedMachine,
 }
 
 impl BuildOperation {
@@ -120,6 +121,7 @@ impl BuildOperation {
                 Some(Role::Requirement)
             }
             (Self::TestGroupRegistration, 0) => Some(Role::TestRequirement),
+            (Self::TestGroupRegistration, 1) => Some(Role::CheckedMachine),
             (Self::RepresentationSelection, 0) | (Self::WireCompatibilityRequest, 0..=3) => {
                 Some(Role::Data)
             }
@@ -135,10 +137,8 @@ impl BuildOperation {
             Self::ProviderSelection
             | Self::RepresentationSelection
             | Self::AssumedBindingContract => count == 2,
-            Self::ServiceExclusion
-            | Self::ServiceAudit
-            | Self::BoundaryAcceptance
-            | Self::TestGroupRegistration => count == 1,
+            Self::ServiceExclusion | Self::ServiceAudit | Self::BoundaryAcceptance => count == 1,
+            Self::TestGroupRegistration => matches!(count, 1 | 2),
             Self::WireCompatibilityRequest => count >= 5,
             _ => false,
         }
