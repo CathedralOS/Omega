@@ -107,14 +107,35 @@ impl<'program> ProductDeclarationLookup<'program> {
         occurrence: source_text::SourceSpan,
         kind: ProductOperandKind,
     ) -> Option<SymbolHandle> {
+        let index = &self.declarations;
+        let token_bound_machines = if matches!(
+            kind,
+            ProductOperandKind::BoundarySubject | ProductOperandKind::RootGrantSubject
+        ) {
+            index.token_bound_machines.as_slice()
+        } else {
+            &[]
+        };
+        self.resolve_candidates(
+            path,
+            occurrence,
+            &index.roles[product_role_position(kind)?],
+            token_bound_machines,
+        )
+    }
+
+    fn resolve_candidates(
+        &self,
+        path: &str,
+        occurrence: source_text::SourceSpan,
+        rows: &[ProductDeclarationName],
+        token_bound_machines: &[SymbolHandle],
+    ) -> Option<SymbolHandle> {
         let program = self.program;
-        let role = product_role_position(kind)?;
         let occurrence = program.symbols.rejoin_product_occurrence(occurrence);
         // The final name narrows the candidates. The symbol table checks the
         // complete path, source file and visibility at the authored occurrence.
         let name = product_member_name(path);
-        let index = &self.declarations;
-        let rows = &index.roles[role];
         let first = rows.partition_point(|row| row.name.as_ref() < name);
         let last = rows.partition_point(|row| row.name.as_ref() <= name);
         program.symbols.find_build_subject_declaration_from_source(
@@ -123,14 +144,7 @@ impl<'program> ProductDeclarationLookup<'program> {
             rows[first..last]
                 .iter()
                 .map(|row| (row.symbol, row.is_public)),
-            if matches!(
-                kind,
-                ProductOperandKind::BoundarySubject | ProductOperandKind::RootGrantSubject
-            ) {
-                &index.token_bound_machines
-            } else {
-                &[]
-            },
+            token_bound_machines,
         )
     }
 }
@@ -176,6 +190,25 @@ fn source_span_key(span: source_text::SourceSpan) -> (usize, usize, usize) {
 }
 
 impl TypedTrees {
+    fn product_declaration_names(
+        &self,
+        candidates: impl IntoIterator<Item = (SymbolHandle, bool)>,
+    ) -> Vec<ProductDeclarationName> {
+        let mut rows = Vec::new();
+        for (symbol, is_public) in candidates {
+            if self.symbols.symbols().nodes().is_valid(symbol) {
+                rows.push(ProductDeclarationName {
+                    name: product_member_name(self.symbols.name(symbol)).into(),
+                    symbol,
+                    is_public,
+                });
+            }
+        }
+        // Stable sorting retains the original representative of an operator family.
+        rows.sort_by(|left, right| left.name.cmp(&right.name));
+        rows
+    }
+
     fn build_product_declaration_index(
         &self,
         roles: &[ProductOperandKind],
@@ -186,21 +219,8 @@ impl TypedTrees {
             .enumerate()
             .filter(|(_, role)| roles.contains(role))
         {
-            let rows = &mut index.roles[role_position];
-            for (symbol, is_public) in product_candidates(self, role) {
-                if !self.symbols.symbols().nodes().is_valid(symbol) {
-                    continue;
-                }
-                let name = self.symbols.name(symbol);
-                rows.push(ProductDeclarationName {
-                    name: product_member_name(name).into(),
-                    symbol,
-                    is_public,
-                });
-            }
-            // Stable sorting retains the original representative of an
-            // operator family and every competing exact declaration.
-            rows.sort_by(|left, right| left.name.cmp(&right.name));
+            index.roles[role_position] =
+                self.product_declaration_names(product_candidates(self, role));
         }
         if roles.contains(&ProductOperandKind::BoundarySubject)
             || roles.contains(&ProductOperandKind::RootGrantSubject)
@@ -499,6 +519,7 @@ pub struct ProductRequestAuthors<'program> {
 pub struct ProductSourceLookups<'program> {
     pub declarations: ProductDeclarationLookup<'program>,
     pub authors: ProductRequestAuthors<'program>,
+    types: Vec<ProductDeclarationName>,
 }
 
 impl<'program> ProductSourceLookups<'program> {
@@ -512,9 +533,12 @@ impl<'program> ProductSourceLookups<'program> {
                     ProductOperandKind::Provider,
                     ProductOperandKind::Requirement,
                     ProductOperandKind::TestRequirement,
-                    ProductOperandKind::Data,
                     ProductOperandKind::Domain,
                 ],
+            ),
+            types: program.product_declaration_names(
+                program.data_definitions().iter().map(|row| (row.symbol, row.is_public))
+                    .chain(program.type_aliases().iter().map(|row| (row.symbol, row.is_public))),
             ),
             authors: ProductRequestAuthors::new(program),
         }

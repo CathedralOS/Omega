@@ -373,6 +373,7 @@ struct Capture<'a> {
     seen_expressions: Membership<(SymbolHandle, ExpressionHandle, bool)>,
     seen_types: Membership<(SymbolHandle, TypeReferenceHandle)>,
     product_type_inputs: Membership<ProductTypeInput>,
+    product_alias_instances: Membership<TypeReferenceHandle>,
     seen_facts: Membership<(
         SymbolHandle,
         arena::Handle<crate::source_state::domain::ProofFact>,
@@ -381,10 +382,71 @@ struct Capture<'a> {
     error: Option<SelectionCaptureError>,
 }
 
+/// A Build-selected alias carries its Product input on the written application.
+/// Its expansion may name declarations private to the file defining the alias.
+fn product_alias_input(
+    typed: &TypedTrees,
+    alias: &crate::source_state::type_aliases::TypeAliasApplication,
+) -> Result<Option<ProductTypeInput>, &'static str> {
+    use crate::source_state::types::TypeReferenceNode;
+
+    if alias.instance == alias.application
+        || !typed
+            .type_reference_table
+            .contains_type_reference(alias.application)
+    {
+        return Err("source selection traversed a stale alias application");
+    }
+    let TypeOperandOrigin::ProductInput(input) =
+        typed.type_reference_table.operand_origin(alias.application)
+    else {
+        return Ok(None);
+    };
+    let matches_head = match typed.type_reference_table.type_reference(alias.application) {
+        TypeReferenceNode::Named { symbol, .. } => {
+            *symbol == alias.declaration
+                && alias.arguments.is_empty()
+                && alias.lifetime_arguments.is_empty()
+        }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            lifetime_arguments,
+            ..
+        } => {
+            *base_symbol == alias.declaration
+                && *arguments == alias.arguments
+                && *lifetime_arguments == alias.lifetime_arguments
+        }
+        _ => false,
+    };
+    if !matches_head
+        || input.occurrence != alias.reference
+        || input.declaration != alias.declaration
+        || !typed.symbols.symbols().nodes().is_valid(alias.declaration)
+        || typed.symbols.get(alias.declaration).kind != SymbolKind::TypeAlias
+        || typed
+            .symbols
+            .symbol_provenance_source_span(alias.declaration)
+            != Some(alias.declaration_source)
+        || typed
+            .type_reference_table
+            .type_reference_handles(alias.arguments)
+            .len()
+            != alias.arguments.len()
+    {
+        return Err("a Product alias does not match its authored type occurrence");
+    }
+    Ok(Some(*input))
+}
+
 /// The same live selection that supplied the normalized argument must contain
 /// this type or domain occurrence. An unrelated argument, a stale lookup or a type
 /// merely carrying the same name cannot authorize the rejoined reference.
-fn formed_product_type_inputs(typed: &TypedTrees) -> Membership<ProductTypeInput> {
+fn formed_product_type_inputs(
+    typed: &TypedTrees,
+    product_alias_instances: &Membership<TypeReferenceHandle>,
+) -> Membership<ProductTypeInput> {
     use crate::declaration_selection::product_operands::ProductOperandConstraint;
     use crate::source_state::types::{TypeConstraintNode, TypeReferenceNode};
 
@@ -437,6 +499,13 @@ fn formed_product_type_inputs(typed: &TypedTrees) -> Membership<ProductTypeInput
                     typed.type_reference_table.operand_origin(reference)
                 {
                     retain(&input, typed.type_reference_symbol(reference), &names);
+                }
+                if product_alias_instances.contains(&reference) {
+                    for alias in typed.type_reference_table.type_alias_applications(reference) {
+                        if let Ok(Some(input)) = product_alias_input(typed, alias) {
+                            retain(&input, alias.declaration, &names);
+                        }
+                    }
                 }
                 if let TypeReferenceNode::Constrained { constraints, .. } =
                     typed.type_reference_table.type_reference(reference)
@@ -1085,8 +1154,28 @@ impl TypedReferences for Capture<'_> {
             self.fail("source selection traversed a stale type");
             return false;
         }
-        let key = (self.owner, reference);
-        self.seen_types.insert(key)
+        if !self.seen_types.insert((self.owner, reference)) {
+            return false;
+        }
+        if !self.product_alias_instances.contains(&reference) {
+            return true;
+        }
+        let typed = self.typed;
+        for alias in typed.type_reference_table.type_alias_applications(reference) {
+            match product_alias_input(typed, alias) {
+                Ok(Some(_)) => {
+                    crate::source_state::references::visit_type_reference(typed, self, alias.application);
+                }
+                Ok(None) => {}
+                Err(reason) => {
+                    self.fail(reason);
+                    return false;
+                }
+            }
+        }
+        // The alias declaration owns the selections in its expansion. The
+        // Build owns the written alias and arguments visited above.
+        false
     }
     fn proof_fact(&mut self, fact: arena::Handle<crate::source_state::domain::ProofFact>) -> bool {
         if !self.typed.proof_facts.is_valid(fact) {
@@ -1378,6 +1467,12 @@ pub(crate) fn capture_with_bodies(
     template_requirements
         .sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
     template_requirements.dedup();
+    // Ordinary references need no additional walk over the alias table.
+    // Retain malformed rows here so their first actual use reports the error.
+    let product_alias_instances = typed.type_reference_table.type_alias_applications_after(0)
+        .filter(|alias| !matches!(product_alias_input(typed, alias), Ok(None)))
+        .map(|alias| alias.instance)
+        .collect();
     let mut capture = Capture {
         typed,
         admitted,
@@ -1399,7 +1494,8 @@ pub(crate) fn capture_with_bodies(
         seen_dependencies: Membership::default(),
         seen_expressions: Membership::default(),
         seen_types: Membership::default(),
-        product_type_inputs: formed_product_type_inputs(typed),
+        product_type_inputs: formed_product_type_inputs(typed, &product_alias_instances),
+        product_alias_instances,
         seen_facts: Membership::default(),
         next_authored_symbol: None,
         error: None,
@@ -1663,6 +1759,73 @@ mod tests {
         };
         qualification.product_input = Some(unselected(domain));
         assert_refused(&typed);
+    }
+
+    #[test]
+    fn a_selected_alias_keeps_its_exact_source_head_and_written_arguments() {
+        use crate::source_state::type_aliases::TypeAliasApplication;
+        use crate::source_state::types::TypeReferenceNode;
+
+        let mut sources = SourceMap::default();
+        let file = sources
+            .add_with_metadata(
+                PathBuf::from("package/alias.omg"),
+                "Pack Pack".into(),
+                PathBuf::from("package"),
+                semantic_vocabulary::PackageKeyIdentity::from_digest([0x47; 32]),
+                SourceOrigin::User,
+            )
+            .source_id;
+        let declaration_source = SourceSpan::new(file, Span::new(0, 4));
+        let reference = SourceSpan::new(file, Span::new(5, 9));
+        let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let declaration = builder
+            .insert_children(
+                root,
+                [(
+                    SymbolKind::TypeAlias,
+                    SymbolNameRef::Source(declaration_source),
+                )],
+            )
+            .handle_at(0);
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let table = &mut typed.type_reference_table;
+        let instance = table.insert(TypeReferenceNode::Unit);
+        let arguments = table.insert_type_reference_handles([instance]);
+        let application = table.insert(TypeReferenceNode::Generic {
+            base_symbol: declaration,
+            base_name: Identifier::generated("Pack"),
+            lifetime_arguments: Vec::new(),
+            arguments,
+        });
+        let input = ProductTypeInput {
+            operand: reference,
+            occurrence: reference,
+            declaration,
+        };
+        table.set_operand_origin(
+            application,
+            TypeOperandOrigin::ProductInput(Arc::new(input)),
+        );
+        let mut alias = TypeAliasApplication {
+            instance,
+            application,
+            declaration,
+            declaration_source,
+            reference,
+            arguments,
+            ..Default::default()
+        };
+        assert_eq!(product_alias_input(&typed, &alias), Ok(Some(input)));
+        alias.arguments = arena::HandleSpan::empty();
+        assert!(product_alias_input(&typed, &alias).is_err());
+        alias.arguments = arguments;
+        alias.declaration_source = reference;
+        assert!(product_alias_input(&typed, &alias).is_err());
     }
 
     #[test]

@@ -988,8 +988,18 @@ pub(crate) mod capture_product_operands {
             Source::Callable { .. } => {
                 return Err(Diagnostic::error("captured Product static type cannot yet retain a complete scoped callable contract"));
             }
-            Source::AliasUse { .. } => {
-                return Err(Diagnostic::error("captured Product static type cannot yet retain transparent alias application obligations"));
+            Source::AliasUse { application, declaration_source, .. } => {
+                let (declaration, name) = match application.as_ref() {
+                    Source::Named { symbol, name, .. } => (*symbol, name),
+                    Source::Generic(generic) => (generic.base_symbol, &generic.base_name),
+                    _ => return Err(Diagnostic::error("captured Product alias lost its written type application")),
+                };
+                crate::typing::type_reference::alias_uses::check_declaration(
+                    source, declaration, *declaration_source, name.source_span(),
+                )?;
+                // Product formation checks the written arguments and substitutes the
+                // selected alias's own expansion in its declaring scope.
+                return self.ty(application);
             }
         };
             Ok(self.graph.types.insert(value))
