@@ -5,7 +5,6 @@ use super::{
     compare_interpretation, compilation, format_work_tsv, private_observation, psi,
     retained_artifacts,
 };
-use crate::saved_program::ExecutionProduct;
 use package_compilation::build_execution::BuildSnapshotRequest;
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::fmt::Write;
@@ -72,6 +71,7 @@ impl InputCase {
 pub fn run_project_cases(
     artifact: Option<psi_authorization::AuthorizedTerminalArtifact>,
     request: CaseRunRequest,
+    present_test: impl FnMut(&str),
 ) -> Result<CaseRunOutcome, RunError> {
     let budget = request
         .psi_work_budget
@@ -98,14 +98,7 @@ pub fn run_project_cases(
         }
         inputs.push(InputCase { path, name });
     }
-    let product = match request.selection {
-        ExecutionSelection::Terminal => ExecutionProduct::Runtime,
-        ExecutionSelection::Both | ExecutionSelection::Native => ExecutionProduct::Native,
-    };
-    let compilation::ProbeCompilation {
-        report,
-        target_name,
-    } = compilation::compile(
+    let report = super::prepare_program(
         artifact,
         compilation::ProjectInput {
             root_path: request.root_path,
@@ -114,9 +107,9 @@ pub fn run_project_cases(
             build_snapshot: request.build_snapshot,
             target_name: request.target_name,
         },
-        product,
-    )
-    .map_err(RunError::Compilation)?;
+        request.selection,
+        present_test,
+    )?;
     if request.keep_artifacts {
         retained_artifacts::retain(&report, &build_dir)?;
     }
@@ -125,7 +118,7 @@ pub fn run_project_cases(
             // Single-engine observations have a fresh destination. A failed
             // guest cannot inherit streams from an earlier invocation.
             std::fs::create_dir(directory).map_err(RunError::ReferenceOutput)?;
-            psi_cases(&inputs, directory, &report, target_name, budget)?
+            psi_cases(&inputs, directory, &report, budget)?
         }
         selection => {
             std::fs::create_dir_all(directory).map_err(RunError::ReferenceOutput)?;
@@ -134,12 +127,7 @@ pub fn run_project_cases(
             let mut references = Vec::new();
             if selection == ExecutionSelection::Both {
                 for input in &inputs {
-                    references.push(psi::execute(
-                        &report,
-                        Some(Box::new(input.open()?)),
-                        target_name,
-                        budget,
-                    ));
+                    references.push(psi::execute(&report, Some(Box::new(input.open()?)), budget));
                 }
             }
             let (report, executable) = report.publish(&build_dir).map_err(RunError::Publication)?;
@@ -161,18 +149,13 @@ fn psi_cases(
     inputs: &[InputCase],
     directory: &Path,
     report: &compilation::RunProduct,
-    target: &str,
     budget: u64,
 ) -> Result<(Vec<CaseOutcome>, String), RunError> {
     let mut cases = Vec::with_capacity(inputs.len());
     let mut table = String::from("case\ttermination\tdetail\n");
     for input in inputs {
-        let outcome = TerminalOutcome::from(psi::execute(
-            report,
-            Some(Box::new(input.open()?)),
-            target,
-            budget,
-        ));
+        let outcome =
+            TerminalOutcome::from(psi::execute(report, Some(Box::new(input.open()?)), budget));
         if let TerminalOutcome::Completed(observation) = &outcome {
             input.write_observation(directory, "stdout", &observation.stdout)?;
             input.write_observation(directory, "stderr", &observation.stderr)?;

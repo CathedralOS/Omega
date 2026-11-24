@@ -8,9 +8,9 @@ use terminal_runtime::{
 pub(super) fn execute(
     report: &RunProduct,
     input: Option<Box<dyn std::io::Read + Send>>,
-    target: &str,
     psi_work_budget: u64,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
+    let target = report.target.target_name();
     let program = report
         .artifact()
         .ok_or(TerminalRuntimeError::InvalidProvision(

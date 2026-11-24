@@ -50,6 +50,18 @@ fn directory_cases_keep_finite_binary_streams_and_guest_termination_in_name_orde
         "{}",
         String::from_utf8_lossy(&execution.stderr)
     );
+    let report = String::from_utf8_lossy(&execution.stderr);
+    let (before_cases, _) = report.split_once("case a:").expect("first case outcome");
+    for name in ["first", "second"] {
+        let label = format!("test `{name}` in group `Checks::ready`");
+        assert_eq!(report.matches(&label).count(), 1, "{report}");
+        assert!(
+            before_cases
+                .lines()
+                .any(|line| line.contains(&label) && line.contains("passed on Psi interpreter")),
+            "{report}"
+        );
+    }
     let table = fs::read_to_string(directory.join("results.tsv")).unwrap();
     assert_eq!(
         table,
