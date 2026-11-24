@@ -1,4 +1,4 @@
 # Stage 05 reader functions returning a scalar, mathematical integer, erased or clause term.
 # Count the whole reader directory so moving a form between files does not change the limit.
 # Written by `cargo xtask check-rules --update-clause-term-readers`.
-24 source-rust/subsystems/compiler/source-to-psi/pipeline/05_prepared-typed-trees-to-lowered-program/src/read
+23 source-rust/subsystems/compiler/source-to-psi/pipeline/05_prepared-typed-trees-to-lowered-program/src/read

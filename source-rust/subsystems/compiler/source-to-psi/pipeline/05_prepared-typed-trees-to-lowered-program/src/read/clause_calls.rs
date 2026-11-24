@@ -66,11 +66,40 @@ pub(super) enum ClauseUse<'a> {
 
 pub(super) enum ClauseTerm {
     Operand(u32),
+    TypeParameter(u32),
     Proposition(Proposition),
     Scalar(ScalarTerm, ValueType),
 }
 
 impl ClauseTerm {
+    pub(super) fn type_body(
+        self,
+        id: MachineId,
+    ) -> Checked<terminal_psi::MathematicalPredicateBody> {
+        match self {
+            Self::Proposition(body) => {
+                Ok(terminal_psi::MathematicalPredicateBody::Proposition(body))
+            }
+            Self::TypeParameter(slot) => {
+                Ok(terminal_psi::MathematicalPredicateBody::TypeParameter(slot))
+            }
+            _ => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("expected a proof-relevant mathematical type"),
+            )),
+        }
+    }
+
+    fn from_type(body: terminal_psi::MathematicalPredicateBody) -> Self {
+        match body {
+            terminal_psi::MathematicalPredicateBody::Proposition(body) => Self::Proposition(body),
+            terminal_psi::MathematicalPredicateBody::TypeParameter(slot) => {
+                Self::TypeParameter(slot)
+            }
+        }
+    }
+
     pub(super) fn operand(self, id: MachineId) -> Checked<u32> {
         match self {
             Self::Operand(position) => Ok(position),
@@ -114,12 +143,26 @@ impl Program<'_> {
                 )
                 .map(ClauseTerm::Proposition);
         }
+        if matches!(usage, ClauseUse::ProofRelevantType | ClauseUse::Proposition)
+            && let ExpressionNode::Call(call) = table.expression(expression)
+            && let Some(sort) = self.mathematical_definition_sort(call.target_symbol)
+            && (matches!(usage, ClauseUse::Proposition)
+                || sort == symbols::FixedCoreDeclaration::Type)
+        {
+            return self
+                .applied_definition(id, scope, call)
+                .map(ClauseTerm::from_type);
+        }
         if matches!(usage, ClauseUse::ProofRelevantType) {
-            if let ExpressionNode::Call(call) = table.expression(expression)
-                && self.mathematical_definition_sort(call.target_symbol)
-                    == Some(symbols::FixedCoreDeclaration::Type)
+            if let ExpressionNode::Name(name) = table.expression(expression)
+                && !name.reserved_result_of.is_valid()
+                && !name.static_application.is_valid()
+                && table.name_path_members(name.members).len() == 1
+                && let Some(body) = scope
+                    .logical
+                    .and_then(|scope| scope.type_argument(name.symbol))
             {
-                return self.mathematical_clause(id, scope, call).map(ClauseTerm::Proposition);
+                return Ok(ClauseTerm::from_type(body.clone()));
             }
             return Err(unavailable("expected a proof-relevant mathematical type"));
         }

@@ -1439,12 +1439,18 @@ pub(crate) mod construction_destinations {
                         .iter()
                         .any(|definition| definition.symbol == call.target_symbol)
                     {
-                        // A mathematical parameter has a mathematical type,
-                        // not a receiving type a value is built at, and no
-                        // pass lands one there yet.
-                        if let Some(argument) = arguments
-                            .iter()
-                            .find(|argument| needs_destination(program, **argument))
+                        // Identity and transparent mathematical calls already declare
+                        // their result. Stage 05 checks that result against the
+                        // mathematical formal. Constructors still need a destination.
+                        if let Some(argument) = arguments.iter().find(|&&argument| {
+                            needs_destination(program, argument)
+                                && !matches!(program.expression_table.expression(argument),
+                                    ExpressionNode::Call(actual)
+                                    if program.symbols.fixed_core_declaration_for_symbol(actual.target_symbol)
+                                        == Some(symbols::FixedCoreDeclaration::Identity)
+                                        || (program.symbols.symbols().nodes().is_valid(actual.target_symbol)
+                                            && program.symbols.get(actual.target_symbol).kind == symbols::SymbolKind::MathematicalDefinition))
+                        })
                         {
                             deferred
                                 .push((*argument, DeferredRequest::MathematicalCallDestination));
