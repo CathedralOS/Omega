@@ -1567,6 +1567,67 @@ pub(crate) mod capabilities {
         }
 
         #[test]
+        fn implementation_selection_requires_a_fixed_u64_result_and_existing_table() {
+            use crate::engine::execution::TerminalExecution;
+            use semantic_vocabulary::{
+                IntegerSign, IntegerType, IntegerValue, ScalarType, ValueId,
+            };
+
+            let selector = ValueId::new(1).unwrap();
+            let unsigned = |bits| IntegerType::new(IntegerSign::Unsigned, bits).unwrap();
+            let carrier = unsigned(64);
+            for (table, scalar_type, valid) in [
+                (2, carrier, true),
+                (2, unsigned(1), false),
+                (2, unsigned(32), false),
+                (2, IntegerType::new(IntegerSign::Signed, 64).unwrap(), false),
+                (2, IntegerType::address(64).unwrap(), false),
+                (3, carrier, false),
+            ] {
+                let mut program = dynamic_program();
+                let mut entry = machine(0, vec![OperationKind::SelectImplementation { table }]);
+                let operation = &mut entry.blocks[0].operations[0];
+                operation.result =
+                    terminal_psi::OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                        id: selector,
+                        scalar_type: ScalarType::Integer(scalar_type),
+                        qualifications: Default::default(),
+                    });
+                let operation = operation.clone();
+                set_machine(&mut program, MachineId::new(1).unwrap(), entry);
+                let program = std::sync::Arc::new(program);
+                let mut execution = TerminalExecution::start_with_program(
+                    program.clone(),
+                    &[],
+                    Default::default(),
+                    None,
+                    None,
+                )
+                .unwrap();
+                let result = execution.execute_select_implementation(&operation, table, &program);
+                if valid {
+                    assert!(result.is_ok());
+                    assert_eq!(
+                        execution.scalar_value(selector).unwrap(),
+                        crate::TerminalScalarValue::Integer {
+                            scalar_type: carrier,
+                            value: IntegerValue::Unsigned(u128::from(table)),
+                        }
+                    );
+                } else {
+                    assert!(
+                        matches!(
+                            result,
+                            Err(crate::TerminalInterpretError::VerifiedOperationMalformed { .. })
+                        ),
+                        "accepted table {table} with {scalar_type:?}"
+                    );
+                    assert!(execution.scalar_value(selector).is_err());
+                }
+            }
+        }
+
+        #[test]
         fn capability_graph_dynamic_call_demands_exact_slot_imports_and_providers() {
             let mut program = dynamic_program();
             let boundary = BoundaryMachineId::new(1).unwrap();
