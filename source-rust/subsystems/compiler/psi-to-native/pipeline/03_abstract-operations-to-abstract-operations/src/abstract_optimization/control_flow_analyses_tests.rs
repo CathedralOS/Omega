@@ -538,3 +538,97 @@ fn case_backedge_is_a_loop_not_an_exit() {
     assert_eq!(regions[0].blocks, [block(2)]);
     assert!(!regions[0].irreducible);
 }
+
+// Machine 2 is reached only through a call that never returns normally;
+// machine 3 is unreachable. Pruning must remove machine 3 alone, and the
+// independent validator must accept exactly that set.
+#[test]
+fn pruning_keeps_a_machine_reached_only_by_a_call_without_normal_return() {
+    use crate::abstract_optimization::rules::control_flow_cleanup::UnreachablePrivateMachinePruneRule;
+    use optimization_unit::attach_ownership_frontier_facts;
+    use optimization_unit_semantics::{
+        reconstruct_ownership_frontier_facts_with_admitted_cycle_machines,
+        validate_psi_rewrite_candidate,
+    };
+
+    let machine = |id| MachineId::new(id).unwrap();
+    let function = |id, operation| AbstractFunction {
+        machine: machine(id),
+        attachment: None,
+        entry: block(1),
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: AbstractFunctionResult::Unit,
+        entry_claims: Vec::new(),
+        block_entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        blocks: vec![AbstractBlock {
+            block: block(1),
+            structural_parameters: Vec::new(),
+            parameters: Vec::new(),
+            operations: vec![operation],
+        }],
+    };
+    let mut plan = case_plan();
+    plan.structural_types = Vec::new().into();
+    plan.functions = vec![
+        function(
+            1,
+            O::InvokeNoNormal {
+                psi_edge: EdgeId::new(1).unwrap(),
+                callee: machine(2),
+                arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        ),
+        function(
+            2,
+            O::Crash {
+                psi_edge: EdgeId::new(2).unwrap(),
+                cause: semantic_vocabulary::CrashCause::Trap,
+                site_guard: Vec::new(),
+                frontier_lower_bound: Vec::new(),
+            },
+        ),
+        function(
+            3,
+            O::ReturnUnit {
+                psi_edge: EdgeId::new(3).unwrap(),
+                cleanup_actions: Vec::new(),
+            },
+        ),
+    ];
+    let seed = unit(&plan);
+    let frontiers =
+        reconstruct_ownership_frontier_facts_with_admitted_cycle_machines(&seed, &[]).unwrap();
+    let input = attach_ownership_frontier_facts(seed, frontiers).unwrap();
+    let mut analyses = AnalysisRevision::bind(&input).unwrap();
+    let candidates = UnreachablePrivateMachinePruneRule
+        .propose(
+            &input,
+            analyses
+                .require_all(UnreachablePrivateMachinePruneRule::contract().required_analyses())
+                .unwrap(),
+        )
+        .unwrap();
+    let [candidate] = candidates.as_slice() else {
+        panic!("one pruning candidate, got {}", candidates.len())
+    };
+    let PsiRewritePatch::PruneUnreachablePrivateMachines(patch) = candidate.patch_ref() else {
+        panic!("pruning patch")
+    };
+    assert_eq!(
+        patch.machines.iter().map(|row| row.machine).collect::<Vec<_>>(),
+        [machine(3)]
+    );
+    let output = validate_psi_rewrite_candidate(&input, candidate)
+        .unwrap()
+        .into_unit();
+    assert_eq!(
+        output.functions.iter().map(|function| function.machine).collect::<Vec<_>>(),
+        [machine(1), machine(2)]
+    );
+}
