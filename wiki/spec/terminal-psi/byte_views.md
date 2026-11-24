@@ -80,7 +80,7 @@ or literal contents and every exact subslice producer. Cycles, substituted
 sources, invented result qualifications, and missing establishment grant no
 membership. Omega's current-graph validator repeats this derivation after
 lowering and optimization; the corpus runner and the tests run it, not the
-default compile path ([verification placement](../../../omega-rust/pipeline.md#verification-placement), owner commit `b1423f5385d`). Bounds, dominance, access, and custody remain independently
+default compile path ([verification placement](../../../source-rust/subsystems/compiler/README.md#verification-placement), owner commit `b1423f5385d`). Bounds, dominance, access, and custody remain independently
 required.
 
 A shared byte or element descriptor may be returned through `ReturnStructural`.

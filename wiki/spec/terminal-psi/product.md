@@ -205,7 +205,7 @@ does not rediscover source theorems or require transported derivations. Trust in
 the producer does not waive the receiver's assumption, installation or authority
 policy. Source-to-artifact correspondence and faithful native realization remain
 trusted compiler responsibilities; see the
-[verification table](../../../omega-rust/pipeline.md#verification-placement).
+[verification table](../../../source-rust/subsystems/compiler/README.md#verification-placement).
 
 The interpreter enforces actual bounds, storage liveness, access permissions,
 operand safety and admitted resource limits independently of asserted facts.
@@ -322,7 +322,7 @@ diagnostic.
 The lowered-form check does not establish behavior preservation. Per-pass
 input and output validators, and Psi-versus-native agreement, do that work.
 Those validators run in the corpus runner and the tests, not on the default
-compile path ([verification placement](../../../omega-rust/pipeline.md#verification-placement), owner commit `b1423f5385d`).
+compile path ([verification placement](../../../source-rust/subsystems/compiler/README.md#verification-placement), owner commit `b1423f5385d`).
 
 A producer must refuse a selection containing a pass it cannot execute. A selected pass that finds no eligible rewrite still requires the second check and an execution record naming that pass.
 

@@ -68,7 +68,7 @@ raw-plan range validator still replays liveness on every call.
 
 [Home assignment](home_assignment.rs) solves the constraint problem with
 no transitions and no spills. Nothing replays its answer: the default compile
-trusts the solver ([verification placement](../../../../pipeline.md#verification-placement)),
+trusts the solver ([verification placement](../../../../../README.md#verification-placement)),
 and `RegisterHomeReceipt` only ties the plan to its inputs' identities and
 counts. Tied values share one domain, the intersection of their legal views.
 Interference uses storage and write conflicts; early-clobber conflicts are

@@ -58,7 +58,7 @@ fail. Prefer maintained source and its tests to copied implementations or old
 pass stamps. Label illustrative or unexecuted code honestly; documentation edits
 are not execution evidence. Native/Psi agreement covers the tested execution,
 not source-meaning errors already shared by both routes. See
-[verification placement](../omega-rust/pipeline.md#verification-placement).
+[verification placement](../source-rust/subsystems/compiler/README.md#verification-placement).
 
 ## Public names
 
