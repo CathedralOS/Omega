@@ -69,45 +69,47 @@ fn build_dependencies_use_the_host_and_product_dependencies_use_the_requested_ta
 }
 
 #[test]
-fn provider_lookup_refuses_an_ambiguous_build_dependency() {
+fn the_invoker_cannot_supply_two_backing_packages_under_one_alias() {
+    use build_declarations::{BuildDependencySource, ProjectName};
+    use package_manager::project::{BuildLibraryRequest, ProjectInput, open_products};
+
     configure();
     let temp = TemporaryDirectory::create("project-provider", false).unwrap();
     let client = temp.path().join("client");
     write_package(
         &client,
         r#"use omega\language\core\ProgramImage;
-    machine build(builder: @mutable Build) suspends {
-        Build::application(builder, "client");
-        let mutable first: DependencyDescription = dependency\from_source(Source::Path { location: "one" });
-        dependency\with_alias(@mutable first, "backing");
-        let first_registration: DependencyRegistration = Build::build_dependency(builder, first);
-        let second: DependencyDescription = dependency\from_source(Source::Path { location: "two" });
-        let second_registration: DependencyRegistration = Build::build_dependency(builder, second);
-        suspend Build::await_provider::<ProgramImage, backing\TestImage>(builder);
-    }"#,
+use {backing}/main.omg as image;
+machine build(builder: @mutable Build) suspends {
+    Build::application(builder, "client");
+    suspend Build::await_provider::<ProgramImage, |image|::TestImage>(builder);
+}"#,
     );
-    for (directory, name) in [("one", "first_provider"), ("two", "backing")] {
+    let libraries = ["one", "two"].map(|directory| {
         write_package(
             &client.join(directory),
-            &format!(
-                "machine build(builder: @mutable Build) {{ Build::package(builder, \"{name}\"); }}"
-            ),
+            &format!("machine build(builder: @mutable Build) {{ Build::package(builder, \"{directory}\"); }}"),
         );
-    }
-    let result = open_product(
-        &client.join("build.omg"),
-        TargetProfile::host_if_supported().unwrap(),
+        BuildLibraryRequest {
+            alias: ProjectName::parse("backing").unwrap(),
+            source: BuildDependencySource::Path(directory.into()),
+        }
+    });
+    let result = open_products(
+        ProjectInput::WithBuildLibraries { file: &client.join("build.omg"), libraries: &libraries },
+        &[TargetProfile::host_if_supported().unwrap()],
         true,
+        false,
         &temp.path().join("out"),
         None,
     );
     let Err(errors) = result else {
-        panic!("two issued dependencies share the provider alias")
+        panic!("the invocation supplied two libraries as backing")
     };
     assert!(
         errors.iter().any(|error| error
             .message
-            .contains("Build dependency qualifier `backing` is ambiguous")),
+            .contains("duplicate supplied Build library alias `backing`")),
         "{errors:?}"
     );
 }
