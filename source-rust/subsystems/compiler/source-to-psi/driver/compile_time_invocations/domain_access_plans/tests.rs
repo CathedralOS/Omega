@@ -623,10 +623,9 @@ fn a_selected_external_observation_survives_evaluation_before_supply() {
         vec![(
             fields[0].0,
             Some((
-                access_vocabulary::ObservationModel::External,
-                access_vocabulary::AccessPermissions {
-                    read: true,
-                    ..Default::default()
+                access_vocabulary::ObservationDemand::External {
+                    read: access_vocabulary::ExternalRead::Read,
+                    write: false,
                 },
                 access_vocabulary::AccessExposure::Exported,
             ))
