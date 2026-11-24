@@ -54,9 +54,10 @@ fn field(id: u64, field_type: StructuralFieldType) -> StructuralFieldDeclaration
 }
 
 /// Executes the copy of `record { digit: u8 in 0..=9, raw: u8 }` from
-/// `bytes[0..2]` and returns the published fields.
+/// `bytes` at `start` and returns the published fields.
 fn copy(
     bytes: &[u8],
+    start: u64,
     qualifications: Vec<StructuralDomainId>,
     configure: impl FnOnce(&mut terminal_psi::TerminalModule),
 ) -> Result<(ScalarCell, ScalarCell), TerminalInterpretError> {
@@ -144,7 +145,7 @@ fn copy(
         terminal_psi::OperationResult::Structural(result),
         OperationKind::StructuralLeafCopy {
             source,
-            path: vec![StructuralPathSegment::FixedIndex(0)],
+            path: vec![StructuralPathSegment::FixedIndex(start)],
         },
     );
     if let Err(error) = execution.execute_structural_leaf_copy(&operation) {
@@ -176,7 +177,7 @@ fn byte(value: u128) -> ScalarCell {
 #[test]
 fn byte_carrier_copy_reads_fields_within_their_declared_range() {
     assert_eq!(
-        copy(&[9, 200, 0, 0], Vec::new(), |_| {}).unwrap(),
+        copy(&[9, 200, 0, 0], 0, Vec::new(), |_| {}).unwrap(),
         (byte(9), byte(200))
     );
 }
@@ -184,13 +185,13 @@ fn byte_carrier_copy_reads_fields_within_their_declared_range() {
 #[test]
 fn byte_carrier_copy_refuses_a_byte_outside_a_bounded_field() {
     // Only the bounded field changes: 10 is outside `0..=9`.
-    assert!(copy(&[10, 200, 0, 0], Vec::new(), |_| {}).is_err());
+    assert!(copy(&[10, 200, 0, 0], 0, Vec::new(), |_| {}).is_err());
 }
 
 #[test]
 fn byte_carrier_copy_refuses_a_domain_the_bytes_cannot_establish() {
     let domain = StructuralDomainId::new(1).unwrap();
-    assert!(copy(&[9, 200, 0, 0], vec![domain], |_| {}).is_err());
+    assert!(copy(&[9, 200, 0, 0], 0, vec![domain], |_| {}).is_err());
 }
 
 #[test]
@@ -213,11 +214,11 @@ fn byte_carrier_copy_checks_the_record_requirement_on_the_decoded_fields() {
         module.types.structural_types.last_mut().unwrap().requires = vec![within.clone()];
     };
     assert_eq!(
-        copy(&[9, 9, 0, 0], vec![], require_order).unwrap(),
+        copy(&[9, 9, 0, 0], 0, vec![], require_order).unwrap(),
         (byte(9), byte(9))
     );
     assert!(matches!(
-        copy(&[9, 8, 0, 0], vec![], require_order),
+        copy(&[9, 8, 0, 0], 0, vec![], require_order),
         Err(TerminalInterpretError::StructuralContentsResultInvalid {
             reason: "the decoded fields violate the record requirement"
         })
@@ -231,7 +232,7 @@ fn byte_carrier_copy_refuses_a_named_domain_on_a_scalar_field() {
     };
     use terminal_psi::{ScalarDomainDeclaration, ScalarFieldQualification, ScalarQualificationSet};
 
-    let result = copy(&[9, 9, 0, 0], vec![], |module| {
+    let result = copy(&[9, 9, 0, 0], 0, vec![], |module| {
         let catalog = &mut module.types.scalar_qualifications;
         let domain = ScalarDomainId::new(1).unwrap();
         let set = ScalarQualificationSetId::new(1);
@@ -262,5 +263,35 @@ fn byte_carrier_copy_refuses_a_named_domain_on_a_scalar_field() {
         Err(TerminalInterpretError::UnsupportedSemanticVariant(
             "raw bytes do not establish a declared scalar field domain"
         ))
+    ));
+}
+
+#[test]
+fn byte_carrier_copy_requires_room_for_the_records_trailing_padding() {
+    use semantic_vocabulary::{AuthoredFieldStorage, AuthoredRecordStorage};
+
+    fn padded(module: &mut terminal_psi::TerminalModule) {
+        let record = module.types.structural_types.last_mut().unwrap();
+        let StructuralTypeShape::Record { fields, storage } = &mut record.shape else {
+            unreachable!()
+        };
+        *storage = StructuralRecordStorage::Authored(AuthoredRecordStorage {
+            byte_size: 4,
+            byte_alignment: 1,
+        });
+        for (offset, field) in fields.iter_mut().enumerate() {
+            field.storage = Some(AuthoredFieldStorage::Scalar {
+                byte_offset: offset as u64,
+                stored_scalar: None,
+            });
+        }
+    }
+    let bytes = [9, 8, 7, 6];
+    assert_eq!(copy(&bytes, 0, vec![], padded).unwrap(), (byte(9), byte(8)));
+    assert!(matches!(
+        copy(&bytes, 1, vec![], padded).unwrap_err(),
+        TerminalInterpretError::StructuralContentsResultInvalid {
+            reason: "the byte array does not contain the complete record footprint"
+        }
     ));
 }
