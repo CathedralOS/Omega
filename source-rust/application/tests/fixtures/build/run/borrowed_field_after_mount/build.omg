@@ -1,4 +1,4 @@
-use kit;
+machine helper_value() -> i32 { 7 }
 
 data Gauge { amount: i32; neighbor: i32; }
 
@@ -11,11 +11,11 @@ machine build(builder: @mutable Build) suspends {
     builder.tests.disabled = true;
     let mutable request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
     dependency\with_alias(@mutable request, "kit");
-    let registration: DependencyRegistration = Build::build_dependency(builder, request);
+    let registration: DependencyRegistration = Build::dependency(builder, request);
     let mutable gauge: Gauge = initial(builder);
     let held: @mutable i32 = @mutable gauge.amount;
     suspend Build::prepare_dependency(builder, registration);
-    let seven: i32 = kit\v();
+    let seven: i32 = helper_value();
     $held = seven;
     let observed: i32 = $held;
     transition observed == 7 && gauge.amount == 7 && gauge.neighbor == 19 {
