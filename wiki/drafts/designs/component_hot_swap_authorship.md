@@ -14,7 +14,13 @@ The libraries decide what they export. The editor decides who may replace its Co
 
 ## One launch and two publications
 
-The following is a behavior trace. The Build declarations and the publication signature have [open source-design questions](../../../OWNER_QUESTIONS.md#component-producer-and-host-build).
+The quiet supplier uses `Build::export_provider::<Console, QuietConsole>(b)`.
+The editor can name `EditorConsoleInstaller::install` directly as its publisher.
+The [Build declarations](../../spec/build/provider_selection.md#independent-library-exports-and-runtime-publishers)
+also show how a host selects the installer through its requirement. The trace
+below follows one occurrence. How authored code obtains its [update authority](../../../OWNER_QUESTIONS.md#component-publication-authority)
+and establishes [first binding for callers](../../../OWNER_QUESTIONS.md#component-first-binding-proof)
+remain open.
 
 1. The editor enters `main()` with its Console slot empty. From its ordinary startup code it asks its selected filesystem provider to open `plugins/terminal` and `plugins/terminal.component`, relative to the process working directory. It reads each into an owned buffer up to the receiver's limit, loops over short reads, and closes each opened file on every exit. A missing file ends startup before any Console call.
 2. The designated installer checks the exact export against this occurrence's envelope and the native image against the receiver's admission policy. Its target placement provider materializes the admitted sections and relocations in writable, non-executable storage, freezes and validates the final bytes, and completes executable placement and instruction visibility. The result backs the admitted export. The [placement contract](../../spec/build/executable_installation.md#placement-lifecycle) governs that transition on each platform.

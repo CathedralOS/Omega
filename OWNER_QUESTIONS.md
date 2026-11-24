@@ -76,36 +76,29 @@ The default build has neither service. The [network reach rules](wiki/spec/build
 
 A caller can supply a proof that each field of two records is identical. Must the checker assemble those proofs into `core\Identity::<Record>(left, right)` without a cited record theorem? The [contract specification](wiki/spec/proofs/contracts.md#data-identity-in-facts) gives explicit Identity its kernel meaning. Its [comparison rules](wiki/spec/proofs/contracts.md#equality-bridges-and-comparison-facts) govern executable comparisons. Neither specifies this automatic proof from field identities. The [kernel audit](wiki/drafts/designs/proof_kernel_core_audit.md#open-questions) and the earlier proofs plan differ here. Until this is settled, field proofs alone cannot discharge the record goal.
 
-<a id="component-producer-and-host-build"></a>
-### 3. How do two independent Builds declare a supplier export and an initially empty host slot?
-
-An editor must build before either console library exists. The terminal library's Build selects a closed satisfaction to export. The editor's Build names the exact Console requirement, freezes the permitted imports and authority, and designates the installer. An independently built third supplier can qualify later. The host owns replaceability.
-
-The existing `Build::select_provider::<Slot, Provider>(b, CompositionMode::Independent)` names a concrete first provider. Which library-output declaration roots the satisfaction when shipping the library alone? Which form of provider selection leaves the host slot empty, takes precedence over a target default, and identifies its publisher? Show both Build files against one shared requirement, with no future provider name in the host. The existing component description already binds exact requirement contracts, target, image and export commitment. [Provider selection](wiki/spec/build/provider_selection.md) · [Component closure and exports](wiki/spec/build/component_publication.md#selection-and-component-closure)
-
 <a id="component-publication-authority"></a>
-### 4. How does the Build-designated installer obtain and exercise update authority for this instance?
+### 3. How does the Build-designated installer obtain and exercise update authority for this instance?
 
 Two editors can run identical binaries. Each needs its own installer's exclusive right to publish to its Console slot. Build designates the operation and selects its backing. Executable placement supplies installed code. The remaining gap is the authored handoff between the installation that owns the slot and the code allowed to write it.
 
-Should the installer explicitly borrow the supervisor's linear authority, or should an installed boundary operation encapsulate that authority? Show its origin, the publication body with both destination and admitted export, and the return of custody on failure or delayed retirement. Use a zero-argument editor entry and demonstrate why a second instance cannot be changed through the first. If a standard generic installer belongs in core, specify its inputs, result and slot identity here. An application-specific boundary over ordinary operations is the other option. Source-visible service bindings are retired. [Slot and era rules](wiki/spec/build/component_publication.md#provider-slots-and-era-entry) · [Supervisor and retirement](wiki/spec/build/component_publication.md#replacement-and-coexistence) · [Placement lifecycle](wiki/spec/build/executable_installation.md#placement-lifecycle)
+Should the installer explicitly borrow the supervisor's linear authority, or should an installed boundary operation encapsulate that authority? Show its origin, the publication body with both destination and admitted export, and the return of custody on failure or delayed retirement. Use a zero-argument editor entry and demonstrate why a second instance cannot be changed through the first. The [Build declaration](wiki/spec/build/provider_selection.md#independent-library-exports-and-runtime-publishers) fixes the core `ProviderInstaller<R>::install` operation and permits either a concrete or selected publisher. Which inputs and custody does its implementation need under the chosen handoff? Source-visible service bindings are retired. [Slot and era rules](wiki/spec/build/component_publication.md#provider-slots-and-era-entry) · [Supervisor and retirement](wiki/spec/build/component_publication.md#replacement-and-coexistence) · [Placement lifecycle](wiki/spec/build/executable_installation.md#placement-lifecycle)
 
 <a id="component-first-binding-proof"></a>
-### 5. How does an installer expose successful first publication to its callers?
+### 4. How does an installer expose successful first publication to its callers?
 
 A successful first bind makes a direct Console call legal in that installation. A helper that returns success after only reading the library files must fail to establish readiness. What existing checked contract or custody result exposes the exact bound-slot fact across a machine or boundary call? If the installer returns an ordinary result, show the postcondition its implementation must prove on the success arm. If it returns evidence, show how a startup caller uses it while keeping ordinary Console calls free of extra parameters.
 
 The control-flow requirement is settled. An early error may exit or retry. A join reachable from a failed first bind, or logging through Console before publication, must fail checking. A successful *replacement* keeps the occurrence bound and gives new entries the published provider. [First-binding contract](wiki/spec/build/component_publication.md#first-binding-of-a-runtime-bound-slot) · [Contract facts](wiki/spec/proofs/contracts.md)
 
 <a id="recursive-data-as-w-types"></a>
-### 6. Should recursive data stay encoded as W types, given what it costs to check?
+### 5. Should recursive data stay encoded as W types, given what it costs to check?
 
 The kernel's only recursive data is the W type, and every `data` that contains itself is built from it. Is the measured checking cost acceptable? If not, should the kernel gain built-in inductive types, or the one conversion rule (eta for the unit position type) that would make plain W trees faithful? The owner raised this on 2026-11-24 to decide with Zachary; it blocks nothing today.
 
 The [inductive profile](wiki/spec/proofs/inductive_profile.md#required-evidence-and-measurements) selects W and says the choice is reopened here on a demonstrated coverage or computation failure, unacceptable measured cost or audit burden, and not on first-implementation slowness. It adds no eta rule for W, and the [kernel metatheory](wiki/spec/proofs/kernel_metatheory.md) lists W eta and function extensionality as not claimed. Both conditions have now been met once. Coverage: plain W trees could not prove `add(a, Zero) = a`, so no program could prove that addition commutes. That was repaired without a kernel rule, by taking the data to be a tree paired with evidence that it is canonical, the construction the profile already uses for indexed families. Cost: one computation, `add(Succ(m), b)` to `Succ(add(m, b))`, takes 546 kernel conversion steps where a built-in inductive type would take about one. The Peano associativity law took 1,148 steps under plain trees, which could not prove commutativity, and takes 2,176 now; the largest law in `core/nat.omg` takes 5,628 of a 65,536 budget; declaring a two-case type takes 816 steps and a four-case type 10,463. All 34 laws of `nat.omg` check in under a second, so the pressure is on the budget and on larger types, not on compile time today. The trade the profile made is a smaller trusted kernel for more work per step. [Kernel audit, "Step 3 as built"](wiki/drafts/designs/proof_kernel_core_audit.md#plan-order) has the measurements and how they were taken.
 
 <a id="decrease-of-a-computed-subject"></a>
-### 7. What must a proof-only machine show when it calls itself at a computed value?
+### 6. What must a proof-only machine show when it calls itself at a computed value?
 
 `mod(a, b)` in `core/nat.omg` is `terminates by a` and calls itself at `saturating_sub(a, b)`. [Termination](wiki/spec/language/termination.md#ranking) says "computed next subjects use ordinary decrease obligations and cited lemmas", and `mod` cites `sub_lt`, whose conclusion is `saturating_sub(Succ(saturating_sub(a, b)), a) = Zero`. That is the library's own way of writing `a - b < a`. Which proposition is the decrease obligation for a `Nat` subject, so that the compiler can check that this citation meets it, and what shows that the order it names is well founded?
 
@@ -114,7 +107,7 @@ It blocks nothing today, because the mathematical kernel needs no answer to defi
 The choices I see: (a) name the obligation as the structural order on the data, "the next subject is a proper subtree", and have the library prove once that its `saturating_sub` form implies it; (b) let a data declaration name its order and a lemma that it is well founded, which the termination page calls an admitted ranking theory; (c) leave it as built, and refuse laws that need enough fuel. I recommend (a): it adds no trusted rule, and one library lemma would make every such law provable. [Kernel audit, "Step 4 as built"](wiki/drafts/designs/proof_kernel_core_audit.md#plan-order) describes the construction.
 
 <a id="quotient-mere-proposition-evidence"></a>
-### 8. Where does a quotient declaration select the proof that its relation is a mere proposition?
+### 7. Where does a quotient declaration select the proof that its relation is a mere proposition?
 
 [Quotient formation](wiki/spec/proofs/quotients.md#formation-and-representation) "consumes a carrier family `C`, relation family `R`, and explicitly selected `Equivalence<C,R>`, together with the selected mere-proposition evidence". The declaration syntax selects only the equivalence: `data Sign = Representative % same_sign requires same_sign satisfies Equivalence<Representative, same_sign> as SameSign;`. No library trait states "any two proofs of `R(a, b)` are equal", and nothing in the declaration could name a conformance of one.
 

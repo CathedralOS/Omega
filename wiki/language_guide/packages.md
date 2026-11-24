@@ -185,7 +185,18 @@ stable requirement; already-entered calls and returned era-dependent handles
 retain their old era until their obligations end.
 
 For example, an editor's Build can leave its Console empty and designate an
-installer. Once startup successfully publishes a terminal provider, every caller
+installer. These lines belong in the respective product Builds:
+
+```omega
+// quiet/build.omg
+Build::export_provider::<Console, QuietConsole>(b);
+
+// editor/build.omg
+Build::select_provider::<Console>(b, Runtime { publisher: EditorConsoleInstaller::install });
+```
+
+A host can also [select the installer's backing](../spec/build/provider_selection.md#independent-library-exports-and-runtime-publishers)
+through `ProviderInstaller<Console>::install`. Once startup successfully publishes a terminal provider, every caller
 wired to that slot can use `Console::write_line` directly. If the editor later
 publishes a separately built quiet provider, its next write reaches that
 provider. A read already waiting for input finishes on the terminal that

@@ -37,8 +37,9 @@ families use ordinary closed static arguments with nominal or declared-domain
 identity, not strings, ordinals, vtable indices, addresses, or artifact generations.
 A package may contribute several independent roots.
 
-Derive exports from selected satisfied requirements and imports from requirement
-calls leaving the closure. Concrete-identity edges remain inside, pull in their
+For a standalone supplier library, [`Build::export_provider`](provider_selection.md#independent-library-exports-and-runtime-publishers)
+selects a satisfied requirement as an export root. Derive its export contract
+from that satisfaction and its imports from requirement calls leaving the closure. Concrete-identity edges remain inside, pull in their
 targets when legal, or reject. Duplicable immutable dependencies may be shared or
 copied. Mutable state and linear custody have one owner: fuse them above dependent
 closures or mediate them through a selected service.
