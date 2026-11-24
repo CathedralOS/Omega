@@ -1370,12 +1370,17 @@ pub(crate) fn projected_arrival(
                     ),
                 ));
             }
+            // The closed header owns this call's substituted contract. Its
+            // requirement template owns the authored declaration coordinate.
+            let declaration = typed
+                .closed_requirement_application(signature.symbol)
+                .map_or(signature.symbol, |closed| closed.template);
             (
                 parameters,
                 contracts.iter().collect::<Vec<_>>(),
                 signature.symbol,
                 Some(
-                    crate::source_symbols::retain_declaration(&typed.symbols, signature.symbol)
+                    crate::source_symbols::retain_declaration(&typed.symbols, declaration)
                         .map_err(|detail| identity(callee, detail))?,
                 ),
             )
