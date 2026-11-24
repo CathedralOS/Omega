@@ -658,6 +658,7 @@ crashes Trap
         ExpressionKind::Unary -> unary(checker, typing, expression, role),
         ExpressionKind::Cast -> cast(checker, syntax, typing, handle, expression, role),
         ExpressionKind::Call -> elements(checker, syntax, typing, expression.first, expression.first + expression.count, UseRole::Value),
+        ExpressionKind::Binary -> binary(checker, typing, handle, expression),
         ExpressionKind::Construct -> fields(checker, syntax, typing, expression.first, expression.first + expression.count),
         ExpressionKind::Match -> arms(checker, syntax, typing, expression.first, expression.first + expression.count, role),
         ExpressionKind::Array -> elements(checker, syntax, typing, expression.first, expression.first + expression.count, role),
@@ -730,6 +731,10 @@ crashes Trap
         }
     }
 
+    machine binary(checker: @mutable Checker, typing: @Typing, handle: u64 in Trapping, expression: Expression) {
+        pass_binary_operand_roles(checker, typing, expression, handle);
+    }
+
     machine child(checker: @mutable Checker, typing: @Typing, node: u64 in Trapping, role: UseRole) {
         set_adapted_role(checker, typing, node, role);
     }
@@ -773,6 +778,22 @@ crashes Trap
         transition { _ -> arms(checker, syntax, typing, index + 1, end, role) }
     }
 
+    machine done() {}
+}
+
+// A selected operator receives both operands by the same rules as named arguments.
+machine pass_binary_operand_roles(checker: @mutable Checker, typing: @Typing, expression: Expression, handle: u64 in Trapping)
+crashes Trap
+{
+    let called: bool = called_binary(typing, expression, handle);
+    transition called {
+        true -> operands(checker, typing, expression),
+        _ -> done()
+    }
+    machine operands(checker: @mutable Checker, typing: @Typing, expression: Expression) {
+        set_adapted_role(checker, typing, expression.left, UseRole::Value);
+        set_adapted_role(checker, typing, expression.right, UseRole::Value);
+    }
     machine done() {}
 }
 
