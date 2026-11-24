@@ -5713,8 +5713,8 @@ mod float_meaning_identity_tests {
 #[cfg(test)]
 mod declaration_identity_tests {
     use semantic_vocabulary::{
-        ClauseCarrier, ClauseDeclaration, ClauseIdentity, ClauseOperand, ClauseValue,
-        IntegerSign, IntegerType, Proposition, ScalarTerm, ScalarType, ValueId,
+        ClauseCarrier, ClauseDeclaration, ClauseIdentity, ClauseOperand, ClauseValue, IntegerSign,
+        IntegerType, Proposition, ScalarTerm, ScalarType, ValueId,
     };
 
     fn bytes(clause: &ClauseIdentity) -> Vec<u8> {
