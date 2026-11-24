@@ -479,7 +479,10 @@ fn transitive_violations(
                 continue;
             }
             let Some(&package) = packages.get(&directory) else {
-                continue;
+                return Err(format!(
+                    "{}: path dependency is not a workspace member: {directory}",
+                    chain.join(" -> ")
+                ));
             };
             for dependency in &package.dependencies {
                 if dependency.kind.as_deref() == Some("dev") {
@@ -1544,6 +1547,32 @@ mod tests {
             .is_empty(),
             "a test-only edge is not a production path"
         );
+    }
+
+    #[test]
+    fn transitive_audit_reports_a_missing_production_package() {
+        let metadata = |kind| Metadata {
+            workspace_root: "/repo".to_owned(),
+            packages: vec![
+                pkg("entry", "entry", &[("helper", "helper", None)]),
+                pkg("helper", "helper", &[("leaf", "leaf", kind)]),
+            ],
+        };
+        let check = |metadata: &Metadata, forbidden| {
+            transitive_exact_violations(metadata, &["entry"], forbidden, "forbidden")
+        };
+        assert_eq!(
+            check(&metadata(None), "unrelated").unwrap_err(),
+            "entry -> helper -> leaf: path dependency is not a workspace member: leaf"
+        );
+        assert_eq!(
+            check(&metadata(None), "leaf").unwrap(),
+            ["entry -> helper -> leaf: forbidden"]
+        );
+        assert!(check(&metadata(Some("dev")), "unrelated").unwrap().is_empty());
+        let mut complete = metadata(None);
+        complete.packages.push(pkg("leaf", "leaf", &[]));
+        assert!(check(&complete, "unrelated").unwrap().is_empty());
     }
 
     #[test]
