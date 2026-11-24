@@ -10708,6 +10708,20 @@ pub(crate) mod operation_contracts {
                             scalar_term_roots(source, roots);
                         }
                     }
+                    Proposition::DeclarationIdentity(clause) => {
+                        for value in &clause.values {
+                            match &value.operand {
+                                semantic_vocabulary::ClauseOperand::Scalar(term) => {
+                                    scalar_term_roots(term, roots)
+                                }
+                                semantic_vocabulary::ClauseOperand::Input(subject) => {
+                                    roots.insert(subject.root());
+                                }
+                                semantic_vocabulary::ClauseOperand::Formal(_)
+                                | semantic_vocabulary::ClauseOperand::Application { .. } => {}
+                            }
+                        }
+                    }
                     Proposition::ContentConservation(conservation) => {
                         content_term_roots(conservation.left(), roots);
                         content_term_roots(conservation.right(), roots);
@@ -10733,6 +10747,7 @@ pub(crate) mod operation_contracts {
             collect(proposition, &mut roots);
             roots
         }
+
     }
     pub(crate) use claim_transfers::{function_entry_claim_paths, validate_slot_claim_transfers};
     mod node_contracts {
