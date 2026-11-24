@@ -3837,16 +3837,6 @@ impl<'t> Program<'t> {
                 ));
             }
         };
-        // A theorem over indexed data that the body cites is owed at entry
-        // (`families::cited_guarantees`).
-        if !self.mathematical {
-            for (clause, text) in self.cited_guarantees(id, owner)? {
-                if !requires.contains(&clause) {
-                    requires.push(clause);
-                    requires_text.push(text);
-                }
-            }
-        }
         let authored = requires.clone();
         let requires = canonical::clauses(requires, Repeated::Refuse, id)?;
         // Each clause's text follows it into canonical order. A repeated
@@ -4347,14 +4337,15 @@ impl<'t> Program<'t> {
                 statements: Vec::new(),
             });
         }
-        // A running machine never enters such a theorem: a citation of it
-        // is owed at the citing machine's entry (`cited_guarantees`).
+        // A machine that runs cites such a theorem by calling it. The
+        // call does nothing: the theorem is its formals and its contract,
+        // and the mathematical signature judges what it guarantees
+        // (`families`), so there is no body to read here.
         if self.is_family_theorem(machine) {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Machine("theorem over indexed data read as a machine that runs"),
-            ));
+            return Ok(Body {
+                slots: signature.parameters,
+                statements: Vec::new(),
+            });
         }
         // An operation on a quotient given by an operation on its
         // representatives has nothing to lower: the signature judges the
@@ -4522,16 +4513,6 @@ impl<'t> Program<'t> {
                     Construct::Machine,
                     Unserved::Completion("statement after an unconditional arm"),
                 ));
-            }
-            // A citation of a theorem over indexed data does nothing at
-            // run time. What it guarantees is one of this machine's entry
-            // requirements (`families::cited_guarantees`).
-            if !self.mathematical
-                && let StatementNode::Call(call) = statement
-                && self.cited_theorem(call.target_symbol).is_some()
-            {
-                position += 1;
-                continue;
             }
             let last = position + 1 == statements.len() && parked.is_none();
             // A statement skipped by `continue` may still have read a block.

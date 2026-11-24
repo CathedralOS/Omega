@@ -311,6 +311,17 @@ fn evidence_of_a_list_the_data_does_not_allow_is_refused() {
         .collect();
     // Eleven is more than ten, and the list does not sum to seven.
     assert_eq!(unproved.len(), 2, "{unproved:?}");
+    // That is the only refusal. The theorem is still proved, and `bounded`,
+    // which cites it, and the theorem's own machine are accepted.
+    for verdict in &verdicts {
+        assert!(
+            matches!(
+                verdict,
+                RouteVerdict::Accepted(_) | RouteVerdict::UnprovedLaws(_)
+            ),
+            "only the literal's laws may be refused: {verdict:?}"
+        );
+    }
     for law in unproved {
         assert_eq!(law.machine, "room");
         assert_eq!(law.cause, UnprovedCause::NoDerivation);
@@ -376,13 +387,12 @@ fn without_the_citation_the_subtraction_is_not_justified() {
 }
 
 #[test]
-fn a_caller_owes_what_the_cited_theorem_guarantees() {
+fn a_caller_owes_nothing_for_a_theorem_its_callee_cites() {
     // `relay` passes its own evidence on to `bounded`, which cites the
-    // theorem. The theorem's guarantee is one of `bounded`'s entry
-    // requirements, so `relay` owes it at the call. `relay` cannot prove it
-    // for every `Length` and `Total`, so it becomes `relay`'s requirement
-    // too, whether `relay` cites the theorem itself or not, and `room`,
-    // which passes numbers, proves it by arithmetic.
+    // theorem. `bounded` imports the theorem's guarantee at the citation,
+    // and its `requires` is the one its author wrote, so `relay` owes
+    // `Length <= 8` and nothing about `Total`, whether `relay` cites the
+    // theorem itself or not.
     let relay = |citation: &str| {
         format!(
             "{}\nmachine relay<Length: u64, Total: u64>(evidence [erased]: Vector<Length, Total>) -> u64\n\
@@ -401,6 +411,49 @@ fn a_caller_owes_what_the_cited_theorem_guarantees() {
             );
         }
     }
+}
+
+#[test]
+fn the_guarantee_holds_from_the_citation_on() {
+    // The subtraction now comes before the citation. The theorem's
+    // guarantee is imported at the citation, not assumed at entry, so
+    // nothing bounds `Total` where `80u64 - Total` is computed.
+    let source = proofs(RUNNING).replace(
+        "    vector_bound::<Length, Total>(evidence);\n    80u64 - Total\n",
+        "    let left: u64 = 80u64 - Total;\n    vector_bound::<Length, Total>(evidence);\n    left\n",
+    );
+    assert_ne!(source, proofs(RUNNING));
+    let verdicts = judged(&source);
+    assert!(
+        verdicts.iter().any(|verdict| matches!(
+            verdict,
+            RouteVerdict::Incomplete(_) | RouteVerdict::Rejected { .. }
+        )),
+        "{verdicts:?}"
+    );
+}
+
+#[test]
+fn a_running_machine_imports_only_a_proved_theorem() {
+    // With the bound `9 * Length` the theorem is false for a list of tens,
+    // so the signature refuses it. `bounded` still needs only
+    // `Total <= 80`, which the false bound would give, but the theorem's
+    // guarantee is the signature's proof and there is none, so the machine
+    // that states it is not accepted either.
+    let source = proofs(RUNNING).replace(
+        "ensures embed(Total) <= 10 * embed(Length)",
+        "ensures embed(Total) <= 9 * embed(Length)",
+    );
+    assert_ne!(source, proofs(RUNNING));
+    let verdicts = judged(&source);
+    assert_eq!(unproved(&verdicts).machine, "vector_bound");
+    assert!(
+        verdicts.iter().any(|verdict| matches!(
+            verdict,
+            RouteVerdict::Incomplete(_) | RouteVerdict::Rejected { .. }
+        )),
+        "{verdicts:?}"
+    );
 }
 
 /// The running fixture with a type beside the indices: each longer list

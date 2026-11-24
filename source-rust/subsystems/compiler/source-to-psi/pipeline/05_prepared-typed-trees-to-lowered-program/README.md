@@ -145,18 +145,16 @@ and nothing reads it, so the two readers split the work:
 - The ordinary reader lowers each erased formal or local of the family's type
   as an erased Boolean nothing reads (`families::evidence_witness`) and does
   not read its initializer. A citation `vector_bound::<Length, Total>(evidence);`
-  is not lowered as a call, because a machine that runs never enters a
-  theorem. Its `ensures` at the citation's values becomes one more `requires`
-  of the citing machine (`cited_guarantees`), so the body may use it and every
-  caller owes it. A caller that passes numbers proves it by arithmetic. A
-  caller that passes its own value parameters cannot, so what the machines it
-  passes evidence on to require this way is its requirement too, at the
-  values it passes. Nothing is assumed: the root caller always proves the
-  guarantee from numbers. This is not the specification's
-  [citation rule](../../../../../../wiki/spec/proofs/contracts.md#citation-and-induction),
-  which imports the guarantee at the citation and leaves the machine's
-  `requires` as its author wrote it; `TASKS.md` **PROOF-KERNEL-CORE** owes
-  the repair.
+  is an ordinary call, and the caller imports the theorem's `ensures` at the
+  call's values from there on, as the
+  [citation rule](../../../../../../wiki/spec/proofs/contracts.md#citation-and-induction)
+  says. The citing machine's `requires` stays as its author wrote it. The
+  theorem itself is read as a machine with its formals, its contract and no
+  statements: its body is an induction over evidence, which nothing runs,
+  and stage 06 takes the signature's proof of the theorem as the proof of
+  its guarantee (`Discharged::Law`). The call is lowered and runs, as an
+  empty machine; the specification erases a call made only for its
+  guarantee, and that is not done yet.
 - The mathematical reader checks every use of the evidence
   (`evidence_uses`). A value is built only by a case literal in an erased
   local, each child of the literal must be evidence the machine holds at the
@@ -171,8 +169,7 @@ and nothing reads it, so the two readers split the work:
 
 Refused by name: evidence in a formal or local that is not erased, a literal
 anywhere but an erased local's initializer, a payload value or an index that
-is neither a number nor a value parameter of the machine, and a citation in
-a machine a caller reaches at values it does not fix. The ordinary reader refuses the same data and machines when a
+is neither a number nor a value parameter of the machine. The ordinary reader refuses the same data and machines when a
 runtime machine reaches them. A field of any other type in such data, a
 premise on such a machine and a result together with a guarantee are refused
 as not supported yet.

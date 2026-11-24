@@ -122,6 +122,16 @@ declared, and the kernel checks the proof. A requirement with no proof
 refuses the program where the literal is written: "cannot prove what
 `Vector::Cons` requires of the value built here in `room`".
 
+A running machine that cites such a theorem calls it, and imports its
+`ensures` after the call like any callee's guarantee. The theorem's own
+machine has no statements, so its guarantee has no proof among the
+machines. The signature has one: the signature is judged before the
+machines, and a machine whose `ensures` clause a proved law states for
+every value of its formals (`LawJudgment::theorem`, set by `prove_family`)
+takes that law as the clause's proof (`Discharged::Law` in
+[lib.rs](src/lib.rs)). When the law is unproved there is no such proof, and
+the machine's guarantee is refused as well as the law.
+
 Each proof is tried twice: first with every definition that is not by cases
 left as its name, so that a goal and its citations are compared as written,
 then with those definitions unfolded. When the search of every order of
