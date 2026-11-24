@@ -173,6 +173,7 @@ pub(super) fn store(slot: usize, path: Vec<usize>, value: Expression) -> Stateme
         };
     }
     Statement::Store {
+        slot_home: None,
         destination,
         value,
         source: nowhere(),

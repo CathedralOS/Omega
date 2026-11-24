@@ -512,7 +512,7 @@ impl<'a> Lowering<'a> {
             observed: Vec::new(),
             scalar_subjects: Vec::new(),
             slot_types,
-            lender_homes: &[],
+            slot_homes: &[],
             qualifications,
             coercions_start,
             value_qualifications: Vec::new(),
@@ -845,7 +845,7 @@ struct Lowering<'a> {
     )>,
     /// The declared type of each slot, as the body states it.
     slot_types: &'a [ValueType],
-    lender_homes: &'a [Option<StructuralTypeId>],
+    slot_homes: &'a [Option<StructuralTypeId>],
     /// The `PublishedGuarantee` of each `ensures` clause, by position: the
     /// identity Terminal Psi's `ContractClause` holds.
     published: Vec<ObligationId>,
@@ -1038,7 +1038,7 @@ impl<'a> Lowering<'a> {
     fn body(&mut self, member: MachineId, body: &Body) -> Checked<()> {
         self.owns_body = member == self.id;
         self.fallthrough = None;
-        self.lender_homes = self.records.lender_homes(member, self.id)?;
+        self.slot_homes = self.records.slot_homes(member, self.id)?;
         let entry = self.current()?;
         let source = self
             .sources
@@ -1055,9 +1055,9 @@ impl<'a> Lowering<'a> {
             }
         };
         // By-value formals are already bound here. Place them in their
-        // homes before any path may lend one. Local initializers establish
-        // theirs where the binding actually becomes live.
-        for (slot, home) in self.lender_homes.iter().copied().enumerate() {
+        // homes before a branch can borrow or write them. A local gets its
+        // home at its initializer.
+        for (slot, home) in self.slot_homes.iter().copied().enumerate() {
             if let (Some(home), Some(Bound::Scalar(value))) = (home, *self.slot_mut(slot)?) {
                 let place = self.establish_home(value, home, source)?;
                 *self.slot_mut(slot)? = Some(Bound::Home(place));

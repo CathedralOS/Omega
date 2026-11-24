@@ -988,6 +988,9 @@ pub enum Statement {
     /// their destination place ... They then evaluate the right-hand side".
     /// A destination made of a slot and fields has nothing to evaluate.
     Store {
+        /// The primitive storage identity when this use requires an owned scalar
+        /// slot to occupy one place from its binding through a control-flow join.
+        slot_home: Option<String>,
         destination: Expression,
         value: Expression,
         source: SourceOrigin,
