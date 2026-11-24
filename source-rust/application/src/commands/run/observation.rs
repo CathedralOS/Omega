@@ -14,6 +14,7 @@ pub(super) fn write(directory: &Path, execution: &ExecutionOutcome) -> io::Resul
         ExecutionOutcome::Host {
             output,
             exit,
+            returned_unit,
             private_entry_ram,
             ..
         } => {
@@ -24,6 +25,7 @@ pub(super) fn write(directory: &Path, execution: &ExecutionOutcome) -> io::Resul
                 None => "unknown",
             };
             let status = match exit {
+                ProcessExitObservation::Exited(0) if *returned_unit => "return\t0".into(),
                 ProcessExitObservation::Exited(code) => format!("exit\t{code}"),
                 ProcessExitObservation::Signaled(signal) => format!("signal\t{signal}"),
                 ProcessExitObservation::Terminated => "terminated".into(),

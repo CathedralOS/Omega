@@ -110,6 +110,7 @@ fn equal_bytes(channel: &str, left: &[u8], right: &[u8]) -> Result<(), String> {
 
 struct Observation {
     termination: String,
+    returned_unit: bool,
     exit: Option<i32>,
     trap: Option<bool>,
     stdout: Vec<u8>,
@@ -133,6 +134,7 @@ impl Observation {
                 .map_err(|_| format!("invalid process status {text:?}"))
         };
         let (exit, trap) = match (engine, fields.as_slice()) {
+            ("native", ["return", "0", _]) => (Some(0), native_trap(&fields)?),
             ("native", ["exit", code, _]) => (Some(number(code)?), native_trap(&fields)?),
             ("native", ["signal", signal, _]) => {
                 number(signal)?;
@@ -150,6 +152,7 @@ impl Observation {
         };
         Ok(Self {
             termination: termination.replace('\t', " "),
+            returned_unit: fields.first() == Some(&"return"),
             exit,
             trap,
             stdout: execution::read_bounded(&directory.join("stdout"))?,
@@ -168,12 +171,23 @@ fn native_trap(fields: &[&str]) -> Result<Option<bool>, String> {
 }
 
 fn agreement(native: &Observation, psi: &Observation) -> Result<(), String> {
+    equal_bytes("stdout", &native.stdout, &psi.stdout)?;
+    equal_bytes("stderr", &native.stderr, &psi.stderr)?;
     if let Some(code) = psi.exit {
-        if cfg!(unix) && code != (code & 255) && native.exit == Some(code & 255) {
+        if psi.returned_unit && !native.returned_unit && native.exit == Some(0) {
+            return Err("unavailable: the native program can exit the process; wait status 0 cannot establish a unit return".into());
+        }
+        if !psi.returned_unit && native.returned_unit {
+            return Err(format!("native returned unit vs explicit Psi exit {code}"));
+        }
+        if cfg!(unix) && !psi.returned_unit && native.exit == Some(code & 255) {
             return Err(format!(
-                "unavailable: host truncated Psi exit {code} to {}",
+                "unavailable: native wait status {} exposes only the low byte of the process exit; Psi explicitly exited {code}",
                 code & 255
             ));
+        }
+        if !psi.returned_unit && code == 0 && native.exit == Some(0) {
+            return Err("unavailable: native wait status 0 cannot distinguish explicit exit 0 from a unit return".into());
         }
         if native.exit != Some(code) {
             return Err(format!(
@@ -198,8 +212,7 @@ fn agreement(native: &Observation, psi: &Observation) -> Result<(), String> {
             }
         }
     }
-    equal_bytes("stdout", &native.stdout, &psi.stdout)?;
-    equal_bytes("stderr", &native.stderr, &psi.stderr)
+    Ok(())
 }
 
 pub(super) fn compare(
@@ -276,6 +289,7 @@ pub(super) fn compare(
     }
     let psi = psi?;
     Ok(match psi.exit {
+        Some(0) if psi.returned_unit => "pass (native wait status 0, Psi returned unit)".into(),
         Some(code) => format!("pass (native exit {code}, Psi exit {code})"),
         None => format!("pass (native and Psi {})", psi.termination),
     })
@@ -295,9 +309,27 @@ mod tests {
             Observation::read(&dir, engine)
         };
         let native_zero = read("native", "native\texit\t0\tother\n").unwrap();
-        let psi_wide = read("psi", "psi\texit\t256\n").unwrap();
-        let error = agreement(&native_zero, &psi_wide).unwrap_err();
-        assert_eq!(error.contains("truncated"), cfg!(unix), "{error}");
+        let psi_return = read("psi", "psi\treturn\n").unwrap();
+        assert!(
+            agreement(&native_zero, &psi_return)
+                .unwrap_err()
+                .contains("cannot establish")
+        );
+        let known_return = read("native", "native\treturn\t0\tother\n").unwrap();
+        agreement(&known_return, &psi_return).unwrap();
+        for code in [0, 23, 279, -1] {
+            let host = if cfg!(unix) { code & 255 } else { code };
+            let native = read("native", &format!("native\texit\t{host}\tother\n")).unwrap();
+            let explicit = read("psi", &format!("psi\texit\t{code}\n")).unwrap();
+            let comparison = agreement(&native, &explicit);
+            if cfg!(unix) {
+                assert!(comparison.unwrap_err().contains("only the low byte"));
+            } else if code == 0 {
+                assert!(comparison.unwrap_err().contains("distinguish"));
+            } else {
+                comparison.unwrap();
+            }
+        }
         let native_trap = read("native", "native\tsignal\t4\ttrap\n").unwrap();
         let psi_trap = read("psi", "psi\tcrash\tTrap\n").unwrap();
         assert!(agreement(&native_trap, &psi_trap).is_ok());

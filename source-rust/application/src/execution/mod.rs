@@ -127,6 +127,7 @@ pub enum ExecutionOutcome {
         target_name: String,
     },
     Host {
+        returned_unit: bool,
         output: Output,
         exit: ProcessExitObservation,
         comparison: InterpreterComparison,
@@ -333,7 +334,12 @@ pub fn run_project(
                 },
                 interpretation,
             );
+            let returned_unit = exit == ProcessExitObservation::Exited(0)
+                && report.artifact().is_some_and(|published| {
+                    !published.artifact.semantic_module().can_end_the_process()
+                });
             ExecutionOutcome::Host {
+                returned_unit,
                 private_entry_ram,
                 output,
                 exit,

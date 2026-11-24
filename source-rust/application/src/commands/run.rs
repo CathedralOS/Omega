@@ -157,6 +157,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
             exit,
             comparison,
             private_entry_ram,
+            ..
         } => {
             forward_output_or_exit(&output.stdout, &output.stderr);
             print_private_entry_ram(&private_entry_ram);
