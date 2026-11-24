@@ -3,7 +3,7 @@ use super::TestExecution;
 use crate::observations::{ProcessExitObservation, ProgramStreams, first_output_difference};
 use terminal_psi::CrashCause;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(super) enum EngineError {
     Failed(String),
     Incomplete(String),

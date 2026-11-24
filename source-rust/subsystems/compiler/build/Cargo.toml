@@ -8,6 +8,7 @@ version.workspace = true
 path = "project_build.rs"
 
 [dependencies]
+bounded-process = { path = "../../../foundation/bounded-process" }
 psi-authorization = { path = "../psi/artifact/authorization" }
 declaration-scope = { path = "../foundation/declaration-scope" }
 retained-product-selections = { path = "../source-to-psi/representations/retained-product-selections" }

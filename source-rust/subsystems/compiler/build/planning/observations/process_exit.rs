@@ -32,16 +32,19 @@ pub enum ProcessExitObservation {
     Terminated,    // Neither a numeric exit status nor a Unix signal was reported.
 }
 
+impl From<bounded_process::BoundedProcessExitStatus> for ProcessExitObservation {
+    fn from(status: bounded_process::BoundedProcessExitStatus) -> Self {
+        match (status.code(), status.unix_signal()) {
+            (Some(code), _) => Self::Exited(code),
+            (_, Some(signal)) => Self::Signaled(signal),
+            _ => Self::Terminated,
+        }
+    }
+}
+
 impl ProcessExitObservation {
     pub fn observe(status: &std::process::ExitStatus) -> Self {
-        if let Some(code) = status.code() {
-            return Self::Exited(code);
-        }
-        #[cfg(unix)]
-        if let Some(signal) = std::os::unix::process::ExitStatusExt::signal(status) {
-            return Self::Signaled(signal);
-        }
-        Self::Terminated
+        bounded_process::BoundedProcessExitStatus::from(*status).into()
     }
 
     pub const fn code(self) -> Option<i32> {

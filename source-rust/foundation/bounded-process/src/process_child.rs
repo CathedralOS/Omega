@@ -263,7 +263,7 @@ impl BoundedProcessChild {
         })?;
         self.finished = true;
         Ok(BoundedProcessCompletion::new(
-            BoundedProcessExitStatus::from_status(status),
+            BoundedProcessExitStatus::from(status),
             self.resource_usage.take(),
         ))
     }

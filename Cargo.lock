@@ -2282,6 +2282,7 @@ dependencies = [
  "admitted-native-inputs-to-target-bound-program",
  "arena",
  "artifacts",
+ "bounded-process",
  "build-declarations",
  "build-evaluation-result",
  "build-execution",
