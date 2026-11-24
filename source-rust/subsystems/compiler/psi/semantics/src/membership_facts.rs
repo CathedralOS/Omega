@@ -1481,6 +1481,7 @@ impl MembershipFacts {
             .map(|index| &self.machines[index])
     }
 
+    /// A missing program point has no observation from which to blame a cast.
     pub(crate) fn scalar_on_edge(
         &self,
         module: &TerminalModule,
@@ -1488,18 +1489,15 @@ impl MembershipFacts {
         edge: EdgeId,
         value: ValueId,
         domain: ScalarDomainId,
-    ) -> bool {
-        self.machine(machine)
-            .and_then(|machine| machine.on_edge(edge))
-            .is_some_and(|facts| {
-                facts.proves(
-                    module,
-                    &Fact {
-                        subject: Subject::Value(value),
-                        domain: Domain::Scalar(domain),
-                    },
-                )
-            })
+    ) -> Option<bool> {
+        let facts = self.machine(machine)?.on_edge(edge)?;
+        Some(facts.proves(
+            module,
+            &Fact {
+                subject: Subject::Value(value),
+                domain: Domain::Scalar(domain),
+            },
+        ))
     }
 
     pub(crate) fn structural_on_edge(
@@ -1508,31 +1506,25 @@ impl MembershipFacts {
         change: &terminal_psi::StructuralQualificationChange,
         referent: bool,
         domain: StructuralDomainId,
-    ) -> bool {
-        let Some(machine) = self.machine(change.machine) else {
-            return false;
-        };
+    ) -> Option<bool> {
+        let machine = self.machine(change.machine)?;
         let key = (change.edge, change.argument_ordinal, referent);
-        let Some(location) = machine
+        let index = machine
             .cast_sources
             .binary_search_by_key(&key, |source| source.key)
-            .ok()
-            .and_then(|index| machine.cast_sources[index].location.as_ref())
-        else {
-            return false;
-        };
-        machine.on_edge(change.edge).is_some_and(|facts| {
-            facts.proves(
-                module,
-                &Fact {
-                    subject: Subject::Storage {
-                        version: ContentPlaceVersion::Current,
-                        location: location.clone(),
-                    },
-                    domain: Domain::Structural(domain),
+            .ok()?;
+        let location = machine.cast_sources[index].location.as_ref()?;
+        let facts = machine.on_edge(change.edge)?;
+        Some(facts.proves(
+            module,
+            &Fact {
+                subject: Subject::Storage {
+                    version: ContentPlaceVersion::Current,
+                    location: location.clone(),
                 },
-            )
-        })
+                domain: Domain::Structural(domain),
+            },
+        ))
     }
 }
 
@@ -1640,34 +1632,55 @@ pub(crate) fn analyze_bodies(
 ) -> Judged<MembershipFacts> {
     use crate::descriptor_results::{DescriptorAnalysis, terminal_reference_graph_from};
     let mut result = MembershipFacts::default();
-    if !module
+    let has_result_memberships = module
         .machines
         .iter()
         .any(|machine| !machine.contract.membership_ensures.is_empty())
-        && !module
+        || module
             .execution.declaration_contracts
             .iter()
             .any(|header| !header.membership_ensures.is_empty())
-        && !module
+        || module
             .interfaces.boundary_machines
             .iter()
             .any(|header| !header.membership_ensures.is_empty())
-        && !module
+        || module
             .execution.callables
             .contracts
             .iter()
-            .any(|contract| !contract.proof.membership_ensures.is_empty())
-    {
-        return Ok(result);
-    }
-    validate_headers(module)?;
-    let promises = prepare_promises(module)?;
-    let graphs =
-        terminal_reference_graph_from(module, module.machines.iter().map(|machine| machine.id))
-            .map_err(|_| MembershipError {
-                machine: None,
-                detail: "runtime membership has no complete storage transfer graph",
-            })?;
+            .any(|contract| !contract.proof.membership_ensures.is_empty());
+    let mut bodies = bodies.to_vec();
+    let (roots, promises) = if has_result_memberships {
+        validate_headers(module)?;
+        let roots = module.machines.iter().map(|machine| machine.id).collect();
+        (roots, prepare_promises(module)?)
+    } else {
+        // A cast can forward a fact from a parameter or an earlier cast even
+        // when no machine or boundary promises a membership on return.
+        let cast_machines = module
+            .types
+            .scalar_qualifications
+            .coercions
+            .iter()
+            .map(|change| change.machine)
+            .chain(
+                module
+                    .types
+                    .structural_qualification_changes
+                    .iter()
+                    .map(|change| change.machine),
+            )
+            .collect::<BTreeSet<_>>();
+        bodies.retain(|machine| cast_machines.contains(machine));
+        if bodies.is_empty() {
+            return Ok(result);
+        }
+        (bodies.clone(), Vec::new())
+    };
+    let graphs = terminal_reference_graph_from(module, roots).map_err(|_| MembershipError {
+        machine: None,
+        detail: "runtime membership has no complete storage transfer graph",
+    })?;
     let mut graphs_by_id = graphs.iter().collect::<Vec<_>>();
     graphs_by_id.sort_unstable_by_key(|graph| graph.id);
     if graphs_by_id.windows(2).any(|pair| pair[0].id == pair[1].id) {
@@ -1676,7 +1689,6 @@ pub(crate) fn analyze_bodies(
             "runtime membership has duplicate machine storage graphs",
         ));
     }
-    let mut bodies = bodies.to_vec();
     bodies.sort_unstable();
     bodies.dedup();
     if bodies.iter().any(|id| {

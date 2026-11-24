@@ -1850,7 +1850,8 @@ fn validate_change(
         let missing = declared
             .missing_membership_requirements(&module.types.structural_domains, &held)
             .is_none_or(|missing| missing.iter().any(|node| node.id != declared.id));
-        let forwarded = facts.structural_on_edge(module, change, *referent, *id);
+        let membership = facts.structural_on_edge(module, change, *referent, *id);
+        let forwarded = membership == Some(true);
         if missing && !forwarded {
             return malformed(
                 machine,
@@ -1878,7 +1879,8 @@ fn validate_change(
                     .access_policy
                     .as_ref()
                     .is_some_and(|plan| plan.issuance.as_ref().is_some_and(Vec::is_empty));
-                if (!routes.is_empty() || explicitly_empty)
+                if membership == Some(false)
+                    && (!routes.is_empty() || explicitly_empty)
                     && excludes_machine(module, places.machine, routes)
                 {
                     error.violation =

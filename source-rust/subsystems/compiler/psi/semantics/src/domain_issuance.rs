@@ -12,20 +12,17 @@ pub struct DeniedEstablishment {
     pub domain: DomainSemanticId,
 }
 
-/// A boundary route issues at its completion. Only a closed list of guest
-/// routes can identify a denial from the issuing machine alone.
+/// Boundary requirements establish membership on the exact completed call.
+/// Only guest routes authorize a cast in the body of this machine.
 pub(crate) fn excludes_machine(
     module: &TerminalModule,
     machine: &TerminalMachine,
     routes: &[StructuralEstablishmentRoute],
 ) -> bool {
     machine.declaration.as_ref().is_some_and(|declaration| {
-        routes.iter().all(|route| {
-            !matches!(
-                route,
-                StructuralEstablishmentRoute::BoundaryRequirement { .. }
-            ) && !issuer_route_authorizes(module, machine, declaration, route)
-        })
+        routes
+            .iter()
+            .all(|route| !issuer_route_authorizes(module, machine, declaration, route))
     })
 }
 
