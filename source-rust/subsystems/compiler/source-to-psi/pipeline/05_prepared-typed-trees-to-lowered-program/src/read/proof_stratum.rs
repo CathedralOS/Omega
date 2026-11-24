@@ -59,6 +59,17 @@ impl Program<'_> {
         if self.contains_itself(data) {
             return true;
         }
+        // A quotient has the layout of what it is a quotient of: none, when
+        // that is mathematical data.
+        if let Some(quotient) = &data.quotient {
+            return self
+                .names_data(quotient.carrier)
+                .and_then(|symbol| self.typed.unique_data_definition_by_symbol(symbol))
+                .is_some_and(|carrier| {
+                    !visiting.contains(&carrier.symbol)
+                        && self.mathematical_within(carrier, visiting)
+                });
+        }
         // A declaration reached again through other declarations is being
         // decided further up; it adds nothing here.
         if visiting.contains(&data.symbol) {

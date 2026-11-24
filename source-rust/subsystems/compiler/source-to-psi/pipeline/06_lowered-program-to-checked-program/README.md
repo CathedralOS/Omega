@@ -71,6 +71,17 @@ of fuel by induction on it, the same script in each case, with the law at
 one unit less as what a self-citation names; with no fuel left there is no
 such hypothesis and the goal must follow without it.
 
+Two classes of a quotient are equal when their representatives are related.
+When the search proves no equality of two classes, `Proving::sound` in
+`laws.rs` reads the representative out of each side, proves the relation's
+formula at the two with the same search and evidence, and applies the
+kernel's soundness assumption for quotients to that proof. The kernel's
+receipt then counts the assumptions the law rests on: the quotient type, the
+class of a value and soundness. A row of the equivalence a quotient selects
+is compared with the sealed statement stage 05 recorded for it, and a row
+that asks for more than an equivalence owes is refused as "the proved
+equality is not the law its requirement declares".
+
 Each proof is tried twice: first with every definition that is not by cases
 left as its name, so that a goal and its citations are compared as written,
 then with those definitions unfolded. When the search of every order of

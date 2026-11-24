@@ -243,6 +243,8 @@ impl Definitions {
                     SignatureEntryKind::Data { .. }
                     | SignatureEntryKind::Record { .. }
                     | SignatureEntryKind::Encoding { .. }
+                    | SignatureEntryKind::Scheme
+                    | SignatureEntryKind::Quotient { .. }
                     | SignatureEntryKind::Statement { .. } => Definition::Opaque,
                     SignatureEntryKind::Constructor { data, case } => match shape(*data) {
                         Some(shape) => Definition::Constructor {

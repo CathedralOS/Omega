@@ -70,7 +70,7 @@ pub struct DataCarrier {
 }
 
 /// The carrier of every data declaration the kernel has checked, a record
-/// of mathematical data included.
+/// of mathematical data and a quotient of it included.
 fn carriers(
     arena: &mut TermArena,
     declarations: &[Declaration],
@@ -79,7 +79,8 @@ fn carriers(
     let mut carriers = Vec::new();
     for (position, entry) in entries.iter().enumerate() {
         let (SignatureEntryKind::Data { type_identity, .. }
-        | SignatureEntryKind::Record { type_identity, .. }) = &entry.kind
+        | SignatureEntryKind::Record { type_identity, .. }
+        | SignatureEntryKind::Quotient { type_identity, .. }) = &entry.kind
         else {
             continue;
         };
@@ -582,7 +583,7 @@ impl Proving<'_> {
         .evidence(&script.citations)
         .map_err(|error| error.failure(reported))?;
         match &script.split {
-            None => prove_licensed(
+            None => match prove_licensed(
                 self.arena,
                 &context,
                 self.definitions,
@@ -591,8 +592,15 @@ impl Proving<'_> {
                 self.licenses,
                 SEARCH_STEPS,
                 &mut Budget::new(SEARCH_COMPUTING),
-            )
-            .map_err(|error| failure(reported, error)),
+            ) {
+                // Two classes of a quotient are equal when their
+                // representatives are related.
+                Err(SearchError::NoProof) => self
+                    .sound(&context, frame.goal, &evidence)
+                    .and_then(|proof| proof.ok_or(SearchError::NoProof))
+                    .map_err(|error| failure(reported, error)),
+                proved => proved.map_err(|error| failure(reported, error)),
+            },
             Some(split) => {
                 let frame = Frame { evidence, ..frame };
                 match split.subject {
@@ -624,6 +632,77 @@ impl Proving<'_> {
                 }
             }
         }
+    }
+
+    /// A proof that two classes of a quotient are equal, by the quotient's
+    /// soundness law: `goal` equates the projections of two representatives,
+    /// and the evidence proves that the relation holds between them. `None`
+    /// when the goal is not of that form.
+    fn sound(
+        &mut self,
+        context: &Context,
+        goal: TermHandle,
+        evidence: &[TermHandle],
+    ) -> Result<Option<TermHandle>, SearchError> {
+        let Term::Id { ty, left, right } = self.arena.get(goal) else {
+            return Ok(None);
+        };
+        let Term::Constant { declaration, .. } = self.arena.get(ty) else {
+            return Ok(None);
+        };
+        let Some(&SignatureEntryKind::Quotient {
+            carrier, relation, ..
+        }) = self
+            .entries
+            .get(declaration as usize)
+            .map(|entry| &entry.kind)
+        else {
+            return Ok(None);
+        };
+        let family = proof_admission::QuotientFamily {
+            levels: [Level::Constant(0), Level::Constant(0)],
+            carrier: constant(self.arena, carrier),
+            relation: constant(self.arena, relation),
+        };
+        // The representative a side is the class of: the side is the
+        // kernel's projection of it at this carrier and relation, as stage
+        // 05 wrote it. The side is compared as written, because computing
+        // it would replace the relation's name with its formula.
+        let representative = |proving: &mut Self, side: TermHandle| {
+            let Term::Apply { argument, .. } = proving.arena.get(side) else {
+                return None;
+            };
+            let projected = family.project(proving.arena, argument);
+            proving
+                .arena
+                .structurally_equal(projected, side)
+                .then_some(argument)
+        };
+        let (Some(left), Some(right)) = (representative(self, left), representative(self, right))
+        else {
+            return Ok(None);
+        };
+        // The relation at the two representatives is the formula it is
+        // defined as, which the search proves like any equality.
+        let related = self.arena.apply_arguments(family.relation, &[left, right]);
+        let related = normal(
+            self.arena,
+            context,
+            self.definitions,
+            related,
+            &mut Budget::new(SEARCH_COMPUTING),
+        )?;
+        let held = prove_licensed(
+            self.arena,
+            context,
+            self.definitions,
+            related,
+            evidence,
+            self.licenses,
+            SEARCH_STEPS,
+            &mut Budget::new(SEARCH_COMPUTING),
+        )?;
+        Ok(Some(family.sound(self.arena, left, right, held)))
     }
 
     /// The proof of the frame's goal by the cases of a computed value.

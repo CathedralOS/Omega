@@ -55,7 +55,19 @@ its value; any other body is refused. A clause that calls a machine with a
 `requires` must have that premise among the stating machine's own. A named proposition declared as
 one formula is read where a clause of such a machine applies it: the formula,
 with each parameter standing for the argument written for it. Its declaration
-adds nothing to the signature. The ordinary reader refuses the same data and machines when a
+adds nothing to the signature. A quotient of mathematical data
+(`data Sign = Representative % same_sign requires same_sign satisfies
+Equivalence<Representative, same_sign> as SameSign;`) is mathematical data
+too (`read/quotients.rs`). The signature declares its relation as a
+definition over two values of the carrier and the quotient as the kernel's
+quotient of the carrier by that relation; `value as Sign` in a clause is the
+class of `value`. Each of the three rows of the conformance the quotient
+selects must have proved exactly the law an equivalence owes for this
+relation, so the signature records that sealed statement on the row's law
+for stage 06 to compare. A conformance whose every row is proved by a
+machine over mathematical data states laws only, and the ordinary reader
+skips it. A quotient of data that has storage is still refused, and so are
+`Quotient::lift` and `Quotient::define`. The ordinary reader refuses the same data and machines when a
 runtime machine reaches them. A field of any other type in such data, a
 premise on such a machine and a result together with a guarantee are refused
 as not supported yet.

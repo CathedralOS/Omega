@@ -186,6 +186,18 @@ impl Program<'_> {
         };
         let mut refused = Vec::new();
         let diagnostic = MachineId::new(1).expect("1 is nonzero");
+        // The kernel numbers its quotient declarations from zero, so they
+        // come before everything else.
+        if !self.quotients.is_empty() {
+            for declaration in mathematical_kernel::quotient_scheme(&mut converter.signature.arena)
+            {
+                converter.push(
+                    declaration,
+                    SignatureEntryKind::Scheme,
+                    "quotient".to_owned(),
+                );
+            }
+        }
         for &record in &self.self_containing {
             if let Err(refusal) = converter.data(diagnostic, record) {
                 let declaration = self
@@ -195,6 +207,17 @@ impl Program<'_> {
                 refused.push(self.read_failure_at(
                     refusal,
                     declaration,
+                    "the mathematical declaration",
+                ));
+            }
+        }
+        // A quotient is declared with the laws of its relation, before any
+        // machine that states something of it.
+        for quotient in &self.quotients {
+            if let Err(refusal) = converter.data(diagnostic, quotient.record) {
+                refused.push(self.read_failure_at(
+                    refusal,
+                    quotient.declaration,
                     "the mathematical declaration",
                 ));
             }
@@ -545,6 +568,13 @@ impl<'p> Converter<'p, '_> {
             return Ok(entry);
         }
         let program = self.program;
+        if let Some(quotient) = program
+            .quotients
+            .iter()
+            .find(|quotient| quotient.record == record)
+        {
+            return self.quotient(id, quotient);
+        }
         if program.self_containing.binary_search(&record).is_err() {
             return self.product(id, record);
         }
@@ -601,6 +631,154 @@ impl<'p> Converter<'p, '_> {
         }
         self.data.push((record, entry));
         Ok(entry)
+    }
+
+    /// The kernel's quotient of the data at entry `carrier` by the relation
+    /// at entry `relation`, both at the lowest universe.
+    fn family(&mut self, carrier: u32, relation: u32) -> mathematical_kernel::QuotientFamily {
+        mathematical_kernel::QuotientFamily {
+            levels: [Level::Constant(0), Level::Constant(0)],
+            carrier: self.constant(carrier),
+            relation: self.constant(relation),
+        }
+    }
+
+    /// Declares a quotient of mathematical data: its relation as a
+    /// definition over two values of the carrier, the quotient as the
+    /// kernel's quotient of the two, and each law of the selected
+    /// equivalence as the sealed statement its machine must have proved.
+    fn quotient(
+        &mut self,
+        id: MachineId,
+        quotient: &super::quotients::QuotientRecord,
+    ) -> Checked<u32> {
+        let carrier = self.data(id, quotient.carrier)?;
+        let ty = self.constant(carrier);
+        let open = [self.variable(1), self.variable(0)];
+        let formula = self.equality(id, &quotient.formula, &open, None)?;
+        let arena = &mut self.signature.arena;
+        let universe = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
+        let (mut related, mut relation_type) = (formula, universe);
+        for _ in 0..2 {
+            related = arena.insert(Term::Lambda {
+                domain: ty,
+                body: related,
+            });
+            relation_type = arena.insert(Term::Pi {
+                domain: ty,
+                codomain: relation_type,
+            });
+        }
+        index(id, self.signature.declarations.len() + 2)?;
+        let relation = self.push(
+            Declaration::definition(0, relation_type, related),
+            SignatureEntryKind::Function {
+                machine: quotient.relation,
+                cases: None,
+            },
+            quotient.relation_name.clone(),
+        );
+        let family = self.family(carrier, relation);
+        let body = family.quotient(&mut self.signature.arena);
+        let entry = self.push(
+            Declaration::definition(0, universe, body),
+            SignatureEntryKind::Quotient {
+                declaration: quotient.declaration,
+                carrier,
+                relation,
+                type_identity: quotient.identity.clone(),
+            },
+            self.name(quotient.declaration),
+        );
+        self.data.push((quotient.record, entry));
+        self.equivalence(id, quotient, carrier, relation)?;
+        Ok(entry)
+    }
+
+    /// The three laws of the equivalence a quotient selects. Each row's
+    /// machine must have proved exactly the sealed statement of its law
+    /// about this relation: for all values of the carrier, `R a a`; from
+    /// `R a b`, `R b a`; from `R a b` and `R b c`, `R a c`. Stage 06 checks
+    /// the proved statement against it, so a row that asks for more, or
+    /// proves something else, is refused.
+    fn equivalence(
+        &mut self,
+        id: MachineId,
+        quotient: &super::quotients::QuotientRecord,
+        carrier: u32,
+        relation: u32,
+    ) -> Checked<()> {
+        let program = self.program;
+        for (name, count) in [("reflexive", 1u32), ("symmetric", 2), ("transitive", 3)] {
+            let row = quotient
+                .rows
+                .iter()
+                .find(|(row, _)| row == name)
+                .map(|(_, machine)| *machine)
+                .ok_or_else(|| {
+                    unserved(id, "quotient's equivalence lacks a law of its relation")
+                })?;
+            let (machine, _) = program
+                .symbols
+                .iter()
+                .find(|(_, known)| **known == row)
+                .ok_or_else(|| unserved(id, "quotient's equivalence law was not read"))?;
+            let laws = self.laws(machine)?;
+            let &[law] = laws.as_slice() else {
+                return Err(unserved(
+                    machine,
+                    "row of a quotient's equivalence that states other than one law",
+                ));
+            };
+            let ty = self.constant(carrier);
+            let stated = &self.signature.laws[law as usize];
+            if stated.formals.len() != count as usize
+                || !stated
+                    .formals
+                    .iter()
+                    .all(|&formal| self.signature.arena.structurally_equal(formal, ty))
+            {
+                return Err(unserved(
+                    machine,
+                    "row of a quotient's equivalence over other than values of its carrier",
+                ));
+            }
+            let related = self.constant(relation);
+            let value = |converter: &mut Self, formal: u32| converter.variable(count - 1 - formal);
+            let holds = |converter: &mut Self, left: u32, right: u32, under: u32| {
+                let (left, right) = (value(converter, left), value(converter, right));
+                let applied = converter
+                    .signature
+                    .arena
+                    .apply_arguments(related, &[left, right]);
+                shift(&mut converter.signature.arena, applied, 0, under)
+            };
+            let sealed = match count {
+                1 => holds(self, 0, 0, 0),
+                2 => {
+                    let (given, shown) = (holds(self, 0, 1, 0), holds(self, 1, 0, 1));
+                    self.signature.arena.insert(Term::Pi {
+                        domain: given,
+                        codomain: shown,
+                    })
+                }
+                _ => {
+                    let first = holds(self, 0, 1, 0);
+                    let second = holds(self, 1, 2, 1);
+                    let shown = holds(self, 0, 2, 2);
+                    let rest = self.signature.arena.insert(Term::Pi {
+                        domain: second,
+                        codomain: shown,
+                    });
+                    self.signature.arena.insert(Term::Pi {
+                        domain: first,
+                        codomain: rest,
+                    })
+                }
+            };
+            self.signature.laws[law as usize].declared = Some(sealed);
+        }
+        Ok(())
     }
 
     /// A record with no cases whose fields are all mathematical data, as the
@@ -2439,6 +2617,28 @@ impl<'p> Converter<'p, '_> {
                         .iter()
                         .find(|(symbol, _)| *symbol == member)
                         .map(|(_, variable)| *variable);
+                    // A quotient's declaration applied to a representative
+                    // is that representative's class.
+                    if let Some(quotient) = self
+                        .program
+                        .quotients
+                        .iter()
+                        .find(|quotient| quotient.declaration == member)
+                    {
+                        let entry = self.data(id, quotient.record)?;
+                        let SignatureEntryKind::Quotient {
+                            carrier, relation, ..
+                        } = self.signature.entries[entry as usize].kind
+                        else {
+                            return Err(unserved(id, "quotient lost its declaration"));
+                        };
+                        let &[representative] = operands.as_slice() else {
+                            return Err(unserved(id, "quotient applied to other than one value"));
+                        };
+                        let family = self.family(carrier, relation);
+                        terms.push(family.project(&mut self.signature.arena, representative));
+                        continue;
+                    }
                     match (field, parameter) {
                         (Some((entry, at)), _) => self.component(id, entry, operands[0], at)?.0,
                         // A machine parameter applied to its arguments, or

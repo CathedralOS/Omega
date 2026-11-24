@@ -1,0 +1,51 @@
+// The twin of `pass/equivalence_class` whose `symmetric` row also requires
+// its two values to be equal. The row is still a true law, but it is not
+// the symmetry an equivalence owes: it says nothing about two different
+// numbers of one sign. The conformance is refused, and with it the
+// quotient that selects it.
+use omega\language\core\Equivalence;
+use omega\language\core\ProcessExit;
+
+data Representative {
+    case Zero;
+    case Next(previous: Representative);
+}
+
+// Zero for zero, one for everything else.
+machine sign(a: Representative) -> Representative {
+    transition a {
+        Representative::Zero -> Representative::Zero,
+        Representative::Next { previous } -> Representative::Next { previous: Representative::Zero }
+    }
+}
+
+proposition same_sign(a: Representative, b: Representative) =
+    core\Identity::<Representative>(sign(a), sign(b));
+
+SameSign satisfies Equivalence<Representative, same_sign> {
+    machine reflexive(value: Representative) ensures same_sign(value, value) { }
+    machine symmetric(left: Representative, right: Representative) requires same_sign(left, right), core\Identity::<Representative>(left, right) ensures same_sign(right, left) { }
+    machine transitive(left: Representative, middle: Representative, right: Representative) requires same_sign(left, middle), same_sign(middle, right) ensures same_sign(left, right) { }
+}
+
+data Sign = Representative % same_sign
+requires same_sign satisfies
+    Equivalence<Representative, same_sign>
+    as SameSign;
+
+machine related_representatives_have_one_class(a: Representative, b: Representative)
+requires same_sign(a, b)
+ensures core\Identity::<Sign>(a as Sign, b as Sign)
+{
+}
+
+data Main { }
+machine exit_with_status(main: @mutable Main) reaches ProcessExit {
+    ProcessExit::exit_process(0);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit {
+    let mutable entry_storage: Main;
+    block exit_with_status(@mutable entry_storage);
+}

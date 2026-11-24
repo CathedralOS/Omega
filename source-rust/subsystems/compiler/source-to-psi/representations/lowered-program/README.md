@@ -60,6 +60,12 @@ closure in `PreparedCompilation::mathematics`:
   is one definition, the product of its fields' types (`Record`). It has no
   constructor entry: a value is the tuple of its fields and a field is a
   projection of it.
+- **Quotients**: when the program declares a quotient of mathematical data,
+  the table starts with the kernel's quotient declarations (`Scheme`), whose
+  positions the kernel fixes. The quotient itself is two entries: its
+  relation as a definition over two values of the carrier, and the quotient
+  type as the kernel's quotient of the carrier by that relation
+  (`Quotient`, naming both entries).
 - **Laws**: one per `ensures` equality of a machine over such data. A law's
   proof is its body's citations, read per case when the body dispatches on a
   formal (an induction), and per case of a further value where a case splits
@@ -93,7 +99,8 @@ closure in `PreparedCompilation::mathematics`:
 Stage 05 writes the table ([`read/signature.rs`](../../pipeline/05_prepared-typed-trees-to-lowered-program/src/read/signature.rs)).
 Stage 06 checks every declaration once with the kernel and judges each law
 ([`laws.rs`](../../pipeline/06_lowered-program-to-checked-program/src/laws.rs)).
-Once the compilation is accepted, stage 06 writes each data declaration into
+Once the compilation is accepted, stage 06 writes each data declaration,
+quotients included, into
 the root module's Psi mathematical carrier table, under the type identity text
 stage 05 records on the data's entry. The laws' certificates are not
 published, by the owner's decision of 2026-11-23. A receiver of a Psi program

@@ -55,6 +55,7 @@ mod proof_stratum;
 mod provider_methods;
 mod provider_selections;
 mod providers;
+pub(crate) mod quotients;
 mod rankings;
 mod record_parameters;
 mod references;
@@ -64,7 +65,6 @@ mod rejections;
 mod review_requirements;
 pub(crate) mod services;
 mod signature;
-pub(crate) mod templates;
 mod source_operators;
 mod source_records;
 mod source_views;
@@ -73,6 +73,7 @@ mod static_contexts;
 pub(crate) mod storage_metadata;
 mod storage_path;
 mod subjects;
+pub(crate) mod templates;
 mod theorems;
 mod traits;
 mod transitions;
@@ -260,6 +261,8 @@ pub(crate) struct Program<'t> {
     reading_template: Option<SymbolHandle>,
     /// The body of each generic mathematical machine read so far.
     pub(crate) template_bodies: Vec<(MachineId, templates::TemplateBody)>,
+    /// Each quotient of mathematical data read so far (`quotients`).
+    pub(crate) quotients: Vec<quotients::QuotientRecord>,
     /// Each active clause retains the arguments an unfolded helper evaluates,
     /// even when its result does not use them. Frames keep nested scopes apart.
     clause_arguments: Vec<Vec<semantic_vocabulary::ScalarTerm>>,
@@ -570,6 +573,7 @@ impl<'t> Program<'t> {
             applied_propositions: Vec::new(),
             reading_template: None,
             template_bodies: Vec::new(),
+            quotients: Vec::new(),
             clause_arguments: Vec::new(),
             readiness: Vec::new(),
             names: IdTable::default(),

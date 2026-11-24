@@ -1301,6 +1301,40 @@ starts with records.
   - A refused law whose goal names a field inside one case of an induction
     prints `?` for that field.
 
+**Step 7 as built so far (2026-11-24): a quotient of mathematical data, and
+equal classes for related representatives.** `data Sign = Representative %
+same_sign requires same_sign satisfies Equivalence<Representative,
+same_sign> as SameSign;` is read into the mathematical signature when
+`Representative` is mathematical data.
+
+- **Formation.** The signature declares the relation as a definition and
+  the quotient as the kernel's quotient of the carrier by it. The kernel's
+  nineteen quotient declarations come first in the signature because the
+  kernel numbers them from zero. `value as Sign` in a clause is the class of
+  `value`; nothing else makes a value of the quotient.
+- **The equivalence is checked, not trusted.** Each row of the selected
+  conformance must have proved exactly reflexivity, symmetry or transitivity
+  of this relation. The twin `quotient/fail/symmetry_of_equal_values_only`
+  gives its `symmetric` row one more premise and is refused for that row.
+- **Equal classes.** `core\Identity::<Sign>(a as Sign, b as Sign)` is proved
+  from a proof of `same_sign(a, b)` by the kernel's soundness assumption.
+  The fixture relates two numbers when both are zero or neither is, so the
+  law equates the classes of different numbers; its receipt counts three
+  assumptions (the quotient type, the class of a value, soundness) and its
+  check takes 932 conversion steps.
+- **Not done:**
+  - `Quotient::lift` and `Quotient::define`, and the correspondence judgment
+    that checks them.
+  - Anything that needs the kernel's `effective` assumption (equal classes
+    give related representatives). The specification allows it only for a
+    relation shown to be a mere proposition, and a quotient declaration has
+    nowhere to select that evidence
+    ([owner question 8](../../../OWNER_QUESTIONS.md#quotient-mere-proposition-evidence)).
+    The compiler uses soundness only, which holds for any relation.
+  - A generic quotient, a quotient of data that has storage, and the
+    nineteen runtime quotient programs under
+    `samples/cli/facts/quotient_closed_literal/`.
+
 The first version of this plan started with level binders and value-indexed
 type arguments because they move 66 samples. They move those samples to
 their next failure, the library needs neither, and level binders wait on

@@ -600,6 +600,18 @@ impl Program<'_> {
         }
         for declared in typed.conformances() {
             let read = (|| -> Checked<()> {
+                // A conformance whose every row is proved by a machine over
+                // mathematical data states laws. The mathematical signature
+                // reads those machines; nothing of it runs.
+                if !declared.rows.is_empty()
+                    && declared.rows.iter().all(|row| {
+                        typed
+                            .machine_by_symbol(row.realization_machine)
+                            .is_some_and(|machine| self.proof_machine(machine))
+                    })
+                {
+                    return Ok(());
+                }
                 if self.owner(entry, declared.symbol, subjects, purpose)? == Owner::Subject {
                     // A generic implementation is checked once as written,
                     // like a generic machine above; a closed one forms its
