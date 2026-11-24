@@ -643,8 +643,10 @@ fn a_selected_external_observation_survives_evaluation_before_supply() {
 #[test]
 fn actual_governed_reads_and_delegated_writes_execute_and_refuse_denied_axes() {
     let original = include_str!("selected_access_plan_family.omg");
+    // change lends write access. Its helper also needs issuance authority to
+    // keep Stamped on the Ticket after changing its number.
     let plan = r#"let mutable plan: AccessPlan = access\new_plan(@schema,
-            Issuance::Only { routes: [reflect\callable(stamp)] });
+            Issuance::Only { routes: [reflect\callable(stamp), reflect\callable(write_number)] });
         access\allow_readers(@mutable plan,
             omega\language\core\AccessRegion::Subject { schema: schema },
             [reflect\callable(number)]);
@@ -664,15 +666,27 @@ fn actual_governed_reads_and_delegated_writes_execute_and_refuse_denied_axes() {
 machine change(ticket: @mutable Ticket in Stamped) { write_number(ticket); }
 machine write_number(ticket: @mutable Ticket in Stamped) { ticket.number = 41; }
 "#;
+    let denied_read = ("this function is not allowed to read this value", "number");
+    let denied_write = (
+        "this function is not allowed to write this value",
+        "write_number",
+    );
     for (source, denied) in [
         (source.clone(), None),
         (
+            source.replacen(", reflect\\callable(write_number)", "", 1),
+            Some((
+                "not one of the domain's establishment routes",
+                "write_number",
+            )),
+        ),
+        (
             source.replace("[reflect\\callable(number)]", "[]"),
-            Some("read"),
+            Some(denied_read),
         ),
         (
             source.replace("[reflect\\callable(change)]", "[]"),
-            Some("write"),
+            Some(denied_write),
         ),
         // Returning from the permitted invocation ends its delegation. A
         // later direct helper call cannot reuse that grant on the same value.
@@ -681,7 +695,7 @@ machine write_number(ticket: @mutable Ticket in Stamped) { ticket.number = 41; }
                 "change(@mutable ticket);",
                 "change(@mutable ticket);\n    write_number(@mutable ticket);",
             ),
-            Some("write"),
+            Some(denied_write),
         ),
     ] {
         let mut typed = typed_source(&source);
@@ -723,22 +737,12 @@ machine write_number(ticket: @mutable Ticket in Stamped) { ticket.number = 41; }
             request,
             terminal_codec::TerminalPublication::Portable,
         );
-        if let Some(axis) = denied {
+        if let Some((reason, owner)) = denied {
             let Err(error) = judged else {
-                panic!("an empty route list denies that axis");
+                panic!("expected a refusal in {owner}: {reason}");
             };
             let detail = format!("{error:?}");
-            assert!(
-                detail.contains(&format!(
-                    "this function is not allowed to {axis} this value"
-                )),
-                "{detail}"
-            );
-            let owner = if axis == "read" {
-                "number"
-            } else {
-                "write_number"
-            };
+            assert!(detail.contains(reason), "{detail}");
             assert!(
                 detail.contains(&format!("in machine `{owner}`")),
                 "{detail}"
