@@ -110,6 +110,11 @@ entry conditions as part of the effective input contract; a helper needing a
 positive argument cannot inhabit a callable that admits zero. The originating
 interface must never be silently narrowed from a selected body's requirements.
 
+A member extracted from the record returned by [`Provider::get`](../build/component_publication.md#owned-runtime-providers)
+also carries the borrow of the installed owner. A code-only shape cannot erase
+the lifetime of the backing code. Forwarding that member through a helper or
+storing it for later use retains the loan until its last use.
+
 Forwarding, reassignment, joins, fields and containers preserve the selected code
 and its contract evidence. Known selection may narrow the operational envelope
 only by [retained checked evidence](effects.md#known-dynamic-selections).
