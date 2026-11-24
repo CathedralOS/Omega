@@ -24,11 +24,11 @@ impl DecodedRecordError {
 /// Both a byte-window read and an entry lender must discharge the same declaration.
 /// Use the caller's decoded rows in place. A record with requirements orders its
 /// fields by semantic ID before substitution; byte offsets stay attached to each row.
-pub fn check_decoded_record_requirements<Row>(
+pub fn check_decoded_record_requirements<Row, Literal: FnMut(&Row) -> Option<ScalarTerm>>(
     requirements: &[Proposition],
     rows: &mut [Row],
     field_id: fn(&Row) -> StructuralFieldId,
-    literal: fn(&Row) -> Option<ScalarTerm>,
+    literal: Literal,
 ) -> Result<(), DecodedRecordError> {
     const LIMIT: DecodedRecordError = DecodedRecordError::Unsupported(
         "decoded record requirement evaluation exceeds the resource limit",
@@ -71,13 +71,15 @@ pub fn check_decoded_record_requirements<Row>(
     Ok(())
 }
 
-struct DecodedFields<'a, Row> {
+struct DecodedFields<'a, Row, Literal> {
     rows: &'a [Row],
     field_id: fn(&Row) -> StructuralFieldId,
-    literal: fn(&Row) -> Option<ScalarTerm>,
+    literal: Literal,
 }
 
-impl<Row> ClauseBindings for DecodedFields<'_, Row> {
+impl<Row, Literal: FnMut(&Row) -> Option<ScalarTerm>> ClauseBindings
+    for DecodedFields<'_, Row, Literal>
+{
     type Error = &'static str;
 
     fn field(

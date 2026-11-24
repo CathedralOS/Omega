@@ -95,6 +95,7 @@ fn entry_bytes_must_establish_the_selected_records_own_requirements() {
             &terminal_codec::ClosedTypeCatalog::default(),
             &module.types.structural_types,
             &module.types.structural_types[0],
+            &[],
             bytes,
         )
     }
@@ -183,9 +184,24 @@ fn entry_integer_bytes_must_satisfy_the_field_range_and_refinement() {
             closed.closed_types(),
             &module.types.structural_types,
             &module.types.structural_types[0],
+            &[],
             bytes,
         )
     };
+    for field in [1, 2] {
+        assert_eq!(
+            initialize_record(
+                module,
+                closed.closed_types(),
+                &module.types.structural_types,
+                &module.types.structural_types[0],
+                &[StructuralFieldId::new(field).unwrap()],
+                &[9, (-3i8) as u8]
+            )
+            .unwrap_err(),
+            "a private entry write needs proof that it preserves the field declaration"
+        );
+    }
     for endpoint in [-2i8, 9] {
         let decoded = decode(&[endpoint as u8, (-3i8) as u8]).unwrap();
         assert_eq!(decoded[0].value, literal(i128::from(endpoint)));
@@ -195,6 +211,38 @@ fn entry_integer_bytes_must_satisfy_the_field_range_and_refinement() {
         assert_eq!(
             decode(&bytes).unwrap_err(),
             "private entry RAM initializer violates its declaration"
+        );
+    }
+}
+
+#[test]
+fn an_entry_loan_preserves_every_field_its_record_requirement_reads() {
+    let flag = StructuralFieldType::Scalar(ScalarType::Boolean);
+    let id = |number| StructuralFieldId::new(number).unwrap();
+    let field = |number| ScalarTerm::BooleanField {
+        version: ContentPlaceVersion::Current,
+        root: PlaceId::new(1).unwrap(),
+        path: vec![CanonicalStructuralPathSegment::Field(id(number))],
+    };
+    let module = record(
+        &[flag.clone(), flag.clone(), flag],
+        vec![Proposition::Equal(field(1), field(2))],
+    );
+    let decode = |changing: &[u64]| {
+        initialize_record(
+            &module,
+            &terminal_codec::ClosedTypeCatalog::default(),
+            &module.types.structural_types,
+            &module.types.structural_types[0],
+            &changing.iter().copied().map(id).collect::<Vec<_>>(),
+            &[1, 1, 0],
+        )
+    };
+    assert!(decode(&[3]).is_ok());
+    for number in [1, 2] {
+        assert_eq!(
+            decode(&[number]).unwrap_err(),
+            "a private entry write needs proof that it preserves the record requirement"
         );
     }
 }
