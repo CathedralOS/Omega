@@ -460,6 +460,37 @@ pub(crate) mod alias_uses {
     use diagnostics::Diagnostic;
     use source_text::SourceSpan;
 
+    pub(crate) fn check_declaration(
+        source: &resolved::SymbolResolvedTrees,
+        declaration: symbols::SymbolHandle,
+        declaration_source: SourceSpan,
+        reference: SourceSpan,
+    ) -> Result<(), Diagnostic> {
+        if !source.symbols.symbols().nodes().is_valid(declaration) {
+            return Err(Diagnostic::error("type alias application has a stale declaration")
+                .with_source_span(reference));
+        }
+        let selected_source = source.symbols.symbol_source_span(declaration).or_else(|| {
+            if source.symbols.source_map().is_some() {
+                return None;
+            }
+            source
+                .type_aliases
+                .retained_records()
+                .find(|alias| alias.symbol == declaration)
+                .map(|alias| alias.name.source_span())
+        });
+        if source.symbols.get(declaration).kind != symbols::SymbolKind::TypeAlias
+            || selected_source != Some(declaration_source)
+        {
+            return Err(Diagnostic::error(
+                "type alias application does not rejoin its selected source declaration",
+            )
+            .with_source_span(reference));
+        }
+        Ok(())
+    }
+
     pub(crate) fn retain_application(
         source: &resolved::SymbolResolvedTrees,
         target: &mut typed::TypedTrees,
@@ -486,24 +517,7 @@ pub(crate) mod alias_uses {
                     ));
                 }
             };
-        let selected_source = source.symbols.symbol_source_span(declaration).or_else(|| {
-            if source.symbols.source_map().is_some() {
-                return None;
-            }
-            source
-                .type_aliases
-                .retained_records()
-                .find(|alias| alias.symbol == declaration)
-                .map(|alias| alias.name.source_span())
-        });
-        if source.symbols.get(declaration).kind != symbols::SymbolKind::TypeAlias
-            || selected_source != Some(declaration_source)
-        {
-            return Err(Diagnostic::error(
-                "type alias application does not rejoin its selected source declaration",
-            )
-            .with_source_span(reference));
-        }
+        check_declaration(source, declaration, declaration_source, reference)?;
         let supplied_operand_owner = target
             .type_reference_table
             .operand_lifetime_owner(application);

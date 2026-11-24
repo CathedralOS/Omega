@@ -22,6 +22,7 @@
 //! builtin type, plain or applied data, a fixed array with a literal extent, or a type with declared domain qualifications; value arguments that are an integer literal or a Boolean.
 //! Every other form is refused by name and forms nothing.
 
+mod aliases;
 mod qualifications;
 
 use crate::declaration_selection::product_operands::{
@@ -157,7 +158,7 @@ impl Lower<'_> {
         let Some(declaration) = name.declaration else {
             // A Build names Product declarations it cannot see while it is
             // typed, so typing leaves the name of one unresolved. It is
-            // resolved the way the operand's own path is: as the one data
+            // resolved the way the operand's own path is: as the one type or domain
             // declaration visible from where the name is written. A retained
             // operand has no such position; every name of it is anchored.
             if !self.helper.is_valid() && self.environment.is_none() {
@@ -168,19 +169,12 @@ impl Lower<'_> {
             let source = self
                 .source
                 .ok_or(unserved("a retained operand has no authored lookup scope"))?;
-            let role = if kind == SymbolKind::Domain {
-                ProductOperandRole::Domain
+            let (declaration, description) = if kind == SymbolKind::Domain {
+                (source.declarations.resolve(path, name.source_span, ProductOperandRole::Domain), "domain")
             } else {
-                ProductOperandRole::Data
+                (source.declarations.resolve_candidates(path, name.source_span, &source.types, &[]), "type")
             };
-            let description = if kind == SymbolKind::Domain {
-                "domain"
-            } else {
-                "data type"
-            };
-            return source
-                .declarations
-                .resolve(path, name.source_span, role)
+            return declaration
                 .ok_or_else(|| Stop::Rejected(format!(
                     "static argument `{path}` of this provider choice names no {description} visible here"
                 )));
@@ -195,16 +189,17 @@ impl Lower<'_> {
             .iter()
             .map(|domain| domain.symbol)
             .filter(at_declaration);
-        let mut data = self
+        let mut types = self
             .program
             .data_definitions()
             .iter()
             .map(|data| data.symbol)
+            .chain(self.program.type_aliases().iter().map(|alias| alias.symbol))
             .filter(at_declaration);
         let matches = if kind == SymbolKind::Domain {
             (domains.next(), domains.next())
         } else {
-            (data.next(), data.next())
+            (types.next(), types.next())
         };
         match matches {
             (Some(symbol), None) => Ok(symbol),
@@ -337,7 +332,7 @@ impl Lower<'_> {
             .join("::");
         if !operand.application.is_valid() {
             let symbol = self.symbol(name, &path, SymbolKind::Data)?;
-            return Ok(Closed::Type(self.named(symbol, name)));
+            return self.type_application(symbol, name, Vec::new());
         }
         // Applied data written as a path, `Holder<u64>`.
         let application = self.graph.applications.get(operand.application).clone();
@@ -370,7 +365,7 @@ impl Lower<'_> {
             return Ok(supplied);
         }
         let symbol = self.symbol(name, &name.text, SymbolKind::Data)?;
-        Ok(Closed::Type(self.named(symbol, name)))
+        self.type_application(symbol, name, Vec::new())
     }
 
     /// The data declaration's own telescope gives each nested operand its role.
@@ -384,7 +379,7 @@ impl Lower<'_> {
     ) -> Formed<Closed> {
         let parameters = self.program.declaration_type_parameters(symbol).to_vec();
         let arguments = self.closed_arguments(&parameters, name, inputs, read)?;
-        Ok(Closed::Type(self.applied(symbol, name, arguments)))
+        self.type_application(symbol, name, arguments)
     }
 
     fn closed_arguments<T: Copy>(
@@ -421,7 +416,7 @@ impl Lower<'_> {
     ) -> TypeReferenceHandle {
         use crate::source_state::types::{ProductTypeInput, TypeOperandOrigin};
         let reference = self.program.type_reference_table.insert(node);
-        if self.program.symbols.get(symbol).kind == SymbolKind::Data {
+        if matches!(self.program.symbols.get(symbol).kind, SymbolKind::Data | SymbolKind::TypeAlias) {
             self.program.type_reference_table.set_operand_origin(
                 reference,
                 TypeOperandOrigin::ProductInput(std::sync::Arc::new(ProductTypeInput {

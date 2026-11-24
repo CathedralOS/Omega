@@ -179,3 +179,40 @@ machine entry() crashes Trap {
         "{report}"
     );
 }
+
+#[test]
+fn provider_choices_expand_type_aliases_and_check_their_erased_arguments() {
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        return;
+    };
+    let target = host.target_name();
+    let program = r#"
+data Packet<T> { value: T; }
+data Pack<T> = Packet<T>;
+data WordPacket = Pack<u32>;
+data CopyPacket<T [copy]> = Packet<u32>;
+data Ticket [linear] {}
+boundary trait Reading<T> { machine read() -> u32 reaches none crashes none; }
+Words satisfies Reading<Packet<u32>> { machine read() -> u32 { 29u32 } }
+Wide satisfies Reading<Packet<u64>> { machine read() -> u32 { 37u32 } }
+machine entry() crashes Trap {
+    let word = Reading::<Packet<u32>>::read();
+    let wide = Reading::<Packet<u64>>::read();
+    transition word == 29u32 && wide == 37u32 { true -> done(), _ -> bad() }
+    machine done() {} machine bad() { crash Trap; }
+}
+"#;
+    let build = format!(
+        r#"use main.omg as app;
+machine build(builder: @mutable Build) {{
+    Build::application(builder, "aliased_providers");
+    Build::select_provider::<|app|::Reading<|app|::WordPacket>, |app|::Words>(builder, {target});
+    Build::select_provider::<|app|::Reading<|app|::Pack<u64>>, |app|::Wide>(builder, {target});
+    Build::bind(builder, {target}\ProgramEntry, |app|::entry);
+}}"#
+    );
+    assert_agreed_exit_zero(run_both("aliased_slots", program, &build));
+    let erased = build.replace("|app|::WordPacket", "|app|::CopyPacket<|app|::Ticket>");
+    let (status, report) = run_both("invalid_alias_actual", program, &erased);
+    assert!(!status.success() && report.contains("copy"), "{report}");
+}
