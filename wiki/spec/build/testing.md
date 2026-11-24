@@ -127,6 +127,12 @@ The application keeps its own provider selections.
 `builder.tests.service<Group, Slot>()` is retired. A matching trait name,
 package name or schema cannot cause the runner to supply a filesystem.
 
+An authored Build sets `group.inputs.private_filesystem = true` to supply an
+empty private filesystem for that group. The field defaults to false. This
+configures backing independently of the provider selected for a boundary.
+The Linux executor starts with an empty finite stdin and captures stdout and
+stderr. It exposes only the private namespace to filesystem operations.
+
 When the harness selects a private filesystem, the runner arranges for its
 provider to start with an empty filesystem for **each test invocation**, on
 both native and Psi. Setup supplies fresh backing before the test body runs.

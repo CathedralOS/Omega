@@ -1,0 +1,46 @@
+use omega\language\core\FilesystemContentRead;
+use omega\language\core\FilesystemContentWrite;
+use omega\language\core\FilesystemMetadataMutation;
+use omega\language\core\FilesystemNamespaceMutation;
+
+boundary trait FileCalls {
+    machine open(directory: i32, path: @[u8; 9], flags: i32, mode: i32) -> i32
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation crashes none;
+    machine write(file: i32, byte: @u8, count: u64) -> i64 reaches FilesystemContentWrite crashes none;
+    machine read(file: i32, byte: @mutable u8, count: u64) -> i64 reaches FilesystemContentRead crashes none;
+    machine close(file: i32) -> i32 reaches none crashes none;
+}
+
+trait Checks {
+    machine file() reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation crashes Trap;
+}
+
+machine first_file() satisfies Checks::file {
+    round_trip(65u8);
+}
+machine second_file() satisfies Checks::file {
+    round_trip(66u8);
+}
+
+machine round_trip(value: u8)
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation crashes Trap {
+    let path: [u8; 9] = [110, 111, 116, 101, 46, 116, 120, 116, 0];
+    // The host has /proc; a fresh private namespace contains only its root.
+    let proc_path: [u8; 9] = [47, 112, 114, 111, 99, 0, 0, 0, 0];
+    let host_directory: i32 = FileCalls::open(-100, @proc_path, 0, 0);
+    let file: i32 = FileCalls::open(-100, @path, 193, 384);
+    let written: i64 = FileCalls::write(file, @value, 1u64);
+    let closed: i32 = FileCalls::close(file);
+    let read_file: i32 = FileCalls::open(-100, @path, 0, 0);
+    let mutable byte: u8 = 0;
+    let read: i64 = FileCalls::read(read_file, @mutable byte, 1u64);
+    let closed_read: i32 = FileCalls::close(read_file);
+    transition host_directory == -2 && file >= 0 && written == 1 && closed == 0 && read_file >= 0 && read == 1 && closed_read == 0 && byte == value {
+        true -> passed(),
+        _ -> failed()
+    }
+    machine passed() {}
+    machine failed() crashes Trap { crash Trap; }
+}
+
+machine main() {}

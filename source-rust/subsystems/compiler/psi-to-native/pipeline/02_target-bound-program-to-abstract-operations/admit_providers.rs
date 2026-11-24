@@ -47,7 +47,7 @@ impl PreparedRetainedNativeProviders<'_> {
         terminal_authority_policy: &'request TerminalAuthorityPolicy,
         receiving_permissions: &'request Option<TerminalAuthorityPermissionPolicy>,
         isolated_execution_grant: Option<
-            &'request semantic_vocabulary::TerminalAuthorityDisposition,
+            &'request provider_admission::IsolatedExecutionGrant,
         >,
         installation_assumptions: &'request [installation_conditions::InstallationEnvironmentAssumption],
     ) -> crate::NativeAdmissionRequest<'request, 'request> {
@@ -154,7 +154,7 @@ pub struct NativeAdmissionRequest<'request, 'execution> {
     pub boundary_application_coverage: Option<&'request TerminalBoundaryApplicationCoverage>,
     pub behavior_exclusions: &'request native_behavior_exclusions::BehaviorExclusions,
     pub isolated_execution_grant:
-        Option<&'request semantic_vocabulary::TerminalAuthorityDisposition>,
+        Option<&'request provider_admission::IsolatedExecutionGrant>,
 }
 
 pub struct AdmittedNativeRealization<'execution> {

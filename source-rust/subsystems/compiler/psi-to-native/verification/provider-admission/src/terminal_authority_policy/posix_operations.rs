@@ -3,12 +3,13 @@
 //! Reads, writes and closes on an arbitrary descriptor need evidence about
 //! the installed object before they can receive a narrower classification.
 
+use runtime_abi::{DescriptorOperation, descriptor_system_call};
 use semantic_vocabulary::{TerminalAuthorityClass as Class, TerminalAuthorityDisposition};
 use std::sync::OnceLock;
 use target::{LinuxFilesystemOperation as Op, TargetProfile};
 use terminal_authority_receipts::{
     NormalizedForeignArgumentContract, NormalizedForeignTerminalMechanismIdentity,
-    TerminalMechanismIdentity,
+    SyscallTerminalMechanismIdentity, TerminalMechanismIdentity,
 };
 
 use super::TerminalAuthorityPolicyRow;
@@ -30,7 +31,11 @@ fn linux_operation(target: TargetProfile, number: u32) -> Option<&'static [Class
     ) {
         return Some(&[Class::ProcessTermination]);
     }
-    Some(match Op::from_syscall(target, i64::from(number))? {
+    linux_filesystem_classes(Op::from_syscall(target, i64::from(number))?)
+}
+
+fn linux_filesystem_classes(operation: Op) -> Option<&'static [Class]> {
+    Some(match operation {
         Op::Fstat | Op::Newfstatat | Op::Readlinkat => METADATA,
         Op::Fchmod | Op::Fchmodat | Op::Fchown | Op::Fchownat | Op::Utimensat => SET_METADATA,
         Op::Linkat | Op::Renameat | Op::Symlinkat | Op::Unlinkat => NAMESPACE,
@@ -40,6 +45,42 @@ fn linux_operation(target: TargetProfile, number: u32) -> Option<&'static [Class
         Op::Dup | Op::Fsync | Op::Fdatasync | Op::Lseek | Op::Flock => &[],
         Op::Openat | Op::Close | Op::Pread64 | Op::Pwrite64 => return None,
     })
+}
+
+/// An arbitrary descriptor has no host-independent filesystem classification.
+/// Inside the private namespace its only possible objects are this invocation's
+/// files, directories and captured pipes. Reuse the target's adapter table.
+pub(crate) fn private_linux_syscall_authority(
+    call: SyscallTerminalMechanismIdentity,
+) -> Option<TerminalAuthorityDisposition> {
+    if call.checked_argument_contract().is_zero() {
+        return None;
+    }
+    let target = call.target();
+    let number = i64::from(call.number());
+    let classes: &[Class] = if let Some((_, operation)) = descriptor_system_call(target, number) {
+        match operation {
+            DescriptorOperation::Read => &[Class::FilesystemContentRead, Class::ProcessInput],
+            DescriptorOperation::Write => &[Class::FilesystemContentWrite, Class::ProcessOutput],
+        }
+    } else {
+        match Op::from_syscall(target, number)? {
+            Op::Openat => &[
+                Class::FilesystemContentRead,
+                Class::FilesystemContentWrite,
+                Class::FilesystemNamespaceMutation,
+                Class::FilesystemMetadataMutation,
+            ],
+            Op::Close => &[],
+            Op::Pread64 => &[Class::FilesystemContentRead],
+            Op::Pwrite64 => &[Class::FilesystemContentWrite],
+            // These have host-independent classifications in the ordinary policy.
+            other => linux_filesystem_classes(other)?,
+        }
+    };
+    Some(TerminalAuthorityDisposition::from_classes(
+        classes.iter().copied(),
+    ))
 }
 
 struct PosixImport {

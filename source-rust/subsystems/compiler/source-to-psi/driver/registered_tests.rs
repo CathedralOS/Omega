@@ -7,10 +7,12 @@ use crate::*;
 use diagnostics::Diagnostic;
 use source_admission::RetainedDeclaration;
 use source_declarations::source_selections::TestGroupRegistration;
+pub use source_declarations::declaration_selection::TestInvocationInputs;
 
 pub struct TestRoot {
     pub group: String,
     pub name: String,
+    pub inputs: TestInvocationInputs,
     group_declaration: RetainedDeclaration,
     selecting_machine: RetainedDeclaration,
     declaration: RetainedDeclaration,
@@ -165,6 +167,7 @@ impl<'a> RegisteredTests<'a> {
                 roots.push(TestRoot {
                     group: path.clone(),
                     name,
+                    inputs: group.configuration.inputs.clone(),
                     group_declaration: retain(group.requirement)?,
                     selecting_machine: retain(group.selecting_machine)?,
                     declaration: retain(machine.symbol)?,

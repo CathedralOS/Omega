@@ -5,6 +5,7 @@ use super::{
     InstallationEnvironmentAssumption, ProductStage, Program, RegisteredTests, Run, TargetProfile,
     TestExecution, run_test,
 };
+use provider_admission::IsolatedExecutionGrant;
 use source_compiler::registered_tests::TestRoot;
 
 #[path = "plan/bindings.rs"]
@@ -64,19 +65,23 @@ impl PlannedTest {
         assumptions: &[InstallationEnvironmentAssumption],
         request: TestExecution,
     ) -> Self {
-        let psi = Destination::Scheduled;
-        let native = if TargetProfile::host_if_supported() == Some(target) {
+        let private_grant = root.inputs.private_filesystem.then(|| {
+            IsolatedExecutionGrant::private_linux_filesystem(target)
+        }).flatten();
+        let psi = if root.inputs.private_filesystem && private_grant.is_none() {
+            Destination::Unavailable("the target has no private filesystem adapter")
+        } else {
             Destination::Scheduled
+        };
+        let native = if TargetProfile::host_if_supported() == Some(target) {
+            psi
         } else {
             Destination::Unavailable("its target does not execute on this host")
         };
         let prepare = || {
             let mut native_target = stage.native_target(target, assumptions.to_vec())?;
             native_target.isolated_execution_grant = Some(
-                semantic_vocabulary::TerminalAuthorityDisposition::from_classes([
-                    semantic_vocabulary::TerminalAuthorityClass::ProcessOutput,
-                    semantic_vocabulary::TerminalAuthorityClass::ProcessTermination,
-                ]),
+                private_grant.unwrap_or_else(IsolatedExecutionGrant::captured_process),
             );
             let program = Program::CheckedSource {
                 publication: suite.compile(&root, target.target_name())?,
@@ -158,7 +163,7 @@ impl PlannedTest {
             }
         };
         vec![
-            match run_test(product.report, &self.engines, self.target, self.request) {
+            match run_test(product.report, &self.engines, &self.root.inputs, self.target, self.request) {
                 Ok(status) => Diagnostic::note(format!(
                     "{name} (target `{}`): {status}",
                     self.target.target_name()

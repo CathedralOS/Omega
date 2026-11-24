@@ -10,13 +10,26 @@ use std::process::Command;
 pub(super) fn capture(
     command: Command,
     limits: NativeEntryLimits,
+    private_root: Option<&std::path::Path>,
 ) -> Result<BoundedProcessOutput, EngineError> {
-    let prepared =
+    let mut prepared =
         BoundedProcessPrepared::new(command, limits.process, "registered native test")
             .map_err(|error| EngineError::Failed(format!("cannot prepare the test: {error}")))?;
+    let stdin = if let Some(scratch) = private_root {
+        prepared
+            .use_private_filesystem(scratch, Default::default())
+            .map_err(|error| {
+                EngineError::Unavailable(format!(
+                    "cannot prepare the private test filesystem: {error}"
+                ))
+            })?;
+        BoundedProcessInput::Bytes(Vec::new())
+    } else {
+        BoundedProcessInput::Null
+    };
     let output = run_bounded_process(
         prepared,
-        BoundedProcessInput::Null,
+        stdin,
         limits.capture,
         BoundedCaptureBudget::new(limits.combined_output_bytes),
     )
@@ -69,19 +82,19 @@ mod tests {
         limits.capture.stderr_bytes = 3;
         limits.combined_output_bytes = 6;
 
-        let run = || capture(shell("printf out; printf err >&2"), limits).unwrap();
+        let run = || capture(shell("printf out; printf err >&2"), limits, None).unwrap();
         for output in [run(), run()] {
             assert!(output.status.success());
             assert_eq!(output.stdout, b"out");
             assert_eq!(output.stderr, b"err");
         }
-        let overflow = capture(shell("printf more >&2"), limits).unwrap_err();
+        let overflow = capture(shell("printf more >&2"), limits, None).unwrap_err();
         assert!(
             matches!(&overflow, EngineError::Incomplete(reason) if reason.contains("stderr exceeded its 3-byte capture allowance")),
             "{overflow:?}"
         );
         limits.combined_output_bytes = 5;
-        let overflow = capture(shell("printf out; printf err >&2"), limits).unwrap_err();
+        let overflow = capture(shell("printf out; printf err >&2"), limits, None).unwrap_err();
         assert!(
             matches!(&overflow, EngineError::Incomplete(reason) if reason.contains("combined 5-byte capture allowance")),
             "{overflow:?}"
@@ -90,7 +103,7 @@ mod tests {
 
     #[test]
     fn a_signal_with_no_resource_report_keeps_its_native_status() {
-        let output = capture(shell("kill -TERM $$"), NativeEntryLimits::INSTALLED).unwrap();
+        let output = capture(shell("kill -TERM $$"), NativeEntryLimits::INSTALLED, None).unwrap();
         assert_eq!(output.status.unix_signal(), Some(15));
         assert!(output.limits_reached.is_empty());
     }
@@ -99,12 +112,12 @@ mod tests {
     fn only_a_test_that_started_can_exhaust_its_deadline() {
         let mut limits = NativeEntryLimits::INSTALLED;
         limits.capture.timeout = Duration::from_secs(1);
-        let timeout = capture(shell("exec sleep 20"), limits).unwrap_err();
+        let timeout = capture(shell("exec sleep 20"), limits, None).unwrap_err();
         assert!(
             matches!(&timeout, EngineError::Incomplete(reason) if reason.contains("deadline")),
             "{timeout:?}"
         );
-        let absent = capture(Command::new("/nonexistent/omega-test"), limits).unwrap_err();
+        let absent = capture(Command::new("/nonexistent/omega-test"), limits, None).unwrap_err();
         assert!(matches!(absent, EngineError::Unavailable(_)), "{absent:?}");
     }
 }
@@ -117,7 +130,7 @@ mod windows_tests {
     fn a_returning_test_cannot_hide_a_job_limit() {
         let mut command = Command::new("cmd.exe");
         command.args(["/d", "/c", "cmd /d /c exit 0 & exit /b 0"]);
-        let result = capture(command, NativeEntryLimits::INSTALLED).unwrap_err();
+        let result = capture(command, NativeEntryLimits::INSTALLED, None).unwrap_err();
         assert!(
             matches!(&result, EngineError::Incomplete(reason) if reason.contains("active process count")),
             "{result:?}"
