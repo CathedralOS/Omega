@@ -13505,8 +13505,9 @@ mod source {
 
                 // Selection writes an indexed row only for a runtime index, so a
                 // read with no runtime index must not carry one.
-                let direct =
-                    length(vec![StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(6))]);
+                let direct = length(vec![StructuralPathSegment::Field(
+                    terminal_psi::TerminalIdentityIndex(6),
+                )]);
                 assert!(super::runtime_footprint_retained(&direct, &[]));
                 assert!(super::runtime_footprint_retained(
                     &direct,
@@ -15679,9 +15680,8 @@ mod source {
                         )
                 })
                 .collect::<Vec<_>>();
-            if elements.is_empty() {
-                return true;
-            }
+            // Selection writes one indexed row per runtime index and none
+            // without one, so an index-free operation needs zero indexed rows.
             rows.len() == elements.len()
                 && rows
                     .iter()
