@@ -36,7 +36,10 @@ pub(super) enum RequirementHeaderOrigin {
     Declared(SymbolHandle),
     AppliedService {
         requirement: SymbolHandle,
-        receiver: (SymbolHandle, crate::source_state::type_identity::NormalizedTypeIdentity),
+        receiver: (
+            SymbolHandle,
+            crate::source_state::type_identity::NormalizedTypeIdentity,
+        ),
     },
     CallableParameter(SymbolHandle),
 }
@@ -554,6 +557,15 @@ impl<'t> Program<'t> {
                 )
             }
             None if self.rigid && self.symbols.is_empty() => Reading::GenericEntry,
+            // A mathematical machine generic over machines is read once,
+            // with its parameters left open (`templates`).
+            None if self
+                .typed
+                .machine_by_symbol(symbol)
+                .is_some_and(|machine| self.mathematical_template(machine)) =>
+            {
+                Reading::GenericEntry
+            }
             _ => Reading::Closed,
         };
         self.read_machine(id, symbol, reading)?;
@@ -921,13 +933,17 @@ impl<'t> Program<'t> {
         let typed = self.typed;
         if let Some(closed) = typed.closed_requirement_application(requirement) {
             if closed.declaring_trait != declaring_trait
-                || !typed.trait_machine_signature(closed.template).is_some_and(|(owner, _)| {
-                    owner.symbol == declaring_trait
-                })
+                || !typed
+                    .trait_machine_signature(closed.template)
+                    .is_some_and(|(owner, _)| owner.symbol == declaring_trait)
             {
-                return Err(super::services::unavailable(id, "the applied requirement belongs to another trait"));
+                return Err(super::services::unavailable(
+                    id,
+                    "the applied requirement belongs to another trait",
+                ));
             }
-            typed.require_closed_requirement_call_application(requirement, closed.application)
+            typed
+                .require_closed_requirement_call_application(requirement, closed.application)
                 .map_err(|reason| super::services::unavailable(id, reason))?;
             return Ok(closed.signature);
         }
@@ -1016,10 +1032,12 @@ impl<'t> Program<'t> {
                 })?;
         }
         if expected.is_some_and(|signature| {
-            signature.symbol != requirement && self.typed
-                .closed_requirement_application(signature.symbol)
-                .map_or(signature.symbol, |application| application.template)
-                != requirement
+            signature.symbol != requirement
+                && self
+                    .typed
+                    .closed_requirement_application(signature.symbol)
+                    .map_or(signature.symbol, |application| application.template)
+                    != requirement
         }) {
             return Err(refuse(
                 id,
@@ -1062,7 +1080,8 @@ impl<'t> Program<'t> {
             // The witness receives each unspecialized const as a scalar input,
             // just like the declaration whose contract it checks.
             let parameters = self.requirement_binders(id, declared)?.len();
-            let header = self.applied_requirement_signature(id, declared, RequirementValues::Rigid)?;
+            let header =
+                self.applied_requirement_signature(id, declared, RequirementValues::Rigid)?;
             (header, parameters)
         } else {
             (self.requirement_signature(id, declared, arguments)?, 0)
@@ -1290,7 +1309,10 @@ impl<'t> Program<'t> {
     ) -> Checked<MachineId> {
         let symbol = match origin {
             RequirementHeaderOrigin::Declared(symbol)
-            | RequirementHeaderOrigin::AppliedService { requirement: symbol, .. }
+            | RequirementHeaderOrigin::AppliedService {
+                requirement: symbol,
+                ..
+            }
             | RequirementHeaderOrigin::CallableParameter(symbol) => symbol,
         };
         let (arguments, parameters) = match values {
@@ -2280,7 +2302,10 @@ impl<'t> Program<'t> {
                 Unserved::Contract("contracts on a state"),
             ));
         }
-        let (mut signature, mut names) = self.contract(
+        self.reading_template = self
+            .mathematical_template(machine)
+            .then_some(machine.symbol);
+        let read = self.contract(
             id,
             state.symbol,
             state.parameters,
@@ -2292,7 +2317,9 @@ impl<'t> Program<'t> {
             },
             &binders,
             &[],
-        )?;
+        );
+        self.reading_template = None;
+        let (mut signature, mut names) = read?;
         if prepared
             .as_ref()
             .is_some_and(|prepared| !prepared.matches(&signature))
@@ -3846,6 +3873,10 @@ impl<'t> Program<'t> {
                     .unwrap_or_default()
             })
             .collect();
+        if let Some(machine) = self.reading_template.take() {
+            let body = self.template_body(id, &required, machine)?;
+            self.template_bodies.push((id, body));
+        }
         let names = MachineNames {
             formals: formals
                 .iter()

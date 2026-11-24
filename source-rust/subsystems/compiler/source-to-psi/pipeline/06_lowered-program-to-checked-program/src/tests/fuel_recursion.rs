@@ -226,3 +226,50 @@ fn every_law_of_rat_is_judged() {
         largest.0
     );
 }
+
+#[test]
+fn every_law_of_cauchy_is_judged() {
+    // `core/cauchy.omg` states what it is for a sequence of rationals to be
+    // Cauchy, for any sequence and any modulus: its machines are generic
+    // over machines. It is judged with the four files it stands on.
+    let program = library(&[
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../../source/library/core/nat_metric.omg"
+        )),
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../../source/library/core/int.omg"
+        )),
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../../source/library/core/rat.omg"
+        )),
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../../source/library/core/cauchy.omg"
+        )),
+    ]);
+    let verdicts = judged(&program, &[("algebra.omg", "CommutativeSemiring", ALGEBRA)]);
+    let judgment = signature(&verdicts);
+    for law in &judgment.laws {
+        assert!(
+            matches!(law.decision, MathematicalCoreDecision::Judged(_)),
+            "{law:?}"
+        );
+    }
+    for machine in [
+        "cauchy_at_reflexive",
+        "converges_together_at_symmetric",
+        "converges_together_at_triangle_split",
+        "doubled_nat_max_threshold",
+    ] {
+        let law = judgment
+            .laws
+            .iter()
+            .find(|law| law.machine == machine)
+            .unwrap_or_else(|| panic!("the law `{machine}`"));
+        eprintln!("{machine}: {} conversion steps", law.conversion_steps);
+    }
+    eprintln!("{} laws", judgment.laws.len());
+}

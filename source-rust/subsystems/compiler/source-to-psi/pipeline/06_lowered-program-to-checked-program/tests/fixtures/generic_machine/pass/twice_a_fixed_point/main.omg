@@ -1,0 +1,37 @@
+// A definition and a law about every machine of a given signature. `twice`
+// applies a machine parameter two times. If that machine leaves a value as
+// it is, so does applying it twice. Nothing instantiates either machine:
+// each is checked once, for any terminating machine from `Peano` to `Peano`.
+use omega\language\core\ProcessExit;
+
+data Peano {
+    case Zero;
+    case Succ(pred: Peano);
+}
+
+machine twice<machine Step>(a: Peano) -> Peano
+requires machine Step(a: Peano) -> Peano terminates;
+{
+    let once: Peano = Step(a);
+    transition { _ -> (Step(once)) }
+}
+
+machine twice_keeps_a_fixed_point<machine Step>(a: Peano)
+requires machine Step(a: Peano) -> Peano terminates;
+requires
+    core\Identity::<Peano>(Step(a), a)
+ensures
+    core\Identity::<Peano>(twice::<Step>(a), a)
+{
+}
+
+data Main { }
+machine exit_with_status(main: @mutable Main) reaches ProcessExit {
+    ProcessExit::exit_process(0);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit {
+    let mutable entry_storage: Main;
+    block exit_with_status(@mutable entry_storage);
+}
