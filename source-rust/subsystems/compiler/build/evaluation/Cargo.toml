@@ -29,7 +29,6 @@ evaluation-contracts = { path = "accounting/contracts" }
 source-admission = { path = "../../source-to-psi/representations/source-files/custody" }
 source-text = { path = "../../../../foundation/source-text" }
 evaluation-receipts = { path = "receipts" }
-terminal-semantics = { path = "../../psi/semantics" }
 terminal-interpreter = { path = "../../../interpreter" }
 terminal-work = { path = "../../psi/semantics/work" }
 terminal-codec = { path = "../../psi/artifact/codec" }
