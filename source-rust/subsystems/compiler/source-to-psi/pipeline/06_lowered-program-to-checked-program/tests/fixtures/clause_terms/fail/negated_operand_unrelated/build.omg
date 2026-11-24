@@ -1,0 +1,3 @@
+// The caller knows only `a == b`, which does not give `a == !b`.
+machine opposite(a: bool, b: bool) requires a == !b { }
+machine build_entry(a: bool, b: bool) requires a == b { opposite(a, b); }

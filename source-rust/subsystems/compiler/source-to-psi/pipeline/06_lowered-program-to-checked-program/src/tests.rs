@@ -42,6 +42,7 @@ mod callable_contracts;
 mod calling_policies;
 mod case_payloads;
 mod ceilings;
+mod clause_terms;
 mod collection_members;
 mod compiler_primitive_headers;
 mod connected_facts;

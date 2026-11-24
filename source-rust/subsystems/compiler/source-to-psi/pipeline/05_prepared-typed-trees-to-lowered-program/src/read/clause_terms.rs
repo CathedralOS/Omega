@@ -873,6 +873,27 @@ impl Program<'_> {
                             .map(|value| self.operator_operand_reference(value));
                         (term, selected)
                     }
+                    // `!b` is a Boolean value wherever a clause writes one,
+                    // as an operand (`a == !b`) as well as a whole clause.
+                    ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+                        let (operand, value_type) = self
+                            .clause_term(
+                                id,
+                                scope,
+                                unary.operand,
+                                ClauseUse::Scalar(Some(ScalarType::Boolean)),
+                            )?
+                            .scalar(id)?;
+                        if value_type != ValueType::plain(ScalarType::Boolean) {
+                            return Err(unavailable(
+                                "logical negation of a value that is not bool",
+                            ));
+                        }
+                        let term = ScalarTerm::boolean_not(operand).map_err(|_| {
+                            unavailable("logical negation of a value that is not bool")
+                        })?;
+                        (term, value_type)
+                    }
                     ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::BitwiseNot => {
                         let (operand, value_type) = self
                             .clause_term(id, scope, unary.operand, ClauseUse::Scalar(expected))?
