@@ -1432,9 +1432,7 @@ pub(crate) mod structural_leaf_copy {
         else {
             return false;
         };
-        index
-            .checked_add(layout.size)
-            .is_some_and(|end| end <= *length)
+        layout.fits_at(*index, *length)
     }
 }
 

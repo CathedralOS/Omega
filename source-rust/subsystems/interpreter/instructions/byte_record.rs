@@ -41,6 +41,11 @@ impl TerminalExecution<'_> {
         let layout =
             byte_carrier_scalar_layout(self.structural_types().values(), result.structural_type)
                 .ok_or(malformed())?;
+        if !layout.fits_at(*index, u64::try_from(bytes.len()).map_err(|_| malformed())?) {
+            return Err(TerminalInterpretError::StructuralContentsResultInvalid {
+                reason: "the byte array does not contain the complete record footprint",
+            });
+        }
         let index = usize::try_from(*index).map_err(|_| malformed())?;
         let mut fields_to_publish = DecodedFields(Vec::with_capacity(fields.len()));
         for (declared, member) in fields.iter().zip(&layout.leaves) {
