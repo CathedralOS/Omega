@@ -1355,9 +1355,18 @@ type), and the clause's `ClauseScope` says what each name denotes there.
     "extent without a structural subject": a crash guard reads invocation
     entry, and a borrowed formal or a field of a formal there has no
     observation chosen for it (stage 05 README, crash guards).
-  - "case membership" in a machine clause (`read_clause`): `x in S::C` is
-    read only in a data or domain predicate, whose names the checker replaces
-    by values before it is a goal.
+  - "case membership" in a machine clause (`read_clause`) is **not a rule**
+    (checked 2026-11-24). `requires outcome in Outcome::Good` and `ensures
+    result in Outcome::Good` are both refused with "contract case membership
+    while reading the signature", yet the library states such clauses
+    (`core/representation.omg`: `ensures result in Result::Ok`, and
+    `ensures Model::valid(source.frame) == (result in Result::Ok)`, which
+    also uses the membership as a Boolean operand), and 615 clause lines in
+    55 files of `samples/` and the library name a case of `Result` or
+    `Option` alone. `x in S::C` is read only in a data or domain
+    predicate, where the value the clause is about is the subject. Serving
+    it in a machine clause needs the case of a formal's value at entry and
+    of the result at return as a proposition the caller proves or learns.
   - "Identity operand has no term at its written carrier" for a field of a
     record formal outside the mathematical signature: the field arm serves
     data that contains itself only.
