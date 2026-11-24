@@ -10712,6 +10712,20 @@ pub(crate) mod operation_contracts {
                         content_term_roots(conservation.left(), roots);
                         content_term_roots(conservation.right(), roots);
                     }
+                    Proposition::DeclarationIdentity(clause) => {
+                        for value in &clause.values {
+                            match &value.operand {
+                                semantic_vocabulary::ClauseOperand::Scalar(term) => {
+                                    scalar_term_roots(term, roots)
+                                }
+                                semantic_vocabulary::ClauseOperand::Input(subject) => {
+                                    roots.insert(subject.root());
+                                }
+                                semantic_vocabulary::ClauseOperand::Formal(_)
+                                | semantic_vocabulary::ClauseOperand::Application { .. } => {}
+                            }
+                        }
+                    }
                     Proposition::Conjunction(propositions)
                     | Proposition::Disjunction(propositions) => {
                         for proposition in propositions {
