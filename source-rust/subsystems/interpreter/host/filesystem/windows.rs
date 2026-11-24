@@ -453,7 +453,8 @@ mod tests {
         Call {
             context: FilesystemContext::new(
                 crate::execution::TerminalFilesystemDelegation::HostNamespace,
-            ),
+            )
+            .unwrap(),
             effect: Effect::Acquire,
             symbol: b"CreateFileW",
             namespace: Ok(()),

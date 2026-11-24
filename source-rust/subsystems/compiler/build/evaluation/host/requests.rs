@@ -493,7 +493,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             Operation::Package | Operation::Application | Operation::Member => (0, 2),
             Operation::PathDependency => (2, 3),
             Operation::GitDependency => (3, 5),
-            Operation::ConfigureTestStream
+            Operation::ConfigureTestFixture
             | Operation::LogLine
             | Operation::PrepareDependency
             | Operation::PublishSource => {
@@ -570,7 +570,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         let project_name =
             |value: &str| ProjectName::parse(copy(value)?).map_err(TerminalEffectRejection::new);
         let request = match call.action {
-            Operation::ConfigureTestStream
+            Operation::ConfigureTestFixture
             | Operation::LogLine
             | Operation::PrepareDependency
             | Operation::PublishSource => {

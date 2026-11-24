@@ -373,7 +373,7 @@ pub(crate) mod build_requests {
         GitDependency,
         PrepareDependency,
         LogLine,
-        ConfigureTestStream,
+        ConfigureTestFixture,
         PublishSource,
     }
 

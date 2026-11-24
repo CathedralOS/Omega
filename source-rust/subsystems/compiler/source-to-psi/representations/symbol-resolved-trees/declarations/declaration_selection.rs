@@ -330,12 +330,21 @@ mod product {
     pub struct TestInvocationInputs {
         pub private_filesystem: bool,
         pub stdin: Option<std::sync::Arc<[u8]>>,
+        pub files: std::collections::BTreeMap<Vec<u8>, std::sync::Arc<[u8]>>,
     }
 
     #[derive(Debug, Clone, Default, PartialEq, Eq)]
     pub struct TestExpectations {
         pub stdout: Option<std::sync::Arc<[u8]>>,
         pub stderr: Option<std::sync::Arc<[u8]>>,
+        pub files: std::collections::BTreeMap<Vec<u8>, TestFileExpectation>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum TestFileExpectation {
+        Observe,
+        Missing,
+        Bytes(std::sync::Arc<[u8]>),
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -879,8 +888,8 @@ pub use product::{
     EnumExclusionRequest, ExclusionVocabulary, ExecutedBuildSelection, ExecutedEnumExclusion,
     ExecutedNativeBinding, ExecutedProductSelection, ProductDeclarationOperand,
     ProductDeclarationRequest, ProductEntryBinding, ProviderReadinessRequest, RootBindingOperand,
-    RootBindingRequest, RootBindingSelection, TestExpectations, TestGroupConfiguration,
-    TestInvocationInputs,
+    RootBindingRequest, RootBindingSelection, TestExpectations, TestFileExpectation,
+    TestGroupConfiguration, TestInvocationInputs,
 };
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, record_storage::Record)]

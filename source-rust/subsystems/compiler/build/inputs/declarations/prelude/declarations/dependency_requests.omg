@@ -17,7 +17,7 @@ public boundary trait BuildRequestOperations {
     machine register_git_dependency(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], repository: @[u8], revision: @[u8], named_package: bool, package: @[u8]) -> DependencyRegistration reaches none crashes none;
     machine prepare_dependency(builder: @Build, registered: DependencyRegistration) reaches none crashes none suspends;
     machine publish_source(builder: @Build, name: @[u8], source: @[u8]) reaches none crashes none;
-    machine configure_test_stream(group: @mutable TestGroupSettings, stream: u64, bytes: @[u8]) reaches none crashes none;
+    machine configure_test_fixture(group: @mutable TestGroupSettings, setting: u64, path: @[u8], bytes: @[u8]) reaches none crashes none;
     machine write_log(log: @BuildLog, text: @[u8]) reaches none crashes none;
 }
 // Configured dependency description

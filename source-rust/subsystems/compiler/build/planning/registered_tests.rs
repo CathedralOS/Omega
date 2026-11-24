@@ -18,6 +18,9 @@ use terminal_runtime::{
     TerminalRuntimeRequest,
 };
 
+/// Bound the total retained file bytes independently for each engine.
+const TEST_FILE_CAPTURE_BYTES: usize = 64 << 20;
+
 const TEST_PSI_WORK_ALLOWANCE: u64 = 10_000_000;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -115,7 +118,7 @@ fn run_test(
     profile: TargetProfile,
     execution: TestExecution,
 ) -> Result<String, String> {
-    let interpreted = engines.psi.run(|| interpret(&report, profile, inputs));
+    let interpreted = engines.psi.run(|| interpret(&report, profile, inputs, expected));
     let native = engines.native.run(|| {
         let program = report.retained_native_program().ok_or_else(|| {
             EngineError::Failed("the scheduled native test lost its retained Psi program".into())
@@ -124,7 +127,7 @@ fn run_test(
             .psi_artifact()
             .semantic_module()
             .can_end_the_process();
-        execute_native(report, can_exit, inputs)
+        execute_native(report, can_exit, inputs, expected)
     });
     assess(interpreted, native, execution, expected)
 }
@@ -142,6 +145,7 @@ fn interpret(
     report: &CompletedProduct,
     target: TargetProfile,
     inputs: &TestInvocationInputs,
+    expected: &TestExpectations,
 ) -> Run<PsiTermination> {
     let Some(artifact) = report
         .retained_native_program()
@@ -163,7 +167,11 @@ fn interpret(
             native_provider: None,
             native_services: terminal_runtime::TerminalNativeServiceDelegation::Unprovided,
             filesystem: if inputs.private_filesystem {
-                terminal_runtime::TerminalFilesystemDelegation::Private
+                terminal_runtime::TerminalFilesystemDelegation::Private {
+                    initial_files: inputs.files.clone(),
+                    output_paths: expected.files.keys().cloned().collect(),
+                    capture_bytes: TEST_FILE_CAPTURE_BYTES,
+                }
             } else {
                 terminal_runtime::TerminalFilesystemDelegation::StandardStreamsOnly
             },
@@ -186,7 +194,12 @@ fn interpret(
         report.retained_native_artifact(),
     );
     let observation = observation.map_err(|error| {
-        if error.unavailable_before_guest_effects() {
+        if matches!(
+            error,
+            terminal_runtime::TerminalRuntimeError::FileObservation(_)
+        ) {
+            EngineError::Incomplete(error.to_string())
+        } else if error.unavailable_before_guest_effects() {
             EngineError::Unavailable(error.to_string())
         } else {
             EngineError::Failed(error.to_string())
@@ -210,6 +223,7 @@ fn interpret(
         }
     };
     Ok(Observed {
+        files: observation.files,
         termination,
         stdout: observation.stdout,
         stderr: observation.stderr,
@@ -220,6 +234,7 @@ fn execute_native(
     report: CompletedProduct,
     can_exit: bool,
     inputs: &TestInvocationInputs,
+    expected: &TestExpectations,
 ) -> Run<NativeTermination> {
     let directory =
         platform_custody::temporary_directory::TemporaryDirectory::create("test", false).map_err(
@@ -242,13 +257,22 @@ fn execute_native(
     })?;
     let mut command = std::process::Command::new(executable);
     command.env_clear().current_dir(&working);
-    let output = native::capture(
+    let native::NativeCapture { output, files } = native::capture(
         command,
         crate::NativeEntryLimits::INSTALLED,
-        inputs.private_filesystem.then_some(working.as_path()),
+        inputs.private_filesystem.then(|| {
+            (
+                working.as_path(),
+                bounded_process::PrivateFilesystemFiles {
+                    initial: inputs.files.clone(),
+                    outputs: expected.files.keys().cloned().collect(),
+                },
+            )
+        }),
         standard_input(inputs),
     )?;
     Ok(Observed {
+        files: expected.files.keys().cloned().zip(files).collect(),
         termination: NativeTermination {
             status: output.status.into(),
             can_exit,

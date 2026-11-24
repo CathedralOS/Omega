@@ -87,7 +87,7 @@ pub(super) fn execute_installed(
         request.native_provider,
         request.native_services,
         request.filesystem,
-    );
+    )?;
     let component_slots = component_products
         .iter()
         .map(|component| component.selection().receiving_boundary())
@@ -159,6 +159,7 @@ pub(super) fn execute_installed(
     drop(instance);
     host.finish_native_provider()?;
     Ok(TerminalRuntimeObservation {
+        files: host.declared_files()?,
         work_usage: work.into_usage(),
         work_suspensions,
         component_suspensions,

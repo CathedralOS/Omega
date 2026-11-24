@@ -18,6 +18,8 @@ Storage is dense: nodes and open file descriptions are indexed by their
 numbers, and each directory keeps its entries sorted by name.
 */
 
+mod fixture;
+
 use crate::host_filesystem::{KernelOperand, LINUX_AT_FDCWD};
 
 use target::LinuxFilesystemOperation;

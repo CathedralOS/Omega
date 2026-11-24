@@ -7,24 +7,27 @@ use bounded_process::{
 };
 use std::process::Command;
 
+#[derive(Debug)]
+pub(super) struct NativeCapture {
+    pub output: BoundedProcessOutput,
+    pub files: Vec<Option<Vec<u8>>>,
+}
+
 pub(super) fn capture(
     command: Command,
     limits: NativeEntryLimits,
-    private_root: Option<&std::path::Path>,
+    private_root: Option<(&std::path::Path, bounded_process::PrivateFilesystemFiles)>,
     stdin: Option<&[u8]>,
-) -> Result<BoundedProcessOutput, EngineError> {
+) -> Result<NativeCapture, EngineError> {
     let mut prepared =
         BoundedProcessPrepared::new(command, limits.process, "registered native test")
             .map_err(|error| EngineError::Failed(format!("cannot prepare the test: {error}")))?;
-    if let Some(scratch) = private_root {
-        prepared
-            .use_private_filesystem(scratch, Default::default())
-            .map_err(|error| {
-                EngineError::Unavailable(format!(
-                    "cannot prepare the private test filesystem: {error}"
-                ))
-            })?;
-    }
+    let declared = private_root
+        .map(|(scratch, files)| prepared.use_private_filesystem(scratch, files))
+        .transpose()
+        .map_err(|reason| {
+            EngineError::Failed(format!("cannot prepare declared files: {reason}"))
+        })?;
     let input = stdin.map_or(BoundedProcessInput::Null, |bytes| {
         BoundedProcessInput::Bytes(bytes.to_vec())
     });
@@ -62,7 +65,14 @@ pub(super) fn capture(
             "test exhausted its {limit} allowance"
         )));
     }
-    Ok(output)
+    let files = declared
+        .map(|capture| capture.collect(super::TEST_FILE_CAPTURE_BYTES))
+        .transpose()
+        .map_err(|reason| {
+            EngineError::Incomplete(format!("cannot observe declared files: {reason}"))
+        })?
+        .unwrap_or_default();
+    Ok(NativeCapture { output, files })
 }
 
 #[cfg(all(test, target_os = "linux"))]
@@ -84,7 +94,8 @@ mod tests {
         limits.combined_output_bytes = 6;
 
         let run = || capture(shell("printf out; printf err >&2"), limits, None, None).unwrap();
-        for output in [run(), run()] {
+        for NativeCapture { output, files } in [run(), run()] {
+            assert!(files.is_empty());
             assert!(output.status.success());
             assert_eq!(output.stdout, b"out");
             assert_eq!(output.stderr, b"err");
@@ -105,8 +116,8 @@ mod tests {
     #[test]
     fn a_signal_with_no_resource_report_keeps_its_native_status() {
         let output = capture(shell("kill -TERM $$"), NativeEntryLimits::INSTALLED, None, None).unwrap();
-        assert_eq!(output.status.unix_signal(), Some(15));
-        assert!(output.limits_reached.is_empty());
+        assert_eq!(output.output.status.unix_signal(), Some(15));
+        assert!(output.output.limits_reached.is_empty());
     }
 
     #[test]

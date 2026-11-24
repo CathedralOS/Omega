@@ -527,7 +527,7 @@ fn request_operation(name: &str) -> Result<TerminalBuildRequestOperation, Diagno
         "register_git_dependency" => Request::GitDependency,
         "prepare_dependency" => Request::PrepareDependency,
         "write_log" => Request::LogLine,
-        "configure_test_stream" => Request::ConfigureTestStream,
+        "configure_test_fixture" => Request::ConfigureTestFixture,
         "publish_source" => Request::PublishSource,
         other => return Err(unknown("BuildRequestOperations", other)),
     })

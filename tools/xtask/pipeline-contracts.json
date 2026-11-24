@@ -17549,14 +17549,94 @@
     },
     {
       "consumers": [
+        "private interpreter filesystem"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/src/execution.rs",
+      "item": "TerminalFilesystemDelegation::Private::field:initial_files#1",
+      "kind": "carried_record",
+      "meaning": "Normalized path bytes and initial file contents used to populate one fresh private namespace.",
+      "producer": "Build registered test runner",
+      "signature": "2a846ced62dcc9eb1016d6361e25f88f593b1f28bc92d4325c25e11d3b7f5248"
+    },
+    {
+      "consumers": [
+        "private interpreter filesystem"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/src/execution.rs",
+      "item": "TerminalFilesystemDelegation::Private::field:output_paths#1",
+      "kind": "carried_record",
+      "meaning": "Declared path bytes the sponsor requests from this invocation after guest execution.",
+      "producer": "Build registered test runner",
+      "signature": "6aaedd8156abeca4afc7a4a4207900549b06f54f53743734f2dc0b20c4686ee9"
+    },
+    {
+      "consumers": [
+        "private interpreter filesystem"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/src/execution.rs",
+      "item": "TerminalFilesystemDelegation::Private::field:capture_bytes#1",
+      "kind": "carried_record",
+      "meaning": "Maximum combined content bytes retained while observing the declared paths.",
+      "producer": "Build registered test runner",
+      "signature": "c0f934a03a779d8059ef0bac2429ef54e08bac3bafb04460042ad432dd5a3ee5"
+    },
+    {
+      "consumers": [
+        "hosted Terminal execution",
+        "Build test expectation and engine comparison"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/src/execution.rs",
+      "item": "alias:ObservedFiles#1",
+      "kind": "definition",
+      "meaning": "Maps each observed path to its final file bytes or to absence. Empty file contents and an absent file are distinct.",
+      "producer": "private interpreter filesystem",
+      "signature": "443c6dc93cb122418d4e8f8f9f86594a988f81130715b71a922b64b7738fdd55"
+    },
+    {
+      "consumers": [
+        "Build test expectation and engine comparison"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/src/execution.rs",
+      "item": "TerminalRuntimeObservation::field:files#1",
+      "kind": "carried_record",
+      "meaning": "Final state of the declared paths, collected in the invocation’s own namespace.",
+      "producer": "private interpreter filesystem",
+      "signature": "2015efc8f7ec374507311f28b6d530ae0af13a5e86679782e48ccbff04f7fcd2"
+    },
+    {
+      "consumers": [
+        "Build registered test runner",
+        "Psi embedders"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/src/execution.rs",
+      "item": "TerminalRuntimeError::PrivateFilesystemSetup::field:0#1",
+      "kind": "carried_record",
+      "meaning": "Underlying I/O error from populating the private namespace before the guest starts.",
+      "producer": "private interpreter filesystem",
+      "signature": "bce30f5b707728d6cda4153ed7ce99f2ea3aeb52255ff27fd7754c45fcabd3a7"
+    },
+    {
+      "consumers": [
+        "Build test expectation and engine comparison",
+        "Psi embedders"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/src/execution.rs",
+      "item": "TerminalRuntimeError::FileObservation::field:0#1",
+      "kind": "carried_record",
+      "meaning": "Underlying I/O error from observing declared paths after execution, including exhaustion of the file capture allowance.",
+      "producer": "private interpreter filesystem",
+      "signature": "bce30f5b707728d6cda4153ed7ce99f2ea3aeb52255ff27fd7754c45fcabd3a7"
+    },
+    {
+      "consumers": [
         "hosted filesystem bindings"
       ],
       "file": "source-rust/subsystems/interpreter/host/src/execution.rs",
       "item": "enum:TerminalFilesystemDelegation#1",
       "kind": "carried_record",
-      "meaning": "Select the filesystem supplied for an invocation, including a standard-stream descriptor table and an empty private namespace.",
+      "meaning": "Select the filesystem supplied for an invocation, including a standard-stream descriptor table and a seeded private namespace with declared outputs.",
       "producer": "execution sponsor",
-      "signature": "88e0ce55fb4116b9efa845d8361783ac954ad3d773304d89f50062da7d7b6dc4"
+      "signature": "ee75ff307bdba0619350127e9503f3f5cd92db2c6f20e361926a834b12a4ea3a"
     },
     {
       "consumers": [
@@ -17573,16 +17653,16 @@
     },
     {
       "consumers": [
+        "Build registered test runner",
         "portable execution",
-        "Build published-image execution",
-        "PSI embedders"
+        "Psi embedders"
       ],
       "file": "source-rust/subsystems/interpreter/host/src/execution.rs",
       "item": "enum:TerminalRuntimeError#1",
       "kind": "carried_record",
-      "meaning": "Typed refusals preserve the distinction between missing capabilities, failed native inspection and guest execution failures.",
-      "producer": "terminal hosted interpreter",
-      "signature": "3011f060d7bfe3d4dfd52c186c5bec6b256ad6456be35d79fd87f09c41b051a6"
+      "meaning": "Distinguishes capability, provision, private filesystem setup, final file observation and guest execution errors.",
+      "producer": "hosted Terminal execution",
+      "signature": "ba7e4743b9b8175774d87ff2eb7a9e2f412bb14345c786e606468ff207bd8c3e"
     },
     {
       "consumers": [
@@ -17781,29 +17861,29 @@
     },
     {
       "consumers": [
+        "Build registered test runner",
         "portable execution",
-        "Build published-image execution",
-        "PSI embedders"
+        "Psi embedders"
       ],
       "file": "source-rust/subsystems/interpreter/host/src/execution.rs",
       "item": "impl:std :: fmt :: Display for TerminalRuntimeError::implementation#1",
       "kind": "definition",
-      "meaning": "Groups std :: fmt :: Display for TerminalRuntimeError operations with their defining host or checked image.",
-      "producer": "terminal hosted interpreter",
-      "signature": "14fb3d38daee410b459de7938f0775a6f21bcdc85be61d188ddfcce55ca3f2c7"
+      "meaning": "Render hosted execution errors and identify whether a private file error occurred during fixture setup or final observation.",
+      "producer": "hosted Terminal execution",
+      "signature": "8877e3676a34822126821864de7981dd3086cc7c16f70aec032a882b25f51fd1"
     },
     {
       "consumers": [
+        "Build registered test runner",
         "portable execution",
-        "Build published-image execution",
-        "PSI embedders"
+        "Psi embedders"
       ],
       "file": "source-rust/subsystems/interpreter/host/src/execution.rs",
       "item": "impl:std :: fmt :: Display for TerminalRuntimeError::method:fmt#1",
       "kind": "definition",
-      "meaning": "Render the diagnostic while preserving native-image inspection errors.",
-      "producer": "terminal hosted interpreter",
-      "signature": "2d2553eac2319be8ab9ddb7a9e7beee81cb3651434119e725c40a8db48b24c5c"
+      "meaning": "Render hosted execution errors and identify whether a private file error occurred during fixture setup or final observation.",
+      "producer": "hosted Terminal execution",
+      "signature": "32491116c4f8f08977c5deb0d4a67f2d8177fe543d184e5d34c9656e2b6aa103"
     },
     {
       "consumers": [
@@ -17872,16 +17952,16 @@
     },
     {
       "consumers": [
+        "Build registered test runner",
         "portable execution",
-        "Build published-image execution",
-        "PSI embedders"
+        "Psi embedders"
       ],
       "file": "source-rust/subsystems/interpreter/host/src/execution.rs",
       "item": "struct:TerminalRuntimeObservation#1",
       "kind": "carried_record",
-      "meaning": "Guest outcome, streams, effects and work observed on the sponsored PSI instance.",
-      "producer": "terminal hosted interpreter",
-      "signature": "b976b83b80e821040b5b8833474db1a116eae9c109d361161acc27d6ab1f6571"
+      "meaning": "Guest outcome, streams, declared file states, effects and work observed on the sponsored Psi instance.",
+      "producer": "hosted Terminal execution",
+      "signature": "3a6c0ee40587a8f74b81c4bb53d0f5360ee22657a0cb2300b4b91e9641fa3f48"
     },
     {
       "consumers": [
@@ -18101,15 +18181,16 @@
     },
     {
       "consumers": [
+        "retained image execution",
         "portable execution",
-        "retained image execution"
+        "Build registered test runner"
       ],
       "file": "source-rust/subsystems/interpreter/host/src/execution/hosted_invocation.rs",
       "item": "function:execute_installed#1",
       "kind": "host_operation",
-      "meaning": "Install the program's direct component calls from the validated provider graph and run the selected entry with its admitted host provisions.",
-      "producer": "Psi host invocation",
-      "signature": "b9bacf54b2126ca113720eccefc9d6ec11b56c90706642e7cca20a320d729a79"
+      "meaning": "Install the validated component graph and run the entry with its supplied capabilities. Completion returns the captured streams and the declared file states.",
+      "producer": "hosted Terminal execution",
+      "signature": "c7bb6506606826550ca68f0df9d478762d53aa97dae9311ab4adfea6ac8a6607"
     },
     {
       "consumers": [

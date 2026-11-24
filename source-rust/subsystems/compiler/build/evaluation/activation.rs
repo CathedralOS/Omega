@@ -504,7 +504,7 @@ impl TerminalBuildHost {
                 .iter()
                 .find(|call| call.site.boundary == boundary)
             {
-                if call.action == source_compiler::publication::TerminalBuildRequestOperation::ConfigureTestStream {
+                if call.action == source_compiler::publication::TerminalBuildRequestOperation::ConfigureTestFixture {
                     instance.bind_import(boundary, self.bindings.adapter(declaration.into()))
                 } else {
                     instance.bind_import(boundary, self.requests.adapter(declaration.into()))

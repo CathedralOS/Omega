@@ -38,7 +38,7 @@ pub mod embedding {
     };
 }
 pub use execution::{
-    TerminalClockEnvironment, TerminalClockSnapshot, TerminalDomainExitDelegation,
+    ObservedFiles, TerminalClockEnvironment, TerminalClockSnapshot, TerminalDomainExitDelegation,
     TerminalFilesystemDelegation, TerminalNativeServiceDelegation, TerminalRuntimeError,
     TerminalRuntimeObservation, TerminalRuntimeRequest, capture_host_x86_flags, execute,
     execute_sliced,
