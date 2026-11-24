@@ -160,17 +160,14 @@ fn a_read_after_distinct_bounded_writes_preserves_their_common_range() {
             "stock.value = 4294967295;",
             "main.omg:12:7",
         ),
-        (
-            "count = 8;",
-            "count = 4294967295;",
-            "main.omg:32:11",
-        ),
+        ("count = 8;", "count = 4294967295;", "main.omg:32:11"),
         (
             "cell.value = 5;",
             "cell.value = 4294967295;",
             "main.omg:44:7",
         ),
     ] {
+        assert_eq!(source.matches(old).count(), 1, "{old}");
         let (output, report) = invoke(&source.replace(old, new), &["--check"]);
         assert!(!output.status.success(), "{report}");
         assert!(

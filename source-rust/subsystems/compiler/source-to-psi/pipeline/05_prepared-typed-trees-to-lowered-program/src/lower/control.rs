@@ -18,8 +18,8 @@ use terminal_psi::{
     Terminator,
 };
 
-use super::places::Bound;
 use super::join_reads::{BeforeArms, JoinReads};
+use super::places::Bound;
 use super::{Draft, Evaluation, Lowering, Reached, Value, declaration, successor};
 use crate::lowering::body::{
     ArmGuard, CaseSelector, Expression, ExpressionKind, Selector, Statement, Strict, Target,
