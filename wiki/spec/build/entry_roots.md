@@ -205,8 +205,8 @@ Knowing an argument's size never creates a new physical root.
 Each demanded static provider slot retains the exact source call occurrence,
 closed requirement application, schema, target, and selected plan digest.
 Missing, incompatible, ambiguous or unauthorized build-bound supply rejects
-compilation. An explicitly [runtime-bound slot](component_publication.md#first-binding-of-a-runtime-bound-slot)
-records its requirement and readiness obligation until first binding. For selected Fused
+compilation. An [owned provider](component_publication.md#owned-runtime-providers)
+can be constructed later in ordinary application storage. For selected Fused
 slots, Terminal replay independently joins the call demand and plan before
 erasing dispatch. Independent slots retain internal era identity without adding
 a source context field.

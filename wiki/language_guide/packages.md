@@ -178,34 +178,32 @@ Use a named package when you need continuity across updates.
 
 ## Live component replacement
 
-Updating a source dependency, migrating stored data, and replacing running code
-are different operations. A replaceable component is a selected realization's
-closed code/state/resource graph, not intrinsically one package. Calls cross a
-stable requirement; already-entered calls and returned era-dependent handles
-retain their old era until their obligations end.
-
-For example, an editor's Build can leave its Console empty and designate an
-installer. These lines belong in the respective product Builds:
+A fixed service and a loaded provider can coexist. The editor's Build may
+select the backing of `Console::write_line`. A plugin's Build exports a
+satisfaction of the same Console requirement:
 
 ```omega
+// editor/build.omg
+Build::select_provider::<Console, TerminalConsole>(b);
+
 // quiet/build.omg
 Build::export_provider::<Console, QuietConsole>(b);
-
-// editor/build.omg
-Build::select_provider::<Console>(b, Runtime { publisher: EditorConsoleInstaller::install });
 ```
 
-A host can also [select the installer's backing](../spec/build/provider_selection.md#independent-library-exports-and-runtime-publishers)
-through `ProviderInstaller<Console>::install`. Once startup successfully publishes a terminal provider, every caller
-wired to that slot can use `Console::write_line` directly. If the editor later
-publishes a separately built quiet provider, its next write reaches that
-provider. A read already waiting for input finishes on the terminal that
-started it. A second running editor keeps its own binding. The [worked
-example](../drafts/designs/component_hot_swap_authorship.md) follows both Builds
-and a failed install.
+The editor owns the plugin as data. Given the image and component description
+read from disk, the successful load path looks like this (`?` denotes returning
+on failure):
 
-Publication of new routing therefore does not imply reclamation of old code.
-Runtime packages coordinate admission, peak coexistence resources, state transfer,
-quiescence, and recovery inside an owner-authorized envelope. A migration theorem
-alone cannot discharge callbacks, borrows, or device claims. See the
-[component publication contract](../spec/build/component_publication.md) for the complete update protocol.
+```omega
+let preview: Provider<Console> = load_provider::<Console>(image, description)?;
+let ops: @Console = Provider::get(@preview);
+ops.write_line("preview");        // calls the loaded export
+Console::write_line("editor");    // calls the Build-selected terminal
+```
+
+To change the preview, use a mutable local and assign a successfully loaded
+replacement after the last use of its borrowed operations. A helper can take
+the borrowed runtime record. A generic requiring a static implementation still
+needs a compile-time selection. No Build declaration is needed for the preview
+variable. The [editor example](../drafts/designs/component_hot_swap_authorship.md)
+shows replacement and a rejected use after replacement. [Owned provider contract](../spec/build/component_publication.md#owned-runtime-providers)
