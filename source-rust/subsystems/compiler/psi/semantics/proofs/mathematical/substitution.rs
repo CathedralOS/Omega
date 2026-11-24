@@ -25,6 +25,18 @@ pub fn substitute(arena: &mut TermArena, body: TermHandle, argument: TermHandle)
         .expect("a term substitution has no universe parameters to refuse")
 }
 
+/// Replace every free variable of `term` by a term of the caller's context.
+/// `arguments` lists them outermost first, so the last one replaces index 0.
+pub fn instantiate(arena: &mut TermArena, term: TermHandle, arguments: &[TermHandle]) -> TermHandle {
+    let mut term = term;
+    for (outer, &argument) in arguments.iter().enumerate().rev() {
+        let outer = u32::try_from(outer).expect("a telescope fits the variable index width");
+        let lifted = shift(arena, argument, 0, outer);
+        term = substitute(arena, term, lifted);
+    }
+    term
+}
+
 pub fn instantiate_levels(
     arena: &mut TermArena,
     term: TermHandle,

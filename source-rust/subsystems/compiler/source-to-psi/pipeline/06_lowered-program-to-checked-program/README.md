@@ -20,6 +20,23 @@ two operation results. The checker instantiates the law's signature and records
 the kernel-checked proof of the requested identity. Automatic proof of whole
 record identity from field identities is an [open question](../../../../../OWNER_QUESTIONS.md#deriving-record-identity-from-field-identities).
 
+A law over data that contains itself is judged apart from every machine.
+Stage 05 hands this crate one
+[mathematical signature](../../representations/lowered-program/README.md#the-mathematical-signature)
+for the compilation. [laws.rs](src/laws.rs) has the kernel check its
+declarations once, then proves each law against the entries before that law's
+own statement. For a law that dispatches on a formal it proves one equality
+per case, over an arbitrary value of that case, and assembles the cases into
+one induction. A case is proved by normalizing both sides with the kernel and
+rewriting with the laws the case cites and with the law itself at a field of
+the case ([equality.rs](src/equality.rs), `prove`). The kernel checks the
+assembled term against the law's statement; the judgment is
+`RouteVerdict::Laws`, and a law or case left unproved is one entry of
+`RouteVerdict::UnprovedLaws` that names the equality and the arm. On the
+recovered Peano associativity law the proof takes 23,113 kernel conversion
+steps of a 65,536 budget, so larger laws need a cheaper search before they
+need a larger budget.
+
 The checker always uses branch conditions, dispatch bindings and value
 relations as premises; no mode compares results with less knowledge. That is
 separate from the specified

@@ -77,14 +77,17 @@ impl Equality {
     }
 }
 
-/// A path through ordinary applications keeps exactly the surrounding
-/// operands needed to rebuild a term around the rewritten subexpression.
+/// One step from a term into one of its subterms: the term, which slot was
+/// entered, and how many binders of the whole expression lie above the term.
 #[derive(Clone, Copy)]
-enum Surrounding {
-    FunctionOf(TermHandle),
-    ArgumentOf(TermHandle),
+struct Surrounding {
+    parent: TermHandle,
+    slot: usize,
+    depth: u32,
 }
 
+/// Rebuild the expression around `value`, as seen under `binders` more
+/// binders than the expression itself.
 fn plug(
     arena: &mut TermArena,
     path: &[Surrounding],
@@ -92,11 +95,16 @@ fn plug(
     binders: u32,
 ) -> TermHandle {
     for frame in path.iter().rev() {
-        let (function, argument) = match *frame {
-            Surrounding::FunctionOf(argument) => (value, shift(arena, argument, 0, binders)),
-            Surrounding::ArgumentOf(function) => (shift(arena, function, 0, binders), value),
-        };
-        value = arena.insert(Term::Apply { function, argument });
+        let node = arena.get(frame.parent);
+        let mut children = Vec::with_capacity(4);
+        for (slot, (child, bound)) in node.bound_children().enumerate() {
+            children.push(if slot == frame.slot {
+                value
+            } else {
+                shift(arena, child, frame.depth + bound, binders)
+            });
+        }
+        value = arena.insert(node.rebuilt(&children));
     }
     value
 }
@@ -106,8 +114,38 @@ fn charge(remaining: &mut usize) -> Result<(), SearchError> {
     Ok(())
 }
 
+/// The term with every reduction the kernel has carried out, in every
+/// subterm. A definition unfolds and a recursion over a constructor computes,
+/// so two terms the kernel converts by computation alone have one normal form.
+pub(crate) fn normalize(
+    arena: &mut TermArena,
+    context: &Context,
+    term: TermHandle,
+    conversion: &mut Budget,
+) -> Result<TermHandle, SearchError> {
+    let head = weak_head_normalize(arena, context.signature(), term, conversion)?;
+    let node = arena.get(head);
+    let mut children = Vec::with_capacity(4);
+    let mut changed = false;
+    for child in node.children() {
+        let normal = normalize(arena, context, child, conversion)?;
+        changed |= normal != child;
+        children.push(normal);
+    }
+    Ok(if changed {
+        arena.insert(node.rebuilt(&children))
+    } else {
+        head
+    })
+}
+
 /// Citations are instantiated terms from the checked signature. Inferring
 /// their types keeps both endpoints tied to the actual evidence supplied.
+///
+/// Both sides of the goal and both endpoints of every citation are
+/// normalized first. The search then rewrites one side with the citations,
+/// beneath any term former and any binder, until it reaches the other; each
+/// rewrite is an identity elimination, so the result is a kernel term.
 pub(crate) fn prove(
     arena: &mut TermArena,
     context: &Context,
@@ -119,6 +157,8 @@ pub(crate) fn prove(
     let Term::Id { ty, left, right } = arena.get(goal) else {
         return Err(SearchError::NoProof);
     };
+    let left = normalize(arena, context, left, conversion)?;
+    let right = normalize(arena, context, right, conversion)?;
     let reflexivity = arena.insert(Term::Refl { ty, value: left });
     if arena.structurally_equal(left, right) {
         check_type(arena, context, reflexivity, goal, conversion)?;
@@ -137,8 +177,8 @@ pub(crate) fn prove(
         {
             let equality = Equality {
                 carrier,
-                from,
-                to,
+                from: normalize(arena, context, from, conversion)?,
+                to: normalize(arena, context, to, conversion)?,
                 proof,
             };
             rules.extend([equality, equality.reversed(arena)]);
@@ -151,14 +191,16 @@ pub(crate) fn prove(
     let mut next = 0;
     while let Some(&(current, base)) = reached.get(next) {
         next += 1;
-        let mut pending = vec![(current, Vec::new())];
-        while let Some((focus, path)) = pending.pop() {
+        let mut pending = vec![(current, Vec::new(), 0u32)];
+        while let Some((focus, path, depth)) = pending.pop() {
             for &rule in &rules {
                 charge(&mut search_steps)?;
-                if !arena.structurally_equal(focus, rule.from) {
+                // A citation is stated outside every binder the focus is under.
+                if !arena.structurally_equal_shifted(rule.from, focus, depth) {
                     continue;
                 }
-                let rewritten = plug(arena, &path, rule.to, 0);
+                let replacement = shift(arena, rule.to, 0, depth);
+                let rewritten = plug(arena, &path, replacement, 0);
                 let mut seen = false;
                 for &(known, _) in &reached {
                     charge(&mut search_steps)?;
@@ -170,7 +212,7 @@ pub(crate) fn prove(
                 if seen {
                     continue;
                 }
-                let destination = arena.insert(Term::Variable(1));
+                let destination = arena.insert(Term::Variable(depth + 1));
                 let under_binders = plug(arena, &path, destination, 2);
                 let carrier = shift(arena, ty, 0, 2);
                 let start = shift(arena, left, 0, 2);
@@ -186,12 +228,15 @@ pub(crate) fn prove(
                 }
                 reached.push((rewritten, proof));
             }
-            if let Term::Apply { function, argument } = arena.get(focus) {
-                let mut function_path = path.clone();
-                function_path.push(Surrounding::FunctionOf(argument));
-                let mut argument_path = path;
-                argument_path.push(Surrounding::ArgumentOf(function));
-                pending.extend([(function, function_path), (argument, argument_path)]);
+            let node = arena.get(focus);
+            for (slot, (child, bound)) in node.bound_children().enumerate() {
+                let mut inner = path.clone();
+                inner.push(Surrounding {
+                    parent: focus,
+                    slot,
+                    depth,
+                });
+                pending.push((child, inner, depth + bound));
             }
         }
     }

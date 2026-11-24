@@ -142,6 +142,27 @@ impl Program<'_> {
             return Ok(None);
         };
         let unsupported = |detail| refuse(id, Construct::Machine, Unserved::Contract(detail));
+        if self.mathematical {
+            // contracts.md, "Citation and induction": "Proof/compile-time
+            // recursion may rank on mathematical structure." The subject is
+            // the formal the body dispatches on, and the signature admits a
+            // recursive call only at a field of the dispatched case.
+            let subjects =
+                crate::source_state::ranking::resolve_machine_witness_subjects(self.typed, machine)
+                    .ok_or_else(|| unsupported("ranking subjects have no resolved expressions"))?;
+            let [subject] = subjects.as_slice() else {
+                return Err(unsupported("structural ranking requires exactly one subject"));
+            };
+            let value = self.expression(id, slots, *subject, None)?;
+            if !matches!(value.result, Some(ValueType::Record(record, ..))
+                if self.self_containing.binary_search(&record).is_ok())
+            {
+                return Err(unsupported(
+                    "structural ranking needs data that contains itself",
+                ));
+            }
+            return Ok(Some(Ranking::without_range(vec![value])));
+        }
         let (view, default) = self.ranking_view(id, machine)?;
         let view_arguments = self
             .typed

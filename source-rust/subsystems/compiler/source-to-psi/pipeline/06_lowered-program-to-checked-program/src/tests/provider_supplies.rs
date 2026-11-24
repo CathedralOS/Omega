@@ -158,6 +158,10 @@ fn supplied_with_subjects(
             Ok(RouteVerdict::FallBack(refusal)) => {
                 return Err(format!("part {part} not supported: {}", refusal.detail));
             }
+            Ok(RouteVerdict::Laws(_)) => {}
+            Ok(RouteVerdict::UnprovedLaws(laws)) => {
+                return Err(format!("part {part} leaves laws unproved: {laws:?}"));
+            }
             Err(refusal) => return Err(format!("part {part} refused: {refusal:?}")),
         }
     }

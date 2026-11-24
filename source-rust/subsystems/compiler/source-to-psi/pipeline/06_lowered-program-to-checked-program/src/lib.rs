@@ -65,6 +65,7 @@ mod generic_storage;
 mod graph;
 mod joins;
 mod known;
+mod laws;
 mod machine_batch;
 mod machine_inputs;
 mod minted;

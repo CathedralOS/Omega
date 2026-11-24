@@ -42,6 +42,31 @@ for those concepts (its `PlaceId` names roots only). `PropositionId` is reused f
 the vocabulary, but here it is machine-local and indexes
 `MachineTables::propositions`, not the module's named proposition declarations.
 
+## The mathematical signature
+
+Data that contains itself by value has no storage, so it and the machines
+over it are not in any machine's tables. They are one table for the whole
+compilation, [`MathematicalSignature`](mathematics.rs), carried beside the
+closure in `PreparedCompilation::mathematics`:
+
+- **Declarations**, in dependency order, as kernel terms: each such data
+  declaration as a W type, each of its cases as a definition, and each machine
+  with a result as a definition. A machine that dispatches on one formal is an
+  `indW` over that formal's data.
+- **Laws**: one per `ensures` equality of a machine with no result. A law's
+  statement is an entry with no body. The entries before it are everything
+  its proof is checked against, so a law is never its own evidence, and a law
+  another law cites comes earlier.
+- **A law's script**: the calls its body makes, per case when it dispatches.
+  A call of another law is a citation of that law's statement entry. A call
+  of the law itself at a field of the dispatched case is the induction
+  hypothesis; at any other argument stage 05 refuses it.
+
+Stage 05 writes the table ([`read/signature.rs`](../../pipeline/05_prepared-typed-trees-to-lowered-program/src/read/signature.rs)).
+Stage 06 checks every declaration once with the kernel and judges each law
+([`laws.rs`](../../pipeline/06_lowered-program-to-checked-program/src/laws.rs)).
+Names and source positions in the table are for diagnostics only.
+
 ## Rules every lane relies on
 
 A lane is one piece of work that teaches the checker a construct family.

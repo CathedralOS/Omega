@@ -136,6 +136,15 @@ fn accept_compilation(
                     diagnostic
                 }));
             }
+            // The signature's laws publish nothing executable; accepting
+            // them leaves the root program as it is.
+            Ok(RouteVerdict::Laws(_)) => {}
+            Ok(RouteVerdict::UnprovedLaws(unproved)) => {
+                if unproved.is_empty() {
+                    diagnostics.push(route_defect("an unproved signature names no law"));
+                }
+                diagnostics.extend(unproved.iter().map(|entry| entry.reject_diagnostic()));
+            }
             Ok(RouteVerdict::FallBack(refused)) => {
                 let mut diagnostic = Diagnostic::error(format!(
                     "not supported yet: {}; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong",

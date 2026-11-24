@@ -216,9 +216,18 @@ impl Program<'_> {
             return Ok(instance.machine);
         }
         let id = self.next_identity()?;
+        // The applied requirement names the binder's type arguments, which
+        // belong to the declaration that wrote the binder. Retain the view
+        // under that declaration so publication finds `T` in its lexical
+        // context, as the implementation paths do.
+        let owner = self
+            .record_parameter(receiver)
+            .map(|binding| binding.account.owner);
+        let outer_view = std::mem::replace(&mut self.signature_view_owner, owner);
         let outer = self.clause_supplier.replace(receiver);
         let lowered = self.declared_requirement_signature(id, signature, arguments);
         self.clause_supplier = outer;
+        self.signature_view_owner = outer_view;
         let (lowered, names) = lowered?;
         self.retain_requirement_policy(id, signature, signature.symbol)?;
         self.symbols.push(signature.symbol);

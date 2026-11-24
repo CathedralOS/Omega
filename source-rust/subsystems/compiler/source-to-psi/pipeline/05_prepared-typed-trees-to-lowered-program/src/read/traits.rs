@@ -1055,7 +1055,7 @@ impl<'program> Program<'program> {
         Ok(true)
     }
 
-    fn applied_scope(
+    pub(super) fn applied_scope(
         &mut self,
         context: MachineId,
         application: &AppliedTraitScope<'_>,

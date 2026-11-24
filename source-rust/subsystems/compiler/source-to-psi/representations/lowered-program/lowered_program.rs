@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 pub mod compilation;
+pub mod mathematics;
 pub mod names;
 pub mod program;
 mod tables;
@@ -38,4 +39,6 @@ pub struct PreparedCompilation {
     pub specializations: arena::IdTable<MachineId, Option<SymbolHandle>>,
     /// Root selection position to its independently judged conformance module.
     pub selection_witnesses: Vec<(usize, usize)>,
+    /// Every mathematical declaration of the subject, as one kernel signature.
+    pub mathematics: mathematics::MathematicalSignature,
 }

@@ -113,6 +113,39 @@ impl ClauseTerm {
 }
 
 impl Program<'_> {
+    /// The machine a direct call with value arguments only names, when it has
+    /// a result and is over data that contains itself. A call names the
+    /// machine's entry state.
+    fn mathematical_function(
+        &self,
+        call: &crate::source_state::expression::TableCallExpression,
+    ) -> Option<SymbolHandle> {
+        let typed = self.typed;
+        let target = call.target_symbol;
+        if call.receiver.is_valid()
+            || !call.machine_arguments.is_empty()
+            || !call.evidence_arguments.is_empty()
+            || !typed.symbols.symbols().nodes().is_valid(target)
+        {
+            return None;
+        }
+        let machine = match typed.symbols.get(target).kind {
+            SymbolKind::Machine => target,
+            SymbolKind::State => typed.symbols.get(target).parent,
+            _ => return None,
+        };
+        typed
+            .machine_by_symbol(machine)
+            .filter(|declared| {
+                self.proof_machine(declared)
+                    && typed
+                        .machine_states(declared)
+                        .first()
+                        .is_some_and(|entry| entry.return_type.is_valid())
+            })
+            .map(|declared| declared.symbol)
+    }
+
     /// The scope binds names. The requested use gives calls and both operands
     /// of Identity the same interpretation in each enclosing source clause.
     pub(super) fn clause_term(
@@ -213,6 +246,119 @@ impl Program<'_> {
         };
         if let Some((mut expected, values)) = operands {
             let operand = match (table.expression(expression), expected) {
+                // A machine defined by cases over data that contains itself is
+                // a function of the signature. The clause applies it by its
+                // declaration; the kernel unfolds it, never this reader.
+                (ExpressionNode::Call(call), _)
+                    if self.mathematical && self.mathematical_function(call).is_some() =>
+                {
+                    let target = self
+                        .mathematical_function(call)
+                        .expect("the guard found the machine");
+                    // The signature needs the applied machine's definition.
+                    self.machine(target)?;
+                    let (_, entry) = self.declaration(id, target)?;
+                    let result = self.value_type(id, entry.return_type)?;
+                    if expected.is_some_and(|expected| expected != result) {
+                        return Err(unavailable(
+                            "clause application result differs from the written carrier",
+                        ));
+                    }
+                    expected = Some(result);
+                    let parameters = typed
+                        .state_parameters
+                        .span(entry.parameters)
+                        .ok_or_else(|| unavailable("clause application lost its parameters"))?;
+                    let actuals = table.expression_handles(call.arguments);
+                    if parameters.len() != actuals.len() {
+                        return Err(unavailable(
+                            "clause application arity differs from its signature",
+                        ));
+                    }
+                    let mut arguments = Vec::with_capacity(actuals.len());
+                    for (formal, &actual) in parameters.iter().zip(actuals) {
+                        let ty = self.value_type(id, formal.type_reference)?;
+                        arguments.push(
+                            self.clause_term(id, scope, actual, ClauseUse::Operand(ty, values))?
+                                .operand(id)?,
+                        );
+                    }
+                    ClauseOperand::Application {
+                        declaration: ClauseDeclaration {
+                            member: (target.arena_index(), target.generation()),
+                            supplier: None,
+                        },
+                        arguments,
+                    }
+                }
+                // A case of such data is a declaration too: the clause applies
+                // it to its fields in declared order.
+                (ExpressionNode::StructLiteral(literal), _) if self.mathematical => {
+                    let symbol = literal
+                        .case_symbol
+                        .filter(|symbol| symbol.is_valid() && literal.type_symbol.is_valid())
+                        .ok_or_else(|| unavailable("clause constructor without a case"))?;
+                    let constructed = self.record(id, literal.type_symbol)?;
+                    let ValueType::Record(record, ..) = constructed else {
+                        return Err(unavailable("clause constructor of a scalar type"));
+                    };
+                    if self.self_containing.binary_search(&record).is_err() {
+                        return Err(unavailable("clause constructor of data with storage"));
+                    }
+                    if expected.is_some_and(|expected| expected != constructed) {
+                        return Err(unavailable(
+                            "clause constructor differs from the written carrier",
+                        ));
+                    }
+                    expected = Some(constructed);
+                    let opened = super::authority::Opened::constructing(record);
+                    let case = self.case_position(id, opened, symbol)?;
+                    let declared: Vec<ValueType> = self
+                        .data_type(id, record)?
+                        .cases()
+                        .get(case)
+                        .ok_or_else(|| unavailable("clause constructor lost its case"))?
+                        .fields
+                        .iter()
+                        .map(|field| field.value_type)
+                        .collect();
+                    let mut fields = vec![None; declared.len()];
+                    for authored in typed.expression_table.struct_fields(literal.fields) {
+                        let position = match self.member_of(id, opened, authored.field_symbol)? {
+                            super::places::Member::Payload { case: owner, field }
+                                if owner == case =>
+                            {
+                                field
+                            }
+                            _ => {
+                                return Err(unavailable(
+                                    "clause constructor names a field of another case",
+                                ));
+                            }
+                        };
+                        let term = self
+                            .clause_term(
+                                id,
+                                scope,
+                                authored.value,
+                                ClauseUse::Operand(declared[position], values),
+                            )?
+                            .operand(id)?;
+                        if fields[position].replace(term).is_some() {
+                            return Err(unavailable("clause constructor names a field twice"));
+                        }
+                    }
+                    ClauseOperand::Application {
+                        declaration: ClauseDeclaration {
+                            member: (symbol.arena_index(), symbol.generation()),
+                            supplier: None,
+                        },
+                        arguments: fields
+                            .into_iter()
+                            .collect::<Option<_>>()
+                            .ok_or_else(|| unavailable("clause constructor misses a field"))?,
+                    }
+                }
                 (ExpressionNode::Call(call), carrier)
                     if abstract_application || carrier.is_none_or(|ty| ty.scalar().is_none()) =>
                 {

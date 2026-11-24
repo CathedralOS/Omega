@@ -19,3 +19,4 @@ language-core = { path = "../../../foundation/language-core" }
 symbols = { path = "../../../foundation/declaration-identity" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 terminal-psi = { path = "../../../psi" }
+mathematical-kernel = { path = "../../../psi/semantics/proofs/mathematical" }
