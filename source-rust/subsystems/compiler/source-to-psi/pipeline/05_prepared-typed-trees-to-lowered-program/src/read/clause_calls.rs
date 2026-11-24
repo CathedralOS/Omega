@@ -60,6 +60,7 @@ pub(super) struct Unfolding {
 pub(super) enum ClauseUse<'a> {
     Operand(ValueType, &'a mut Vec<semantic_vocabulary::ClauseValue>),
     Proposition,
+    ProofRelevantType,
     Value,
 }
 
@@ -90,7 +91,7 @@ impl Program<'_> {
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: crate::source_state::expression::ExpressionHandle,
-        usage: ClauseUse<'_>,
+        mut usage: ClauseUse<'_>,
     ) -> Checked<ClauseTerm> {
         use crate::source_state::expression::ExpressionNode;
         use semantic_vocabulary::{ClauseCarrier, ClauseDeclaration, ClauseOperand, ClauseValue};
@@ -104,8 +105,23 @@ impl Program<'_> {
                 == Some(symbols::FixedCoreDeclaration::Identity)
         {
             return self
-                .identity_clause(id, scope, expression, call)
+                .identity_clause(
+                    id,
+                    scope,
+                    expression,
+                    call,
+                    matches!(usage, ClauseUse::ProofRelevantType),
+                )
                 .map(ClauseTerm::Proposition);
+        }
+        if matches!(usage, ClauseUse::ProofRelevantType) {
+            if let ExpressionNode::Call(call) = table.expression(expression)
+                && self.mathematical_definition_sort(call.target_symbol)
+                    == Some(symbols::FixedCoreDeclaration::Type)
+            {
+                return self.mathematical_clause(id, scope, call).map(ClauseTerm::Proposition);
+            }
+            return Err(unavailable("expected a proof-relevant mathematical type"));
         }
         let bodyless = match table.expression(expression) {
             ExpressionNode::Call(call) if !call.receiver.is_valid() => typed
@@ -145,27 +161,17 @@ impl Program<'_> {
                 },
             )));
         }
-        if let ClauseUse::Operand(expected, values) = usage {
-            let carrier = match expected {
-                ValueType::Rigid(parameter) => ClauseCarrier::Parameter(parameter.0),
-                ValueType::Record(record, _, _) => {
-                    match self.records.get(record).map(|record| &record.shape) {
-                        Some(crate::lowering::StorageShape::TypeParameter(parameter)) => {
-                            ClauseCarrier::Parameter(parameter.0)
-                        }
-                        Some(_) => ClauseCarrier::Structural(record),
-                        None => {
-                            return Err(unavailable(
-                                "Identity carrier has no structural declaration",
-                            ));
-                        }
-                    }
-                }
-                ValueType::Scalar(scalar, _) => ClauseCarrier::Scalar(scalar),
-            };
-            let operand = match table.expression(expression) {
-                ExpressionNode::Call(call)
-                    if expected.scalar().is_none() || abstract_application =>
+        let mut inferred = Vec::new();
+        let reading_scalar = abstract_application && matches!(usage, ClauseUse::Value);
+        let operands = match &mut usage {
+            ClauseUse::Operand(expected, values) => Some((Some(*expected), &mut **values)),
+            ClauseUse::Value if reading_scalar => Some((None, &mut inferred)),
+            _ => None,
+        };
+        if let Some((mut expected, values)) = operands {
+            let operand = match (table.expression(expression), expected) {
+                (ExpressionNode::Call(call), carrier)
+                    if abstract_application || carrier.is_none_or(|ty| ty.scalar().is_none()) =>
                 {
                     let target = call.target_symbol;
                     if !typed.symbols.symbols().nodes().is_valid(target) {
@@ -264,11 +270,13 @@ impl Program<'_> {
                             "clause application needs an unconditional pure and total operation",
                         ));
                     }
-                    if self.value_type(id, signature.return_type)? != expected {
+                    let result = self.value_type(id, signature.return_type)?;
+                    if expected.is_some_and(|expected| expected != result) {
                         return Err(unavailable(
                             "clause application result differs from the written carrier",
                         ));
                     }
+                    expected = Some(result);
                     let parameters = typed
                         .state_parameters
                         .span(signature.parameters)
@@ -296,7 +304,7 @@ impl Program<'_> {
                         arguments,
                     }
                 }
-                _ if expected.scalar().is_some() => {
+                (_, Some(expected)) if expected.scalar().is_some() => {
                     let (term, actual) = self.term(id, scope, expression, expected.scalar())?;
                     if expected != actual {
                         return Err(unavailable(
@@ -305,7 +313,7 @@ impl Program<'_> {
                     }
                     ClauseOperand::Scalar(term)
                 }
-                ExpressionNode::Name(path)
+                (ExpressionNode::Name(path), Some(expected))
                     if path.reserved_result_of.is_valid()
                         || scope
                             .subject
@@ -323,7 +331,7 @@ impl Program<'_> {
                         root, path,
                     ))
                 }
-                ExpressionNode::Name(path)
+                (ExpressionNode::Name(path), Some(expected))
                     if !path.static_application.is_valid()
                         && !path.reserved_result_of.is_valid()
                         && table.name_path_members(path.members).len() == 1 =>
@@ -357,9 +365,34 @@ impl Program<'_> {
                     ));
                 }
             };
+            let expected = expected.ok_or_else(|| unavailable("clause operand lost its type"))?;
+            let carrier = match expected {
+                ValueType::Rigid(parameter) => ClauseCarrier::Parameter(parameter.0),
+                ValueType::Record(record, _, _) => {
+                    match self.records.get(record).map(|record| &record.shape) {
+                        Some(crate::lowering::StorageShape::TypeParameter(parameter)) => {
+                            ClauseCarrier::Parameter(parameter.0)
+                        }
+                        Some(_) => ClauseCarrier::Structural(record),
+                        None => {
+                            return Err(unavailable(
+                                "Identity carrier has no structural declaration",
+                            ));
+                        }
+                    }
+                }
+                ValueType::Scalar(scalar, _) => ClauseCarrier::Scalar(scalar),
+            };
             let position = u32::try_from(values.len())
                 .map_err(|_| unavailable("clause term table overflow"))?;
             values.push(ClauseValue { carrier, operand });
+            if reading_scalar {
+                let term =
+                    crate::lowering::body::scalar_clause_value(inferred).ok_or_else(|| {
+                        unavailable("clause application needs a scalar result and operands")
+                    })?;
+                return Ok(ClauseTerm::Scalar(term, expected));
+            }
             return Ok(ClauseTerm::Operand(position));
         }
         let ExpressionNode::Call(call) = table.expression(expression) else {
@@ -370,7 +403,9 @@ impl Program<'_> {
             self.within_unfolding(id, unfolded.machine, unfolded.bound.len(), |program| {
                 let callee = callee_scope(&unfolded.bound, unfolded.machine);
                 match usage {
-                    ClauseUse::Operand(..) => unreachable!("operands are read above"),
+                    ClauseUse::Operand(..) | ClauseUse::ProofRelevantType => {
+                        unreachable!("operands and proof-relevant types are read above")
+                    }
                     ClauseUse::Proposition if unfolded.result == ScalarType::Boolean => program
                         .clause(id, &callee, unfolded.body)
                         .map(ClauseTerm::Proposition),

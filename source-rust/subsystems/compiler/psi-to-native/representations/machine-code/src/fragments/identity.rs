@@ -1,6 +1,6 @@
 /*
 Canonical SHA-256 identity encoding for `FunctionFragmentEmissionPlan`
-(`FunctionFragmentEmissionIdentity`, schema `omega.terminal.function-fragment-emission.v25`).
+(`FunctionFragmentEmissionIdentity`, schema `omega.terminal.function-fragment-emission.v26`).
 
 Every function fragment, block span, instruction span (including zero-byte elided/fused rows),
 branch displacement, internal/foreign/image fixup, and semantic provenance roster is hashed in
@@ -26,7 +26,7 @@ use selected_instructions::SelectedInstructionProvenance;
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
 use target_vocabulary::TerminalPsiProvenance;
 
-const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v25";
+const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v26";
 
 pub(crate) fn function_fragment_emission_identity(
     plan: &FunctionFragmentEmissionPlan,
@@ -72,12 +72,7 @@ pub(crate) fn function_fragment_emission_identity(
                     &mut hasher,
                     row.normalized_foreign_call_fixup(),
                 );
-                if let Some(fixup) = row.image_address_fixup() {
-                    let mut identity = b"image-address-v2".to_vec();
-                    fixup.reference.encode_identity(&mut identity);
-                    fixup.fields.encode_identity(&mut identity);
-                    hasher.raw(&identity);
-                }
+                encode_optional_image_address_fixup(&mut hasher, row.image_address_fixup());
 
                 encode_instruction_provenance(&mut hasher, &row.provenance);
                 encode_control(&mut hasher, &row.control);
@@ -85,6 +80,24 @@ pub(crate) fn function_fragment_emission_identity(
         }
     }
     FunctionFragmentEmissionIdentity::from_canonical_bytes(&hasher.finish())
+}
+
+// Like the other two fixups, an image-address fixup writes a presence byte,
+// so an absent fixup cannot read as the start of the provenance that follows.
+fn encode_optional_image_address_fixup(
+    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
+    fixup: Option<crate::FunctionFragmentImageAddressFixup>,
+) {
+    match fixup {
+        None => hasher.byte(0),
+        Some(fixup) => {
+            hasher.byte(1);
+            let mut identity = b"image-address-v2".to_vec();
+            fixup.reference.encode_identity(&mut identity);
+            fixup.fields.encode_identity(&mut identity);
+            hasher.raw(&identity);
+        }
+    }
 }
 
 fn encode_optional_internal_machine_fixup(
@@ -243,7 +256,7 @@ fn encode_control(
         }
         FunctionFragmentControlProvenance::None => hasher.byte(0),
         FunctionFragmentControlProvenance::InternalCall { target, owner } => {
-            hasher.byte(10);
+            hasher.byte(11);
             let mut target_identity = Vec::new();
             target.encode_identity(&mut target_identity);
             hasher.raw(&target_identity);
@@ -418,5 +431,56 @@ mod width_tests {
             identity(parameter(1, 2)),
             identity(IntegerType::new(IntegerSign::Unsigned, 13).unwrap())
         );
+    }
+}
+
+#[cfg(test)]
+mod tag_tests {
+    use super::*;
+    use semantic_vocabulary::{EdgeId, MachineId};
+
+    fn digest(write: impl FnOnce(&mut crate::digest_encoder::DomainDigestEncoder)) -> [u8; 32] {
+        let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(b"fragment-control-test");
+        write(&mut hasher);
+        hasher.finish()
+    }
+
+    // `EliminateEmpty` writes tag 10 before its edge. An internal call must
+    // start with its own tag, or the two variants share a discriminator and
+    // only the payload bytes keep them apart.
+    #[test]
+    fn internal_call_control_does_not_reuse_the_eliminate_empty_tag() {
+        let target = selected_instructions::SelectedCallTarget::Machine(MachineId::new(3).unwrap());
+        let owner = target_vocabulary::CallSiteOwner::InvokeNoNormal(EdgeId::new(4).unwrap());
+        let actual = digest(|hasher| {
+            encode_control(
+                hasher,
+                &FunctionFragmentControlProvenance::InternalCall { target, owner },
+            )
+        });
+        let under_eliminate_empty_tag = digest(|hasher| {
+            hasher.byte(10);
+            let mut target_identity = Vec::new();
+            target.encode_identity(&mut target_identity);
+            hasher.raw(&target_identity);
+            encode_call_owner(hasher, owner);
+        });
+        assert_ne!(actual, under_eliminate_empty_tag);
+    }
+
+    // An absent image-address fixup must still write something, and a present
+    // one must write something else, so the next field cannot be misread.
+    #[test]
+    fn image_address_fixup_presence_is_part_of_the_identity() {
+        let fixup = crate::FunctionFragmentImageAddressFixup {
+            reference:
+                selected_instructions::SelectedImageAddressReference::RetainedEntryStorageStart,
+            fields: crate::ImageAddressFields::X86_64Relative32 { patch_offset: 3 },
+        };
+        let nothing = digest(|_| {});
+        let absent = digest(|hasher| encode_optional_image_address_fixup(hasher, None));
+        let present = digest(|hasher| encode_optional_image_address_fixup(hasher, Some(fixup)));
+        assert_ne!(absent, nothing);
+        assert_ne!(absent, present);
     }
 }

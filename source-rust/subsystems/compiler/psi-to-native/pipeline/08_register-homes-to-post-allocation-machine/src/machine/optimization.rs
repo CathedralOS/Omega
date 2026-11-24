@@ -332,16 +332,21 @@ fn rewrite_declared_forms(
                     continue;
                 }
                 let extra = extra_units(instruction, form);
-                let (live, scanned) = {
-                    let (units, table) = table.get_or_insert_with(|| {
-                        (
-                            extra.clone(),
-                            UnitLivenessTable::compute(function, successors, &extra),
-                        )
-                    });
-                    debug_assert_eq!(*units, extra);
-                    table.live_after(function, successors, block_index, index, &extra)
-                };
+                // The added units depend on what the instruction already
+                // writes, so a table built for another candidate's units
+                // cannot answer for this one.
+                if table.as_ref().is_none_or(|(units, _)| *units != extra) {
+                    table = Some((
+                        extra.clone(),
+                        UnitLivenessTable::compute(function, successors, &extra),
+                    ));
+                }
+                let (live, scanned) = table
+                    .as_ref()
+                    .map(|(_, table)| {
+                        table.live_after(function, successors, block_index, index, &extra)
+                    })
+                    .expect("the table was built for these units above");
                 usage.validation_steps = usage.validation_steps.saturating_add(scanned);
                 if live {
                     continue;
@@ -869,6 +874,35 @@ mod tests {
         ]);
         let (result, _, _) = run(function, rows, vec![vec![1], vec![0, 2], vec![]]);
         assert_eq!(result.unwrap().actions().len(), 1);
+    }
+
+    // The first candidate already writes the flags, so its declared form adds
+    // no units; the second adds the flags, which a later instruction reads.
+    // Each candidate must be judged by liveness of its own added units.
+    #[test]
+    fn each_candidate_is_judged_by_the_units_its_own_form_adds() {
+        let (function, rows) = roster(vec![(
+            vec![
+                instruction(1, &[], &[FLAGS]),
+                instruction(2, &[], &[]),
+                instruction(3, &[FLAGS], &[]),
+            ],
+            vec![
+                effects(1, zero(), true),
+                effects(2, zero(), true),
+                effects(3, seven(), true),
+            ],
+        )]);
+        let (result, function, usage) = run(function, rows, vec![vec![]]);
+        let execution = result.unwrap();
+        assert_eq!(execution.candidates(), 2);
+        assert_eq!(execution.actions().len(), 1);
+        assert_eq!(execution.actions()[0].instruction, SelectedInstructionId(1));
+        assert_eq!(
+            function.blocks[0].instructions[1].alternative.key.variant,
+            0
+        );
+        assert_eq!(usage.commits, 1);
     }
 
     #[test]

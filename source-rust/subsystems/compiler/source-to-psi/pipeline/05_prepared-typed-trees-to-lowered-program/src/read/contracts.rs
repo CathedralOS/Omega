@@ -972,6 +972,7 @@ impl Program<'_> {
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
         call: &TableCallExpression,
+        preserve_type: bool,
     ) -> Checked<Proposition> {
         let (subject_type, [left, right], _) = self.identity_inputs(id, scope, expression, call)?;
         if self.typed.core_vocabulary(subject_type)
@@ -989,7 +990,7 @@ impl Program<'_> {
             .operand(id)?;
         // Keep the arithmetic prover's integer relation when both operands
         // already have scalar denotations. An abstract operation stays applied.
-        if matches!(carrier.scalar(), Some(ScalarType::Integer(_)))
+        if !preserve_type && matches!(carrier.scalar(), Some(ScalarType::Integer(_)))
             && let (
                 semantic_vocabulary::ClauseOperand::Scalar(a),
                 semantic_vocabulary::ClauseOperand::Scalar(b),

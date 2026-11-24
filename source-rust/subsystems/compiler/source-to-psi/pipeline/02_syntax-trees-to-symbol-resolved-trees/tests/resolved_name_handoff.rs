@@ -238,3 +238,78 @@ fn a_file_alias_selects_the_declaration_of_the_file_it_imports() {
         );
     }
 }
+
+#[test]
+fn evidence_binder_children_belong_to_the_imported_trait() {
+    let east = (
+        "east/schema.omg",
+        "use east/parent.omg as base; public trait Reading: |base|::Parent { machine east() -> u32; }",
+    );
+    let west = (
+        "west/schema.omg",
+        "use west/parent.omg as base; public trait Reading: |base|::Parent { machine west() -> u32; }",
+    );
+    for selected in ["east", "west"] {
+        let other = if selected == "east" { "west" } else { "east" };
+        let importing = format!(
+            "use east/schema.omg as east; use west/schema.omg as west;
+             machine apply<Reader satisfies |{selected}|::Reading>() -> u32 {{
+                 Reader::{selected}() + Reader::{other}()
+             }}"
+        );
+        for [first, second] in [[east, west], [west, east]] {
+            let trees = resolved(&[
+                ("main.omg", &importing),
+                first,
+                second,
+                (
+                    "east/parent.omg",
+                    "public trait Parent { machine from_east() -> u32; }",
+                ),
+                (
+                    "west/parent.omg",
+                    "public trait Parent { machine from_west() -> u32; }",
+                ),
+            ]);
+            let machine = trees
+                .machines
+                .iter()
+                .find(|machine| machine.name.as_str() == "apply")
+                .unwrap();
+            let [bound] = machine.conformance_bounds.as_slice() else {
+                panic!("one evidence binder")
+            };
+            let names = trees
+                .symbols
+                .child_handles(bound.binder)
+                .into_iter()
+                .flatten()
+                .map(|child| trees.symbols.name(child))
+                .collect::<Vec<_>>();
+            assert_eq!(names, [selected, &format!("from_{selected}")]);
+            let calls = trees
+                .tables
+                .bodies
+                .expressions
+                .iter_expressions()
+                .filter_map(|(_, expr)| {
+                    let ExpressionNode::Call(call) = expr else {
+                        return None;
+                    };
+                    Some((call.target.as_str(), call.target_symbol))
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(calls.len(), 2);
+            for (name, target) in calls {
+                if name.ends_with(selected) {
+                    assert!(target.is_valid());
+                    assert_eq!(trees.symbols.get(target).parent, bound.binder);
+                    assert_eq!(trees.symbols.name(target), selected);
+                } else {
+                    assert!(name.ends_with(other));
+                    assert!(!target.is_valid(), "another trait's method was selected");
+                }
+            }
+        }
+    }
+}

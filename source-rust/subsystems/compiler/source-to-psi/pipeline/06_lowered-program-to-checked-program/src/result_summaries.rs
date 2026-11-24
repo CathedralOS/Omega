@@ -480,6 +480,7 @@ fn summarize(
             ranking_bindings: &prepared.ranking_bindings,
             declared: &declared_joins,
             unreached: &beyond,
+            law_instances: &[],
         },
         &mut scratch,
         &mut decided,

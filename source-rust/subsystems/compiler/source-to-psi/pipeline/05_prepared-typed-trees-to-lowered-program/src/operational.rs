@@ -161,6 +161,7 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
         }
         ExpressionKind::Integer(_)
         | ExpressionKind::Float(_)
+        | ExpressionKind::ErasedApplication(_)
         | ExpressionKind::ScalarApplication { .. }
         | ExpressionKind::Zero
         | ExpressionKind::Boolean(_)

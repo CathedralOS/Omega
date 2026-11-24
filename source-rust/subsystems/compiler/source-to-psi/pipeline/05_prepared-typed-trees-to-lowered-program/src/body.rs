@@ -1079,6 +1079,40 @@ pub struct Expression {
     pub source: SourceOrigin,
 }
 
+/// Convert a checked clause value into the scalar lane, retaining the
+/// declaration and ordered application operands at every node.
+pub(crate) fn scalar_clause_value(
+    values: Vec<semantic_vocabulary::ClauseValue>,
+) -> Option<semantic_vocabulary::ScalarTerm> {
+    use semantic_vocabulary::{ClauseCarrier, ClauseOperand, ScalarTerm};
+    let mut terms = Vec::<ScalarTerm>::with_capacity(values.len());
+    for value in values {
+        let ClauseCarrier::Scalar(scalar_type) = value.carrier else {
+            return None;
+        };
+        let term = match value.operand {
+            ClauseOperand::Scalar(term) => term,
+            ClauseOperand::Application {
+                declaration,
+                arguments,
+            } => {
+                let arguments = arguments
+                    .into_iter()
+                    .map(|position| terms.get(position as usize).cloned())
+                    .collect::<Option<Vec<_>>>()?;
+                ScalarTerm::DeclarationApplication {
+                    declaration,
+                    arguments,
+                    scalar_type,
+                }
+            }
+            ClauseOperand::Input(_) | ClauseOperand::Formal(_) => return None,
+        };
+        terms.push(term);
+    }
+    terms.pop()
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum AtomicOperation {
     Access {
@@ -1142,6 +1176,8 @@ pub enum ExpressionKind {
         base: Box<Expression>,
         predicate: semantic_vocabulary::ByteSequencePredicate,
     },
+    /// An erased declaration application whose value leaves name body slots.
+    ErasedApplication(semantic_vocabulary::ScalarTerm),
     /// A checked scalar computed in its selected target scope.
     ScalarApplication {
         application: semantic_vocabulary::ScalarApplicationId,

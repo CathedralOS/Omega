@@ -678,6 +678,7 @@ fn bound_term<Error: From<&'static str>>(
                         path,
                         scalar_type,
                     } => bindings.structural_read(root, &path, scalar_type)?,
+                    other @ ScalarTerm::DeclarationApplication { .. } => other,
                     other => bindings.computed(other)?,
                 }
             }
@@ -710,6 +711,7 @@ fn bound_term<Error: From<&'static str>>(
                     root,
                     path,
                 } => bindings.byte_predicate(predicate, root, &path)?,
+                ScalarTerm::DeclarationApplication { ref arguments, .. } if arguments.is_empty() => term,
                 ScalarTerm::Application { .. }
                 | ScalarTerm::Integer { .. }
                 | ScalarTerm::Boolean(_)
