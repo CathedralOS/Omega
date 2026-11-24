@@ -150,7 +150,8 @@ pub(crate) struct PredicateDefinition {
     pub symbol: SymbolHandle,
     pub diagnostic: MachineId,
     pub parameters: Vec<terminal_psi::ValueDeclaration>,
-    pub body: semantic_vocabulary::Proposition,
+    pub type_parameters: Vec<u32>,
+    pub body: terminal_psi::MathematicalPredicateBody,
 }
 
 pub(crate) struct Program<'t> {
@@ -287,6 +288,8 @@ pub(crate) struct Program<'t> {
     reading_schema: bool,
     /// Runtime carriers keep their original binder even in applied callees.
     rigid_storage: Vec<Option<type_parameters::ParameterStorage>>,
+    /// Binds sibling operations while reading a law supplied by this record.
+    clause_supplier: Option<SymbolHandle>,
     /// `scope` of each machine, pushed with its signature and restored
     /// when its body is read.
     scopes: IdTable<MachineId, Vec<(SymbolHandle, ValueType)>>,
@@ -554,6 +557,7 @@ impl<'t> Program<'t> {
             source_scopes: IdTable::default(),
             reading_schema: false,
             rigid_storage: Vec::new(),
+            clause_supplier: None,
             scopes: IdTable::default(),
             nominal_calls: Vec::new(),
             const_scope: Vec::new(),

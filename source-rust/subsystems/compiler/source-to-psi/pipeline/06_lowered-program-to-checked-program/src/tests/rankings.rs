@@ -492,30 +492,104 @@ machine entry() -> u32 terminates crashes none {{ countdown(4) }}
 }
 
 #[test]
-fn an_authored_bounded_distance_does_not_select_the_sealed_view() {
-    let program = typed_with_ranking_catalog(
-        r#"
-machine Nat::BoundedDistance(lower: u64, upper: u64) -> u64 { 0 }
+fn increasing_to_checks_the_limit_at_recursive_transfers() {
+    let run = |view: &str, actuals: &str| {
+        let source = format!(
+            r#"
+machine count(cursor: u64, limit: u64) -> u64
+terminates by {view} {{
+    transition cursor < limit {{
+        true -> count({actuals}),
+        false -> cursor
+    }}
+}}
+machine entry() -> u64 {{ count(0, 5) }}
+"#
+        );
+        super::boundary_calls::compilation_results_of(&typed_with_ranking_catalog(&source))
+    };
+    let increasing = "cursor -> Nat::IncreasingTo(limit)";
+    for (view, actuals) in [
+        (increasing, "cursor + 1, limit"),
+        (increasing, "cursor + 1, limit + 0"),
+        (
+            "(cursor, limit) -> Nat::BoundedDistance",
+            "cursor, limit - 1",
+        ),
+    ] {
+        let results = run(view, actuals);
+        assert!(
+            results
+                .iter()
+                .all(|result| matches!(result, Ok(RouteVerdict::Accepted(_)))),
+            "{view} with {actuals}: {:?}",
+            observed_verdicts(&results)
+        );
+    }
+    let changed = run(increasing, "cursor, limit - 1");
+    assert!(
+        changed.iter().any(|result| matches!(result,
+            Ok(RouteVerdict::Rejected { unproved, .. }) if unproved.iter().any(|row|
+                matches!(row.kind, ObligationKind::ArrivalInvariant { .. })
+            )
+        )),
+        "a shrinking bound cannot discharge IncreasingTo: {:?}",
+        observed_verdicts(&changed)
+    );
+}
+
+#[test]
+fn increasing_to_keeps_the_extent_of_a_mutated_buffer_field() {
+    let program = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../../samples/cli/probes/recursive_buffer_fill/main.omg"
+    ));
+    let program = format!("{program}\nmachine entry() crashes Trap {{ main(); }}");
+    let results =
+        super::boundary_calls::compilation_results_of(&typed_with_ranking_catalog(&program));
+    assert!(
+        !results.is_empty()
+            && results
+                .iter()
+                .all(|result| matches!(result, Ok(RouteVerdict::Accepted(_)))),
+        "{:?}",
+        observed_verdicts(&results)
+    );
+}
+
+#[test]
+fn an_authored_distance_machine_does_not_select_a_sealed_view() {
+    for (view, clause) in [
+        (
+            "Nat::BoundedDistance",
+            "(lower, upper) -> Nat::BoundedDistance",
+        ),
+        ("Nat::IncreasingTo", "lower -> Nat::IncreasingTo(upper)"),
+    ] {
+        let program = typed_with_ranking_catalog(&format!(
+            r#"
+machine {view}(lower: u64, upper: u64) -> u64 {{ 0 }}
 machine count(lower: u64, upper: u64) -> u64
-terminates by (lower, upper) -> Nat::BoundedDistance {
-    transition lower < upper {
+terminates by {clause} {{
+    transition lower < upper {{
         true -> count(lower + 1, upper),
         false -> lower
-    }
-}
-machine entry() -> u64 { count(2, 5) }
-"#,
-    );
-    let verdicts = super::boundary_calls::compilation_results_of(&program);
-    assert!(
+    }}
+}}
+machine entry() -> u64 {{ count(2, 5) }}
+"#
+        ));
+        let verdicts = super::boundary_calls::compilation_results_of(&program);
+        assert!(
         verdicts.iter().any(|verdict| matches!(verdict,
             Err(crate::checking::CompilationRefusal::Elaboration(refusal)) | Ok(RouteVerdict::FallBack(refusal))
                 if refusal.detail.contains("ranking view is not an admitted compiler ranking declaration")
                     || refusal.detail.contains("ranking view has no admitted resolved selection")
         )),
-        "a same-signature authored machine has no ranking authority: {:?}",
+        "an authored {view} has no ranking authority: {:?}",
         observed_verdicts(&verdicts)
     );
+    }
 }
 
 #[test]
@@ -531,6 +605,14 @@ fn selected_ranking_views_check_their_own_subject_and_catalog_header() {
         (
             "machine entry(n: u128) terminates by n -> Nat::Descending crashes none {}",
             "cannot embed exactly",
+        ),
+        (
+            "machine entry(n: u32) terminates by n -> Nat::IncreasingTo crashes none {}",
+            "one fixed bound",
+        ),
+        (
+            "machine entry(n: u32, m: u32) terminates by (n, m) -> Nat::IncreasingTo(n) crashes none {}",
+            "exactly one subject",
         ),
         (
             "machine entry(n: i32) terminates by n -> Nat::Descending crashes none {}",

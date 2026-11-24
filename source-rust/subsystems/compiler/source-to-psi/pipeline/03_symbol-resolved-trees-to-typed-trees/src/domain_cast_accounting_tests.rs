@@ -697,3 +697,79 @@ fn a_static_value_types_the_captured_selector_only_in_its_own_scope() {
         typed.normalized_type_identity(type_reference),
     );
 }
+
+#[test]
+fn a_selected_index_constant_keeps_its_carrier_before_evaluation() {
+    let domain = "domain<const N: u8> u32::At<N>;";
+    for (holder, applied) in [
+        ("", "u32 in At<KEY>"),
+        ("data Token<const N: u8> { value: u32; }", "Token<KEY>"),
+        ("data Record { field: u32 in At<KEY>; }", "Record"),
+        ("data Choice { case Value(field: u32 in At<KEY>); }", "Choice"),
+    ] {
+        for (carrier, value, accepted) in [("u8", "4u8", true), ("u64", "4u64", false)] {
+            let source = format!(
+                "{domain} {holder} machine identity(value: {carrier}) -> {carrier} {{ value }} \
+                 const KEY: {carrier} = identity({value}); \
+                 machine entry(value: {applied}) -> u32 {{ 0u32 }}"
+            );
+            let result = source_result(&source).1;
+            if accepted {
+                result.unwrap();
+            } else {
+                let Err(refusal) = result else {
+                    panic!("{applied} accepted a {carrier} constant in a u8 index");
+                };
+                assert!(refusal.message.contains("declared carrier"), "{refusal:?}");
+                let span = refusal.source_span.expect("point to the named constant").span;
+                assert!(source[span.start..span.end].contains("KEY"), "{refusal:?}");
+            }
+        }
+    }
+}
+
+#[test]
+fn domain_index_literals_are_checked_against_the_selected_family() {
+    use crate::source_state::types::{TypeConstraintNode, TypeReferenceNode};
+    for family in [
+        "domain<const N: u8> u32::At<N>;",
+        "domain<T, const N: u8> T::At<N>;",
+    ] {
+        let check = |argument: &str| {
+            source_result(&format!(
+                "{family} machine entry(value: u32 in At<{argument}>) -> u32 {{ 0u32 }}"
+            ))
+            .1
+        };
+        for argument in ["4", "4u8"] {
+            let typed = check(argument).unwrap();
+            let mut normalized = false;
+            for (_, _, constraints) in typed
+                .type_reference_table
+                .constrained_type_reference_sites()
+            {
+                for constraint in typed.type_reference_table.constraints(constraints) {
+                    if let TypeConstraintNode::Domain(domain) = constraint {
+                        let [index] = domain.arguments.as_slice() else {
+                            continue;
+                        };
+                        let index = typed.type_reference_table.type_reference(*index);
+                        assert!(
+                            matches!(index, TypeReferenceNode::Named { name, .. } if name.as_str() == "4"),
+                            "{argument}: {index:?}"
+                        );
+                        normalized = true;
+                    }
+                }
+            }
+            assert!(normalized);
+        }
+        for argument in ["256", "4u64", "true"] {
+            let refusal = check(argument).expect_err("the index must fit the declared carrier");
+            assert!(
+                refusal.message.contains("must be a `u8`"),
+                "{family} with {argument}: {refusal:?}"
+            );
+        }
+    }
+}

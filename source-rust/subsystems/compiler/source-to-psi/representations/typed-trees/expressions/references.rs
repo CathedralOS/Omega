@@ -1299,6 +1299,10 @@ impl<'call> StaticArgumentCall<'call> {
 pub type StaticArgumentClassifier = fn(&TypedTrees, StaticArgumentCall<'_>) -> StaticArgumentRole;
 
 pub trait TypedReferences: Extend<SymbolHandle> {
+    /// A static record parameter selects the requirement signatures of its
+    /// declared schema even before the caller supplies a concrete record.
+    fn static_parameter_type(&mut self, _program: &TypedTrees, _reference: TypeReferenceHandle) {}
+
     fn callable_use(&mut self, _: SymbolHandle) {}
     fn code_selection(&mut self, symbol: SymbolHandle) {
         self.extend([symbol]);
@@ -1894,6 +1898,15 @@ impl Extend<SymbolHandle> for TypeOccurrences {
 }
 
 impl TypedReferences for TypeOccurrences {
+    fn static_parameter_type(&mut self, program: &TypedTrees, reference: TypeReferenceHandle) {
+        if program.static_record_schema(reference, self.owner).is_some() {
+            let occurrence = TypeOccurrence { lexical_owner: self.owner, reference };
+            if !self.requirement_applications.contains(&occurrence) {
+                self.requirement_applications.push(occurrence);
+            }
+        }
+    }
+
     fn call_arguments(&mut self, program: &TypedTrees, call: StaticArgumentCall<'_>) -> bool {
         if let StaticArgumentCall::Expression(_, call) = call {
             let readiness = match program
@@ -4039,8 +4052,11 @@ fn visit_type_parameters(
     use crate::source_state::data::TypeParameterKind;
     for parameter in program.data_type_parameters.span_or_empty(parameters) {
         match &parameter.kind {
-            TypeParameterKind::Const { type_reference }
-            | TypeParameterKind::Value { type_reference } => {
+            TypeParameterKind::Const { type_reference } => {
+                retained.static_parameter_type(program, *type_reference);
+                visit_type_reference(program, retained, *type_reference)
+            }
+            TypeParameterKind::Value { type_reference } => {
                 visit_type_reference(program, retained, *type_reference)
             }
             TypeParameterKind::Machine { contract } => {

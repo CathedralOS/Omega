@@ -480,6 +480,7 @@ fn summarize(
             ranking_bindings: &prepared.ranking_bindings,
             declared: &declared_joins,
             unreached: &beyond,
+            law_instances: &[],
         },
         &mut scratch,
         &mut decided,
@@ -694,7 +695,7 @@ pub(super) fn publish(
     // An inferred clause has no authored text; the position keeps every
     // authored clause's diagnostic aligned.
     if let Some(names) = elaboration.names.get_mut(id) {
-        names.ensures.push(ClauseText(vec![Piece::Text(String::from(
+        names.ensures.push(ClauseText::from(vec![Piece::Text(String::from(
             "inferred result summary",
         ))]));
     }

@@ -35,8 +35,12 @@ pub(crate) mod closed_integer {
 pub(crate) mod fixed_integer {
     use semantic_vocabulary::{IntegerType, IntegerValue, ScalarTerm};
 
+    pub(crate) fn has_native_width(integer_type: IntegerType) -> bool {
+        matches!(integer_type.bits(), Some(8 | 16 | 32 | 64))
+    }
+
     pub(crate) fn fixed_native(integer_type: IntegerType) -> bool {
-        !integer_type.is_address() && matches!(integer_type.bits(), Some(8 | 16 | 32 | 64))
+        !integer_type.is_address() && has_native_width(integer_type)
     }
 
     pub(crate) fn fixed_native_interval(integer_type: IntegerType) -> Option<(i128, i128)> {

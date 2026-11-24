@@ -1,6 +1,8 @@
 //! Unresolved syntax trees retain authored structure, source text and arena identities.
 //! `SyntaxTrees` owns roots and tables; follow their row types into the grammar domains.
 
+#[path = "statements/root_bindings.rs"]
+pub mod root_bindings;
 pub use equality::SyntaxEquivalent;
 pub use float_spelling::FloatSpelling;
 pub use item_copies::SuppliedSyntaxArgument;

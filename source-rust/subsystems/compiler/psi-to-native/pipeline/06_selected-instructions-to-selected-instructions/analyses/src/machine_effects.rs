@@ -943,10 +943,11 @@ mod catalog_handoff_tests {
     };
     use target::{Architecture, NativeTarget};
 
-    fn hosted_targets() -> [NativeTarget; 4] {
+    fn hosted_targets() -> [NativeTarget; 5] {
         [
             NativeTarget::linux_x64(),
             NativeTarget::windows_x64(),
+            NativeTarget::windows_arm64(),
             NativeTarget::linux_arm64(),
             NativeTarget::macos_arm64(),
         ]
@@ -1000,22 +1001,20 @@ mod catalog_handoff_tests {
     }
 
     #[test]
-    fn catalog_handoff_propagates_an_unsupported_isa_target() {
-        let environment =
-            baseline_target_register_environment(NativeTarget::linux_arm64()).unwrap();
-        let mut target = NativeTarget::windows_x64();
-        target.architecture = Architecture::Aarch64;
+    fn catalog_handoff_propagates_an_architecture_mismatch() {
+        let environment = baseline_target_register_environment(NativeTarget::windows_x64()).unwrap();
+        let target = NativeTarget::windows_arm64();
         assert!(matches!(
             prepared_machine_effect_catalog(target, environment.constraints()),
             Err(MachineEffectStageError::Aarch64Catalog(
-                target_aarch64::Aarch64MachineEffectCatalogValidationError::UnsupportedTargetAbi
+                target_aarch64::Aarch64MachineEffectCatalogValidationError::TargetArchitectureMismatch
             ))
         ));
     }
 }
 
 #[cfg(test)]
-mod indirect_call_tests {
+pub(crate) mod indirect_call_tests {
     use std::sync::Arc;
 
     use register_environment::{
@@ -1038,7 +1037,7 @@ mod indirect_call_tests {
 
     use super::{MachineEffectError, prepared_machine_effect_catalog};
 
-    fn selected_call(
+    pub(crate) fn selected_call(
         environment: &ValidatedTargetRegisterEnvironment,
         target: NativeTarget,
         callee: NativeCallTarget,

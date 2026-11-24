@@ -37,7 +37,7 @@ use semantic_vocabulary::StructuralFieldId;
 use terminal_psi::ResolvedStructuralPathSegment as Segment;
 
 #[derive(Clone, Copy)]
-struct StaticInvocation<'a> {
+pub(super) struct StaticInvocation<'a> {
     binder: SymbolHandle,
     target: SymbolHandle,
     application: StaticMachineApplicationHandle,
@@ -45,7 +45,7 @@ struct StaticInvocation<'a> {
     arguments: &'a [ExpressionHandle],
     selection: Option<AuthoredDeclarationSelectionOccurrenceId>,
     binding: Option<ResolvedAuthoredCallBinding>,
-    unsupported: bool,
+    pub(super) unsupported: bool,
     runtime_receiver: bool,
     receiver: Option<SymbolHandle>,
 }
@@ -2278,7 +2278,7 @@ impl<'t> Program<'t> {
 
     /// Both source call forms expose one retained static application and the
     /// same authored selection. Their operands still belong to their own arena.
-    fn static_invocation<'call>(&self, call: StaticArgumentCall<'call>) -> StaticInvocation<'call>
+    pub(super) fn static_invocation<'call>(&self, call: StaticArgumentCall<'call>) -> StaticInvocation<'call>
     where
         't: 'call,
     {
@@ -4072,6 +4072,7 @@ impl Touches<'_> {
             | ExpressionKind::Referent(_) => self.place(expression, changes, captures),
             ExpressionKind::Integer(_)
             | ExpressionKind::Float(_)
+            | ExpressionKind::ErasedApplication(_)
             | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::MachineValue { .. }

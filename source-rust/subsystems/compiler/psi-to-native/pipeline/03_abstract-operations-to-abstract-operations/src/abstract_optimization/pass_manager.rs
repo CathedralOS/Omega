@@ -15,7 +15,7 @@ pub(crate) mod accounting {
     };
     use optimization_unit::PsiOptimizationUnit;
 
-    use crate::abstract_optimization::OrderedRuleRegistry;
+    use crate::abstract_optimization::{OrderedRuleRegistry, rules};
 
     use super::{OptimizationRunError, OptimizationRunUsage, PsiOptimizationCommit};
 
@@ -222,24 +222,24 @@ pub(crate) mod accounting {
         registry: &OrderedRuleRegistry,
     ) -> u64 {
         let copy_pass =
-            OptimizationPassIdentity::from_canonical_bytes(b"omega.psi-pass.copy-propagation.v1");
+            OptimizationPassIdentity::from_canonical_bytes(rules::COPY_PROPAGATION_PASS_NAME);
         let cfg_pass = OptimizationPassIdentity::from_canonical_bytes(
-            b"omega.psi-pass.control-flow-cleanup.v13",
+            rules::CONTROL_FLOW_CLEANUP_PASS_NAME,
         );
         let dead_scalar_pass = OptimizationPassIdentity::from_canonical_bytes(
-            b"omega.psi-pass.dead-pure-scalar-elimination.v2",
+            rules::DEAD_PURE_SCALAR_PASS_NAME,
         );
         let proof_elision_pass = OptimizationPassIdentity::from_canonical_bytes(
-            b"omega.psi-pass.proof-check-elision.v12",
+            rules::PROOF_CHECK_ELISION_PASS_NAME,
         );
         let global_value_numbering_pass = OptimizationPassIdentity::from_canonical_bytes(
-            b"omega.psi-pass.global-value-numbering.v14",
+            rules::GLOBAL_VALUE_NUMBERING_PASS_NAME,
         );
         let state_specialization_pass = OptimizationPassIdentity::from_canonical_bytes(
-            b"omega.psi-pass.state-specialization.v1",
+            rules::STATE_SPECIALIZATION_PASS_NAME,
         );
         let representation_specialization_pass = OptimizationPassIdentity::from_canonical_bytes(
-            b"omega.psi-pass.representation-specialization.v1",
+            rules::REPRESENTATION_SPECIALIZATION_PASS_NAME,
         );
         if registry.pass() == Some(cfg_pass) {
             control_flow_structure_count(unit)

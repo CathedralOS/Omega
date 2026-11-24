@@ -147,7 +147,7 @@ pub(crate) fn mark_product_operand_imports(
 ) {
     use syntax_trees::item::Item;
 
-    let operands = qualifiers.only_product_operands();
+    let operands = qualifiers.only_product_operands(trees, roots);
     if operands.is_empty() {
         return;
     }

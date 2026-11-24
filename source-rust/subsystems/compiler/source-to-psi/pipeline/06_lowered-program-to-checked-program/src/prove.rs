@@ -1951,6 +1951,7 @@ impl<'a> Prover<'a> {
         }
         match goal {
             Proposition::Truth => Ok(primitive(Proposition::Truth, PrimitiveJudgment::Truth)),
+            Proposition::DeclarationIdentity(_) => Err("a typed Identity needs mathematical evidence"),
             Proposition::Falsehood => Err("the goal is false"),
             Proposition::Conjunction(parts) => {
                 let proofs = parts

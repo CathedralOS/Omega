@@ -109,7 +109,7 @@ public machine has_subject(carrier: |symbol_resolved_trees|::BuiltinType) -> boo
     |integers|::is_carrier(carrier) || carrier == |symbol_resolved_trees|::BuiltinType::Bool
 }
 
-// Clear the body's places and open its zone over the zero subject alone.
+// Reserve all 64 zone subjects. Only subject zero is assigned at entry.
 public machine open_places(checker: @mutable |checker|::Checker)
 crashes Trap
 {

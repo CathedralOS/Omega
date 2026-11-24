@@ -87,7 +87,16 @@ pub enum Binder {
 /// A clause's authored text with each formal left open, so it can be stated
 /// over a call's actuals.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct ClauseText(pub Vec<Piece>);
+pub struct ClauseText {
+    pub pieces: Vec<Piece>,
+    pub source: Option<SourceSpan>,
+}
+
+impl From<Vec<Piece>> for ClauseText {
+    fn from(pieces: Vec<Piece>) -> Self {
+        Self { pieces, source: None }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Piece {
@@ -98,16 +107,16 @@ pub enum Piece {
 
 impl ClauseText {
     pub fn push_text(&mut self, text: &str) {
-        match self.0.last_mut() {
+        match self.pieces.last_mut() {
             Some(Piece::Text(last)) => last.push_str(text),
-            _ => self.0.push(Piece::Text(text.to_owned())),
+            _ => self.pieces.push(Piece::Text(text.to_owned())),
         }
     }
 
     /// The text with each formal replaced by `formal(position)`.
     pub fn render(&self, formal: &dyn Fn(usize) -> String) -> String {
         let mut rendered = String::new();
-        for piece in &self.0 {
+        for piece in &self.pieces {
             match piece {
                 Piece::Text(text) => rendered.push_str(text),
                 Piece::Formal(position) => rendered.push_str(&formal(*position)),

@@ -15,6 +15,11 @@ Terminal checking input to `judge_compilation`; this stage never elaborates
 typed source or calls stage 05. [The route's verdict](#the-routes-verdict) is
 the compilation verdict, including every demanded generic and conformance form.
 
+An abstract algebra can cite a law of its supplied record to prove identity of
+two operation results. The checker instantiates the law's signature and records
+the kernel-checked proof of the requested identity. Automatic proof of whole
+record identity from field identities is an [open question](../../../../../OWNER_QUESTIONS.md#deriving-record-identity-from-field-identities).
+
 The checker always uses branch conditions, dispatch bindings and value
 relations as premises; no mode compares results with less knowledge. That is
 separate from the specified

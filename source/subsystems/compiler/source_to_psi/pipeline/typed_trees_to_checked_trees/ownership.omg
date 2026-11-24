@@ -635,6 +635,7 @@ crashes Trap
         |syntax_trees|::ExpressionKind::Unary -> unary(checker, typing, expression, role),
         |syntax_trees|::ExpressionKind::Cast -> cast(checker, syntax, typing, handle, expression, role),
         |syntax_trees|::ExpressionKind::Call -> elements(checker, syntax, typing, expression.first, expression.first + expression.count, UseRole::Value),
+        |syntax_trees|::ExpressionKind::Binary -> binary(checker, typing, handle, expression),
         |syntax_trees|::ExpressionKind::Construct -> fields(checker, syntax, typing, expression.first, expression.first + expression.count),
         |syntax_trees|::ExpressionKind::Match -> arms(checker, syntax, typing, expression.first, expression.first + expression.count, role),
         |syntax_trees|::ExpressionKind::Array -> elements(checker, syntax, typing, expression.first, expression.first + expression.count, role),
@@ -707,6 +708,10 @@ crashes Trap
         }
     }
 
+    machine binary(checker: @mutable |checker|::Checker, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression) {
+        pass_binary_operand_roles(checker, typing, expression, handle);
+    }
+
     machine child(checker: @mutable |checker|::Checker, typing: @|typed_trees|::Typing, node: u64 in Trapping, role: UseRole) {
         set_adapted_role(checker, typing, node, role);
     }
@@ -750,6 +755,22 @@ crashes Trap
         transition { _ -> arms(checker, syntax, typing, index + 1, end, role) }
     }
 
+    machine done() {}
+}
+
+// A selected operator receives both operands by the same rules as named arguments.
+machine pass_binary_operand_roles(checker: @mutable |checker|::Checker, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, handle: u64 in Trapping)
+crashes Trap
+{
+    let called: bool = |holds|::called_binary(typing, expression, handle);
+    transition called {
+        true -> operands(checker, typing, expression),
+        _ -> done()
+    }
+    machine operands(checker: @mutable |checker|::Checker, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression) {
+        set_adapted_role(checker, typing, expression.left, UseRole::Value);
+        set_adapted_role(checker, typing, expression.right, UseRole::Value);
+    }
     machine done() {}
 }
 
@@ -877,6 +898,37 @@ crashes Trap
     machine done() {}
 }
 
+// Discarding a produced linear value loses the obligation at its expression.
+machine check_discarded_temporary(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping)
+crashes Trap
+{
+    let expression: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, handle);
+    let operator_call: bool = |holds|::called_binary(typing, expression, handle);
+    let produced: bool = expression.kind == |syntax_trees|::ExpressionKind::Call || operator_call
+        || expression.kind == |syntax_trees|::ExpressionKind::Construct
+        || expression.kind == |syntax_trees|::ExpressionKind::Match
+        || expression.kind == |syntax_trees|::ExpressionKind::Array;
+    transition produced {
+        true -> check_result(checker, syntax, typing, handle, expression),
+        _ -> done()
+    }
+
+    machine check_result(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression) {
+        let type_handle: u64 in Trapping = |typed_trees|::typing_expression_type(typing, handle);
+        let multiplicity: |syntax_trees|::DataMultiplicity = |owned_places|::checker_multiplicity(syntax, typing, type_handle);
+        transition multiplicity == |syntax_trees|::DataMultiplicity::Linear {
+            true -> reject(checker, expression),
+            _ -> done()
+        }
+    }
+
+    machine reject(checker: @mutable |checker|::Checker, expression: |syntax_trees|::Expression) {
+        |checks|::checks_reject(@mutable checker.output, |checks|::CheckDiagnosticCode::LinearUnconsumed, expression.source_span);
+    }
+
+    machine done() {}
+}
+
 // One node's use. A place used other than as a base must not overlap a
 // moved place, and a by-value use of an affine or linear place moves it.
 machine own_node(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping)
@@ -884,7 +936,7 @@ crashes Trap
 {
     let role: UseRole = role_of(checker, handle);
     transition role {
-        UseRole::Base -> temporary(checker, syntax, typing, handle),
+        UseRole::Base -> check_discarded_temporary(checker, syntax, typing, handle),
         UseRole::Write -> written(checker, syntax, resolution, typing, handle),
         _ -> used(checker, syntax, resolution, typing, handle, role)
     }
@@ -972,30 +1024,7 @@ crashes Trap
 
     machine value(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping, role: UseRole) {
         transition role == UseRole::Drop {
-            true -> temporary(checker, syntax, typing, handle),
-            _ -> done()
-        }
-    }
-
-    // A temporary a statement discards or a projection reads from is
-    // dropped: a linear one is lost.
-    machine temporary(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping) {
-        let expression: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, handle);
-        let produced: bool = expression.kind == |syntax_trees|::ExpressionKind::Call
-            || expression.kind == |syntax_trees|::ExpressionKind::Construct
-            || expression.kind == |syntax_trees|::ExpressionKind::Match
-            || expression.kind == |syntax_trees|::ExpressionKind::Array;
-        transition produced {
-            true -> produced_value(checker, syntax, typing, handle),
-            _ -> done()
-        }
-    }
-
-    machine produced_value(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, handle: u64 in Trapping) {
-        let type_handle: u64 in Trapping = |typed_trees|::typing_expression_type(typing, handle);
-        let multiplicity: |syntax_trees|::DataMultiplicity = |owned_places|::checker_multiplicity(syntax, typing, type_handle);
-        transition multiplicity == |syntax_trees|::DataMultiplicity::Linear {
-            true -> rejected(checker, syntax, handle, |checks|::CheckDiagnosticCode::LinearUnconsumed),
+            true -> check_discarded_temporary(checker, syntax, typing, handle),
             _ -> done()
         }
     }

@@ -71,6 +71,10 @@ pub enum BuildDirConflict {
         build_dir: PathBuf,
         detail: String,
     },
+    IdentityUnavailable {
+        build_dir: PathBuf,
+        detail: String,
+    },
     MovedDuringAdmission {
         build_dir: PathBuf,
         observed: PathBuf,
@@ -100,6 +104,11 @@ impl std::fmt::Display for BuildDirConflict {
                 formatter,
                 "another compilation is already using build directory `{}` ({detail}); \
                  if that compile is gone, remove `{OCCUPANT_FILE}`",
+                build_dir.display()
+            ),
+            Self::IdentityUnavailable { build_dir, detail } => write!(
+                formatter,
+                "cannot verify the filesystem identity of build directory `{}` ({detail})",
                 build_dir.display()
             ),
             Self::MovedDuringAdmission {
@@ -143,7 +152,7 @@ pub fn acquire(build_dir: &Path, root_path: &Path) -> Result<BuildDirOccupancy, 
         return Err(occupied_io(build_dir));
     }
     let root = display_path(canonicalize_or_literal(root_path));
-    let admitted = directory_identity(build_dir);
+    let admitted = directory_identity(build_dir)?;
     let occupant = admitted.canonical.join(OCCUPANT_FILE);
     match File::create_new(&occupant) {
         Ok(mut marker) => {
@@ -179,21 +188,21 @@ pub fn acquire(build_dir: &Path, root_path: &Path) -> Result<BuildDirOccupancy, 
 #[derive(Debug, PartialEq, Eq)]
 struct DirectoryIdentity {
     canonical: PathBuf,
-    object: Option<(u64, u64)>,
+    object: (u64, u64),
 }
 
-fn directory_identity(spelled: &Path) -> DirectoryIdentity {
-    let canonical = canonicalize_or_literal(spelled);
-    let object = directory_object(&canonical);
-    DirectoryIdentity { canonical, object }
-}
-
-fn directory_object(path: &Path) -> Option<(u64, u64)> {
-    platform_custody::filesystem_object_identity(path).ok()
+fn directory_identity(spelled: &Path) -> Result<DirectoryIdentity, BuildDirConflict> {
+    let unavailable = |error: io::Error| BuildDirConflict::IdentityUnavailable {
+        build_dir: spelled.to_path_buf(),
+        detail: error.to_string(),
+    };
+    let canonical = fs::canonicalize(spelled).map_err(unavailable)?;
+    let object = platform_custody::filesystem_object_identity(&canonical).map_err(unavailable)?;
+    Ok(DirectoryIdentity { canonical, object })
 }
 
 fn confirm_admitted(spelled: &Path, admitted: &DirectoryIdentity) -> Result<(), BuildDirConflict> {
-    let observed = directory_identity(spelled);
+    let observed = directory_identity(spelled)?;
     if observed != *admitted {
         return Err(BuildDirConflict::MovedDuringAdmission {
             build_dir: admitted.canonical.clone(),
@@ -285,6 +294,16 @@ mod tests {
         ));
         assert!(acquire(&directory, &root).is_ok());
         assert_eq!(base(&root, Some(&other)), other);
+    }
+
+    #[test]
+    fn missing_build_directory_has_no_admissible_identity() {
+        let temp = TemporaryDirectory::create("missing-build-directory-identity", false).unwrap();
+        let missing = temp.path().join("missing");
+        assert!(matches!(
+            directory_identity(&missing),
+            Err(BuildDirConflict::IdentityUnavailable { build_dir, .. }) if build_dir == missing
+        ));
     }
 
     #[test]

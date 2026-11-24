@@ -1,0 +1,147 @@
+// Rows 1 and 2 are operands. Row 3 is their parent; only ordinary calls
+// store an argument list. The binary deliberately has an empty list.
+public data ExpressionKind [copy] { case Name; case Call; case Binary; case Construct; case Match; case Array; }
+public data Expression [copy] { kind: ExpressionKind; left: u64 in Trapping; right: u64 in Trapping; first: u64 in Trapping; count: u64 in Trapping; first_row: u64 in Trapping; source_span: u64 in Trapping; }
+public data SyntaxTrees { form: ExpressionKind; }
+public data Selection [copy] { case Machine(handle: u64 in Trapping); case Binder(parameter: u64 in Trapping); case None; }
+public data DataMultiplicity [copy] { case Unrestricted; case Linear; }
+public data Typing { linear_result: bool; selected: bool; holds_result: bool; shared: bool; }
+public data NameResolution { same: bool; }
+public data UseRole [copy] { case Base; case Value; case Borrow; }
+public data PlaceRelation [copy] { case Inside; case Apart; }
+public data Adaptation [copy] { case SharedLend; case None; }
+public data CheckDiagnosticCode [copy] { case OverlappingArguments; case LinearUnconsumed; }
+public data Checks { code: CheckDiagnosticCode; machine_accepted: bool; diagnostic_at: u64 in Trapping; }
+public data Checker { output: Checks; left_role: UseRole; right_role: UseRole; }
+
+machine syntax_trees_expression(syntax: @SyntaxTrees, row: u64 in Trapping) -> Expression {
+    transition {
+        row != 3 -> leaf(row),
+        syntax.form == ExpressionKind::Call -> parent(syntax.form, 2 as +Trapping),
+        _ -> parent(syntax.form, 0 as +Trapping)
+    }
+    machine parent(kind: ExpressionKind, count: u64 in Trapping) -> Expression {
+        Expression { kind: kind, left: 1 as +Trapping, right: 2 as +Trapping, first: 10 as +Trapping, count: count, first_row: 1 as +Trapping, source_span: 3 as +Trapping }
+    }
+    machine leaf(row: u64 in Trapping) -> Expression {
+        Expression { kind: ExpressionKind::Name, left: 0 as +Trapping, right: 0 as +Trapping, first: 0 as +Trapping, count: 0 as +Trapping, first_row: row, source_span: row }
+    }
+}
+machine syntax_trees_argument(syntax: @SyntaxTrees, index: u64 in Trapping) -> u64 in Trapping crashes Trap {
+    transition syntax.form == ExpressionKind::Call && index >= 10 && index <= 11 {
+        true -> offset(index - 9), _ -> wrong()
+    }
+    machine offset(value: u64 in Trapping) -> u64 in Trapping { value }
+    machine wrong() -> u64 in Trapping crashes Trap { crash Trap; }
+}
+machine typing_selection(typing: @Typing, row: u64 in Trapping) -> Selection {
+    transition typing.selected && row == 3 { true -> found(), _ -> none() }
+    machine found() -> Selection { Selection::Machine { handle: 1 as +Trapping } }
+    machine none() -> Selection { Selection::None }
+}
+machine callee_parameters(syntax: @SyntaxTrees, selection: Selection) -> u64 in Trapping { 1 as +Trapping }
+machine terminal_call(checker: @Checker, handle: u64 in Trapping) -> bool { false }
+machine forwards_reference(syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, argument: u64 in Trapping) -> bool { false }
+machine shared_parameter(syntax: @SyntaxTrees, typing: @Typing, first_parameter: u64 in Trapping, offset: u64 in Trapping) -> bool { typing.shared }
+machine argument_hold(syntax: @SyntaxTrees, typing: @Typing, argument: u64 in Trapping) -> Hold {
+    transition {
+        typing.shared -> shared(argument),
+        argument == 1 -> exclusive(argument),
+        _ -> none()
+    }
+    machine shared(place: u64 in Trapping) -> Hold { Hold::Shared { place: place } }
+    machine exclusive(place: u64 in Trapping) -> Hold { Hold::Exclusive { place: place } }
+    machine none() -> Hold { Hold::Released }
+}
+machine lent_place(checker: @Checker, syntax: @SyntaxTrees, typing: @Typing, node: u64 in Trapping) -> Hold {
+    let hold: Hold = argument_hold(syntax, typing, node);
+    hold
+}
+machine typing_expression_type(typing: @Typing, node: u64 in Trapping) -> u64 in Trapping { node }
+machine holds_references(syntax: @SyntaxTrees, typing: @Typing, value: u64 in Trapping) -> bool { typing.holds_result }
+machine role_of(checker: @Checker, node: u64 in Trapping) -> UseRole {
+    transition node == 1 { true -> answer(checker.left_role), _ -> answer(checker.right_role) }
+    machine answer(role: UseRole) -> UseRole { role }
+}
+machine typing_adaptation(typing: @Typing, node: u64 in Trapping) -> Adaptation {
+    transition typing.shared && node == 1 { true -> loan(), _ -> ordinary() }
+    machine loan() -> Adaptation { Adaptation::SharedLend }
+    machine ordinary() -> Adaptation { Adaptation::None }
+}
+machine checker_set_role(checker: @mutable Checker, node: u64 in Trapping, role: UseRole) {
+    transition node == 1 { true -> left(checker, role), _ -> right(checker, role) }
+    machine left(checker: @mutable Checker, role: UseRole) { checker.left_role = role; }
+    machine right(checker: @mutable Checker, role: UseRole) { checker.right_role = role; }
+}
+machine exclusive_access(typing: @Typing, node: u64 in Trapping, role: UseRole) -> bool { false }
+machine path_root(syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, node: u64 in Trapping, borrowed: bool) -> u64 in Trapping { 1 as +Trapping }
+machine path_relation(syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, later: u64 in Trapping, earlier: u64 in Trapping, borrowed: bool) -> PlaceRelation {
+    transition resolution.same && earlier == 1 && later == 2 { true -> overlaps(), _ -> disjoint() }
+    machine overlaps() -> PlaceRelation { PlaceRelation::Inside }
+    machine disjoint() -> PlaceRelation { PlaceRelation::Apart }
+}
+machine checks_reject(output: @mutable Checks, code: CheckDiagnosticCode, span: u64 in Trapping) {
+    output.code = code;
+    output.machine_accepted = false;
+    output.diagnostic_at = span;
+}
+
+machine observation(form: ExpressionKind, selected: bool, same: bool, shared: bool) -> u64 in Trapping crashes Trap {
+    let syntax: SyntaxTrees = SyntaxTrees { form: form };
+    let typing: Typing = Typing { linear_result: false, selected: selected, holds_result: false, shared: shared };
+    let resolution: NameResolution = NameResolution { same: same };
+    let mutable checker: Checker = Checker { output: Checks { code: CheckDiagnosticCode::OverlappingArguments, machine_accepted: true, diagnostic_at: 0 as +Trapping }, left_role: UseRole::Value, right_role: UseRole::Value };
+    check_holds(@mutable checker, @syntax, @resolution, @typing, 3 as +Trapping);
+    checker.output.diagnostic_at
+}
+machine checker_multiplicity(syntax: @SyntaxTrees, typing: @Typing, value: u64 in Trapping) -> DataMultiplicity {
+    transition typing.linear_result && value == 3 { true -> DataMultiplicity::Linear, _ -> DataMultiplicity::Unrestricted }
+}
+machine discarded(form: ExpressionKind, selected: bool, linear: bool) -> u64 in Trapping crashes Trap {
+    let syntax: SyntaxTrees = SyntaxTrees { form: form };
+    let typing: Typing = Typing { linear_result: linear, selected: selected, holds_result: false, shared: false };
+    let mutable checker: Checker = Checker { output: Checks { code: CheckDiagnosticCode::OverlappingArguments, machine_accepted: true, diagnostic_at: 0 as +Trapping }, left_role: UseRole::Value, right_role: UseRole::Value };
+    check_discarded_temporary(@mutable checker, @syntax, @typing, 3 as +Trapping);
+    transition checker.output.machine_accepted || checker.output.code == CheckDiagnosticCode::LinearUnconsumed {
+        true -> span(checker.output.diagnostic_at), _ -> wrong()
+    }
+    machine span(value: u64 in Trapping) -> u64 in Trapping { value }
+    machine wrong() -> u64 in Trapping crashes Trap { crash Trap; }
+}
+
+machine roles_match(selected: bool) -> bool crashes Trap {
+    let syntax: SyntaxTrees = SyntaxTrees { form: ExpressionKind::Binary };
+    let expression: Expression = syntax_trees_expression(@syntax, 3 as +Trapping);
+    let typing: Typing = Typing { linear_result: false, selected: selected, holds_result: false, shared: true };
+    let mutable checker: Checker = Checker { output: Checks { code: CheckDiagnosticCode::OverlappingArguments, machine_accepted: true, diagnostic_at: 0 as +Trapping }, left_role: UseRole::Base, right_role: UseRole::Base };
+    pass_binary_operand_roles(@mutable checker, @typing, expression, 3 as +Trapping);
+    let passed: bool = checker.left_role == UseRole::Borrow && checker.right_role == UseRole::Value;
+    let untouched: bool = checker.left_role == UseRole::Base && checker.right_role == UseRole::Base;
+    (selected && passed) || (!selected && untouched)
+}
+machine start() crashes Trap {
+    let named: u64 in Trapping = observation(ExpressionKind::Call, true, true, false);
+    let selected: u64 in Trapping = observation(ExpressionKind::Binary, true, true, false);
+    let builtin: u64 in Trapping = observation(ExpressionKind::Binary, false, true, false);
+    let disjoint: u64 in Trapping = observation(ExpressionKind::Binary, true, false, false);
+    let shared: u64 in Trapping = observation(ExpressionKind::Binary, true, true, true);
+    let syntax: SyntaxTrees = SyntaxTrees { form: ExpressionKind::Binary };
+    let returning: Typing = Typing { linear_result: false, selected: true, holds_result: true, shared: false };
+    let scalar: Typing = Typing { linear_result: false, selected: true, holds_result: false, shared: false };
+    let primitive: Typing = Typing { linear_result: false, selected: false, holds_result: true, shared: false };
+    let kept: bool = outlives_calls(@syntax, @returning, 1 as +Trapping, 3 as +Trapping);
+    let released: bool = outlives_calls(@syntax, @scalar, 1 as +Trapping, 3 as +Trapping);
+    let pure: bool = outlives_calls(@syntax, @primitive, 1 as +Trapping, 3 as +Trapping);
+    let assigned: bool = roles_match(true);
+    let untouched: bool = roles_match(false);
+    let named_drop: u64 in Trapping = discarded(ExpressionKind::Call, true, true);
+    let operator_drop: u64 in Trapping = discarded(ExpressionKind::Binary, true, true);
+    let copy_drop: u64 in Trapping = discarded(ExpressionKind::Binary, true, false);
+    let builtin_drop: u64 in Trapping = discarded(ExpressionKind::Binary, false, false);
+    let drops: bool = named_drop == 3 && operator_drop == 3 && copy_drop == 0 && builtin_drop == 0;
+    transition drops && assigned && untouched && named == 2 && selected == 2 && builtin == 0 && disjoint == 0 && shared == 0 && kept && !released && !pure {
+        true -> done(), _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

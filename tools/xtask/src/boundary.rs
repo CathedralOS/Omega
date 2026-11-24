@@ -479,7 +479,10 @@ fn transitive_violations(
                 continue;
             }
             let Some(&package) = packages.get(&directory) else {
-                continue;
+                return Err(format!(
+                    "{}: path dependency is not a workspace member: {directory}",
+                    chain.join(" -> ")
+                ));
             };
             for dependency in &package.dependencies {
                 if dependency.kind.as_deref() == Some("dev") {
@@ -637,19 +640,42 @@ pub fn pipeline_dependency_violations(metadata: &Metadata) -> Result<Vec<String>
     Ok(violations)
 }
 
-fn collect_rs_files(dir: &Path, out: &mut Vec<PathBuf>) {
-    let Ok(entries) = fs::read_dir(dir) else {
-        return;
+fn collect_rs_files(dir: &Path, out: &mut Vec<PathBuf>, violations: &mut Vec<String>) {
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(error) => {
+            violations.push(format!("{}: {error}", dir.display()));
+            return;
+        }
     };
-    let mut paths: Vec<PathBuf> = entries.filter_map(|e| e.ok().map(|e| e.path())).collect();
+    let mut paths = Vec::new();
+    for entry in entries {
+        match entry {
+            Ok(entry) => paths.push(entry.path()),
+            Err(error) => violations.push(format!("{}: {error}", dir.display())),
+        }
+    }
     paths.sort();
     for path in paths {
-        if path.is_dir() {
-            if path.file_name().is_some_and(|name| name != "_recycling") {
-                collect_rs_files(&path, out);
+        match path.metadata() {
+            Ok(metadata) if metadata.is_dir() => {
+                if path.file_name().is_some_and(|name| name != "_recycling") {
+                    collect_rs_files(&path, out, violations);
+                }
             }
-        } else if path.extension().and_then(|s| s.to_str()) == Some("rs") {
-            out.push(path);
+            Ok(_) if path.extension().is_some_and(|ext| ext == "rs") => out.push(path),
+            Ok(_) => {}
+            Err(error) => violations.push(format!("{}: {error}", path.display())),
+        }
+    }
+}
+
+fn read_audited_source(path: &Path, relative: &str, violations: &mut Vec<String>) -> Option<String> {
+    match fs::read_to_string(path) {
+        Ok(text) => Some(text),
+        Err(error) => {
+            violations.push(format!("{relative}: {error}"));
+            None
         }
     }
 }
@@ -766,7 +792,7 @@ fn call_violations_in(
     if !directory.is_dir() {
         return vec![format!("{scope}: implementation directory is missing")];
     }
-    collect_rs_files(&directory, &mut files);
+    collect_rs_files(&directory, &mut files, &mut violations);
     for path in files {
         let rel = path
             .strip_prefix(root)
@@ -783,7 +809,7 @@ fn call_violations_in(
         {
             continue;
         }
-        let Ok(text) = fs::read_to_string(&path) else {
+        let Some(text) = read_audited_source(&path, &rel, &mut violations) else {
             continue;
         };
         for (index, line) in text.lines().enumerate() {
@@ -1039,16 +1065,16 @@ pub fn representation_spelling_violations(root: &Path) -> Vec<String> {
     let mut violations = Vec::new();
     for owner in ["source-rust/subsystems/compiler", "source-rust/subsystems/interpreter"] {
         let mut files = Vec::new();
-        collect_rs_files(&root.join(owner), &mut files);
+        collect_rs_files(&root.join(owner), &mut files, &mut violations);
         for path in files {
-            let Ok(text) = fs::read_to_string(&path) else {
-                continue;
-            };
             let rel = path
                 .strip_prefix(root)
                 .unwrap_or(&path)
                 .to_string_lossy()
                 .replace('\\', "/");
+            let Some(text) = read_audited_source(&path, &rel, &mut violations) else {
+                continue;
+            };
             for (index, line) in text.lines().enumerate() {
                 if line_has_retired_string_representation_spelling(line) {
                     violations.push(format!(
@@ -1521,6 +1547,32 @@ mod tests {
             .is_empty(),
             "a test-only edge is not a production path"
         );
+    }
+
+    #[test]
+    fn transitive_audit_reports_a_missing_production_package() {
+        let metadata = |kind| Metadata {
+            workspace_root: "/repo".to_owned(),
+            packages: vec![
+                pkg("entry", "entry", &[("helper", "helper", None)]),
+                pkg("helper", "helper", &[("leaf", "leaf", kind)]),
+            ],
+        };
+        let check = |metadata: &Metadata, forbidden| {
+            transitive_exact_violations(metadata, &["entry"], forbidden, "forbidden")
+        };
+        assert_eq!(
+            check(&metadata(None), "unrelated").unwrap_err(),
+            "entry -> helper -> leaf: path dependency is not a workspace member: leaf"
+        );
+        assert_eq!(
+            check(&metadata(None), "leaf").unwrap(),
+            ["entry -> helper -> leaf: forbidden"]
+        );
+        assert!(check(&metadata(Some("dev")), "unrelated").unwrap().is_empty());
+        let mut complete = metadata(None);
+        complete.packages.push(pkg("leaf", "leaf", &[]));
+        assert!(check(&complete, "unrelated").unwrap().is_empty());
     }
 
     #[test]
@@ -2121,6 +2173,45 @@ mod tests {
         assert_eq!(violations.len(), 2, "{violations:?}");
         assert!(violations.iter().any(|row| row.contains("reflection -> codec")));
         assert!(violations.iter().any(|row| row.contains("reflection -> predicates")));
+    }
+
+    #[test]
+    fn unreadable_production_source_is_reported_by_both_source_audits() {
+        let root = std::env::temp_dir().join(format!(
+            "omega-boundary-reads-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let compiler = root.join("source-rust/subsystems/compiler");
+        let interpreter = root.join("source-rust/subsystems/interpreter");
+        fs::create_dir_all(&compiler).unwrap();
+        fs::create_dir_all(&interpreter).unwrap();
+        let inspect_calls = || call_violations(&root, &["retired"], &[], &[], "retired call");
+        let name = "source-rust/subsystems/compiler/input.rs";
+        fs::write(root.join(name), "fn ok() {}").unwrap();
+        assert!(inspect_calls().is_empty());
+        assert!(representation_spelling_violations(&root).is_empty());
+
+        fs::write(root.join(name), [0xff]).unwrap();
+        fs::write(interpreter.join("other.rs"), "fn other() { retired(); }").unwrap();
+        let calls = inspect_calls();
+        let spellings = representation_spelling_violations(&root);
+        fs::rename(&interpreter, root.join("outside-audit")).unwrap();
+        let missing_owner = representation_spelling_violations(&root);
+        fs::remove_dir_all(&root).unwrap();
+        assert!(calls.iter().any(|error| error.contains(name)), "{calls:?}");
+        assert!(
+            calls.iter().any(|error| error.contains("other.rs:1: retired call")),
+            "{calls:?}"
+        );
+        assert!(spellings.iter().any(|error| error.contains(name)), "{spellings:?}");
+        assert!(
+            missing_owner.iter().any(|error| error.starts_with(interpreter.to_string_lossy().as_ref())),
+            "{missing_owner:?}"
+        );
     }
 
     #[test]

@@ -1,8 +1,7 @@
 /*
-We validate per-field access policies (`access_fields_validation`), allowed
-primitive and atomic operations (`access_operations`), effect-footprint conflict
-detection (`authorization`), boundary service reach (`boundary_reach`), and
-normalized plan identities (`normalized_identities`).
+`access_fields_validation` checks field policies against the layout, including
+transfer widths, alignment and access to repeated regions. `normalized_identities`
+encodes the layout and access policy used for plan comparisons.
 */
 
 pub(crate) mod access_fields_validation {

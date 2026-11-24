@@ -164,7 +164,10 @@ pub(crate) fn hash_boundary_settlement_record(
                     | CompilerBuiltinExecution::StaticInterrupt { .. }
             ) {
                 let mut bytes = Vec::new();
-                target_vocabulary::identity::encode_boundary_execution_identity(&mut bytes, target_vocabulary::BoundaryExecutionBinding::CompilerBuiltin(execution));
+                target_vocabulary::identity::encode_boundary_execution_identity(
+                    &mut bytes,
+                    target_vocabulary::BoundaryExecutionBinding::CompilerBuiltin(execution),
+                );
                 digest.raw(&bytes);
             }
         }
@@ -243,7 +246,7 @@ const fn compiler_builtin_execution_tag(execution: CompilerBuiltinExecution) -> 
     match execution {
         CompilerBuiltinExecution::StaticInterrupt { .. } => 254,
         CompilerBuiltinExecution::AccessLifecycle { .. } => 253,
-        CompilerBuiltinExecution::EmptyRunRelease => 254,
+        CompilerBuiltinExecution::EmptyRunRelease => 249,
         CompilerBuiltinExecution::AccessorScalarAccess { .. } => 250,
         CompilerBuiltinExecution::ProgramImageRetainedSuffixStart => 251,
         CompilerBuiltinExecution::ProgramStorageEntry => 252,
@@ -276,7 +279,8 @@ fn hash_boundary_realization(
             boundary,
             operation,
         } => {
-            digest.byte(12);
+            // Tag 12 is `EmptyRunRelease`; this matches the target-vocabulary encoder.
+            digest.byte(13);
             digest.raw(&boundary.get().to_le_bytes());
             digest.byte(operation.code());
         }
@@ -290,10 +294,7 @@ fn hash_boundary_realization(
             digest.byte(9);
             digest.raw(&access.contract);
             let mut bytes = Vec::new();
-            target_vocabulary::identity::encode_accessor_scalar_demand(
-                &mut bytes,
-                access.demand,
-            );
+            target_vocabulary::identity::encode_accessor_scalar_demand(&mut bytes, access.demand);
             digest.raw(&bytes);
         }
         BoundaryRealization::MetadataOnlyPort(realization) => {
@@ -952,5 +953,48 @@ mod width_tests {
             scalar_identity(parameter(1, 3))
         );
         assert_ne!(scalar_identity(parameter(1, 2)), scalar_identity(fixed));
+    }
+}
+
+#[cfg(test)]
+mod tag_tests {
+    use super::*;
+    use language_core::static_interrupts::StaticInterruptOperation;
+    use semantic_vocabulary::BoundaryMachineId;
+
+    // A static interrupt and an empty-run release are different settlements.
+    // Each needs its own leading tag, or the interrupt's trailing fields can
+    // be read as the release followed by the next record field.
+    #[test]
+    fn static_interrupt_and_empty_run_release_keep_distinct_tags() {
+        let boundary = BoundaryMachineId::new(9).expect("boundary");
+        let operation = StaticInterruptOperation::Install;
+
+        assert_ne!(
+            compiler_builtin_execution_tag(CompilerBuiltinExecution::StaticInterrupt {
+                boundary,
+                operation,
+            }),
+            compiler_builtin_execution_tag(CompilerBuiltinExecution::EmptyRunRelease)
+        );
+
+        let mut interrupt =
+            crate::digest_encoder::DomainDigestEncoder::new(b"realization-tag-test");
+        hash_boundary_realization(
+            &mut interrupt,
+            &BoundaryRealization::StaticInterrupt {
+                boundary,
+                operation,
+            },
+        );
+        let mut release_then_fields =
+            crate::digest_encoder::DomainDigestEncoder::new(b"realization-tag-test");
+        hash_boundary_realization(
+            &mut release_then_fields,
+            &BoundaryRealization::EmptyRunRelease,
+        );
+        release_then_fields.raw(&boundary.get().to_le_bytes());
+        release_then_fields.byte(operation.code());
+        assert_ne!(interrupt.finish(), release_then_fields.finish());
     }
 }

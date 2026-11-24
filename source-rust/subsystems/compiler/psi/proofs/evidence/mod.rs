@@ -28,9 +28,9 @@ pub use contracts::{
 pub use declarations::{
     EvidenceArgumentSubject, EvidenceCallableOwner, EvidenceContractLane, EvidenceContractLaneKind,
     EvidenceInterfaceIdentity, EvidenceProjectionIdentity, EvidenceRequirementIdentity,
-    EvidenceTermDeclaration, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
-    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
-    PropositionDeclaration, PropositionEvidence, ScalarPredicateDefinition,
+    EvidenceTermDeclaration, MathematicalPredicateBody, PropositionApplicationIdentity,
+    PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
+    PropositionBinderKind, PropositionDeclaration, PropositionEvidence, ScalarPredicateDefinition,
 };
 pub use operation_crash_contracts::TerminalOperationCrashContract;
 pub use outputs::{

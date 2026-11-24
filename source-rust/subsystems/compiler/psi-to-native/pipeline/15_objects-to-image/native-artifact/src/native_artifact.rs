@@ -1276,7 +1276,7 @@ fn validate_ieee_float_fma_occurrences(
         })
     {
         return Err(
-            "native artifact does not retain every Terminal nearest-FMA occurrence exactly once",
+            "native target lowering does not support nearest IEEE floating-point fused multiply-add",
         );
     }
     Ok(())

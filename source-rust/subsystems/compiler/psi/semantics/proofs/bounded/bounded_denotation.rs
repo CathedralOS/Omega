@@ -14296,14 +14296,30 @@ pub struct BoundedDenotation {
 
 impl BoundedDenotation {
     pub fn receipt(&self) -> MathematicalJudgmentReceipt {
+        MathematicalJudgmentReceipt::for_certificate(&self.arena, &self.certificate)
+    }
+}
+
+impl MathematicalJudgmentReceipt {
+    /// Emit a receipt only after the kernel checks the complete certificate.
+    pub fn verify(
+        arena: &mut TermArena,
+        certificate: &MathematicalCertificate,
+        budget: &mut Budget,
+    ) -> Result<Self, CoreError> {
+        verify_mathematical_certificate(arena, certificate, budget)?;
+        Ok(Self::for_certificate(arena, certificate))
+    }
+
+    fn for_certificate(arena: &TermArena, certificate: &MathematicalCertificate) -> Self {
         let saturating = |count: usize| u32::try_from(count).unwrap_or(u32::MAX);
         MathematicalJudgmentReceipt {
-            declarations: saturating(self.certificate.signature.len()),
+            declarations: saturating(certificate.signature.len()),
             assumption_closure: saturating(
-                certificate_assumption_closure(&self.arena, &self.certificate).len(),
+                certificate_assumption_closure(arena, certificate).len(),
             ),
-            context_depth: saturating(self.certificate.context.len()),
-            arena_slots: saturating(self.arena.len()),
+            context_depth: saturating(certificate.context.len()),
+            arena_slots: saturating(arena.len()),
         }
     }
 }

@@ -208,7 +208,7 @@ crashes Trap
     machine relation(checker: @|checker|::Checker, before: @NormalizedRank, after: @NormalizedRank) -> u64 in Trapping {
         transition before.view {
             |symbol_resolved_trees|::RankingView::BoundedDistance -> distance(checker, before, after),
-            |symbol_resolved_trees|::RankingView::IncreasingTo -> distance(checker, before, after),
+            |symbol_resolved_trees|::RankingView::IncreasingTo -> fixed_distance(checker, before, after),
             _ -> component(checker, before, after, 0 as +Trapping)
         }
     }
@@ -234,6 +234,14 @@ crashes Trap
         transition kept {
             true -> component(checker, before, after, index + 1),
             false -> 0 as +Trapping
+        }
+    }
+    machine fixed_distance(checker: @|checker|::Checker, before: @NormalizedRank, after: @NormalizedRank) -> u64 in Trapping {
+        let bound: |evaluation|::Value = before.values[1];
+        let next_bound: |evaluation|::Value = after.values[1];
+        transition |evaluation|::proves_at_most(checker, bound, next_bound) && |evaluation|::proves_at_most(checker, next_bound, bound) {
+            true -> distance(checker, before, after),
+            false -> (0 as u64 +Trapping)
         }
     }
     machine distance(checker: @|checker|::Checker, before: @NormalizedRank, after: @NormalizedRank) -> u64 in Trapping {

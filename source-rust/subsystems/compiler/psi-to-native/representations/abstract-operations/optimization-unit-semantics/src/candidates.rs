@@ -2178,11 +2178,15 @@ pub(crate) mod copy_propagation {
                         }
                     }
                 }
-                _ => crate::candidates::value_operand_rewrites::rewrite_value_operands(
-                    &mut normalized,
-                    &mut replace,
-                ),
+                _ => {
+                    crate::candidates::value_operand_rewrites::rewrite_value_operands(
+                        &mut normalized,
+                        &mut replace,
+                    );
+                    return Ok(normalized);
+                }
             }
+            normalized.for_each_runtime_index_mut(&mut replace);
             Ok(normalized)
         }
 
@@ -2274,12 +2278,17 @@ pub(crate) mod copy_propagation {
                 O::WriteOnlyPrimitiveStore {
                     range_obligation: Some(_),
                     ..
-                } => {}
-                _ => crate::candidates::value_operand_rewrites::rewrite_value_operands(
-                    operation,
-                    &mut replace,
-                ),
+                } => return,
+                _ => {
+                    return crate::candidates::value_operand_rewrites::rewrite_value_operands(
+                        operation,
+                        &mut replace,
+                    );
+                }
             }
+            // Edge terminators read runtime indices in their dispatch and
+            // binding paths; `rewrite_value_operands` covers every other case.
+            operation.for_each_runtime_index_mut(&mut replace);
         }
     }
     mod validation {
@@ -7409,11 +7418,16 @@ pub(crate) mod rewrite_accounting {
                     rewrite_bindings(&mut when_false.bindings);
                 }
                 O::StructuralCase { .. } => {}
-                _ => crate::candidates::value_operand_rewrites::rewrite_value_operands(
-                    operation,
-                    &mut replace,
-                ),
+                _ => {
+                    return crate::candidates::value_operand_rewrites::rewrite_value_operands(
+                        operation,
+                        &mut replace,
+                    );
+                }
             }
+            // Edge terminators read runtime indices in their dispatch and
+            // binding paths; `rewrite_value_operands` covers every other case.
+            operation.for_each_runtime_index_mut(&mut replace);
         }
 
         pub(crate) fn rewrite_successor_operation(
@@ -10307,6 +10321,9 @@ mod value_operand_rewrites {
     use semantic_vocabulary::ValueId;
 
     pub(crate) fn rewrite_value_operands(operation: &mut O, mut replace: impl FnMut(&mut ValueId)) {
+        // A runtime index in any structural path is a scalar use of the
+        // operation, so substitute it before the operation's own operands.
+        operation.for_each_runtime_index_mut(&mut replace);
         match operation {
             O::EstablishActivationClaim { committed, .. } => replace(committed),
             O::SplitActivationClaim {

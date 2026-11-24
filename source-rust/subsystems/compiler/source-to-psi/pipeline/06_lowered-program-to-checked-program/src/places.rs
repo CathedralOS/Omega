@@ -455,6 +455,8 @@ pub(crate) fn content_root<'a>(
 /// What one scalar leaf holds on every path to a point.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Reached {
+    /// The complete inline value supplied by this invocation parameter.
+    Input(PlaceId),
     /// No real arrival supplies this equation yet. A cycle of copies has
     /// no contents of its own.
     Cycle,
@@ -658,6 +660,7 @@ struct ReachingEquation {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Observations {
     None,
+    WholeInput,
     Boundary,
     All,
 }
@@ -1052,6 +1055,8 @@ pub(crate) struct Storage<'a> {
     /// Bound actual operations and structural edge bindings once per machine.
     reaching_budget: usize,
     log: Vec<Logged>,
+    /// Captured write selectors whose SSA definitions identify one fixed cell.
+    fixed_write_indices: IdTable<ValueId, Option<u64>>,
     writes_by_root: BTreeMap<(BlockId, PlaceId), Vec<usize>>,
     arrivals: Vec<Vec<arrivals::Arrival>>,
     cleanup_writes: Vec<crate::checking::owned_cleanup::Write>,
@@ -1185,6 +1190,7 @@ impl<'a> Storage<'a> {
             returned_contents: contents.calls,
             reaching_budget,
             log: Vec::new(),
+            fixed_write_indices: IdTable::default(),
             writes_by_root: BTreeMap::new(),
             arrivals: lowered
                 .blocks
@@ -1269,6 +1275,8 @@ impl<'a> Storage<'a> {
                     });
             }
         }
+        storage.fixed_write_indices =
+            storage.resolve_write_indices(references, tables, value_types)?;
         Ok(storage)
     }
 
@@ -4111,7 +4119,9 @@ impl<'a> Storage<'a> {
                         // especially when its index changes in a ranked loop.
                         (Asked::Contents(leaf), StructuralPlaceKind::Parameter { .. }) => {
                             let depth = leaf.segments.len();
-                            if budget.observations == Observations::None {
+                            if budget.observations == Observations::WholeInput && depth == 0 {
+                                Supply::Direct(Reached::Input(leaf.root))
+                            } else if budget.observations == Observations::None {
                                 Supply::Direct(Reached::Established(depth))
                             } else {
                                 self.interned(tables, leaf, concerns)?
@@ -4493,6 +4503,7 @@ impl<'a> Storage<'a> {
                 }
             }
             Reached::Case(_)
+            | Reached::Input(_)
             | Reached::ExcludedCase
             | Reached::Zero(_)
             | Reached::Extent(_)
@@ -6597,6 +6608,9 @@ impl<'s, 'a, Inputs: InputPlaces<'a>> Returned<'s, 'a, Inputs> {
 
 impl<'a, Inputs: InputPlaces<'a>> crate::checking::Bindings for Returned<'_, 'a, Inputs> {
     type Error = crate::checking::Unbound;
+    fn whole_input(&mut self, root: PlaceId) -> Result<PlaceId, Self::Error> {
+        self.owned_inputs(root)?.whole_input(root)
+    }
     fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
         self.storage.validate_float_meaning_source(source)
     }
@@ -6830,6 +6844,9 @@ impl AtEntry<'_, '_> {
 
 impl crate::checking::Bindings for AtEntry<'_, '_> {
     type Error = crate::checking::Unbound;
+    fn whole_input(&mut self, root: PlaceId) -> Result<PlaceId, Self::Error> {
+        self.input_place(root, &[]).map(|place| place.root)
+    }
 
     /// Entry propositions can name only projections whose scalar sources
     /// belong to this machine. Rejoin them at the same owner as call imports.
@@ -7566,6 +7583,17 @@ fn formal_observation_path(
 
 impl crate::checking::Bindings for AtCall<'_, '_> {
     type Error = crate::checking::Unbound;
+    fn whole_input(&mut self, root: PlaceId) -> Result<PlaceId, Self::Error> {
+        let actual = self.actual(root, &[])?;
+        let mut trace = self.storage.budget();
+        trace.observations = Observations::WholeInput;
+        match self.storage.reaching(self.references, self.tables, Asked::Contents(&actual),
+            (self.block, self.up_to), &mut trace, self.concerns)
+            .map_err(crate::checking::Unbound::Refused)? {
+            Reached::Input(parameter) => Ok(parameter),
+            _ => Err(crate::checking::Unbound::Unproved("no single input supplies this whole value")),
+        }
+    }
     fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
         self.storage.validate_float_meaning_source(source)
     }
@@ -8574,6 +8602,48 @@ mod observation_tests {
         prepared
             .closure
             .unwrap_or_else(|refusal| panic!("{}", refusal.detail))
+    }
+
+    #[test]
+    fn borrowed_block_places_must_belong_to_their_parameter_position() {
+        let original = storage_fixture(
+            "data Point { x: u32; }
+             machine entry(point: @Point, again: bool) -> u32 {
+                 transition again { true -> entry(point, false), false -> point.x }
+             }",
+        );
+        assert!(matches!(
+            crate::checking::judge(Ok(original.clone())).unwrap(),
+            crate::checking::RouteVerdict::Accepted(_)
+        ));
+        for change_block in [false, true] {
+            let mut input = original.clone();
+            let machine = &mut input.module.machines[0];
+            let place = machine
+                .structural_places
+                .iter_mut()
+                .find(|row| matches!(row.kind, StructuralPlaceKind::BlockParameter { .. }))
+                .expect("loop entry has a borrowed structural block argument");
+            let StructuralPlaceKind::BlockParameter { block, position } = &mut place.kind else {
+                unreachable!()
+            };
+            if change_block {
+                *block = BlockId::new(u64::from(u32::MAX)).unwrap();
+            } else {
+                *position = u32::MAX;
+            }
+            let crate::checking::RouteVerdict::FallBack(refusal) =
+                crate::checking::judge(Ok(input)).unwrap()
+            else {
+                panic!("a borrowed place outside its block header must refuse");
+            };
+            assert!(
+                refusal
+                    .detail
+                    .contains("descriptor storage flow cannot be reconstructed"),
+                "{refusal:?}"
+            );
+        }
     }
 
     #[test]

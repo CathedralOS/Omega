@@ -207,7 +207,7 @@ pub(crate) struct Journal {
 impl Journal {
     /// Opens the journal for `header`, returning the rows an earlier attempt
     /// of the same run already checked. Refuses a journal from another run.
-    pub fn open(out: &Path, header: &Header) -> Result<(Journal, Vec<Row>), String> {
+    pub fn open(root: &Path, out: &Path, header: &Header) -> Result<(Journal, Vec<Row>), String> {
         let path = journal_path(out);
         if let Some(parent) = out.parent().filter(|parent| !parent.as_os_str().is_empty()) {
             fs::create_dir_all(parent)
@@ -224,7 +224,7 @@ impl Journal {
                 .transpose()
                 .map_err(|error| format!("{}: {error}", path.display()))?
                 .unwrap_or_default();
-            let earlier: Header = serde_json::from_str(&first).map_err(|_| {
+            let mut earlier: Header = serde_json::from_str(&first).map_err(|_| {
                 format!(
                     "{} does not start with a sweep header; remove it or choose another --out",
                     path.display()
@@ -236,6 +236,11 @@ impl Journal {
             let holds_rows = lines
                 .peek()
                 .is_some_and(|line| line.as_ref().is_ok_and(|line| !line.trim().is_empty()));
+            if earlier.commit != header.commit
+                && super::matches_commit(root, &header.commit, &earlier.commit)
+            {
+                earlier.commit.clone_from(&header.commit);
+            }
             let same_run = earlier == *header;
             if !same_run && holds_rows {
                 return Err(format!(
@@ -537,7 +542,7 @@ mod tests {
         let out = dir.join("out.json");
         let programs = ["samples/a/main.omg", "samples/b/main.omg"];
         let run = header(Shard::WHOLE, &programs, 2);
-        let (mut journal, done) = Journal::open(&out, &run).unwrap();
+        let (mut journal, done) = Journal::open(&dir, &out, &run).unwrap();
         assert!(done.is_empty());
         journal.append(&row(programs[0], 0, 3, "")).unwrap();
         drop(journal);
@@ -549,7 +554,7 @@ mod tests {
         file.write_all(b"{\"program\":\"samp").unwrap();
         drop(file);
 
-        let (journal, done) = Journal::open(&out, &run).unwrap();
+        let (journal, done) = Journal::open(&dir, &out, &run).unwrap();
         assert_eq!(done.len(), 1);
         assert_eq!(done[0].program, programs[0]);
         assert_eq!(done[0].outcome, "Checks");
@@ -559,13 +564,13 @@ mod tests {
             commit: "def".to_owned(),
             ..run.clone()
         };
-        let refused = Journal::open(&out, &other).err().unwrap();
+        let refused = Journal::open(&dir, &out, &other).err().unwrap();
         assert!(refused.contains("another run"), "{refused}");
 
         // A journal of another run that checked nothing is simply replaced.
         let empty = dir.join("empty.json");
-        drop(Journal::open(&empty, &other).unwrap());
-        let (_, done) = Journal::open(&empty, &run).unwrap();
+        drop(Journal::open(&dir, &empty, &other).unwrap());
+        let (_, done) = Journal::open(&dir, &empty, &run).unwrap();
         assert!(done.is_empty());
         let _ = fs::remove_dir_all(&dir);
     }

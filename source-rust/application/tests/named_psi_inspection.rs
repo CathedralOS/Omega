@@ -26,12 +26,13 @@ fn inspect(project: &Path, root: &str, name: &str, artifact: &Path) -> Output {
 fn assert_reopened_inspection(name: &str, source: Output, reopened: Output) {
     let source = String::from_utf8(source.stdout).unwrap();
     let reopened = String::from_utf8(reopened.stdout).unwrap();
+    assert!(source.lines().any(|line| line.starts_with("psi program_fingerprint=")));
     assert_eq!(
         source
-            .strip_prefix(&format!("terminal selected_machine={name} "))
+            .strip_prefix(&format!("psi selected_machine={name} "))
             .expect("source inspection names the selected machine"),
         reopened
-            .strip_prefix("terminal selected_machine=artifact ")
+            .strip_prefix("psi selected_machine=artifact ")
             .expect("reopened inspection identifies an artifact"),
         "{name}"
     );

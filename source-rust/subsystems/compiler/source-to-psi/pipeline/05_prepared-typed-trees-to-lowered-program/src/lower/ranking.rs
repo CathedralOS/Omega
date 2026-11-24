@@ -35,6 +35,7 @@ impl Lowering<'_> {
     }
 
     pub(super) fn begin_ranking(&mut self, member: MachineId) -> Checked<()> {
+        self.member_rank_bound = None;
         let signature = self.signatures.get(member.into(), self.id)?;
         let Some(ranking) = &signature.ranking else {
             return Ok(());
@@ -54,6 +55,11 @@ impl Lowering<'_> {
             })
             .collect::<Vec<_>>();
         let values = self.observe_ranks(&ranking.measures, &inputs)?;
+        self.member_rank_bound = ranking
+            .fixed_bound
+            .as_deref()
+            .map(|bound| self.observe_rank(bound, &inputs))
+            .transpose()?;
         let block = self.current()?;
         let missing = self.internal("ranked block has no construction row");
         *self.block_ranks.get_mut(block).ok_or(missing)? = Some(values.clone());
@@ -130,6 +136,8 @@ impl Lowering<'_> {
         member: MachineId,
         scalars: &[ValueId],
         structural: &[StructuralArgument],
+        recursive_transfer: bool,
+        source: SourceOrigin,
     ) -> Checked<()> {
         let signature = self.signatures.get(member.into(), self.id)?;
         let Some(ranking) = &signature.ranking else {
@@ -137,7 +145,67 @@ impl Lowering<'_> {
         };
         let inputs = self.rank_inputs(signature, scalars, structural)?;
         let values = self.observe_ranks(&ranking.measures, &inputs)?;
+        if recursive_transfer {
+            match (self.member_rank_bound, ranking.fixed_bound.as_deref()) {
+                (Some(before), Some(bound)) => {
+                    let after = self.observe_rank(bound, &inputs)?;
+                    self.establish_fixed_rank_bound(before, after, source)?;
+                }
+                (None, None) => {}
+                _ => {
+                    return Err(self
+                        .unserved_rank("recursive transfers must share the fixed ranking bound"));
+                }
+            }
+        }
         self.successor_ranks.push((self.current()?, member, values));
+        Ok(())
+    }
+
+    fn establish_fixed_rank_bound(
+        &mut self,
+        before: TerminalIntegerRankValue,
+        after: TerminalIntegerRankValue,
+        source: SourceOrigin,
+    ) -> Checked<()> {
+        use semantic_vocabulary::ScalarTerm;
+        if before.integer_type != after.integer_type {
+            return Err(self.unserved_rank("the fixed ranking bound changes carrier"));
+        }
+        if before.value == after.value {
+            return Ok(());
+        }
+        let established = self.block(source);
+        let scalar_type = ScalarType::Integer(before.integer_type);
+        let mut bind = |position| -> Checked<ScalarTerm> {
+            let id = self.value(
+                scalar_type,
+                ValueOrigin::BlockParameter {
+                    block: established,
+                    position,
+                },
+            );
+            self.parameter(established, id, scalar_type)?;
+            Ok(ScalarTerm::Value { id, scalar_type })
+        };
+        let predicate = crate::lowering::canonical::equal(bind(0)?, bind(1)?, self.id)?;
+        self.sources.predicate_establishments.push((
+            established,
+            terminal_check_tables::program::EstablishedCondition::FixedRankBound,
+        ));
+        self.invariants.push(terminal_psi::ScalarBlockInvariant {
+            machine: self.id,
+            header: established,
+            predicate,
+            arrivals: Vec::new(),
+        });
+        self.jump_with_structural(
+            established,
+            vec![before.value, after.value],
+            Vec::new(),
+            source,
+        )?;
+        self.enter(established);
         Ok(())
     }
 
@@ -179,19 +247,24 @@ impl Lowering<'_> {
     ) -> Checked<Vec<TerminalIntegerRankValue>> {
         expressions
             .iter()
-            .map(|expression| {
-                let Some(ValueType::Scalar(ScalarType::Integer(integer_type), _)) =
-                    expression.result
-                else {
-                    return Err(self.unserved_rank("ranking observation is not an integer"));
-                };
-                let value = self.rank_expression(expression, inputs)?;
-                Ok(TerminalIntegerRankValue {
-                    integer_type,
-                    value,
-                })
-            })
+            .map(|expression| self.observe_rank(expression, inputs))
             .collect()
+    }
+
+    fn observe_rank(
+        &mut self,
+        expression: &Expression,
+        inputs: &[Input],
+    ) -> Checked<TerminalIntegerRankValue> {
+        let Some(ValueType::Scalar(ScalarType::Integer(integer_type), _)) = expression.result
+        else {
+            return Err(self.unserved_rank("ranking observation is not an integer"));
+        };
+        let value = self.rank_expression(expression, inputs)?;
+        Ok(TerminalIntegerRankValue {
+            integer_type,
+            value,
+        })
     }
 
     fn rank_expression(&mut self, expression: &Expression, inputs: &[Input]) -> Checked<ValueId> {

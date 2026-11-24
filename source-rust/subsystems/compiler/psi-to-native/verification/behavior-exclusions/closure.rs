@@ -303,6 +303,7 @@ pub fn establish_behavior_exclusions(
 
 fn boundary_realization_coverage(
     module: &TerminalModule,
+    boundary: &terminal_psi::BoundaryMachineDeclaration,
     candidates: &[&ProviderCandidateConformance],
     selected_provider_plans: &selected_provider_plans::SelectedProviderPlanFacts,
     deployment_target: &str,
@@ -319,6 +320,9 @@ fn boundary_realization_coverage(
                     .unwrap_or_default()
             })
             .collect();
+        if identities.is_empty() {
+            identities.extend(module.identities.text(boundary.identity));
+        }
         identities.sort_unstable();
         identities.dedup();
         identities
@@ -348,27 +352,48 @@ fn boundary_realization_coverage(
                 constrained = true;
                 match &row.binding {
                     provider_plans::ProviderBinding::CheckedAdapter {
-                        machine_identity, ..
+                        machine_identity,
+                        machine_package_identity,
                     } => {
-                        let realization_identity = specialization
-                            .and_then(|row| {
-                                selected_provider_plans
-                                    .identities()
-                                    .text(row.machine_identity)
-                            })
-                            .unwrap_or_else(|| plan.identity_text(*machine_identity));
-                        let mut matched = false;
-                        for candidate in candidates.iter().filter(|candidate| {
-                            module.identities.text(candidate.requirement_identity)
-                                == Some(requirement_identity)
-                                && module.identities.text(candidate.candidate_identity)
-                                    == Some(realization_identity)
-                        }) {
-                            matched = true;
-                            bodies.push(candidate.candidate);
+                        use terminal_semantics::provider_candidates::{
+                            CheckedProviderQuery, CheckedProviderRow, selected_candidate_positions,
+                        };
+
+                        let query_row = CheckedProviderRow {
+                            requirement: plan.identity_text(row.requirement_identity),
+                            declared_requirement: plan.identity_text(row.declared_requirement_identity),
+                            machine: plan.identity_text(*machine_identity),
+                            machine_package: *machine_package_identity,
+                        };
+                        let positions = selected_candidate_positions(
+                            CheckedProviderQuery {
+                                name: &plan.name,
+                                declaration: plan.provider_declaration.as_deref().unwrap_or_default(),
+                                provider: &plan.provider_type,
+                                surface: &plan.schema.declaration,
+                                rows: std::slice::from_ref(&query_row),
+                            },
+                            module,
+                        )?;
+                        let start = bodies.len();
+                        for position in positions.into_iter().flatten() {
+                            let candidate = &module.interfaces.provider_candidates[position];
+                            if candidate.boundary == boundary.id
+                                && module.identities.text(candidate.requirement_identity)
+                                    == Some(requirement_identity)
+                                && specialization.is_none_or(|row| {
+                                    selected_provider_plans.identities().text(row.machine_identity)
+                                        == module.identities.text(candidate.candidate_identity)
+                                })
+                            {
+                                bodies.push(candidate.candidate);
+                            }
                         }
-                        if !matched {
-                            needs_contract = true;
+                        if bodies.len() == start {
+                            return Err(format!(
+                                "checked provider `{}` has no retained realization of `{requirement_identity}` for this boundary",
+                                plan.name,
+                            ));
                         }
                     }
                     _ => needs_contract = true,
@@ -593,6 +618,7 @@ fn inspect_boundary<'module>(
         .collect();
     let coverage = boundary_realization_coverage(
         module,
+        declaration,
         &candidates,
         selected_provider_plans,
         deployment_target,
@@ -843,6 +869,14 @@ mod boundary_reach_tests {
     }
 
     fn inspect(module: &TerminalModule, excluded: ServiceId) -> BehaviorExclusionReport {
+        inspect_with_providers(module, excluded, &Default::default())
+    }
+
+    fn inspect_with_providers(
+        module: &TerminalModule,
+        excluded: ServiceId,
+        providers: &selected_provider_plans::SelectedProviderPlanFacts,
+    ) -> BehaviorExclusionReport {
         let mut report = BehaviorExclusionReport::default();
         inspect_boundary(
             module,
@@ -852,12 +886,106 @@ mod boundary_reach_tests {
             InvocationSite::Operation(OperationId::new(1).unwrap()),
             BoundaryMachineId::new(1).unwrap(),
             &BehaviorExclusions::from_selections([BehaviorExclusion::Service(excluded)]),
-            &selected_provider_plans::SelectedProviderPlanFacts::default(),
+            providers,
             "linux_x86_64",
             &mut report,
             &mut VecDeque::new(),
         );
         report
+    }
+
+    #[test]
+    fn checked_provider_coverage_follows_only_the_selected_package_and_requires_its_body() {
+        use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod};
+        use semantic_vocabulary::PackageKeyIdentity;
+        use terminal_psi::{ProviderRefinement, ProviderSignature};
+
+        let mut module = module();
+        let boundary = &module.interfaces.boundary_machines[0];
+        let requirement_name = module.identities.text(boundary.identity).unwrap().to_owned();
+        let machine_name = "Provider::read()";
+        let mut plan = ProviderPlan {
+            name: "checked".into(),
+            provider_declaration: Some("CheckedMap".into()),
+            provider_type: "Provider".into(),
+            target: "linux_x86_64".into(),
+            ..ProviderPlan::default()
+        };
+        plan.provider_application = plan.identities.intern("Provider");
+        let declaration = std::sync::Arc::make_mut(&mut plan.schema.declaration);
+        declaration.trait_name = declaration.identities.intern("Interface");
+        let requirement = declaration.identities.intern(&requirement_name);
+        declaration.methods.push(ServiceMethod {
+            name: "read".into(),
+            requirement_owner: "Interface".into(),
+            requirement_identity: requirement,
+            ..ServiceMethod::default()
+        });
+        let selected_package = PackageKeyIdentity::from_digest([1; 32]);
+        plan.origin_package_identity = selected_package;
+        let other_package = PackageKeyIdentity::from_digest([2; 32]);
+        let requirement_identity = plan.identities.intern(&requirement_name);
+        plan.rows.push(ProviderPlanRow {
+            method: "read".into(),
+            requirement_identity,
+            declared_requirement_identity: requirement_identity,
+            calling_signature: None,
+            requirement_lifetime_partition: Vec::new(),
+            admitted_same_stack_bytes: 0,
+            binding: ProviderBinding::CheckedAdapter {
+                machine_identity: plan.identities.intern(machine_name),
+                machine_package_identity: selected_package,
+            },
+        });
+        let providers = selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(
+            vec![plan],
+        ).unwrap();
+        let mut identities = std::mem::take(&mut module.identities).into_builder();
+        let machine = identities.intern(machine_name);
+        let candidate = ProviderCandidateConformance {
+            boundary: boundary.id,
+            requirement_identity: boundary.identity,
+            source_requirement_identity: boundary.identity,
+            declaration_application: Default::default(),
+            receiving_application: Default::default(),
+            receiving_region_arguments: Vec::new(),
+            provider_identity: identities.intern("Provider"),
+            provider_declaration: NominalDeclarationIdentity::new(identities.intern("CheckedMap")),
+            candidate_identity: machine,
+            source_candidate_identity: machine,
+            source_candidate_package_identity: selected_package,
+            candidate: MachineId::new(7).unwrap(),
+            signature: ProviderSignature::empty(),
+            refinement: ProviderRefinement::empty(),
+        };
+        module.identities = identities.build();
+        let selected_machine = candidate.candidate;
+        module.interfaces.provider_candidates = vec![
+            ProviderCandidateConformance {
+                candidate: MachineId::new(8).unwrap(),
+                source_candidate_package_identity: other_package,
+                ..candidate.clone()
+            },
+            candidate,
+        ];
+        let report = |module: &TerminalModule| {
+            inspect_with_providers(module, ServiceId::new(1).unwrap(), &providers)
+        };
+        // Missing machine bodies expose exactly which selected calls were followed.
+        let selected = report(&module);
+        assert_eq!(selected.gaps.len(), 1, "{selected:?}");
+        assert_eq!(selected.gaps[0].kind, EvidenceGapKind::UnknownCallee(selected_machine));
+        module.interfaces.provider_candidates.pop();
+        for _ in 0..2 {
+            let missing = report(&module);
+            assert!(
+                matches!(missing.gaps.as_slice(), [EvidenceGap {
+                    kind: EvidenceGapKind::ProviderRealization { .. }, ..
+                }]),
+                "{missing:?}",
+            );
+            module.interfaces.provider_candidates.clear();
+        }
     }
 
     #[test]

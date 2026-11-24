@@ -21,11 +21,28 @@ fn baseline_tree() -> BuildStagedOutputTree {
 #[test]
 fn an_explicit_output_tree_binds_its_symbolic_link_target() {
     use super::BuildStagedOutputEntryInput as Entry;
-    let tree = from_entries(&[
-        OutputTreeEntry::regular_file(b"file", b"value", false),
-        OutputTreeEntry::symbolic_link(b"link", b"file"),
-    ])
-    .unwrap();
+    use super::{
+        RetainedStagedOutputEntry, RetainedStagedOutputEntryKind, commitment_for_retained_entries,
+    };
+    let entries = vec![
+        RetainedStagedOutputEntry {
+            relative_path: b"file".to_vec(),
+            kind: RetainedStagedOutputEntryKind::File {
+                bytes: b"value".as_slice().into(),
+                executable: false,
+            },
+        },
+        RetainedStagedOutputEntry {
+            relative_path: b"link".to_vec(),
+            kind: RetainedStagedOutputEntryKind::Symlink {
+                target: b"file".to_vec(),
+            },
+        },
+    ];
+    let tree = BuildStagedOutputTree {
+        commitment: commitment_for_retained_entries(&entries).unwrap(),
+        entries,
+    };
     let reopen = |target: &[u8]| {
         BuildStagedOutputTree::from_retained_parts(
             &tree.commitment(),
@@ -48,4 +65,37 @@ fn an_explicit_output_tree_binds_its_symbolic_link_target() {
     };
     assert_eq!(reopen(b"file").unwrap(), tree);
     assert!(reopen(b"other").is_err());
+}
+
+#[test]
+fn recovery_requires_each_recorded_parent_to_be_a_directory() {
+    use super::{
+        BuildStagedOutputEntryInput, RetainedStagedOutputEntry, RetainedStagedOutputEntryKind,
+        commitment_for_retained_entries,
+    };
+    use std::sync::Arc;
+    let path = b"docs/notes.txt".to_vec();
+    let contents: Arc<[u8]> = Arc::from(b"notes".as_slice());
+    let child = RetainedStagedOutputEntry {
+        relative_path: path.clone(),
+        kind: RetainedStagedOutputEntryKind::File {
+            bytes: Arc::clone(&contents),
+            executable: false,
+        },
+    };
+    let commitment = commitment_for_retained_entries(&[child]).unwrap();
+    let recovered = BuildStagedOutputTree::from_retained_parts(
+        &commitment,
+        [(
+            path,
+            BuildStagedOutputEntryInput::File {
+                bytes: contents,
+                executable: false,
+            },
+        )],
+    );
+    assert!(
+        recovered.is_err(),
+        "recovery accepted a file whose parent directory is missing"
+    );
 }

@@ -752,6 +752,7 @@ pub(crate) mod const_arguments {
         use diagnostics::Diagnostic;
 
         pub(crate) fn normalize(
+            source: &crate::source_resolved::SymbolResolvedTrees,
             program: &mut TypedTrees,
             frontier: usize,
         ) -> Result<(), Diagnostic> {
@@ -786,6 +787,59 @@ pub(crate) mod const_arguments {
                     ))
                 })
                 .collect::<Vec<_>>();
+            // A qualifier applies the selected domain's own telescope. Resolve it with
+            // the same carrier and source visibility that establish its semantic identity.
+            for (site, carrier, constraints) in program
+                .type_reference_table
+                .constrained_type_reference_sites()
+            {
+                if site.arena_index() as usize <= frontier {
+                    continue;
+                }
+                for constraint in program.type_reference_table.constraints(constraints) {
+                    let crate::source_state::types::TypeConstraintNode::Domain(domain) = constraint
+                    else {
+                        continue;
+                    };
+                    if !domain.arguments.iter().any(|argument| {
+                        match program.type_reference_table.type_reference(*argument) {
+                            TypeReferenceNode::ConstExpression(_) => true,
+                            TypeReferenceNode::Named { symbol, .. } => {
+                                program.const_declaration_by_symbol(*symbol).is_some()
+                            }
+                            _ => false,
+                        }
+                    }) {
+                        continue;
+                    }
+                    let reference = domain
+                        .source_selection
+                        .map(|selection| selection.source_span)
+                        .filter(|span| span.span.start != span.span.end);
+                    let candidates =
+                        crate::typing::type_reference::domain_constraints::select_domain_candidates(
+                            source,
+                            program,
+                            carrier,
+                            domain.name.as_str(),
+                            reference,
+                            domain.symbol,
+                            &domain.arguments,
+                        );
+                    if let [selected] = candidates.as_slice() {
+                        let mut arguments = Vec::new();
+                        if crate::source_state::domain::has_generic_carrier(program, selected) {
+                            arguments.push(carrier);
+                        }
+                        arguments.extend_from_slice(&domain.arguments);
+                        applications.push((
+                            selected.symbol,
+                            arguments,
+                            program.type_reference_table.operand_lifetime_owner(site),
+                        ));
+                    }
+                }
+            }
             for service in program.service_reaches.definitions() {
                 let Some(application) = &service.application else {
                     continue;
@@ -1062,9 +1116,6 @@ pub(crate) mod const_arguments {
             let Some(declaration) = program.const_declaration_by_symbol(symbol) else {
                 return Ok(None);
             };
-            if declaration.evaluated_value.is_none() {
-                return Ok(None);
-            }
             let refuse = |reason: &str| {
                 Diagnostic::error(format!(
                     "const argument for `{}` of `{}` is invalid: {reason}",
@@ -1075,7 +1126,9 @@ pub(crate) mod const_arguments {
                     origins
                         .iter()
                         .find(|origin| origin.declaration == symbol)
-                        .map_or_else(source_text::SourceSpan::default, |origin| origin.reference),
+                        .map(|origin| origin.reference)
+                        .or_else(|| program.symbols.symbol_source_span(symbol))
+                        .unwrap_or_default(),
                 )
             };
             if !program
@@ -1104,6 +1157,11 @@ pub(crate) mod const_arguments {
                 return Err(refuse(
                     "the selected constant's declared carrier differs from its receiving parameter",
                 ));
+            }
+            // A pending initializer still has a declared type. Compare that type
+            // before deferring the value to the checked evaluator.
+            if declaration.evaluated_value.is_none() {
+                return Ok(None);
             }
             let value = crate::source_state::canonical_const_declaration_value(program, symbol)
                 .ok_or_else(|| refuse("the selected constant has no canonical static value"))?;
@@ -1395,6 +1453,10 @@ pub(crate) mod const_arguments {
                 return None;
             }
             match program.symbols.get(declaration).kind {
+                symbols::SymbolKind::Domain => {
+                    let domain = program.domain_definition(declaration)?;
+                    Some(program.domain_type_parameters(domain).to_vec())
+                }
                 symbols::SymbolKind::Data => {
                     let data = program.unique_data_definition_by_symbol(declaration)?;
                     Some(program.data_type_parameters(data).to_vec())
@@ -1483,6 +1545,10 @@ pub(crate) mod const_arguments {
             use numeric_literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
             use numerics::arithmetic::ArithmeticDomain;
             use symbols::{SymbolKind, SymbolNameRef};
+
+            fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(), Diagnostic> {
+                super::normalize(&Default::default(), program, frontier)
+            }
 
             #[test]
             fn empty_const_admission_needs_no_unavailable_judgment() {

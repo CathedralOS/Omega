@@ -18,13 +18,12 @@
 // universally quantified operands; satisfiers prove the `ensures` without
 // manufacturing a dummy carrier value.
 public trait CommutativeSemiring<T> {
-    // Algebra operations are total mathematical functions. Publishing that
-    // promise is what permits a selected implementation to denote a value in
-    // Prop; each satisfier still owes the ordinary termination proof.
-    machine zero() -> T terminates;
-    machine one() -> T terminates;
-    machine add(a: T, b: T) -> T terminates;
-    machine mul(a: T, b: T) -> T terminates;
+    // A clause can apply these operations because each one promises to return
+    // without using a service or crashing. Each satisfier must prove that promise.
+    machine zero() -> T reaches none crashes none terminates;
+    machine one() -> T reaches none crashes none terminates;
+    machine add(a: T, b: T) -> T reaches none crashes none terminates;
+    machine mul(a: T, b: T) -> T reaches none crashes none terminates;
     machine add_comm(a: T, b: T)
     ensures core\Identity::<T>(add(a, b), add(b, a));
     machine add_assoc(a: T, b: T, c: T)

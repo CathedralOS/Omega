@@ -6077,6 +6077,7 @@ pub(crate) mod scalar_observations {
                         }
                     }
                 }
+                Proposition::DeclarationIdentity(_) => return malformed("unpublished declaration Identity in a portable proposition"),
                 Proposition::StructuralIdentity { left, right } => {
                     if left.structural_type() != right.structural_type() {
                         return malformed(
@@ -12037,8 +12038,8 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         {
             return malformed("scalar predicate has no exact declaration identity");
         }
-        // Only bare scalar inputs are currently represented. A qualification
-        // must not disappear into an apparently unrestricted formal.
+        // Scalar inputs are unrestricted. Never discard a qualification when
+        // checking the mathematical declaration under its own parameters.
         if definition
             .parameters
             .iter()
@@ -12046,14 +12047,22 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         {
             return malformed("qualified scalar predicate input is not supported");
         }
-        semantic_vocabulary::PropositionContext::from_value_types(
+        let context = semantic_vocabulary::PropositionContext::from_value_types(
             definition
                 .parameters
                 .iter()
                 .map(|parameter| (parameter.id, parameter.scalar_type)),
         )
-        .and_then(|context| context.validate(&definition.body))
         .map_err(CodecError::MalformedProposition)?;
+        let Some(body) = definition
+            .clause_body()
+            .map_err(CodecError::MalformedStructuralFoundation)?
+        else {
+            continue;
+        };
+        context
+            .validate(body)
+            .map_err(CodecError::MalformedProposition)?;
     }
     scalar_applications::validate(module)?;
     task_activation::validate(module)?;

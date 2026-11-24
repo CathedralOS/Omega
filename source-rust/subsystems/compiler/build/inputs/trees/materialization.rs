@@ -7,20 +7,17 @@
 // product owner. Non-Unix hosts reject executable file modes and symlink
 // entries cleanly rather than silently dropping mode bits or link semantics.
 
-#[cfg(test)]
 use crate::portable_paths::canonical_symlink_target;
 use crate::portable_paths::{canonical_relative_path, validate_portable_component};
-use crate::staged_output_tree::RetainedStagedOutputEntryKind;
-#[cfg(test)]
 use crate::staged_output_tree::{
     MAX_STAGED_OUTPUT_ENTRIES, MAX_STAGED_OUTPUT_PATH_BYTES, MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES,
     commitment_for_retained_entries,
 };
+use crate::staged_output_tree::{RetainedStagedOutputEntry, RetainedStagedOutputEntryKind};
 use crate::{
     BuildStagedOutputMaterializationError, BuildStagedOutputTree, BuildStagedOutputTreeCommitment,
 };
 use diagnostics::Diagnostic;
-#[cfg(test)]
 use std::collections::BTreeSet;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -71,25 +68,18 @@ pub(crate) fn materialize_retained_tree(
     Ok(tree.commitment)
 }
 
-#[cfg(test)]
-pub(crate) fn validate_retained_tree(
-    tree: &BuildStagedOutputTree,
-) -> Result<(), BuildStagedOutputMaterializationError> {
-    if tree.entries.len() > MAX_STAGED_OUTPUT_ENTRIES {
+pub(crate) fn checked_retained_commitment(
+    entries: &[RetainedStagedOutputEntry],
+) -> Result<BuildStagedOutputTreeCommitment, BuildStagedOutputMaterializationError> {
+    if entries.len() > MAX_STAGED_OUTPUT_ENTRIES {
         return Err(materialization_error(format!(
             "retained staged-output tree exceeds its {MAX_STAGED_OUTPUT_ENTRIES}-entry ceiling"
         )));
     }
-    if tree.commitment.file_bytes() > MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES {
-        return Err(materialization_error(format!(
-            "retained staged-output tree exceeds its {MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES}-byte unique-content ceiling"
-        )));
-    }
-
     let mut previous_path: Option<&[u8]> = None;
     let mut directories = BTreeSet::new();
     let mut total_path_bytes = 0usize;
-    for entry in &tree.entries {
+    for entry in entries {
         if previous_path.is_some_and(|previous| previous >= entry.relative_path.as_slice()) {
             return Err(materialization_error(
                 "retained staged-output paths are not in strict canonical order",
@@ -100,28 +90,20 @@ pub(crate) fn validate_retained_tree(
         total_path_bytes =
             reserve_materialization_path_bytes(total_path_bytes, entry.relative_path.len())?;
 
-        let mut parent = relative.parent();
-        while let Some(path) = parent {
-            if path.as_os_str().is_empty() {
-                break;
-            }
-            let canonical =
-                canonical_relative_path(path, path).map_err(materialization_diagnostics)?;
-            if !directories.contains(&canonical) {
-                return Err(materialization_error(format!(
-                    "retained staged-output entry `{}` has a missing or non-directory parent",
-                    String::from_utf8_lossy(&entry.relative_path)
-                )));
-            }
-            parent = path.parent();
+        if let Some(separator) = entry.relative_path.iter().rposition(|byte| *byte == b'/')
+            && !directories.contains(&entry.relative_path[..separator])
+        {
+            return Err(materialization_error(format!(
+                "retained staged-output entry `{}` has a missing or non-directory parent",
+                String::from_utf8_lossy(&entry.relative_path)
+            )));
         }
 
         match &entry.kind {
             RetainedStagedOutputEntryKind::Directory => {
-                directories.insert(entry.relative_path.clone());
+                directories.insert(entry.relative_path.as_slice());
             }
-            RetainedStagedOutputEntryKind::File { bytes, executable } => {
-                validate_retained_executable_mode(*executable)?;
+            RetainedStagedOutputEntryKind::File { bytes, .. } => {
                 let length = u64::try_from(bytes.len()).map_err(|_| {
                     materialization_error("retained staged-output file length exceeds u64")
                 })?;
@@ -132,7 +114,6 @@ pub(crate) fn validate_retained_tree(
                 }
             }
             RetainedStagedOutputEntryKind::Symlink { target } => {
-                validate_retained_symlink_materialization()?;
                 let target_path = retained_symlink_target(target)?;
                 let canonical =
                     canonical_symlink_target(&target_path, &entry.relative_path, &relative)
@@ -147,15 +128,32 @@ pub(crate) fn validate_retained_tree(
             }
         }
     }
-    let retained_commitment = commitment_for_retained_entries(&tree.entries).ok_or_else(|| {
+    commitment_for_retained_entries(entries).ok_or_else(|| {
         materialization_error(format!(
             "retained staged-output tree exceeds its {MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES}-byte unique-content ceiling"
         ))
-    })?;
-    if retained_commitment != tree.commitment {
+    })
+}
+
+#[cfg(test)]
+pub(crate) fn validate_retained_tree(
+    tree: &BuildStagedOutputTree,
+) -> Result<(), BuildStagedOutputMaterializationError> {
+    if checked_retained_commitment(&tree.entries)? != tree.commitment {
         return Err(materialization_error(
             "retained staged-output content disagrees with its commitment",
         ));
+    }
+    for entry in &tree.entries {
+        match &entry.kind {
+            RetainedStagedOutputEntryKind::Directory => {}
+            RetainedStagedOutputEntryKind::File { executable, .. } => {
+                validate_retained_executable_mode(*executable)?
+            }
+            RetainedStagedOutputEntryKind::Symlink { .. } => {
+                validate_retained_symlink_materialization()?
+            }
+        }
     }
     Ok(())
 }
@@ -220,7 +218,6 @@ pub(crate) fn retained_native_path(
     Ok(native)
 }
 
-#[cfg(any(test, unix))]
 fn retained_symlink_target(
     target: &[u8],
 ) -> Result<PathBuf, BuildStagedOutputMaterializationError> {
@@ -230,7 +227,6 @@ fn retained_symlink_target(
     Ok(PathBuf::from(spelling))
 }
 
-#[cfg(test)]
 fn reserve_materialization_path_bytes(
     current: usize,
     additional: usize,

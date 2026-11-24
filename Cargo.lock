@@ -1502,6 +1502,7 @@ dependencies = [
  "image-emission",
  "image-macho",
  "installation-conditions",
+ "language-core",
  "machine-code",
  "native-binding-admission",
  "native-execution-reach",
@@ -1547,6 +1548,7 @@ dependencies = [
  "semantic-vocabulary",
  "terminal-authority-receipts",
  "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]

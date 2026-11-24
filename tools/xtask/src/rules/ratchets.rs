@@ -771,6 +771,37 @@ fn count_cache_state(text: &str) -> usize {
 
 // --- Ratchet runner ---
 
+const CLAUSE_READER_ROOT: &str =
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/05_prepared-typed-trees-to-lowered-program/src/read";
+
+/// Count term-producing functions by their return type so a new reader also
+/// counts when it lives in a new file or has a different name.
+pub(super) fn count_clause_term_readers(text: &str) -> usize {
+    let clean = product_text(text);
+    let mut lines = clean.lines();
+    let mut count = 0;
+    while let Some(line) = lines.next() {
+        if !matches!(declared_item(line), Some(("fn", _))) {
+            continue;
+        }
+        let mut signature = line.trim().to_owned();
+        while !signature.contains('{') && !signature.ends_with(';') {
+            let Some(next) = lines.next() else { break };
+            signature.push(' ');
+            signature.push_str(next.trim());
+        }
+        let signature = signature.split('{').next().unwrap_or_default();
+        if let Some((_, result)) = signature.rsplit_once("->")
+            && result.split(|c: char| !c.is_ascii_alphanumeric() && c != '_').any(|word| {
+                matches!(word, "ScalarTerm" | "IntegerMathTerm" | "ProofTerm" | "ClauseTerm")
+            })
+        {
+            count += 1;
+        }
+    }
+    count
+}
+
 pub(super) struct RatchetSpec {
     pub(super) baseline: &'static str,
     pub(super) flag: &'static str,
@@ -838,6 +869,16 @@ pub(super) const RATCHET_SPECS: &[RatchetSpec] = &[
         ],
         advice: "Do not add another place comparison, rebaser or path type. The checker on the lowered form names places by terminal_check_tables::ExactPlaceId (wiki/drafts/designs/check_on_lowered_form.md).",
     },
+    RatchetSpec {
+        baseline: "tools/ratchets/clause_term_readers.txt",
+        flag: "update-clause-term-readers",
+        noun: "clause term readers",
+        header: &[
+            "Stage 05 reader functions returning a scalar, mathematical integer, erased or clause term.",
+            "Count the whole reader directory so moving a form between files does not change the limit.",
+        ],
+        advice: "Read each clause term form once and supply its bindings through the clause scope.",
+    },
 ];
 
 pub(super) fn compute_ratchet_counts(
@@ -850,21 +891,25 @@ pub(super) fn compute_ratchet_counts(
         1 => contract_files(root)?,
         2 | 3 => product_rust_files(root, &[RUST_ROOT])?,
         4 => product_rust_files(root, PLACE_TRANSPORT_ROOTS)?,
+        5 => product_rust_files(root, &[CLAUSE_READER_ROOT])?,
         _ => return Err(format!("unknown count rule {index}")),
     };
     let mut counts = BTreeMap::new();
     for path in files {
-        let bytes = fs::read(&path).map_err(|error| format!("{}: {error}", path.display()))?;
-        let text = String::from_utf8_lossy(&bytes);
+        let text =
+            fs::read_to_string(&path).map_err(|error| format!("{}: {error}", path.display()))?;
         let c = match index {
             0 => count_source_reads(&text),
             1 => count_status_phrases(&text),
             2 => count_dense_id_maps(&text, semantic_ids),
             3 => count_cache_state(&text),
             4 => count_place_transport(&text),
+            5 => count_clause_term_readers(&text),
             _ => 0,
         };
-        if c > 0
+        if index == 5 {
+            *counts.entry(CLAUSE_READER_ROOT.to_owned()).or_default() += c;
+        } else if c > 0
             && let Ok(rel) = path.strip_prefix(root)
         {
             counts.insert(rel.to_string_lossy().replace('\\', "/"), c);

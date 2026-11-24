@@ -332,25 +332,23 @@ pub fn discover_samples(
 }
 
 fn accept_pending_decisions(review_bytes: &[u8]) -> Option<Vec<u8>> {
-    let text = String::from_utf8_lossy(review_bytes);
     let mut changed = false;
-    let mut out = String::with_capacity(text.len());
-    for (idx, line) in text.split('\n').enumerate() {
-        if idx > 0 {
-            out.push('\n');
-        }
-        let trimmed = line.strip_suffix('\r').unwrap_or(line);
-        if let Some(prefix) = trimmed.strip_suffix(" pending")
-            && prefix.starts_with("decision row ")
+    let mut out = Vec::with_capacity(review_bytes.len());
+    for line in review_bytes.split_inclusive(|&byte| byte == b'\n') {
+        let content = line.strip_suffix(b"\n").unwrap_or(line);
+        let body = content.strip_suffix(b"\r").unwrap_or(content);
+        if let Some(prefix) = body.strip_suffix(b" pending")
+            && prefix.starts_with(b"decision row ")
         {
-            out.push_str(prefix);
-            out.push_str(" accept");
+            out.extend_from_slice(prefix);
+            out.extend_from_slice(b" accept");
+            out.extend_from_slice(&line[body.len()..]);
             changed = true;
         } else {
-            out.push_str(line);
+            out.extend_from_slice(line);
         }
     }
-    changed.then(|| out.into_bytes())
+    changed.then_some(out)
 }
 
 fn retain_accepted_inputs(sample_dir: &Path, evidence: &Path) -> Result<(), String> {
@@ -1547,6 +1545,13 @@ esac
         let error = compared_host_command(Path::new("omega"), other).unwrap_err();
         assert!(error.contains(host_target()));
         assert!(error.contains(other));
+    }
+
+    #[test]
+    fn sample_review_edits_only_row_choices_and_preserves_the_source_bytes() {
+        let input = b"decision root-role pending\r\ndecision row abcd pending\r\ndecision source-replacement 1234 pending\n";
+        let expected = b"decision root-role pending\r\ndecision row abcd accept\r\ndecision source-replacement 1234 pending\n";
+        assert_eq!(accept_pending_decisions(input).unwrap(), expected);
     }
 
     #[test]

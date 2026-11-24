@@ -6,9 +6,10 @@
 // Checker conventions: computed index expressions are staged into plain
 // `u64 in Wrapping` fields (index operands must be simple names), and every
 // index op sits in a parameterless state entered by a transition that
-// restates the bounds (`field < extent`). `bad` is set on guard violation so
-// callers can detect an impossible path. Callers stage input bytes into
-// `msg[..msg_n]`; the 32-byte digest lands in `out32`.
+// restates the bounds (`field < extent`). Callers stage at most 8,192 input
+// bytes into `msg[..msg_n]` and call `sha256\digest(@mutable state)`; the
+// 32-byte digest lands in `out32`. A longer `msg_n`, or any other failed guard,
+// sets `bad` and leaves `out32` all zero.
 
 use omega\language\core\narrow_u32_to_u8_wrapping;
 use omega\language\core\narrow_u64_to_u8_wrapping;
@@ -53,55 +54,49 @@ public data Sha256 {
     hh: u32 in Wrapping;
 }
 
-machine sha256_round_k(i: u64 in Wrapping) -> u32 in Wrapping {
-    transition i < 64 {
-        true -> ok(i),
-        _ -> bad()
-    }
-
-    machine ok(i: u64 in Wrapping) -> u32 in Wrapping {
-        // First 32 bits of the fractional parts of the cube roots of the
-        // first 64 primes — the SHA-256 round constants.
-        let table: [u32 in Wrapping; 64] = [
-            1116352408, 1899447441, 3049323471, 3921009573,
-            961987163, 1508970993, 2453635748, 2870763221,
-            3624381080, 310598401, 607225278, 1426881987,
-            1925078388, 2162078206, 2614888103, 3248222580,
-            3835390401, 4022224774, 264347078, 604807628,
-            770255983, 1249150122, 1555081692, 1996064986,
-            2554220882, 2821834349, 2952996808, 3210313671,
-            3336571891, 3584528711, 113926993, 338241895,
-            666307205, 773529912, 1294757372, 1396182291,
-            1695183700, 1986661051, 2177026350, 2456956037,
-            2730485921, 2820302411, 3259730800, 3345764771,
-            3516065817, 3600352804, 4094571909, 275423344,
-            430227734, 506948616, 659060556, 883997877,
-            958139571, 1322822218, 1537002063, 1747873779,
-            1955562222, 2024104815, 2227730452, 2361852424,
-            2428436474, 2756734187, 3204031479, 3329325298
-        ];
-        table[i as u64]
-    }
-    machine bad() -> u32 in Wrapping {
-        0
-    }
+// The round constant for round `i`. SHA-256 has exactly 64 rounds, so the
+// caller must prove `i < 64`; there is no fallback constant for a bad index.
+machine sha256_round_k(i: u64 in Wrapping) -> u32 in Wrapping
+requires i < 64
+{
+    // First 32 bits of the fractional parts of the cube roots of the
+    // first 64 primes — the SHA-256 round constants.
+    let table: [u32; 64] = [
+        1116352408, 1899447441, 3049323471, 3921009573,
+        961987163, 1508970993, 2453635748, 2870763221,
+        3624381080, 310598401, 607225278, 1426881987,
+        1925078388, 2162078206, 2614888103, 3248222580,
+        3835390401, 4022224774, 264347078, 604807628,
+        770255983, 1249150122, 1555081692, 1996064986,
+        2554220882, 2821834349, 2952996808, 3210313671,
+        3336571891, 3584528711, 113926993, 338241895,
+        666307205, 773529912, 1294757372, 1396182291,
+        1695183700, 1986661051, 2177026350, 2456956037,
+        2730485921, 2820302411, 3259730800, 3345764771,
+        3516065817, 3600352804, 4094571909, 275423344,
+        430227734, 506948616, 659060556, 883997877,
+        958139571, 1322822218, 1537002063, 1747873779,
+        1955562222, 2024104815, 2227730452, 2361852424,
+        2428436474, 2756734187, 3204031479, 3329325298
+    ];
+    table[i as u64] as +Wrapping
 }
 
-machine Sha256::reset(sha256: @mutable Sha256) {
-    sha256.h[0] = 1779033703;
-    sha256.h[1] = 3144134277;
-    sha256.h[2] = 1013904242;
-    sha256.h[3] = 2773480762;
-    sha256.h[4] = 1359893119;
-    sha256.h[5] = 2600822924;
-    sha256.h[6] = 528734635;
-    sha256.h[7] = 1541459225;
+machine reset(sha256: @mutable Sha256) {
+    sha256.h[0] = 1779033703u32 as +Wrapping;
+    sha256.h[1] = 3144134277u32 as +Wrapping;
+    sha256.h[2] = 1013904242u32 as +Wrapping;
+    sha256.h[3] = 2773480762u32 as +Wrapping;
+    sha256.h[4] = 1359893119u32 as +Wrapping;
+    sha256.h[5] = 2600822924u32 as +Wrapping;
+    sha256.h[6] = 528734635u32 as +Wrapping;
+    sha256.h[7] = 1541459225u32 as +Wrapping;
 }
 
 // Fill `block` from `msg[base .. base+64]`; the chunk_check guard has already
 // established `base + 64 <= msg_n`.
-machine Sha256::stage_block(sha256: @mutable Sha256) {
-    sha256.i = 0;
+machine stage_block(sha256: @mutable Sha256) {
+    sha256.i = 0u64 as +Wrapping;
     transition { _ -> copy(sha256) }
 
     machine copy(sha256: @mutable Sha256) {
@@ -131,8 +126,8 @@ machine Sha256::stage_block(sha256: @mutable Sha256) {
 }
 
 // Compress the staged `block`.
-machine Sha256::compress(sha256: @mutable Sha256) {
-    sha256.i = 0;
+machine compress(sha256: @mutable Sha256) {
+    sha256.i = 0u64 as +Wrapping;
     transition { _ -> load_w(sha256) }
 
     machine load_w(sha256: @mutable Sha256) {
@@ -161,7 +156,7 @@ machine Sha256::compress(sha256: @mutable Sha256) {
         transition { _ -> load_w(sha256) }
     }
     machine extend(sha256: @mutable Sha256) {
-        sha256.i = 16;
+        sha256.i = 16u64 as +Wrapping;
         transition { _ -> extend_loop(sha256) }
     }
     machine extend_loop(sha256: @mutable Sha256) {
@@ -199,7 +194,7 @@ machine Sha256::compress(sha256: @mutable Sha256) {
         sha256.f = sha256.h[5];
         sha256.g = sha256.h[6];
         sha256.hh = sha256.h[7];
-        sha256.i = 0;
+        sha256.i = 0u64 as +Wrapping;
         transition { _ -> round_loop(sha256) }
     }
     machine round_loop(sha256: @mutable Sha256) {
@@ -219,7 +214,8 @@ machine Sha256::compress(sha256: @mutable Sha256) {
         let s1: u32 in Wrapping = ((sha256.e >> 6) | (sha256.e << 26))
             ^ ((sha256.e >> 11) | (sha256.e << 21)) ^ ((sha256.e >> 25) | (sha256.e << 7));
         let ch: u32 in Wrapping = sha256.g ^ (sha256.e & (sha256.f ^ sha256.g));
-        let t1: u32 in Wrapping = sha256.hh + s1 + ch + sha256_round_k(sha256.w0) + sha256.w[sha256.w0 as u64];
+        let k: u32 in Wrapping = sha256_round_k(sha256.w0);
+        let t1: u32 in Wrapping = sha256.hh + s1 + ch + k + sha256.w[sha256.w0 as u64];
         let s0: u32 in Wrapping = ((sha256.a >> 2) | (sha256.a << 30))
             ^ ((sha256.a >> 13) | (sha256.a << 19)) ^ ((sha256.a >> 22) | (sha256.a << 10));
         let maj: u32 in Wrapping = (sha256.a & sha256.b) ^ (sha256.a & sha256.c) ^ (sha256.b & sha256.c);
@@ -250,13 +246,22 @@ machine Sha256::compress(sha256: @mutable Sha256) {
     }
 }
 
-// Digest the staged `msg[..msg_n]` into `out32`.
-machine Sha256::digest(sha256: @mutable Sha256) {
+// Digest the staged `msg[..msg_n]` into `out32`. `msg` holds 8,192 bytes, so
+// a longer `msg_n` is refused before any block is hashed. Every refusal sets
+// `bad` and clears `out32`, so a caller never reads a digest of only the
+// bytes that fit, or a stale digest from an earlier message.
+public machine digest(sha256: @mutable Sha256) {
     sha256.bad = false;
-    Sha256::reset(sha256);
-    sha256.base = 0;
-    transition { _ -> chunk_check(sha256) }
+    transition sha256.msg_n <= 8192 {
+        true -> begin(sha256),
+        _ -> refuse(sha256)
+    }
 
+    machine begin(sha256: @mutable Sha256) {
+        reset(sha256);
+        sha256.base = 0u64 as +Wrapping;
+        transition { _ -> chunk_check(sha256) }
+    }
     machine chunk_check(sha256: @mutable Sha256) {
         transition sha256.base + 64 <= sha256.msg_n {
             true -> run_chunk(sha256),
@@ -264,13 +269,13 @@ machine Sha256::digest(sha256: @mutable Sha256) {
         }
     }
     machine run_chunk(sha256: @mutable Sha256) {
-        Sha256::stage_block(sha256);
-        Sha256::compress(sha256);
+        stage_block(sha256);
+        compress(sha256);
         sha256.base = sha256.base + 64;
         transition { _ -> chunk_check(sha256) }
     }
     machine tail_begin(sha256: @mutable Sha256) {
-        sha256.i = 0;
+        sha256.i = 0u64 as +Wrapping;
         transition { _ -> tail_copy(sha256) }
     }
     machine tail_copy(sha256: @mutable Sha256) {
@@ -337,15 +342,15 @@ machine Sha256::digest(sha256: @mutable Sha256) {
         }
     }
     machine len_at_56(sha256: @mutable Sha256) {
-        sha256.block_i = 56;
+        sha256.block_i = 56u64 as +Wrapping;
         transition { _ -> write_len(sha256) }
     }
     machine len_at_120(sha256: @mutable Sha256) {
-        sha256.block_i = 120;
+        sha256.block_i = 120u64 as +Wrapping;
         transition { _ -> write_len(sha256) }
     }
     machine write_len(sha256: @mutable Sha256) {
-        sha256.i = 0;
+        sha256.i = 0u64 as +Wrapping;
         transition { _ -> write_len_loop(sha256) }
     }
     machine write_len_loop(sha256: @mutable Sha256) {
@@ -368,7 +373,7 @@ machine Sha256::digest(sha256: @mutable Sha256) {
         transition { _ -> write_len_loop(sha256) }
     }
     machine tail_blocks(sha256: @mutable Sha256) {
-        sha256.i = 0;
+        sha256.i = 0u64 as +Wrapping;
         transition { _ -> stage_first(sha256) }
     }
     machine stage_first(sha256: @mutable Sha256) {
@@ -391,14 +396,14 @@ machine Sha256::digest(sha256: @mutable Sha256) {
         transition { _ -> stage_first(sha256) }
     }
     machine run_first(sha256: @mutable Sha256) {
-        Sha256::compress(sha256);
+        compress(sha256);
         transition sha256.tail_n < 56 {
             true -> done(sha256),
             _ -> stage_second(sha256)
         }
     }
     machine stage_second(sha256: @mutable Sha256) {
-        sha256.i = 0;
+        sha256.i = 0u64 as +Wrapping;
         transition { _ -> stage_second_loop(sha256) }
     }
     machine stage_second_loop(sha256: @mutable Sha256) {
@@ -421,11 +426,19 @@ machine Sha256::digest(sha256: @mutable Sha256) {
         transition { _ -> stage_second_loop(sha256) }
     }
     machine run_second(sha256: @mutable Sha256) {
-        Sha256::compress(sha256);
+        compress(sha256);
         transition { _ -> done(sha256) }
     }
+    // `stage_block` and `compress` report a failed guard only through `bad`;
+    // check it before writing the digest of a block that was not staged.
     machine done(sha256: @mutable Sha256) {
-        sha256.i = 0;
+        transition sha256.bad {
+            true -> refuse(sha256),
+            _ -> write_begin(sha256)
+        }
+    }
+    machine write_begin(sha256: @mutable Sha256) {
+        sha256.i = 0u64 as +Wrapping;
         transition { _ -> write_loop(sha256) }
     }
     machine write_loop(sha256: @mutable Sha256) {
@@ -457,6 +470,31 @@ machine Sha256::digest(sha256: @mutable Sha256) {
     machine finish(sha256: @mutable Sha256) {
     }
     machine stuck(sha256: @mutable Sha256) {
+        transition { _ -> refuse(sha256) }
+    }
+    machine refuse(sha256: @mutable Sha256) {
         sha256.bad = true;
+        sha256.i = 0u64 as +Wrapping;
+        transition { _ -> clear_loop(sha256) }
+    }
+    machine clear_loop(sha256: @mutable Sha256) {
+        transition sha256.i < 32 {
+            true -> prep_c(sha256),
+            _ -> refused(sha256)
+        }
+    }
+    machine prep_c(sha256: @mutable Sha256) {
+        sha256.o0 = sha256.i;
+        transition sha256.o0 < 32 {
+            true -> apply_c(sha256),
+            _ -> refused(sha256)
+        }
+    }
+    machine apply_c(sha256: @mutable Sha256) {
+        sha256.out32[sha256.o0 as u64] = 0;
+        sha256.i = sha256.i + 1;
+        transition { _ -> clear_loop(sha256) }
+    }
+    machine refused(sha256: @mutable Sha256) {
     }
 }

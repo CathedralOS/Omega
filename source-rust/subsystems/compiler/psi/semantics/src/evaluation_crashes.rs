@@ -192,6 +192,7 @@ fn require_formed_scalar(term: &ScalarTerm) -> Result<bool, String> {
             Ok(true)
         }
         ScalarTerm::Application { .. }
+        | ScalarTerm::DeclarationApplication { .. }
         | ScalarTerm::Value { .. }
         | ScalarTerm::StructuralRead { .. }
         | ScalarTerm::BooleanField { .. }
