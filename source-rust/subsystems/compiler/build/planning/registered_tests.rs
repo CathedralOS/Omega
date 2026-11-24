@@ -93,6 +93,10 @@ impl ProductStage<'_> {
         }
         roster.extend(suite.notes.into_iter().map(Diagnostic::note));
         if roster.iter().any(Diagnostic::is_error) {
+            for row in &mut roster {
+                row.build_context =
+                    Some(diagnostics::BuildDiagnosticContext::RunningRegisteredTests);
+            }
             Err(roster)
         } else {
             Ok(roster.into_iter().map(|row| row.message).collect())

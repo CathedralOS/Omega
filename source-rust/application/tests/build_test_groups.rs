@@ -288,7 +288,7 @@ fn explicit_process_exit_is_observed_on_both_engines_and_never_passes_the_test()
             "--build-dir",
         ])
         .arg(scratch.path())
-        .arg(fixture)
+        .arg(&fixture)
         .current_dir(scratch.path())
         .stdin(std::process::Stdio::null())
         .output()
@@ -322,5 +322,31 @@ fn explicit_process_exit_is_observed_on_both_engines_and_never_passes_the_test()
             "native/Psi comparison unavailable because the host"
         };
         assert!(row.contains(expected), "{row}");
+    }
+
+    // All three failures have the same cause. The ordinary concise report must
+    // still name each test and preserve the exact status supplied by Psi.
+    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .args(["build", "--target", host.target_name(), "--build-dir"])
+        .arg(scratch.path())
+        .arg(&fixture)
+        .current_dir(scratch.path())
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let report = String::from_utf8_lossy(&output.stderr);
+    for (name, code) in [
+        ("exits_with_zero", 0),
+        ("exits_with_23", 23),
+        ("exits_with_256", 256),
+    ] {
+        assert!(
+            report
+                .lines()
+                .any(|row| row.contains(&format!("test `{name}`"))
+                    && row.contains(&format!("exited the process with status {code}"))),
+            "{report}"
+        );
     }
 }
