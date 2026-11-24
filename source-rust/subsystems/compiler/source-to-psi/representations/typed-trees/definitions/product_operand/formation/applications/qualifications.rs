@@ -4,7 +4,7 @@ use crate::declaration_selection::product_operands::ProductOperandConstraint;
 use crate::source_state::domain::{
     domain_accepts_carrier, has_direct_index_telescope, index_parameters,
 };
-use crate::source_state::types::TypeConstraintNode;
+use crate::source_state::types::{ProductTypeInput, TypeConstraintNode};
 use arena::HandleSpan;
 
 impl Lower<'_> {
@@ -74,11 +74,17 @@ impl Lower<'_> {
                 .program
                 .domain_definition(symbol)
                 .expect("retaining an application keeps its declaration");
-            selected.push(TypeConstraintNode::Domain(definition.applied_constraint(
+            let mut qualification = definition.applied_constraint(
                 Identifier::generated(name.text),
                 arguments,
                 instance,
-            )));
+            );
+            qualification.product_input = Some(std::sync::Arc::new(ProductTypeInput {
+                operand: self.selecting_operand,
+                occurrence: name.source_span,
+                declaration: symbol,
+            }));
+            selected.push(TypeConstraintNode::Domain(qualification));
         }
         let constraints = self
             .program

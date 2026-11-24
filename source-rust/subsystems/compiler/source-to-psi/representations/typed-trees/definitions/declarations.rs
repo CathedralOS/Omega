@@ -1160,6 +1160,7 @@ pub mod domain {
                 },
                 establishment_routes: self.establishment_routes.clone(),
                 source_selection: None,
+                product_input: None,
                 names_no_visible_domain: false,
             }
         }
