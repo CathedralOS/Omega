@@ -269,7 +269,7 @@ impl<'t> Program<'t> {
                 }
             }
             ExpressionNode::Call(_) if let Some(scalar) = expected => {
-                use super::clause_calls::ClauseUse;
+                use super::clause_terms::ClauseUse;
                 use super::contracts::{ClauseScope, ResultTerm};
 
                 let values = slots

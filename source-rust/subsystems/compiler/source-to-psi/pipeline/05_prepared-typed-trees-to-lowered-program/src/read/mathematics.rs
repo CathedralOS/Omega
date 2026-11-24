@@ -13,6 +13,7 @@ use symbols::{BuiltinFunction, BuiltinTypeMember, FixedCoreDeclaration, SymbolHa
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::MathematicalPredicateBody;
 
+use super::clause_terms::ClauseUse;
 use super::{
     Program,
     contracts::{ClauseScope, ResultTerm},
@@ -201,12 +202,7 @@ impl<'t> Program<'t> {
             {
                 // Form both endpoints even if the callee discards this type.
                 let actual = self
-                    .clause_term(
-                        id,
-                        scope,
-                        *argument,
-                        super::clause_calls::ClauseUse::ProofRelevantType,
-                    )?
+                    .clause_term(id, scope, *argument, ClauseUse::ProofRelevantType)?
                     .type_body(id)?;
                 match &actual {
                     MathematicalPredicateBody::TypeParameter(_) => {}
@@ -248,7 +244,9 @@ impl<'t> Program<'t> {
                 *reference,
                 MathematicalAddressContext::of(scope),
             )?;
-            let (term, actual) = self.term(id, scope, *argument, Some(scalar))?;
+            let (term, actual) = self
+                .clause_term(id, scope, *argument, ClauseUse::Scalar(Some(scalar)))?
+                .scalar(id)?;
             if actual
                 != crate::lowering::body::ValueType::Scalar(
                     scalar,
@@ -285,7 +283,6 @@ impl<'t> Program<'t> {
         definition: &MathematicalDefinition,
         expression: ExpressionHandle,
     ) -> Checked<MathematicalPredicateBody> {
-        use super::clause_calls::ClauseUse;
         if self.predicate_result(definition) != Some(FixedCoreDeclaration::Type) {
             return self
                 .clause(id, scope, expression)
@@ -704,7 +701,9 @@ mod address_context_tests {
                 formal_fields: true,
                 logical: Some(inputs.scope(id, MathematicalAddressContext::Ordinary, &[])),
             };
-            Program::new(typed, false).mathematical_term(id, &scope, expression)
+            Program::new(typed, false)
+                .clause_term(id, &scope, expression, ClauseUse::Integer)
+                .and_then(|term| term.integer(id))
         };
         let bound =
             IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "18446744073709551616")
@@ -795,7 +794,10 @@ mod address_context_tests {
                 logical: Some(inputs.scope(id, context, &[])),
             };
             let mut program = Program::new(&typed, false);
-            let refusal = program.mathematical_term(id, &scope, bound).unwrap_err();
+            let refusal = program
+                .clause_term(id, &scope, bound, ClauseUse::Integer)
+                .and_then(|term| term.integer(id))
+                .unwrap_err();
             assert!(
                 refusal
                     .detail
@@ -820,7 +822,10 @@ mod address_context_tests {
         };
         let mut program = Program::new(&typed, false);
         assert_eq!(
-            program.mathematical_term(id, &scope, bound).unwrap(),
+            program
+                .clause_term(id, &scope, bound, ClauseUse::Integer)
+                .and_then(|term| term.integer(id))
+                .unwrap(),
             IntegerMathTerm::literal(IntegerValue::Unsigned(1_u128 << 32))
         );
         assert!(program.symbols.is_empty());

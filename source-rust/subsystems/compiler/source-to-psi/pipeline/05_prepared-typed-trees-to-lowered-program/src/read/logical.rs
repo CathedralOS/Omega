@@ -19,7 +19,7 @@ use crate::source_state::{
 use arena::IdTable;
 use arena::{Arena, HandleSpan};
 use semantic_vocabulary::{
-    ContentPlaceVersion, MachineId, Proposition, PropositionId, ScalarTerm, ScalarType, ValueId,
+    ContentPlaceVersion, MachineId, Proposition, PropositionId, ScalarType, ValueId,
 };
 use symbols::{SymbolHandle, SymbolPath};
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
@@ -440,9 +440,11 @@ impl<'a> LogicalScope<'a> {
         )
     }
 
-    pub(super) fn term(
+    /// The logical input `expression` names, as its value identity and
+    /// carrier: what such a name denotes in a clause of this scope.
+    pub(super) fn input(
         &self, typed: &TypedTrees, expression: ExpressionHandle, explicit_old: bool,
-    ) -> Checked<Option<(ScalarTerm, ScalarType)>> {
+    ) -> Checked<Option<(ValueId, ScalarType)>> {
         let Some(position) = self.source_leaf(typed, expression)? else { return Ok(None) };
         if self.inputs.leaves[position].reference.is_some() {
             // A reference needs a separate receipt for the selected observation.
@@ -465,7 +467,7 @@ impl<'a> LogicalScope<'a> {
                 Unserved::Contract("logical value identity overflow"),
             )
         })?;
-        Ok(Some((ScalarTerm::value(value, leaf.scalar), leaf.scalar)))
+        Ok(Some((value, leaf.scalar)))
     }
 
     fn source_leaf(

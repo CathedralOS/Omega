@@ -18,6 +18,7 @@ use semantic_vocabulary::{
 use symbols::{FixedCoreDeclaration, SymbolHandle};
 use terminal_check_tables::{Checked, Construct, Refusal};
 
+use super::clause_terms::ClauseUse;
 use super::{
     Program,
     clause_calls::{Unfolded, callee_scope},
@@ -127,7 +128,9 @@ impl Program<'_> {
                 let [argument] = typed.expression_table.expression_handles(call.arguments) else {
                     return Err(unavailable(id, "float projection without its one operand"));
                 };
-                let (source, supplied) = self.term(id, scope, *argument, Some(expected))?;
+                let (source, supplied) = self
+                    .clause_term(id, scope, *argument, ClauseUse::Scalar(Some(expected)))?
+                    .scalar(id)?;
                 if supplied.scalar() != Some(expected) {
                     return Err(unavailable(
                         id,
@@ -379,7 +382,9 @@ impl Program<'_> {
                         ScalarType::Integer(IntegerType::from_fixed(carrier).ok_or_else(|| {
                             unavailable(id, "unknown float semantic fixed carrier")
                         })?);
-                    let (term, supplied) = self.term(id, scope, argument, Some(expected))?;
+                    let (term, supplied) = self
+                        .clause_term(id, scope, argument, ClauseUse::Scalar(Some(expected)))?
+                        .scalar(id)?;
                     if supplied.scalar() != Some(expected) {
                         return Err(unavailable(
                             id,

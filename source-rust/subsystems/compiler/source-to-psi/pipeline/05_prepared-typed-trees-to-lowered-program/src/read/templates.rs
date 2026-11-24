@@ -25,7 +25,7 @@ use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 
 use super::Program;
-use super::clause_calls::ClauseUse;
+use super::clause_terms::ClauseUse;
 use super::contracts::{AppliedProposition, ClauseScope};
 use crate::lowering::body::ValueType;
 use crate::lowering::{Unserved, refuse};

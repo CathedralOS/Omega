@@ -14,6 +14,7 @@ use symbols::{BuiltinTypeAtom, SymbolHandle};
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
 
 use super::Program;
+use super::clause_terms::ClauseUse;
 use crate::lowering::body::{Expression, ExpressionKind, Policy, Qualification, ValueType};
 use crate::lowering::{Unserved, refuse};
 
@@ -625,7 +626,8 @@ impl Program<'_> {
                 if reference.is_some() {
                     // The ordinary term reader checks the exact result owner,
                     // formal value identity and retained qualification.
-                    self.term(id, scope, expression, None)?;
+                    self.clause_term(id, scope, expression, ClauseUse::Scalar(None))?
+                        .scalar(id)?;
                 }
                 if reference.is_some() {
                     return Ok(reference);
