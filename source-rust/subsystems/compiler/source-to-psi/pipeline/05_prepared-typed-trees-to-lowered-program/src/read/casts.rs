@@ -12,6 +12,7 @@ Collection recasts retain their written reference type and use collection-view
 formation. Other storage recasts require an explicit reference formation.
 */
 
+use crate::lowering::qualifications::explain_policy_refusal;
 use crate::source_state::expression::{ExpressionHandle, TableCastExpression};
 use crate::source_state::types::TypeReferenceNode;
 use language_core::ReferenceAccess;
@@ -818,8 +819,14 @@ impl Program<'_> {
                     return unserved("cast that adds a domain outside its establishment routes");
                 }
             }
-            DomainIssuance::Planned(_) => {
-                return unserved("cast that adds a domain whose issuers are in an access plan");
+            DomainIssuance::Planned(policy) => {
+                let refusal = refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Expression("cast that adds a domain whose issuers are in an access plan"),
+                )
+                .with_source_span(source.span());
+                return Err(explain_policy_refusal(policy, refusal));
             }
         }
         Ok(())

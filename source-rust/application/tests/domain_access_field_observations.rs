@@ -94,3 +94,14 @@ machine select(pair: @mutable Storage"#;
         "{report}"
     );
 }
+
+#[test]
+fn a_positive_observation_reports_the_missing_backing_decision() {
+    let source = SOURCE.replace(
+        "|layout|::FieldAccess::Inaccessible",
+        "|layout|::FieldAccess::External { read: |layout|::ExternalRead::Read, write: false, exposure: |layout|::Exposure::Exported }",
+    );
+    let (output, report) = program::invoke(&source, &["run", "--engine", "psi"]);
+    assert!(!output.status.success(), "{report}");
+    assert!(report.contains("field observation requiring backing supply"), "{report}");
+}

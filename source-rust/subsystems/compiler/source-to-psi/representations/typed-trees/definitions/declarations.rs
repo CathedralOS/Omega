@@ -1021,9 +1021,9 @@ pub mod domain {
         pub plan: AccessPlanJudgment,
     }
 
-    /// The Build's conclusion about one domain's access plan. Only
-    /// `Checked` shows anybody to be an issuer or judges a read or write;
-    /// the other two leave every such use refused.
+    /// The result of evaluating the selected policy on its semantic schema.
+    /// An authenticated result describes demands even before a use supplies
+    /// their backing or reach.
     #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
     pub enum AccessPlanJudgment {
         /// Nobody has run the plan: the domain is not demanded, or its
@@ -1033,13 +1033,36 @@ pub mod domain {
         Checked(CheckedDomainAccessPlan),
         /// The Build ran the plan and could not judge it: it failed to
         /// evaluate, described another schema, named a route no declaration
-        /// answers, or stated restrictions no consumer reads yet. The domain
-        /// still passes whole through formals, results and fields, as an
+        /// answers, or returned invalid rules. The domain still passes
+        /// whole through formals, results and fields, as an
         /// unevaluated one does.
         Unjudged(String),
     }
 
     impl DomainAccessPolicy {
+        /// Ordinary value operations have their loan, but no independent
+        /// placement or boundary supply. Keep a complete evaluated plan
+        /// available for establishment to join with such evidence.
+        pub fn plan_without_supply(&self) -> Result<&CheckedDomainAccessPlan, &str> {
+            match &self.plan {
+                AccessPlanJudgment::Unevaluated => {
+                    Err("the selected access plan has not been evaluated")
+                }
+                AccessPlanJudgment::Unjudged(reason) => Err(reason),
+                AccessPlanJudgment::Checked(plan)
+                    if plan.normalized.requires_observation_backing() =>
+                {
+                    Err("a field observation requiring backing supply")
+                }
+                AccessPlanJudgment::Checked(plan)
+                    if plan.normalized.reach.services().len() != 0 =>
+                {
+                    Err("an access plan that requires boundary reach")
+                }
+                AccessPlanJudgment::Checked(plan) => Ok(plan),
+            }
+        }
+
         pub fn implementation(&self) -> SymbolHandle {
             self.selection.symbol
         }
@@ -1051,8 +1074,8 @@ pub mod domain {
     /// The evaluator authenticates the returned schema, declarations and
     /// complete caller applications. The canonical operation judgment then
     /// checks the retained read/write rules on every actual subject and
-    /// invocation. Observation demands and boundary reach remain unserved
-    /// until their supply/lifecycle consumers can prove them.
+    /// invocation. Positive observation demands and boundary reach require
+    /// independent backing evidence.
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
     pub struct CheckedDomainAccessPlan {
         /// The policy member whose body returned the plan.
@@ -1084,10 +1107,8 @@ pub mod domain {
         /// retired `established by` clause, or returned by the selected
         /// policy's evaluated plan (`CheckedDomainAccessPlan`).
         Only(&'domain [source_declarations::DomainEstablishmentRoute]),
-        /// The selected policy's plan states the issuance, and no checked
-        /// plan is recorded: no origin can be shown to be authorized, so a
-        /// reader treats this as admitting nobody it can name, never as
-        /// unrestricted.
+        /// This use still needs the selected plan or the independent backing
+        /// and reach it demands. No origin may issue on that basis alone.
         Planned(&'domain DomainAccessPolicy),
     }
 
@@ -1119,14 +1140,12 @@ pub mod domain {
         /// never both.
         pub fn issuance(&self) -> DomainIssuance<'_> {
             match &self.access_policy {
-                Some(policy) => match &policy.plan {
-                    AccessPlanJudgment::Checked(plan) => match &plan.issuance {
+                Some(policy) => match policy.plan_without_supply() {
+                    Ok(plan) => match &plan.issuance {
                         CheckedIssuance::Only(routes) => DomainIssuance::Only(routes),
                         CheckedIssuance::Unrestricted => DomainIssuance::Unrestricted,
                     },
-                    AccessPlanJudgment::Unevaluated | AccessPlanJudgment::Unjudged(_) => {
-                        DomainIssuance::Planned(policy)
-                    }
+                    Err(_) => DomainIssuance::Planned(policy),
                 },
                 None if self.establishment_routes.is_empty() => DomainIssuance::Unrestricted,
                 None => DomainIssuance::Only(&self.establishment_routes),
@@ -1165,15 +1184,6 @@ pub mod domain {
                     AccessPlanJudgment::Checked(plan) => plan.normalized.has_operation_rules(),
                     AccessPlanJudgment::Unevaluated | AccessPlanJudgment::Unjudged(_) => true,
                 })
-        }
-
-        /// Whether source lowering still lacks the complete selected plan.
-        /// A checked plan permits forming operations; its retained rules are
-        /// enforced by the canonical operation judgment before execution.
-        pub fn access_unjudged(&self) -> bool {
-            self.access_policy
-                .as_ref()
-                .is_some_and(|policy| !matches!(policy.plan, AccessPlanJudgment::Checked(_)))
         }
     }
 
