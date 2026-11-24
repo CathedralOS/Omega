@@ -7,8 +7,8 @@ optimization aborted. The validator left the old value in the structural path an
 claim stays open (claim 4, a range-checked store fed by a redundant block parameter). The validator refuses that
 case, and no fixture shows the proposer offering it.
 
-Testing also found a `main` build break in this unit's crate. `optimization-unit-semantics` did not compile after
-#5393. That is repaired here too; see "Build break repaired in the same PR".
+Testing also found a `main` build break in this unit's crate: `optimization-unit-semantics` did not compile after
+#5393. `main` repaired it independently in #5449. See "Build break found while testing".
 
 Scope: area 12 only. The unit is one file,
 `source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit-semantics/src/candidates.rs`,
@@ -55,11 +55,11 @@ still has 10,799 lines and every cited line holds the code the record names. Aft
 | Record §6: repeated blocks within the file (two merges, two threads, CSE leader selection, obligation-fact checks, materialized-literal checks) | Cited lines | **Duplicate** code. Every copy compares against a recomputed value and refuses on mismatch. |
 | Record §7; `D12:315`, `D12:403`: the three specialization validators have no external caller | `lib.rs:240-243` | **Intended.** Inventory only: the digest already marked this matched, and `validate_psi_rewrite_candidate` is the single production entry (`pass_manager.rs:643`). |
 
-## Build break repaired in the same PR
+## Build break found while testing
 
 | Cause | Source | Trace | Outcome |
 | --- | --- | --- | --- |
-| #5393 added `Proposition::DeclarationIdentity`. #5427 repaired the `optimization-unit` encoder, but the checker's `proposition_structural_roots` still matched the old variant list. | `optimization-unit-semantics/src/unit_validation.rs`, `proposition_structural_roots::collect` | On `3f9707e6`, `mbx test -p abstract-operations-to-abstract-operations --lib` failed with `error[E0004]: non-exhaustive patterns: &Proposition::DeclarationIdentity(_) not covered` at `unit_validation.rs:10668`. Open PRs #5432 and #5435 change only `optimization-unit/src/identity.rs`. | **Fixed.** The new arm reports the roots of `ClauseOperand::Input` subjects and `ClauseOperand::Scalar` terms. Formals and applications only name other clause values by position. |
+| #5393 added `Proposition::DeclarationIdentity`. #5427 repaired the `optimization-unit` encoder, but the checker's `proposition_structural_roots` still matched the old variant list. | `optimization-unit-semantics/src/unit_validation.rs`, `proposition_structural_roots::collect` | On `3f9707e6`, `mbx test -p abstract-operations-to-abstract-operations --lib` failed with `error[E0004]: non-exhaustive patterns: &Proposition::DeclarationIdentity(_) not covered` at `unit_validation.rs:10668`. Open PRs #5432 and #5435 change only `optimization-unit/src/identity.rs`. | **Fixed on `main` by #5449**, which added the same arm and the fixture `declaration_identity_reports_scalar_and_input_roots`. This branch first carried an equivalent arm. When `main` was merged in, the match had three `DeclarationIdentity` arms (`main` still had two after #5459). This PR keeps #5449's arm and removes the two unreachable copies. |
 
 ## Validation
 
@@ -69,7 +69,8 @@ still has 10,799 lines and every cited line holds the code the record names. Aft
 - After the fix:
   `CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx test -p abstract-operations -p optimization-unit-semantics -p abstract-operations-to-abstract-operations --lib`:
   11 passed (this includes the new `mutable_paths_visit_every_runtime_index_in_order`); 24 passed; and 11 passed with
-  2 ignored (this includes both indexed-dispatch merge fixtures).
+  2 ignored (this includes both indexed-dispatch merge fixtures). After merging `main` at `21283d61`, the same command
+  gave 11 passed, 28 passed, and 11 passed with 2 ignored.
 - `mbx clippy -p abstract-operations -p optimization-unit-semantics -p abstract-operations-to-abstract-operations --all-targets -- -D warnings`:
   clean.
 - `rustfmt --check` on the changed files reports only diffs that `origin/main` already has: one in `operations.rs`
