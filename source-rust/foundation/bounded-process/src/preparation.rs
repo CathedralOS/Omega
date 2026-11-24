@@ -15,7 +15,7 @@
 use crate::process_child::limits;
 use std::ffi::OsStr;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Stdio};
 
 const MAXIMUM_COMMAND_ARGUMENTS: usize = 4 * 1024;
@@ -28,7 +28,7 @@ pub struct BoundedProcessPrepared {
     limits: BoundedProcessLimits,
     boundary: &'static str,
     observe_resources: bool,
-    private_root: Option<PathBuf>,
+    private_root: Option<crate::private_root::Setup>,
     stdin: Option<BoundedStandardStreamDisposition>,
     stdout: Option<BoundedStandardStreamDisposition>,
     stderr: Option<BoundedStandardStreamDisposition>,
@@ -219,12 +219,17 @@ impl BoundedProcessPrepared {
         self.observe_resources
     }
 
-    /// Give this invocation an empty, private filesystem. The caller owns a
-    /// fresh scratch directory for the mount point through process cleanup.
-    /// The guest starts at its root with the explicitly supplied arguments and environment.
-    pub fn use_empty_private_root(&mut self, scratch: &Path) -> &mut Self {
-        self.private_root = Some(scratch.to_owned());
-        self
+    /// Install a fresh filesystem for this invocation. The caller owns the
+    /// scratch directory until process cleanup and may then read the declared
+    /// outputs through the returned capture.
+    pub fn use_private_filesystem(
+        &mut self,
+        scratch: &Path,
+        files: crate::PrivateFilesystemFiles,
+    ) -> io::Result<crate::PrivateFilesystemOutputs> {
+        let (setup, capture) = crate::private_root::Setup::new(scratch, files)?;
+        self.private_root = Some(setup);
+        Ok(capture)
     }
 
     pub(crate) fn into_command(self) -> io::Result<(Command, BoundedProcessLimits)> {
@@ -243,7 +248,7 @@ impl BoundedProcessPrepared {
             descriptors::retain_descriptors(&mut command, self.retained_descriptors)?;
         }
         if let Some(scratch) = self.private_root {
-            crate::private_root::install(&mut command, &scratch)?;
+            crate::private_root::install(&mut command, scratch)?;
         }
         Ok((command, self.limits))
     }

@@ -1,10 +1,11 @@
 /*
-Run a native test executable over a private filesystem the runner creates empty
+Run a native test executable over a private filesystem created for that invocation
 (wiki/spec/build/testing.md#group-configuration-and-authority).
 
 On Linux the kernel supplies it: the child enters a new user and mount
 namespace, mounts an empty tmpfs (`size=64m`, root `0755`) and makes it its
-root, then executes the test from a descriptor opened beforehand. The test's
+root, installs any declared initial files, then executes the test from a descriptor
+opened beforehand. A private descriptor retains the mount for declared output reads. The test's
 ordinary filesystem calls therefore reach only that tmpfs, which disappears
 with the namespace, and no host path, absolute or relative, is reachable.
 
@@ -21,10 +22,13 @@ unprivileged user namespaces, or not Linux) reports the native engine
 unavailable; it never falls back to the host's filesystem.
 */
 
-use std::{io, path::Path, process::Command};
+mod observations;
+pub(crate) use observations::Setup;
+pub use observations::{PrivateFilesystemFiles, PrivateFilesystemOutputs};
+use std::{io, process::Command};
 
 #[cfg(not(target_os = "linux"))]
-pub(crate) fn install(_: &mut Command, _: &Path) -> io::Result<()> {
+pub(crate) fn install(_: &mut Command, _: Setup) -> io::Result<()> {
     Err(io::Error::new(
         io::ErrorKind::Unsupported,
         "this host cannot supply the private test filesystem",
@@ -32,13 +36,13 @@ pub(crate) fn install(_: &mut Command, _: &Path) -> io::Result<()> {
 }
 
 #[cfg(target_os = "linux")]
-pub(crate) fn install(command: &mut Command, scratch: &Path) -> io::Result<()> {
+pub(crate) fn install(command: &mut Command, setup: Setup) -> io::Result<()> {
     use std::ffi::CString;
     use std::os::unix::ffi::OsStrExt;
     use std::os::unix::process::CommandExt;
 
     let image = std::fs::File::open(command.get_program())?;
-    let mount_point = std::path::absolute(scratch)?.join("private-root");
+    let mount_point = std::path::absolute(&setup.scratch)?.join("private-root");
     std::fs::create_dir(&mount_point)?;
 
     let c = |bytes: &[u8]| CString::new(bytes).map_err(io::Error::from);
@@ -62,6 +66,7 @@ pub(crate) fn install(command: &mut Command, scratch: &Path) -> io::Result<()> {
     let uid_map = format!("0 {} 1", unsafe { libc::geteuid() });
     let gid_map = format!("0 {} 1", unsafe { libc::getegid() });
     let prepared = Prepared {
+        contents: setup.contents,
         image,
         mount_point: c(mount_point.as_os_str().as_bytes())?,
         uid_map,
@@ -106,6 +111,7 @@ unsafe impl Sync for ExecStrings {}
 
 #[cfg(target_os = "linux")]
 struct Prepared {
+    contents: observations::linux::Contents,
     image: std::fs::File,
     mount_point: std::ffi::CString,
     uid_map: String,
@@ -149,6 +155,7 @@ impl Prepared {
             check(libc::chroot(c".".as_ptr()))?;
             check(libc::chdir(c"/".as_ptr()))?;
             libc::umask(0o022);
+            self.contents.install()?;
             // Root of the namespace only: executing as uid 0 must not regain
             // capabilities, and every capability is dropped before it does.
             let securebits = (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 5);
