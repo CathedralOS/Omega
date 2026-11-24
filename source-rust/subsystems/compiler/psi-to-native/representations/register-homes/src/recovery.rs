@@ -172,6 +172,7 @@ pub enum RecoveryClassificationDecodeError {
     UnknownClassification(u8),
     UnknownReason(u8),
     UnknownScalarType(u8),
+    UnknownFloatFormat(u8),
     UnknownIntegerValue(u8),
     UnknownOrigin(u8),
     UnknownDefinitionSite(u8),
@@ -186,6 +187,7 @@ pub enum RecoveryClassificationDecodeError {
     InvalidPlaceId(u64),
     InvalidEdgeId(u64),
     InvalidObligationId(u64),
+    InvalidCallableContractId(u64),
     InvalidIntegerType,
     LengthOverflow,
     IdentityMismatch,
@@ -408,6 +410,24 @@ fn decode_classification_scalar_type(
             IntegerType::address(cursor.u16()?)
                 .map_err(|_| RecoveryClassificationDecodeError::InvalidIntegerType)?,
         ),
+        // Stage 06 keeps a float or callable victim's own type beside the
+        // `UnsupportedScalarType` reason, so these tags must read back too.
+        4 => ScalarType::IeeeFloat(match cursor.byte()? {
+            0 => semantic_vocabulary::IeeeFloatFormat::Binary32,
+            1 => semantic_vocabulary::IeeeFloatFormat::Binary64,
+            format => {
+                return Err(RecoveryClassificationDecodeError::UnknownFloatFormat(
+                    format,
+                ));
+            }
+        }),
+        5 => {
+            let raw = cursor.u64()?;
+            ScalarType::Callable(
+                semantic_vocabulary::CallableContractId::new(raw)
+                    .ok_or(RecoveryClassificationDecodeError::InvalidCallableContractId(raw))?,
+            )
+        }
         tag => return Err(RecoveryClassificationDecodeError::UnknownScalarType(tag)),
     };
     Ok(scalar)
@@ -1394,6 +1414,21 @@ mod tests {
                 "{scalar_type:?}"
             );
         }
+        let decode = |bytes: &[u8]| {
+            super::decode_classification_scalar_type(&mut crate::cursor::Cursor::new(bytes))
+        };
+        assert_eq!(
+            decode(&[4, 2]),
+            Err(RecoveryClassificationDecodeError::UnknownFloatFormat(2))
+        );
+        assert_eq!(
+            decode(&[5, 0, 0, 0, 0, 0, 0, 0, 0]),
+            Err(RecoveryClassificationDecodeError::InvalidCallableContractId(0))
+        );
+        assert_eq!(
+            decode(&[6]),
+            Err(RecoveryClassificationDecodeError::UnknownScalarType(6))
+        );
     }
 
     #[test]
