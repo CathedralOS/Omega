@@ -208,3 +208,32 @@ machine build(builder: @mutable Build) {
     );
     assert!(compiled, "{stderr}");
 }
+
+#[test]
+fn a_dependency_retains_the_domain_used_in_each_provider_choice() {
+    let (compiled, report) = check_package(
+        "qualified_inputs",
+        r#"machine build(builder: @mutable Build) {
+    Build::package(builder, "reading");
+    Build::select_provider::<Reading<Tag in Tag::Left>, First>(builder, linux_x86_64);
+    Build::select_provider::<Reading<Tag in Tag::Right>, Second>(builder, linux_x86_64);
+}"#,
+        &[(
+            "main.omg",
+            r#"public data Tag {}
+public domain Tag::Left;
+public domain Tag::Right;
+public boundary trait Reading<T> { machine value() -> u32 reaches none crashes none; }
+First satisfies Reading<Tag in Tag::Left> { machine value() -> u32 { 29u32 } }
+Second satisfies Reading<Tag in Tag::Right> { machine value() -> u32 { 37u32 } }
+public machine right() -> u32 { Reading::<Tag in Tag::Right>::value() }"#,
+        )],
+        r#"use {reading}/main.omg as provider;
+machine main() crashes Trap {
+    transition |provider|::right() == 37u32 { true -> done(), _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}"#,
+    );
+    assert!(compiled, "{report}");
+}

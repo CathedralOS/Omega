@@ -103,6 +103,8 @@ pub enum ProductOperandRole {
     WireCompatibilityFact,
     Formal,
     Field,
+    /// A domain naming a qualification inside a static Product type argument.
+    Domain,
 }
 
 impl BuildOperation {

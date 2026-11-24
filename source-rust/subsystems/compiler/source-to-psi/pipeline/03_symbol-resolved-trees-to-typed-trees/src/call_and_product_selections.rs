@@ -1006,7 +1006,11 @@ pub(crate) mod capture_product_operands {
                     ProductOperandConstraint::Arithmetic(*policy)
                 }
                 source_types::TypeConstraint::Domain(value) => ProductOperandConstraint::Domain {
-                    name: self.name(&value.name, SymbolHandle::invalid()),
+                    name: self.type_name(
+                        &value.name,
+                        SymbolHandle::invalid(),
+                        crate::declaration_selection::AuthoredDeclarationSelectionKind::DomainMembership,
+                    )?,
                     arguments: self.types(value.arguments)?,
                 },
             })

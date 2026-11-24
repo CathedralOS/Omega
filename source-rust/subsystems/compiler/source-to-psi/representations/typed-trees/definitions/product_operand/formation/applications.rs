@@ -19,9 +19,10 @@
 //! A retained name rejoins a builtin atom or a declaration anchor. An authored
 //! Product data path unresolved in Build is looked up from that exact source
 //! occurrence. Helper binders are replaced by their supplied arguments. Served: type arguments that are a
-//! builtin type, plain or applied data, or a fixed array of those with a
-//! literal extent; value arguments that are an integer literal or a Boolean.
+//! builtin type, plain or applied data, a fixed array with a literal extent, or a type with declared domain qualifications; value arguments that are an integer literal or a Boolean.
 //! Every other form is refused by name and forms nothing.
+
+mod qualifications;
 
 use crate::declaration_selection::product_operands::{
     ProductArrayLength, ProductOperandName, ProductOperandType, ProductStaticEnvironment,
@@ -146,7 +147,12 @@ impl Lower<'_> {
     }
 
     /// The declaration a graph name stands for among this program's symbols.
-    fn symbol(&self, name: &ProductOperandName, path: &str) -> Formed<SymbolHandle> {
+    fn symbol(
+        &self,
+        name: &ProductOperandName,
+        path: &str,
+        kind: SymbolKind,
+    ) -> Formed<SymbolHandle> {
         let symbols = &self.program.symbols;
         let Some(declaration) = name.declaration else {
             // A Build names Product declarations it cannot see while it is
@@ -162,24 +168,48 @@ impl Lower<'_> {
             let source = self
                 .source
                 .ok_or(unserved("a retained operand has no authored lookup scope"))?;
+            let role = if kind == SymbolKind::Domain {
+                ProductOperandRole::Domain
+            } else {
+                ProductOperandRole::Data
+            };
+            let description = if kind == SymbolKind::Domain {
+                "domain"
+            } else {
+                "data type"
+            };
             return source
                 .declarations
-                .resolve(path, name.source_span, ProductOperandRole::Data)
+                .resolve(path, name.source_span, role)
                 .ok_or_else(|| Stop::Rejected(format!(
-                    "static argument `{path}` of this provider choice names no data type visible here"
+                    "static argument `{path}` of this provider choice names no {description} visible here"
                 )));
         };
         let declaration = symbols.rejoin_product_occurrence(declaration);
-        let mut found = self
+        let at_declaration = |symbol: &SymbolHandle| {
+            symbols.symbol_provenance_source_span(*symbol) == Some(declaration)
+        };
+        let mut domains = self
+            .program
+            .domain_definitions()
+            .iter()
+            .map(|domain| domain.symbol)
+            .filter(at_declaration);
+        let mut data = self
             .program
             .data_definitions()
             .iter()
             .map(|data| data.symbol)
-            .filter(|symbol| symbols.symbol_provenance_source_span(*symbol) == Some(declaration));
-        match (found.next(), found.next()) {
+            .filter(at_declaration);
+        let matches = if kind == SymbolKind::Domain {
+            (domains.next(), domains.next())
+        } else {
+            (data.next(), data.next())
+        };
+        match matches {
             (Some(symbol), None) => Ok(symbol),
             (None, _) => Err(unserved(
-                "a static argument naming something other than a builtin type or data",
+                "a retained static argument whose declaration has the wrong kind",
             )),
             (Some(_), Some(_)) => Err(unserved(
                 "a static argument whose declaration anchor is ambiguous",
@@ -306,7 +336,7 @@ impl Lower<'_> {
             .collect::<Vec<_>>()
             .join("::");
         if !operand.application.is_valid() {
-            let symbol = self.symbol(name, &path)?;
+            let symbol = self.symbol(name, &path, SymbolKind::Data)?;
             return Ok(Closed::Type(self.named(symbol, name)));
         }
         // Applied data written as a path, `Holder<u64>`.
@@ -316,7 +346,7 @@ impl Lower<'_> {
                 "a static argument applied at lifetimes or naming a member",
             ));
         }
-        let symbol = self.symbol(name, &path)?;
+        let symbol = self.symbol(name, &path, SymbolKind::Data)?;
         let inputs = self
             .graph
             .static_arguments
@@ -339,7 +369,7 @@ impl Lower<'_> {
         if let Some(supplied) = self.supplied(name, expects_type)? {
             return Ok(supplied);
         }
-        let symbol = self.symbol(name, &name.text)?;
+        let symbol = self.symbol(name, &name.text, SymbolKind::Data)?;
         Ok(Closed::Type(self.named(symbol, name)))
     }
 
@@ -353,6 +383,17 @@ impl Lower<'_> {
         read: fn(&mut Self, T, bool) -> Formed<Closed>,
     ) -> Formed<Closed> {
         let parameters = self.program.declaration_type_parameters(symbol).to_vec();
+        let arguments = self.closed_arguments(&parameters, name, inputs, read)?;
+        Ok(Closed::Type(self.applied(symbol, name, arguments)))
+    }
+
+    fn closed_arguments<T: Copy>(
+        &mut self,
+        parameters: &[crate::source_state::data::TypeParameter],
+        name: &ProductOperandName,
+        inputs: &[T],
+        read: fn(&mut Self, T, bool) -> Formed<Closed>,
+    ) -> Formed<Vec<TypeReferenceHandle>> {
         if parameters.len() != inputs.len() {
             return Err(Stop::Rejected(format!(
                 "static type `{}` needs {} arguments, received {}",
@@ -360,7 +401,7 @@ impl Lower<'_> {
             )));
         }
         let mut arguments = Vec::with_capacity(inputs.len());
-        for (&input, parameter) in inputs.iter().zip(&parameters) {
+        for (&input, parameter) in inputs.iter().zip(parameters) {
             let closed = read(self, input, parameter.kind == TypeParameterKind::Type)?;
             let argument = bound(self.program, parameter, closed)?;
             arguments.push(
@@ -369,7 +410,7 @@ impl Lower<'_> {
                     .map_err(unserved)?,
             );
         }
-        Ok(Closed::Type(self.applied(symbol, name, arguments)))
+        Ok(arguments)
     }
 
     fn nominal(
@@ -449,7 +490,7 @@ impl Lower<'_> {
                     return Err(unserved("a static type applied at lifetimes"));
                 }
                 let name = self.graph.names.get(name).clone();
-                let symbol = self.symbol(&name, &name.text)?;
+                let symbol = self.symbol(&name, &name.text, SymbolKind::Data)?;
                 let inputs = self.graph.type_arguments.span_or_empty(arguments).to_vec();
                 self.applied_arguments(symbol, &name, &inputs, Self::ty)
             }
@@ -483,11 +524,13 @@ impl Lower<'_> {
                         length: FixedArrayLength::Literal(length),
                     })))
             }
+            ProductOperandType::Constrained { base, constraints } => {
+                self.qualified_type(base, constraints)
+            }
             ProductOperandType::CanonicalConst(_)
             | ProductOperandType::ConstExpression(_)
             | ProductOperandType::Reference { .. }
             | ProductOperandType::Slice(_)
-            | ProductOperandType::Constrained { .. }
             | ProductOperandType::Dynamic { .. }
             | ProductOperandType::Invalid => Err(unserved(
                 "a static type that is not a builtin type, data or a fixed array of those",

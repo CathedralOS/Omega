@@ -135,7 +135,7 @@ impl<'program> ProductDeclarationLookup<'program> {
     }
 }
 
-const PRODUCT_ROLES: [ProductOperandKind; 9] = [
+const PRODUCT_ROLES: [ProductOperandKind; 10] = [
     ProductOperandKind::BoundarySubject,
     ProductOperandKind::RootGrantSubject,
     ProductOperandKind::Provider,
@@ -145,6 +145,7 @@ const PRODUCT_ROLES: [ProductOperandKind; 9] = [
     ProductOperandKind::Representation,
     ProductOperandKind::Formal,
     ProductOperandKind::Field,
+    ProductOperandKind::Domain,
 ];
 
 fn product_role_position(role: ProductOperandKind) -> Option<usize> {
@@ -165,7 +166,7 @@ struct ProductDeclarationName {
 
 #[derive(Default)]
 pub(crate) struct ProductDeclarationIndex {
-    roles: [Vec<ProductDeclarationName>; 9],
+    roles: [Vec<ProductDeclarationName>; PRODUCT_ROLES.len()],
     token_bound_machines: Vec<SymbolHandle>,
 }
 
@@ -328,6 +329,11 @@ pub fn product_candidates(
                     .iter()
                     .map(move |requirement| (requirement.symbol, definition.is_public))
             })
+            .collect(),
+        ProductOperandKind::Domain => program
+            .domain_definitions()
+            .iter()
+            .map(|definition| (definition.symbol, definition.is_public))
             .collect(),
         ProductOperandKind::Data => program
             .data_definitions()
@@ -496,6 +502,7 @@ impl<'program> ProductSourceLookups<'program> {
                     ProductOperandKind::Provider,
                     ProductOperandKind::Requirement,
                     ProductOperandKind::Data,
+                    ProductOperandKind::Domain,
                 ],
             ),
             authors: ProductRequestAuthors::new(program),
