@@ -536,6 +536,41 @@ mod tests {
     }
 
     #[test]
+    fn image_extent_beyond_a_32_bit_rva_is_refused() {
+        // PE32+ stores `SizeOfImage` and every section RVA in 32 bits. A
+        // `.bss` reaching the last addressable page must emit with that exact
+        // size; one more byte, or a size that wraps at 2^32, must be refused
+        // instead of being truncated into a smaller zero-fill section.
+        let size_of_image = |bytes: &[u8]| {
+            let pe_offset = u32::from_le_bytes(bytes[0x3c..0x40].try_into().unwrap()) as usize;
+            u32::from_le_bytes(bytes[pe_offset + 80..pe_offset + 84].try_into().unwrap())
+        };
+        let mut probe = returning_image();
+        probe.memory.bss_size = 1;
+        let probe = emit_pe_executable(probe, 3).expect("emit image");
+        let bss_rva = usize::try_from(probe.final_image_layout.bss_address - IMAGE_BASE).unwrap();
+        let last_page_end = 0xffff_f000usize;
+
+        let mut largest = returning_image();
+        largest.memory.bss_size = last_page_end - bss_rva;
+        let largest = emit_pe_executable(largest, 3).expect("largest addressable .bss");
+        assert_eq!(size_of_image(&largest.bytes), 0xffff_f000);
+        assert_eq!(largest.bss_bytes, last_page_end - bss_rva);
+
+        for bss_size in [last_page_end - bss_rva + 1, 1usize << 32] {
+            let mut image = returning_image();
+            image.memory.bss_size = bss_size;
+            let error = emit_pe_executable(image, 3)
+                .expect_err("a .bss past the 32-bit RVA space must be refused");
+            assert!(
+                error.message.contains("exceeds the 32-bit PE address space"),
+                "{bss_size:#x}: {}",
+                error.message
+            );
+        }
+    }
+
+    #[test]
     fn import_free_image_runs_on_windows() {
         if !cfg!(all(target_os = "windows", target_arch = "x86_64")) {
             eprintln!("SKIP: requires an x86-64 Windows loader");
