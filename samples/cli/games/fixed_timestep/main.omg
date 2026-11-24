@@ -1,0 +1,101 @@
+// Replay uneven frame times with 10 ms simulation ticks and interpolated output.
+// Expected exit: 0.
+
+use omega\language\core\StandardOutput;
+use omega_language_std\Console;
+
+const TICK_MS: i32 = 10;
+const MAX_FRAME_MS: i32 = 40;
+
+data Simulation {
+    accumulator_ms: i32 in Wrapping;
+    velocity: i32 in Wrapping;
+    previous_position: i32 in Wrapping;
+    current_position: i32 in Wrapping;
+}
+
+machine main() reaches StandardOutput {
+    let frames: [i32; 6] = [4, 16, 27, 120, 3, 10];
+    let mutable simulation: Simulation;
+    Console::write_line("frame_ms used_ms ticks left_ms position");
+    replay(@frames, @mutable simulation);
+}
+
+machine replay(frames: @[i32; 6], simulation: @mutable Simulation) reaches StandardOutput {
+    transition { _ -> next_frame(frames, simulation, 0) }
+
+    machine next_frame(frames: @[i32; 6], simulation: @mutable Simulation, frame: u64) {
+        transition frame < 6 {
+            true -> show_frame(frames, simulation, frame),
+            _ -> done()
+        }
+    }
+
+    machine show_frame(frames: @[i32; 6], simulation: @mutable Simulation, frame: u64)
+    requires frame < 6 {
+        let elapsed_ms: i32 = frames[frame];
+        let used_ms: i32 = match elapsed_ms > MAX_FRAME_MS {
+            true -> MAX_FRAME_MS,
+            false -> elapsed_ms
+        };
+        simulation.accumulator_ms = simulation.accumulator_ms + (used_ms as +Wrapping);
+        let ticks: i32 in Wrapping = consume_ticks(simulation);
+        render(@simulation, elapsed_ms, used_ms, ticks);
+        transition { _ -> next_frame(frames, simulation, frame + 1) }
+    }
+
+    machine done() {}
+}
+
+machine consume_ticks(simulation: @mutable Simulation) -> i32 in Wrapping {
+    transition { _ -> ready(simulation, 0i32 as +Wrapping) }
+
+    machine ready(simulation: @mutable Simulation, ticks: i32 in Wrapping) -> i32 in Wrapping {
+        transition (simulation.accumulator_ms as -Wrapping) >= TICK_MS {
+            true -> step(simulation, ticks),
+            _ -> ticks
+        }
+    }
+
+    machine step(simulation: @mutable Simulation, ticks: i32 in Wrapping) -> i32 in Wrapping {
+        // Each tick adds the same acceleration and advances by the new velocity.
+        simulation.previous_position = simulation.current_position;
+        simulation.velocity = simulation.velocity + 2;
+        simulation.current_position = simulation.current_position + simulation.velocity;
+        simulation.accumulator_ms = simulation.accumulator_ms - (TICK_MS as +Wrapping);
+        transition { _ -> ready(simulation, ticks + 1) }
+    }
+}
+
+machine render(simulation: @Simulation, elapsed_ms: i32, used_ms: i32, ticks: i32 in Wrapping)
+reaches StandardOutput {
+    // The remaining time divided by TICK_MS is the weight of the current
+    // position. Keep the printed result in tenths so the replay uses integers.
+    let distance: i32 in Wrapping = simulation.current_position - simulation.previous_position;
+    let position_tenths: i32 in Wrapping =
+        simulation.previous_position * 10 + distance * simulation.accumulator_ms * 10 / (TICK_MS as +Wrapping);
+
+    write_three_digits(elapsed_ms as +Wrapping);
+    Console::write("      ");
+    write_three_digits(used_ms as +Wrapping);
+    Console::write("     ");
+    write_digit(ticks);
+    Console::write("     ");
+    write_digit(simulation.accumulator_ms);
+    Console::write("       ");
+    write_three_digits(position_tenths / 10);
+    Console::write(".");
+    write_digit(position_tenths % 10);
+    Console::write_line("");
+}
+
+machine write_three_digits(value: i32 in Wrapping) reaches StandardOutput {
+    write_digit(value / 100);
+    write_digit(value / 10 % 10);
+    write_digit(value % 10);
+}
+
+machine write_digit(value: i32 in Wrapping) reaches StandardOutput {
+    let ascii: i32 in Wrapping = value + 48;
+    Console::write_byte(ascii as -Wrapping);
+}
