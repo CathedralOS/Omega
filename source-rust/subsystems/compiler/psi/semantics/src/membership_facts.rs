@@ -1260,6 +1260,7 @@ fn validate_boundary_outputs(module: &TerminalModule) -> Judged<()> {
         validate_predicates(
             module,
             diagnostic,
+            &binding,
             &boundary.membership_ensures,
             boundary.scalar_ensures.iter(),
         )?;
@@ -1272,6 +1273,7 @@ fn validate_boundary_outputs(module: &TerminalModule) -> Judged<()> {
 fn validate_predicates<'a>(
     module: &TerminalModule,
     machine: Option<MachineId>,
+    binding: &ResultBinding,
     memberships: &[RuntimeDomainMembership],
     ensures: impl Clone + Iterator<Item = &'a semantic_vocabulary::Proposition>,
 ) -> Judged<()> {
@@ -1313,12 +1315,26 @@ fn validate_predicates<'a>(
                             unavailable(machine, "membership guarantee lost its structural domain")
                         })?;
                     let replacement = (*root, path.clone());
-                    domain.predicate.as_ref().map(|predicate| {
-                        crate::substitution::substitute_proposition_structural_places_with(
-                            &predicate.proposition,
-                            &|id| (id == predicate.subject).then_some(&replacement),
-                        )
-                    })
+                    let ResultBinding::Structural { carrier, .. } = binding else {
+                        return Err(unavailable(
+                            machine,
+                            "structural predicate has no result carrier",
+                        ));
+                    };
+                    domain
+                        .predicate
+                        .as_ref()
+                        .map(|predicate| {
+                            crate::substitution::substitute_result_place(
+                                module,
+                                *carrier,
+                                &predicate.proposition,
+                                predicate.subject,
+                                &replacement,
+                            )
+                        })
+                        .transpose()
+                        .map_err(|detail| unavailable(machine, detail))?
                 }
                 _ => {
                     return Err(unavailable(
@@ -1354,6 +1370,7 @@ fn validate_headers(module: &TerminalModule) -> Judged<()> {
         validate_predicates(
             module,
             Some(machine.id),
+            &binding,
             &machine.contract.membership_ensures,
             machine
                 .contract
@@ -1371,6 +1388,7 @@ fn validate_headers(module: &TerminalModule) -> Judged<()> {
         validate_predicates(
             module,
             None,
+            &binding,
             &contract.proof.membership_ensures,
             contract
                 .proof
@@ -1395,6 +1413,7 @@ fn validate_headers(module: &TerminalModule) -> Judged<()> {
                 .selected_application
                 .as_ref()
                 .map(|selected| selected.realization),
+            &binding,
             &header.membership_ensures,
             header.ensures.iter().map(|clause| &clause.proposition),
         )?;
@@ -2486,14 +2505,21 @@ mod tests {
                 subject: ValueId::new(1).unwrap(),
                 proposition: semantic_vocabulary::Proposition::Falsehood,
             });
+        let subject = ValueId::new(4).unwrap();
+        let binding = ResultBinding::Scalar {
+            formal: subject,
+            carrier,
+            actual: subject,
+        };
         let promise = RuntimeDomainMembership::Scalar {
-            subject: ScalarTerm::value(ValueId::new(4).unwrap(), carrier),
+            subject: ScalarTerm::value(subject, carrier),
             domain: ScalarDomainId::new(2).unwrap(),
         };
         assert_eq!(
             validate_predicates(
                 &module,
                 None,
+                &binding,
                 std::slice::from_ref(&promise),
                 std::iter::empty()
             )
@@ -2504,6 +2530,7 @@ mod tests {
         validate_predicates(
             &module,
             None,
+            &binding,
             &[promise],
             [&semantic_vocabulary::Proposition::Falsehood].into_iter(),
         )

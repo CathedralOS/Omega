@@ -330,10 +330,12 @@ machine entry() -> i32 {
     let replace_with = (other.place, Vec::new());
     let mut changes = 0;
     for postcondition in &mut wrong.scalar_ensures {
-        let moved = terminal_semantics::substitution::substitute_proposition_structural_places_with(
-            postcondition,
-            &|id| (id == path.place).then_some(&replace_with),
-        );
+        let moved =
+            terminal_semantics::substitution::substitute_proposition_structural_places_with(
+                postcondition,
+                &|id| (id == path.place).then_some(&replace_with),
+            )
+            .unwrap();
         if *postcondition != moved {
             *postcondition = moved;
             changes += 1;

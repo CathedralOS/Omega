@@ -2969,7 +2969,8 @@ pub(crate) mod declaration_foundations {
             .scalar_requires
             .iter()
             .map(instantiate)
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(CodecError::MalformedStructuralFoundation)?;
         let declared_conjuncts = declared.iter().flat_map(conjuncts).collect::<Vec<_>>();
         if machine
             .contract
@@ -2988,15 +2989,17 @@ pub(crate) mod declaration_foundations {
             .iter()
             .flat_map(|clause| conjuncts(&clause.proposition))
             .collect::<Vec<_>>();
-        if boundary.scalar_ensures.iter().any(|row| {
-            let substituted = instantiate(row);
-            !conjuncts(&substituted)
+        for row in &boundary.scalar_ensures {
+            let substituted =
+                instantiate(row).map_err(CodecError::MalformedStructuralFoundation)?;
+            if !conjuncts(&substituted)
                 .iter()
                 .all(|part| roster.contains(part))
-        }) {
-            return malformed(
-                "provider candidate does not ensure its boundary's declared guarantees",
-            );
+            {
+                return malformed(
+                    "provider candidate does not ensure its boundary's declared guarantees",
+                );
+            }
         }
         Ok(())
     }

@@ -517,7 +517,7 @@ pub fn contract_refinement_goals(
                         .ok()
                         .map(|position| &places[position].1)
                 },
-            ),
+            )?,
             &atoms,
         ))
     };
