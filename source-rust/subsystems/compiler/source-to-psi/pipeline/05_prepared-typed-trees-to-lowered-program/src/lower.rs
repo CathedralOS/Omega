@@ -525,6 +525,7 @@ impl<'a> Lowering<'a> {
             pending_build: None,
             block_ranks: IdTable::default(),
             active_rank: None,
+            member_rank_bound: None,
             successor_ranks: Vec::new(),
         }
     }
@@ -870,6 +871,7 @@ struct Lowering<'a> {
     /// blocks. Tail transfers separately measure the successor's actual values.
     block_ranks: IdTable<BlockId, Option<Vec<terminal_psi::TerminalIntegerRankValue>>>,
     active_rank: Option<Vec<terminal_psi::TerminalIntegerRankValue>>,
+    member_rank_bound: Option<terminal_psi::TerminalIntegerRankValue>,
     successor_ranks: Vec<(
         BlockId,
         MachineId,

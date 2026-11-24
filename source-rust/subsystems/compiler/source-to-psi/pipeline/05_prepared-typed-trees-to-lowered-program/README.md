@@ -585,7 +585,9 @@ gives the lowered form.
 
 A loop can name its decreasing measure with `terminates by remaining`,
 `terminates by bytes -> Slice::Length` or `terminates by (cursor, limit) ->
-Nat::BoundedDistance`. The reader uses the resolved typed expressions and
+Nat::BoundedDistance`. A cursor approaching a fixed bound can use
+`terminates by cursor -> Nat::IncreasingTo(limit)`. Each recursive transfer
+must prove that its successor has the same limit. The reader uses the resolved typed expressions and
 checks explicit natural views against their sealed catalog headers. Short
 forms use the carrier's canonical default; a pair is not a carrier and
 has none, so the author names its view. A user-written lookalike grants

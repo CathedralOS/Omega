@@ -4,7 +4,7 @@
 data Cells { bytes: [u8; 8]; }
 
 machine fill_field(cells: @mutable Cells, position: u64) -> u64
-terminates by (position, cells.bytes.length) -> Nat::BoundedDistance
+terminates by position -> Nat::IncreasingTo(cells.bytes.length)
 requires position < cells.bytes.length
 {
     cells.bytes[position] = 7;

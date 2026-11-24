@@ -300,6 +300,12 @@ const ROWS: &[SealedIntrinsicRow] = &[
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::NaturalRanking),
     ),
     row(
+        "nat.omg",
+        "Nat::IncreasingTo",
+        BundledFile::CoreNat,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::NaturalRanking),
+    ),
+    row(
         "float_provider.omg",
         "NativeFloats",
         BundledFile::CoreFloatProvider,
