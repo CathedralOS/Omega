@@ -132,3 +132,50 @@ fn a_checked_provider_calls_each_callback_with_its_original_arguments() {
     let build = std::fs::read_to_string(sample.join("build.omg")).unwrap();
     assert_agreed_exit_zero(run_both("callback-arguments", &program, &build));
 }
+
+#[test]
+fn two_qualifications_of_the_same_carrier_select_different_providers() {
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        return;
+    };
+    let target = host.target_name();
+    let program = r#"
+data Tag {}
+data Other {}
+domain Tag::Left;
+domain Tag::Right;
+boundary trait Service<T> { machine value() -> u32 reaches none crashes none; }
+First satisfies Service<Tag in Tag::Left> { machine value() -> u32 { 29u32 } }
+Second satisfies Service<Tag in Tag::Right> { machine value() -> u32 { 37u32 } }
+machine entry() crashes Trap {
+    let left = Service::<Tag in Tag::Left>::value();
+    let right = Service::<Tag in Tag::Right>::value();
+    transition left == 29u32 && right == 37u32 { true -> done(), _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"#;
+    let build = format!(
+        r#"machine build(builder: @mutable Build) {{
+    Build::application(builder, "qualified_providers");
+    Build::select_provider::<Service<Tag in Tag::Left>, First>(builder, {target});
+    Build::select_provider::<Service<Tag in Tag::Right>, Second>(builder, {target});
+    Build::bind(builder, {target}\ProgramEntry, entry);
+}}"#
+    );
+    assert_agreed_exit_zero(run_both("qualified", program, &build));
+
+    let wrong_provider = build.replace("Tag::Right>, Second", "Tag::Right>, First");
+    let (status, report) = run_both("wrong_qualified_provider", program, &wrong_provider);
+    assert!(
+        !status.success() && report.contains("does not satisfy"),
+        "{report}"
+    );
+
+    let wrong_carrier = build.replace("Tag in Tag::Right", "Other in Tag::Right");
+    let (status, report) = run_both("wrong_qualified_carrier", program, &wrong_carrier);
+    assert!(
+        !status.success() && report.contains("does not qualify"),
+        "{report}"
+    );
+}

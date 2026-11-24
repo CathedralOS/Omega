@@ -236,28 +236,12 @@ pub(crate) mod domain_constraints {
                 carrier,
                 &domain_constraint.arguments,
             )?;
-            let semantic_roles = source_declarations::DomainSemanticRoles {
-                denotation_dimension: domain
-                    .semantic_roles
-                    .denotation_dimension
-                    .map(|_| semantic_id),
-                arithmetic_policy: domain.semantic_roles.arithmetic_policy.map(|_| semantic_id),
-            };
-
             if domain.alias.is_none() {
-                normalized.push(TypeConstraintNode::Domain(DomainConstraint {
-                    name: domain_constraint.name,
-                    arguments: domain_constraint.arguments,
-                    subject: DomainConstraintSubject::Declared,
-                    symbol: domain.symbol,
+                normalized.push(TypeConstraintNode::Domain(domain.applied_constraint(
+                    domain_constraint.name,
+                    domain_constraint.arguments,
                     semantic_id,
-                    classification: domain.classification,
-                    predicate_presence: domain.predicate_presence,
-                    semantic_roles,
-                    establishment_routes: domain.establishment_routes.clone(),
-                    source_selection: None,
-                    names_no_visible_domain: false,
-                }));
+                )));
                 continue;
             }
 

@@ -1135,6 +1135,35 @@ pub mod domain {
     }
 
     impl DomainDefinition {
+        /// The selected domain's meaning on a checked carrier and index tuple.
+        pub fn applied_constraint(
+            &self,
+            name: Identifier,
+            arguments: Vec<TypeReferenceHandle>,
+            semantic_id: semantic_vocabulary::SemanticDomainId,
+        ) -> crate::source_state::types::DomainConstraint {
+            use crate::source_state::types::{DomainConstraint, DomainConstraintSubject};
+            DomainConstraint {
+                name,
+                arguments,
+                subject: DomainConstraintSubject::Declared,
+                symbol: self.symbol,
+                semantic_id,
+                classification: self.classification,
+                predicate_presence: self.predicate_presence,
+                semantic_roles: source_declarations::DomainSemanticRoles {
+                    denotation_dimension: self
+                        .semantic_roles
+                        .denotation_dimension
+                        .map(|_| semantic_id),
+                    arithmetic_policy: self.semantic_roles.arithmetic_policy.map(|_| semantic_id),
+                },
+                establishment_routes: self.establishment_routes.clone(),
+                source_selection: None,
+                names_no_visible_domain: false,
+            }
+        }
+
         /// Who may introduce this domain. The one question every reader of
         /// an `as +D` asks; a declaration writes a policy or a route list,
         /// never both.
