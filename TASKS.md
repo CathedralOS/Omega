@@ -78,6 +78,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
   - Finish exact catalog custody and reject false authored backing ([controls](wiki/drafts/designs/runtime_provider_authority.md)); migrate table/vtable, user-intrinsic, generic-trait and Windows `ProcessExit`. Keep executable-provider delivery separate; repair [UEFI/table custody](wiki/spec/build/foreign_bindings.md#migration-acceptance).
   - Implement [`FunctionFieldBinding`](wiki/spec/build/foreign_bindings.md#function-table-bindings) and `reflect::parameter` for the four `UefiBootServices` table slots, with `this` used only for dispatch. Supply sealed entries for handoff `transfer` and `firmware_return`.
   - Carry a closed `Registrar::register<TimerHandler::call>` requirement through capture, package rejoin, saved-input substitution checks and native callback execution.
+  - Preserve the standard library's native requirement declarations during Windows x86-64 package review. The compiler at `d017e9214ccb` refuses `omega_language_std` with `package review cannot retain the native binding's exact accepted requirement from the accepted declaration` in `mbx xtask sample-gate --filter samples/cli/games/fixed_timestep`. The [sample](samples/cli/games/fixed_timestep/README.md) runs on both native and Psi through `omega run`.
   Acceptance: `via` is removed.
 
 - **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Qualify [machine-supplied boundary operations](wiki/spec/language/machines.md#supply) through the Windows GUI provider.
