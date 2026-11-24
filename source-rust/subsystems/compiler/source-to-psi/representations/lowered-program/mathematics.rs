@@ -195,6 +195,11 @@ pub struct Law {
     pub statement: u32,
     /// The closed type of each formal, in order.
     pub formals: Vec<TermHandle>,
+    /// The equalities the machine requires, each under one binder per
+    /// formal. The statement quantifies a proof of each after the formals,
+    /// the proof may use them as hypotheses, and whoever cites the law must
+    /// prove each at the cited arguments.
+    pub premises: Vec<TermHandle>,
     /// The equality, under one binder per formal.
     pub goal: TermHandle,
     /// The same formals' equality declared by the trait requirement this

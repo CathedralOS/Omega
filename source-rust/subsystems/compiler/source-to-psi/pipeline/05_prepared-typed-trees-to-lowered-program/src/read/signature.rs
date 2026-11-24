@@ -19,12 +19,16 @@ law. A machine declared inside another that states nothing is read in place
 where it is called, as a step of its parent's value or of its parent's
 argument.
 
+A law's `requires` equalities are its premises. Its statement takes a proof
+of each after its formals, and stage 06 proves each wherever the law is
+cited.
+
 A cited law is read before the law that cites it, and a law that reaches
 itself through its citations is refused, so no statement can justify itself.
 */
 
 use arena::IdTable;
-use mathematical_kernel::{Declaration, PlainData, Term, TermHandle};
+use mathematical_kernel::{Declaration, PlainData, Term, TermHandle, shift};
 use semantic_vocabulary::{
     ClauseCarrier, ClauseIdentity, ClauseOperand, MachineId, Proposition, StructuralTypeId,
 };
@@ -470,13 +474,19 @@ impl Converter<'_, '_> {
             .signatures
             .get(id)
             .ok_or_else(|| unserved(id, "mathematical machine lost its signature"))?;
-        if !signature.erased.is_empty()
-            || !signature.borrowed.is_empty()
-            || !signature.requires.is_empty()
-        {
+        if !signature.erased.is_empty() || !signature.borrowed.is_empty() {
             return Err(unserved(
                 id,
-                "mathematical machine with an erased or borrowed formal or a premise",
+                "mathematical machine with an erased or borrowed formal",
+            ));
+        }
+        // A premise belongs to a law: it is a hypothesis of the proof and
+        // an obligation at each citation. A machine that states nothing has
+        // no reader for one.
+        if !signature.requires.is_empty() && !self.states_law(id) {
+            return Err(unserved(
+                id,
+                "mathematical machine with a premise that states no law",
             ));
         }
         signature
@@ -1046,6 +1056,10 @@ impl Converter<'_, '_> {
                 .map(|text| (names.authored(text), text.source));
             goals.push((goal, text));
         }
+        let mut premises = Vec::with_capacity(signature.requires.len());
+        for premise in &signature.requires {
+            premises.push(self.equality(id, premise, &open, None)?);
+        }
         let own = !goals.is_empty();
         let declared = match (own, declared.as_slice()) {
             (false, _) => {
@@ -1077,7 +1091,16 @@ impl Converter<'_, '_> {
         for (clause, (goal, text)) in goals.into_iter().enumerate() {
             let law = index(id, self.signature.laws.len())?;
             index(id, self.signature.declarations.len() + 1)?;
-            let mut statement = goal;
+            // For all formals, given a proof of each premise, the equality.
+            let arena = &mut self.signature.arena;
+            let mut statement = shift(arena, goal, 0, premises.len() as u32);
+            for (position, &premise) in premises.iter().enumerate().rev() {
+                let domain = shift(arena, premise, 0, position as u32);
+                statement = arena.insert(Term::Pi {
+                    domain,
+                    codomain: statement,
+                });
+            }
             for &(formal, _) in formals.iter().rev() {
                 statement = self.signature.arena.insert(Term::Pi {
                     domain: formal,
@@ -1095,6 +1118,7 @@ impl Converter<'_, '_> {
                 clause: clause as u32,
                 statement: entry,
                 formals: formals.iter().map(|(formal, _)| *formal).collect(),
+                premises: premises.clone(),
                 goal,
                 declared: declared.filter(|_| clause == 0),
                 proof: proof.clone(),

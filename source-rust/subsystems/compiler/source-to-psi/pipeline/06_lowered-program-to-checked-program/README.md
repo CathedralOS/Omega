@@ -34,9 +34,21 @@ the assembled term against the law's statement; the judgment is
 `RouteVerdict::Laws`, and a law or case left unproved is one entry of
 `RouteVerdict::UnprovedLaws` that names the equality and the arm.
 
+A law's premises are hypotheses of each of its cases. Where a case cites a
+law that has premises, the checker proves each at the cited arguments from
+the case's other evidence, in whatever order the body wrote its citations; a
+citation whose premise cannot be proved refuses the case. Two facts about
+constructors come with every equality the case holds. An equality of two
+values of one case gives the equality of each pair of fields, so
+`Succ(x) = Succ(y)` gives `x = y`. An equality of two different cases proves
+the case's goal outright, because no value satisfies it. Both are kernel
+terms built from the data's induction principle, checked with the rest of
+the proof.
+
 Normalizing keeps a defined function folded: `plus(a, b)` stays `plus(a, b)`
 until the argument it dispatches on is a constructor, and then unfolds one
-step. The search also regroups and reorders the operands of an operation
+step. A term is normalized again after each rewrite, since the rewrite may
+have put a constructor where a function dispatches. The search also regroups and reorders the operands of an operation
 under the signature's licenses, the associativity and commutativity laws the
 program's conformance declares and that were stated before the law being
 proved. It brings both sides of the goal to one arrangement (nested to the

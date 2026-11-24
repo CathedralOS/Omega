@@ -58,7 +58,8 @@ closure in `PreparedCompilation::mathematics`:
   computes it on a case without reading the shape of a term.
 - **Laws**: one per `ensures` equality of a machine over such data. A machine
   that also returns a value has a definition entry too, and its statement may
-  name that result. A law's
+  name that result. The machine's `requires` equalities are the law's
+  premises: the statement takes a proof of each after the formals. A law's
   statement is an entry with no body. The entries before it are everything
   its proof is checked against, so a law is never its own evidence, and a law
   another law cites comes earlier.
