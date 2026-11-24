@@ -899,7 +899,9 @@ impl PolicySource<'_> {
         target: TargetProfile,
     ) -> Result<(Vec<AuthoredProvider>, Vec<SymbolHandle>), Vec<Diagnostic>> {
         let source = self.typed();
-        let mut supplies: Vec<_> = self.declarations.supplied_declarations()?.collect();
+        let mut supplies = self
+            .declarations
+            .supplied_declarations(target.target_name())?;
         supplies
             .sort_by_key(|(slot, implementation)| (symbol_key(*slot), symbol_key(*implementation)));
         supplies.dedup();
