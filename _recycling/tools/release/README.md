@@ -19,9 +19,7 @@ A relocatable Omega distribution is one self-contained directory, built with
 - `lib/omega/library/`: the matching bundled `.omg` standard library tree
   (`source/library/`).
 - `licenses/`: third-party license and copyright notices for the host
-  dependencies and the pinned Rust standard library. Extra upstream notices
-  kept in the repository live under `tools/release/licenses/`
-  (see `tools/release/licenses/README.md`).
+  dependencies and the pinned Rust standard library.
 - `manifest.json`: version, source commit, Rust host and compiler, bundled
   library digest, and each file's SHA-256 digest.
 
@@ -62,10 +60,8 @@ producer's Rust checkout.
 - **Parser/checker stack depth:** set `RUST_MIN_STACK=67108864` on hosts whose
   default thread stack is too small for deep syntax-tree and type recursion.
 
-## Licenses and archived records
+## Archived records
 
-- `tools/release/licenses/`: version-pinned extra third-party license texts
-  (`tools/release/licenses/README.md`).
 - `tools/release/records/`: old `omega-release-record/3` JSON records
   (such as `windows_x86_64__5dbe86d816__20261105T043454Z.json`). Each keeps
   its original commit, toolchain and open-gate evidence; it is history, not
