@@ -2325,6 +2325,9 @@ pub(crate) mod resolved_procedure_linkage {
                 ElfAppliedProcedureLinkageStorage::ProcedureLinkage,
                 ElfAppliedProcedureLinkageStorage::ProcedureGot,
                 ElfAppliedProcedureLinkageStorage::ProcedureRelocation,
+                // `.rela.dyn` reaches the assembled file only through this stage, so its
+                // length and every byte outside an `r_offset` field must match upstream here.
+                ElfAppliedProcedureLinkageStorage::GeneralRelocation,
             ] {
                 validate_unchanged_bytes(
                     upstream_storage_bytes(envelope, &relocated, storage)?,
