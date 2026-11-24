@@ -86,6 +86,39 @@ pub(crate) fn parse_required_logical_proof_facts_until<'tokens, 'source>(
     parse_fact_list(syntax_trees, input, is_terminator, true, true, true)
 }
 
+/// A qualified path can be a domain or the lower bound of a range. A chain
+/// of domain applications ends at the fact boundary; a numeric expression
+/// instead continues to the range separator, even when it uses `&` or `|`.
+fn begins_domain_membership<'tokens, 'source>(
+    mut input: Input<'tokens, 'source>,
+    mut ends_fact: impl FnMut(Input<'tokens, 'source>) -> bool,
+) -> Result<bool, ParseError> {
+    while input.at_path_head() {
+        let (_, mut rest) = input.take_path_head()?;
+        while rest.at_path_member() {
+            let (_, next) = rest.take_path_separator()?.take_identifier()?;
+            rest = next;
+        }
+        if rest.at_punctuation(PunctuationKind::Less) {
+            let Some(next) = rest.after_static_argument_list() else {
+                // Let the domain argument parser diagnose the unfinished application.
+                return Ok(true);
+            };
+            rest = next;
+        }
+        if rest.at_punctuation(PunctuationKind::Ampersand) {
+            input = rest.take_punctuation(PunctuationKind::Ampersand, "&")?;
+        } else if rest.at_punctuation(PunctuationKind::Pipe) {
+            input = rest.take_punctuation(PunctuationKind::Pipe, "|")?;
+        } else {
+            return Ok(ends_fact(rest)
+                || rest.at_punctuation(PunctuationKind::Comma)
+                || rest.at_punctuation(PunctuationKind::Semicolon));
+        }
+    }
+    Ok(false)
+}
+
 fn parse_fact_list<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
@@ -115,7 +148,7 @@ fn parse_fact_list<'tokens, 'source>(
 
         if input.at_contextual("in") {
             input = input.take_contextual("in")?;
-            if input.at_name_like() {
+            if begins_domain_membership(input, |end| is_terminator(end, false))? {
                 let (first_domain, rest) = parse_path_handle_span(input, |member| {
                     syntax_trees.items.append_identifier_path_member(member)
                 })?;

@@ -1650,6 +1650,29 @@ fn proof_fact_pipe_alternative_rejects_indexed_domain_application() {
 }
 
 #[test]
+fn file_qualified_names_can_start_domain_and_range_proof_facts() {
+    let (parsed, facts) = parse_domain_facts(
+        "use policy.omg; use limits.omg;
+         domain Sample::Admitted requires
+             self in |policy|::Sample::Ready,
+             self.count in |limits|::minimum + 1 ..= 10,
+             self.count in |limits|::minimum & 7 .. 8;",
+    );
+    let [ProofFact::Membership(membership), ProofFact::Expression(_), ProofFact::Expression(_)] =
+        facts.as_slice()
+    else {
+        panic!("expected domain membership followed by inclusive and exclusive ranges");
+    };
+    let path = parsed
+        .items
+        .identifier_path_members(membership.domain)
+        .iter()
+        .map(|member| member.as_str(&parsed))
+        .collect::<Vec<_>>();
+    assert_eq!(path, ["|policy|::Sample", "Ready"]);
+}
+
+#[test]
 fn a_qualified_domain_in_a_proof_fact_keeps_its_index_argument() {
     let (parsed, facts) = parse_domain_facts(
         r#"
