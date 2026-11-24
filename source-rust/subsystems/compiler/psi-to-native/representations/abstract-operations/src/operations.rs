@@ -700,6 +700,185 @@ pub enum AbstractOperation {    EstablishActivationClaim {
     },
 }
 
+// Every structural path an operation reads or writes, in a fixed order. One
+// body serves the shared and the mutable accessor so a substitution visits
+// exactly the runtime indices that `runtime_indices` reports. An operation's
+// own paths come first, then its call arguments, then its edge cleanup paths.
+macro_rules! structural_paths_of {
+    ($operation:expr, $as:ident, $iter:ident, $location:ident, $($mut:tt)?) => {{
+        fn cleanup_path(action: &$($mut)? CleanupAction) -> &$($mut)? [StructuralPathSegment] {
+            match action {
+                CleanupAction::DiscardRoot(_) | CleanupAction::RetireHome(_) => &$($mut)? [],
+                CleanupAction::DiscardResidual(discard) => discard.path.$as(),
+                CleanupAction::InvokeOwned(cleanup) => cleanup.subject.path.$as(),
+            }
+        }
+        fn byte_operand_path(
+            operand: &$($mut)? terminal_psi::control_flow::ByteSequenceOperand,
+        ) -> &$($mut)? [StructuralPathSegment] {
+            match operand {
+                terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. }
+                | terminal_psi::control_flow::ByteSequenceOperand::Field { source, .. } => source.path.$as(),
+            }
+        }
+        match $operation {
+            AbstractOperation::AtomicEvent { event, .. } => event
+                .$location()
+                .map(|location| vec![location.path.$as()])
+                .unwrap_or_default(),
+            AbstractOperation::ActivateTaskRegister {
+                gdt,
+                task_state,
+                scratch,
+                ..
+            } => vec![gdt.path.$as(), task_state.path.$as(), scratch.path.$as()],
+            AbstractOperation::ReloadSegmentDescriptors { gdt, scratch, .. } => {
+                vec![gdt.path.$as(), scratch.path.$as()]
+            }
+            AbstractOperation::ReadTaskRegister { .. }
+            | AbstractOperation::ReadSegmentSelector { .. } => vec![],
+            AbstractOperation::GlobalDescriptorTable { source, .. } => vec![source.path.$as()],
+            AbstractOperation::EliminateEmpty { path, .. }
+            | AbstractOperation::ObserveStorageLocation { path, .. }
+            | AbstractOperation::PrimitiveScalarRead { path, .. }
+            | AbstractOperation::ReleaseReference { path, .. }
+            | AbstractOperation::WriteOnlyPrimitiveStore { path, .. }
+            | AbstractOperation::StructuralScalarFieldStore { path, .. }
+            | AbstractOperation::StructuralCaseMembership { path, .. }
+            | AbstractOperation::StructuralByteSequenceFieldByteStore { path, .. }
+            | AbstractOperation::StructuralByteSequenceFieldStore { path, .. }
+            | AbstractOperation::StructuralByteViewFieldStore { path, .. }
+            | AbstractOperation::StructuralByteSequenceFieldLength { path, .. }
+            | AbstractOperation::StructuralByteSequenceFieldRead { path, .. }
+            | AbstractOperation::MoveStructuralField { path, .. } => vec![path.$as()],
+            AbstractOperation::ElementViewRead { source, path, .. }
+            | AbstractOperation::ElementViewWrite {
+                destination: source,
+                path,
+                ..
+            } => vec![source.path.$as(), path.$as()],
+            AbstractOperation::DecomposeStructuralValue {
+                subject: source, ..
+            }
+            | AbstractOperation::MoveStructuralValue { source, .. }
+            | AbstractOperation::ReleaseActivationClaim { source, .. }
+            | AbstractOperation::SplitActivationClaim { source, .. } => vec![source.path.$as()],
+            AbstractOperation::MergeActivationClaim { lower, upper, .. } => {
+                vec![lower.path.$as(), upper.path.$as()]
+            }
+            AbstractOperation::TransformContent {
+                source, parents, ..
+            } => std::iter::once(source.path.$as())
+                .chain(parents.$iter().map(|parent| parent.path.$as()))
+                .collect(),
+            AbstractOperation::StructuralLeafCopy { path, .. } => match path {
+                super::StructuralCopyPath::Ordinary(path) => vec![path.$as()],
+                super::StructuralCopyPath::Case(_) => Vec::new(),
+            },
+            AbstractOperation::StoreStructuralField { path, value, .. } => {
+                vec![path.$as(), value.path.$as()]
+            }
+            AbstractOperation::EstablishRecord { fields, .. }
+            | AbstractOperation::EstablishCase { fields, .. } => fields
+                .$iter()
+                .filter_map(|field| match &$($mut)? field.value {
+                    terminal_psi::RecordFieldValue::Structural(argument) => {
+                        Some(argument.path.$as())
+                    }
+                    terminal_psi::RecordFieldValue::Scalar { .. } => None,
+                })
+                .collect(),
+            AbstractOperation::EstablishByteSequenceConcatenation { left, right, .. }
+            | AbstractOperation::ByteSequenceEqual { left, right, .. } => {
+                vec![byte_operand_path(left), byte_operand_path(right)]
+            }
+            AbstractOperation::ByteSequencePredicate { operand, .. } => {
+                vec![byte_operand_path(operand)]
+            }
+            AbstractOperation::Jump {
+                structural_bindings,
+                cleanup_actions,
+                ..
+            } => structural_bindings
+                .$iter()
+                .map(|binding| binding.argument.path.$as())
+                .chain(cleanup_actions.$iter().map(cleanup_path))
+                .collect(),
+            AbstractOperation::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => when_true
+                .structural_bindings
+                .$iter()
+                .chain(when_false.structural_bindings.$iter())
+                .map(|binding| binding.argument.path.$as())
+                .chain(
+                    when_true
+                        .cleanup_actions
+                        .$iter()
+                        .chain(when_false.cleanup_actions.$iter())
+                        .map(cleanup_path),
+                )
+                .collect(),
+            AbstractOperation::StructuralCase { path, cases, .. } => {
+                let mut paths = vec![path.$as()];
+                let mut cleanups = Vec::new();
+                for case in cases.$iter() {
+                    paths.extend(
+                        case.structural_bindings
+                            .$iter()
+                            .map(|binding| binding.argument.path.$as()),
+                    );
+                    cleanups.extend(case.cleanup_actions.$iter().map(cleanup_path));
+                }
+                paths.extend(cleanups);
+                paths
+            }
+            AbstractOperation::Return {
+                cleanup_actions, ..
+            }
+            | AbstractOperation::ReturnUnit {
+                cleanup_actions, ..
+            }
+            | AbstractOperation::ReturnStructural {
+                cleanup_actions, ..
+            } => cleanup_actions.$iter().map(cleanup_path).collect(),
+            AbstractOperation::EstablishReference { source, .. }
+            | AbstractOperation::EstablishAccessReference { source, .. }
+            | AbstractOperation::EstablishElementView { source, .. }
+            | AbstractOperation::ElementViewLength { source, .. }
+            | AbstractOperation::ByteSequenceLength { source, .. }
+            | AbstractOperation::ByteSequenceSubslice { source, .. }
+            | AbstractOperation::ElementViewSubslice { source, .. } => vec![source.path.$as()],
+            AbstractOperation::EstablishStructuralArray {
+                elements: structural_arguments,
+                ..
+            }
+            | AbstractOperation::CallStructural {
+                structural_arguments,
+                ..
+            }
+            | AbstractOperation::BoundaryCall {
+                structural_arguments,
+                ..
+            }
+            | AbstractOperation::ExternalCompletion {
+                structural_arguments,
+                ..
+            }
+            | AbstractOperation::InvokeNoNormal {
+                structural_arguments,
+                ..
+            } => structural_arguments
+                .$iter()
+                .map(|argument| argument.path.$as())
+                .collect(),
+            _ => Vec::new(),
+        }
+    }};
+}
+
 impl AbstractOperation {
     pub fn module_invocation(&self) -> Option<ModuleInvocation<'_>> {
         let (
@@ -990,135 +1169,24 @@ impl AbstractOperation {
     }
 
     pub fn structural_paths(&self) -> Vec<&[StructuralPathSegment]> {
-        let mut paths = match self {
-            Self::AtomicEvent { event, .. } => event
-                .location()
-                .map(|location| vec![location.path.as_slice()])
-                .unwrap_or_default(),
-            Self::ActivateTaskRegister {
-                gdt,
-                task_state,
-                scratch,
-                ..
-            } => vec![
-                gdt.path.as_slice(),
-                task_state.path.as_slice(),
-                scratch.path.as_slice(),
-            ],
-            Self::ReloadSegmentDescriptors { gdt, scratch, .. } => {
-                vec![gdt.path.as_slice(), scratch.path.as_slice()]
+        structural_paths_of!(self, as_slice, iter, location,)
+    }
+
+    /// The same paths as [`Self::structural_paths`], in the same order, for a
+    /// rewrite that substitutes a scalar inside a runtime index.
+    pub fn structural_paths_mut(&mut self) -> Vec<&mut [StructuralPathSegment]> {
+        structural_paths_of!(self, as_mut_slice, iter_mut, location_mut, mut)
+    }
+
+    /// Visits each runtime index scalar that [`Self::runtime_indices`] reports.
+    pub fn for_each_runtime_index_mut(&mut self, mut visit: impl FnMut(&mut ValueId)) {
+        for path in self.structural_paths_mut() {
+            for segment in path {
+                if let StructuralPathSegment::RuntimeIndex { index, .. } = segment {
+                    visit(index);
+                }
             }
-            Self::ReadTaskRegister { .. } | Self::ReadSegmentSelector { .. } => vec![],
-            Self::GlobalDescriptorTable { source, .. } => vec![source.path.as_slice()],
-            Self::EliminateEmpty { path, .. }
-            | Self::ObserveStorageLocation { path, .. }
-            | Self::PrimitiveScalarRead { path, .. }
-            | Self::ReleaseReference { path, .. }
-            | Self::WriteOnlyPrimitiveStore { path, .. }
-            | Self::StructuralScalarFieldStore { path, .. }
-            | Self::StructuralCaseMembership { path, .. }
-            | Self::StructuralByteSequenceFieldByteStore { path, .. }
-            | Self::StructuralByteSequenceFieldStore { path, .. }
-            | Self::StructuralByteViewFieldStore { path, .. }
-            | Self::StructuralByteSequenceFieldLength { path, .. }
-            | Self::StructuralByteSequenceFieldRead { path, .. }
-            | Self::MoveStructuralField { path, .. } => vec![path.as_slice()],
-            Self::ElementViewRead { source, path, .. }
-            | Self::ElementViewWrite {
-                destination: source,
-                path,
-                ..
-            } => {
-                vec![source.path.as_slice(), path.as_slice()]
-            }
-            Self::DecomposeStructuralValue {
-                subject: source, ..
-            }
-            | Self::MoveStructuralValue { source, .. }
-            | Self::ReleaseActivationClaim { source, .. }
-            | Self::SplitActivationClaim { source, .. } => vec![source.path.as_slice()],
-            Self::MergeActivationClaim { lower, upper, .. } => {
-                vec![lower.path.as_slice(), upper.path.as_slice()]
-            }
-            Self::TransformContent {
-                source, parents, ..
-            } => std::iter::once(source.path.as_slice())
-                .chain(parents.iter().map(|parent| parent.path.as_slice()))
-                .collect(),
-            Self::StructuralLeafCopy { path, .. } => match path {
-                super::StructuralCopyPath::Ordinary(path) => vec![path.as_slice()],
-                super::StructuralCopyPath::Case(_) => Vec::new(),
-            },
-            Self::StoreStructuralField { path, value, .. } => {
-                vec![path.as_slice(), value.path.as_slice()]
-            }
-            Self::EstablishRecord { fields, .. } | Self::EstablishCase { fields, .. } => fields
-                .iter()
-                .filter_map(|field| field.value.as_structural())
-                .map(|argument| argument.path.as_slice())
-                .collect(),
-            Self::EstablishByteSequenceConcatenation { left, right, .. }
-            | Self::ByteSequenceEqual { left, right, .. } => {
-                vec![
-                    left.argument().path.as_slice(),
-                    right.argument().path.as_slice(),
-                ]
-            }
-            Self::ByteSequencePredicate { operand, .. } => {
-                vec![operand.argument().path.as_slice()]
-            }
-            Self::Jump {
-                structural_bindings,
-                ..
-            } => structural_bindings
-                .iter()
-                .map(|binding| binding.argument.path.as_slice())
-                .collect(),
-            Self::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => when_true
-                .structural_bindings
-                .iter()
-                .chain(&when_false.structural_bindings)
-                .map(|binding| binding.argument.path.as_slice())
-                .collect(),
-            Self::StructuralCase { path, cases, .. } => std::iter::once(path.as_slice())
-                .chain(cases.iter().flat_map(|case| {
-                    case.structural_bindings
-                        .iter()
-                        .map(|binding| binding.argument.path.as_slice())
-                }))
-                .collect(),
-            Self::EstablishReference { source, .. }
-            | Self::EstablishAccessReference { source, .. }
-            | Self::EstablishElementView { source, .. }
-            | Self::ElementViewLength { source, .. }
-            | Self::ByteSequenceLength { source, .. }
-            | Self::ByteSequenceSubslice { source, .. }
-            | Self::ElementViewSubslice { source, .. } => {
-                vec![source.path.as_slice()]
-            }
-            Self::EstablishStructuralArray {
-                elements: structural_arguments,
-                ..
-            } => structural_arguments
-                .iter()
-                .map(|argument| argument.path.as_slice())
-                .collect(),
-            _ => Vec::new(),
-        };
-        paths.extend(
-            self.invocation_arguments()
-                .iter()
-                .map(|argument| argument.path.as_slice()),
-        );
-        paths.extend(
-            self.cleanup_rosters()
-                .flat_map(|(_, actions)| actions.iter().map(CleanupAction::path)),
-        );
-        paths
+        }
     }
 
     pub fn psi_operation(&self) -> Option<OperationId> {
