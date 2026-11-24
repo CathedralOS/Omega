@@ -24,10 +24,8 @@ impl BoundedProcessExitStatus {
     pub const fn unix_signal(&self) -> Option<i32> {
         self.unix_signal
     }
-}
 
-impl From<ExitStatus> for BoundedProcessExitStatus {
-    fn from(status: ExitStatus) -> Self {
+    pub(super) fn from_status(status: ExitStatus) -> Self {
         #[cfg(unix)]
         let unix_signal = {
             use std::os::unix::process::ExitStatusExt;
