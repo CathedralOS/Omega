@@ -802,10 +802,13 @@ pub(crate) mod const_arguments {
                         continue;
                     };
                     if !domain.arguments.iter().any(|argument| {
-                        matches!(
-                            program.type_reference_table.type_reference(*argument),
-                            TypeReferenceNode::ConstExpression(_)
-                        )
+                        match program.type_reference_table.type_reference(*argument) {
+                            TypeReferenceNode::ConstExpression(_) => true,
+                            TypeReferenceNode::Named { symbol, .. } => {
+                                program.const_declaration_by_symbol(*symbol).is_some()
+                            }
+                            _ => false,
+                        }
                     }) {
                         continue;
                     }
@@ -1113,9 +1116,6 @@ pub(crate) mod const_arguments {
             let Some(declaration) = program.const_declaration_by_symbol(symbol) else {
                 return Ok(None);
             };
-            if declaration.evaluated_value.is_none() {
-                return Ok(None);
-            }
             let refuse = |reason: &str| {
                 Diagnostic::error(format!(
                     "const argument for `{}` of `{}` is invalid: {reason}",
@@ -1126,7 +1126,9 @@ pub(crate) mod const_arguments {
                     origins
                         .iter()
                         .find(|origin| origin.declaration == symbol)
-                        .map_or_else(source_text::SourceSpan::default, |origin| origin.reference),
+                        .map(|origin| origin.reference)
+                        .or_else(|| program.symbols.symbol_source_span(symbol))
+                        .unwrap_or_default(),
                 )
             };
             if !program
@@ -1155,6 +1157,11 @@ pub(crate) mod const_arguments {
                 return Err(refuse(
                     "the selected constant's declared carrier differs from its receiving parameter",
                 ));
+            }
+            // A pending initializer still has a declared type. Compare that type
+            // before deferring the value to the checked evaluator.
+            if declaration.evaluated_value.is_none() {
+                return Ok(None);
             }
             let value = crate::source_state::canonical_const_declaration_value(program, symbol)
                 .ok_or_else(|| refuse("the selected constant has no canonical static value"))?;
