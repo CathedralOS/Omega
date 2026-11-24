@@ -248,3 +248,28 @@ impl terminal_semantics::substitution::clauses::ClauseBindings for ScalarFormals
         Err("clause restatement has no captured structural entry case")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use psi_declaration_encoding::terms::order::validate_canonical_proposition;
+    use semantic_vocabulary::ScalarType;
+
+    /// A callee's guard `x == y -> x == y` restated with actuals whose IDs
+    /// sort the other way must still be in canonical wire order, including
+    /// inside an implication.
+    #[test]
+    fn substitution_restores_equality_order_inside_an_implication() {
+        let value = |id| ScalarTerm::value(ValueId::new(id).unwrap(), ScalarType::Boolean);
+        let implication = |left, right| Proposition::Implication {
+            premise: Box::new(Proposition::Equal(value(left), value(right))),
+            conclusion: Box::new(Proposition::Equal(value(left), value(right))),
+        };
+        let formal = implication(1, 2);
+        validate_canonical_proposition(&formal).unwrap();
+        let actuals = [ValueId::new(9).unwrap(), ValueId::new(3).unwrap()];
+        let restated = substitute(&formal, &actuals).unwrap();
+        validate_canonical_proposition(&restated).unwrap();
+        assert_eq!(restated, implication(3, 9));
+    }
+}
