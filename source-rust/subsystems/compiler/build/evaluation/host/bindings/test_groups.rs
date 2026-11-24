@@ -15,6 +15,7 @@ use terminal_interpreter::{
 pub(super) struct RegisteredTestGroup {
     selection: ExecutedProductSelection,
     providers: Vec<ExecutedProductSelection>,
+    pub(super) streams: super::test_streams::TestStreams,
     disabled: TerminalInvocationScalar,
     private_filesystem: TerminalInvocationScalar,
     _storage: Option<evaluation_accounting::EvaluationStorageLease>,
@@ -36,15 +37,21 @@ impl RegisteredTestGroup {
         Ok(())
     }
 
-    pub(super) fn finish(mut self) -> Result<ExecutedBuildSelection, String> {
+    pub(super) fn finish(
+        mut self,
+        account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+    ) -> Result<ExecutedBuildSelection, String> {
         let boolean = |cell: &TerminalInvocationScalar| match cell.read().map_err(|e| e.reason)? {
             TerminalScalarValue::Boolean(value) => Ok(value),
             _ => Err(String::from("test group lost its boolean setting")),
         };
+        let (stdin, expected) = self.streams.finish(account)?;
         self.selection.test_group = Some(TestGroupConfiguration {
+            expected,
             disabled: boolean(&self.disabled)?,
             inputs: TestInvocationInputs {
                 private_filesystem: boolean(&self.private_filesystem)?,
+                stdin,
             },
             providers: self.providers,
         });
@@ -94,6 +101,10 @@ impl GroupShape {
                 inputs: inputs.id,
                 private_filesystem: filesystem.id,
             })
+    }
+
+    pub(super) fn referent(&self) -> StructuralTypeId {
+        self.referent
     }
 
     pub(super) fn disabled_path(&self) -> [CanonicalStructuralPathSegment; 1] {
@@ -186,6 +197,7 @@ impl TerminalBuildBindingHost {
                     composition: None,
                 },
                 providers: Vec::new(),
+                streams: Default::default(),
                 disabled,
                 private_filesystem,
                 _storage: storage,

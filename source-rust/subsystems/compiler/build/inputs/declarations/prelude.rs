@@ -63,6 +63,7 @@ const MODULES: &[(&str, &str)] = &[
         "ProductProviderRef",
         include_str!("prelude/modules/product_provider_ref.omg"),
     ),
+    ("TestGroup", include_str!("prelude/modules/test_group.omg")),
     ("BuildLog", include_str!("prelude/modules/build_log.omg")),
     (
         "BuildProduct",

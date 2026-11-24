@@ -35,6 +35,9 @@ pub enum TerminalDomainExitDelegation {
 pub enum TerminalFilesystemDelegation {
     #[default]
     Unprovided,
+    /// Only the sponsor's standard streams exist. A Linux descriptor call on any
+    /// other number has the same EBADF result as in the bounded native child.
+    StandardStreamsOnly,
     /// The host namespace as this process sees it, working directory included.
     HostNamespace,
     /// The host namespace with relative paths resolved beneath this directory

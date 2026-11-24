@@ -33,6 +33,7 @@ pub(super) use linux::LinuxFilesystemWrite;
 pub(super) struct FilesystemContext {
     /// Whether the host namespace is delegated at all.
     supplied: bool,
+    standard_streams_only: bool,
     /// Whether that namespace is rooted at a directory. The Linux kernel
     /// adapter resolves `AT_FDCWD` against its own root descriptor; calls the
     /// native sponsor makes (libc, Windows) resolve against the sponsor's
@@ -180,13 +181,20 @@ impl FilesystemContext {
         // A root that cannot be opened supplies no namespace at all, so every
         // filesystem call refuses rather than falling back to the process
         // directory.
+        let standard_streams_only = matches!(
+            delegation,
+            TerminalFilesystemDelegation::StandardStreamsOnly
+        );
         let private = matches!(delegation, TerminalFilesystemDelegation::Private).then(|| {
             Rc::new(RefCell::new(
                 native_provider_runtime::PrivateLinuxFilesystem::new(),
             ))
         });
         let (supplied, rooted, linux) = match delegation {
-            TerminalFilesystemDelegation::Unprovided => (false, false, Default::default()),
+            TerminalFilesystemDelegation::Unprovided
+            | TerminalFilesystemDelegation::StandardStreamsOnly => {
+                (false, false, Default::default())
+            }
             TerminalFilesystemDelegation::Private => (true, false, Default::default()),
             TerminalFilesystemDelegation::HostNamespace => (true, false, Default::default()),
             TerminalFilesystemDelegation::HostDirectory(root) => {
@@ -198,6 +206,7 @@ impl FilesystemContext {
         };
         Self {
             supplied,
+            standard_streams_only,
             rooted,
             windows: Rc::new(RefCell::new(windows::Handles::default())),
             descriptors: Rc::new(RefCell::new(BTreeMap::new())),

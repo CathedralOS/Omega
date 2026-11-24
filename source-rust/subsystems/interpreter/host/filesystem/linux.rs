@@ -79,7 +79,14 @@ impl LinuxFilesystemWrite {
         declaration: &BoundaryMachineDeclaration,
         binding: &NormalizedForeignCallBinding,
     ) -> Option<Self> {
-        matching_host(context, binding).then(|| Self {
+        let streams = context.standard_streams_only
+            && binding.system_call().is_some_and(|call| {
+                matches!(
+                    call.target,
+                    TargetProfile::LinuxX64 | TargetProfile::LinuxArm64
+                )
+            });
+        (streams || matching_host(context, binding)).then(|| Self {
             context: context.clone(),
             authority: authority(context, program, declaration),
         })
@@ -90,6 +97,9 @@ impl LinuxFilesystemWrite {
         descriptor: i32,
         bytes: &[u8],
     ) -> Result<i128, TerminalEffectRejection> {
+        if self.context.standard_streams_only {
+            return Ok(-9);
+        } // EBADF
         self.authority.map_err(rejection)?;
         if let Some(private) = self.context.private() {
             return Ok(i128::from(private.borrow_mut().write(descriptor, bytes)));
@@ -116,6 +126,9 @@ impl LinuxFilesystemWrite {
         descriptor: i32,
         bytes: &mut [u8],
     ) -> Result<i128, TerminalEffectRejection> {
+        if self.context.standard_streams_only {
+            return Ok(-9);
+        } // EBADF
         self.authority.map_err(rejection)?;
         if let Some(private) = self.context.private() {
             return Ok(i128::from(private.borrow_mut().read(descriptor, bytes)));

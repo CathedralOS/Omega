@@ -22,6 +22,10 @@ public data TestGroupSettings {
     disabled: bool;
     inputs: TestInvocationInputs;
 }
+public data TestOutput {
+    case Stdout;
+    case Stderr;
+}
 public data TestInvocationInputs {
     // Each engine and each test starts with its own empty filesystem.
     private_filesystem: bool;

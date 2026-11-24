@@ -17549,16 +17549,14 @@
     },
     {
       "consumers": [
-        "portable execution",
-        "Build published-image execution",
-        "PSI embedders"
+        "hosted filesystem bindings"
       ],
       "file": "source-rust/subsystems/interpreter/host/src/execution.rs",
       "item": "enum:TerminalFilesystemDelegation#1",
       "kind": "carried_record",
-      "meaning": "Explicit host selection of no filesystem, real host namespace, directory, or private memory.",
-      "producer": "terminal hosted interpreter",
-      "signature": "8c19b05ad0405fc1eda1d7be5b5b07f9f76e555ac02cbf9ef240ba061e283b95"
+      "meaning": "Select the filesystem supplied for an invocation, including a standard-stream descriptor table and an empty private namespace.",
+      "producer": "execution sponsor",
+      "signature": "88e0ce55fb4116b9efa845d8361783ac954ad3d773304d89f50062da7d7b6dc4"
     },
     {
       "consumers": [

@@ -3,4 +3,6 @@ mod process_exit;
 mod streams;
 
 pub use process_exit::ProcessExitObservation;
-pub use streams::{OutputDivergence, ProgramStream, ProgramStreams, first_output_difference};
+pub use streams::{
+    OutputDivergence, ProgramStream, ProgramStreams, first_byte_difference, first_output_difference,
+};

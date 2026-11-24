@@ -9,12 +9,13 @@ use crate::*;
 use diagnostics::Diagnostic;
 use source_admission::RetainedDeclaration;
 use source_declarations::source_selections::TestGroupRegistration;
-pub use source_declarations::declaration_selection::TestInvocationInputs;
+pub use source_declarations::declaration_selection::{TestExpectations, TestInvocationInputs};
 
 pub struct TestRoot {
     pub group: String,
     pub name: String,
     pub inputs: TestInvocationInputs,
+    pub expected: TestExpectations,
     group_declaration: RetainedDeclaration,
     registration: crate::declaration_selection::BuildSelectionOrigin,
     declaration: RetainedDeclaration,
@@ -200,6 +201,7 @@ impl<'a> RegisteredTests<'a> {
                     group: path.clone(),
                     name,
                     inputs: group.configuration.inputs.clone(),
+                    expected: group.configuration.expected.clone(),
                     group_declaration: retain(group.requirement)?,
                     registration: group.origin.clone(),
                     declaration: retain(machine.symbol)?,

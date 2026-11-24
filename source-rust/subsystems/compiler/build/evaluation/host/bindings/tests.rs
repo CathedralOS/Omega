@@ -172,9 +172,14 @@ fn source_helper_calls_authenticate_their_site_artifact_receiver_and_ticket() {
         .structural_parameters[0]
         .structural_type;
     let receiver = TerminalStructuralValue::minted(1, structural_type, Vec::new());
-    let host =
-        TerminalBuildBindingHost::new(view, program.build_bindings(), receiver.clone(), None)
-            .unwrap();
+    let host = TerminalBuildBindingHost::new(
+        view,
+        program.build_bindings(),
+        program.build_requests(),
+        receiver.clone(),
+        None,
+    )
+    .unwrap();
 
     let signature =
         TerminalImportSignature::from(view.module().boundary_machine(first.site.boundary).unwrap());

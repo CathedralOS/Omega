@@ -1,0 +1,15 @@
+// Store a finite snapshot in the original group, for each invocation.
+public machine stdin(group: TestGroup, bytes: @[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
+    BuildRequestOperations::configure_test_stream(group, 0u64, bytes);
+}
+
+public machine expect(group: TestGroup, output: TestOutput, bytes: @[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
+    BuildRequestOperations::configure_test_stream(group, stream_number(output), bytes);
+
+    machine stream_number(output: TestOutput) -> u64 {
+        transition output {
+            TestOutput::Stdout -> 1u64,
+            TestOutput::Stderr -> 2u64
+        }
+    }
+}

@@ -11,7 +11,7 @@ use compiler::{Artifact, CompileRequest, Program};
 use diagnostics::Diagnostic;
 use installation_conditions::InstallationEnvironmentAssumption;
 use product_publication::CompletedProduct;
-use source_compiler::registered_tests::{RegisteredTests, TestInvocationInputs};
+use source_compiler::registered_tests::{RegisteredTests, TestExpectations, TestInvocationInputs};
 use target::TargetProfile;
 use terminal_runtime::{
     TerminalDomainExitDelegation, TerminalExecutionResult, TerminalExecutionStatus,
@@ -111,6 +111,7 @@ fn run_test(
     report: CompletedProduct,
     engines: &plan::Engines,
     inputs: &TestInvocationInputs,
+    expected: &TestExpectations,
     profile: TargetProfile,
     execution: TestExecution,
 ) -> Result<String, String> {
@@ -125,7 +126,16 @@ fn run_test(
             .can_end_the_process();
         execute_native(report, can_exit, inputs)
     });
-    assess(interpreted, native, execution)
+    assess(interpreted, native, execution, expected)
+}
+
+/// The private descriptor table starts with pipes only, including EOF when the
+/// Build supplies no input bytes. Each invocation starts its own read cursor.
+fn standard_input(inputs: &TestInvocationInputs) -> Option<&[u8]> {
+    inputs
+        .stdin
+        .as_deref()
+        .or_else(|| inputs.private_filesystem.then_some(&[]))
 }
 
 fn interpret(
@@ -155,7 +165,7 @@ fn interpret(
             filesystem: if inputs.private_filesystem {
                 terminal_runtime::TerminalFilesystemDelegation::Private
             } else {
-                terminal_runtime::TerminalFilesystemDelegation::Unprovided
+                terminal_runtime::TerminalFilesystemDelegation::StandardStreamsOnly
             },
             x86_flags,
             memory_ordering:
@@ -168,9 +178,9 @@ fn interpret(
             provider_proposal: None,
             work_budget: TEST_PSI_WORK_ALLOWANCE,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
-            standard_input: inputs
-                .private_filesystem
-                .then(|| Box::new(std::io::empty()) as Box<dyn std::io::Read + Send>),
+            standard_input: standard_input(inputs).map(|bytes| {
+                Box::new(std::io::Cursor::new(bytes)) as Box<dyn std::io::Read + Send>
+            }),
             clock: None,
         },
         report.retained_native_artifact(),
@@ -236,6 +246,7 @@ fn execute_native(
         command,
         crate::NativeEntryLimits::INSTALLED,
         inputs.private_filesystem.then_some(working.as_path()),
+        standard_input(inputs),
     )?;
     Ok(Observed {
         termination: NativeTermination {

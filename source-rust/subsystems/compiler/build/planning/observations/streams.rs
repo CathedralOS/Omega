@@ -55,6 +55,25 @@ impl std::fmt::Display for Rendered<'_> {
     }
 }
 
+/// Offset of the first unequal byte, including a shorter stream's end.
+pub fn first_byte_difference(left: &[u8], right: &[u8]) -> Option<usize> {
+    left.iter()
+        .zip(right)
+        .position(|(left, right)| left != right)
+        .or_else(|| (left.len() != right.len()).then_some(left.len().min(right.len())))
+}
+
+impl ProgramStreams<'_> {
+    pub fn first_difference(&self, other: ProgramStreams<'_>) -> Option<(ProgramStream, usize)> {
+        first_byte_difference(self.stdout, other.stdout)
+            .map(|offset| (ProgramStream::Stdout, offset))
+            .or_else(|| {
+                first_byte_difference(self.stderr, other.stderr)
+                    .map(|offset| (ProgramStream::Stderr, offset))
+            })
+    }
+}
+
 // Stdout is checked first, so a run that differs on both streams reports its
 // stdout difference.
 pub fn first_output_difference(
@@ -90,12 +109,11 @@ fn first_line_difference(
                     stream,
                     line,
                     offset: offset
-                        + left
-                            .unwrap_or_default()
-                            .iter()
-                            .zip(right.unwrap_or_default())
-                            .take_while(|(a, b)| a == b)
-                            .count(),
+                        + first_byte_difference(
+                            left.unwrap_or_default(),
+                            right.unwrap_or_default(),
+                        )
+                        .expect("different lines"),
                     native: left.map(<[u8]>::to_vec),
                     psi: right.map(<[u8]>::to_vec),
                 });

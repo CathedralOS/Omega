@@ -1,6 +1,9 @@
 //! Decide each test's requirement to return, then compare the two executions when requested.
 use super::TestExecution;
-use crate::observations::{ProcessExitObservation, ProgramStreams, first_output_difference};
+use crate::observations::{
+    ProcessExitObservation, ProgramStream, ProgramStreams, first_byte_difference,
+};
+use source_compiler::registered_tests::TestExpectations;
 use terminal_psi::CrashCause;
 
 #[derive(Clone, Debug)]
@@ -95,12 +98,51 @@ impl NativeTermination {
 
 fn verdict<T>(
     run: &Run<T>,
-    expected: fn(&T) -> Result<(), EngineError>,
+    expect_return: fn(&T) -> Result<(), EngineError>,
+    expected: &TestExpectations,
 ) -> Result<(), EngineError> {
-    match run {
-        Ok(observed) => expected(&observed.termination),
-        Err(error) => Err(error.clone()),
+    let observed = run.as_ref().map_err(Clone::clone)?;
+    let termination = expect_return(&observed.termination);
+    let mut mismatches = Vec::new();
+    for (stream, wanted, actual) in [
+        (
+            ProgramStream::Stdout,
+            expected.stdout.as_deref(),
+            &observed.stdout,
+        ),
+        (
+            ProgramStream::Stderr,
+            expected.stderr.as_deref(),
+            &observed.stderr,
+        ),
+    ] {
+        if let Some(bytes) = wanted
+            && let Some(offset) = first_byte_difference(bytes, actual)
+        {
+            let show = |bytes: &[u8]| match bytes.get(offset) {
+                Some(byte) => format!("{byte:#04x}"),
+                None => "end of stream".into(),
+            };
+            mismatches.push(format!(
+                "{} byte {offset}: expected {}, observed {}",
+                stream.name(),
+                show(bytes),
+                show(actual)
+            ));
+        }
     }
+    if mismatches.is_empty() {
+        return termination;
+    }
+    if let Err(
+        EngineError::Failed(reason)
+        | EngineError::Incomplete(reason)
+        | EngineError::Unavailable(reason),
+    ) = termination
+    {
+        mismatches.push(reason);
+    }
+    Err(EngineError::Failed(mismatches.join("; ")))
 }
 
 fn compare(psi: &Run<PsiTermination>, native: &Run<NativeTermination>) -> Result<(), String> {
@@ -113,11 +155,11 @@ fn compare(psi: &Run<PsiTermination>, native: &Run<NativeTermination>) -> Result
     if termination == Some(false) {
         return Err("native/Psi comparison differs in termination".into());
     }
-    if let Some(difference) = first_output_difference(native.streams(), psi.streams()) {
+    if let Some((stream, offset)) = native.streams().first_difference(psi.streams()) {
         return Err(format!(
             "native/Psi comparison differs at {} byte {}",
-            difference.stream.name(),
-            difference.offset
+            stream.name(),
+            offset
         ));
     }
     if termination.is_none() {
@@ -130,6 +172,7 @@ pub(super) fn assess(
     psi: Run<PsiTermination>,
     native: Run<NativeTermination>,
     execution: TestExecution,
+    expected: &TestExpectations,
 ) -> Result<String, String> {
     let mut passed = Vec::new();
     let mut unavailable = Vec::new();
@@ -137,9 +180,12 @@ pub(super) fn assess(
     for (engine, result) in [
         (
             "Psi interpreter",
-            verdict(&psi, PsiTermination::expect_return),
+            verdict(&psi, PsiTermination::expect_return, expected),
         ),
-        ("native", verdict(&native, NativeTermination::expect_return)),
+        (
+            "native",
+            verdict(&native, NativeTermination::expect_return, expected),
+        ),
     ] {
         match result {
             Ok(()) => passed.push(engine),
@@ -205,7 +251,7 @@ mod tests {
             &[4, 0, 254],
             &[8],
         );
-        let error = assess(psi, native, TestExecution::Compare).unwrap_err();
+        let error = assess(psi, native, TestExecution::Compare, &Default::default()).unwrap_err();
         assert!(
             error.contains("passed on Psi interpreter, native"),
             "{error}"
@@ -234,7 +280,7 @@ mod tests {
             b"1",
         );
         let psi = observed(PsiTermination::Returned, &[], b"2");
-        let error = assess(psi, native, TestExecution::Compare).unwrap_err();
+        let error = assess(psi, native, TestExecution::Compare, &Default::default()).unwrap_err();
         assert!(error.contains("differs at stderr byte 0"), "{error}");
     }
 
@@ -245,6 +291,7 @@ mod tests {
                 observed(PsiTermination::Returned, &[], &[]),
                 Err(EngineError::Unavailable("cross target".into())),
                 mode,
+                &Default::default(),
             )
         };
         assert!(

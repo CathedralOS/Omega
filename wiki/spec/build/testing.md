@@ -130,8 +130,8 @@ package name or schema cannot cause the runner to supply a filesystem.
 An authored Build sets `group.inputs.private_filesystem = true` to supply an
 empty private filesystem for that group. The field defaults to false. This
 configures backing independently of the provider selected for a boundary.
-The Linux executor starts with an empty finite stdin and captures stdout and
-stderr. It exposes only the private namespace to filesystem operations.
+Without an authored stdin the Linux executor supplies an empty input pipe.
+It captures stdout and stderr separately. It exposes only the private namespace to filesystem operations.
 
 When the harness selects a private filesystem, the runner arranges for its
 provider to start with an empty filesystem for **each test invocation**, on
@@ -218,6 +218,13 @@ Run each test twice with the same arguments, stdin bytes, initial files and
 configured service inputs. Give each execution its own copy of mutable fixture
 state so a write in the first run cannot affect the second. The runner compares
 three kinds of observation for the named test and target.
+
+In an authored Build, `TestGroup::stdin(group, bytes)` snapshots a finite byte
+view for each invocation. `TestGroup::expect(group, TestOutput::Stdout, bytes)`
+and the corresponding `Stderr` selection set an independent expected byte
+sequence. The last setting for a stream in that group wins. An explicit empty
+expectation requires zero bytes. Omitting it leaves the stream available for
+engine comparison without imposing a group-wide expected value.
 
 - **Termination.** Compare normal return, exact process exit status, or crash
   as appropriate for the invocation. If the host loses information needed to

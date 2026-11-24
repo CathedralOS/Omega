@@ -1,0 +1,33 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
+
+boundary trait Streams {
+    machine read(fd: i32, byte: @mutable u8, count: u64) -> i64 reaches StandardInput crashes none;
+    machine write(fd: i32, byte: @u8, count: u64) -> i64 reaches StandardOutput crashes none;
+}
+
+trait Checks {
+    machine echo() reaches StandardInput + StandardOutput crashes Trap;
+}
+
+machine first_echo() satisfies Checks::echo { echo(); }
+machine second_echo() satisfies Checks::echo { echo(); }
+
+machine echo() reaches StandardInput + StandardOutput crashes Trap {
+    let mutable byte: u8 = 0;
+    let first: i64 = Streams::read(0, @mutable byte, 1);
+    let written_first: i64 = Streams::write(1, @byte, 1);
+    let second: i64 = Streams::read(0, @mutable byte, 1);
+    let written_second: i64 = Streams::write(1, @byte, 1);
+    let eof: i64 = Streams::read(0, @mutable byte, 1);
+    let punctuation: u8 = 33;
+    let written_stderr: i64 = Streams::write(2, @punctuation, 1);
+    transition first == 1 && written_first == 1 && second == 1 && written_second == 1 && eof == 0 && written_stderr == 1 {
+        true -> passed(),
+        _ -> failed()
+    }
+    machine passed() {}
+    machine failed() crashes Trap { crash Trap; }
+}
+
+machine main() {}
