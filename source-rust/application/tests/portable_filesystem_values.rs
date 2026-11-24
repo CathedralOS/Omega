@@ -218,6 +218,29 @@ fn windows_directory_emptiness_stops_before_a_later_enumeration_error() {
 }
 
 #[test]
+fn windows_canonicalize_preserves_a_long_resolved_path_and_short_buffers() {
+    let project = Project::new("windows-long-path");
+    project.write(
+        "native.omg",
+        include_str!("fixtures/filesystem/run/windows_long_canonical/native.omg"),
+    );
+    let library = support::repository_root().join("source/library/std/targets/windows_x86_64");
+    let query = std::fs::read_to_string(library.join("windows_filesystem_path_query.omg")).unwrap();
+    let mut program =
+        include_str!("fixtures/filesystem/run/windows_long_canonical/main.omg").to_owned();
+    for heading in [
+        "machine windows_canonical_query(",
+        "machine windows_copy_canonical_bytes(",
+    ] {
+        program.push_str(&declaration(&query, heading));
+        program.push('\n');
+    }
+    project.write("main.omg", &program);
+    project.write("build.omg", &build());
+    both_zero(project.observe(&["run", "--both"], "build.omg"));
+}
+
+#[test]
 fn portable_filesystem_public_calls_preserve_neighboring_bytes() {
     // The fixture's own Build declares its standard-library edge. The program
     // runs in a scratch directory, where it creates and removes its files.

@@ -1,0 +1,72 @@
+use omega\language\core\FilesystemMetadataQuery;
+use omega\language\core\narrow_u16_to_u8_exact;
+use omega\language\core\narrow_i32_to_u64_exact;
+use omega\language\core\narrow_u64_to_i32_exact;
+
+trait FinalPath {
+    machine final_path(handle: i64, output: @mutable [u16; 32768], capacity: u32, flags: u32) -> u32
+    reaches FilesystemMetadataQuery;
+}
+WindowsFilesystemPathIo satisfies FinalPath {
+    machine final_path(handle: i64, output: @mutable [u16; 32768], capacity: u32, flags: u32) -> u32
+    reaches FilesystemMetadataQuery {
+        transition handle == 1 && capacity == 32768 && flags == 0 {
+            true -> name(output, 0),
+            false -> 32769
+        }
+        machine name(output: @mutable [u16; 32768], position: u64) -> u32 {
+            transition position < 5000 { true -> store(output, position), false -> 5000 }
+        }
+        machine store(output: @mutable [u16; 32768], position: u64) -> u32 requires position < 5000 {
+            output[position] = unit(position);
+            transition { _ -> name(output, position + 1) }
+        }
+        machine unit(position: u64) -> u16 {
+            transition position {
+                0 -> 92, 1 -> 92, 2 -> 63, 3 -> 92, 4 -> 67, 5 -> 58, 6 -> 92,
+                4999 -> 122, _ -> component(position)
+            }
+        }
+        machine component(position: u64) -> u16 {
+            transition position % 64 == 0 { true -> 92, false -> 97 }
+        }
+    }
+}
+
+// The chosen pathname is ASCII. Copy its actual WCHARs, including the NUL,
+// under the same input and output extents the caller passes to the converter.
+trait Utf8 {
+    machine utf8<const Units: u64, const Bytes: u64>(page: u32, flags: u32, source: @[u16; Units], characters: i32,
+        output: @mutable [u8; Bytes], capacity: i32, default_character: u64, used_default: u64) -> i32;
+}
+WindowsFilesystemUtf8Io satisfies Utf8 {
+    machine utf8<const Units: u64, const Bytes: u64>(page: u32, flags: u32, source: @[u16; Units], characters: i32,
+        output: @mutable [u8; Bytes], capacity: i32, default_character: u64, used_default: u64) -> i32 {
+        transition page == 65001 && flags == 128 && characters > 0 && characters <= capacity
+            && default_character == 0 && used_default == 0 {
+            true -> ascii(@source[..], @mutable output[..], narrow_i32_to_u64_exact(characters)),
+            false -> 0
+        }
+    }
+}
+machine ascii(source: @[u16], output: @mutable [u8], count: u64) -> i32 {
+    transition count <= source.length && count <= output.length && count <= 2147483647 {
+        true -> copy(source, output, count, 0),
+        false -> 0
+    }
+    machine copy(source: @[u16], output: @mutable [u8], count: u64, position: u64) -> i32
+    requires count <= source.length && count <= output.length && count <= 2147483647 {
+        transition position < count { true -> character(source, output, count, position), false -> (narrow_u64_to_i32_exact(count)) }
+    }
+    machine character(source: @[u16], output: @mutable [u8], count: u64, position: u64) -> i32
+    requires count <= source.length && count <= output.length && count <= 2147483647 && position < count {
+        let code: u16 = source[position];
+        transition code <= 127 { true -> store(source, output, count, position, code), false -> 0 }
+    }
+    machine store(source: @[u16], output: @mutable [u8], count: u64, position: u64, code: u16) -> i32
+    requires count <= source.length && count <= output.length && count <= 2147483647 && position < count && code <= 127 {
+        output[position] = narrow_u16_to_u8_exact(code);
+        transition { _ -> copy(source, output, count, position + 1) }
+    }
+}
+machine windows_filesystem_native_failure_i32() -> i32 { -31 }

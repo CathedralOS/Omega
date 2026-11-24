@@ -75,14 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Windows canonicalization rejects paths that exceed its private UTF-16 buffer
-
-- Category: Knowledge crossing a boundary
-- Where: [Windows path query](source/library/std/targets/windows_x86_64/windows_filesystem_path_query.omg) and the [raw requirement](source/library/std/targets/windows_x86_64/windows_filesystem_path_query_native.omg).
-- Saw: `GetFinalPathNameByHandleW` reports the required extent for the opened handle. The adapter returns error 122 as soon as that extent exceeds its 4,096-unit array, including when the caller has room for the complete UTF-8 result. A short input name can resolve to a longer final name.
-- Cost: A valid resolved name can fail the portable operation solely because of the adapter's temporary storage. Check the required extent, establish sufficient temporary backing and retain the separate caller-buffer check.
-- Reported: 2026-11-24 while following the selected Windows filesystem provider.
-
 ### POSIX directory counting assumes that two entries are dot names
 
 - Category: One idea, several implementations
