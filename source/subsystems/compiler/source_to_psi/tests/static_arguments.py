@@ -3,9 +3,10 @@
 import argparse
 import re
 import shutil
-import subprocess
 import tempfile
 from pathlib import Path
+
+from execution import check_silent_execution
 
 
 PACKAGE = Path(__file__).resolve().parents[1]
@@ -80,16 +81,7 @@ def main():
         units.insert(0, "use representations/tokens/numeric.omg;")
         units.append((fixture / "main.omg").read_text())
         program.write_text("\n\n".join(units))
-        result = subprocess.run(
-            [args.omega.resolve(), "run", "--both", root / "build.omg"],
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-        )
-        print(result.stdout, end="")
-        expected = {"native exit 0", "interp exit: 0"}
-        if result.returncode or not expected.issubset(result.stdout.splitlines()):
-            raise SystemExit(1)
+        check_silent_execution(args.omega.resolve(), root)
 
 
 if __name__ == "__main__":
