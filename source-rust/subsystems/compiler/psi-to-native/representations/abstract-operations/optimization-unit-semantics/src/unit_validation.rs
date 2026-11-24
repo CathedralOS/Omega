@@ -6296,154 +6296,116 @@ pub(crate) mod function_structure {
         pub(crate) fn reconstruct_fact_index(
             function: &PsiOptimizationFunction,
         ) -> Vec<OptimizationFact> {
-            use abstract_operations::{AbstractOperation as O, IntegerShiftPolicy};
-
             let mut expected = Vec::new();
-            for operation in function.block_nodes().map(|node| &node.operation) {
-                match operation {
-                    O::StructuralScalarFieldStore {
-                        psi_operation,
-                        range_obligation: Some(obligation),
-                        ..
-                    }
-                    | O::StructuralByteViewFieldStore {
-                        psi_operation,
-                        predicate_obligation: Some(obligation),
-                        ..
-                    } => expected.push(OptimizationFact::OperationObligationReference {
-                        obligation: *obligation,
-                        support: *psi_operation,
-                    }),
-                    abstract_operations::establish_record_or_case_pattern!(
-                        psi_operation,
-                        fields,
-                        ..
-                    ) => {
-                        expected.extend(fields.iter().filter_map(|initializer| {
-                            let terminal_psi::RecordFieldValue::Scalar {
-                                range_obligation, ..
-                            } = &initializer.value
-                            else {
-                                return None;
-                            };
-                            range_obligation.map(|obligation| {
-                                OptimizationFact::OperationObligationReference {
-                                    obligation,
-                                    support: *psi_operation,
-                                }
-                            })
-                        }));
-                    }
-
-                    O::EstablishByteSequenceConcatenation {
-                        psi_operation,
-                        capacity_obligation: obligation,
-                        ..
-                    }
-                    | O::ByteSequenceSubslice {
-                        psi_operation,
-                        obligation,
-                        ..
-                    }
-                    | O::ByteSequenceWrite {
-                        psi_operation,
-                        obligation,
-                        ..
-                    }
-                    | abstract_operations::byte_sequence_store_pair_pattern!(
-                        psi_operation,
-                        obligation,
-                        ..
-                    )
-                    | O::StructuralByteSequenceFieldByteStore {
-                        psi_operation,
-                        obligation,
-                        ..
-                    }
-                    | abstract_operations::byte_read_or_field_read_pattern!(
-                        psi_operation,
-                        obligation,
-                        ..
-                    )
-                    | O::ElementViewSubslice {
-                        psi_operation,
-                        obligation,
-                        ..
-                    }
-                    | O::EstablishElementView {
-                        psi_operation,
-                        region:
-                            terminal_psi::ElementViewRegion::RepresentationBytes { obligation, .. }
-                            | terminal_psi::ElementViewRegion::WholeRepresentation { obligation, .. },
-                        ..
-                    }
-                    | abstract_operations::element_view_read_write_pair_pattern!(
-                        psi_operation,
-                        obligation,
-                        ..
-                    )
-                    | O::IntegerExactCast {
-                        psi_operation,
-                        obligation,
-                        ..
-                    } => expected.push(OptimizationFact::OperationObligationReference {
-                        obligation: *obligation,
-                        support: *psi_operation,
-                    }),
-                    O::IntegerShift {
-                        psi_operation,
-                        policy: IntegerShiftPolicy::Exact { obligation },
-                        ..
-                    } => expected.push(OptimizationFact::OperationObligationReference {
-                        obligation: *obligation,
-                        support: *psi_operation,
-                    }),
-                    O::IntegerArithmetic {
-                        psi_operation,
-                        arithmetic,
-                        ..
-                    } => {
-                        if let Some(obligation) = arithmetic.obligation() {
-                            expected.push(OptimizationFact::OperationObligationReference {
-                                obligation,
-                                support: *psi_operation,
-                            });
-                        }
-                    }
-                    _ => {}
-                }
-                if let Some(support) = operation.psi_operation() {
-                    expected.extend(operation.runtime_indices().into_iter().map(
-                        |(_, obligation)| OptimizationFact::OperationObligationReference {
-                            obligation,
-                            support,
-                        },
-                    ));
-                }
-                match operation {
-                    O::BooleanConstant {
-                        psi_operation,
-                        result,
-                        value,
-                    } => expected.push(OptimizationFact::BooleanConstant {
-                        value: *result,
-                        constant: *value,
-                        support: *psi_operation,
-                    }),
-                    O::IntegerConstant {
-                        psi_operation,
-                        result,
-                        value,
-                        ..
-                    } => expected.push(OptimizationFact::IntegerConstant {
-                        value: *result,
-                        constant: *value,
-                        support: *psi_operation,
-                    }),
-                    _ => {}
-                }
+            for node in function.block_nodes() {
+                optimization_unit::collect_fact(&node.operation, &mut expected);
             }
             expected
+        }
+
+        /// Unit construction indexes every operation-owned obligation. The
+        /// validator must rebuild the same index, or a valid unit is refused
+        /// with `FactIndexMismatch` and a rewrite drops the obligation's fact.
+        #[cfg(test)]
+        mod tests {
+            use abstract_operations::{
+                AbstractBlock, AbstractFunction, AbstractFunctionResult, AbstractOperation as O,
+                AbstractResult, StructuralScalarStoreDestination,
+            };
+            use optimization_unit::{OptimizationFact, reconstruct_psi_optimization_function_seed};
+            use semantic_vocabulary::{
+                BlockId, EdgeId, IntegerSign, IntegerType, MachineId, ObligationId, OperationId,
+                PlaceId, ScalarType, StructuralTypeId, ValueId,
+            };
+            use terminal_psi::{
+                StructuralAccess, StructuralMultiplicity, StructuralOperationResult,
+                StructuralParameterDeclaration,
+            };
+
+            fn byte() -> ScalarType {
+                ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap())
+            }
+
+            #[test]
+            fn primitive_store_range_obligations_stay_in_the_rebuilt_fact_index() {
+                let destination = StructuralParameterDeclaration {
+                    place: PlaceId::new(1).unwrap(),
+                    position: 0,
+                    structural_type: StructuralTypeId::new(1).unwrap(),
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access: StructuralAccess::WriteOnlyBorrow,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                };
+                let value = AbstractResult {
+                    value: ValueId::new(1).unwrap(),
+                    scalar_type: byte(),
+                };
+                let function = AbstractFunction {
+                    machine: MachineId::new(1).unwrap(),
+                    attachment: None,
+                    entry: BlockId::new(1).unwrap(),
+                    parameters: Vec::new(),
+                    structural_parameters: vec![destination.clone()],
+                    result: AbstractFunctionResult::Unit,
+                    entry_claims: Vec::new(),
+                    block_entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    blocks: vec![AbstractBlock {
+                        block: BlockId::new(1).unwrap(),
+                        structural_parameters: Vec::new(),
+                        parameters: Vec::new(),
+                        operations: vec![
+                            O::IntegerConstant {
+                                psi_operation: OperationId::new(1).unwrap(),
+                                result: value.value,
+                                scalar_type: value.scalar_type,
+                                value: semantic_vocabulary::IntegerValue::Unsigned(7),
+                            },
+                            O::EstablishPrimitiveLocal {
+                                psi_operation: OperationId::new(2).unwrap(),
+                                result: StructuralOperationResult {
+                                    place: PlaceId::new(2).unwrap(),
+                                    structural_type: StructuralTypeId::new(2).unwrap(),
+                                    multiplicity: StructuralMultiplicity::Unrestricted,
+                                    qualifications: Vec::new(),
+                                    projected_qualifications: Vec::new(),
+                                    additional_input_qualifications: Vec::new(),
+                                    qualification_establishments: Vec::new(),
+                                    claims: Vec::new(),
+                                },
+                                value,
+                                range_obligation: Some(ObligationId::new(1).unwrap()),
+                            },
+                            O::WriteOnlyPrimitiveStore {
+                                psi_operation: OperationId::new(3).unwrap(),
+                                destination: StructuralScalarStoreDestination::Parameter(
+                                    destination,
+                                ),
+                                path: Vec::new(),
+                                value,
+                                range_obligation: Some(ObligationId::new(2).unwrap()),
+                            },
+                            O::ReturnUnit {
+                                psi_edge: EdgeId::new(1).unwrap(),
+                                cleanup_actions: Vec::new(),
+                            },
+                        ],
+                    }],
+                };
+                let function = reconstruct_psi_optimization_function_seed(&function).unwrap();
+                for (obligation, support) in [(1, 2), (2, 3)] {
+                    assert!(function.facts.contains(
+                        &OptimizationFact::OperationObligationReference {
+                            obligation: ObligationId::new(obligation).unwrap(),
+                            support: OperationId::new(support).unwrap(),
+                        }
+                    ));
+                }
+                assert_eq!(super::reconstruct_fact_index(&function), function.facts);
+                assert!(super::validate_fact_index(&function).is_ok());
+            }
         }
     }
     mod mutable_views {

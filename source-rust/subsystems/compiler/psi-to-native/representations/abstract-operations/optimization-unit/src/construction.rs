@@ -315,7 +315,10 @@ fn successor_edge(successor: &AbstractSuccessor) -> OptimizationEdge {
 
 use abstract_operations::element_view_read_write_pair_pattern;
 
-pub(super) fn collect_fact(operation: &AbstractOperation, facts: &mut Vec<OptimizationFact>) {
+/// Appends the facts one operation contributes to its function's fact index.
+/// Construction and the unit validator both build the index with this, so the
+/// validator cannot accept or refuse a different set of obligations.
+pub fn collect_fact(operation: &AbstractOperation, facts: &mut Vec<OptimizationFact>) {
     if let Some((obligation, support)) = operation_obligation(operation) {
         facts.push(OptimizationFact::OperationObligationReference {
             obligation,
