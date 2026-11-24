@@ -43,6 +43,7 @@ mod clause_terms;
 mod constant_values;
 mod contracts;
 mod expressions;
+pub(crate) mod families;
 mod fixed_bytes;
 mod float_meaning;
 pub(crate) mod logical;
@@ -264,6 +265,10 @@ pub(crate) struct Program<'t> {
     pub(crate) template_bodies: Vec<(MachineId, templates::TemplateBody)>,
     /// Each quotient of mathematical data read so far (`quotients`).
     pub(crate) quotients: Vec<quotients::QuotientRecord>,
+    /// Each data declaration indexed by values read so far (`families`).
+    pub(crate) families: Vec<families::FamilyRecord>,
+    /// Each theorem over such data read so far (`families`).
+    pub(crate) family_theorems: Vec<(MachineId, families::FamilyTheorem)>,
     /// Each machine read so far whose body is one `Quotient::lift` or
     /// `Quotient::define` (`quotients`).
     pub(crate) lifted_operations: Vec<(MachineId, quotients::LiftedOperation)>,
@@ -578,6 +583,8 @@ impl<'t> Program<'t> {
             reading_template: None,
             template_bodies: Vec::new(),
             quotients: Vec::new(),
+            families: Vec::new(),
+            family_theorems: Vec::new(),
             lifted_operations: Vec::new(),
             clause_arguments: Vec::new(),
             readiness: Vec::new(),

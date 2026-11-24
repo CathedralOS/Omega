@@ -1010,6 +1010,18 @@ impl Program<'_> {
                 value => Ok(value),
             };
         }
+        // Data indexed by values is one type of the mathematical signature
+        // at every application (`families`).
+        if self.mathematical
+            && handle.is_valid()
+            && let TypeReferenceNode::Generic { base_symbol, .. } =
+                self.typed.type_reference_table.type_reference(handle)
+            && base_symbol.is_valid()
+            && let Some(data) = self.typed.unique_data_definition_by_symbol(*base_symbol)
+            && self.is_family(data)
+        {
+            return self.family_record(id, data);
+        }
         if let Some(atomic) = self.atomic_type(id, handle)? {
             return Ok(atomic);
         }
@@ -1382,8 +1394,7 @@ impl Program<'_> {
             if self.value_type(id, laid.semantic_type)? != subject {
                 return unserved("constrained by a domain declared on another carrier");
             }
-            if definition.predicate_presence
-                != language_core::DomainPredicatePresence::Absent
+            if definition.predicate_presence != language_core::DomainPredicatePresence::Absent
                 || !definition.facts.is_empty()
             {
                 return unserved("a predicate domain on laid layout storage");

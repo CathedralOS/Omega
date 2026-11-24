@@ -395,6 +395,15 @@ impl Program<'_> {
             {
                 continue;
             }
+            // A machine declared inside a theorem over indexed data is a
+            // step of that theorem's argument, read with it (`families`).
+            if self
+                .enclosing_machine(machine.symbol)
+                .and_then(|outer| typed.machine_by_symbol(outer))
+                .is_some_and(|outer| self.is_family_theorem(outer))
+            {
+                continue;
+            }
             if self.is_generic_template(machine) && !self.mathematical_template(machine) {
                 return Err(self.read_failure_at(
                     refuse(

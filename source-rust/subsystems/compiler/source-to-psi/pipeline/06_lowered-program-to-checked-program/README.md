@@ -91,6 +91,23 @@ that states something else is refused with the recorded reason, for example
 "the proved equality is not the `symmetric` law that the quotient `Sign`
 needs of `same_sign`".
 
+A theorem over data indexed by values is proved by induction over the value
+(`prove_family` in `laws.rs`). Each case of the data is a goal about
+integers: for arbitrary indices and payload values, from what the data's
+declaration requires of the case and the theorem at each child the body
+cites, the theorem at this index. The integer search of the proof-admission
+crate (`SourceIntegerTheory`) finds a proof of each case, and also shows that
+what the case's step requires follows from what the data requires. The search
+states a goal about named unknowns, so each case declares its indices and
+payload values as unknown integers, proves the goal about them, and the
+kernel's `abstract_certificate_assumptions` turns them into the binders of the
+case's lemma. The kernel's indexed-data builder assembles the lemmas into the
+induction and the kernel checks the result once, within the law's budget of
+conversion steps. The receipt counts the integer vocabulary and the integer
+laws the cases used; the family, its constructors and the induction are
+definitions and add nothing. A case with no proof is reported by its name:
+"cannot prove ensures contract for `vector_bound` in the case `Vector::Cons`".
+
 Each proof is tried twice: first with every definition that is not by cases
 left as its name, so that a goal and its citations are compared as written,
 then with those definitions unfolded. When the search of every order of

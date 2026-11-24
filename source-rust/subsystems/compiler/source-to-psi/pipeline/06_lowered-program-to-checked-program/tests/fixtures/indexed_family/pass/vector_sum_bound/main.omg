@@ -1,0 +1,46 @@
+// A type indexed by values, and a law proved by induction over it.
+// `Vector<Length, Total>` is a list of numbers of at most ten, indexed by how
+// many there are and by their sum. No value of it is ever stored: a value is
+// evidence that such a list exists. `vector_bound` proves, for every length
+// and total and every such list, that the total is at most ten times the
+// length. The empty list has both zero. A longer list has one more element
+// than its tail and its tail's total plus that element, and the law for the
+// tail is the induction hypothesis.
+use omega\language\core\ProcessExit;
+
+data Vector<Length: u64, Total: u64>
+    requires ((self in Vector::Nil) && (Length == 0 && Total == 0)) || ((self in Vector::Cons) && (self.head <= 10 && embed(self.previous) + 1 == embed(Length)
+              && embed(self.previous_total) + embed(self.head) == embed(Total)))
+{
+    case Nil;
+    case Cons(previous: u64, previous_total: u64, head: u64,
+              tail [erased]: Vector<previous, previous_total>);
+}
+
+machine vector_bound<Length: u64, Total: u64>(evidence [erased]: Vector<Length, Total>)
+terminates by Length
+ensures embed(Total) <= 10 * embed(Length)
+{
+    transition evidence {
+        Vector::Nil { .. } -> done(),
+        Vector::Cons { previous, previous_total, head, tail, .. } -> step(previous, previous_total, head, tail)
+    }
+    machine done() requires Length == 0 && Total == 0 {}
+    machine step(previous: u64, previous_total: u64, head: u64, tail [erased]: Vector<previous, previous_total>)
+    requires head <= 10 && embed(previous) + 1 == embed(Length)
+             && embed(previous_total) + embed(head) == embed(Total)
+    {
+        vector_bound::<previous, previous_total>(tail);
+    }
+}
+
+data Main { }
+machine exit_with_status(main: @mutable Main) reaches ProcessExit {
+    ProcessExit::exit_process(0);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit {
+    let mutable entry_storage: Main;
+    block exit_with_status(@mutable entry_storage);
+}

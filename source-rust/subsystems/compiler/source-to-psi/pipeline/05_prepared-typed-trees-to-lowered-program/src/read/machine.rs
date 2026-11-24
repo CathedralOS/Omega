@@ -2252,9 +2252,11 @@ impl<'t> Program<'t> {
                 Unserved::Contract("contracts on a state"),
             ));
         }
-        self.reading_template = self
-            .mathematical_template(machine)
-            .then_some(machine.symbol);
+        // A theorem over indexed data is read from its own body
+        // (`families`), not as a body of lets and one value.
+        self.reading_template = (self.mathematical_template(machine)
+            && !self.is_family_theorem(machine))
+        .then_some(machine.symbol);
         let read = self.contract(
             id,
             state.symbol,
@@ -4136,7 +4138,10 @@ impl<'t> Program<'t> {
                     Unserved::Parameter("erased parameter of a policy-qualified type"),
                 ));
             }
-            if erased && value_type.scalar().is_none() {
+            // An erased value of data indexed by values is evidence that
+            // the mathematical signature reads (`families`).
+            let evidence = self.mathematical && self.family_of(value_type).is_some();
+            if erased && value_type.scalar().is_none() && !evidence {
                 return Err(refuse(
                     id,
                     Construct::Machine,
@@ -4301,6 +4306,16 @@ impl<'t> Program<'t> {
             });
         }
         let (machine, state) = self.declaration(id, symbol)?;
+        // A theorem over indexed data is an induction over its evidence,
+        // read from its own body and not lowered (`families`).
+        if self.mathematical && self.is_family_theorem(machine) {
+            let theorem = self.family_theorem(id, machine, state)?;
+            self.family_theorems.push((id, theorem));
+            return Ok(Body {
+                slots: signature.parameters,
+                statements: Vec::new(),
+            });
+        }
         // An operation on a quotient given by an operation on its
         // representatives has nothing to lower: the signature judges the
         // theorems it selects (`quotients`).

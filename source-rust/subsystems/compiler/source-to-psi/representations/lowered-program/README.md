@@ -68,6 +68,14 @@ closure in `PreparedCompilation::mathematics`:
   (`Quotient`, naming both entries). An operation on a quotient
   (`Quotient::lift`, `Quotient::define`) has no entry; it adds the
   statements its theorems owe.
+- **Data indexed by values**: when the program declares such data, the table
+  starts with the kernel's indexed-family declarations and an integer
+  vocabulary (`Scheme`; `integers` says where the vocabulary is). Each
+  declaration is the five functions the kernel's builder declares for it
+  (`families`). A theorem over one is a law whose formals are the indices
+  and whose proof is `LawProof::Family`: per case of the data, what the
+  declaration requires of the case, the index of each child, which children
+  the body cites the theorem at, and what the case's step requires.
 - **Laws**: one per `ensures` equality of a machine over such data. A law's
   proof is its body's citations, read per case when the body dispatches on a
   formal (an induction), and per case of a further value where a case splits

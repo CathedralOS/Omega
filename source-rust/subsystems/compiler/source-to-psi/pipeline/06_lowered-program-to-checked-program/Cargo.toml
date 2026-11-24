@@ -31,6 +31,7 @@ language-core = { path = "../../../foundation/language-core" }
 numerics = { path = "../../../foundation/numerics" }
 optimization = { path = "../../../psi/artifact/optimization-selections" }
 proof-admission = { path = "../../../psi/semantics/proofs/bounded" }
+mathematical-kernel = { path = "../../../psi/semantics/proofs/mathematical" }
 rayon = "1.11"
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 symbols = { path = "../../../foundation/declaration-identity" }

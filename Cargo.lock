@@ -1377,6 +1377,7 @@ dependencies = [
  "checked-program-issuer",
  "diagnostics",
  "language-core",
+ "mathematical-kernel",
  "numeric-literals",
  "numerics",
  "optimization",

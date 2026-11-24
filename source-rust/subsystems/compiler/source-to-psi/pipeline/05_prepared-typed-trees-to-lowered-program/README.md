@@ -90,7 +90,38 @@ the law that must have proved it (`lifted` in `read/signature.rs`):
 
 `Quotient::define` passes its formals in order. `Quotient::lift` may reorder
 them. A formal passed twice, a formal left out and an argument that is not a
-formal are refused. The ordinary reader refuses the same data and machines when a
+formal are refused.
+
+Data whose parameters are values and that holds itself at other values
+(`data Vector<Length: u64, Total: u64> requires .. { case Nil; case
+Cons(previous: u64, previous_total: u64, head: u64, tail [erased]:
+Vector<previous, previous_total>); }`) is a family of types, one per choice of
+its parameters, and mathematical data like any that contains itself
+(`read/families.rs`). The signature declares the kernel's indexed-family
+scheme and an integer vocabulary first, then the family: its indices and
+payload values are integers, each case's label carries a proof of what the
+declaration's `requires` say of that case, and each child sits at the index
+its field's type names. The `requires` must be one clause per case, each
+naming its case with `self in ..`. A program with both a quotient and such
+data is refused, because both kernel schemes are numbered from zero.
+
+A theorem over such data returns nothing and takes one erased value of it:
+`machine vector_bound<Length: u64, Total: u64>(evidence [erased]:
+Vector<Length, Total>) ensures embed(Total) <= 10 * embed(Length)`. Its body
+is not lowered. `family_theorem` reads the one shape it serves: a dispatch on
+the evidence with one arm per case, each arm ending or calling a machine
+declared inside the theorem with the case's own payload, and that machine's
+body a list of calls of the theorem at a child, each at the index the case
+declares for that child. The signature states the theorem for every index and
+every value of the family at it (`family_laws` in `read/signature.rs`), and
+records per case what the data requires, what the step requires, and which
+children the step cites. A clause over indexed data is read as equalities and
+orders of integers: an index or payload value is the integer it holds, and
+arithmetic is written on `embed`. The index a theorem is ranked on
+(`terminates by Length`) is not checked to get smaller: the induction is over
+the evidence, which the kernel's eliminator justifies. The machines that run
+with such evidence (`[erased]` locals and formals of the family's type in a
+machine that returns a value) are not read yet. The ordinary reader refuses the same data and machines when a
 runtime machine reaches them. A field of any other type in such data, a
 premise on such a machine and a result together with a guarantee are refused
 as not supported yet.

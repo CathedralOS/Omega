@@ -58,6 +58,7 @@ mod guard_contradiction;
 mod handoffs;
 mod hosted_primitives;
 mod indexed_contracts;
+mod indexed_family;
 mod inferred_bounds;
 mod inferred_locals;
 mod law_premise;

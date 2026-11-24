@@ -35,21 +35,24 @@ itself through its citations is refused, so no statement can justify itself.
 
 use arena::IdTable;
 use mathematical_kernel::{
-    Declaration, Level, PlainData, Sort, Term, TermHandle, instantiate, shift,
+    Declaration, IndexedCase, IndexedData, IndexedField, Level, PlainData, Sort, Term, TermHandle,
+    instantiate, shift,
 };
 use semantic_vocabulary::{
-    ClauseCarrier, ClauseIdentity, ClauseOperand, ClauseValue, MachineId, Proposition,
-    StructuralTypeId,
+    CanonicalStructuralPathSegment, ClauseCarrier, ClauseIdentity, ClauseOperand, ClauseValue,
+    IntegerMathTerm, IntegerValue, MachineId, Proposition, ScalarTerm, StructuralCaseId,
+    StructuralFieldId, StructuralTypeId,
 };
 use symbols::SymbolHandle;
 use terminal_check_tables::mathematics::{
-    Citation, DeclaredLaw, Evidence, FunctionCases, Law, LawCase, LawProof, LawSplit,
-    MathematicalSignature, OperandLicense, SignatureEntry, SignatureEntryKind, SplitSubject,
-    operand_law,
+    Citation, DeclaredLaw, Evidence, FamilyLawCase, FunctionCases, IntegerPositions, Law, LawCase,
+    LawProof, LawSplit, MathematicalSignature, OperandLicense, SignatureEntry, SignatureEntryKind,
+    SplitSubject, operand_law,
 };
 use terminal_check_tables::{Checked, Construct, Refusal};
 
 use super::Program;
+use super::families::{FamilyRecord, FamilyTerm, FamilyTheorem};
 use super::quotients::LiftedOperation;
 use crate::lowering::body::{
     ArmGuard, Body, CallTarget, CaseSelector, Expression, ExpressionKind, Statement, Target,
@@ -185,6 +188,8 @@ impl Program<'_> {
             callable_scope: Vec::new(),
             held: Vec::new(),
             stating_premises: false,
+            integers: None,
+            families: Vec::new(),
         };
         let mut refused = Vec::new();
         let diagnostic = MachineId::new(1).expect("1 is nonzero");
@@ -200,7 +205,66 @@ impl Program<'_> {
                 );
             }
         }
+        // Data indexed by values needs the kernel's indexed-family
+        // declarations, which it also numbers from zero, and an integer
+        // vocabulary for the indices.
+        if !self.families.is_empty() {
+            if !self.quotients.is_empty() {
+                return Err(vec![unserved(
+                    diagnostic,
+                    "program with both a quotient and data indexed by values",
+                )]);
+            }
+            for declaration in mathematical_kernel::indexed_scheme(&mut converter.signature.arena) {
+                converter.push(
+                    declaration,
+                    SignatureEntryKind::Scheme,
+                    "indexed data".to_owned(),
+                );
+            }
+            match proof_admission::SourceIntegerTheory::new(
+                &mut converter.signature.arena,
+                &mut converter.signature.declarations,
+            ) {
+                Ok(theory) => {
+                    let positions = theory.positions();
+                    converter.signature.integers = Some(IntegerPositions {
+                        carrier: positions.vocabulary.carrier,
+                        less_than: positions.vocabulary.less_than,
+                        less_or_equal: positions.vocabulary.less_or_equal,
+                        add: positions.vocabulary.add,
+                        subtract: positions.vocabulary.subtract,
+                        multiply: positions.vocabulary.multiply,
+                        numeral_zero: positions.numeral_zero,
+                        numeral_double: positions.numeral_double,
+                        numeral_odd: positions.numeral_odd,
+                        numeral_negate: positions.numeral_negate,
+                    });
+                    converter.integers = Some(theory);
+                    converter.sync("integer");
+                }
+                Err(_) => {
+                    return Err(vec![unserved(
+                        diagnostic,
+                        "integer vocabulary the kernel cannot declare",
+                    )]);
+                }
+            }
+            for family in &self.families {
+                if let Err(refusal) = converter.indexed_family(diagnostic, family) {
+                    refused.push(self.read_failure_at(
+                        refusal,
+                        family.declaration,
+                        "the mathematical declaration",
+                    ));
+                }
+            }
+        }
         for &record in &self.self_containing {
+            // Data indexed by values was declared above.
+            if self.families.iter().any(|family| family.record == record) {
+                continue;
+            }
             if let Err(refusal) = converter.data(diagnostic, record) {
                 let declaration = self
                     .record_sources
@@ -510,6 +574,38 @@ struct Converter<'p, 't> {
     /// arguments: what those premises themselves call was owed where that
     /// machine was declared.
     stating_premises: bool,
+    /// The integer vocabulary, declared when the program has data indexed
+    /// by values.
+    integers: Option<proof_admission::SourceIntegerTheory>,
+    /// Each data declaration indexed by values, as it was declared.
+    families: Vec<FamilyDeclared>,
+}
+
+/// Data indexed by values in the signature: where its family is, and what
+/// each case requires and holds, under one binder per index and then one
+/// per payload value.
+#[derive(Clone)]
+struct FamilyDeclared {
+    record: StructuralTypeId,
+    /// Its position in `MathematicalSignature::families`.
+    family: u32,
+    cases: Vec<FamilyCaseTerms>,
+}
+
+#[derive(Clone)]
+struct FamilyCaseTerms {
+    payload: u32,
+    constraints: Vec<TermHandle>,
+    /// For each child, the index it sits at, one term per index.
+    children: Vec<Vec<TermHandle>>,
+}
+
+/// What the scalars of a clause over indexed data stand for: index `i` is
+/// the value numbered `i + 1`, and a payload value is a field of the one
+/// case in scope.
+struct Integers<'e> {
+    indices: &'e [TermHandle],
+    payload: Option<(StructuralCaseId, &'e [(StructuralFieldId, TermHandle)])>,
 }
 
 fn unserved(id: MachineId, what: &'static str) -> Refusal {
@@ -1221,6 +1317,587 @@ impl<'p> Converter<'p, '_> {
         statement
     }
 
+    /// One entry per declaration the kernel's builders added since the last
+    /// entry: they push declarations themselves.
+    fn sync(&mut self, name: &str) {
+        while self.signature.entries.len() < self.signature.declarations.len() {
+            self.signature.entries.push(SignatureEntry {
+                kind: SignatureEntryKind::Scheme,
+                name: name.to_owned(),
+            });
+        }
+    }
+
+    /// Runs `work` with the integer vocabulary and records what it declared.
+    fn with_integers<T>(
+        &mut self,
+        id: MachineId,
+        work: impl FnOnce(
+            &mut proof_admission::SourceIntegerTheory,
+            &mut mathematical_kernel::TermArena,
+            &mut Vec<Declaration>,
+        ) -> Result<T, proof_admission::BoundedDenotationError>,
+    ) -> Checked<T> {
+        let mut theory = self
+            .integers
+            .take()
+            .ok_or_else(|| unserved(id, "integer term in a program without indexed data"))?;
+        let done = work(
+            &mut theory,
+            &mut self.signature.arena,
+            &mut self.signature.declarations,
+        );
+        self.integers = Some(theory);
+        self.sync("integer");
+        done.map_err(|_| unserved(id, "integer term the integer vocabulary cannot state"))
+    }
+
+    fn integer_literal(&mut self, id: MachineId, value: bignum::BigInt) -> Checked<TermHandle> {
+        self.with_integers(id, |theory, arena, declarations| {
+            theory.literal(arena, declarations, value)
+        })
+    }
+
+    fn integer_vocabulary(
+        &self,
+        id: MachineId,
+    ) -> Checked<proof_admission::SourceIntegerVocabulary> {
+        self.integers
+            .as_ref()
+            .map(|theory| theory.vocabulary())
+            .ok_or_else(|| unserved(id, "integer term in a program without indexed data"))
+    }
+
+    /// A scalar of a clause over indexed data as an integer: an index, a
+    /// payload value of the case in scope, or a literal. A fixed-width
+    /// value is the integer it holds, so only terms with no arithmetic of
+    /// their own are read; arithmetic is written on `embed`.
+    fn integer_scalar(
+        &mut self,
+        id: MachineId,
+        term: &ScalarTerm,
+        scope: &Integers<'_>,
+    ) -> Checked<TermHandle> {
+        match term {
+            ScalarTerm::Value { id: value, .. } => scope
+                .indices
+                .get(value.get() as usize - 1)
+                .copied()
+                .ok_or_else(|| unserved(id, "clause over indexed data names another value")),
+            ScalarTerm::IntegerField { root, path, .. }
+                if Some(*root) == crate::lowering::body::self_place() =>
+            {
+                match (path.as_slice(), scope.payload) {
+                    (
+                        [
+                            CanonicalStructuralPathSegment::Case(case),
+                            CanonicalStructuralPathSegment::Field(field),
+                        ],
+                        Some((own, payload)),
+                    ) if *case == own => payload
+                        .iter()
+                        .find(|(known, _)| known == field)
+                        .map(|(_, term)| *term)
+                        .ok_or_else(|| {
+                            unserved(
+                                id,
+                                "clause over indexed data names a field that is no payload value",
+                            )
+                        }),
+                    _ => Err(unserved(
+                        id,
+                        "clause over indexed data names a payload value of another case",
+                    )),
+                }
+            }
+            ScalarTerm::Integer { value, .. } => self.integer_literal(
+                id,
+                match *value {
+                    IntegerValue::Signed(value) => bignum::BigInt::from_i128(value),
+                    IntegerValue::Unsigned(value) => bignum::BigInt::from_u128(value),
+                },
+            ),
+            _ => Err(unserved(
+                id,
+                "clause over indexed data with a term other than an index, a payload value or a literal",
+            )),
+        }
+    }
+
+    fn integer_term(
+        &mut self,
+        id: MachineId,
+        term: &IntegerMathTerm,
+        scope: &Integers<'_>,
+    ) -> Checked<TermHandle> {
+        let vocabulary = self.integer_vocabulary(id)?;
+        let binary = |converter: &mut Self, operation: u32, left, right| {
+            let left = converter.integer_term(id, left, scope)?;
+            let right = converter.integer_term(id, right, scope)?;
+            let operation = converter.constant(operation);
+            Ok(converter
+                .signature
+                .arena
+                .apply_arguments(operation, &[left, right]))
+        };
+        match term {
+            IntegerMathTerm::IntegerLiteral(literal) => {
+                let magnitude = bignum::BigInt::from_u128(literal.magnitude());
+                let value = if literal.negative() {
+                    magnitude.negate()
+                } else {
+                    magnitude
+                };
+                self.integer_literal(id, value)
+            }
+            IntegerMathTerm::MathValue { value, source_type } => self.integer_scalar(
+                id,
+                &ScalarTerm::Value {
+                    id: *value,
+                    scalar_type: semantic_vocabulary::ScalarType::Integer(*source_type),
+                },
+                scope,
+            ),
+            IntegerMathTerm::Embed(scalar) => self.integer_scalar(id, scalar, scope),
+            IntegerMathTerm::Add(left, right) => binary(self, vocabulary.add, left, right),
+            IntegerMathTerm::Subtract(left, right) => {
+                binary(self, vocabulary.subtract, left, right)
+            }
+            IntegerMathTerm::Multiply(left, right) => {
+                binary(self, vocabulary.multiply, left, right)
+            }
+            IntegerMathTerm::ShiftLeft { .. } => {
+                Err(unserved(id, "clause over indexed data with a shift"))
+            }
+        }
+    }
+
+    /// A clause over indexed data as kernel propositions over the integer
+    /// vocabulary, one per conjunct.
+    fn integer_proposition(
+        &mut self,
+        id: MachineId,
+        proposition: &Proposition,
+        scope: &Integers<'_>,
+        components: &mut Vec<TermHandle>,
+    ) -> Checked<()> {
+        let vocabulary = self.integer_vocabulary(id)?;
+        let related = |converter: &mut Self, relation: u32, left, right| {
+            let relation = converter.constant(relation);
+            converter
+                .signature
+                .arena
+                .apply_arguments(relation, &[left, right])
+        };
+        let equal = |converter: &mut Self, left, right| {
+            let ty = converter.constant(vocabulary.carrier);
+            converter
+                .signature
+                .arena
+                .insert(Term::Id { ty, left, right })
+        };
+        let term = match proposition {
+            Proposition::Conjunction(parts) => {
+                for part in parts {
+                    self.integer_proposition(id, part, scope, components)?;
+                }
+                return Ok(());
+            }
+            Proposition::Equal(left, right) => {
+                let left = self.integer_scalar(id, left, scope)?;
+                let right = self.integer_scalar(id, right, scope)?;
+                equal(self, left, right)
+            }
+            Proposition::LessThan(left, right) => {
+                let left = self.integer_scalar(id, left, scope)?;
+                let right = self.integer_scalar(id, right, scope)?;
+                related(self, vocabulary.less_than, left, right)
+            }
+            Proposition::LessOrEqual(left, right) => {
+                let left = self.integer_scalar(id, left, scope)?;
+                let right = self.integer_scalar(id, right, scope)?;
+                related(self, vocabulary.less_or_equal, left, right)
+            }
+            Proposition::IntegerMathEqual(left, right) => {
+                let left = self.integer_term(id, left, scope)?;
+                let right = self.integer_term(id, right, scope)?;
+                equal(self, left, right)
+            }
+            Proposition::IntegerMathLessThan(left, right) => {
+                let left = self.integer_term(id, left, scope)?;
+                let right = self.integer_term(id, right, scope)?;
+                related(self, vocabulary.less_than, left, right)
+            }
+            Proposition::IntegerMathLessOrEqual(left, right) => {
+                let left = self.integer_term(id, left, scope)?;
+                let right = self.integer_term(id, right, scope)?;
+                related(self, vocabulary.less_or_equal, left, right)
+            }
+            _ => {
+                return Err(unserved(
+                    id,
+                    "clause over indexed data other than equalities and orders of integers",
+                ));
+            }
+        };
+        components.push(term);
+        Ok(())
+    }
+
+    /// The propositions as one type: each paired with the rest.
+    fn conjunction(&mut self, components: &[TermHandle]) -> Option<TermHandle> {
+        let (&last, rest) = components.split_last()?;
+        let arena = &mut self.signature.arena;
+        let mut all = last;
+        for &component in rest.iter().rev() {
+            let codomain = shift(arena, all, 0, 1);
+            all = arena.insert(Term::Sigma {
+                domain: component,
+                codomain,
+            });
+        }
+        Some(all)
+    }
+
+    /// Declares data indexed by values as the kernel's indexed family: its
+    /// indices and payload values are integers, each case's label carries a
+    /// proof of what the declaration requires of that case, and each child
+    /// sits at the index its field's type names.
+    fn indexed_family(&mut self, id: MachineId, family: &FamilyRecord) -> Checked<()> {
+        let vocabulary = self.integer_vocabulary(id)?;
+        let integer = self.constant(vocabulary.carrier);
+        let indices = family.indices.len() as u32;
+        // What the declaration requires of each case: one disjunct per
+        // case, naming it.
+        let required: Vec<&[Proposition]> = match family.requires.as_slice() {
+            [Proposition::Disjunction(cases)] => cases
+                .iter()
+                .map(|case| match case {
+                    Proposition::Conjunction(parts) => Ok(parts.as_slice()),
+                    _ => Err(unserved(
+                        id,
+                        "indexed data whose `requires` is not one clause per case",
+                    )),
+                })
+                .collect::<Checked<_>>()?,
+            _ => {
+                return Err(unserved(
+                    id,
+                    "indexed data whose `requires` is not one clause per case",
+                ));
+            }
+        };
+        let mut cases = Vec::with_capacity(family.cases.len());
+        let mut described = Vec::with_capacity(family.cases.len());
+        for case in &family.cases {
+            let payload = case.payload.len() as u32;
+            let total = indices + payload;
+            let index_terms: Vec<_> = (0..indices)
+                .map(|index| self.variable(total - 1 - index))
+                .collect();
+            let payload_terms: Vec<_> = case
+                .payload
+                .iter()
+                .enumerate()
+                .map(|(position, value)| {
+                    let field = value
+                        .field
+                        .ok_or_else(|| unserved(id, "payload value lost its field"))?;
+                    Ok((field, self.variable(payload - 1 - position as u32)))
+                })
+                .collect::<Checked<_>>()?;
+            let scope = Integers {
+                indices: &index_terms,
+                payload: Some((case.case, &payload_terms)),
+            };
+            let mut clauses = required.iter().filter(|parts| {
+                parts.iter().any(|part| {
+                    matches!(part, Proposition::StructuralCaseMembership { case: named, .. }
+                        if *named == case.case)
+                })
+            });
+            let (Some(parts), None) = (clauses.next(), clauses.next()) else {
+                return Err(unserved(
+                    id,
+                    "indexed data whose `requires` is not one clause per case",
+                ));
+            };
+            let mut constraints = Vec::new();
+            for part in parts.iter() {
+                if matches!(part, Proposition::StructuralCaseMembership { .. }) {
+                    continue;
+                }
+                self.integer_proposition(id, part, &scope, &mut constraints)?;
+            }
+            let all = self.conjunction(&constraints).ok_or_else(|| {
+                unserved(
+                    id,
+                    "case of indexed data that requires nothing of its payload",
+                )
+            })?;
+            let mut children = Vec::with_capacity(case.children.len());
+            let mut child_indices = Vec::with_capacity(case.children.len());
+            for child in &case.children {
+                let mut at = Vec::with_capacity(child.at.len());
+                for term in &child.at {
+                    at.push(match *term {
+                        FamilyTerm::Index(index) => index_terms[index as usize],
+                        FamilyTerm::Payload(position) => payload_terms[position as usize].1,
+                        FamilyTerm::Literal(value) => {
+                            self.integer_literal(id, bignum::BigInt::from_i128(value))?
+                        }
+                        FamilyTerm::Name(_) => {
+                            return Err(unserved(
+                                id,
+                                "child of indexed data at something other than an index, a payload value or a literal",
+                            ));
+                        }
+                    });
+                }
+                let tuple = self.index_tuple(&at);
+                child_indices.push(self.over(integer, total, tuple));
+                children.push(at);
+            }
+            described.push(IndexedCase {
+                payload: (0..payload)
+                    .map(|position| IndexedField {
+                        name: indices + position,
+                        domain: integer,
+                    })
+                    .collect(),
+                constraints: self.over(integer, total, all),
+                child_indices,
+            });
+            cases.push(FamilyCaseTerms {
+                payload,
+                constraints,
+                children,
+            });
+        }
+        let declared = IndexedData {
+            parameters: Vec::new(),
+            fields: (0..indices)
+                .map(|index| IndexedField {
+                    name: index,
+                    domain: integer,
+                })
+                .collect(),
+            indices: (0..indices).collect(),
+            cases: described,
+            level_arity: 0,
+        }
+        .declare(&mut self.signature.arena, &mut self.signature.declarations)
+        .map_err(|_| unserved(id, "indexed data the kernel's family builder refuses"))?;
+        let name = self.name(family.declaration);
+        self.sync(&name);
+        let position = index(id, self.signature.families.len())?;
+        self.signature.families.push(declared);
+        self.families.push(FamilyDeclared {
+            record: family.record,
+            family: position,
+            cases,
+        });
+        Ok(())
+    }
+
+    /// The index with these components: each paired with the rest.
+    fn index_tuple(&mut self, components: &[TermHandle]) -> TermHandle {
+        let (&last, rest) = components
+            .split_last()
+            .expect("indexed data has at least one index");
+        let mut tuple = last;
+        for &component in rest.iter().rev() {
+            tuple = self.signature.arena.insert(Term::Pair {
+                first: component,
+                second: tuple,
+            });
+        }
+        tuple
+    }
+
+    /// `body` as a function of `count` values of `domain`.
+    fn over(&mut self, domain: TermHandle, count: u32, mut body: TermHandle) -> TermHandle {
+        for _ in 0..count {
+            body = self.signature.arena.insert(Term::Lambda { domain, body });
+        }
+        body
+    }
+
+    /// A theorem over indexed data: for every index and every value of the
+    /// data at it, each `ensures` clause. Its proof is an induction over
+    /// the value, whose cases stage 06 proves from what the data requires
+    /// of each case and the theorem at the children the body cites.
+    fn family_laws(&mut self, id: MachineId, theorem: &FamilyTheorem) -> Checked<Vec<u32>> {
+        let program = self.program;
+        let declared = self
+            .families
+            .iter()
+            .find(|declared| declared.record == theorem.record)
+            .ok_or_else(|| unserved(id, "theorem over indexed data that is not declared"))?
+            .clone();
+        let source = program
+            .families
+            .iter()
+            .find(|family| family.record == theorem.record)
+            .ok_or_else(|| unserved(id, "theorem over indexed data that is not declared"))?;
+        let names = program
+            .names
+            .get(id)
+            .ok_or_else(|| unserved(id, "mathematical machine lost its names"))?;
+        let symbol = *program
+            .symbols
+            .get(id)
+            .ok_or_else(|| unserved(id, "mathematical machine lost its declaration"))?;
+        let vocabulary = self.integer_vocabulary(id)?;
+        let integer = self.constant(vocabulary.carrier);
+        let indices = source.indices.len() as u32;
+        let open: Vec<_> = (0..indices)
+            .map(|index| self.variable(indices - 1 - index))
+            .collect();
+        let family = self.signature.families[declared.family as usize].clone();
+        let instance = family
+            .at(&mut self.signature.arena, &[])
+            .map_err(|_| unserved(id, "indexed data the kernel's family builder refuses"))?;
+        // What each step requires, per case, under the indices and the
+        // case's payload.
+        let mut owed = Vec::with_capacity(theorem.cases.len());
+        for ((case, read), terms) in source.cases.iter().zip(&theorem.cases).zip(&declared.cases) {
+            let total = indices + terms.payload;
+            let index_terms: Vec<_> = (0..indices)
+                .map(|index| self.variable(total - 1 - index))
+                .collect();
+            let payload_terms: Vec<_> = case
+                .payload
+                .iter()
+                .enumerate()
+                .map(|(position, value)| {
+                    let field = value
+                        .field
+                        .ok_or_else(|| unserved(id, "payload value lost its field"))?;
+                    Ok((field, self.variable(terms.payload - 1 - position as u32)))
+                })
+                .collect::<Checked<_>>()?;
+            let scope = Integers {
+                indices: &index_terms,
+                payload: Some((case.case, &payload_terms)),
+            };
+            let mut required = Vec::new();
+            for proposition in &read.requires {
+                self.integer_proposition(id, proposition, &scope, &mut required)?;
+            }
+            owed.push(required);
+        }
+        let mut laws = Vec::with_capacity(theorem.ensures.len());
+        for (clause, proposition) in theorem.ensures.iter().enumerate() {
+            let mut components = Vec::new();
+            self.integer_proposition(
+                id,
+                proposition,
+                &Integers {
+                    indices: &open,
+                    payload: None,
+                },
+                &mut components,
+            )?;
+            let goal = self
+                .conjunction(&components)
+                .ok_or_else(|| unserved(id, "theorem over indexed data that guarantees nothing"))?;
+            // The goal as a function of the index: each index is a
+            // projection of the tuple.
+            let tuple = self.variable(0);
+            let mut projections = Vec::with_capacity(indices as usize);
+            let mut rest = tuple;
+            for index in 0..indices {
+                let arena = &mut self.signature.arena;
+                if index + 1 == indices {
+                    projections.push(rest);
+                } else {
+                    projections.push(arena.insert(Term::Fst { pair: rest }));
+                    rest = arena.insert(Term::Snd { pair: rest });
+                }
+            }
+            let body = instantiate(&mut self.signature.arena, goal, &projections);
+            let invariant = self.signature.arena.insert(Term::Lambda {
+                domain: instance.family.index,
+                body,
+            });
+            let invariant = instance.declare_invariant(
+                &mut self.signature.arena,
+                &mut self.signature.declarations,
+                invariant,
+                Level::Constant(0),
+            );
+            self.sync(&names.machine);
+            // For every index and every value of the data at it.
+            let arena = &mut self.signature.arena;
+            let at = arena.insert(Term::Variable(0));
+            let value = instance.family.indexed_w(arena, at);
+            let at = arena.insert(Term::Variable(1));
+            let holds = arena.insert(Term::Apply {
+                function: invariant,
+                argument: at,
+            });
+            let statement = arena.insert(Term::Pi {
+                domain: value,
+                codomain: holds,
+            });
+            let statement = arena.insert(Term::Pi {
+                domain: instance.family.index,
+                codomain: statement,
+            });
+            let law = index(id, self.signature.laws.len())?;
+            index(id, self.signature.declarations.len() + 1)?;
+            let entry = self.push(
+                Declaration::assumption(0, statement),
+                SignatureEntryKind::Statement { law },
+                names.machine.clone(),
+            );
+            let (text, text_source) = names
+                .ensures
+                .get(clause)
+                .map(|text| (names.authored(text), text.source))
+                .unwrap_or_default();
+            self.signature.laws.push(Law {
+                machine: symbol,
+                clause: clause as u32,
+                statement: entry,
+                formals: vec![integer; indices as usize],
+                premises: Vec::new(),
+                goal,
+                declared: None,
+                proof: LawProof::Family {
+                    family: declared.family,
+                    invariant,
+                    cases: declared
+                        .cases
+                        .iter()
+                        .zip(&theorem.cases)
+                        .zip(owed.iter().zip(&source.cases))
+                        .map(|((terms, read), (owed, case))| FamilyLawCase {
+                            name: format!("{}::{}", self.name(source.declaration), case.name),
+                            payload: terms.payload,
+                            constraints: terms.constraints.clone(),
+                            children: terms.children.clone(),
+                            cited: read.cited.clone(),
+                            owed: owed.clone(),
+                            source: read.source,
+                        })
+                        .collect(),
+                },
+                formal_names: source
+                    .indices
+                    .iter()
+                    .map(|index| index.name.clone())
+                    .collect(),
+                machine_name: names.machine.clone(),
+                text,
+                source: text_source.or(names.declared),
+            });
+            laws.push(law);
+        }
+        Ok(laws)
+    }
+
     /// A record with no cases whose fields are all mathematical data, as the
     /// product of their types.
     fn product(&mut self, id: MachineId, record: StructuralTypeId) -> Checked<u32> {
@@ -1389,6 +2066,21 @@ impl<'p> Converter<'p, '_> {
     fn declare(&mut self, id: MachineId) -> Checked<()> {
         if let Some(lifted) = self.lifted_operation(id) {
             return self.lifted(id, lifted);
+        }
+        let program = self.program;
+        if let Some((_, theorem)) = program
+            .family_theorems
+            .iter()
+            .find(|(machine, _)| *machine == id)
+        {
+            if self
+                .begin(id, false, "theorem over indexed data that reaches itself")?
+                .is_some()
+            {
+                return Ok(());
+            }
+            let read = self.family_laws(id, theorem);
+            return self.finish(id, false, read.map(|laws| ((), Read::Laws(laws))));
         }
         let result = self
             .program
