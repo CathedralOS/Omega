@@ -30,7 +30,7 @@ impl TerminalBuildBindingHost {
             || request.access() != terminal_psi::StructuralAccess::MutableBorrow
             || !request.argument_path().is_empty()
             || !request.referent().is_empty()
-            || !(self.fixture_calls.iter().any(|call| call.boundary == boundary)
+            || !(self.group_requests.iter().any(|call| call.site.boundary == boundary)
                 && self.group_shape.as_ref().is_some_and(|shape| shape.referent() == request.view_type())
                 || self.calls.iter().any(|call| {
                 call.site.boundary == boundary && matches!(call.operand,

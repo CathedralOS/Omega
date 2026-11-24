@@ -504,7 +504,7 @@ impl TerminalBuildHost {
                 .iter()
                 .find(|call| call.site.boundary == boundary)
             {
-                if call.action == source_compiler::publication::TerminalBuildRequestOperation::ConfigureTestFixture {
+                if call.action.configures_test_group() {
                     instance.bind_import(boundary, self.bindings.adapter(declaration.into()))
                 } else {
                     instance.bind_import(boundary, self.requests.adapter(declaration.into()))

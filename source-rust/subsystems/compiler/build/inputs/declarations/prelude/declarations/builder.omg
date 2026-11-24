@@ -22,6 +22,15 @@ public data TestGroupSettings {
     disabled: bool;
     inputs: TestInvocationInputs;
 }
+public data TestEngine [copy] {
+    case Psi;
+    case Native;
+}
+public data TestEnginePolicy [copy] {
+    case IfAvailable;
+    case Required;
+    case Disabled;
+}
 public data TestOutput {
     case Stdout;
     case Stderr;

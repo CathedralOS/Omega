@@ -324,6 +324,27 @@ mod product {
         pub providers: Vec<ExecutedProductSelection>,
         pub inputs: TestInvocationInputs,
         pub expected: TestExpectations,
+        pub engines: Vec<TestTargetEngines>,
+    }
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+    pub enum TestEnginePolicy {
+        #[default]
+        IfAvailable,
+        Required,
+        Disabled,
+    }
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+    pub struct TestEngineSelection {
+        pub psi: TestEnginePolicy,
+        pub native: TestEnginePolicy,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct TestTargetEngines {
+        pub target: super::ProductTarget,
+        pub selection: TestEngineSelection,
     }
 
     #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -889,7 +910,7 @@ pub use product::{
     ExecutedNativeBinding, ExecutedProductSelection, ProductDeclarationOperand,
     ProductDeclarationRequest, ProductEntryBinding, ProviderReadinessRequest, RootBindingOperand,
     RootBindingRequest, RootBindingSelection, TestExpectations, TestFileExpectation,
-    TestGroupConfiguration, TestInvocationInputs,
+    TestGroupConfiguration, TestInvocationInputs, TestEnginePolicy, TestEngineSelection, TestTargetEngines,
 };
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, record_storage::Record)]

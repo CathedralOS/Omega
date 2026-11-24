@@ -528,6 +528,7 @@ fn request_operation(name: &str) -> Result<TerminalBuildRequestOperation, Diagno
         "prepare_dependency" => Request::PrepareDependency,
         "write_log" => Request::LogLine,
         "configure_test_fixture" => Request::ConfigureTestFixture,
+        "configure_test_engine" => Request::ConfigureTestEngine,
         "publish_source" => Request::PublishSource,
         other => return Err(unknown("BuildRequestOperations", other)),
     })

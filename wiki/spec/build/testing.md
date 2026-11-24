@@ -186,6 +186,19 @@ Build group configuration can narrow engines or require particular target/engine
 combinations. Unset engine configuration uses this default; it does not disable
 tests. Exact API spelling is not a new language construct.
 
+For example, a Build can require native execution for one target or exclude
+interpretation for that target through the handle it received at registration:
+
+```omega
+let group = builder.tests.group::<Tests::memory>();
+TestGroup::engine(group, linux_x86_64, TestEngine::Native, TestEnginePolicy::Required);
+TestGroup::engine(group, linux_x86_64, TestEngine::Psi, TestEnginePolicy::Disabled);
+```
+
+Setting the same target and engine to `TestEnginePolicy::IfAvailable`
+restores its default. Each setting applies to the named group, target and
+engine. A comparison that requires an explicitly disabled engine is incomplete.
+
 Before test effects, publish the execution plan with each test's exact group,
 target, engine, selected bindings and status: scheduled, explicitly disabled,
 or unavailable with a reason. Missing host adapter or engine support is not a

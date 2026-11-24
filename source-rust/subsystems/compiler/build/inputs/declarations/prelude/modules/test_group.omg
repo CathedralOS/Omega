@@ -30,3 +30,23 @@ public machine expect_missing(group: TestGroup, path: @[u8]) reaches BuildReques
 public machine expect_file(group: TestGroup, path: @[u8], bytes: @[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
     BuildRequestOperations::configure_test_fixture(group, 6u64, path, bytes);
 }
+
+// Choose one engine for this exact target. Omitted choices run if available.
+public machine engine(group: TestGroup, target: BuildTarget, selected: TestEngine, policy: TestEnginePolicy)
+reaches BuildRequestOperations invokes BuildRequestOperations {
+    BuildRequestOperations::configure_test_engine(group, build_selection_target(target), engine_number(selected), policy_number(policy));
+
+    machine engine_number(selected: TestEngine) -> u64 {
+        match selected {
+            TestEngine::Psi -> 0u64,
+            TestEngine::Native -> 1u64,
+        }
+    }
+    machine policy_number(policy: TestEnginePolicy) -> u64 {
+        match policy {
+            TestEnginePolicy::IfAvailable -> 0u64,
+            TestEnginePolicy::Required -> 1u64,
+            TestEnginePolicy::Disabled -> 2u64,
+        }
+    }
+}
