@@ -31,6 +31,31 @@ def requests():
     yield "wrong-owner", wrong, 253
 
 
+def check_engine(cli, engine, project, inputs, outputs, expected):
+    subprocess.run(
+        [cli, "run", "--engine", engine, "--inputs", inputs, "--outputs", outputs, "build.omg"],
+        cwd=project, stdin=subprocess.DEVNULL, check=True,
+    )
+    with (outputs / "results.tsv").open(newline="") as report:
+        rows = list(csv.DictReader(report, delimiter="\t"))
+    if [row["case"] for row in rows] != sorted(expected):
+        raise SystemExit(f"{engine} returned an unexpected case roster: {rows}")
+
+    errors = {}
+    for row in rows:
+        name = row["case"]
+        status = str(expected[name])
+        if engine == "psi":
+            if (row["termination"], row["detail"]) != ("exit", status):
+                raise SystemExit(f"expected Psi to exit {status} for {name}, observed {row}")
+        elif row["native"] != status:
+            raise SystemExit(f"expected native status {status} for {name}, observed {row}")
+        if (outputs / f"{name}.stdout").read_bytes():
+            raise SystemExit(f"{engine} wrote tape bytes for {name}")
+        errors[name] = (outputs / f"{name}.stderr").read_bytes()
+    return errors
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("omega", type=Path, help="optimized omega executable")
@@ -46,27 +71,16 @@ def main():
             shutil.copyfile(fixture / name, root / name)
         with tempfile.TemporaryDirectory() as case_directory:
             inputs = Path(case_directory) / "inputs"
-            outputs = Path(case_directory) / "outputs"
             inputs.mkdir()
             expected = {}
             for name, packet, exit_code in requests():
                 (inputs / f"{name}.stdin").write_bytes(packet)
-                expected[name] = (str(exit_code), "agrees", str(exit_code))
-            subprocess.run(
-                [cli, "run", "--both", "--inputs", inputs, "--outputs", outputs, "build.omg"],
-                cwd=root, check=True,
-            )
-            with (outputs / "results.tsv").open(newline="") as report:
-                observed = {
-                    row["case"]: (row["native"], row["interpreter"], row["interpreter_exit"])
-                    for row in csv.DictReader(report, delimiter="\t")
-                }
-            if observed != expected:
-                raise SystemExit(f"expected {expected}, observed {observed}")
+                expected[name] = exit_code
+            native = check_engine(cli, "native", root, inputs, inputs.parent / "native", expected)
+            psi = check_engine(cli, "psi", root, inputs, inputs.parent / "psi", expected)
             for name in expected:
-                for stream in (f"{name}.stdout", f"{name}.terminal.stdout"):
-                    if (outputs / stream).stat().st_size:
-                        raise SystemExit(f"{stream} contains tape bytes")
+                if native[name] != psi[name]:
+                    raise SystemExit(f"native and Psi emitted different diagnostics for {name}")
 
 
 if __name__ == "__main__":
