@@ -167,6 +167,21 @@ pub fn call_write_regions(
             )
         });
         if selected != Some(formal.structural_type) {
+            let actual_declaration = selected
+                .and_then(|ty| module.structural_type(ty))
+                .map(|ty| ty.declaration_identity);
+            let formal_declaration = module
+                .structural_type(formal.structural_type)
+                .map(|ty| ty.declaration_identity);
+            if actual_declaration.is_some_and(|identity| !identity.is_absent())
+                && actual_declaration == formal_declaration
+            {
+                // Distinct applications can assign different local field IDs.
+                // Keep the full borrow ceiling until the frame's fields can
+                // be mapped to the actual type. Call checking still verifies
+                // the exact type and its const arguments.
+                return Ok(None);
+            }
             return Err("write-frame actual does not have its formal's exact type".to_owned());
         }
         let mut path = actual.path.clone();
