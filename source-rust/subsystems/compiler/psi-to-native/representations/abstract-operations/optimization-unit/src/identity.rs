@@ -415,6 +415,57 @@ pub(crate) mod proposition_encoding {
                 bytes.u32(clause.left.0);
                 bytes.u32(clause.right.0);
             }
+            // Publication refuses an unchecked declaration Identity, but a
+            // unit identity must still commit every field it is given.
+            Proposition::DeclarationIdentity(clause) => {
+                use semantic_vocabulary::{ClauseCarrier, ClauseOperand};
+                bytes.u8(23);
+                bytes.slice(&clause.values, |bytes, value| {
+                    match value.carrier {
+                        ClauseCarrier::Parameter(binder) => {
+                            bytes.u8(0);
+                            bytes.u32(binder);
+                        }
+                        ClauseCarrier::Scalar(scalar_type) => {
+                            bytes.u8(1);
+                            encode_scalar_type(bytes, scalar_type);
+                        }
+                        ClauseCarrier::Structural(structural_type) => {
+                            bytes.u8(2);
+                            bytes.id(structural_type);
+                        }
+                    }
+                    match &value.operand {
+                        ClauseOperand::Input(subject) => {
+                            bytes.u8(0);
+                            encode_case_subject(bytes, subject);
+                        }
+                        ClauseOperand::Scalar(term) => {
+                            bytes.u8(1);
+                            encode_scalar_term(bytes, term);
+                        }
+                        ClauseOperand::Formal(formal) => {
+                            bytes.u8(2);
+                            bytes.u32(*formal);
+                        }
+                        ClauseOperand::Application {
+                            declaration,
+                            arguments,
+                        } => {
+                            bytes.u8(3);
+                            encode_optional(bytes, declaration.supplier.as_ref(), |bytes, slot| {
+                                bytes.u32(slot.0);
+                                bytes.u32(slot.1);
+                            });
+                            bytes.u32(declaration.member.0);
+                            bytes.u32(declaration.member.1);
+                            bytes.slice(arguments, |bytes, argument| bytes.u32(*argument));
+                        }
+                    }
+                });
+                bytes.u32(clause.left);
+                bytes.u32(clause.right);
+            }
         }
     }
 
@@ -912,6 +963,48 @@ pub(crate) mod proposition_encoding {
     encode_rooted_field!(encode_float_field, IeeeFloatStructuralField);
     encode_rooted_field!(encode_byte_field, ByteSequenceStructuralField);
     encode_rooted_field!(encode_case_subject, StructuralCaseSubject);
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use semantic_vocabulary::{
+            ClauseCarrier, ClauseDeclaration, ClauseIdentity, ClauseOperand, ClauseValue,
+        };
+
+        fn identity_bytes(supplier: Option<(u32, u32)>, member: (u32, u32)) -> Vec<u8> {
+            let carrier = ClauseCarrier::Parameter(0);
+            let proposition = Proposition::DeclarationIdentity(ClauseIdentity {
+                values: vec![
+                    ClauseValue {
+                        carrier,
+                        operand: ClauseOperand::Formal(0),
+                    },
+                    ClauseValue {
+                        carrier,
+                        operand: ClauseOperand::Application {
+                            declaration: ClauseDeclaration { supplier, member },
+                            arguments: vec![0],
+                        },
+                    },
+                ],
+                left: 0,
+                right: 1,
+            });
+            let mut bytes = CanonicalBytes::collect();
+            encode_proposition(&mut bytes, &proposition);
+            bytes.finish()
+        }
+
+        #[test]
+        fn declaration_identity_commits_its_cited_declaration() {
+            let cited = identity_bytes(Some((1, 1)), (2, 1));
+            assert_eq!(cited[0], 23);
+            assert_eq!(cited, identity_bytes(Some((1, 1)), (2, 1)));
+            assert_ne!(cited, identity_bytes(Some((1, 2)), (2, 1)));
+            assert_ne!(cited, identity_bytes(None, (2, 1)));
+            assert_ne!(cited, identity_bytes(Some((1, 1)), (3, 1)));
+        }
+    }
 }
 
 pub(crate) mod runtime_evidence_encoding {

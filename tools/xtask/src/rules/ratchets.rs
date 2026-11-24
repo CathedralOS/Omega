@@ -896,8 +896,8 @@ pub(super) fn compute_ratchet_counts(
     };
     let mut counts = BTreeMap::new();
     for path in files {
-        let bytes = fs::read(&path).map_err(|error| format!("{}: {error}", path.display()))?;
-        let text = String::from_utf8_lossy(&bytes);
+        let text =
+            fs::read_to_string(&path).map_err(|error| format!("{}: {error}", path.display()))?;
         let c = match index {
             0 => count_source_reads(&text),
             1 => count_status_phrases(&text),
