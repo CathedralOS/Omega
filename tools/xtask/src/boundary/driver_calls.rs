@@ -102,7 +102,7 @@ pub(super) fn violations(root: &Path) -> Result<Vec<String>, String> {
         }
     }
     let mut files = Vec::new();
-    collect_rs_files(&root.join("source-rust"), &mut files);
+    collect_rs_files(&root.join("source-rust"), &mut files, &mut violations);
     for path in files {
         let relative = path.strip_prefix(root).map_err(|error| error.to_string())?;
         let name = relative.to_string_lossy().replace('\\', "/");
