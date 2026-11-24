@@ -14,12 +14,28 @@ use terminal_interpreter::{
 
 pub(super) struct RegisteredTestGroup {
     selection: ExecutedProductSelection,
+    providers: Vec<ExecutedProductSelection>,
     disabled: TerminalInvocationScalar,
     private_filesystem: TerminalInvocationScalar,
     _storage: Option<evaluation_accounting::EvaluationStorageLease>,
 }
 
 impl RegisteredTestGroup {
+    pub(super) fn owns_settings(&self, backing: &dyn TerminalScalarBacking) -> bool {
+        self.disabled.shares_storage(backing)
+    }
+
+    pub(super) fn select_provider(
+        &mut self,
+        provider: ExecutedProductSelection,
+    ) -> Result<(), TerminalEffectRejection> {
+        self.providers.try_reserve(1).map_err(|_| {
+            TerminalEffectRejection::new("cannot retain test group provider selection")
+        })?;
+        self.providers.push(provider);
+        Ok(())
+    }
+
     pub(super) fn finish(mut self) -> Result<ExecutedBuildSelection, String> {
         let boolean = |cell: &TerminalInvocationScalar| match cell.read().map_err(|e| e.reason)? {
             TerminalScalarValue::Boolean(value) => Ok(value),
@@ -30,6 +46,7 @@ impl RegisteredTestGroup {
             inputs: TestInvocationInputs {
                 private_filesystem: boolean(&self.private_filesystem)?,
             },
+            providers: self.providers,
         });
         Ok(ExecutedBuildSelection::Declaration(self.selection))
     }
@@ -79,6 +96,10 @@ impl GroupShape {
             })
     }
 
+    pub(super) fn disabled_path(&self) -> [CanonicalStructuralPathSegment; 1] {
+        [CanonicalStructuralPathSegment::Field(self.disabled)]
+    }
+
     fn issue(
         &self,
         disabled: TerminalInvocationScalar,
@@ -88,7 +109,7 @@ impl GroupShape {
         let mut values = Vec::with_capacity(2);
         let mut scalars = Vec::with_capacity(2);
         for (path, cell) in [
-            (vec![Field(self.disabled)], disabled),
+            (self.disabled_path().to_vec(), disabled),
             (
                 vec![Field(self.inputs), Field(self.private_filesystem)],
                 private_filesystem,
@@ -164,6 +185,7 @@ impl TerminalBuildBindingHost {
                     target: None,
                     composition: None,
                 },
+                providers: Vec::new(),
                 disabled,
                 private_filesystem,
                 _storage: storage,

@@ -239,12 +239,8 @@ pub(crate) mod build_selections {
             (BuildSelectionRequest::Exclusion(request), _) => {
                 vec![(1, request.vocabulary.helper())]
             }
-            (_, Protocol::BindNative) => vec![(1, "build_selection_target")],
-            (_, Protocol::SelectProvider) => {
-                vec![
-                    (1, "build_selection_target"),
-                    (2, "build_selection_independent"),
-                ]
+            (_, Protocol::BindNative | Protocol::SelectProvider) => {
+                vec![(1, "build_selection_target")]
             }
             _ => Vec::new(),
         };
@@ -3880,7 +3876,7 @@ pub(crate) mod product_selections {
             if operation == BuildOperation::NativeBinding {
                 "its explicit mutable Build, catalog target and owned native locator arguments"
             } else if operation == BuildOperation::ProviderSelection {
-                "its mutable Build and optional catalog target and composition mode"
+                "its mutable Build, optionally followed by a target or composition mode, or a target and an issued group or composition mode"
             } else {
                 "its explicit mutable Build argument"
             },

@@ -100,6 +100,10 @@ pub enum TerminalBuildBindingOperand {
             ProviderSelectionOption,
         )>,
     },
+    /// The checked referent of a group operand. Its Build activation verifies the presented loan.
+    TestGroup {
+        referent: semantic_vocabulary::StructuralTypeId,
+    },
 }
 
 #[derive(Debug, PartialEq, Eq, record_storage::Record)]

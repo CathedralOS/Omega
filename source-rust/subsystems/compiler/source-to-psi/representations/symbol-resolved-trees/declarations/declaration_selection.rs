@@ -320,6 +320,8 @@ mod product {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct TestGroupConfiguration {
         pub disabled: bool,
+        /// Ordinary provider choices made with this registration's issued handle.
+        pub providers: Vec<ExecutedProductSelection>,
         pub inputs: TestInvocationInputs,
     }
 

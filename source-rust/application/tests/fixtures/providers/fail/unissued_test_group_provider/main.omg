@@ -1,0 +1,14 @@
+boundary trait Reading {
+    machine value() -> u8 reaches none crashes none;
+}
+
+FixedReading satisfies Reading {
+    machine value() -> u8 reaches none crashes none { 41u8 }
+}
+
+trait Tests {
+    machine reading() reaches none crashes none;
+}
+
+machine test_reading() satisfies Tests::reading {}
+machine main() {}

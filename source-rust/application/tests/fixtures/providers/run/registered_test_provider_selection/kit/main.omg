@@ -9,3 +9,7 @@ public DefaultReading satisfies Reading {
 public ApplicationReading satisfies Reading {
     machine value() -> u8 reaches none crashes none { 29u8 }
 }
+
+public GroupReading satisfies Reading {
+    machine value() -> u8 reaches none crashes none { 41u8 }
+}

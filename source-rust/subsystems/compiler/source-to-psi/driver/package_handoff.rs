@@ -23,7 +23,7 @@ pub fn package_handoff_declarations(
     let (product, declarations) = source.resolve(&mut Default::default())?;
     // Dependency handoff uses only the package's typed declarations and Build requests.
     let mut typed = declarations.typed().clone();
-    let (_, admitted) = product.policy.admit(&mut typed, Some(package))?;
+    let (_, admitted) = product.policy.admit(&mut typed, Some(package), None)?;
     let providers = admitted
         .providers
         .iter()
