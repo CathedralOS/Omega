@@ -167,6 +167,33 @@ public LocalReader satisfies Reader {
     assert!(report.contains("domains 2"), "{report}");
 }
 
+#[test]
+fn review_checks_boundary_predicates_at_each_const_application() {
+    let project = TemporaryDirectory::create("review-const-predicates", false).unwrap();
+    fs::write(
+        project.path().join("build.omg"),
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "const_boundary"); }"#,
+    )
+    .unwrap();
+    let source = r#"public boundary trait Reader {
+    machine read<const Count: u64>(bytes: @[u8; Count], count: u64) -> u64
+    requires count <= Count reaches none crashes none;
+}
+public LocalReader satisfies Reader {
+    machine read<const Count: u64>(bytes: @[u8; Count], count: u64) -> u64
+    requires count <= Count { count }
+}
+public machine four(bytes: @[u8; 4]) -> u64 reaches Reader { Reader::read::<4>(bytes, 3) }
+public machine eight(bytes: @[u8; 8]) -> u64 reaches Reader { Reader::read::<8>(bytes, 7) }"#;
+    let (status, report) = audit_reader(&project, source);
+    assert_eq!(status, Some(0), "{report}");
+    assert!(report.contains("fresh-analysis complete"), "{report}");
+
+    let (status, report) = audit_reader(&project, &source.replace("(bytes, 3)", "(bytes, 5)"));
+    assert_eq!(status, Some(1), "{report}");
+    assert!(report.contains("cannot prove requires clause"), "{report}");
+}
+
 fn audit_reader(project: &TemporaryDirectory, source: &str) -> (Option<i32>, String) {
     fs::write(project.path().join("reader.omg"), source).unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))

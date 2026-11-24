@@ -342,25 +342,10 @@ impl<'module> AcceptedDeclarations<'module> {
                 requirement.path()
             ))
         };
-        let (owner, _) = self
+        let original = self
             .accepted
-            .source()
-            .trait_machine_signature(signature.symbol)
-            .ok_or_else(|| missing("the original declaring trait"))?;
-        let schemas = &self.accepted.closure().elaboration().static_schemas;
-        let original = schemas
-            .binary_search_by_key(&symbol_key(owner.symbol), |schema| {
-                symbol_key(schema.declaration)
-            })
-            .ok()
-            .and_then(|index| {
-                schemas[index]
-                    .requirements
-                    .iter()
-                    .find(|row| row.declaration == signature.symbol)?
-                    .signature
-                    .as_ref()
-            });
+            .boundary_predicate_signature(boundary.id, signature.symbol)
+            .map_err(missing)?;
         match original {
             Some(original) => original
                 .validate_boundary_predicates(boundary)

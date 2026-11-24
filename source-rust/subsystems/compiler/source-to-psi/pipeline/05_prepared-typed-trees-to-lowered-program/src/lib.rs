@@ -1251,6 +1251,18 @@ fn finish_reading_into<'source>(
     }
 
     elaboration.boundaries = program.boundaries.rows.map(|_, source| source.source);
+    source.applied_boundary_signatures = program
+        .boundaries
+        .rows
+        .iter()
+        .filter(|(_, row)| {
+            program
+                .typed
+                .closed_requirement_application(row.source)
+                .is_some()
+        })
+        .map(|(boundary, row)| (boundary, row.signature.static_signature()))
+        .collect();
     source.selection_questions = Some(
         selection_questions::bind_invocation_declarations(
             source_selection_questions,
