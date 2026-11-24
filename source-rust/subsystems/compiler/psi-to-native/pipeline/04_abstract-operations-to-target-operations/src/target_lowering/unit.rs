@@ -15,11 +15,9 @@ pub(crate) mod argument_roots {
     use abstract_operations::AbstractFunction;
     use calling_conventions::ValueShape;
     use semantic_vocabulary::PlaceId;
-    use std::collections::{BTreeMap, BTreeSet};
     use structural_storage_queries::address_joins::is_address_join;
     use target_operations::{
-        TargetStructuralArgumentSource, TargetStructuralHomeOrigin,
-        TargetStructuralHomeRequirement, TargetStructuralParameter,
+        TargetStructuralArgumentSource, TargetStructuralHomeOrigin, TargetStructuralParameter,
     };
     use terminal_psi::StructuralParameterDeclaration;
 
@@ -29,14 +27,11 @@ pub(crate) mod argument_roots {
         pub source: TargetStructuralArgumentSource,
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn resolve<'parameter>(
         place: PlaceId,
         function: &AbstractFunction,
         parameters: impl IntoIterator<Item = &'parameter TargetStructuralParameter>,
-        homes: &BTreeMap<PlaceId, TargetStructuralHomeRequirement>,
-        address_joins: &BTreeSet<PlaceId>,
-        block_views: &BTreeSet<PlaceId>,
+        live: &crate::target_lowering::control_flow::LiveDefinitions,
         types: &StructuralTypeLookup<'_>,
     ) -> Result<StructuralArgumentRoot, LoweringError> {
         let unknown = || LoweringError::UnknownStructuralArgumentPlace {
@@ -59,7 +54,7 @@ pub(crate) mod argument_roots {
                 source: parameter.placement.clone().into(),
             });
         }
-        if let Some(home) = homes.get(&place) {
+        if let Some(home) = live.structural_homes.get(&place) {
             let declaration = match &home.origin {
                 TargetStructuralHomeOrigin::OperationResult { result, .. } => {
                     StructuralParameterDeclaration {
@@ -85,7 +80,7 @@ pub(crate) mod argument_roots {
                 source: home.argument_source(),
             });
         }
-        if address_joins.contains(&place) || block_views.contains(&place) {
+        if live.address_joins.contains(&place) || live.block_views.contains(&place) {
             let (block, declaration) = function
                 .blocks
                 .iter()
@@ -95,7 +90,7 @@ pub(crate) mod argument_roots {
                         .map(|parameter| (entry.block, parameter))
                 })
                 .ok_or_else(unknown)?;
-            if address_joins.contains(&place)
+            if live.address_joins.contains(&place)
                 && !is_address_join(declaration, |identity| types.get(identity).copied())
             {
                 return Err(unknown());
@@ -124,7 +119,7 @@ pub(crate) mod boundary_call {
     use semantic_vocabulary::{
         BoundaryMachineId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, ValueId,
     };
-    use std::collections::{BTreeMap, BTreeSet};
+    use std::collections::BTreeMap;
     use target::{Architecture, NativeTarget, ObjectFormat};
     use target_operations::{
         BoundaryByteSequenceArgument, BoundaryRealization, BoundarySettlementBinding,
@@ -143,9 +138,9 @@ pub(crate) mod boundary_call {
             reference_referent_projection, resolve_structural_projection_path, structural_shape,
         };
         use super::{
-            AbstractFunction, BTreeMap, BTreeSet, BoundaryMachineId, CallSignature, LoweringError,
-            NativeTarget, OperationId, PlaceId, StructuralTypeLookup, StructuralTypeShape,
-            TargetStructuralParameter, TargetUnitScalarHomeRequirement, ValueId, ValueShape,
+            AbstractFunction, BoundaryMachineId, CallSignature, LoweringError, NativeTarget,
+            OperationId, StructuralTypeLookup, StructuralTypeShape,
+            TargetUnitScalarHomeRequirement, ValueId, ValueShape,
         };
         use calling_conventions::ValueClass;
         use calling_conventions::{byte_size_at_offset_zero, validate_boundary_entry_plan};
@@ -156,19 +151,17 @@ pub(crate) mod boundary_call {
         pub(crate) fn lower_normalized_foreign_structural_arguments(
             boundary: BoundaryMachineId,
             function: &AbstractFunction,
-            scalar_sources: &ScalarSources<'_>,
+            live: &crate::target_lowering::control_flow::LiveDefinitions,
+            prepared: &crate::target_lowering::function_signature::PreparedFunctionSignature,
             target: NativeTarget,
             declaration: &terminal_psi::BoundaryMachineDeclaration,
             structural_arguments: &[terminal_psi::StructuralArgument],
             binding: &target_operations::NormalizedForeignCallBinding,
             structural_types: &StructuralTypeLookup<'_>,
-            parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
-
             native_callbacks: &[target_operations::TargetNativeCallbackArgument],
-            local_homes: &BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
-            address_joins: &BTreeSet<PlaceId>,
-            block_views: &BTreeSet<PlaceId>,
         ) -> Result<Vec<TargetStructuralArgument>, LoweringError> {
+            let local_homes = &live.structural_homes;
+            let scalar_sources = ScalarSources::from(live);
             let boundary_entry_plan = &binding.boundary_entry_plan;
             let operands = binding.operand_placements();
             let callback_ordinals = native_callbacks
@@ -214,21 +207,34 @@ pub(crate) mod boundary_call {
                             .iter()
                             .filter(|ordinal| semantic_position >= **ordinal)
                             .count();
-                    let resolved = super::super::argument_roots::resolve(
-                        argument.place,
-                        function,
-                        parameters_by_place.values().copied(),
-                        local_homes,
-                        address_joins,
-                        block_views,
-                        structural_types,
+                    let established = crate::target_lowering::control_flow::borrowed_calls::established_view_source(
+                        argument, function, prepared, live, structural_types,
                     )?;
-                    let root = resolved.declaration;
-                    let source_structural_type = root.structural_type;
-                    let source_shape = resolved.backing_shape;
-                    let source_multiplicity = root.multiplicity;
-                    let argument_source = resolved.source;
-                    let permitted_access = match root.access {
+                    let (source_structural_type, source_access, source_multiplicity, source_shape, argument_source, stored_root) =
+                        if let Some((identity, source)) = established {
+                            (
+                                identity,
+                                argument.access,
+                                terminal_psi::StructuralMultiplicity::Unrestricted,
+                                structural_shape(identity, structural_types)?,
+                                source,
+                                None,
+                            )
+                        } else {
+                            let resolved = super::super::argument_roots::resolve(
+                                argument.place, function, prepared.parameters.iter(), live, structural_types,
+                            )?;
+                            let declaration = resolved.declaration;
+                            (
+                                declaration.structural_type,
+                                declaration.access,
+                                declaration.multiplicity,
+                                resolved.backing_shape,
+                                resolved.source,
+                                Some(declaration),
+                            )
+                        };
+                    let permitted_access = match source_access {
                         StructuralAccess::Owned => true,
                         StructuralAccess::SharedBorrow => {
                             argument.access == StructuralAccess::SharedBorrow
@@ -302,14 +308,15 @@ pub(crate) mod boundary_call {
                         {
                             return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                         }
-                        if let Some(presentation) =
+                        if let Some(root) = &stored_root
+                            && let Some(presentation) =
                             super::super::roster_arguments::fixed_array_view_argument(
                                 argument,
                                 parameter,
                                 shape,
                                 destination,
                                 function.machine,
-                                &root,
+                                root,
                                 source_shape.byte_size,
                                 argument_source.clone(),
                                 structural_types,
@@ -324,7 +331,8 @@ pub(crate) mod boundary_call {
                             }
                             return Ok(presentation);
                         }
-                        if argument.access == StructuralAccess::SharedBorrow
+                        if let Some(root) = &stored_root
+                            && argument.access == StructuralAccess::SharedBorrow
                             && root.multiplicity
                                 == terminal_psi::StructuralMultiplicity::Unrestricted
                             && matches!(
@@ -531,7 +539,7 @@ pub(crate) mod boundary_call {
                         indices: runtime_indices(
                             index_runs,
                             function,
-                            scalar_sources,
+                            &scalar_sources,
                             structural_types,
                         )?,
                         source: argument_source,
@@ -840,22 +848,12 @@ pub(crate) mod boundary_call {
             Vec<target_operations::TargetNativeCallbackArgument>,
         >,
         parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
-        local_homes: &BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
-        address_joins: &BTreeSet<PlaceId>,
-        block_views: &BTreeSet<PlaceId>,
-
+        prepared: &crate::target_lowering::function_signature::PreparedFunctionSignature,
+        live: &mut crate::target_lowering::control_flow::LiveDefinitions,
         established_byte_sequences: &BTreeMap<
             PlaceId,
             (OperationId, StructuralTypeDeclaration, Vec<u8>),
         >,
-        scalar_values: &mut BTreeMap<ValueId, KnownUnitInteger>,
-        scalar_homes: &mut crate::target_lowering::control_flow::ScalarHomes,
-        booleans: &BTreeMap<ValueId, (OperationId, bool)>,
-        ieee_float_constants: &BTreeMap<
-            ValueId,
-            (OperationId, semantic_vocabulary::IeeeFloatValue),
-        >,
-        scalar_block_parameters: &BTreeMap<ValueId, target_operations::TargetScalarBlockValue>,
         operations: &mut Vec<TargetUnitOperation>,
         provenance: &mut TerminalPsiProvenance,
     ) -> Result<(), LoweringError> {
@@ -896,23 +894,14 @@ pub(crate) mod boundary_call {
                         normalized_foreign::lower_normalized_foreign_structural_arguments(
                             *boundary,
                             function,
-                            &ScalarSources {
-                                integers: scalar_values,
-                                scalar_homes: &*scalar_homes,
-                                booleans,
-                                ieee_float_constants,
-                                scalar_block_parameters,
-                            },
+                            live,
+                            prepared,
                             target,
                             declaration,
                             structural_arguments,
                             foreign,
                             structural_types,
-                            parameters_by_place,
                             native_callbacks_slice,
-                            local_homes,
-                            address_joins,
-                            block_views,
                         )?;
                     let structural_parameter_shapes = structural_arguments
                         .iter()
@@ -924,13 +913,7 @@ pub(crate) mod boundary_call {
                         function,
                         arguments,
                         foreign,
-                        &ScalarSources {
-                            integers: scalar_values,
-                            scalar_homes: &*scalar_homes,
-                            booleans,
-                            ieee_float_constants,
-                            scalar_block_parameters,
-                        },
+                        &ScalarSources::from(&*live),
                         foreign
                             .boundary_entry_plan
                             .call
@@ -957,7 +940,7 @@ pub(crate) mod boundary_call {
                         return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                     };
                     if let Some(home) = target_result.scalar_home().copied() {
-                        insert_scalar_home(scalar_values, scalar_homes, home)?;
+                        insert_scalar_home(&mut live.integers, &mut live.scalar_homes, home)?;
                     }
                     let catalog = structural_types.catalog();
                     let descriptor_input =
@@ -1238,7 +1221,7 @@ pub(crate) mod boundary_call {
                                 function.machine,
                             ));
                         };
-                        let Some(known) = scalar_values.get(source_value).copied() else {
+                        let Some(known) = live.integers.get(source_value).copied() else {
                             return Err(LoweringError::UnknownValue(*source_value));
                         };
                         let shape = fixed_native_integer_shape(i32_type).ok_or(
@@ -1326,7 +1309,7 @@ pub(crate) mod boundary_call {
                             return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                         };
                         insert_known_unit_integer(
-                            scalar_values,
+                            &mut live.integers,
                             home.source_value,
                             KnownUnitInteger::Home(*home),
                         )?;

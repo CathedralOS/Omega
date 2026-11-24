@@ -1203,7 +1203,7 @@ pub(crate) mod normalized_foreign {
                         TargetStructuralArgumentSource::Placement(
                             parameter.target.placement.clone(),
                         ),
-                        parameter.semantic.clone(),
+                        Some(parameter.semantic.clone()),
                         false,
                     )
                 } else if let Some((producer, result)) =
@@ -1218,7 +1218,7 @@ pub(crate) mod normalized_foreign {
                         TargetStructuralArgumentSource::StructuralHome {
                             psi_operation: producer,
                         },
-                        terminal_psi::StructuralParameterDeclaration {
+                        Some(terminal_psi::StructuralParameterDeclaration {
                             place: result.place,
                             position: 0,
                             structural_type: result.structural_type,
@@ -1229,9 +1229,37 @@ pub(crate) mod normalized_foreign {
                             additional_input_qualifications: result
                                 .additional_input_qualifications
                                 .clone(),
-                        },
+                        }),
                         !result.claims.is_empty()
                             || !result.qualification_establishments.is_empty(),
+                    )
+                } else if matches!(
+                    argument.source,
+                    TargetStructuralArgumentSource::EstablishedByteView { .. }
+                        | TargetStructuralArgumentSource::EstablishedElementView { .. }
+                ) {
+                    use crate::instruction_selection::selection::established_view_input;
+                    if !argument.path.is_empty()
+                        || !matches!(
+                            argument.access,
+                            terminal_psi::reading_borrow_pair_pattern!()
+                        )
+                    {
+                        return Err(invalid!());
+                    }
+                    established_view_input::accepts_at(source, invocation_site, argument)
+                        .ok_or_else(|| invalid!())?;
+                    let identity = established_view_input::view_type(source, argument.place)
+                        .or_else(|| {
+                            established_view_input::element_view_type(source, argument.place)
+                        })
+                        .ok_or_else(|| invalid!())?;
+                    (
+                        identity,
+                        argument.access,
+                        argument.source.clone(),
+                        None,
+                        false,
                     )
                 } else if let Some((block, parameter)) = invocation_site
                     .operation()
@@ -1244,7 +1272,7 @@ pub(crate) mod normalized_foreign {
                             block,
                             place: parameter.place,
                         },
-                        parameter.clone(),
+                        Some(parameter.clone()),
                         false,
                     )
                 } else if let Some((block, parameter)) =
@@ -1260,7 +1288,7 @@ pub(crate) mod normalized_foreign {
                             block,
                             place: parameter.place,
                         },
-                        parameter.clone(),
+                        Some(parameter.clone()),
                         false,
                     )
                 } else {
@@ -1271,10 +1299,11 @@ pub(crate) mod normalized_foreign {
                 path: argument.path.clone(),
                 access: argument.access,
             };
-            let presentation = (argument.access != terminal_psi::StructuralAccess::Owned).then(||
+            let presentation = root.as_ref().filter(|_| argument.access != terminal_psi::StructuralAccess::Owned).and_then(|root| {
                 crate::instruction_selection::structural_inputs::structural_reference_input::borrowed_byte_view_presentation(
-                    &root, &semantic, argument.structural_type, source.geometry(),
-                )).flatten();
+                    root, &semantic, argument.structural_type, source.geometry(),
+                )
+            });
             let (projected_type, source_byte_offset, elements) = if let Some((offset, _, _)) =
                 presentation
             {

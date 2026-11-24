@@ -3313,7 +3313,7 @@ pub(crate) mod hosted_scalar {
     }
 }
 pub(crate) mod normalized_foreign {
-    use super::{PsiOptimizationFunction, TargetUnitOperation};
+    use super::TargetUnitOperation;
     use crate::descriptor_input::descriptor_input_guard_for_call_with_closed_scalars;
     use crate::preparation::LegalizationError;
     use crate::preparation::legalization::scalar_graph_input::normalized_foreign::{
@@ -3332,11 +3332,12 @@ pub(crate) mod normalized_foreign {
         source: &abstract_operations::AbstractOperation,
         parameters: &[TargetStructuralParameter],
         native: &TargetOperationPlan,
-        optimized: &PsiOptimizationFunction,
+        function_inputs: &crate::preparation::legalization_function_inputs::FunctionInputs<'_>,
         plan: &crate::preparation::native_geometry::NativePlan<'_>,
         unit: &crate::preparation::native_geometry::NativeUnit<'_>,
         values: &mut crate::preparation::legalization_target::control_flow::sources::AvailableSources<'_>,
     ) -> Result<(), LegalizationError> {
+        let optimized = function_inputs.function();
         let (
             TargetUnitOperation::NormalizedForeignCall {
                 psi_operation,
@@ -3436,7 +3437,7 @@ pub(crate) mod normalized_foreign {
                         declaration_parameter,
                         operands.get(native_position),
                         parameters,
-                        optimized,
+                        function_inputs,
                         native.target,
                         binding.boundary_entry_plan.call.policy,
                         plan,
@@ -7046,7 +7047,7 @@ pub(crate) mod unit {
                 AbstractOperation::BoundaryCall { .. },
             ) => {
                 super::normalized_foreign::validate(
-                    target, abstracted, parameters, native, optimized, plan, unit, sources,
+                    target, abstracted, parameters, native, function_inputs, plan, unit, sources,
                 )?;
             }
             (

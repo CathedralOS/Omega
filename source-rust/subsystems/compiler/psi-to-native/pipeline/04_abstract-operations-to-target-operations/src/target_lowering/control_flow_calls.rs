@@ -99,9 +99,7 @@ pub(crate) mod borrowed_calls {
                 argument.place,
                 function,
                 prepared.parameters.iter(),
-                &live.structural_homes,
-                &live.address_joins,
-                &live.block_views,
+                live,
                 types,
             )?
             .source;
@@ -246,9 +244,7 @@ pub(crate) mod borrowed_calls {
             argument.place,
             function,
             prepared.parameters.iter(),
-            &live.structural_homes,
-            &live.address_joins,
-            &live.block_views,
+            live,
             types,
         )?;
         let root_type = root.declaration.structural_type;
@@ -320,9 +316,7 @@ pub(crate) mod borrowed_calls {
             argument.place,
             function,
             std::iter::empty::<&TargetStructuralParameter>(),
-            &live.structural_homes,
-            &live.address_joins,
-            &live.block_views,
+            live,
             types,
         )?;
         stored_descriptor_argument(
@@ -421,6 +415,88 @@ pub(crate) mod borrowed_calls {
         })
     }
 
+    pub(crate) fn established_view_source(
+        argument: &terminal_psi::StructuralArgument,
+        function: &AbstractFunction,
+        prepared: &PreparedFunctionSignature,
+        live: &LiveDefinitions,
+        types: &StructuralTypeLookup<'_>,
+    ) -> Result<
+        Option<(
+            semantic_vocabulary::StructuralTypeId,
+            TargetStructuralArgumentSource,
+        )>,
+        LoweringError,
+    > {
+        let Some((producer, structural_type)) = live.views.get(&argument.place) else {
+            return Ok(None);
+        };
+        if live.structural_homes.contains_key(&argument.place)
+            || !types
+                .get(*structural_type)
+                .is_some_and(|row| row.shape.is_view_descriptor())
+        {
+            return Ok(None);
+        }
+        if !argument.path.is_empty()
+            || !matches!(
+                argument.access,
+                terminal_psi::reading_borrow_pair_pattern!()
+            )
+        {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
+        }
+        let values = super::observations::scalar_values(live, &prepared.scalar_parameters, types)?;
+        let (source, access) = if types.get(*structural_type).is_some_and(|row| {
+            matches!(
+                row.shape,
+                terminal_psi::StructuralTypeShape::ElementView { .. }
+            )
+        }) {
+            let (_, identity, access) =
+                crate::target_lowering::scalar::element_views::resolve_element_view(
+                    function,
+                    types,
+                    &prepared.parameters,
+                    live.element_view_backings(),
+                    &values,
+                    &live.lengths,
+                    argument.place,
+                    &mut Vec::new(),
+                )?;
+            if identity != *structural_type {
+                return Err(LoweringError::unsupported_control_flow(function.machine));
+            }
+            (
+                TargetStructuralArgumentSource::EstablishedElementView {
+                    psi_operation: *producer,
+                },
+                access,
+            )
+        } else {
+            let (_, access) = crate::target_lowering::scalar::byte_views::resolve_byte_view(
+                function,
+                types,
+                &prepared.parameters,
+                live.element_view_backings(),
+                &values,
+                &live.lengths,
+                argument.place,
+                &mut Vec::new(),
+            )?;
+            (
+                TargetStructuralArgumentSource::EstablishedByteView {
+                    psi_operation: *producer,
+                },
+                access,
+            )
+        };
+        if !argument.access.admits_referent(access) {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
+        }
+        Ok(Some((*structural_type, source)))
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn byte_argument(
         argument: &terminal_psi::StructuralArgument,
@@ -431,7 +507,6 @@ pub(crate) mod borrowed_calls {
         live: &LiveDefinitions,
         types: &StructuralTypeLookup<'_>,
     ) -> Result<TargetStructuralArgument, LoweringError> {
-        let shared = argument.access == StructuralAccess::SharedBorrow;
         if !argument.path.is_empty() {
             return self::argument(
                 argument,
@@ -486,56 +561,10 @@ pub(crate) mod borrowed_calls {
                     psi_operation: producer,
                 },
             )
-        } else if let Some((producer, structural_type)) = live.views.get(&argument.place) {
-            let source = if crate::target_lowering::scalar::element_views::is_element_view_parameter(
-                declaration,
-                types,
-            ) {
-                let values =
-                    super::observations::scalar_values(live, &prepared.scalar_parameters, types)?;
-                let (_, identity, access) =
-                    crate::target_lowering::scalar::element_views::resolve_element_view(
-                        function,
-                        types,
-                        &prepared.parameters,
-                        live.element_view_backings(),
-                        &values,
-                        &live.lengths,
-                        argument.place,
-                        &mut Vec::new(),
-                    )?;
-                if identity != *structural_type
-                    || !(access == argument.access
-                        || access == StructuralAccess::MutableBorrow && shared)
-                {
-                    return Err(LoweringError::unsupported_control_flow(function.machine));
-                }
-                TargetStructuralArgumentSource::EstablishedElementView {
-                    psi_operation: *producer,
-                }
-            } else {
-                let values =
-                    super::observations::scalar_values(live, &prepared.scalar_parameters, types)?;
-                let (_, access) = crate::target_lowering::scalar::byte_views::resolve_byte_view(
-                    function,
-                    types,
-                    &prepared.parameters,
-                    live.element_view_backings(),
-                    &values,
-                    &live.lengths,
-                    argument.place,
-                    &mut Vec::new(),
-                )?;
-                if access != argument.access
-                    && !(access == StructuralAccess::MutableBorrow && shared)
-                {
-                    return Err(LoweringError::unsupported_control_flow(function.machine));
-                }
-                TargetStructuralArgumentSource::EstablishedByteView {
-                    psi_operation: *producer,
-                }
-            };
-            (*structural_type, source)
+        } else if let Some(established) =
+            established_view_source(argument, function, prepared, live, types)?
+        {
+            established
         } else if live.block_views.contains(&argument.place)
             || live.owned_arrivals.contains(&argument.place)
         {
@@ -1673,9 +1702,7 @@ pub(crate) mod calls {
                 argument.place,
                 function,
                 prepared.parameters.iter(),
-                &live.structural_homes,
-                &live.address_joins,
-                &live.block_views,
+                live,
                 types,
             )?;
             if let Some(presentation) =
