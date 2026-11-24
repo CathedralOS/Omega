@@ -264,6 +264,53 @@ fn compiler_samples_check_native_output_and_retain_every_stage_table() {
         String::from_utf8_lossy(&validation.stderr)
     );
     std::fs::write(directory.path().join("candidate.txt"), "different source").unwrap();
+    let original = events(copies.path());
+    for (file, replacement, expected) in [
+        ("input.txt", None, "missing compiler source identity"),
+        (
+            "candidate.txt",
+            Some("broken".to_owned()),
+            "invalid SHA-256",
+        ),
+        (
+            "candidate.txt",
+            Some("0".repeat(64)),
+            "source copies disagree",
+        ),
+    ] {
+        let mut journal = original.clone();
+        let identities = journal
+            .iter_mut()
+            .find(|event| event["event"] == "identities")
+            .unwrap();
+        let hashes = identities["sha256"].as_object_mut().unwrap();
+        let path = directory.path().join(file).display().to_string();
+        assert!(hashes.remove(&path).is_some());
+        if let Some(value) = replacement {
+            hashes.insert(path, json!(value));
+        }
+        std::fs::write(
+            copies.path().join("result/journal.jsonl"),
+            journal
+                .iter()
+                .map(|event| format!("{event}\n"))
+                .collect::<String>(),
+        )
+        .unwrap();
+        let result = Command::new(env!("CARGO_BIN_EXE_omega-bench"))
+            .arg("validate")
+            .arg(copies.path().join("result"))
+            .output()
+            .unwrap();
+        assert!(
+            !result.status.success(),
+            "accepted damaged identity for {file}"
+        );
+        assert!(
+            String::from_utf8_lossy(&result.stderr).contains(expected),
+            "{result:?}"
+        );
+    }
     let mismatched = TestDirectory::new();
     let refusal = execute(mismatched.path(), &plan);
     assert!(!refusal.status.success());
