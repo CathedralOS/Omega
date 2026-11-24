@@ -9053,6 +9053,39 @@ pub fn portable_applied_type_identity(
     )
 }
 
+/// The omitted input regions of a bound type belong to that parameter.
+/// Keep the same binding and occurrence ordinals used when substituting it
+/// into the callable signature. An application identity supplies no loan.
+pub(crate) fn portable_bound_type_argument_identity(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    owner: SymbolHandle,
+    binding: usize,
+) -> Option<NormalizedTypeIdentity> {
+    if let Some(identity) = portable_applied_type_identity(program, reference, owner, &[]) {
+        return Some(identity);
+    }
+    let invalid = Cell::new(false);
+    let elision = identity_context::SignatureElision::inputs(0);
+    let identity = normalize_type_identity(
+        program,
+        reference,
+        &TypeIdentityContext {
+            application_owner: owner,
+            application_argument_owner: owner,
+            qualification: TypeIdentityQualification::PackageQualified,
+            require_owned_substitution_regions: true,
+            signature_elision: Some(&elision),
+            signature_argument: Some(binding),
+            invalid_application: Some(&invalid),
+            encountered_elided_regions: Some(&invalid),
+            invalid_index_argument: Some(&invalid),
+            ..TypeIdentityContext::default()
+        },
+    );
+    (!invalid.get()).then_some(identity)
+}
+
 /// Descriptions retain declared lifetime relationships, including elision,
 /// with the actual supplying scope and requested nominal qualification.
 /// This produces descriptive data; portable/static clients keep their own

@@ -4205,6 +4205,7 @@ pub(crate) mod requirement_instances {
             kind: &data::TypeParameterKind,
             binding: &static_applications::StaticMachineBindingValue,
             lexical_owner: SymbolHandle,
+            ordinal: usize,
         ) -> Option<type_identity::NormalizedTypeIdentity> {
             // A selected machine and its entry state invoke the same callable.
             // Keep its complete checked application rather than its type spelling.
@@ -4219,6 +4220,19 @@ pub(crate) mod requirement_instances {
                     type_identity::IndexIdentityArgument::TypeReference(self.type_reference()),
                     lexical_owner,
                     &[],
+                )
+            } else if matches!(
+                (kind, binding),
+                (
+                    data::TypeParameterKind::Type,
+                    static_applications::StaticMachineBindingValue::Type(_)
+                )
+            ) {
+                type_identity::portable_bound_type_argument_identity(
+                    program,
+                    self.type_reference(),
+                    lexical_owner,
+                    ordinal,
                 )
             } else {
                 type_identity::portable_applied_type_identity(
@@ -4646,6 +4660,7 @@ pub(crate) mod requirement_instances {
                     &parameter.kind,
                     &prepared.value,
                     prepared_owner,
+                    ordinal,
                 ) != Some(closed.portable_local_arguments[ordinal])
                 {
                     return Err("closed requirement call lost its portable local operand identity");
@@ -4726,12 +4741,19 @@ pub(crate) mod requirement_instances {
             let portable_local_arguments = local_arguments
                 .iter()
                 .zip(&bindings)
-                .map(|(argument, binding)| {
+                .enumerate()
+                .map(|(ordinal, (argument, binding))| {
                     let parameter = self
                         .data_type_parameter_by_symbol(binding.parameter)
                         .ok_or("closed requirement lost its declared local parameter")?;
                     argument
-                        .portable_identity(self, &parameter.kind, &binding.value, lexical_owner)
+                        .portable_identity(
+                            self,
+                            &parameter.kind,
+                            &binding.value,
+                            lexical_owner,
+                            ordinal,
+                        )
                         .ok_or("closed requirement has no complete portable local operand")
                 })
                 .collect::<Result<Vec<_>, _>>()?;
@@ -4880,6 +4902,51 @@ pub(crate) mod requirement_instances {
         use crate::source_state::{expression, machine::Machine, name::Identifier, state::State};
         use crate::source_symbols::SymbolTableBuilder;
         use symbols::{SymbolKind, SymbolNameRef};
+
+        #[test]
+        fn anonymous_requirement_type_regions_belong_to_the_binding() {
+            let mut symbols = SymbolTableBuilder::default();
+            let owner = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("select"));
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            program.push_machine(Machine {
+                symbol: owner,
+                ..Default::default()
+            });
+            let referee = program
+                .type_reference_table
+                .insert(types::TypeReferenceNode::Unit);
+            let mut reference = |lifetime| {
+                program
+                    .type_reference_table
+                    .insert(types::TypeReferenceNode::Reference {
+                        referee,
+                        access: language_core::ReferenceAccess::Mutable,
+                        lifetime,
+                    })
+            };
+            let anonymous = reference(None);
+            let unknown = reference(Some(Identifier::generated("missing")));
+            let bound = |reference, ordinal| {
+                RequirementLocalArgument::Static(reference).portable_identity(
+                    &program,
+                    &data::TypeParameterKind::Type,
+                    &static_applications::StaticMachineBindingValue::Type(reference),
+                    owner,
+                    ordinal,
+                )
+            };
+            let first = bound(anonymous, 0).expect("the type parameter binds its input region");
+            assert_eq!(bound(anonymous, 0), Some(first));
+            assert_ne!(bound(anonymous, 1), Some(first));
+            assert!(bound(unknown, 0).is_none());
+            assert!(
+                type_identity::portable_applied_type_identity(&program, anonymous, owner, &[])
+                    .is_none()
+            );
+        }
 
         #[test]
         fn runtime_binding_carriers_keep_each_applications_lifetime_scope() {
@@ -5034,6 +5101,7 @@ pub(crate) mod requirement_instances {
                     &callable_kind,
                     &machine_binding,
                     selected,
+                    0,
                 )
             });
             assert!(identities[0].is_some());
@@ -5076,6 +5144,7 @@ pub(crate) mod requirement_instances {
                     &callable_kind,
                     &machine_binding,
                     selected,
+                    0,
                 )
             };
             assert!(identity(first).is_some());
@@ -5087,7 +5156,8 @@ pub(crate) mod requirement_instances {
                     &program,
                     &data::TypeParameterKind::Type,
                     &ordinary,
-                    selected
+                    selected,
+                    0,
                 ),
                 type_identity::portable_applied_type_identity(
                     &program,
@@ -5254,7 +5324,7 @@ pub(crate) mod requirement_instances {
                 .unwrap();
             assert_eq!(
                 RequirementLocalArgument::Static(metadata_reference)
-                    .portable_identity(&program, &metadata_kind, &metadata_binding, selected)
+                    .portable_identity(&program, &metadata_kind, &metadata_binding, selected, 0)
                     .expect(
                         "metadata-only requirements retain their complete declaration identity"
                     ),
