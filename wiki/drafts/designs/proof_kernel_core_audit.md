@@ -1119,7 +1119,7 @@ kernel, from the library file as it stands.
   the encoding itself: under raw trees the associativity law took 1,148, and
   one computation is still hundreds of steps where a built-in inductive
   type would take about one. Whether to keep W types on that measurement is
-  [owner question 6](../../../OWNER_QUESTIONS.md#recursive-data-as-w-types).
+  [recursive data encoding question](../../../OWNER_QUESTIONS.md#recursive-data-as-w-types).
   Each law still re-checks the declarations before it, about 1,000 steps a
   law, which a shared check would remove.
 - **`mod`, `div` and `gcd`** were not read at this step: their recursion is
@@ -1257,7 +1257,7 @@ starts with records.
   enough, such as `div(a, b) * b + mod(a, b) = a`, is not provable this way
   and is refused. Whether the ranked argument really gets smaller at each
   call is not checked for these machines
-  ([owner question 7](../../../OWNER_QUESTIONS.md#decrease-of-a-computed-subject)).
+  ([decrease obligation question](../../../OWNER_QUESTIONS.md#decrease-of-a-computed-subject)).
 - **A choice by a computed value** (`rat_eq`, `mod`) is a definition by
   cases of its own over its subject and the variables in scope, so the
   prover computes with it as with any other. In a law, a split on a computed
@@ -1416,7 +1416,7 @@ same_sign> as SameSign;` is read into the mathematical signature when
     give related representatives). The specification allows it only for a
     relation shown to be a mere proposition, and a quotient declaration has
     nowhere to select that evidence
-    ([owner question 8](../../../OWNER_QUESTIONS.md#quotient-mere-proposition-evidence)).
+    ([quotient evidence question](../../../OWNER_QUESTIONS.md#quotient-mere-proposition-evidence)).
     The compiler uses soundness only, which holds for any relation.
   - A generic quotient, a quotient of data that has storage, and the
     nineteen runtime quotient programs under

@@ -89,8 +89,8 @@ is explicit and must belong to the current activation. An ordinary declaration
 named `accept_boundary` grants no authority. Receiver-style acceptance is
 retired, with no implicit insertion of the Build argument.
 
-Selection names an exact slot and supplies a typed static provider value, apart
-from the optional declared composition mode supplied after `builder`:
+To supply a first provider at build time, selection names the exact slot and
+a typed static provider value. An optional composition mode follows `builder`:
 
 ```omega
 Build::select_provider::<Console, CapturedConsole>(builder);
@@ -114,26 +114,62 @@ compose checked target-specific leaves.
 An exact call to a realization machine delegates directly; spelling its operator
 inside the provider redispatches and can recurse.
 
-Build can instead describe an explicitly runtime-bound independent product
-slot and leave the first compatible provider to the application or installer.
-For a runtime-bound slot, the host product's root Build designates the boundary
-operation allowed to publish into it and selects a backing for that operation
-under ordinary provider selection. The backing may vary by target, or a common
-backing may call a target-selected executable installer. It must be available
-before the first call that needs it. Selection alone grants neither executable
-installation authority nor the right to widen the slot's frozen envelope.
+### Independent library exports and runtime publishers
 
-A supplier's own Build selects a closed satisfaction for independent library
-output. The resulting export identifies the exact requirement it implements.
-The consuming product owns the decision to make its slot replaceable. A host
-can be built before any supplier exists. Installation checks each later
-candidate against the slot's contract and envelope without a roster of future
-implementation names. The [Build authorship question](../../../OWNER_QUESTIONS.md#component-producer-and-host-build)
-covers the source forms for these two declarations.
+A supplier's Build selects which closed satisfaction its library exports.
+For example, the quiet console library declares its output with
 
-An initial provider supplied by Build can also be independently replaceable.
-The [first-binding rules](component_publication.md#first-binding-of-a-runtime-bound-slot)
-govern when calls become legal and who may publish a replacement.
+```omega
+// quiet/build.omg
+Build::export_provider::<Console, QuietConsole>(b);
+```
+
+The first static argument identifies the exact closed requirement. The second
+supplies a provider satisfying its complete schema under the ordinary provider
+selection rules. This declaration roots that satisfaction in the library
+output. Internal provider selections can supply its dependencies without
+adding them as export roots. The consumer decides whether its slot is replaceable.
+
+The host product's root Build names the operation allowed to publish into
+an initially empty slot. An editor that always uses the same installer writes
+
+```omega
+// editor/build.omg
+Build::select_provider::<Console>(b, Runtime { publisher: EditorConsoleInstaller::install });
+```
+
+Here `EditorConsoleInstaller::install` designates the concrete implementation
+of the core boundary requirement `ProviderInstaller<Console>::install`. The
+checker resolves that member through the exact satisfaction. A machine with
+the same signature alone cannot serve as publisher. Direct designation
+requires no separate selection for the installer requirement.
+
+A host that selects the installer through a requirement uses these two
+declarations instead. The installer follows ordinary selection, including
+target-specific backings.
+
+```omega
+// editor/build.omg
+Build::select_provider::<Console>(b, Runtime { publisher: ProviderInstaller<Console>::install });
+Build::select_provider::<ProviderInstaller<Console>, EditorConsoleInstaller>(b);
+```
+
+For either form, `Runtime` explicitly selects an independent slot with an empty
+initial binding. It takes precedence over a target default. An explicit
+build-time first provider and an explicit runtime selection for the same slot
+in the same product on the same target conflict and must be rejected. A host
+that wants a build-selected first provider followed by runtime replacement
+can still use `CompositionMode::Independent` with that provider.
+
+The host Build freezes the slot's envelope within consumer acceptance. A
+supplier built later can qualify without its name appearing in the host.
+The installer and its dependencies must be available before use. A concrete
+installer can call a target-selected placement service. Designation grants
+neither executable placement authority nor access to another installation's
+slot. The [first-binding rules](component_publication.md#first-binding-of-a-runtime-bound-slot)
+govern use of the slot. The [instance authority](../../../OWNER_QUESTIONS.md#component-publication-authority)
+and [successful publication](../../../OWNER_QUESTIONS.md#component-first-binding-proof)
+questions cover the install operation's parameters and result contract.
 
 ### Build-owned target selection
 
