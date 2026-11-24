@@ -254,11 +254,62 @@ public machine read() -> i32 reaches Reader {
     );
 }
 
+#[test]
+fn review_numbers_elided_input_lifetimes_and_reuses_the_returned_input() {
+    let project = TemporaryDirectory::create("review-elided-callable-signatures", false).unwrap();
+    fs::write(
+        project.path().join("build.omg"),
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "elided_inputs"); }"#,
+    )
+    .unwrap();
+    let source = r#"public machine first_lane(first: @[u8; 4], second: @[u8; 4]) -> u8 { first[0] }
+public machine reborrow(value: @u32) -> @u32 { value }"#;
+    let (status, report) = audit_reader_with_options(&project, source, &["--details"]);
+    assert_eq!(status, Some(0), "{report}");
+    let signature = |path: &str| {
+        report
+            .split_once(path)
+            .unwrap()
+            .1
+            .split_once("field conformances {")
+            .unwrap()
+            .0
+    };
+    let first = signature(r#"string "reader.omg::first_lane""#);
+    let reborrow = signature(r#"string "reader.omg::reborrow""#);
+    fn lifetime_count(row: &str) -> &str {
+        row.split_once("field lifetime_parameter_count {")
+            .unwrap()
+            .1
+            .split_once('}')
+            .unwrap()
+            .0
+            .trim()
+    }
+    assert_eq!(lifetime_count(first), "u64 2");
+    assert_eq!(first.matches("region(owner(schema),ordinal(0))").count(), 1);
+    assert_eq!(first.matches("region(owner(schema),ordinal(1))").count(), 1);
+    assert_eq!(lifetime_count(reborrow), "u64 1");
+    assert_eq!(
+        reborrow.matches("region(owner(schema),ordinal(0))").count(),
+        2
+    );
+}
+
 fn audit_reader(project: &TemporaryDirectory, source: &str) -> (Option<i32>, String) {
+    audit_reader_with_options(project, source, &[])
+}
+
+fn audit_reader_with_options(
+    project: &TemporaryDirectory,
+    source: &str,
+    options: &[&str],
+) -> (Option<i32>, String) {
     fs::write(project.path().join("reader.omg"), source).unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .current_dir(project.path())
         .args(["packages", "audit", "--offline", "--target", "linux_x86_64"])
+        .args(options)
         .output()
         .unwrap();
     (

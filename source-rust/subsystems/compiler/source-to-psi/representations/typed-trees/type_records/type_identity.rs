@@ -548,13 +548,42 @@ pub(crate) mod callable_identity {
         /// identities. Overload identity deliberately omits this information;
         /// a checked declaration must retain the stronger source promise.
         pub fn machine_definition_types(&self, machine: &Machine) -> Option<(Vec<String>, String)> {
+            let (parameters, result, _) =
+                self.machine_definition_types_in(machine, Default::default())?;
+            Some((parameters, result))
+        }
+
+        /// Package review needs the complete lifetime telescope and an exact
+        /// source owner for every nominal in the published signature.
+        pub fn exact_machine_definition_types(
+            &self,
+            machine: &Machine,
+            exact_sources: &[(source_text::SourceId, [u8; 32])],
+        ) -> Option<(Vec<String>, String, usize)> {
+            let missing = std::cell::Cell::new(false);
+            let result = self.machine_definition_types_in(
+                machine,
+                super::identity_context::TypeIdentityContext {
+                    exact_toolchain_sources: exact_sources,
+                    missing_exact_nominal_owner: Some(&missing),
+                    ..Default::default()
+                },
+            );
+            (!missing.get()).then_some(result).flatten()
+        }
+
+        fn machine_definition_types_in(
+            &self,
+            machine: &Machine,
+            application: super::identity_context::TypeIdentityContext<'_>,
+        ) -> Option<(Vec<String>, String, usize)> {
             let [entry] = self.machine_states(machine).as_array()?;
             // Captured lifetimes keep their portable declaration owner. Only
             // this callable's own binders receive schema ordinals; otherwise
             // a captured region absent from the inputs could look universal.
             let lifetime_owner = self.lifetime_declaration_owner(machine.symbol);
             let declared = super::declaration_lifetime_parameters(self, lifetime_owner)?.len();
-            let (parameters, result, _) = self.signature_definition_types(
+            self.signature_definition_types(
                 super::callable_type_binders(machine.symbol, self.machine_type_parameters(machine)),
                 (machine.symbol, entry.symbol),
                 &[(lifetime_owner, declared)],
@@ -562,10 +591,9 @@ pub(crate) mod callable_identity {
                 entry.return_type,
                 &super::identity_context::TypeIdentityContext {
                     application_argument_owner: machine.symbol,
-                    ..Default::default()
+                    ..application
                 },
-            )?;
-            Some((parameters, result))
+            )
         }
 
         fn signature_definition_types(

@@ -14,8 +14,8 @@ use review_evidence::record::{
     PackagePolicyServiceReachDependency, PackagePolicyTargetContext, PackagePolicyTermination,
     PackageReviewCallableSupply, PackageReviewCheckedServiceReach, PackageReviewCrashCause,
     PackageReviewCrashInterface, PackageReviewNominalIdentity, PackageReviewNominalOwner,
-    PackageReviewSignatureParameter, PackageReviewSynchronousInvocation, PackageReviewTypeIdentity,
-    PackageReviewWriteFrameCompleteness,
+    PackageReviewSemanticDependencyExposure, PackageReviewSignatureParameter,
+    PackageReviewSynchronousInvocation, PackageReviewTypeIdentity, PackageReviewWriteFrameCompleteness,
 };
 use semantic_vocabulary::{MachineId, PackageKeyIdentity, ServiceId, TargetMachineCallable};
 use terminal_psi::{CrashRouteGuard, MachineContract, TerminalModule};
@@ -259,37 +259,66 @@ impl PolicySource<'_> {
         } else {
             self.callable_contracts(declaration, state)?
         };
-        let type_identity = |reference| {
-            if role != PackagePolicyCallableRole::Build {
-                return self.declared_type(original, reference);
+        let source_parameters = source.state_parameters(state);
+        let (parameter_types, result_type, elided_lifetimes) = if role
+            == PackagePolicyCallableRole::Build
+        {
+            let type_identity = |reference| {
+                source
+                    .exact_owner_type_identity(
+                        source_compiler::representations::source_state::type_identity::ExactOwnerTypeIdentityRequest {
+                            lifetime_scope: None,
+                            type_reference: reference,
+                            binders: &[],
+                            substitutions: &[],
+                            exact_toolchain_sources: exact_sources,
+                        },
+                    )
+                    .and_then(|identity| source.type_identity_text(identity))
+                    .filter(|identity| !identity.is_empty())
+                    .ok_or_else(|| unavailable("an exact callable signature type"))
+            };
+            let parameters = source_parameters
+                .iter()
+                .map(|parameter| type_identity(parameter.type_reference))
+                .collect::<Result<Vec<_>, _>>()?;
+            let result = state
+                .return_type
+                .is_valid()
+                .then(|| type_identity(state.return_type))
+                .transpose()?;
+            (parameters, result, 0)
+        } else {
+            for reference in source_parameters
+                .iter()
+                .map(|parameter| parameter.type_reference)
+                .chain(state.return_type.is_valid().then_some(state.return_type))
+            {
+                self.require_type_dependencies(
+                    original,
+                    reference,
+                    PackageReviewSemanticDependencyExposure::PublicInterface,
+                )?;
             }
-            source
-                .exact_owner_type_identity(
-                    source_compiler::representations::source_state::type_identity::ExactOwnerTypeIdentityRequest {
-                        lifetime_scope: None,
-                        type_reference: reference,
-                        binders: &[],
-                        substitutions: &[],
-                        exact_toolchain_sources: exact_sources,
-                    },
-                )
-                .and_then(|identity| source.type_identity_text(identity))
-                .filter(|identity| !identity.is_empty())
-                .map(|canonical| PackageReviewTypeIdentity { canonical })
-                .ok_or_else(|| unavailable("an exact callable signature type"))
+            let (parameters, result, elided) = source
+                .exact_machine_definition_types(declaration, exact_sources)
+                .ok_or_else(|| unavailable("the callable's complete declared signature"))?;
+            (
+                parameters,
+                state.return_type.is_valid().then_some(result),
+                elided,
+            )
         };
-        let parameters = source
-            .state_parameters(state)
+        let parameters = source_parameters
             .iter()
-            .map(|parameter| {
-                Ok(PackageReviewSignatureParameter {
-                    name: parameter.name.as_str().to_owned(),
-                    type_identity: type_identity(parameter.type_reference)?,
-                    is_const: parameter.is_const,
-                    is_mutable: parameter.is_mutable,
-                })
+            .zip(parameter_types)
+            .map(|(parameter, canonical)| PackageReviewSignatureParameter {
+                name: parameter.name.as_str().to_owned(),
+                type_identity: PackageReviewTypeIdentity { canonical },
+                is_const: parameter.is_const,
+                is_mutable: parameter.is_mutable,
             })
-            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+            .collect();
         let ([reach, entries], [checked_may_suspend, checked_may_block]) = match body {
             Some(body) => {
                 let original = module
@@ -347,7 +376,11 @@ impl PolicySource<'_> {
             identity,
             supply,
             spelling: declaration.spelling,
-            lifetime_parameter_count: declaration.lifetime_parameters.len(),
+            lifetime_parameter_count: declaration
+                .lifetime_parameters
+                .len()
+                .checked_add(elided_lifetimes)
+                .ok_or_else(|| unavailable("a representable callable lifetime telescope"))?,
             type_parameters: self.type_parameters(original)?,
             conformance_bounds: self.conformance_bounds(
                 original,
@@ -355,11 +388,7 @@ impl PolicySource<'_> {
                 &declaration.conformance_bounds,
             )?,
             parameters,
-            return_type: state
-                .return_type
-                .is_valid()
-                .then(|| type_identity(state.return_type))
-                .transpose()?,
+            return_type: result_type.map(|canonical| PackageReviewTypeIdentity { canonical }),
             conformances: Vec::new(),
             operator_realizations: Vec::new(),
             requirement_realizations: Vec::new(),
