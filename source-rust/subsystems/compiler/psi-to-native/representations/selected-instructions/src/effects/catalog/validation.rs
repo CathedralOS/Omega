@@ -3502,12 +3502,17 @@ fn validate_encoded_effects(
                         operand.access == RegisterOperandAccess::Use && !operand.early_clobber
                     }
                 }) => {}
+        // An alternative may encode a wider trap than its row declares (relative
+        // branches may fault on fetch), never a narrower one: stage 10 skips the
+        // installed fault check for alternatives encoded as never trapping.
         (
             MachineEncodedMemoryEffect::NoneV1,
             MachineEncodedStackEffect::UnchangedV1,
             MachineEncodedTrapBehavior::NeverV1
             | MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-        ) if declaration.memory == crate::MachineMemoryEffect::NoneV1 => {}
+        ) if declaration.memory == crate::MachineMemoryEffect::NoneV1
+            && (encoded.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+                || declaration.trap == crate::MachineTrapBehavior::NeverV1) => {}
         _ => return Err(()),
     }
     Ok(())
