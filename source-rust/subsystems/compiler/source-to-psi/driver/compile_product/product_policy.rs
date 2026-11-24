@@ -74,7 +74,7 @@ pub(super) fn admit_product_policy(
             BuildOperation::NativeBinding
                 | BuildOperation::ServiceAudit
                 | BuildOperation::TestGroupRegistration
-        ) || super::provider_requests::has_provider_application(request)
+        ) || super::provider_requests::has_product_application(request)
     })?;
     let providers = provider_requests::admit_product_provider_requests(
         typed,

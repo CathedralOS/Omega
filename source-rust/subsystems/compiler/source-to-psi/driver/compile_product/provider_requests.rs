@@ -20,10 +20,10 @@ pub(super) fn admit_product_provider_requests(
 ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
     if formations
         .iter()
-        .any(|(request, _)| has_provider_application(request))
+        .any(|(request, _)| has_product_application(request))
         || executed
             .iter()
-            .any(|event| has_provider_application(&event.request))
+            .any(|event| has_product_application(&event.request))
     {
         // Applying an operand mutates the consuming program, not the source
         // declarations and lexical authors that authorized this batch.
@@ -33,7 +33,7 @@ pub(super) fn admit_product_provider_requests(
         );
         for (request, author) in formations
             .iter()
-            .filter(|(request, _)| has_provider_application(request))
+            .filter(|(request, _)| has_product_application(request))
         {
             prepare_provider_request(
                 typed,
@@ -46,7 +46,7 @@ pub(super) fn admit_product_provider_requests(
         }
         for event in executed
             .iter()
-            .filter(|event| has_provider_application(&event.request))
+            .filter(|event| has_product_application(&event.request))
         {
             let author = lookups
                 .authors
@@ -170,10 +170,12 @@ fn formation_authors(
     Ok(formations)
 }
 
-pub(super) fn has_provider_application(request: &ProductDeclarationRequest) -> bool {
+pub(super) fn has_product_application(request: &ProductDeclarationRequest) -> bool {
     matches!(
         request.operation,
-        BuildOperation::ProviderSelection | BuildOperation::BoundaryAcceptance
+        BuildOperation::ProviderSelection
+            | BuildOperation::BoundaryAcceptance
+            | BuildOperation::TestGroupRegistration
     ) && request
         .operands
         .iter()

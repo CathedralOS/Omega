@@ -3958,7 +3958,7 @@ pub(crate) mod product_selections {
         let first_designated = usize::from(requirement.is_some());
         let operands = operands.iter().enumerate().skip(first_designated).map(|(original_position, operand)| {
         let position = original_position - first_designated;
-        let nominal_application = operand.application.is_some() && (matches!(operation.product_operand_role(position), Some(ProductOperandRole::BoundarySubject | ProductOperandRole::Provider | ProductOperandRole::RootGrantSubject)) || operation == BuildOperation::NativeBinding);
+        let nominal_application = operand.application.is_some() && (matches!(operation.product_operand_role(position), Some(ProductOperandRole::BoundarySubject | ProductOperandRole::Provider | ProductOperandRole::RootGrantSubject | ProductOperandRole::TestRequirement)) || operation == BuildOperation::NativeBinding);
         if operand.type_reference.is_valid() || (operand.application.is_some() && !nominal_application)
             || operand.const_literal.is_some() || operand.evidence_projection.is_some()
             || operand.path.is_empty() {
@@ -3983,11 +3983,31 @@ pub(crate) mod product_selections {
         };
         let leading = source_text::SourceSpan::new(first.source_id, source_text::Span::new(first.span.start, last.span.end));
         let source_span = application.as_ref().map_or(leading, |graph| graph.authored_operand_span(leading));
-        Ok(ProductDeclarationOperand {
-            application,
-            path: operand.path.joined_path(),
-            source_span,
-        })
+        let mut path = operand.path.joined_path();
+        if operation.product_operand_role(position) == Some(ProductOperandRole::TestRequirement)
+            && let Some(graph) = application.as_deref()
+        {
+            let root = graph.operands.get(graph.root);
+            let member = graph.applications.get(root.application).member;
+            if !graph.operands.is_valid(member) {
+                return Err(Diagnostic::error("an applied test group must name a member of its concrete trait application")
+                    .with_source_span(source_span));
+            }
+            let member = graph.operands.get(member);
+            let [name] = graph.names.span_or_empty(member.path) else {
+                return Err(Diagnostic::error("a test group application must select one trait machine requirement")
+                    .with_source_span(source_span));
+            };
+            if member.application.is_valid() || member.structural_type.is_valid()
+                || member.integer.is_some() || member.projection.is_some()
+            {
+                return Err(Diagnostic::error("an applied test group must name a concrete trait machine requirement")
+                    .with_source_span(source_span));
+            }
+            path.push_str("::");
+            path.push_str(&name.text);
+        }
+        Ok(ProductDeclarationOperand { application, path, source_span })
     }).collect::<Result<Vec<_>, Diagnostic>>()?.into_boxed_slice();
         inputs.sort_by_key(|input| (input.argument_ordinal, input.occurrence.ordinal()));
         for pair in inputs.windows(2) {

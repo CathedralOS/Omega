@@ -12,7 +12,7 @@ pub struct TestRoot {
     pub group: String,
     pub name: String,
     group_declaration: RetainedDeclaration,
-    selecting_machine: RetainedDeclaration,
+    registration: crate::declaration_selection::BuildSelectionOrigin,
     declaration: RetainedDeclaration,
     adapter: Option<RetainedDeclaration>,
 }
@@ -24,29 +24,20 @@ impl TestRoot {
         groups: &[TestGroupRegistration],
         target: &str,
     ) -> Result<ProductRoots, Vec<Diagnostic>> {
-        let group = source_symbols::rejoin_declaration(
-            &self.group_declaration,
-            &typed.symbols,
-            groups.iter().map(|g| g.requirement),
-        )
-        .map_err(|why| vec![Diagnostic::error(why)])?;
-        let owner = source_symbols::rejoin_declaration(
-            &self.selecting_machine,
-            &typed.symbols,
-            groups
-                .iter()
-                .filter(|g| g.requirement == group)
-                .map(|g| g.selecting_machine),
-        )
-        .map_err(|why| vec![Diagnostic::error(why)])?;
         let registration = groups
             .iter()
-            .find(|g| g.requirement == group && g.selecting_machine == owner)
+            .find(|group| group.origin == self.registration)
             .ok_or_else(|| {
                 vec![Diagnostic::error(
                     "registered test lost its Build selection",
                 )]
             })?;
+        source_symbols::rejoin_declaration(
+            &self.group_declaration,
+            &typed.symbols,
+            [registration.requirement],
+        )
+        .map_err(|why| vec![Diagnostic::error(why)])?;
         let implementation = source_symbols::rejoin_declaration(
             &self.declaration,
             &typed.symbols,
@@ -130,8 +121,15 @@ fn satisfiers<'a>(
             && typed
                 .machine_trait_conformances(machine)
                 .iter()
-                .filter_map(|edge| resolve_satisfied_declaration(typed, machine, edge))
-                .any(|declaration| declaration.symbol() == group.requirement)
+                .any(|edge| {
+                    resolve_satisfied_declaration(typed, machine, edge)
+                        .is_some_and(|declaration| declaration.symbol() == group.requirement)
+                        && group.closed_requirement.is_none_or(|closed| {
+                            crate::source_state::trait_definition::AppliedTraitScope::from_machine_conformance(
+                                typed, machine, edge,
+                            ).is_some_and(|scope| typed.requirement_application_matches_scope(closed, &scope))
+                        })
+                })
     })
 }
 
@@ -174,7 +172,29 @@ impl<'a> RegisteredTests<'a> {
         let mut roots = Vec::new();
         let mut notes = Vec::new();
         for group in &checked.declarations.test_groups {
-            let path = typed.symbols.display_path(group.requirement, "::");
+            let path = if let Some(closed) = group.closed_requirement {
+                let application =
+                    typed
+                        .closed_requirement_application(closed)
+                        .ok_or_else(|| {
+                            vec![Diagnostic::error("test group lost its closed requirement")]
+                        })?;
+                let owner = typed
+                    .symbols
+                    .display_path(application.declaring_trait, "::");
+                let arguments = application
+                    .trait_arguments
+                    .iter()
+                    .map(|&reference| typed.display_type_reference(reference))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!(
+                    "{owner}<{arguments}>::{}",
+                    typed.symbols.name(group.requirement)
+                )
+            } else {
+                typed.symbols.display_path(group.requirement, "::")
+            };
             if disabled || group.configuration.disabled {
                 notes.push(format!(
                     "group `{path}` (target `{target}`): disabled; its tests were not run"
@@ -214,7 +234,7 @@ impl<'a> RegisteredTests<'a> {
                     group: path.clone(),
                     name,
                     group_declaration: retain(group.requirement)?,
-                    selecting_machine: retain(group.selecting_machine)?,
+                    registration: group.origin.clone(),
                     declaration: retain(machine.symbol)?,
                     adapter: group.adapter.map(retain).transpose()?,
                 });

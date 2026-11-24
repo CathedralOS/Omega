@@ -233,15 +233,40 @@ fn admit_test_groups(
     };
     let declarations = ProductDeclarationLookup::new(typed, roles);
     for formation in formations.of(operation) {
-        test_group_operands(&declarations, formation.request)?;
+        test_group_operands(typed, &declarations, formation.request)?;
     }
     let authors = ProductRequestAuthors::new(typed);
     let mut groups = Vec::<TestGroupRegistration>::new();
-    for event in events {
+    for (ordinal, event) in events.enumerate() {
         let formation = formations.executed(typed, &authors, activation, event, "test group")?;
         let request = formation.request;
-        let (requirement, adapter) = test_group_operands(&declarations, request)?;
-        if groups.iter().any(|group| group.requirement == requirement) {
+        let (requirement, adapter) = test_group_operands(typed, &declarations, request)?;
+        let operand = &event.request.operands[0];
+        let closed_requirement = if operand.application.is_some() {
+            let application = typed
+                .prepared_product_operand(
+                    operand,
+                    event.static_environment.as_deref(),
+                    formation.author,
+                    ProductOperandRole::TestRequirement,
+                )
+                .ok_or_else(|| refuse(request, "test group lost its prepared trait application"))?;
+            let closed = typed
+                .product_requirement_application(application)
+                .map_err(|why| refuse(request, why))?;
+            if closed.template != requirement {
+                return Err(refuse(
+                    request,
+                    "test group application belongs to another requirement",
+                ));
+            }
+            Some(closed.signature.symbol)
+        } else {
+            None
+        };
+        if groups.iter().any(|group| {
+            group.requirement == requirement && group.closed_requirement == closed_requirement
+        }) {
             return Err(refuse(
                 request,
                 "test group registration repeats the same requirement",
@@ -252,15 +277,29 @@ fn admit_test_groups(
                 refuse(request, "test group registration lost its evaluated configuration")
             })?,
             requirement,
+            closed_requirement,
             adapter,
             selecting_machine: formation.author,
             source_span: typed.symbols.rejoin_product_occurrence(request.source_span),
+            origin: super::declaration_lookup::capture_build_selection_origin(
+                &typed.symbols,
+                activation
+                    .ok_or_else(|| refuse(request, "test group lost its Build activation"))?,
+                formation.author,
+                typed.symbols.rejoin_product_occurrence(request.source_span),
+                Some(
+                    u64::try_from(ordinal)
+                        .map_err(|_| refuse(request, "test group event ordinal exceeds u64"))?,
+                ),
+            )
+            .map_err(|why| refuse(request, why))?,
         });
     }
     Ok(groups)
 }
 
 fn test_group_operands(
+    typed: &TypedTrees,
     declarations: &ProductDeclarationLookup<'_>,
     request: &ProductDeclarationRequest,
 ) -> Result<(SymbolHandle, Option<SymbolHandle>), Vec<Diagnostic>> {
@@ -276,7 +315,7 @@ fn test_group_operands(
     };
     let resolve =
         |operand: &crate::declaration_selection::ProductDeclarationOperand, role, expected| {
-            if operand.application.is_none()
+            if (operand.application.is_none() || role == ProductOperandRole::TestRequirement)
                 && let Some(symbol) = declarations.resolve(&operand.path, operand.source_span, role)
             {
                 return Ok(symbol);
@@ -286,12 +325,28 @@ fn test_group_operands(
                 format!("test group operand `{}` must name {expected}", operand.path),
             ))
         };
+    let symbol = resolve(
+        requirement,
+        ProductOperandRole::TestRequirement,
+        "one visible requirement of a non-boundary trait",
+    )?;
+    if requirement.application.is_none()
+        && typed
+            .trait_machine_signature(symbol)
+            .is_some_and(|(owner, signature)| {
+                !owner.type_parameters.is_empty()
+                    || !owner.lifetime_parameters.is_empty()
+                    || !signature.type_parameters.is_empty()
+                    || !signature.lifetime_parameters.is_empty()
+            })
+    {
+        return Err(refuse(
+            request,
+            "a test group must name its complete concrete trait requirement application",
+        ));
+    }
     Ok((
-        resolve(
-            requirement,
-            ProductOperandRole::TestRequirement,
-            "one visible requirement of a non-boundary trait",
-        )?,
+        symbol,
         adapter
             .map(|operand| {
                 resolve(

@@ -6,6 +6,13 @@ use arena::Handle;
 use std::sync::Arc;
 use symbols::SymbolHandle;
 
+fn requirement_role(role: Option<ProductOperandRole>) -> bool {
+    matches!(
+        role,
+        Some(ProductOperandRole::Requirement | ProductOperandRole::TestRequirement)
+    )
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
 pub enum ProductApplicationDemand {
     #[default]
@@ -47,6 +54,7 @@ impl TypedTrees {
                 ProductOperandRole::BoundarySubject
                     | ProductOperandRole::Provider
                     | ProductOperandRole::Requirement
+                    | ProductOperandRole::TestRequirement
             )
         ) {
             return Err("Product application has no nominal declaration role");
@@ -57,11 +65,11 @@ impl TypedTrees {
             .ok_or("Product application has a stale declared formal table")?;
         if parameters.is_empty()
             && application.declaration_lifetime_count == 0
-            && role != Some(ProductOperandRole::Requirement)
+            && !requirement_role(role)
         {
             return Ok(None);
         }
-        if role == Some(ProductOperandRole::Requirement) {
+        if requirement_role(role) {
             let closed = self.product_requirement_application(handle)?;
             let (owner, requirement) = self
                 .trait_machine_signature(closed.signature.symbol)
@@ -151,9 +159,7 @@ impl TypedTrees {
             return Err("Product requirement application has no live prepared row");
         }
         let application = self.product_operand_applications.get(handle);
-        if self.product_operand_application_role(application)?
-            != Some(ProductOperandRole::Requirement)
-        {
+        if !requirement_role(self.product_operand_application_role(application)?) {
             return Err("Product application is not a requirement");
         }
         let closed = self

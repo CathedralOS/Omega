@@ -149,6 +149,7 @@ impl TypedTrees {
                             Ok(Some(
                                 crate::declaration_selection::ProductOperandRole::BoundarySubject
                                     | crate::declaration_selection::ProductOperandRole::Requirement
+                                    | crate::declaration_selection::ProductOperandRole::TestRequirement
                             ))
                         )
                         .then(|| application.scope.scope(self))
