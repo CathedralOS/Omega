@@ -33,8 +33,19 @@ def main():
     with tempfile.TemporaryDirectory(prefix="omega-operator-holds-") as directory:
         root = Path(directory)
         shutil.copyfile(fixture / "build.omg", root / "build.omg")
-        (root / "main.omg").write_text("\n\n".join([*declarations, (fixture / "main.omg").read_text()]))
-        subprocess.run([cli, "run", "--both", "build.omg"], cwd=root, check=True)
+        # The fixture supplies the small tables and lookups reached by these
+        # declarations. Keep each product reference qualified as in its source.
+        aliases = (
+            "checker", "checks", "holds", "loans", "obligations", "owned_places",
+            "ownership", "symbol_resolved_trees", "syntax_trees", "typed_trees",
+        )
+        imports = "\n".join(f"use main.omg as {alias};" for alias in aliases)
+        (root / "main.omg").write_text(
+            "\n\n".join([imports, *declarations, (fixture / "main.omg").read_text()])
+        )
+        subprocess.run(
+            [cli, "run", "--both", "build.omg"], cwd=root, stdin=subprocess.DEVNULL, check=True
+        )
 
 
 if __name__ == "__main__":

@@ -1,7 +1,5 @@
-use foundation\ExactInteger;
-use foundation\ExactResult;
-use foundation\exact_integer_add;
-use foundation\exact_integer_at_most;
+
+use foundation/integers.omg;
 
 // Difference bounds over a body's integer subjects: the one relational
 // engine checking uses for live integer facts
@@ -17,14 +15,14 @@ use foundation\exact_integer_at_most;
 // An upper bound: an exact integer, or none.
 public data Bound [copy] {
     finite: bool;
-    value: ExactInteger;
+    value: |integers|::ExactInteger;
 }
 
 public machine bound_none() -> Bound {
-    Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0 } }
+    Bound { finite: false, value: |integers|::ExactInteger { negative: false, magnitude: 0 as +Wrapping } }
 }
 
-public machine exactly(value: ExactInteger) -> Bound {
+public machine exactly(value: |integers|::ExactInteger) -> Bound {
     Bound { finite: true, value: value }
 }
 
@@ -37,15 +35,15 @@ public machine bound_add(left: Bound, right: Bound) -> Bound {
         _ -> unbounded()
     }
 
-    machine finite(left: ExactInteger, right: ExactInteger) -> Bound {
-        let sum: ExactResult = exact_integer_add(left, right);
+    machine finite(left: |integers|::ExactInteger, right: |integers|::ExactInteger) -> Bound {
+        let sum: |integers|::ExactResult = |integers|::exact_integer_add(left, right);
         transition sum.valid {
             true -> exact(sum.value),
             _ -> overflowed(left.negative)
         }
     }
 
-    machine exact(value: ExactInteger) -> Bound {
+    machine exact(value: |integers|::ExactInteger) -> Bound {
         Bound { finite: true, value: value }
     }
 
@@ -57,11 +55,11 @@ public machine bound_add(left: Bound, right: Bound) -> Bound {
     }
 
     machine least() -> Bound {
-        Bound { finite: true, value: ExactInteger { negative: true, magnitude: 18446744073709551615 } }
+        Bound { finite: true, value: |integers|::ExactInteger { negative: true, magnitude: 18446744073709551615 as +Wrapping } }
     }
 
     machine unbounded() -> Bound {
-        Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0 } }
+        Bound { finite: false, value: |integers|::ExactInteger { negative: false, magnitude: 0 as +Wrapping } }
     }
 }
 
@@ -72,15 +70,15 @@ public machine bound_at_most(left: Bound, right: Bound) -> bool {
         _ -> always()
     }
 
-    machine finite(left: Bound, right: ExactInteger) -> bool {
+    machine finite(left: Bound, right: |integers|::ExactInteger) -> bool {
         transition left.finite {
             true -> compared(left.value, right),
             _ -> never()
         }
     }
 
-    machine compared(left: ExactInteger, right: ExactInteger) -> bool {
-        let ordered: bool = exact_integer_at_most(left, right);
+    machine compared(left: |integers|::ExactInteger, right: |integers|::ExactInteger) -> bool {
+        let ordered: bool = |integers|::exact_integer_at_most(left, right);
         ordered
     }
 
@@ -116,7 +114,7 @@ crashes Trap
     machine cleared(zone: @mutable Zone, count: u64 in Trapping) {
         zone.count = count as u64;
         zone.infeasible = false;
-        transition { _ -> entry(zone, 0) }
+        transition { _ -> entry(zone, 0 as +Trapping) }
     }
 
     machine entry(zone: @mutable Zone, index: u64 in Trapping) {
@@ -140,14 +138,14 @@ crashes Trap
     machine diagonal(zone: @mutable Zone, index: u64 in Trapping)
     requires index < 4096
     {
-        zone.bounds[index] = Bound { finite: true, value: ExactInteger { negative: false, magnitude: 0 } };
+        zone.bounds[index as -Trapping] = Bound { finite: true, value: |integers|::ExactInteger { negative: false, magnitude: 0 as +Wrapping } };
         transition { _ -> entry(zone, index + 1) }
     }
 
     machine unbounded(zone: @mutable Zone, index: u64 in Trapping)
     requires index < 4096
     {
-        zone.bounds[index] = Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0 } };
+        zone.bounds[index as -Trapping] = Bound { finite: false, value: |integers|::ExactInteger { negative: false, magnitude: 0 as +Wrapping } };
         transition { _ -> entry(zone, index + 1) }
     }
 
@@ -177,7 +175,7 @@ crashes Trap
     machine read(zone: @Zone, index: u64 in Trapping) -> Bound
     requires index < 4096
     {
-        zone.bounds[index]
+        zone.bounds[index as -Trapping]
     }
 
     machine invalid() -> Bound {
@@ -206,7 +204,7 @@ crashes Trap
     machine write(zone: @mutable Zone, index: u64 in Trapping, bound: Bound)
     requires index < 4096
     {
-        zone.bounds[index] = bound;
+        zone.bounds[index as -Trapping] = bound;
     }
 
     machine done() {}
@@ -217,7 +215,7 @@ crashes Trap
 }
 
 // Whether the zone implies `to - from <= value`.
-public machine implies(zone: @Zone, from: u64 in Trapping, to: u64 in Trapping, value: ExactInteger) -> bool
+public machine implies(zone: @Zone, from: u64 in Trapping, to: u64 in Trapping, value: |integers|::ExactInteger) -> bool
 crashes Trap
 {
     transition zone.infeasible {
@@ -225,7 +223,7 @@ crashes Trap
         _ -> compared(zone, from, to, value)
     }
 
-    machine compared(zone: @Zone, from: u64 in Trapping, to: u64 in Trapping, value: ExactInteger) -> bool {
+    machine compared(zone: @Zone, from: u64 in Trapping, to: u64 in Trapping, value: |integers|::ExactInteger) -> bool {
         let known: Bound = zone_bound(zone, from, to);
         let wanted: Bound = exactly(value);
         let implied: bool = bound_at_most(known, wanted);
@@ -256,7 +254,7 @@ crashes Trap
     machine feasible(zone: @mutable Zone, from: u64 in Trapping, to: u64 in Trapping, bound: Bound, contradictory: bool) {
         transition contradictory {
             true -> infeasible(zone),
-            _ -> row(zone, from, to, bound, 0)
+            _ -> row(zone, from, to, bound, 0 as +Trapping)
         }
     }
 
@@ -274,7 +272,7 @@ crashes Trap
     machine through(zone: @mutable Zone, from: u64 in Trapping, to: u64 in Trapping, bound: Bound, first: u64 in Trapping) {
         let into: Bound = zone_bound(zone, first, from);
         let through: Bound = bound_add(into, bound);
-        transition { _ -> column(zone, from, to, bound, through, first, 0) }
+        transition { _ -> column(zone, from, to, bound, through, first, 0 as +Trapping) }
     }
 
     machine column(
@@ -319,7 +317,7 @@ crashes Trap
 public machine zone_forget(zone: @mutable Zone, subject: u64 in Trapping)
 crashes Trap
 {
-    transition { _ -> other(zone, subject, 0) }
+    transition { _ -> other(zone, subject, 0 as +Trapping) }
 
     machine other(zone: @mutable Zone, subject: u64 in Trapping, index: u64 in Trapping) {
         transition index < zone.count {
@@ -364,7 +362,7 @@ crashes Trap
     machine write(zone: @mutable Zone, index: u64 in Trapping, bound: Bound)
     requires index < 4096
     {
-        zone.bounds[index] = bound;
+        zone.bounds[index as -Trapping] = bound;
     }
 
     machine invalid() {
@@ -387,14 +385,14 @@ crashes Trap
     machine reachable(zone: @mutable Zone, other: @Zone) -> bool {
         transition zone.infeasible {
             true -> replaced(zone, other),
-            _ -> entry(zone, other, 0, false)
+            _ -> entry(zone, other, 0 as +Trapping, false)
         }
     }
 
     machine replaced(zone: @mutable Zone, other: @Zone) -> bool {
         zone.infeasible = false;
         zone.count = other.count;
-        transition { _ -> copy(zone, other, 0) }
+        transition { _ -> copy(zone, other, 0 as +Trapping) }
     }
 
     machine copy(zone: @mutable Zone, other: @Zone, index: u64 in Trapping) -> bool {
@@ -407,7 +405,7 @@ crashes Trap
     machine copy_entry(zone: @mutable Zone, other: @Zone, index: u64 in Trapping) -> bool
     requires index < 4096
     {
-        zone.bounds[index] = other.bounds[index];
+        zone.bounds[index as -Trapping] = other.bounds[index as -Trapping];
         transition { _ -> copy(zone, other, index + 1) }
     }
 
@@ -421,8 +419,8 @@ crashes Trap
     machine compare(zone: @mutable Zone, other: @Zone, index: u64 in Trapping, loosened: bool) -> bool
     requires index < 4096
     {
-        let mine: Bound = zone.bounds[index];
-        let theirs: Bound = other.bounds[index];
+        let mine: Bound = zone.bounds[index as -Trapping];
+        let theirs: Bound = other.bounds[index as -Trapping];
         let covered: bool = bound_at_most(theirs, mine);
         transition covered {
             true -> entry(zone, other, index + 1, loosened),
@@ -433,7 +431,7 @@ crashes Trap
     machine loosen(zone: @mutable Zone, other: @Zone, index: u64 in Trapping, theirs: Bound) -> bool
     requires index < 4096
     {
-        zone.bounds[index] = theirs;
+        zone.bounds[index as -Trapping] = theirs;
         transition { _ -> entry(zone, other, index + 1, true) }
     }
 
@@ -460,7 +458,7 @@ crashes Trap
 {
     transition before.infeasible || zone.infeasible {
         true -> done(),
-        _ -> entry(zone, before, 0)
+        _ -> entry(zone, before, 0 as +Trapping)
     }
 
     machine entry(zone: @mutable Zone, before: @Zone, index: u64 in Trapping) {
@@ -473,8 +471,8 @@ crashes Trap
     machine compare(zone: @mutable Zone, before: @Zone, index: u64 in Trapping)
     requires index < 4096
     {
-        let now: Bound = zone.bounds[index];
-        let then: Bound = before.bounds[index];
+        let now: Bound = zone.bounds[index as -Trapping];
+        let then: Bound = before.bounds[index as -Trapping];
         let stable: bool = bound_at_most(now, then);
         transition stable {
             true -> entry(zone, before, index + 1),
@@ -485,7 +483,7 @@ crashes Trap
     machine drop(zone: @mutable Zone, before: @Zone, index: u64 in Trapping)
     requires index < 4096
     {
-        zone.bounds[index] = Bound { finite: false, value: ExactInteger { negative: false, magnitude: 0 } };
+        zone.bounds[index as -Trapping] = Bound { finite: false, value: |integers|::ExactInteger { negative: false, magnitude: 0 as +Wrapping } };
         transition { _ -> entry(zone, before, index + 1) }
     }
 

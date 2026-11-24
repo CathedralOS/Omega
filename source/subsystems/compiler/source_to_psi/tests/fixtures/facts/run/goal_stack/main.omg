@@ -1,3 +1,5 @@
+use facts.omg;
+
 // Expected exit: 0
 // The driver includes the product goal stack and `proves` unchanged. The
 // table is a right-nested chain `true && (true && (... && bottom))` with
@@ -27,13 +29,6 @@ crashes Trap
 }
 
 // Every leaf is a Boolean literal, which proves exactly when it matches.
-machine proves_atom(checker: @Checker, syntax: @SyntaxTrees, handle: u64 in Trapping, holds: bool) -> bool
-crashes Trap
-{
-    let expression: Expression = syntax_trees_expression(syntax, handle);
-    expression.kind == ExpressionKind::Boolean && expression.flag == holds
-}
-
 // 1 when the chain is proved, 2 when it is not and the checker recorded an
 // overflow, 0 when it is simply not proved.
 machine outcome(depth: u64 in Trapping, bottom: bool) -> u8
@@ -43,7 +38,7 @@ crashes Trap
     checker.assumption_count = 0;
     checker.overflowed = false;
     let syntax: SyntaxTrees = SyntaxTrees { depth: depth, bottom: bottom };
-    let held: bool = proves(@mutable checker, @syntax, 0u64 as +Trapping);
+    let held: bool = |facts|::proves(@mutable checker, @syntax, 0u64 as +Trapping);
     transition {
         held -> 1,
         checker.overflowed -> 2,
