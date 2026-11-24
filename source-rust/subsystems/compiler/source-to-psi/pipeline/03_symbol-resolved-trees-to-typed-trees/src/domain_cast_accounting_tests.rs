@@ -699,6 +699,36 @@ fn a_static_value_types_the_captured_selector_only_in_its_own_scope() {
 }
 
 #[test]
+fn a_selected_index_constant_keeps_its_carrier_before_evaluation() {
+    let domain = "domain<const N: u8> u32::At<N>;";
+    for (holder, applied) in [
+        ("", "u32 in At<KEY>"),
+        ("data Token<const N: u8> { value: u32; }", "Token<KEY>"),
+        ("data Record { field: u32 in At<KEY>; }", "Record"),
+        ("data Choice { case Value(field: u32 in At<KEY>); }", "Choice"),
+    ] {
+        for (carrier, value, accepted) in [("u8", "4u8", true), ("u64", "4u64", false)] {
+            let source = format!(
+                "{domain} {holder} machine identity(value: {carrier}) -> {carrier} {{ value }} \
+                 const KEY: {carrier} = identity({value}); \
+                 machine entry(value: {applied}) -> u32 {{ 0u32 }}"
+            );
+            let result = source_result(&source).1;
+            if accepted {
+                result.unwrap();
+            } else {
+                let Err(refusal) = result else {
+                    panic!("{applied} accepted a {carrier} constant in a u8 index");
+                };
+                assert!(refusal.message.contains("declared carrier"), "{refusal:?}");
+                let span = refusal.source_span.expect("point to the named constant").span;
+                assert!(source[span.start..span.end].contains("KEY"), "{refusal:?}");
+            }
+        }
+    }
+}
+
+#[test]
 fn domain_index_literals_are_checked_against_the_selected_family() {
     use crate::source_state::types::{TypeConstraintNode, TypeReferenceNode};
     for family in [
