@@ -421,7 +421,7 @@ fn expansion_is_counted_before_it_is_built_and_each_mutual_law_still_applies() {
         let pair = apply(&mut arena, join, wide, wide);
         wide = apply(&mut arena, meet, value, pair);
     }
-    assert!(1 << 7 > MAX_SUMMANDS);
+    const { assert!(1 << 7 > MAX_SUMMANDS) };
     let other = apply(&mut arena, join, wide, values[0]);
     // The goal is false, so without the limit the search would expand both
     // sides and find no proof. With no step limit, only the count can stop
