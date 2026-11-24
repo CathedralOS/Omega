@@ -487,58 +487,75 @@ impl<'t> Program<'t> {
     pub(crate) fn prepare_domain_predicates(&mut self, id: MachineId) -> Checked<()> {
         let mut slot = 0;
         while let Some(domain) = self.declared_domains.get(slot) {
-            let instance = domain.instance;
-            let carrier = domain.carrier;
-            let domains = crate::lowering::DomainSet::EMPTY
-                .with(instance)
-                .ok_or_else(|| {
-                    refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Type("domain predicate subject"),
-                    )
-                })?;
-            let qualification = Qualification {
-                policy: None,
-                domains,
-            };
-            // Successful clause translation completes a predicate theory,
-            // including clauses that simplify to true. Unsupported semantic
-            // definitions must not become complete from a missing proposition.
-            self.declared_domains[slot].complete_predicate_theory = self
-                .domain_theory(id, instance)?
-                .has_complete_predicate_theory();
-            self.declared_domains[slot].predicate = match carrier {
-                ValueType::Scalar(scalar, _) => {
-                    let (clauses, _) = self.cast_predicates(id, qualification, scalar)?;
-                    if clauses.is_empty() {
-                        None
-                    } else {
-                        Some(crate::lowering::canonical::conjunction(clauses, id)?)
-                    }
-                }
-                ValueType::Record(record, _, regions) => {
-                    if super::has_predicates(self.domain_theory(id, instance)?) {
-                        let clauses = self.field_predicates(
-                            id,
-                            &[],
-                            ValueType::Record(record, qualification, regions),
-                        )?;
-                        Some(crate::lowering::canonical::conjunction(clauses, id)?)
-                    } else {
-                        None
-                    }
-                }
-                ValueType::Rigid(_) => {
-                    return Err(refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Type("domain retains an unresolved carrier"),
-                    ));
-                }
-            };
+            if let Some(scope) = domain.schema_scope.clone() {
+                let values = std::mem::replace(&mut self.scope, scope.values);
+                let source = std::mem::replace(&mut self.source_scope, scope.source);
+                let schema = std::mem::replace(&mut self.reading_schema, true);
+                let read = self.prepare_declared_predicate(id, slot);
+                self.scope = values;
+                self.source_scope = source;
+                self.reading_schema = schema;
+                read?;
+            } else {
+                self.prepare_declared_predicate(id, slot)?;
+            }
             slot += 1;
         }
+        Ok(())
+    }
+
+    fn prepare_declared_predicate(&mut self, id: MachineId, slot: usize) -> Checked<()> {
+        let domain = &self.declared_domains[slot];
+        let instance = domain.instance;
+        let carrier = domain.carrier;
+        let domains = crate::lowering::DomainSet::EMPTY
+            .with(instance)
+            .ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Type("domain predicate subject"),
+                )
+            })?;
+        let qualification = Qualification {
+            policy: None,
+            domains,
+        };
+        // Successful clause translation completes a predicate theory,
+        // including clauses that simplify to true. Unsupported semantic
+        // definitions must not become complete from a missing proposition.
+        self.declared_domains[slot].complete_predicate_theory = self
+            .domain_theory(id, instance)?
+            .has_complete_predicate_theory();
+        self.declared_domains[slot].predicate = match carrier {
+            ValueType::Scalar(scalar, _) => {
+                let (clauses, _) = self.cast_predicates(id, qualification, scalar)?;
+                if clauses.is_empty() {
+                    None
+                } else {
+                    Some(crate::lowering::canonical::conjunction(clauses, id)?)
+                }
+            }
+            ValueType::Record(record, _, regions) => {
+                if super::has_predicates(self.domain_theory(id, instance)?) {
+                    let clauses = self.field_predicates(
+                        id,
+                        &[],
+                        ValueType::Record(record, qualification, regions),
+                    )?;
+                    Some(crate::lowering::canonical::conjunction(clauses, id)?)
+                } else {
+                    None
+                }
+            }
+            ValueType::Rigid(_) => {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Type("domain retains an unresolved carrier"),
+                ));
+            }
+        };
         Ok(())
     }
 

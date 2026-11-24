@@ -172,10 +172,31 @@ impl<'t> Program<'t> {
         id: MachineId,
         domain: crate::lowering::body::DomainInstance,
     ) -> Checked<&'t crate::source_state::domain::DomainDefinition> {
-        if self
-            .typed
-            .domain_application(domain.declaration, domain.identity)
-            .is_some_and(|application| !application.is_closed)
+        self.domain_theory_in_scope(
+            id,
+            domain,
+            self.reading_schema.then_some(self.source_scope.as_ref()),
+        )
+    }
+
+    /// A generic schema quantifies its own indices. Their prepared application
+    /// can be read symbolically when all arguments are in scope and substitution
+    /// preserves their identity. Concrete code still needs its own closed row.
+    pub(crate) fn domain_theory_in_scope(
+        &self,
+        id: MachineId,
+        domain: crate::lowering::body::DomainInstance,
+        scope: Option<&crate::source_state::SourceTypeScope>,
+    ) -> Checked<&'t crate::source_state::domain::DomainDefinition> {
+        if let Some(application) = self.typed.domain_application(domain.declaration, domain.identity)
+            && !application.is_closed
+            && !scope.is_some_and(|scope| {
+                application.arguments.iter().all(|argument| {
+                    scope.admits_argument(self.typed, *argument)
+                        && scope.type_identity(self.typed, *argument)
+                            == self.typed.normalized_type_identity(*argument)
+                })
+            })
         {
             return Err(refuse(
                 id,
@@ -1410,7 +1431,15 @@ impl Program<'_> {
                 declared.instance == domain && declared.carrier.erased() == plain.erased()
             })
         {
+            let schema_scope = typed
+                .domain_application(domain.declaration, domain.identity)
+                .filter(|application| !application.is_closed)
+                .map(|_| super::traits::RequirementTypeScope {
+                    values: self.scope.clone(),
+                    source: self.source_scope.clone(),
+                });
             self.declared_domains.push(super::DeclaredDomain {
+                schema_scope,
                 instance: domain,
                 carrier: plain,
                 predicate: None,
