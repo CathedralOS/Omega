@@ -5,7 +5,7 @@ from pathlib import Path
 import shutil
 import tempfile
 
-from execution import check_silent_return
+from execution import check_silent_execution
 
 
 PACKAGE = Path(__file__).resolve().parents[1]
@@ -23,7 +23,7 @@ def main():
         shutil.copyfile(PACKAGE / source, project / source)
         for name in ("main.omg", "build.omg"):
             shutil.copyfile(fixture / name, project / name)
-        check_silent_return(cli, project)
+        check_silent_execution(cli, project)
 
 
 if __name__ == "__main__":

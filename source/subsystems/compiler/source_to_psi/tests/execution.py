@@ -5,26 +5,30 @@ import tempfile
 from pathlib import Path
 
 
-def check_silent_return(cli, project):
-    """Both engines must return normally and produce no guest output."""
+def check_silent_execution(cli, project, *, entry="build.omg", expected="return"):
+    """Require normal return or a declared Trap and empty streams on both engines."""
+    if expected not in ("return", "Trap"):
+        raise ValueError(f"unknown expected termination {expected!r}")
     with tempfile.TemporaryDirectory(prefix="omega-fixture-output-") as directory:
         for engine in ("native", "psi"):
             output = Path(directory) / engine
             subprocess.run(
-                [cli, "run", "--engine", engine, "--outputs", output, "build.omg"],
+                [cli, "run", "--engine", engine, "--outputs", output, entry],
                 cwd=project, stdin=subprocess.DEVNULL, check=True,
             )
             result = (output / "termination.tsv").read_text().splitlines()
             fields = result[0].split("\t") if len(result) == 1 else []
-            if engine == "native":
-                returned = (
-                    len(fields) == 5 and fields[:3] == ["native", "exit", "0"]
-                    and fields[4] == "process-exit-excluded"
-                )
+            if engine == "psi":
+                wanted = ["psi", "return"] if expected == "return" else ["psi", "crash", "Trap"]
+                matches = fields == wanted
+            elif len(fields) != 5 or fields[0] != "native" or fields[4] != "process-exit-excluded":
+                matches = False
+            elif expected == "return":
+                matches = fields[1:3] == ["exit", "0"]
             else:
-                returned = fields == ["psi", "return"]
-            if not returned:
-                raise ValueError(f"{engine}: expected normal return, observed {result!r}")
+                matches = fields[3] == "trap"
+            if not matches:
+                raise ValueError(f"{engine}: expected {expected}, observed {result!r}")
             for stream in ("stdout", "stderr"):
                 data = (output / stream).read_bytes()
                 if data:
