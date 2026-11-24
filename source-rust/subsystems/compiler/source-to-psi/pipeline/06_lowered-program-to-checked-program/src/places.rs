@@ -7615,37 +7615,30 @@ impl<'a> CallObservations<'_, 'a> {
         // held the value, beneath each whole input this point passes.
         // `bind_recorded` admits one only where that field holds the value
         // here; a description is inference, and every arrival proves it.
-        let mut places: Vec<Lineage> = observed.into_iter().collect();
-        places.extend(
-            self.storage
-                .log
-                .iter()
-                .filter(|row| matches!(row.stored, Stored::Value(held) if held == value))
-                .map(|row| row.backing.place.clone()),
-        );
-        let wholes: Vec<PlaceId> = self
-            .readable
-            .iter()
-            .filter(|(actual, _)| actual.segments.is_empty())
-            .map(|(actual, _)| actual.root)
-            .collect();
-        let mut candidates = Vec::new();
-        for (position, place) in places.iter().enumerate() {
-            if position > 0 {
-                candidates.push(place.clone());
+        let storage = self.storage;
+        let writes = storage.log.iter().filter_map(|row| {
+            matches!(row.stored, Stored::Value(held) if held == value).then_some(&row.backing.place)
+        });
+        for (position, place) in observed.iter().chain(writes).enumerate() {
+            if position > 0
+                && let Some(term) = self.bind_recorded(value, scalar_type, place, &mut same)
+            {
+                return Some(term);
             }
-            for &root in &wholes {
-                if root != place.root {
-                    candidates.push(Lineage {
-                        root,
-                        segments: place.segments.clone(),
-                    });
+            let mut rebased = None;
+            for index in 0..self.readable.len() {
+                let (actual, _) = &self.readable[index];
+                if !actual.segments.is_empty() || actual.root == place.root {
+                    continue;
+                }
+                let candidate = rebased.get_or_insert_with(|| place.clone());
+                candidate.root = actual.root;
+                if let Some(term) = self.bind_recorded(value, scalar_type, candidate, &mut same) {
+                    return Some(term);
                 }
             }
         }
-        candidates
-            .iter()
-            .find_map(|recorded| self.bind_recorded(value, scalar_type, recorded, &mut same))
+        None
     }
 
     /// `value` as the callee's name for `recorded`, when `recorded` lies in
