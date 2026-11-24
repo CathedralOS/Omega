@@ -1,9 +1,93 @@
 //! Sufficient scalar goals after an indexed store. A selected cell contains
 //! either its prior value or the stored operand. Requiring a predicate for
-//! both preserves it without inventing an equality or assuming a domain from
-//! the destination's type. Ordinary reads still require one exact identity.
+//! both preserves it when the index is unknown. A captured constant index
+//! selects just the matching cell. Ordinary reads still require one exact identity.
 
 use super::*;
+
+impl<'a> Storage<'a> {
+    pub(super) fn resolve_write_indices(
+        &self,
+        references: &mut DescriptorAnalysis<'a>,
+        tables: &MachineTables,
+        types: &IdTable<ValueId, ScalarType>,
+    ) -> Checked<IdTable<ValueId, Option<u64>>> {
+        use semantic_vocabulary::IntegerValue;
+        use terminal_semantics::{ScalarConstantOrigin, ScalarConstants};
+
+        let mut fixed = IdTable::default();
+        let mut constants = None;
+        let mut incoming = None;
+        for selector in self
+            .log
+            .iter()
+            .filter_map(|row| row.backing.single_place())
+            .flat_map(|place| &place.segments)
+            .filter_map(|step| match step {
+                Segment::RuntimeIndex { selector } => Some(*selector),
+                _ => None,
+            })
+        {
+            let constants = constants.get_or_insert_with(|| {
+                ScalarConstants::for_values(tables.values.iter().map(|(id, _)| id))
+            });
+            let mut refusal = None;
+            let known = constants.value(selector, |id| {
+                let row = tables.values.get(id)?;
+                if let ValueOrigin::BlockParameter { .. } = row.origin {
+                    let arrivals = incoming
+                        .get_or_insert_with(|| {
+                            terminal_semantics::MachineScalarIndex::new(self.lowered)
+                        })
+                        .incoming_values(id)?;
+                    if arrivals
+                        .iter()
+                        .any(|(_, value)| types.get(*value) != Some(&row.scalar_type))
+                    {
+                        return None;
+                    }
+                    return Some(ScalarConstantOrigin::Incoming(
+                        arrivals.into_iter().map(|(_, value)| value).collect(),
+                    ));
+                }
+                let ValueOrigin::Operation(operation) = row.origin else {
+                    return None;
+                };
+                let op = self.lowered.operation(operation)?;
+                if let Some(origin) = terminal_semantics::scalar_operation_origin(op, id, types) {
+                    return Some(origin);
+                }
+                // A storage read names the contents at the operation that captured
+                // the selector, even if the field changes before the array is used.
+                let Some(Proposition::Equal(left, right)) = self
+                    .read_equation(references, tables, op)
+                    .map_err(|error| refusal = Some(error))
+                    .ok()?
+                else {
+                    return None;
+                };
+                (left == ScalarTerm::value(id, row.scalar_type))
+                    .then_some(ScalarConstantOrigin::Computed(right))
+            });
+            if let Some(error) = refusal {
+                return Err(error);
+            }
+            if let Some((ScalarType::Integer(_), value)) = known {
+                let position = match value {
+                    IntegerValue::Signed(value) => u64::try_from(value).ok(),
+                    IntegerValue::Unsigned(value) => u64::try_from(value).ok(),
+                };
+                if let Some(position) = position {
+                    if fixed.is_empty() {
+                        fixed = tables.values.map(|_, _| None);
+                    }
+                    *fixed.get_mut(selector).expect("registered selector") = Some(position);
+                }
+            }
+        }
+        Ok(fixed)
+    }
+}
 
 impl Held<'_, '_> {
     pub(super) fn observation_alternatives(
@@ -72,29 +156,27 @@ impl Held<'_, '_> {
                         "the store and observed cell have different storage paths",
                     ));
                 }
-                let mut uncertain = false;
+                let mut selector = None;
                 for (written, observed) in written.segments.iter().zip(&selected.segments) {
                     if written == observed {
                         continue;
                     }
-                    if !uncertain
-                        && matches!(
-                            (written, observed),
-                            (Segment::RuntimeIndex { .. }, Segment::FixedIndex(_))
-                        )
+                    if selector.is_none()
+                        && let (Segment::RuntimeIndex { selector: id }, Segment::FixedIndex(index)) =
+                            (written, observed)
                     {
-                        uncertain = true;
+                        selector = Some((*id, *index));
                     } else {
                         return Err(crate::checking::Unbound::Unproved(
                             "the indexed store has no single-cell correspondence to the observation",
                         ));
                     }
                 }
-                if !uncertain {
-                    return Err(crate::checking::Unbound::Unproved(
+                let (selector, observed_index) =
+                    selector.ok_or(crate::checking::Unbound::Unproved(
                         "the scalar store has no uncertain selector",
-                    ));
-                }
+                    ))?;
+                let written_index = storage.fixed_write_indices.get(selector).copied().flatten();
                 let supplied = terminal_check_tables::row(
                     &self.tables.values,
                     value,
@@ -122,7 +204,18 @@ impl Held<'_, '_> {
                     .map_or(ProgramPoint::BlockEntry(self.block), |previous| {
                         ProgramPoint::AfterOperation(block.operations[previous].id)
                     });
-                alternatives.push(ScalarTerm::value(value, scalar_type));
+                if written_index.is_none_or(|index| index == observed_index) {
+                    alternatives.push(ScalarTerm::value(value, scalar_type));
+                    if written_index.is_some()
+                        && selected.segments.iter().all(|segment| {
+                            !matches!(segment, Segment::RuntimeIndex { .. } | Segment::Referent)
+                        })
+                    {
+                        alternatives.sort();
+                        alternatives.dedup();
+                        return Ok(alternatives);
+                    }
+                }
                 self.up_to = position;
                 self.point = Some(before);
                 observed = backed.place;

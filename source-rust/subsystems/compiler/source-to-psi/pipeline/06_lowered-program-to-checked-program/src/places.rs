@@ -1052,6 +1052,8 @@ pub(crate) struct Storage<'a> {
     /// Bound actual operations and structural edge bindings once per machine.
     reaching_budget: usize,
     log: Vec<Logged>,
+    /// Captured write selectors whose SSA definitions identify one fixed cell.
+    fixed_write_indices: IdTable<ValueId, Option<u64>>,
     writes_by_root: BTreeMap<(BlockId, PlaceId), Vec<usize>>,
     arrivals: Vec<Vec<arrivals::Arrival>>,
     cleanup_writes: Vec<crate::checking::owned_cleanup::Write>,
@@ -1185,6 +1187,7 @@ impl<'a> Storage<'a> {
             returned_contents: contents.calls,
             reaching_budget,
             log: Vec::new(),
+            fixed_write_indices: IdTable::default(),
             writes_by_root: BTreeMap::new(),
             arrivals: lowered
                 .blocks
@@ -1269,6 +1272,8 @@ impl<'a> Storage<'a> {
                     });
             }
         }
+        storage.fixed_write_indices =
+            storage.resolve_write_indices(references, tables, value_types)?;
         Ok(storage)
     }
 
