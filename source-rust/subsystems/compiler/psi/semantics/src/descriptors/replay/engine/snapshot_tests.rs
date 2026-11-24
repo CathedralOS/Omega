@@ -579,10 +579,14 @@ fn join_slot_updates_release_only_the_scratch_snapshot_before_writing() {
     assert!(merge_state(&mut existing, &incoming));
     assert!(!Arc::ptr_eq(&existing.slots, &retained.slots));
     assert_eq!(*retained.slots, original_slots);
-    assert_eq!(
-        existing.slots.get(&location(1)),
-        retained.slots.get(&location(1))
-    );
+    // Every unchanged origin set on the edited page stays shared with
+    // the saved state, including after the two branches join.
+    for root in 1..64 {
+        assert!(std::ptr::eq(
+            existing.slots.get(&location(root)).unwrap(),
+            retained.slots.get(&location(root)).unwrap(),
+        ));
+    }
     assert_eq!(
         existing
             .slots

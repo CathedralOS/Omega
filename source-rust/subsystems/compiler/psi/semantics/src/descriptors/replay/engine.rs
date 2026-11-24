@@ -19,7 +19,37 @@ pub(crate) enum Origin {
     CapturedStorage(StorageResolution),
 }
 pub(crate) type Value = Option<BTreeSet<Origin>>;
-pub(crate) type Slots = LocationMap<Value>;
+/// A saved operation keeps the origin sets for unchanged slots, including
+/// neighbors on the same map page as a later write.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Slots {
+    values: LocationMap<Arc<Value>>,
+}
+
+impl Slots {
+    pub(super) fn get(&self, location: &DescriptorLocation) -> Option<&Value> {
+        self.values.get(location).map(Arc::as_ref)
+    }
+
+    pub(super) fn insert(&mut self, location: DescriptorLocation, value: Value) {
+        self.values.insert(location, Arc::new(value));
+    }
+
+    pub(super) fn keys(&self) -> impl Iterator<Item = &DescriptorLocation> {
+        self.values.keys()
+    }
+
+    pub(super) fn iter(&self) -> impl Iterator<Item = (&DescriptorLocation, &Value)> {
+        self.values
+            .iter()
+            .map(|(location, value)| (location, value.as_ref()))
+    }
+
+    pub(super) fn retain(&mut self, mut keep: impl FnMut(&DescriptorLocation, &Value) -> bool) {
+        self.values.retain(|location, value| keep(location, value));
+    }
+}
+
 #[derive(Clone, Default, PartialEq, Eq)]
 pub(crate) struct State {
     pub(crate) cases: Arc<super::case_flow::CurrentCases>,
@@ -2297,7 +2327,7 @@ impl<'a> Replay<'a> {
                 TransferDestination::UntrackedFamily => unlocated_write = true,
             }
         }
-        let mut assigned = Slots::new();
+        let mut assigned = LocationMap::new();
         for (source, destination) in derivations.clone() {
             let TransferDestination::Slot(slot) = canonical(destination)? else {
                 continue;
@@ -2453,7 +2483,7 @@ impl<'a> Replay<'a> {
                 } else {
                     self.read_contents_with_depth(machine, before, query.as_ref()?, reads)
                 };
-                let mut captured = Slots::new();
+                let mut captured = LocationMap::new();
                 if borrowed_storage {
                     Arc::make_mut(&mut after.arrival_backing)
                         .insert(binding.parameter.clone(), value);
@@ -4307,7 +4337,7 @@ impl<'a> Replay<'a> {
     }
 }
 
-pub(crate) fn merge_value(state: &mut Slots, location: DescriptorLocation, value: Value) {
+fn merge_value(state: &mut LocationMap<Value>, location: DescriptorLocation, value: Value) {
     match state.get_mut(&location) {
         None => {
             state.insert(location, value);
@@ -4361,8 +4391,8 @@ fn merge_slots(existing: &mut Arc<Slots>, incoming: &Arc<Slots>) -> bool {
     let mut changed = false;
     let mut slot_updates = Vec::new();
     {
-        let mut left = existing.unshared_entries(incoming).peekable();
-        let mut right = incoming.unshared_entries(existing).peekable();
+        let mut left = existing.values.unshared_entries(&incoming.values).peekable();
+        let mut right = incoming.values.unshared_entries(&existing.values).peekable();
         while left.peek().is_some() || right.peek().is_some() {
             let order = match (left.peek(), right.peek()) {
                 (Some((left, _)), Some((right, _))) => left.cmp(right),
@@ -4388,6 +4418,8 @@ fn merge_slots(existing: &mut Arc<Slots>, incoming: &Arc<Slots>) -> bool {
             if previous == arriving {
                 continue;
             }
+            let previous = previous.map(Arc::as_ref);
+            let arriving = arriving.map(Arc::as_ref);
             let value = match (
                 previous.and_then(Option::as_ref),
                 arriving.and_then(Option::as_ref),
