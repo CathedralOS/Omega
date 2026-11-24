@@ -70,6 +70,23 @@ fn write_scalar_row(writer: &mut Writer, term: &ScalarTerm) -> Result<(), CodecE
     term.validate_after_operands()
         .map_err(CodecError::MalformedProposition)?;
     match term {
+        ScalarTerm::DeclarationApplication { declaration, arguments, scalar_type } => {
+            if !writer.is_checking_identity() {
+                return Err(CodecError::MalformedStructuralFoundation(
+                    "an erased declaration application needs its checked signature for publication",
+                ));
+            }
+            writer.u8(42);
+            encode_scalar_type(writer, *scalar_type)?;
+            writer.boolean(declaration.supplier.is_some());
+            if let Some((slot, generation)) = declaration.supplier {
+                writer.u32(slot);
+                writer.u32(generation);
+            }
+            writer.u32(declaration.member.0);
+            writer.u32(declaration.member.1);
+            writer.len("erased declaration arguments", arguments.len())?;
+        }
         ScalarTerm::Application {
             application,
             scalar_type,

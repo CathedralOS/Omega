@@ -1502,6 +1502,7 @@ dependencies = [
  "image-emission",
  "image-macho",
  "installation-conditions",
+ "language-core",
  "machine-code",
  "native-binding-admission",
  "native-execution-reach",

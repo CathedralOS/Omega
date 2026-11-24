@@ -4072,6 +4072,7 @@ impl Touches<'_> {
             | ExpressionKind::Referent(_) => self.place(expression, changes, captures),
             ExpressionKind::Integer(_)
             | ExpressionKind::Float(_)
+            | ExpressionKind::ErasedApplication(_)
             | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::MachineValue { .. }
