@@ -12,10 +12,24 @@ row against the sealed statement of its law.
 
 A quotient of data that has storage is not read here; the ordinary reader
 refuses it as before.
+
+An operation on a quotient is given by an operation on its representatives:
+`machine class_op(value: Class) -> Class { Quotient::lift::<op, respects,
+transports>(value) }`. Such a body is not lowered. It is read here as the
+machines it selects and the formal each parameter of `op` receives, and the
+signature states what each selected theorem must have proved
+(wiki/spec/proofs/quotients.md, "Lifting operations").
 */
 
 use crate::source_state::data::DataDefinition;
+use crate::source_state::expression::{
+    ExpressionNode, QuotientOperationKind, StaticMachineArgument,
+};
 use crate::source_state::proposition::{PropositionBody, PropositionFormula};
+use crate::source_state::state::State;
+use crate::source_state::statement::{
+    StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
+};
 use semantic_vocabulary::{MachineId, Proposition, StructuralTypeId};
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
@@ -43,7 +57,124 @@ pub(crate) struct QuotientRecord {
     pub(crate) rows: Vec<(String, SymbolHandle)>,
 }
 
+/// A machine whose body is one `Quotient::lift` or `Quotient::define`.
+#[derive(Debug, Clone)]
+pub(crate) struct LiftedOperation {
+    /// `Quotient::define`, which passes its formals through unchanged, and
+    /// not `Quotient::lift`.
+    pub(crate) define: bool,
+    /// The operation on representatives.
+    pub(crate) representative: SymbolHandle,
+    /// The theorem that the operation takes related values to related
+    /// values.
+    pub(crate) congruence: SymbolHandle,
+    /// The theorem that what this machine requires gives what the operation
+    /// requires, when `Quotient::lift` selects one.
+    pub(crate) transport: Option<SymbolHandle>,
+    /// For each parameter of the operation, the position of the formal of
+    /// this machine it receives.
+    pub(crate) arguments: Vec<u32>,
+}
+
 impl Program<'_> {
+    /// The quotient operation the body of machine `id` is, when the body is
+    /// exactly one.
+    pub(super) fn lifted_operation(
+        &mut self,
+        id: MachineId,
+        state: &State,
+    ) -> Checked<Option<LiftedOperation>> {
+        let typed = self.typed;
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let [statement] = typed.statement_table.statements(state.statement_nodes) else {
+            return Ok(None);
+        };
+        let expression = match statement {
+            StatementNode::Expression(expression) => *expression,
+            StatementNode::Transition(transition)
+                if transition.patterns.is_empty()
+                    && transition.guard == TransitionGuardNode::Always
+                    && transition.exit == TransitionExit::Ordinary
+                    && !transition.continuation.is_valid()
+                    && transition.proof_selectors.is_empty()
+                    && transition.target.is_valid() =>
+            {
+                match typed.statement_table.transition_target(transition.target) {
+                    TransitionTargetNode::Value(value) => *value,
+                    _ => return Ok(None),
+                }
+            }
+            _ => return Ok(None),
+        };
+        let ExpressionNode::Call(call) = typed.expression_table.expression(expression) else {
+            return Ok(None);
+        };
+        let Some(request) = &call.quotient_operation else {
+            return Ok(None);
+        };
+        let selected =
+            |program: &mut Self, argument: &StaticMachineArgument| -> Checked<SymbolHandle> {
+                if argument.application.is_some()
+                    || argument.const_literal.is_some()
+                    || argument.evidence_projection.is_some()
+                {
+                    return Err(unserved(
+                        "quotient operation that selects a machine with arguments of its own",
+                    ));
+                }
+                let machine = program
+                    .entered_machine(argument.symbol)
+                    .filter(|machine| {
+                        typed
+                            .machine_by_symbol(*machine)
+                            .is_some_and(|declared| !program.is_generic_template(declared))
+                    })
+                    .ok_or_else(|| {
+                        unserved("quotient operation that selects something other than a machine")
+                    })?;
+                // The signature needs the selected machine's definition or law.
+                program.machine(machine)?;
+                Ok(machine)
+            };
+        let representative = selected(self, &request.representative_operation)?;
+        let (congruence, transport) = match request.theorem_evidence.as_ref() {
+            [congruence] => (selected(self, &congruence.application)?, None),
+            [congruence, transport] if request.kind == QuotientOperationKind::Lift => (
+                selected(self, &congruence.application)?,
+                Some(selected(self, &transport.application)?),
+            ),
+            _ => {
+                return Err(unserved(
+                    "quotient operation that selects other than a congruence and one transport",
+                ));
+            }
+        };
+        let formals = typed
+            .state_parameters
+            .span(state.parameters)
+            .ok_or_else(|| unserved("quotient operation lost its machine's parameters"))?;
+        let mut arguments = Vec::new();
+        for &argument in typed.expression_table.expression_handles(call.arguments) {
+            let formal = match typed.expression_table.expression(argument) {
+                ExpressionNode::Name(path) => formals
+                    .iter()
+                    .position(|formal| formal.symbol == path.symbol),
+                _ => None,
+            }
+            .ok_or_else(|| {
+                unserved("argument of a quotient operation other than one of the machine's formals")
+            })?;
+            arguments.push(formal as u32);
+        }
+        Ok(Some(LiftedOperation {
+            define: request.kind == QuotientOperationKind::Define,
+            representative,
+            congruence,
+            transport,
+            arguments,
+        }))
+    }
+
     /// The quotient a value type is, if it is one read here.
     pub(crate) fn quotient_of(&self, value_type: ValueType) -> Option<&QuotientRecord> {
         let ValueType::Record(record, ..) = value_type else {

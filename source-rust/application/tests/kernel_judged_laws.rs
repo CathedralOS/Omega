@@ -327,7 +327,26 @@ fn a_quotient_whose_symmetry_row_asks_for_more_is_refused() {
     assert_eq!(output.status.code(), Some(1), "{report}");
     assert!(
         report.contains("cannot prove ensures contract for `SameSign::symmetric`")
-            && report.contains("the proved equality is not the law its requirement declares"),
+            && report.contains(
+                "the proved equality is not the `symmetric` law that the quotient `Sign` needs \
+                 of `same_sign`"
+            ),
+        "{report}"
+    );
+}
+
+#[test]
+fn an_operation_on_a_quotient_compiles_with_the_theorems_it_selects() {
+    let (output, report) = check("quotient/pass/lifted_operation");
+    assert_eq!(output.status.code(), Some(0), "{report}");
+}
+
+#[test]
+fn a_quotient_operation_that_selects_another_theorem_is_refused() {
+    let (output, report) = check("quotient/fail/lift_selects_another_theorem");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains("the proved equality is not the congruence `normal_class` needs"),
         "{report}"
     );
 }

@@ -77,10 +77,19 @@ When the search proves no equality of two classes, `Proving::sound` in
 formula at the two with the same search and evidence, and applies the
 kernel's soundness assumption for quotients to that proof. The kernel's
 receipt then counts the assumptions the law rests on: the quotient type, the
-class of a value and soundness. A row of the equivalence a quotient selects
-is compared with the sealed statement stage 05 recorded for it, and a row
-that asks for more than an equivalence owes is refused as "the proved
-equality is not the law its requirement declares".
+class of a value and soundness.
+
+Some laws are not free to state what they like: a machine that satisfies a
+trait requirement, a row of the equivalence a quotient selects, and the
+congruence and transport theorems of a quotient operation each owe one
+statement, which stage 05 records on the law (`DeclaredLaw`). After the
+kernel has checked the proof, the law's equality and premises are compared
+with the recorded ones by the kernel's conversion. The premises are matched
+in any order, because a machine's `requires` clauses arrive in canonical
+order and not as written, and there must be no premise more or less. A law
+that states something else is refused with the recorded reason, for example
+"the proved equality is not the `symmetric` law that the quotient `Sign`
+needs of `same_sign`".
 
 Each proof is tried twice: first with every definition that is not by cases
 left as its name, so that a goal and its citations are compared as written,
