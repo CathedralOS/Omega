@@ -33,7 +33,7 @@ machine pair(first: Selection, second: Selection) { }
 /// the refusal's text.
 fn verdict(build: &str) -> String {
     match judge_build(build) {
-        Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+        Err(crate::CompilationRefusal::Elaboration(refusal))
         | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
         Ok(RouteVerdict::Accepted(accepted)) => {
             accepted.publish_invocation().unwrap();
@@ -284,7 +284,7 @@ machine dispatch(selection: Selection, spare: CopyHolder) {{
 machine done() {{ }}
 "#
     );
-    let run = |closure: &crate::checking::AcceptedClosure| {
+    let run = |closure: &crate::AcceptedClosure| {
         let publication = closure.publish_invocation().unwrap();
         let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
         let mut instance = program.instantiate(Default::default()).unwrap();

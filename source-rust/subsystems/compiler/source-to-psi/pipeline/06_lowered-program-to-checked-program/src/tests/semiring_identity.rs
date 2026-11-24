@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn cited_kernel_terms_rewrite_beneath_an_application_and_chain_in_reverse() {
-    use crate::checking::equality::{SearchError, prove};
+    use crate::equality::{SearchError, prove};
     use proof_admission::{
         Budget, Context, Declaration, Level, Sort, Term, TermArena, check_signature, check_type,
     };
@@ -86,7 +86,7 @@ fn generic(source: &str) -> RouteVerdict {
         terminal_codec::TerminalPublication::Invocation,
     )
     .unwrap();
-    let mut parts = crate::checking::judge_compilation(compilation.program).into_iter();
+    let mut parts = crate::judge_compilation(compilation.program).into_iter();
     let closure = parts.next().expect("package judgment").unwrap();
     assert!(matches!(closure, RouteVerdict::Accepted(_)), "{closure:?}");
     let form = parts.next().expect("generic machine judgment").unwrap();

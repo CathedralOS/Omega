@@ -2,7 +2,7 @@
 use super::target::{InvocationTarget, complete_invocation_scalar_applications};
 use super::{PreparedBuildMachineEntry, source_selection};
 use crate::compile_time_invocations::{BuildTimeValue, SourceCompletionAccounting};
-use checked_program_to_psi::production;
+use checked_program_to_psi as production;
 use source_completion_accounting::RecordedSourceInvocation;
 use std::sync::Arc;
 

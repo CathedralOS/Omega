@@ -1,7 +1,7 @@
 //! A layout policy returns its public fields as ordinary data. Its sealed
 //! placement calls record the actual second argument and the exact slot selected
 //! at that call. Only executed calls contribute a private field.
-use checked_program_to_psi::production;
+use checked_program_to_psi as production;
 use super::PrivateLayoutPlacementReceipt;
 use crate::compile_time_invocations::BuildTimeValue;
 use crate::source_state::expression::{ExpressionHandle, StaticMachineArgument};

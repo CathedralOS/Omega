@@ -4,7 +4,7 @@
 use super::*;
 use terminal_semantics::inhabitation::{Inhabitation, Status, TerminalContracts};
 
-fn program(text: &str) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
+fn program(text: &str) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     let typed = super::build_purpose::frontier_of(text, "machine build_entry() {}");
     program_from_typed(typed)
 }
@@ -23,10 +23,10 @@ fn assert_discard_required(source: &str) {
 
 fn program_from_typed(
     typed: crate::source_state::TypedTrees,
-) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
+) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     let typed = crate::prepare_fixture(typed);
     let entry = super::build_purpose::symbol(typed.trees(), "main");
-    crate::checking::judge_compilation(
+    crate::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
             super::build_purpose::roster(
@@ -41,13 +41,13 @@ fn program_from_typed(
     )
 }
 
-fn accepted(text: &str) -> Box<crate::checking::verdict::AcceptedClosure> {
+fn accepted(text: &str) -> Box<crate::verdict::AcceptedClosure> {
     accepted_verdicts(program(text))
 }
 
 fn accepted_verdicts(
-    mut verdicts: Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>>,
-) -> Box<crate::checking::verdict::AcceptedClosure> {
+    mut verdicts: Vec<Result<RouteVerdict, crate::CompilationRefusal>>,
+) -> Box<crate::verdict::AcceptedClosure> {
     let accepted = match verdicts.remove(0) {
         Ok(RouteVerdict::Accepted(accepted)) => accepted,
         other => panic!("the source program must be judged: {other:?}"),
@@ -61,7 +61,7 @@ fn accepted_verdicts(
     accepted
 }
 
-fn check_no_normal(accepted: &crate::checking::verdict::AcceptedClosure) -> MachineId {
+fn check_no_normal(accepted: &crate::verdict::AcceptedClosure) -> MachineId {
     let module = &accepted.elaboration.module;
     let query =
         Inhabitation::prepare(&TerminalContracts::new(module.types.structural_types.iter())).unwrap();
@@ -164,7 +164,7 @@ machine main(fatal: bool) crashes Trap {
     let verdicts = program(&source.replacen("requires false", "requires true", 1));
     let detail = match &verdicts[0] {
         Ok(RouteVerdict::FallBack(refusal)) => &refusal.detail,
-        Err(crate::checking::CompilationRefusal::Elaboration(refusal)) => &refusal.detail,
+        Err(crate::CompilationRefusal::Elaboration(refusal)) => &refusal.detail,
         other => panic!("an inhabited transition result cannot become Unit: {other:?}"),
     };
     assert!(detail.contains("arm value type"), "{detail}");
@@ -415,7 +415,7 @@ fn an_empty_input_can_be_syntactically_returned_without_creating_a_normal_value(
     assert_eq!(received.identity(), closed.identity());
 }
 
-fn bare_empty_value(guarantee: &str) -> Box<crate::checking::verdict::AcceptedClosure> {
+fn bare_empty_value(guarantee: &str) -> Box<crate::verdict::AcceptedClosure> {
     let accepted = accepted(&format!(
         "public data Empty requires false {{}} \
          machine main(value: Empty) -> u32 {guarantee} {{ value }}",
@@ -647,7 +647,7 @@ machine main() crashes Trap {
 }
 
 fn scalar_postcondition_call(
-    accepted: &crate::checking::verdict::AcceptedClosure,
+    accepted: &crate::verdict::AcceptedClosure,
     actual: Option<(
         semantic_vocabulary::ScalarType,
         semantic_vocabulary::IntegerValue,

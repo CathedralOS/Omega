@@ -151,11 +151,11 @@ fn by_value_abi_publishes_carrier_bytes_and_preserves_the_opaque_claim() {
     let permit = program.calling_abi_storage(machine, permit).unwrap();
     let carriers = program.prepare_opaque_carriers(machine).unwrap();
     assert_eq!(carriers.len(), 1);
-    let decl = crate::lowering::lower::places::declare(
+    let decl = crate::lower::places::declare(
         machine,
         &program.records,
         &IdTable::default(),
-        std::iter::empty::<&crate::lowering::Signature>(),
+        std::iter::empty::<&crate::Signature>(),
         &program.byte_domains,
         Some(&typed),
         Default::default(),

@@ -108,7 +108,7 @@ impl Program<'_> {
         context: MachineId,
         scope: &AppliedTraitScope<'_>,
         requirement: SymbolHandle,
-    ) -> Checked<crate::lowering::body::Signature> {
+    ) -> Checked<crate::body::Signature> {
         let typed = self.typed;
         let (owner, declared) = typed
             .trait_machine_signature(requirement)
@@ -1198,14 +1198,14 @@ mod header_reading_tests {
 
             // A real boundary read owns this member's source, while its
             // declaring service supplies identity rather than sibling clauses.
-            let captured = crate::lowering::capture_source_questions(&mut program, context)
+            let captured = crate::capture_source_questions(&mut program, context)
                 .expect("the unrelated unread header must not require operator completions");
             assert!(captured.declarations.contains(&selected));
             assert!(!captured.declarations.contains(&unread));
             assert!(captured.questions.iter().any(|question| {
                 question.lexical_owner == selected
                     && question.target
-                        == crate::lowering::selection_questions::RawSelectionTarget::Intrinsic(
+                        == crate::selection_questions::RawSelectionTarget::Intrinsic(
                             crate::declaration_selection::AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
                         )
             }));
@@ -1222,12 +1222,12 @@ mod header_reading_tests {
             if valid_predicate {
                 assert!(!requested.unwrap().unwrap().1.requires.is_empty());
                 assert_eq!(program.admitted_signature_views.len(), 2);
-                let captured = crate::lowering::capture_source_questions(&mut program, context)
+                let captured = crate::capture_source_questions(&mut program, context)
                     .expect("both requested headers now have real reader completions");
                 assert!(captured.questions.iter().any(|question| {
                     question.lexical_owner == unread
                         && question.target
-                            == crate::lowering::selection_questions::RawSelectionTarget::Intrinsic(
+                            == crate::selection_questions::RawSelectionTarget::Intrinsic(
                                 crate::declaration_selection::AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
                             )
                 }));
@@ -1268,7 +1268,7 @@ mod header_reading_tests {
         assert!(program.admitted_signature_views.is_empty());
         let (_, source) = typed.trait_machine_signature(requirement).unwrap();
         let reference = typed.state_parameters.span(source.parameters).unwrap()[0].type_reference;
-        let crate::lowering::body::ValueType::Record(record, _, _) =
+        let crate::body::ValueType::Record(record, _, _) =
             program.value_type(context, reference).unwrap()
         else {
             panic!("the qualified input must retain its linear record type");
@@ -1287,11 +1287,11 @@ mod header_reading_tests {
             .read_calling_requirement_header(context, &scope, requirement)
             .unwrap();
         assert!(
-            signature.parameters[0].qualification() != crate::lowering::body::Qualification::NONE
+            signature.parameters[0].qualification() != crate::body::Qualification::NONE
         );
         assert!(!signature.requires.is_empty());
         program.completed_operators.finish();
-        crate::lowering::selection_questions::capture_with_bodies(
+        crate::selection_questions::capture_with_bodies(
             &typed,
             &program.admitted_declarations,
             &program.admitted_bodies,
@@ -1379,7 +1379,7 @@ mod header_reading_tests {
             applications: &applications,
             entries: &[],
         };
-        let shared = crate::lowering::shared_reading(&typed);
+        let shared = crate::shared_reading(&typed);
         let context = MachineId::new(1).unwrap();
         let mut prior = None;
         for purpose in [
@@ -1489,7 +1489,7 @@ mod header_reading_tests {
 
             // Use the production capture path. Registering a canonical service
             // identity does not select its members' source contract clauses.
-            let metadata = crate::lowering::capture_source_questions(&mut program, context)
+            let metadata = crate::capture_source_questions(&mut program, context)
                 .expect("service identity alone must not require unread header operators");
             assert!(!metadata.declarations.contains(&owner));
             assert!(metadata.questions.is_empty());
@@ -1500,7 +1500,7 @@ mod header_reading_tests {
             if valid_predicate {
                 assert!(!header.unwrap().requires.is_empty());
                 assert_eq!(program.admitted_signature_views.len(), 1);
-                let captured = crate::lowering::capture_source_questions(&mut program, context)
+                let captured = crate::capture_source_questions(&mut program, context)
                     .expect("the requested header now has actual checked reader completions");
                 assert!(captured.declarations.contains(&owner));
                 let conjunction = typed
@@ -1524,7 +1524,7 @@ mod header_reading_tests {
                     question.lexical_owner == requirement
                         && question.occurrence == occurrence
                         && question.target
-                            == crate::lowering::selection_questions::RawSelectionTarget::Intrinsic(
+                            == crate::selection_questions::RawSelectionTarget::Intrinsic(
                                 crate::declaration_selection::AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
                             )
                 }));
@@ -1562,7 +1562,7 @@ mod header_reading_tests {
         let mut program = Program::new(&typed, false);
         program.admitted_declarations.include(owner);
         program.completed_operators.finish();
-        let unresolved = crate::lowering::selection_questions::capture(
+        let unresolved = crate::selection_questions::capture(
             &typed,
             &program.admitted_declarations,
             &program.completed_operators,
@@ -1577,7 +1577,7 @@ mod header_reading_tests {
         assert_eq!(program.admitted_signature_views.len(), 1);
         assert_eq!(program.admitted_signature_views[0].symbol, requirement);
         program.completed_operators.finish();
-        crate::lowering::selection_questions::capture(
+        crate::selection_questions::capture(
             &typed,
             &program.admitted_declarations,
             &program.completed_operators,

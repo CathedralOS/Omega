@@ -1,5 +1,5 @@
 //! The checker owns construction of the checked program and its evidence.
-use crate::checking::Discharge;
+use crate::Discharge;
 use terminal_check_tables::program::Elaboration;
 use terminal_codec::ObligationEvidenceSeal;
 

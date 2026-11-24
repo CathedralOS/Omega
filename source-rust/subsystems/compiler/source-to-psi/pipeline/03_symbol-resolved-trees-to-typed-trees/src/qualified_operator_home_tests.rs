@@ -82,11 +82,11 @@ pub(crate) fn packages(
             )
             .source_id;
         source_ids.push(id);
-        let tokens = crate::typing::frontend_fixture::Lexer::new(text)
+        let tokens = crate::frontend_fixture::Lexer::new(text)
             .tokenize()
             .unwrap();
         let parsed =
-            crate::typing::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
+            crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
         parsed_units.push(parsed);
     }
     sources.retain_product_dependency_scope(
@@ -199,7 +199,7 @@ pub(crate) fn packages(
             .collect::<Vec<_>>()
             .join("; ")
     })?;
-    crate::typing::lower_symbol_resolved_trees(&resolved).map_err(|error| error.message)
+    crate::lower_symbol_resolved_trees(&resolved).map_err(|error| error.message)
 }
 
 const DOMAIN: &str = "public domain u32::Distance;";
@@ -595,11 +595,11 @@ machine field(row: @Row) -> u16 in Wrapping { row.length }
             .unwrap();
         let query = |program: &crate::source_state::TypedTrees| {
             assert_eq!(
-                crate::typing::typing_queries::declared_expression_type(program, owner, member),
+                crate::typing_queries::declared_expression_type(program, owner, member),
                 Some(expected)
             );
             assert_eq!(
-                crate::typing::typing_queries::scoped_expression_type_reference(
+                crate::typing_queries::scoped_expression_type_reference(
                     program,
                     program.state_parameters(&state),
                     state.return_type,
@@ -623,11 +623,11 @@ machine field(row: @Row) -> u16 in Wrapping { row.length }
         node.member = "length".into();
         node.selection = MemberSelection::Unresolved;
         assert_eq!(
-            crate::typing::typing_queries::declared_expression_type(&program, owner, member),
+            crate::typing_queries::declared_expression_type(&program, owner, member),
             None
         );
         assert_eq!(
-            crate::typing::typing_queries::scoped_expression_type_reference(
+            crate::typing_queries::scoped_expression_type_reference(
                 &program,
                 program.state_parameters(&state),
                 state.return_type,
@@ -646,7 +646,7 @@ machine field(row: @Row) -> u16 in Wrapping { row.length }
             MemberSelection::CollectionMeasure(CollectionMeasure::Length)
         };
         assert_eq!(
-            crate::typing::typing_queries::declared_expression_type(&program, owner, member),
+            crate::typing_queries::declared_expression_type(&program, owner, member),
             None,
             "an unsupported measure or a noncollection receiver supplies no type"
         );

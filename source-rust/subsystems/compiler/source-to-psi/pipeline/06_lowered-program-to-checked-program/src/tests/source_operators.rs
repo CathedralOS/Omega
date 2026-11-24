@@ -460,9 +460,9 @@ fn logical_callable_witnesses_capture_headers_without_reading_indexed_bodies() {
             }
             let witness = witness
                 .expect("logical refinement reads the complete header, not its uninvoked body");
-            crate::checking::prove_callable_refinement(
+            crate::prove_callable_refinement(
                 witness,
-                &mut crate::checking::ProofSearchActivity::default(),
+                &mut crate::ProofSearchActivity::default(),
             )
             .expect("the public callable contract refines the requirement");
         }
@@ -859,7 +859,7 @@ fn static_false_pattern_reads_guard_and_copy_without_its_target() {
         terminal_codec::TerminalPublication::Invocation,
     )
     .expect("fixture must lower to checker input");
-    let verdicts = crate::checking::judge_compilation(prepared.program);
+    let verdicts = crate::judge_compilation(prepared.program);
     assert_eq!(
         verdicts.len(),
         4,
@@ -936,7 +936,7 @@ fn static_false_pattern_cannot_hide_missing_or_conflicting_occurrences() {
         };
         let verdicts = super::boundary_calls::compilation_results_of(&typed);
         assert!(verdicts.iter().any(|verdict| matches!(verdict,
-            Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+            Err(crate::CompilationRefusal::Elaboration(refusal))
                 if refusal.reason == RefusalReason::ForeignIdentity && refusal.detail.contains(expected))),
             "the actual pattern copy must be read: {verdicts:#?}");
     }

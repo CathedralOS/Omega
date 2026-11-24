@@ -9,8 +9,8 @@ use terminal_check_tables::{Checked, Construct, RefusalReason};
 
 pub(crate) fn check(
     witnesses: Vec<Checked<CallableArrivalWitness>>,
-    activity: &mut crate::checking::ProofSearchActivity,
-) -> Checked<Vec<crate::checking::UnprovedObligation>> {
+    activity: &mut crate::ProofSearchActivity,
+) -> Checked<Vec<crate::UnprovedObligation>> {
     let mut unproved = Vec::new();
     let mut unavailable = None;
     for witness in witnesses {
@@ -31,8 +31,8 @@ pub(crate) fn check(
 
 fn check_witness(
     mut witness: CallableArrivalWitness,
-    activity: &mut crate::checking::ProofSearchActivity,
-) -> Checked<Vec<crate::checking::UnprovedObligation>> {
+    activity: &mut crate::ProofSearchActivity,
+) -> Checked<Vec<crate::UnprovedObligation>> {
     let diagnostic = MachineId::new(1).expect("nonzero diagnostic identity");
     for nominal in &witness.nominal_premises {
         if nominal.path.root != nominal.occurrence.symbol
@@ -42,7 +42,7 @@ fn check_witness(
                 .get(nominal.occurrence.ordinal)
                 .is_none_or(|formal| formal.occurrence != nominal.occurrence)
         {
-            return Err(crate::checking::refusal(
+            return Err(crate::refusal(
                 RefusalReason::ForeignIdentity,
                 diagnostic,
                 Construct::Machine,
@@ -51,7 +51,7 @@ fn check_witness(
         }
     }
     let elaboration = &mut witness.elaboration;
-    let discharged = crate::checking::discharge(elaboration, activity)?;
+    let discharged = crate::discharge(elaboration, activity)?;
     let mut unproved = Vec::new();
     for (machine, result) in discharged.machines.iter() {
         if elaboration.requirements.contains(&machine) {
@@ -82,14 +82,14 @@ fn check_witness(
                 machine,
                 Construct::Obligation(obligation),
             )?;
-            unproved.push(crate::checking::UnprovedObligation {
+            unproved.push(crate::UnprovedObligation {
                 machine,
                 obligation,
                 kind: row.kind,
                 site,
                 cause,
                 detail: refused.detail.clone(),
-                statement: crate::checking::describe::unproved(
+                statement: crate::describe::unproved(
                     elaboration,
                     machine,
                     tables,
@@ -107,7 +107,7 @@ fn check_witness(
             consumed.verdict.as_ref().map_err(Clone::clone)?;
         }
         if !result.conflicts.is_empty() {
-            return Err(crate::checking::refusal(
+            return Err(crate::refusal(
                 RefusalReason::Unsupported,
                 machine,
                 Construct::Machine,

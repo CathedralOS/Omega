@@ -18,7 +18,7 @@ use super::*;
 /// that conflicts. Else the refusal's text.
 fn verdict(build: &str) -> String {
     match judge_build(build) {
-        Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+        Err(crate::CompilationRefusal::Elaboration(refusal))
         | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
         Ok(RouteVerdict::Accepted(accepted)) => {
             accepted.publish_invocation().unwrap();

@@ -79,7 +79,7 @@ mod exact_fact_index {
             Proposition::Falsehood,
         ];
         let axioms = [first.clone()];
-        let known = crate::checking::known::Known::new(&context, &assumptions, &axioms, &values);
+        let known = crate::known::Known::new(&context, &assumptions, &axioms, &values);
         let index = ExactFacts::with_hasher(&known.facts, CollidingHasher);
         let mut activity = ProofSearchActivity::default();
         assert_eq!(index.find(&known.facts, &first, &mut activity), Some(0));
@@ -182,7 +182,7 @@ mod exact_fact_index {
             literal(9),
         );
         let assumptions = [logical, mathematical, scalar];
-        let known = crate::checking::known::Known::new(&context, &assumptions, &[], &values);
+        let known = crate::known::Known::new(&context, &assumptions, &[], &values);
         let index = ExactFacts::with_hasher(&known.facts, NoTermHash);
         let mut activity = ProofSearchActivity::default();
         for goal in &assumptions {
@@ -672,7 +672,7 @@ mod bound_fact_index {
 
     #[test]
     fn a_branch_that_defines_an_alias_input_matches_fresh_preparation() {
-        use crate::checking::known::{BranchPreparation, Known};
+        use crate::known::{BranchPreparation, Known};
 
         let values = inputs(21, 2);
         let context = context(&values);

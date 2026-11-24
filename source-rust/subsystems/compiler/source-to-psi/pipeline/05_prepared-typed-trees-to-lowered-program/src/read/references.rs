@@ -2,14 +2,14 @@
 //! exact referent and outer region. Its type establishes no backing or loan;
 //! formation, use and completion must retain those separate obligations.
 
-use crate::lowering::body::{Qualification, RecordType, StorageShape, ValueType};
+use crate::body::{Qualification, RecordType, StorageShape, ValueType};
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct, Refusal};
 use terminal_psi::StructuralAccess;
 
 use super::{Program, places::RecordSource};
-use crate::lowering::{SourceOrigin, Unserved, refuse};
+use crate::{SourceOrigin, Unserved, refuse};
 
 impl Program<'_> {
     pub(super) fn reference_type(
@@ -198,8 +198,8 @@ impl Program<'_> {
         slots: &[super::Slot],
         argument: crate::source_state::expression::ExpressionHandle,
         expected: ValueType,
-        source: crate::lowering::SourceOrigin,
-    ) -> Checked<crate::lowering::Expression> {
+        source: crate::SourceOrigin,
+    ) -> Checked<crate::Expression> {
         if let Some(view) =
             self.borrowed_array_range(machine, slots, argument, expected, source, None)?
         {
@@ -243,15 +243,15 @@ impl Program<'_> {
                 ));
             }
         };
-        let formal = crate::lowering::Borrowed {
+        let formal = crate::Borrowed {
             position: 0,
             access,
-            referent: crate::lowering::body::BorrowedReferent::Value,
+            referent: crate::body::BorrowedReferent::Value,
             regions: expected.regions(),
             home,
         };
         let (value, _) = self.lent_from(machine, slots, argument, None, &formal, referent)?;
-        if !matches!(value.kind, crate::lowering::ExpressionKind::Borrow { .. }) {
+        if !matches!(value.kind, crate::ExpressionKind::Borrow { .. }) {
             unreachable!()
         };
         // A view's loan result carries its chosen presentation; its backing
@@ -275,10 +275,10 @@ impl Program<'_> {
         &mut self,
         machine: MachineId,
         slots: &[super::Slot],
-        mut value: crate::lowering::Expression,
+        mut value: crate::Expression,
         expected: ValueType,
-        source: crate::lowering::SourceOrigin,
-    ) -> Checked<crate::lowering::Expression> {
+        source: crate::SourceOrigin,
+    ) -> Checked<crate::Expression> {
         let Some((referent, _)) = self.reference_referent(machine, expected)? else {
             return Err(refuse(
                 machine,
@@ -289,7 +289,7 @@ impl Program<'_> {
         let ValueType::Record(row, _, _) = expected else {
             unreachable!()
         };
-        let crate::lowering::ExpressionKind::Borrow { place, .. } = &value.kind else {
+        let crate::ExpressionKind::Borrow { place, .. } = &value.kind else {
             return Err(refuse(
                 machine,
                 Construct::Machine,
@@ -312,8 +312,8 @@ impl Program<'_> {
         &mut self,
         machine: MachineId,
         slots: &[super::Slot],
-        place: &crate::lowering::Expression,
-    ) -> Checked<crate::lowering::body::Regions> {
+        place: &crate::Expression,
+    ) -> Checked<crate::body::Regions> {
         if let Some(value) = place.result
             && (self.is_borrowed_view(value) || self.direct_element_view_formal(slots, place))
         {
@@ -337,8 +337,8 @@ impl Program<'_> {
         &mut self,
         machine: MachineId,
         slots: &[super::Slot],
-        place: &crate::lowering::Expression,
-    ) -> Checked<crate::lowering::body::Regions> {
+        place: &crate::Expression,
+    ) -> Checked<crate::body::Regions> {
         let storage = self.storage_loan_regions(machine, slots, place)?;
         let within = *self.region_tuple(storage).first().ok_or_else(|| {
             refuse(
@@ -357,10 +357,10 @@ impl Program<'_> {
         &self,
         machine: MachineId,
         slots: &[super::Slot],
-        projection: &crate::lowering::Expression,
-        descriptor: &crate::lowering::Expression,
-    ) -> Checked<Option<(StructuralAccess, crate::lowering::body::Regions)>> {
-        use crate::lowering::ExpressionKind;
+        projection: &crate::Expression,
+        descriptor: &crate::Expression,
+    ) -> Checked<Option<(StructuralAccess, crate::body::Regions)>> {
+        use crate::ExpressionKind;
         use terminal_psi::ByteSequenceCarrier::{BorrowedView, BoundedView};
 
         let is_referent = match projection.kind {
@@ -421,8 +421,8 @@ impl Program<'_> {
         &mut self,
         machine: MachineId,
         slots: &[super::Slot],
-        place: &crate::lowering::Expression,
-    ) -> Checked<crate::lowering::body::Regions> {
+        place: &crate::Expression,
+    ) -> Checked<crate::body::Regions> {
         let mut captures = super::storage_path::Captures::new(machine, &self.captures);
         let mut crossing = None;
         let root = super::storage_path::walk(
@@ -448,7 +448,7 @@ impl Program<'_> {
             return Ok(self.intern_regions(vec![outer]));
         }
         use super::regions::{OwnedStorageRoot, Region};
-        use crate::lowering::ExpressionKind;
+        use crate::ExpressionKind;
         let root = match root.kind {
             ExpressionKind::Slot(root) => {
                 let slot = &slots[root];
@@ -484,7 +484,7 @@ impl Program<'_> {
         &self,
         machine: MachineId,
         slots: &[super::Slot],
-        place: &crate::lowering::Expression,
+        place: &crate::Expression,
         requested: language_core::ReferenceAccess,
     ) -> Checked<bool> {
         let requested = match requested {
@@ -521,11 +521,11 @@ impl Program<'_> {
         )?;
         if crossed
             && requested != StructuralAccess::SharedBorrow
-            && let crate::lowering::ExpressionKind::Slot(holder) = root.kind
+            && let crate::ExpressionKind::Slot(holder) = root.kind
             && slots.get(holder).and_then(|slot| slot.borrowed)
                 == Some(language_core::ReferenceAccess::Shared)
         {
-            return Err(crate::lowering::reject(
+            return Err(crate::reject(
                 machine,
                 place.source,
                 format!(
@@ -548,7 +548,7 @@ pub(super) fn reference_access_violation(
     requested: StructuralAccess,
     granted: StructuralAccess,
 ) -> Refusal {
-    crate::lowering::reject(
+    crate::reject(
         machine,
         source,
         format!(
@@ -864,7 +864,7 @@ mod tests {
                     .domains
                     .members()
                     .collect::<Vec<_>>(),
-                [crate::lowering::body::DomainInstance {
+                [crate::body::DomainInstance {
                     declaration: domain,
                     identity: program.typed.domain_definition(domain).unwrap().semantic_id,
                 }]
@@ -898,17 +898,17 @@ mod tests {
             .map(|region| program.intern_regions(vec![region]))
             .collect::<Vec<_>>();
         let plain = ValueType::plain(program.scalar_type(id, scalar).unwrap());
-        let signature = |regions: &[crate::lowering::body::Regions]| crate::lowering::Signature {
+        let signature = |regions: &[crate::body::Regions]| crate::Signature {
             operational: Default::default(),
             parameters: vec![plain, plain],
             erased: Vec::new(),
             borrowed: regions
                 .iter()
                 .enumerate()
-                .map(|(position, regions)| crate::lowering::Borrowed {
+                .map(|(position, regions)| crate::Borrowed {
                     position,
                     access: language_core::ReferenceAccess::Shared,
-                    referent: crate::lowering::body::BorrowedReferent::Value,
+                    referent: crate::body::BorrowedReferent::Value,
                     regions: *regions,
                     home: Some("u32".into()),
                 })
@@ -917,10 +917,10 @@ mod tests {
             requires: Vec::new(),
             ensures: Vec::new(),
             membership_ensures: Vec::new(),
-            reaches: crate::lowering::Ceiling::Inferred,
-            invokes: crate::lowering::Ceiling::Inferred,
-            crashes: crate::lowering::CrashCeiling::DeclaredNone,
-            termination: crate::lowering::Termination::Silent,
+            reaches: crate::Ceiling::Inferred,
+            invokes: crate::Ceiling::Inferred,
+            crashes: crate::CrashCeiling::DeclaredNone,
+            termination: crate::Termination::Silent,
             ranking: None,
         };
         let required = signature(&required_regions);

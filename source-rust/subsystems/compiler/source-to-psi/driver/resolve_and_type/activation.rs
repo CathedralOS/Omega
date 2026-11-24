@@ -2,7 +2,7 @@ use super::{PreCheckEvaluation, ResolveAndTypeRequest};
 use declaration_scope::PackageDeclarationScope;
 use crate::source_inputs::SourceMap;
 use crate::source_symbols::SourceScopedTopLevelBinding;
-use symbol_resolved_trees_to_typed_trees::typing::SeededTypingBase;
+use symbol_resolved_trees_to_typed_trees::SeededTypingBase;
 use diagnostics::Diagnostic;
 use source_text::{SourceId, SourceSpan, Span};
 use std::collections::HashSet;

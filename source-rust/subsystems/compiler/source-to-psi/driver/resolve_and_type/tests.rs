@@ -1,6 +1,6 @@
-use checked_program_to_psi::production;
+use checked_program_to_psi as production;
 use syntax_trees_to_symbol_resolved_trees::resolution;
-use symbol_resolved_trees_to_typed_trees::typing;
+use symbol_resolved_trees_to_typed_trees as typing;
 use crate::driver::judge_lowered_source;
 use typed_trees_to_prepared_typed_trees as preparation;
 use super::*;

@@ -15,7 +15,7 @@ use terminal_psi::{
     Terminator,
 };
 
-use crate::lowering::{Elaboration, Unserved, refuse};
+use crate::{Elaboration, Unserved, refuse};
 
 fn non_callable_source(
     typed: &TypedTrees,
@@ -73,7 +73,7 @@ fn non_callable_source(
 pub(crate) fn declare(
     typed: &TypedTrees,
     elaboration: &mut Elaboration,
-    selected_calls: &[crate::lowering::compilation::SelectedSourceCall<'_>],
+    selected_calls: &[crate::compilation::SelectedSourceCall<'_>],
 ) -> Checked<()> {
     let selection_requests = selection_requests(typed, elaboration, selected_calls)?;
     let mut logical_requirements = elaboration.requirements.clone();
@@ -406,7 +406,7 @@ pub(crate) fn declare(
             );
         }
         let package = typed.symbols.symbol_package_identity(symbol);
-        let custody = crate::lowering::selection_questions::declaration_custody(typed, symbol)
+        let custody = crate::selection_questions::declaration_custody(typed, symbol)
             .map_err(|reason| terminal_check_tables::Refusal {
                 source_span: None,
                 reason: terminal_check_tables::RefusalReason::Unsupported,
@@ -723,7 +723,7 @@ fn declaration_custody(typed: &TypedTrees, symbol: symbols::SymbolHandle) -> Dec
 fn selection_requests(
     typed: &TypedTrees,
     elaboration: &Elaboration,
-    calls: &[crate::lowering::compilation::SelectedSourceCall<'_>],
+    calls: &[crate::compilation::SelectedSourceCall<'_>],
 ) -> Checked<
     arena::IdTable<
         MachineId,

@@ -9,7 +9,7 @@ use crate::source_state::service_declarations::{
 };
 use checked_program_to_psi::provider_choice_inputs;
 use diagnostics::Diagnostic;
-use prepared_typed_trees_to_lowered_program::lowering::source_roster;
+use prepared_typed_trees_to_lowered_program::source_roster;
 use std::sync::Arc;
 
 fn program_roots(bindings: &[crate::RootBinding]) -> Vec<symbols::SymbolHandle> {

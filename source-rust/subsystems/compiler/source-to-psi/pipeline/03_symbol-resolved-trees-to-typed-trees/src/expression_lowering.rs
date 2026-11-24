@@ -37,18 +37,18 @@ pub(crate) mod expression {
     use crate::declaration_selection::AuthoredDeclarationSelectionExposure as SelectionExposure;
     use crate::source_resolved as resolved;
     use crate::source_state as typed;
-    use crate::typing::lowerer::Lowerer;
-    use crate::typing::tables::resolved_expressions;
+    use crate::lowerer::Lowerer;
+    use crate::tables::resolved_expressions;
     use diagnostics::Diagnostic;
 
     pub(crate) mod domain_membership {
         use super::lower_expression_handle_from_table_with_symbol_substitution;
         use crate::source_resolved as resolved;
         use crate::source_state as typed;
-        use crate::typing::expressions::exhaustiveness::data_definition_index;
-        use crate::typing::lowerer::name::lower_name;
-        use crate::typing::tables::{expression_table, expression_table_mut};
-        use crate::typing::type_reference::domain_aliases::expand_domain_reference;
+        use crate::expressions::exhaustiveness::data_definition_index;
+        use crate::lowerer::name::lower_name;
+        use crate::tables::{expression_table, expression_table_mut};
+        use crate::type_reference::domain_aliases::expand_domain_reference;
         use arena::HandleSpan;
         use diagnostics::Diagnostic;
         use symbols::SymbolHandle;
@@ -387,7 +387,7 @@ pub(crate) mod expression {
     pub(crate) mod name_paths {
         use crate::source_resolved as resolved;
         use crate::source_state as typed;
-        use crate::typing::lowerer::name::lower_name;
+        use crate::lowerer::name::lower_name;
 
         pub(crate) fn lower_name_path_members_into_table(
             source: &resolved::expression::ExpressionTable,
@@ -576,20 +576,20 @@ pub(crate) mod expression {
             use crate::declaration_selection::CollectionMeasure;
             use crate::source_resolved as resolved;
             use crate::source_state as typed;
-            use crate::typing::expressions::expression::domain_membership::{
+            use crate::expressions::expression::domain_membership::{
                 lower_case_membership_expression, lower_domain_membership_expression,
             };
-            use crate::typing::expressions::expression::name_paths::{
+            use crate::expressions::expression::name_paths::{
                 lower_name_path_members_into_table, lower_table_name_path_node_into_table,
             };
-            use crate::typing::expressions::expression::native_code_layout::lower_request;
-            use crate::typing::expressions::expression::operators::lower_binary_operator;
-            use crate::typing::expressions::expression::{
+            use crate::expressions::expression::native_code_layout::lower_request;
+            use crate::expressions::expression::operators::lower_binary_operator;
+            use crate::expressions::expression::{
                 lower_static_machine_argument, lower_static_machine_argument_with_occurrences,
             };
-            use crate::typing::expressions::proposition::is_proposition_call_target;
-            use crate::typing::lowerer::name::lower_name;
-            use crate::typing::type_reference::lower_type_reference_into_trees_with_exposure;
+            use crate::expressions::proposition::is_proposition_call_target;
+            use crate::lowerer::name::lower_name;
+            use crate::type_reference::lower_type_reference_into_trees_with_exposure;
             use diagnostics::Diagnostic;
             use resolved::expression::display_name_path;
             use resolved::types::TypeReference;
@@ -597,7 +597,7 @@ pub(crate) mod expression {
             pub(crate) mod match_dispatch {
 
                 use super::{Diagnostic, ExpressionTableLowerer, lower_name, resolved, typed};
-                use crate::typing::tables::expression_table;
+                use crate::tables::expression_table;
                 use arena::Handle;
 
                 impl ExpressionTableLowerer<'_, '_> {
@@ -703,7 +703,7 @@ pub(crate) mod expression {
                         // subject's record gives each place its field here.
                         // The arm keeps its own `has_rest`, so a field only
                         // `..` covers gets no row.
-                        let placed = crate::typing::data_patterns::field_rows(
+                        let placed = crate::data_patterns::field_rows(
                             program,
                             self.source,
                             subject,
@@ -932,7 +932,7 @@ pub(crate) mod expression {
                 /// Set when a body statement owns this lowering: a block
                 /// value's statements are typed by that statement's lowering.
                 /// Elsewhere a block is refused.
-                pending_blocks: Option<&'target mut Vec<crate::typing::lowerer::PendingBlock>>,
+                pending_blocks: Option<&'target mut Vec<crate::lowerer::PendingBlock>>,
             }
 
             impl<'program, 'target> ExpressionTableLowerer<'program, 'target> {
@@ -969,8 +969,8 @@ pub(crate) mod expression {
                 /// its match captures.
                 pub(crate) fn collecting_blocks(
                     mut self,
-                    pending: &'target mut Vec<crate::typing::lowerer::PendingBlock>,
-                    captures: &[crate::typing::lowerer::BlockCapture],
+                    pending: &'target mut Vec<crate::lowerer::PendingBlock>,
+                    captures: &[crate::lowerer::BlockCapture],
                 ) -> Self {
                     self.pending_blocks = Some(pending);
                     self.match_captures = captures.to_vec();
@@ -1008,7 +1008,7 @@ pub(crate) mod expression {
                         ));
                     let captures = self.match_captures.clone();
                     if let Some(pending) = self.pending_blocks.as_mut() {
-                        pending.push(crate::typing::lowerer::PendingBlock {
+                        pending.push(crate::lowerer::PendingBlock {
                             block: lowered,
                             statements: block.statement_nodes,
                             captures,
@@ -1108,7 +1108,7 @@ pub(crate) mod expression {
                         )));
                     };
 
-                    crate::typing::call_and_product_selections::bind_generated_call_selection(
+                    crate::call_and_product_selections::bind_generated_call_selection(
                         self.target_trees,
                         *occurrence,
                         selected_target,
@@ -1183,13 +1183,13 @@ pub(crate) mod expression {
                             // A generated call owns the occurrence only when
                             // the answer the author got is that call's target.
                             let owned = if call.build_selection.is_valid() {
-                                crate::typing::call_and_product_selections::bind_generated_call_selection(
+                                crate::call_and_product_selections::bind_generated_call_selection(
                                     self.target_trees,
                                     occurrence,
                                     selected,
                                 )?
                             } else {
-                                !crate::typing::call_and_product_selections::names_replaced_prelude_operation(
+                                !crate::call_and_product_selections::names_replaced_prelude_operation(
                                     self.target_trees,
                                     occurrence,
                                     selected,
@@ -1215,7 +1215,7 @@ pub(crate) mod expression {
                     if matches!(self.target().expression(lowered), typed::expression::ExpressionNode::Call(call) if call.native_code_layout.is_some())
                     {
                         let result =
-                            crate::typing::expressions::expression::native_code_layout::result_type(
+                            crate::expressions::expression::native_code_layout::result_type(
                                 self.program,
                                 self.target_trees,
                             )?;
@@ -1455,7 +1455,7 @@ pub(crate) mod expression {
                                 && !cast.form.is_recast()
                                 && cast.form.entry().is_none()
                             {
-                                crate::typing::type_reference::retain_arithmetic_result_type(
+                                crate::type_reference::retain_arithmetic_result_type(
                                     &program.symbols,
                                     &mut self.target_trees.type_reference_table,
                                     target_type,
@@ -1483,7 +1483,7 @@ pub(crate) mod expression {
                         resolved::expression::ExpressionNode::Call(call) => {
                             if let Some(program) = self.program
                                 && let Some(operation) =
-                                    crate::typing::atomic_calls::select_expression(
+                                    crate::atomic_calls::select_expression(
                                         program,
                                         self.source,
                                         call,
@@ -1507,7 +1507,7 @@ pub(crate) mod expression {
                                 )?;
                                 return Ok(event);
                             }
-                            if crate::typing::runtime_callables::callee_is_value(
+                            if crate::runtime_callables::callee_is_value(
                                 self.program,
                                 self.source,
                                 call.callee,
@@ -1516,7 +1516,7 @@ pub(crate) mod expression {
                                 let arguments =
                                     self.lower_expression_handle_span(call.arguments)?;
                                 let machine_arguments =
-                                    crate::typing::signatures::lexical_context::call_arguments(
+                                    crate::signatures::lexical_context::call_arguments(
                                         self.program,
                                         self.target_trees,
                                         self.source.authored_expression_exposure(expression),
@@ -1575,7 +1575,7 @@ pub(crate) mod expression {
                             }
                             if let Some(program) = self.program {
                                 let facet =
-                                    crate::typing::expressions::product_selections::test_group_facet(
+                                    crate::expressions::product_selections::test_group_facet(
                                         program,
                                         self.source,
                                         call.receiver,
@@ -1611,7 +1611,7 @@ pub(crate) mod expression {
                                 if call.machine_arguments.is_empty()
                                     && call.evidence_arguments.is_empty()
                                     && let Some(request) =
-                                        crate::typing::expressions::product_queries::description_request(
+                                        crate::expressions::product_queries::description_request(
                                             program,
                                             call.target_symbol,
                                             call.receiver.is_valid().then_some(namespace),
@@ -1620,7 +1620,7 @@ pub(crate) mod expression {
                                             self.source.source_span(expression),
                                         )
                                 {
-                                    let query = crate::typing::expressions::build_selections::lower(
+                                    let query = crate::expressions::build_selections::lower(
                                         program,
                                         self.target_trees,
                                         request,
@@ -1639,7 +1639,7 @@ pub(crate) mod expression {
                                     return Ok(query);
                                 }
                                 if let Some(operation) =
-                                    crate::typing::expressions::product_queries::operation(
+                                    crate::expressions::product_queries::operation(
                                         program,
                                         call.target_symbol,
                                         call.receiver.is_valid().then_some(namespace),
@@ -1660,7 +1660,7 @@ pub(crate) mod expression {
                                         .map(|argument| self.lower_value(argument))
                                         .collect::<Result<Vec<_>, Diagnostic>>()?;
                                     let selected = operation.target;
-                                    let query = crate::typing::expressions::product_queries::lower(
+                                    let query = crate::expressions::product_queries::lower(
                                         program,
                                         self.target_trees,
                                         operation,
@@ -1672,7 +1672,7 @@ pub(crate) mod expression {
                                     return Ok(query);
                                 }
                                 if let Some(request) =
-                                    crate::typing::expressions::product_selections::request(
+                                    crate::expressions::product_selections::request(
                                         program,
                                         self.target_trees,
                                         self.source.authored_expression_exposure(expression),
@@ -1698,7 +1698,7 @@ pub(crate) mod expression {
                                     .into_iter()
                                     .map(|argument| self.lower_value(argument))
                                     .collect::<Result<Vec<_>, Diagnostic>>()?;
-                                    return crate::typing::expressions::build_selections::lower(
+                                    return crate::expressions::build_selections::lower(
                                         program,
                                         self.target_trees,
                                         request.request,
@@ -1713,7 +1713,7 @@ pub(crate) mod expression {
                             let private_layout_operation =
                                 self.lower_private_layout_operation_request(call)?;
                             let installed_interrupt_operation =
-                                crate::typing::expressions::installed_interrupts::lower_request(
+                                crate::expressions::installed_interrupts::lower_request(
                                     self.program,
                                     self.target_trees,
                                     self.source.authored_expression_exposure(expression),
@@ -1762,7 +1762,7 @@ pub(crate) mod expression {
                                 if declared.is_valid() {
                                     return declared;
                                 }
-                                crate::typing::expressions::call_results::computed_receiver_method_target(
+                                crate::expressions::call_results::computed_receiver_method_target(
                                     program,
                                     &self.target_trees.expression_table,
                                     receiver,
@@ -1792,7 +1792,7 @@ pub(crate) mod expression {
                             {
                                 Box::default()
                             } else {
-                                crate::typing::signatures::lexical_context::call_arguments(
+                                crate::signatures::lexical_context::call_arguments(
                                     self.program,
                                     self.target_trees,
                                     self.source.authored_expression_exposure(expression),
@@ -1865,7 +1865,7 @@ pub(crate) mod expression {
                         resolved::expression::ExpressionNode::Float(value) => {
                             if let Some(format) = value.landing() {
                                 self.retain_builtin_type_reference(
-                                    crate::typing::typing_queries::float_literal_atom(format),
+                                    crate::typing_queries::float_literal_atom(format),
                                 )?;
                             }
                             Ok(self
@@ -2765,10 +2765,10 @@ pub(crate) mod expression {
         pub(crate) mod member_binding {
             use super::lowerer::{ExpressionTableLowerer, resolved_data_definition_for_type};
             use crate::source_resolved as resolved;
-            use crate::typing::expressions::call_results::{
+            use crate::expressions::call_results::{
                 declared_call_return, declared_type_method_target, peel,
             };
-            use crate::typing::lowerer::{exact_field_symbol, exact_top_level_data_symbol};
+            use crate::lowerer::{exact_field_symbol, exact_top_level_data_symbol};
             use symbols::{SymbolHandle, SymbolKind};
 
             use resolved::data::{DataField, DataMember};
@@ -2930,7 +2930,7 @@ pub(crate) mod expression {
                         )
                         .with_source_span(at));
                     };
-                    let field = crate::typing::data_patterns::positional_field(
+                    let field = crate::data_patterns::positional_field(
                         program,
                         self.source,
                         member.receiver,
@@ -2939,7 +2939,7 @@ pub(crate) mod expression {
                     )?;
                     Ok((
                         field.symbol,
-                        crate::typing::lowerer::name::lower_name(&field.name),
+                        crate::lowerer::name::lower_name(&field.name),
                     ))
                 }
             }
@@ -3034,7 +3034,7 @@ pub(crate) mod expression {
                 if let Some(position) = member.position {
                     // A positional pattern's read names no field: its place
                     // in the receiver's record selects one.
-                    return crate::typing::data_patterns::subject_record_within(
+                    return crate::data_patterns::subject_record_within(
                         program,
                         expressions,
                         member.receiver,
@@ -3800,8 +3800,8 @@ pub(crate) mod expression {
             target: &mut typed::TypedTrees,
             expression: resolved::expression::ExpressionHandle,
             source_owner: symbols::SymbolHandle,
-            pending_blocks: &mut Vec<crate::typing::lowerer::PendingBlock>,
-            block_captures: &[crate::typing::lowerer::BlockCapture],
+            pending_blocks: &mut Vec<crate::lowerer::PendingBlock>,
+            block_captures: &[crate::lowerer::BlockCapture],
         ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
             lowerer::ExpressionTableLowerer::new(Some(program), source, target, None)
                 .with_source_owner(source_owner)
@@ -3945,7 +3945,7 @@ pub(crate) mod expression {
             let program = program.ok_or_else(|| {
                 Diagnostic::error("structural static type argument requires its resolved program")
             })?;
-            crate::typing::type_reference::lower_type_reference_into_trees_with_exposure(
+            crate::type_reference::lower_type_reference_into_trees_with_exposure(
                 program,
                 target,
                 program.child_type_reference(argument.type_reference),
@@ -3961,7 +3961,7 @@ pub(crate) mod expression {
             path: argument
                 .path
                 .iter()
-                .map(crate::typing::lowerer::name::lower_name)
+                .map(crate::lowerer::name::lower_name)
                 .collect::<Vec<_>>()
                 .into_boxed_slice(),
             application: argument
@@ -3996,7 +3996,7 @@ pub(crate) mod expression {
                         lifetime_arguments: application
                             .lifetime_arguments
                             .iter()
-                            .map(crate::typing::lowerer::name::lower_name)
+                            .map(crate::lowerer::name::lower_name)
                             .collect::<Vec<_>>()
                             .into_boxed_slice(),
                         arguments: application
@@ -4019,13 +4019,13 @@ pub(crate) mod expression {
             const_literal: argument.const_literal.clone(),
             evidence_projection: argument.evidence_projection.as_ref().map(|projection| {
                 typed::expression::EvidenceProjection {
-                    term: crate::typing::lowerer::name::lower_name(&projection.term),
-                    member: crate::typing::lowerer::name::lower_name(&projection.member),
+                    term: crate::lowerer::name::lower_name(&projection.term),
+                    member: crate::lowerer::name::lower_name(&projection.member),
                 }
             }),
             symbol: argument.symbol,
         };
-        let mut captured = crate::typing::signatures::lexical_context::captured_arguments(
+        let mut captured = crate::signatures::lexical_context::captured_arguments(
             program,
             selected.symbol,
         );

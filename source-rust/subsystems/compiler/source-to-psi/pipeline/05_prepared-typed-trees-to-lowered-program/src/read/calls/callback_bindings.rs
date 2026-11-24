@@ -52,7 +52,7 @@ impl Program<'_> {
         ))
     }
 
-    pub(in crate::lowering::read) fn static_argument_selections(
+    pub(in crate::read) fn static_argument_selections(
         &self,
         id: MachineId,
         argument: &StaticMachineArgument,
@@ -385,11 +385,11 @@ impl Program<'_> {
                 )
             })?;
         self.static_contracts.conformances.push(
-            crate::lowering::static_contracts::SourceConformance {
+            crate::static_contracts::SourceConformance {
                 declaration: parameter,
                 requirement: required.symbol,
                 application,
-                implementation: crate::lowering::static_contracts::SourceImplementation::Machine(
+                implementation: crate::static_contracts::SourceImplementation::Machine(
                     body,
                 ),
                 signature,

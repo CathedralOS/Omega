@@ -7,7 +7,7 @@ use source_admission::SourceOrigin;
 use source_admission::SourceResolutionStratum;
 use source_provenance::DependencyScope;
 use std::sync::Arc;
-use symbol_resolved_trees_to_typed_trees::typing;
+use symbol_resolved_trees_to_typed_trees as typing;
 use syntax_trees_to_symbol_resolved_trees::resolution;
 
 const PRELUDE: &str = r#"

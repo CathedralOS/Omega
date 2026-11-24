@@ -2,7 +2,7 @@
 //! when its current descriptor displays fewer domains. Plan these questions
 //! after reference origins and lifetime ends have been published.
 
-use crate::lowering::{Unserved, refuse};
+use crate::{Unserved, refuse};
 use arena::IdTable;
 use semantic_vocabulary::MachineId;
 use terminal_check_tables::obligations::{ObligationKind, ObligationRow};

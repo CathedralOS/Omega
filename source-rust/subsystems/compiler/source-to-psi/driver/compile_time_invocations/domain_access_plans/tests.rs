@@ -1,7 +1,7 @@
 //! A plan must retain its schema bytes after construction and transport every
 //! initialized array element. These checks supply no normalized access rights.
 
-use checked_program_to_psi::production;
+use checked_program_to_psi as production;
 use crate::driver::judge_lowered_source;
 use typed_trees_to_prepared_typed_trees as preparation;
 use crate::compile_time_invocations::{

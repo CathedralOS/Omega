@@ -16,7 +16,7 @@ fn with_private(
     elaboration
 }
 
-fn accepted(elaboration: crate::lowering::Elaboration) -> Box<crate::checking::AcceptedClosure> {
+fn accepted(elaboration: crate::lowering::Elaboration) -> Box<crate::AcceptedClosure> {
     let verdict = judge(Ok(elaboration)).unwrap();
     let RouteVerdict::Accepted(accepted) = verdict else {
         panic!("the program must be accepted: {verdict:?}")

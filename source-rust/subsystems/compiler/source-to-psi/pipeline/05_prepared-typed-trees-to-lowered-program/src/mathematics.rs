@@ -22,12 +22,12 @@ use terminal_check_tables::mathematics::MathematicalSignature;
 pub(crate) fn read(
     typed: &TypedTrees,
     (subjects, purpose): &(Vec<Option<PackageKeyIdentity>>, DependencyScope),
-    captures: crate::lowering::SharedReading,
+    captures: crate::SharedReading,
 ) -> Result<MathematicalSignature, Vec<Refusal>> {
     let mut program =
-        crate::lowering::read::Program::with_captures(typed, false, *purpose, captures);
+        crate::read::Program::with_captures(typed, false, *purpose, captures);
     program.mathematical = true;
-    program.local_summary_scope = Some(crate::lowering::read::LocalSummaryScope::Compilation(
+    program.local_summary_scope = Some(crate::read::LocalSummaryScope::Compilation(
         subjects.clone(),
     ));
     let first = MachineId::new(1).expect("1 is nonzero");
@@ -72,7 +72,7 @@ pub(crate) fn read(
         for machine in typed.machines() {
             if machine.purpose.is_active_case_visitor()
                 || !program.proof_machine(machine)
-                || crate::lowering::is_generic_template(typed, machine)
+                || crate::is_generic_template(typed, machine)
                 || program
                     .symbols
                     .iter()
@@ -98,7 +98,7 @@ pub(crate) fn read(
             program.keep(read).map_err(alone)?;
         }
     }
-    let bodies = crate::lowering::read_bodies(&mut program, first).map_err(alone)?;
+    let bodies = crate::read_bodies(&mut program, first).map_err(alone)?;
     let refused = program.collected.take().unwrap_or_default();
     if !refused.is_empty() {
         return Err(refused);

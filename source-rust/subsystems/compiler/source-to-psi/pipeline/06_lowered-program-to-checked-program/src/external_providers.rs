@@ -185,7 +185,7 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
                 .ok_or_else(|| {
                     refuse("native conformance goal namespace exceeds its coordinate width")
                 })?;
-            crate::checking::derive_contract_obligation(
+            crate::derive_contract_obligation(
                 RefusalSite::Program,
                 &proof_context,
                 obligation,

@@ -8,7 +8,7 @@ use terminal_check_tables::program::{Branch, MachineSources, authored_machine_so
 use terminal_check_tables::{Checked, Construct, MachineTables, RefusalReason};
 use terminal_psi::TerminalModule;
 
-use crate::checking::{Carried, refusal};
+use crate::{Carried, refusal};
 
 pub(super) struct MachineInputs<'sources> {
     pub branches: &'sources [Branch],

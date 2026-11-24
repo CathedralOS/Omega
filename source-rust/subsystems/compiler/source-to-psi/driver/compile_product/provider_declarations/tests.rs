@@ -3,7 +3,7 @@
 //! events without executing another Build activation.
 
 use syntax_trees_to_symbol_resolved_trees::resolution;
-use symbol_resolved_trees_to_typed_trees::typing;
+use symbol_resolved_trees_to_typed_trees as typing;
 use super::{
     CompositionMode, ProviderPlanningContext, ProviderSelection,
     collect_product_provider_selections,

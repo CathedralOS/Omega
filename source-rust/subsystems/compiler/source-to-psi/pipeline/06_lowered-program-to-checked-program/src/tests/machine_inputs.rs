@@ -1,5 +1,5 @@
 use super::*;
-use crate::checking::machine_inputs::PreparedMachineInputs;
+use crate::machine_inputs::PreparedMachineInputs;
 
 #[test]
 fn only_declared_specializations_lose_authored_branch_diagnostics() {

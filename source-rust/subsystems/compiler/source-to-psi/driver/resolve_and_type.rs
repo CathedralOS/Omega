@@ -2,7 +2,7 @@
 //! and generated source can resume from the same declarations and source identities.
 
 use syntax_trees_to_symbol_resolved_trees::resolution;
-use symbol_resolved_trees_to_typed_trees::typing;
+use symbol_resolved_trees_to_typed_trees as typing;
 use crate::compile_time_invocations::PreCheckEvaluation;
 use declaration_scope::PackageDeclarationScope;
 use artifacts::compile_timings::{CompileTimings, source as stages};

@@ -13,8 +13,8 @@ use terminal_psi::{OperationKind, Terminator};
 
 use super::Lowering;
 use super::places::Step;
-use crate::lowering::body::Qualification;
-use crate::lowering::{SourceOrigin, Unpositioned};
+use crate::body::Qualification;
+use crate::{SourceOrigin, Unpositioned};
 
 /// Only roots and selectors already in scope before the split can be
 /// observed on all arrivals. Later writes tell us which places may differ.

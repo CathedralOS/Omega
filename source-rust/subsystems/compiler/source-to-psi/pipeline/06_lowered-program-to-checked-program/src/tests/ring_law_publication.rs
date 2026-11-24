@@ -45,7 +45,7 @@ fn modules(
     terminal_psi::TerminalModule,
     terminal_psi::TerminalModule,
 ) {
-    let judged: Vec<_> = crate::checking::judge_compilation(
+    let judged: Vec<_> = crate::judge_compilation(
         crate::lowering::prepare_compilation(&prepared, compilation, publication)
             .unwrap()
             .program,
@@ -61,7 +61,7 @@ fn modules(
         })
         .expect("an accepted root");
     let input = crate::lowering::lower_for_publication(prepared, compilation, publication).unwrap();
-    let (published, _) = crate::checking::judge_publication(input, Default::default()).unwrap();
+    let (published, _) = crate::judge_publication(input, Default::default()).unwrap();
     let (_, program, _) = published.into_source_and_program();
     (judged, before, program.elaboration().module.clone())
 }

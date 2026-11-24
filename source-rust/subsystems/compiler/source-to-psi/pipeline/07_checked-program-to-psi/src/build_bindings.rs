@@ -55,7 +55,7 @@ use crate::declaration_selection::BuildSelectionRequest;
 use crate::declaration_selection::NativeBindingFormation;
 use crate::declaration_selection::ProductDeclarationRequest;
 use crate::declaration_selection::product_operands::ProductStaticEnvironment;
-use crate::production::TerminalBuildQueryCall;
+use crate::TerminalBuildQueryCall;
 use semantic_vocabulary::source_selections::BuildCallSite;
 use semantic_vocabulary::BoundaryMachineId;
 use std::sync::Arc;

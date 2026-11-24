@@ -2,7 +2,7 @@
 //! The generic body keeps its original symbolic inputs and storage geometry.
 
 use super::Program;
-use crate::lowering::body::ValueType;
+use crate::body::ValueType;
 use crate::source_state::type_identity::NormalizedTypeIdentity;
 use crate::source_state::types::TypeReferenceHandle;
 use crate::source_state::{SourceTypeApplication, SourceTypeScope};
@@ -43,8 +43,8 @@ impl Program<'_> {
     }
 }
 
-use crate::lowering::body::{CallTarget, Expression, ExpressionKind};
-use crate::lowering::{SourceOrigin, Unserved, refuse};
+use crate::body::{CallTarget, Expression, ExpressionKind};
+use crate::{SourceOrigin, Unserved, refuse};
 use crate::source_state::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
 use semantic_vocabulary::{MachineId, ScalarTerm, StructuralTypeId, ValueId};
 use terminal_check_tables::{Checked, Construct};
@@ -76,7 +76,7 @@ impl Program<'_> {
                 return Some(ty);
             }
             ty = match self.records.get(ty)?.shape {
-                crate::lowering::StorageShape::Reference { referent, .. } => referent,
+                crate::StorageShape::Reference { referent, .. } => referent,
                 _ => return None,
             };
         }

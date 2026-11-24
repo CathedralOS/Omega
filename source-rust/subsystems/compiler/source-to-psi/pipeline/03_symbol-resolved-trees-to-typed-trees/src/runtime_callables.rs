@@ -9,7 +9,7 @@ use crate::source_state as typed;
 use diagnostics::Diagnostic;
 
 pub(crate) fn lower_contracts(
-    lowerer: &mut crate::typing::lowerer::Lowerer<'_>,
+    lowerer: &mut crate::lowerer::Lowerer<'_>,
 ) -> Result<(), Diagnostic> {
     let mut pending = Vec::new();
     lowerer.typed_trees.runtime_callable_lowering =
@@ -66,7 +66,7 @@ pub(crate) fn lower_contracts(
             .type_reference_table
             .type_reference_count();
         let signature = lowerer.with_source_owner(lexical_owner, |lowerer| {
-            crate::typing::signatures::callable_signature::lower_state_signature(lowerer, signature)
+            crate::signatures::callable_signature::lower_state_signature(lowerer, signature)
         })?;
         bind_invocation_lifetimes(&mut lowerer.typed_trees, &signature, first)?;
         lowerer
@@ -173,7 +173,7 @@ pub(crate) fn callee_is_value(
     callee: resolved::expression::ExpressionHandle,
 ) -> bool {
     program.is_some_and(|program| {
-        crate::typing::expressions::expression::table::member_binding::callee_is_value(
+        crate::expressions::expression::table::member_binding::callee_is_value(
             program,
             expressions,
             callee,
@@ -482,7 +482,7 @@ impl CallOwner {
             ),
             Self::Declaration { .. } => (arena::RootRows::default(), Default::default(), None),
         };
-        crate::typing::typing_queries::scoped_expression_type_reference(
+        crate::typing_queries::scoped_expression_type_reference(
             program,
             parameters,
             result,
@@ -1422,7 +1422,7 @@ mod named_value_tests {
             machine take_value(key: u64, value: u64) -> u64 terminates { value }
             machine main() -> Registry { let registry: Registry = Registry { store: take_value }; registry }
         "#;
-        let program = crate::typing::qualified_operator_home_tests::packages(
+        let program = crate::qualified_operator_home_tests::packages(
             &[(1, "registry.omg", text)],
             &[],
             &[],
@@ -1509,11 +1509,11 @@ machine entry(scale: @Scale) -> u64 {
                     source_admission::SourceOrigin::User,
                 )
                 .source_id;
-            let tokens = crate::typing::frontend_fixture::Lexer::new(text)
+            let tokens = crate::frontend_fixture::Lexer::new(text)
                 .tokenize()
                 .unwrap();
             let syntax =
-                crate::typing::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
+                crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
                     .unwrap();
             let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
                 syntax,
@@ -1602,7 +1602,7 @@ machine entry(scale: @Scale) -> u64 {
                     "the member keeps its exact authored occurrence"
                 );
             }
-            let mut program = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+            let mut program = crate::lower_symbol_resolved_trees(&resolved).unwrap();
             let constructed = program
                 .expression_table
                 .iter_expressions()

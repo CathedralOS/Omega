@@ -8,7 +8,7 @@ mod callback_bindings;
 
 use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
 use crate::declaration_selection::ResolvedAuthoredCallBinding;
-use crate::lowering::body::Qualification;
+use crate::body::Qualification;
 use crate::source_selections::{
     AuthoredDeclarationSelection, AuthoredDeclarationSelectionOccurrenceId,
 };
@@ -31,8 +31,8 @@ use super::authority::Access;
 use super::machine::ApplicationTypes;
 use super::storage_path::{names_storage, root_slot};
 use super::{Program, Slot, symbol_kind};
-use crate::lowering::body::{CallTarget, Expression, ExpressionKind, Signature, ValueType};
-use crate::lowering::{SourceOrigin, Unserved, refuse};
+use crate::body::{CallTarget, Expression, ExpressionKind, Signature, ValueType};
+use crate::{SourceOrigin, Unserved, refuse};
 use semantic_vocabulary::StructuralFieldId;
 use terminal_psi::ResolvedStructuralPathSegment as Segment;
 
@@ -667,7 +667,7 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let mut read = self.read_call_statement(id, slots, call, source)?;
-        crate::lowering::operational::retain(&mut read, call.operational_acknowledgement, true);
+        crate::operational::retain(&mut read, call.operational_acknowledgement, true);
         Ok(read)
     }
 
@@ -764,7 +764,7 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let mut read = self.read_call_expression(id, slots, call, handle, source)?;
-        crate::lowering::operational::retain(&mut read, call.operational_acknowledgement, false);
+        crate::operational::retain(&mut read, call.operational_acknowledgement, false);
         Ok(read)
     }
 
@@ -1008,12 +1008,12 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
         query: terminal_psi::StorageLocationQuery,
     ) -> Checked<Expression> {
-        use crate::lowering::body::StorageShape;
+        use crate::body::StorageShape;
         use semantic_vocabulary::ScalarType;
         use terminal_psi::ByteSequenceCarrier;
         use terminal_psi::StorageLocationQuery;
         let invalid = || {
-            crate::lowering::reject(
+            crate::reject(
                 id,
                 source,
                 match query {
@@ -1092,7 +1092,7 @@ impl<'t> Program<'t> {
                         .type_reference_table
                         .find_arithmetic_result_type_reference(
                             carrier,
-                            crate::lowering::body::Policy::domain(Some(policy)),
+                            crate::body::Policy::domain(Some(policy)),
                         )
                         .ok_or_else(invalid)?
                 } else {
@@ -1452,7 +1452,7 @@ impl<'t> Program<'t> {
                 Unserved::Call("Build selection on a call that is no boundary operation"),
             ));
         };
-        *designated = Some(crate::lowering::body::DesignatedOperands {
+        *designated = Some(crate::body::DesignatedOperands {
             request: selection,
             selecting: id,
             readiness,
@@ -1726,7 +1726,7 @@ impl<'t> Program<'t> {
             source,
             expected,
         )?;
-        self.selections.push(crate::lowering::Selected {
+        self.selections.push(crate::Selected {
             caller: id,
             required_contract: Some(required_contract),
             source_operand: Some(terminal_check_tables::program::SelectedSourceOperand {
@@ -2715,7 +2715,7 @@ impl<'t> Program<'t> {
         target: SymbolHandle,
         arguments: &[ExpressionHandle],
         source: SourceOrigin,
-        expected: Option<crate::lowering::body::ValueType>,
+        expected: Option<crate::body::ValueType>,
     ) -> Checked<Expression> {
         self.call_from(id, slots, target, arguments, source, expected, None)
     }
@@ -2727,7 +2727,7 @@ impl<'t> Program<'t> {
         target: SymbolHandle,
         arguments: &[ExpressionHandle],
         source: SourceOrigin,
-        expected: Option<crate::lowering::body::ValueType>,
+        expected: Option<crate::body::ValueType>,
         selection: Option<StaticMachineTarget>,
     ) -> Checked<Expression> {
         match selection {
@@ -2751,7 +2751,7 @@ impl<'t> Program<'t> {
         target: SymbolHandle,
         arguments: &[ExpressionHandle],
         source: SourceOrigin,
-        expected: Option<crate::lowering::body::ValueType>,
+        expected: Option<crate::body::ValueType>,
         selection: Option<StaticMachineTarget>,
     ) -> Checked<Expression> {
         if selection.is_some_and(|selection| selection.target != target) {
@@ -2931,7 +2931,7 @@ impl<'t> Program<'t> {
     ) -> Checked<()> {
         // A machine stage 04 generated is called as its authored template,
         // whose visibility it has.
-        let declared = crate::lowering::template_of(self.typed, callee).unwrap_or(callee);
+        let declared = crate::template_of(self.typed, callee).unwrap_or(callee);
         let (declaration, is_public) = self
             .typed
             .machine_by_own_or_state_symbol(declared)
@@ -2987,7 +2987,7 @@ impl<'t> Program<'t> {
         let symbols = &self.typed.symbols;
         // A machine stage 04 generated belongs where its declaration does.
         let package = |symbol: SymbolHandle| {
-            let symbol = crate::lowering::template_of(self.typed, symbol).unwrap_or(symbol);
+            let symbol = crate::template_of(self.typed, symbol).unwrap_or(symbol);
             symbol
                 .is_valid()
                 .then(|| symbols.symbol_provenance_source_span(symbol))
@@ -3027,7 +3027,7 @@ impl<'t> Program<'t> {
         (callee, required_contract): (CallTarget, Option<semantic_vocabulary::ContractId>),
         arguments: &[ExpressionHandle],
         source: SourceOrigin,
-        expected: Option<crate::lowering::body::ValueType>,
+        expected: Option<crate::body::ValueType>,
     ) -> Checked<Expression> {
         self.call_of_values(
             id,
@@ -3359,7 +3359,7 @@ impl<'t> Program<'t> {
             },
             |record, field| match record {
                 ValueType::Record(row, _, _) => match &self.data_type(id, row).ok()?.shape {
-                    crate::lowering::StorageShape::Record(fields) => {
+                    crate::StorageShape::Record(fields) => {
                         fields.get(field).map(|field| field.id)
                     }
                     _ => None,
@@ -3419,7 +3419,7 @@ impl<'t> Program<'t> {
                 );
             if !agrees {
                 if borrowed.as_ref().is_some_and(|borrowed| {
-                    borrowed.referent == crate::lowering::body::BorrowedReferent::Slice
+                    borrowed.referent == crate::body::BorrowedReferent::Slice
                 }) && let ExpressionKind::Borrow { access, place, .. } = &actual.kind
                     && self.byte_array_element(place.result).is_some()
                     && self.is_borrowed_view(formal)
@@ -3429,7 +3429,7 @@ impl<'t> Program<'t> {
                     } else {
                         "@array[..]"
                     };
-                    return Err(crate::lowering::reject(
+                    return Err(crate::reject(
                         id,
                         place.source,
                         format!(
@@ -3590,7 +3590,7 @@ impl<'t> Program<'t> {
         id: MachineId,
         value_type: Option<ValueType>,
     ) -> Checked<bool> {
-        use crate::lowering::StorageShape;
+        use crate::StorageShape;
         use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
         let Some(ValueType::Record(row, _, _)) = value_type else {
             return Ok(false);
@@ -3622,7 +3622,7 @@ impl<'t> Program<'t> {
         id: MachineId,
         slots: &[Slot],
         argument: ExpressionHandle,
-        formal: &crate::lowering::body::Borrowed,
+        formal: &crate::body::Borrowed,
         expected: ValueType,
     ) -> Checked<(Expression, String)> {
         self.lent_from(id, slots, argument, None, formal, expected)
@@ -3637,12 +3637,12 @@ impl<'t> Program<'t> {
         slots: &[Slot],
         argument: ExpressionHandle,
         beneath: Option<ExpressionHandle>,
-        formal: &crate::lowering::body::Borrowed,
+        formal: &crate::body::Borrowed,
         expected: ValueType,
     ) -> Checked<(Expression, String)> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let source = SourceOrigin::of(self.typed.expression_table.source_span(argument));
-        if formal.referent == crate::lowering::body::BorrowedReferent::Slice
+        if formal.referent == crate::body::BorrowedReferent::Slice
             && let Some(view) = self.borrowed_array_range(
                 id,
                 slots,
@@ -3687,7 +3687,7 @@ impl<'t> Program<'t> {
             // existing view; it passes on like any other view value.
             ExpressionNode::Cast(cast)
                 if cast.form.is_recast()
-                    && formal.referent == crate::lowering::body::BorrowedReferent::Slice
+                    && formal.referent == crate::body::BorrowedReferent::Slice
                     && !explicit =>
             {
                 (self.expression(id, slots, operand, Some(expected))?, None)
@@ -3744,7 +3744,7 @@ impl<'t> Program<'t> {
             && access == ReferenceAccess::WriteOnly
             && formal.access != ReferenceAccess::WriteOnly
         {
-            return Err(crate::lowering::reject(
+            return Err(crate::reject(
                 id,
                 source,
                 "the caller lends write-only access to this argument and its parameter requires \
@@ -3764,7 +3764,7 @@ impl<'t> Program<'t> {
                 self.observes_only(id, place.result)?
             }
         {
-            return Err(crate::lowering::reject(
+            return Err(crate::reject(
                 id,
                 source,
                 "the caller lends only immutable access to this argument and its parameter \
@@ -3789,7 +3789,7 @@ impl<'t> Program<'t> {
         }
         // An existing view already carries its backing; an owned array still
         // needs an explicit loan. Test the actual value, not the expected view.
-        if formal.referent == crate::lowering::body::BorrowedReferent::Slice
+        if formal.referent == crate::body::BorrowedReferent::Slice
             && !explicit
             && place
                 .result
@@ -3939,9 +3939,9 @@ impl<'t> Program<'t> {
         slots: &[Slot],
         lent: &Expression,
         expected: ValueType,
-        formal: &crate::lowering::body::Borrowed,
+        formal: &crate::body::Borrowed,
     ) -> Checked<Option<ValueType>> {
-        use crate::lowering::StorageShape;
+        use crate::StorageShape;
         use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
 
         let actual = lent.result;
@@ -3975,7 +3975,7 @@ impl<'t> Program<'t> {
             _ => return Ok(actual),
         };
         let lends_mutable_backing = formal.referent
-            == crate::lowering::body::BorrowedReferent::Slice
+            == crate::body::BorrowedReferent::Slice
             && formal.access == ReferenceAccess::Mutable
             && expected_access.is_none()
             && actual_access == Some(StructuralAccess::MutableBorrow);
@@ -4363,7 +4363,7 @@ impl Touches<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lowering::Unpositioned;
+    use crate::Unpositioned;
     use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, StructuralTypeId};
 
     #[test]

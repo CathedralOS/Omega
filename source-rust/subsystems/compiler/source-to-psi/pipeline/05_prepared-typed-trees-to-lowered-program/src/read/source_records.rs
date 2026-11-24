@@ -15,8 +15,8 @@ mod layouts;
 mod opaque;
 
 use super::{Program, places::RecordSource};
-use crate::lowering::body::RecordType;
-use crate::lowering::{Unserved, refuse};
+use crate::body::RecordType;
+use crate::{Unserved, refuse};
 
 /// A selected layout changes storage, while the record's fields and ownership
 /// still come from its semantic argument. Keep the original storage occurrence
@@ -563,7 +563,7 @@ impl Program<'_> {
                                 && d.type_parameters.is_empty()
                                 && d.lifetime_parameters.is_empty()
                         }) {
-                    crate::lowering::declare::BuildDeclarationOccurrence::new(
+                    crate::declare::BuildDeclarationOccurrence::new(
                         self.typed,
                         source.declaration,
                         &mut file_digests,
@@ -770,7 +770,7 @@ impl Program<'_> {
         }
         let mut fields = Vec::new();
         let mut append = |symbols: &[SymbolHandle],
-                          declared: &[crate::lowering::body::RecordField],
+                          declared: &[crate::body::RecordField],
                           case: Option<(semantic_vocabulary::StructuralCaseId, &str)>|
          -> Checked<()> {
             for (symbol, field) in symbols.iter().zip(declared) {
@@ -859,7 +859,7 @@ impl Program<'_> {
                 machine,
                 Construct::Machine,
             )?;
-            if let crate::lowering::StorageShape::TypeParameter(rigid) = declaration.shape {
+            if let crate::StorageShape::TypeParameter(rigid) = declaration.shape {
                 let retained = self
                     .rigid_storage
                     .get(rigid.0 as usize)
@@ -894,7 +894,7 @@ impl Program<'_> {
                 }
                 continue;
             }
-            if let crate::lowering::StorageShape::ByteSequence(_) = declaration.shape {
+            if let crate::StorageShape::ByteSequence(_) = declaration.shape {
                 if !super::bytes::byte_record_source_matches(
                     self.typed,
                     machine,
@@ -911,7 +911,7 @@ impl Program<'_> {
                 // neither that type nor a source view mints a nominal schema.
                 continue;
             }
-            if let crate::lowering::StorageShape::Reference { referent, access } = declaration.shape
+            if let crate::StorageShape::Reference { referent, access } = declaration.shape
             {
                 let application = source.application.as_ref().ok_or_else(|| {
                     malformed(
@@ -996,7 +996,7 @@ impl Program<'_> {
                 }
                 continue;
             }
-            if let crate::lowering::StorageShape::ElementView {
+            if let crate::StorageShape::ElementView {
                 element,
                 qualification,
                 access,
@@ -1077,9 +1077,9 @@ impl Program<'_> {
             }
             if matches!(
                 declaration.shape,
-                crate::lowering::StorageShape::FixedArray { .. }
-                    | crate::lowering::StorageShape::PrimitiveScalar { .. }
-                    | crate::lowering::StorageShape::AtomicCell(_)
+                crate::StorageShape::FixedArray { .. }
+                    | crate::StorageShape::PrimitiveScalar { .. }
+                    | crate::StorageShape::AtomicCell(_)
             ) {
                 // These physical shapes have no nominal declaration or
                 // field schema; a builtin atomic cell such as `AtomicU32`
@@ -1205,7 +1205,7 @@ fn correspondence(
         return Err(malformed(machine, "record/source member rosters differ"));
     }
     let mut fields = Vec::new();
-    let mut append = |declared: &[crate::lowering::body::RecordField],
+    let mut append = |declared: &[crate::body::RecordField],
                       symbols: &[SymbolHandle]|
      -> Checked<()> {
         for (field, symbol) in declared.iter().zip(symbols) {
@@ -1259,7 +1259,7 @@ fn correspondence(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lowering::body::{RecordField, ValueType};
+    use crate::body::{RecordField, ValueType};
     use arena::{Handle, HandleSpan};
     use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, StructuralFieldId};
 
@@ -1357,7 +1357,7 @@ mod tests {
             multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             cleanup: None,
             identity: "source-owned-storage".into(),
-            shape: crate::lowering::StorageShape::Record(vec![
+            shape: crate::StorageShape::Record(vec![
                 RecordField {
                     id: StructuralFieldId::new(3).unwrap(),
                     identity: "first".into(),

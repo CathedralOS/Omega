@@ -12,9 +12,9 @@ use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
 use terminal_psi::TerminalCallableTermination;
 
 use super::Program;
-use crate::lowering::body::{Expression, ExpressionKind, Termination, ValueType};
-use crate::lowering::callables::{CallableContract, MachineSelection};
-use crate::lowering::{SourceOrigin, Unserved, refuse};
+use crate::body::{Expression, ExpressionKind, Termination, ValueType};
+use crate::callables::{CallableContract, MachineSelection};
+use crate::{SourceOrigin, Unserved, refuse};
 
 fn unavailable(machine: MachineId, detail: impl Into<String>) -> Refusal {
     Refusal {
@@ -61,8 +61,8 @@ impl<'t> Program<'t> {
                 .symbol_provenance_source_span(declared.symbol)
                 .unwrap_or_default(),
         );
-        if !crate::lowering::reach::has_authored_ceiling(typed, machine, declared.symbol)? {
-            return Err(crate::lowering::reject(
+        if !crate::reach::has_authored_ceiling(typed, machine, declared.symbol)? {
+            return Err(crate::reject(
                 machine,
                 site,
                 format!("{position} has an open service ceiling; write reaches"),
@@ -73,7 +73,7 @@ impl<'t> Program<'t> {
                 .iter()
                 .any(|clause| matches!(clause.kind, SignatureContractKind::Crashes { .. }))
         {
-            return Err(crate::lowering::reject(
+            return Err(crate::reject(
                 machine,
                 site,
                 format!("{position} has an open crash ceiling; write crashes"),

@@ -6,7 +6,7 @@ use terminal_psi::OperationKind;
 fn publish(
     source: &str,
     selections: PsiOptimizationSelections,
-) -> Result<crate::checking::RoutePublication, Vec<diagnostics::Diagnostic>> {
+) -> Result<crate::RoutePublication, Vec<diagnostics::Diagnostic>> {
     let typed = super::boundary_calls::typed(source);
     let entry = typed.machines().at(0).symbol;
     let prepared = crate::prepare_fixture(typed);
@@ -25,7 +25,7 @@ fn publish(
         },
         terminal_codec::TerminalPublication::Portable,
     )?;
-    let (judgment, _) = crate::checking::judge_publication(input, selections)?;
+    let (judgment, _) = crate::judge_publication(input, selections)?;
     let (_, program, _) = judgment.into_source_and_program();
     Ok(program.publish().unwrap())
 }

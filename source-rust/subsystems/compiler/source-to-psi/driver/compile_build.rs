@@ -9,8 +9,8 @@ use crate::driver::prepare_typed_source::{
 use crate::driver::resolve_and_type::ResolveAndTypeRequest;
 use crate::source_state::TypedTrees;
 use crate::{CompileTimings, ParsedStageSources, SourcePreparation};
-use checked_program_to_psi::production;
-use checked_program_to_psi::production::{
+use checked_program_to_psi as production;
+use checked_program_to_psi::{
     AcceptedTerminalSource, BuildProtocolUse, ConstantRead, PreparedTerminalPublication,
     ProducedTerminalProgram, TerminalSourceCompilation,
 };

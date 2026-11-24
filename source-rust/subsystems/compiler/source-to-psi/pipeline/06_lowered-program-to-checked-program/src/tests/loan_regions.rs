@@ -75,7 +75,7 @@ fn run(text: &str) -> Result<terminal_interpreter::TerminalExecutionStatus, Stri
         },
         terminal_codec::TerminalPublication::Invocation,
     );
-    let accepted = match crate::checking::judge(elaborated) {
+    let accepted = match crate::judge(elaborated) {
         Ok(RouteVerdict::Accepted(accepted)) => accepted,
         Ok(RouteVerdict::FallBack(refusal)) | Err(refusal) => return Err(refusal.detail),
         Ok(other) => return Err(format!("{other:?}")),
@@ -142,7 +142,7 @@ fn completes(journey: &str) {
 /// refusal's text.
 fn verdict(build: &str) -> String {
     match judge_build(build) {
-        Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+        Err(crate::CompilationRefusal::Elaboration(refusal))
         | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
         // A program the compiler rejects reads as its one violation.
         Ok(RouteVerdict::Rejected { violations, .. }) if violations.len() == 1 => {

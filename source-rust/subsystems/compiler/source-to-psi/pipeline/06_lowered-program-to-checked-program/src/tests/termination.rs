@@ -29,7 +29,7 @@ fn count_down(measure: &str, next: &str) -> String {
     )
 }
 
-fn accepted(text: &str) -> Box<crate::checking::AcceptedClosure> {
+fn accepted(text: &str) -> Box<crate::AcceptedClosure> {
     match judged(text) {
         RouteVerdict::Accepted(accepted) => accepted,
         verdict => panic!("the program must be accepted: {verdict:?}\n{text}"),
@@ -95,7 +95,7 @@ fn every_rank_obligation_of_an_accepted_loop_has_checked_evidence() {
     let mut elaboration = lower_ranked(less_one(), witnessed(0));
     let result = discharge(
         &mut elaboration,
-        &mut crate::checking::ProofSearchActivity::default(),
+        &mut crate::ProofSearchActivity::default(),
     )
     .unwrap();
     let rows = verdicts(&elaboration, &result, 1, ranked);
@@ -211,7 +211,7 @@ fn assert_unchanged_measure_refuses(text: &str) {
     let typed = super::rankings::typed_with_ranking_catalog(text);
     match super::entryless::judged_typed_result(&typed, false) {
         Ok(RouteVerdict::Rejected { unproved, .. }) => assert_no_descent(&unproved),
-        Err(crate::checking::CompilationRefusal::Elaboration(refusal)) => {
+        Err(crate::CompilationRefusal::Elaboration(refusal)) => {
             assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
             // The refusal names the recursive machine after its reason.
             let reason = "removing strict rank edges leaves a control cycle in machine `";
@@ -468,8 +468,8 @@ fn suffix_parser_proves_each_members_own_distance_and_cuts_the_cycle() {
                 == semantic_vocabulary::Termination::Terminates)
     );
     let mut replay_input = checked.elaboration.clone();
-    let mut activity = crate::checking::ProofSearchActivity::default();
-    let mut replay = crate::checking::prepare_replay(&mut replay_input, &mut activity).unwrap();
+    let mut activity = crate::ProofSearchActivity::default();
+    let mut replay = crate::prepare_replay(&mut replay_input, &mut activity).unwrap();
     let searches_before_replay = activity.started();
     let mut strict = 0;
     let mut preserving = 0;
@@ -481,7 +481,7 @@ fn suffix_parser_proves_each_members_own_distance_and_cuts_the_cycle() {
             };
             let evidence = certificate(discharged.verdicts.get(obligation).unwrap());
             assert_kernel_checked(&checked.elaboration, machine.get(), obligation, evidence);
-            crate::checking::reverify(
+            crate::reverify(
                 &mut replay,
                 machine,
                 obligation,
@@ -702,7 +702,7 @@ fn tampered(change: impl FnOnce(&mut terminal_psi::TerminalNaturalCycle)) -> Ref
     change(&mut cycles[0]);
     discharge(
         &mut elaboration,
-        &mut crate::checking::ProofSearchActivity::default(),
+        &mut crate::ProofSearchActivity::default(),
     )
     .unwrap_err()
 }
@@ -752,7 +752,7 @@ fn a_terminating_machine_with_an_unranked_cycle_is_refused() {
     assert!(
         discharge(
             &mut lower_ranked(less_one(), None),
-            &mut crate::checking::ProofSearchActivity::default()
+            &mut crate::ProofSearchActivity::default()
         )
         .is_ok()
     );
@@ -761,7 +761,7 @@ fn a_terminating_machine_with_an_unranked_cycle_is_refused() {
         semantic_vocabulary::Termination::Terminates;
     let refusal = discharge(
         &mut elaboration,
-        &mut crate::checking::ProofSearchActivity::default(),
+        &mut crate::ProofSearchActivity::default(),
     )
     .unwrap_err();
     assert_eq!(refusal.reason, RefusalReason::Unsupported);

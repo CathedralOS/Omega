@@ -28,7 +28,7 @@
 use crate::source_resolved as resolved;
 use crate::source_state::TypedTrees;
 use crate::source_state::deferred_refusals::DeferredRequest;
-use crate::typing::contracts::invocations::DECLARATION_KINDS;
+use crate::contracts::invocations::DECLARATION_KINDS;
 use resolved::data::DataMember;
 use resolved::name::DiagnosticName;
 use resolved::statement::Statement;

@@ -155,16 +155,16 @@ fn a_dependency_body_does_not_silently_publish_nonreturn() {
             )
             .source_id;
         source_ids.push(source);
-        let tokens = crate::checking::frontend_fixture::Lexer::new(text)
+        let tokens = crate::frontend_fixture::Lexer::new(text)
             .tokenize()
             .unwrap();
         match &mut syntax {
             Some(syntax) => {
-                crate::checking::frontend_fixture::parse(syntax, source, &tokens).unwrap();
+                crate::frontend_fixture::parse(syntax, source, &tokens).unwrap();
             }
             None => {
                 syntax = Some(
-                    crate::checking::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
+                    crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
                         .unwrap(),
                 )
             }
@@ -183,7 +183,7 @@ fn a_dependency_body_does_not_silently_publish_nonreturn() {
     let typed =
         crate::prepare_fixture(crate::typing::lower_symbol_resolved_trees(&resolved).unwrap());
     let entry = super::build_purpose::symbol(typed.trees(), "entry");
-    let verdicts = crate::checking::judge_compilation(
+    let verdicts = crate::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
             super::build_purpose::roster(

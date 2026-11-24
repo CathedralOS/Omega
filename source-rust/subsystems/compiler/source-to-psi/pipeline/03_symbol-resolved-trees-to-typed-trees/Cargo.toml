@@ -10,9 +10,6 @@ autobenches = false
 [features]
 test-support = ["symbol-resolved-trees/test-support"]
 
-[lib]
-path = "lib.rs"
-
 [dependencies]
 source-declarations = { path = "../../representations/symbol-resolved-trees/declarations" }
 source-symbol-table = { path = "../../representations/symbol-resolved-trees/symbol-table" }

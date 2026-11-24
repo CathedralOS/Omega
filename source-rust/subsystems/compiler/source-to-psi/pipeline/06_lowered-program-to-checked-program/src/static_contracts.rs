@@ -51,7 +51,7 @@ pub(crate) fn check_envelope(
 ) -> Checked<()> {
     let site = site.into();
     if let StaticServiceCeiling::Closed(row) = &envelope.service_reach {
-        crate::checking::ceilings::well_formed_reach(module, site, row)?;
+        crate::ceilings::well_formed_reach(module, site, row)?;
     }
     if envelope
         .invocations
@@ -766,7 +766,7 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
                         "static refinement obligation namespace exceeds its coordinate width",
                     )
                 })?;
-            crate::checking::derive_contract_obligation(
+            crate::derive_contract_obligation(
                 site,
                 &context,
                 obligation,
@@ -986,7 +986,7 @@ fn external_completion_providers(module: &terminal_psi::TerminalModule) -> Check
              ending requirement directly with scalar arguments",
         ),
     };
-    Err(crate::checking::refusal(
+    Err(crate::refusal(
         reason,
         error.machine,
         concerns,

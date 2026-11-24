@@ -29,12 +29,12 @@ use terminal_check_tables::{
 use terminal_psi::{OperationKind, StructuralAccess, StructuralArgument, Terminator};
 
 use super::{Evaluation, Lowering, Reached, Value};
-use crate::lowering::body::{
+use crate::body::{
     CallTarget, CrashCeiling, Expression, ExpressionKind, Signature, ValueType,
 };
-use crate::lowering::canonical;
-use crate::lowering::outcome::Outcome;
-use crate::lowering::{SourceOrigin, Unserved, refuse};
+use crate::canonical;
+use crate::outcome::Outcome;
+use crate::{SourceOrigin, Unserved, refuse};
 
 /// A call need not replace every field it borrows. Once every body has its
 /// canonical operations, publish the inferred frames and use those same
@@ -469,8 +469,8 @@ impl Lowering<'_> {
                     completes_normally: true,
                     crash_routes,
                     service_reach: match signature.reaches {
-                        crate::lowering::Ceiling::Authored(row) => row,
-                        crate::lowering::Ceiling::Inferred => {
+                        crate::Ceiling::Authored(row) => row,
+                        crate::Ceiling::Inferred => {
                             return Err(
                                 self.internal("selected callable has no published service ceiling")
                             );
@@ -478,8 +478,8 @@ impl Lowering<'_> {
                     },
                     fixed_service_reach: None,
                     synchronous_entries: match signature.invokes {
-                        crate::lowering::Ceiling::Authored(row) => row,
-                        crate::lowering::Ceiling::Inferred => {
+                        crate::Ceiling::Authored(row) => row,
+                        crate::Ceiling::Inferred => {
                             return Err(
                                 self.internal("selected callable has no published entry ceiling")
                             );
@@ -500,10 +500,10 @@ impl Lowering<'_> {
             // written bounds; only omitted clauses use the completed source.
             outcome.completes_normally = true;
             outcome.operational = signature.operational.published(outcome.operational);
-            if let crate::lowering::Ceiling::Authored(row) = signature.reaches {
+            if let crate::Ceiling::Authored(row) = signature.reaches {
                 outcome.service_reach = row;
             }
-            if let crate::lowering::Ceiling::Authored(row) = signature.invokes {
+            if let crate::Ceiling::Authored(row) = signature.invokes {
                 outcome.synchronous_entries = row;
             }
         }
@@ -737,7 +737,7 @@ impl Lowering<'_> {
         arguments: &Arguments,
     ) -> Checked<bool> {
         let signature = self.target_signature(callable, required_contract)?;
-        if crate::lowering::inhabitation::excludes_result(
+        if crate::inhabitation::excludes_result(
             &self.records.inhabitation,
             signature.result,
         ) {
@@ -765,7 +765,7 @@ impl Lowering<'_> {
     /// A callee result ID cannot acquire a caller constant with the same number.
     fn published_postcondition_is_false(
         &mut self,
-        signature: &crate::lowering::body::Signature,
+        signature: &crate::body::Signature,
         arguments: &Arguments,
     ) -> Checked<bool> {
         if signature.ensures.is_empty() {
@@ -1051,7 +1051,7 @@ impl Lowering<'_> {
         callee: &CallTarget,
         required_contract: Option<semantic_vocabulary::ContractId>,
         arguments: &[Expression],
-        designated: Option<crate::lowering::body::DesignatedOperands>,
+        designated: Option<crate::body::DesignatedOperands>,
         result: Option<ValueType>,
         (source, static_reach_binding, static_reach_arguments, proof_arguments): (
             SourceOrigin,
@@ -1075,8 +1075,8 @@ impl Lowering<'_> {
             _ => {}
         }
         if matches!(callee, CallTarget::Boundary { .. })
-            && self.signature.termination != crate::lowering::Termination::Silent
-            && signature.termination == crate::lowering::Termination::Silent
+            && self.signature.termination != crate::Termination::Silent
+            && signature.termination == crate::Termination::Silent
         {
             return Err(refuse(
                 self.id,

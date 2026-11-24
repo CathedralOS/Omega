@@ -1,9 +1,9 @@
 // `decide` first gives the prover and kernel only the facts that share a
 // value with the goal, directly or through other facts, plus facts that name
-// no value (`crate::checking::connected`). These tests pin which facts that keeps.
+// no value (`crate::connected`). These tests pin which facts that keeps.
 
 use super::{id, number, u32_type};
-use crate::checking::{Hypotheses, connected};
+use crate::{Hypotheses, connected};
 use arena::IdTable;
 use semantic_vocabulary::{Proposition, ScalarTerm, ValueId};
 use terminal_check_tables::KnowledgeId;

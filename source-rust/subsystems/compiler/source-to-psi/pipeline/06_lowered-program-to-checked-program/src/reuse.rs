@@ -41,19 +41,19 @@ use terminal_check_tables::{
 };
 use terminal_psi::TerminalMachine;
 
-use crate::checking::{Discharge, Discharged, Evidence, Hypotheses, refusal};
+use crate::{Discharge, Discharged, Evidence, Hypotheses, refusal};
 
 /// Re-verifies saved evidence for `obligation` of `machine`: the goal and
 /// hypotheses are this consumer's own, the certificate is the saved one.
 #[cfg(any(test, feature = "test-support"))]
 pub fn reverify(
-    scope: &mut crate::checking::ReplayScope<'_>,
+    scope: &mut crate::ReplayScope<'_>,
     machine: MachineId,
     obligation: ObligationId,
     saved: &CertificateEnvelope,
-    _activity: &mut crate::checking::ProofSearchActivity,
+    _activity: &mut crate::ProofSearchActivity,
 ) -> Checked<Evidence> {
-    crate::checking::minted::width_questions_are_minted(scope.source())?;
+    crate::minted::width_questions_are_minted(scope.source())?;
     let (formed, domains, checking, _, _) = scope.checking();
     let module = formed.source();
     let tables = checking.machines.get_mut(machine).ok_or_else(|| {
@@ -64,16 +64,16 @@ pub fn reverify(
             "no such machine",
         )
     })?;
-    let prepared = crate::checking::prepare(formed, domains, machine, tables)?;
+    let prepared = crate::prepare(formed, domains, machine, tables)?;
     let row = *terminal_check_tables::row(
         &tables.obligations,
         obligation,
         machine,
         Construct::Obligation(obligation),
     )?;
-    let lowered = crate::checking::terminal_machine(&module.machines, machine, machine)?;
+    let lowered = crate::terminal_machine(&module.machines, machine, machine)?;
     let mut references = prepared.references(&module.types.structural_types);
-    let storage = crate::checking::places::Storage::new(
+    let storage = crate::places::Storage::new(
         machine,
         lowered,
         module,
@@ -83,7 +83,7 @@ pub fn reverify(
         &prepared.types,
         &mut references,
     )?;
-    let goal = crate::checking::goal(
+    let goal = crate::goal(
         module,
         lowered,
         (&storage, &mut references),
@@ -95,18 +95,18 @@ pub fn reverify(
         &prepared.ranking_bindings,
     )?;
     let hypotheses =
-        crate::checking::hypotheses(&prepared.graph, tables, machine, obligation, row.created_at)?;
+        crate::hypotheses(&prepared.graph, tables, machine, obligation, row.created_at)?;
     // `decide` numbers premises in the goal's connected component first.
     // Reconstruct that same view from the consumer's available rows. A
     // proof found by the producer's full-context fallback uses its ordinals.
-    if let Some(narrowed) = crate::checking::connected(&goal, &hypotheses)
-        && let Ok(evidence) = crate::checking::verify(
+    if let Some(narrowed) = crate::connected(&goal, &hypotheses)
+        && let Ok(evidence) = crate::verify(
             &prepared.context, machine, obligation, goal.clone(), narrowed, saved.clone(),
         )
     {
         return Ok(evidence);
     }
-    crate::checking::verify(
+    crate::verify(
         &prepared.context,
         machine,
         obligation,
@@ -132,16 +132,16 @@ pub fn reverify(
 /// moved to the caller and is refused.
 #[cfg(any(test, feature = "test-support"))]
 pub fn reverify_at_call(
-    scope: &crate::checking::ReplayScope<'_>,
+    scope: &crate::ReplayScope<'_>,
     discharge: &Discharge,
     caller: MachineId,
     invocation: InvocationId,
     clause: u32,
     saved: &CertificateEnvelope,
-    _activity: &mut crate::checking::ProofSearchActivity,
+    _activity: &mut crate::ProofSearchActivity,
 ) -> Checked<AcceptedFact> {
     let elaboration = scope.source();
-    crate::checking::minted::width_questions_are_minted(elaboration)?;
+    crate::minted::width_questions_are_minted(elaboration)?;
     let concerns = Construct::Invocation(invocation);
     let refuse = |reason, detail| refusal(reason, caller, concerns, detail);
     let tables = terminal_check_tables::row(
@@ -151,15 +151,15 @@ pub fn reverify_at_call(
         Construct::Machine,
     )?;
     let row = terminal_check_tables::row(&tables.invocations, invocation, caller, concerns)?;
-    let lowered = crate::checking::terminal_machine(&elaboration.module.machines, caller, caller)?;
-    let call = crate::checking::call_contracts::invocation(
+    let lowered = crate::terminal_machine(&elaboration.module.machines, caller, caller)?;
+    let call = crate::call_contracts::invocation(
         &elaboration.module,
         lowered,
         tables,
         invocation,
         row,
     )?;
-    let actuals = crate::checking::scalar_actuals(&row.actuals);
+    let actuals = crate::scalar_actuals(&row.actuals);
     let verdicts =
         &terminal_check_tables::row(&discharge.machines, caller, caller, Construct::Machine)?
             .verdicts;
@@ -185,9 +185,9 @@ pub fn reverify_at_call(
     // Scalar formals only: a clause over a field of a record formal is
     // refused by these bindings, not partly stated.
     let instance = |clause: &Proposition| {
-        crate::checking::substitute(
+        crate::substitute(
             clause,
-            &mut crate::checking::ScalarActuals {
+            &mut crate::ScalarActuals {
                 actuals: &actuals,
                 result: None,
                 tables,
@@ -816,17 +816,17 @@ impl Carried<'_> {
 /// reconstructed candidate still reaches the consumer's actual kernel goal.
 #[cfg(any(test, feature = "test-support"))]
 pub fn reverify_specialization(
-    generic_scope: &crate::checking::ReplayScope<'_>,
+    generic_scope: &crate::ReplayScope<'_>,
     found: &Discharge,
     template: MachineId,
-    consumer_scope: &mut crate::checking::ReplayScope<'_>,
+    consumer_scope: &mut crate::ReplayScope<'_>,
     specialization: MachineId,
     selections: &[Selection<'_>],
-    _activity: &mut crate::checking::ProofSearchActivity,
+    _activity: &mut crate::ProofSearchActivity,
 ) -> Checked<Vec<(ObligationId, Checked<Evidence>)>> {
     let generic = generic_scope.source();
-    crate::checking::minted::width_questions_are_minted(generic)?;
-    crate::checking::minted::width_questions_are_minted(consumer_scope.source())?;
+    crate::minted::width_questions_are_minted(generic)?;
+    crate::minted::width_questions_are_minted(consumer_scope.source())?;
     let (formed, domains, checking, _, _) = consumer_scope.checking();
     let module = formed.source();
     let tables = checking.machines.get_mut(specialization).ok_or_else(|| {
@@ -837,12 +837,12 @@ pub fn reverify_specialization(
             "no such machine",
         )
     })?;
-    let prepared = crate::checking::prepare(formed, domains, specialization, tables)?;
+    let prepared = crate::prepare(formed, domains, specialization, tables)?;
     let tables = &*tables;
     let lowered =
-        crate::checking::terminal_machine(&module.machines, specialization, specialization)?;
+        crate::terminal_machine(&module.machines, specialization, specialization)?;
     let mut references = prepared.references(&module.types.structural_types);
-    let storage = crate::checking::places::Storage::new(
+    let storage = crate::places::Storage::new(
         specialization,
         lowered,
         module,
@@ -870,7 +870,7 @@ pub fn reverify_specialization(
         {
             continue;
         }
-        let verdict = crate::checking::goal(
+        let verdict = crate::goal(
             module,
             lowered,
             (&storage, &mut references),
@@ -1549,7 +1549,7 @@ impl<'a> Carry<'a> {
         lowered: &'a TerminalMachine,
         module: &'a terminal_psi::TerminalModule,
     ) -> Checked<Self> {
-        crate::checking::generic_storage::declared(generic)?;
+        crate::generic_storage::declared(generic)?;
         let rigid = generic.value_parameters.get(template).copied().unwrap_or(0);
         let generic_tables = terminal_check_tables::row(
             &generic.tables.machines,
@@ -1558,7 +1558,7 @@ impl<'a> Carry<'a> {
             Construct::Machine,
         )?;
         let instantiation = Instantiation::of(
-            crate::checking::terminal_machine(&generic.module.machines, template, specialization)?,
+            crate::terminal_machine(&generic.module.machines, template, specialization)?,
             generic_tables,
             rigid,
             lowered,
@@ -1594,13 +1594,13 @@ impl<'a> Carry<'a> {
     pub(crate) fn certify(
         &self,
         context: &PropositionContext,
-        graph: &crate::checking::graph::Graph,
+        graph: &crate::graph::Graph,
         obligation: ObligationId,
         kind: &ObligationKind,
         point: terminal_check_tables::ProgramPoint,
         goal: Proposition,
     ) -> Checked<Evidence> {
-        let hypotheses = crate::checking::hypotheses(
+        let hypotheses = crate::hypotheses(
             graph,
             self.tables,
             self.specialization,
@@ -1615,7 +1615,7 @@ impl<'a> Carry<'a> {
                 "obligation identity is not an evidence identity",
             )
         })?;
-        crate::checking::verify(
+        crate::verify(
             context,
             self.specialization,
             obligation,
@@ -1797,14 +1797,14 @@ impl Carry<'_> {
             .ok_or_else(|| unsupported("the conformance witness was not discharged"))?
             .verdicts;
         let lowered =
-            crate::checking::terminal_machine(&selection.witness.module.machines, entry, entry)?;
+            crate::terminal_machine(&selection.witness.module.machines, entry, entry)?;
         let mut invocations = tables.invocations.iter();
         let (Some((invocation, row)), None) = (invocations.next(), invocations.next()) else {
             return Err(unsupported(
                 "the conformance witness is not one call of the implementation",
             ));
         };
-        let actuals = crate::checking::scalar_actuals(&row.actuals);
+        let actuals = crate::scalar_actuals(&row.actuals);
         let forwards = actuals
             .iter()
             .enumerate()
@@ -1817,7 +1817,7 @@ impl Carry<'_> {
         }
         let result = match row.site {
             semantic_vocabulary::InvocationSite::Operation(operation) => {
-                crate::checking::operation_result(lowered, operation)
+                crate::operation_result(lowered, operation)
             }
             _ => None,
         };
@@ -2061,11 +2061,11 @@ impl Carry<'_> {
         )?;
         let result = match row.site {
             semantic_vocabulary::InvocationSite::Operation(operation) => {
-                crate::checking::operation_result(self.lowered, operation)
+                crate::operation_result(self.lowered, operation)
             }
             _ => None,
         };
-        Ok((crate::checking::scalar_actuals(&row.actuals), result))
+        Ok((crate::scalar_actuals(&row.actuals), result))
     }
 
     /// A public call may already expose the generic requirement's judgment.

@@ -26,7 +26,7 @@ use diagnostics::Diagnostic;
 use std::sync::Arc;
 use symbols::SymbolHandle;
 
-use checked_program_to_psi::production::TerminalProviderSelectionInput as ProviderSelectionInput;
+use checked_program_to_psi::TerminalProviderSelectionInput as ProviderSelectionInput;
 
 type Slot = ((u32, u32), Option<String>);
 type Provider = ((u32, u32), Option<String>);

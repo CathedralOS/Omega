@@ -652,7 +652,7 @@ machine ready(builder: @mutable Build) -> u32 suspends {
         &text[open.pending_completion_at.span.start..open.pending_completion_at.span.end],
         "prepare_dependency"
     );
-    let typed = symbol_resolved_trees_to_typed_trees::typing::lower_symbol_resolved_trees(
+    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(
         &resolve_program(syntax, text),
     )
     .unwrap();

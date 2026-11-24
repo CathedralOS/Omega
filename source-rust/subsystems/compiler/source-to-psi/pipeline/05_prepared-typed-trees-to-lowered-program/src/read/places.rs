@@ -14,7 +14,7 @@ Data predicates use the same clause reader as machine contracts. Field stores
 are read in `statements`, and case dispatch is read in `transitions`.
 */
 
-use crate::lowering::body::{Qualification, StorageShape};
+use crate::body::{Qualification, StorageShape};
 use crate::source_state::data::{DataDefinition, DataField, DataMember};
 use crate::source_state::expression::{
     ExpressionHandle, ExpressionNode, MatchFieldAction, TableDestructurePattern,
@@ -31,11 +31,11 @@ use terminal_check_tables::{Checked, Construct};
 use super::authority::{Access, Opened};
 use super::contracts::{ClauseScope, DataSubject, ResultTerm};
 use super::{Program, Slot};
-use crate::lowering::body::{
+use crate::body::{
     CaseSelector, CaseType, Expression, ExpressionKind, RecordField, RecordType, ValueType,
 };
-use crate::lowering::canonical::{self, Repeated};
-use crate::lowering::{SourceOrigin, Unserved, refuse};
+use crate::canonical::{self, Repeated};
+use crate::{SourceOrigin, Unserved, refuse};
 
 /// Different checking machines own different const-input storage rows.
 /// Their labels must be unique; type equality still uses source applications.
@@ -156,10 +156,10 @@ impl Program<'_> {
         id: MachineId,
         data: &DataDefinition,
         reference: crate::source_state::types::TypeReferenceHandle,
-    ) -> Checked<crate::lowering::body::Regions> {
+    ) -> Checked<crate::body::Regions> {
         use crate::source_state::type_identity::lifetime_parameter_identity;
         if data.lifetime_parameters.is_empty() {
-            return Ok(crate::lowering::body::Regions::NONE);
+            return Ok(crate::body::Regions::NONE);
         }
         let typed = self.typed;
         let table = &typed.type_reference_table;
@@ -188,9 +188,9 @@ impl Program<'_> {
                     // program's error, as for a reference
                     // (`reference_lifetime_declared`).
                     if parameter.is_none() && !argument.as_str().is_empty() {
-                        return Err(crate::lowering::reject(
+                        return Err(crate::reject(
                             id,
-                            SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent),
+                            SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
                             undeclared_lifetime_rule(argument.as_str()),
                         ));
                     }
@@ -430,12 +430,12 @@ impl Program<'_> {
                 ));
             }
             let record = self.records.push(RecordType {
-                multiplicity: crate::lowering::body::source_multiplicity(
+                multiplicity: crate::body::source_multiplicity(
                     data.properties.multiplicity,
                 ),
                 cleanup: None,
                 identity: identity.clone(),
-                shape: crate::lowering::StorageShape::Sum(Vec::new()),
+                shape: crate::StorageShape::Sum(Vec::new()),
                 requires: Vec::new(),
                 authored_layout: false,
             });
@@ -538,7 +538,7 @@ impl Program<'_> {
             self.records
                 .get_mut(record)
                 .ok_or_else(|| unserved("record identity"))?
-                .shape = crate::lowering::StorageShape::Sum(case_types);
+                .shape = crate::StorageShape::Sum(case_types);
             let source = self
                 .record_sources
                 .get_mut(record)
@@ -561,11 +561,11 @@ impl Program<'_> {
             return Err(unserved("copy data with an owned field"));
         }
         let shape = if data.supply_mode == language_core::DataSupplyMode::BoundaryOpaque {
-            crate::lowering::StorageShape::Opaque
+            crate::StorageShape::Opaque
         } else if case_types.is_empty() {
-            crate::lowering::StorageShape::Record(declared)
+            crate::StorageShape::Record(declared)
         } else {
-            crate::lowering::StorageShape::Sum(case_types)
+            crate::StorageShape::Sum(case_types)
         };
         // An argument that is this reading's own `const` or value input
         // (`Index<Limit>` while `Limit` is rigid) makes the requires name that
@@ -583,7 +583,7 @@ impl Program<'_> {
         };
         let identity = storage_identity_for_inputs(identity, constant_input_owner);
         let record: StructuralTypeId = self.records.push(RecordType {
-            multiplicity: crate::lowering::body::source_multiplicity(data.properties.multiplicity),
+            multiplicity: crate::body::source_multiplicity(data.properties.multiplicity),
             cleanup: None,
             identity,
             shape,
@@ -610,7 +610,7 @@ impl Program<'_> {
         // names have their identities, by the clause reader the machine
         // contracts use.
         let root =
-            crate::lowering::body::self_place().ok_or_else(|| unserved("self place identity"))?;
+            crate::body::self_place().ok_or_else(|| unserved("self place identity"))?;
         let scope = ClauseScope {
             slots: &[],
             values: &[],
@@ -765,7 +765,7 @@ impl Program<'_> {
                     Unserved::Declaration("selected cleanup has no machine body"),
                 )
             })?;
-            if crate::lowering::is_generic_template(self.typed, definition) {
+            if crate::is_generic_template(self.typed, definition) {
                 return Err(refuse(
                     diagnostic,
                     Construct::Machine,
@@ -780,7 +780,7 @@ impl Program<'_> {
                     Unserved::Type("cleanup carrier identity"),
                 )
             })?;
-            declaration.cleanup = Some(crate::lowering::body::RecordCleanup {
+            declaration.cleanup = Some(crate::body::RecordCleanup {
                 declaration_identity: declaration.identity.clone(),
                 machine,
             });
@@ -1050,7 +1050,7 @@ impl Program<'_> {
         &mut self,
         id: MachineId,
         record: Opened,
-        regions: crate::lowering::body::Regions,
+        regions: crate::body::Regions,
         field: usize,
     ) -> Checked<ValueType> {
         let record = record.record();
@@ -1082,7 +1082,7 @@ impl Program<'_> {
         &mut self,
         id: MachineId,
         record: Opened,
-        regions: crate::lowering::body::Regions,
+        regions: crate::body::Regions,
         case: usize,
         field: usize,
     ) -> Checked<ValueType> {
@@ -1127,7 +1127,7 @@ impl Program<'_> {
         id: MachineId,
         slots: &[Slot],
         local: &crate::source_state::statement::TableLocalData,
-    ) -> Checked<Option<crate::lowering::body::Statement>> {
+    ) -> Checked<Option<crate::body::Statement>> {
         let refused = |what| refuse(id, Construct::Machine, what);
         if !local.pattern_subject.is_valid() {
             return Err(refused(Unserved::Spelling(
@@ -1190,7 +1190,7 @@ impl Program<'_> {
                     "nominal decomposition with qualified subject obligations",
                 )));
             }
-            Ok(Some(crate::lowering::body::Statement::Decompose {
+            Ok(Some(crate::body::Statement::Decompose {
                 subject,
             }))
         } else {
@@ -1233,7 +1233,7 @@ impl Program<'_> {
                 _ => return Err(unserved("record pattern head that is not a name")),
             };
             if named != source.declaration {
-                return Err(crate::lowering::reject(
+                return Err(crate::reject(
                     id,
                     at,
                     format!(
@@ -1318,7 +1318,7 @@ impl Program<'_> {
             SourceOrigin::Unpositioned(_) => base.source,
             authored => authored,
         };
-        crate::lowering::reject(
+        crate::reject(
             id,
             at,
             format!(
@@ -1381,7 +1381,7 @@ impl Program<'_> {
         };
         let regions = base
             .result
-            .map_or(crate::lowering::body::Regions::NONE, ValueType::regions);
+            .map_or(crate::body::Regions::NONE, ValueType::regions);
         let base = Box::new(base);
         Ok(
             match self.member_of(id, record, member.selection.field_symbol())? {
@@ -1480,7 +1480,7 @@ impl Program<'_> {
         };
         if matches!(
             self.data_type(id, record)?.shape,
-            crate::lowering::StorageShape::Opaque
+            crate::StorageShape::Opaque
         ) {
             return Err(typing(
                 "opaque literal requires its checked representation and supplied contents",
@@ -1607,7 +1607,7 @@ impl Program<'_> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let plain = result
-            .qualified(crate::lowering::body::Qualification::NONE)
+            .qualified(crate::body::Qualification::NONE)
             .ok_or_else(|| {
                 refuse(
                     id,
@@ -1659,7 +1659,7 @@ impl Program<'_> {
             result: Some(plain),
             source,
         };
-        let mut qualification = crate::lowering::body::Qualification::NONE;
+        let mut qualification = crate::body::Qualification::NONE;
         for domain in result.qualification().domains.members() {
             qualification.domains = qualification.domains.with(domain).ok_or_else(|| {
                 refuse(
@@ -1883,7 +1883,7 @@ impl Program<'_> {
                 }
             };
             if std::mem::replace(&mut seen[position], true) {
-                return Err(crate::lowering::reject(
+                return Err(crate::reject(
                     id,
                     at,
                     format!(
@@ -1902,7 +1902,7 @@ impl Program<'_> {
                     Unserved::Typing("pattern misses a payload field"),
                 ));
             }
-            return Err(crate::lowering::reject(
+            return Err(crate::reject(
                 id,
                 at,
                 "this pattern leaves a payload field out without `..`: a case pattern mentions \
@@ -2066,7 +2066,7 @@ pub(super) fn literal_value_type(written: ValueType, expected: Option<ValueType>
 /// same whatever regions a value of it holds (`regions`).
 pub(super) fn with_regions(
     value_type: ValueType,
-    regions: crate::lowering::body::Regions,
+    regions: crate::body::Regions,
 ) -> ValueType {
     match value_type {
         ValueType::Record(record, qualification, _) => {
@@ -2112,7 +2112,7 @@ pub(super) fn lifetime_binders(
             .iter()
             .any(|earlier| earlier.as_str() == binder.as_str())
         {
-            return Err(crate::lowering::reject(
+            return Err(crate::reject(
                 id,
                 at,
                 format!(
@@ -2184,9 +2184,9 @@ pub(super) fn lifetime_application(
             // wrong, as for a reference (`reference_lifetime_declared`).
             Some(RetainedLifetime::Open) | None => {
                 if !declares(tag) {
-                    return Err(crate::lowering::reject(
+                    return Err(crate::reject(
                         id,
-                        SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent),
+                        SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
                         undeclared_lifetime_rule(tag),
                     ));
                 }
@@ -2237,9 +2237,9 @@ pub(super) fn reference_lifetime_declared(
     {
         return Ok(());
     }
-    Err(crate::lowering::reject(
+    Err(crate::reject(
         id,
-        SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent),
+        SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
         undeclared_lifetime_rule(tag.as_str()),
     ))
 }
@@ -2286,7 +2286,7 @@ mod tests {
             multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             cleanup: None,
             identity: "Owned".into(),
-            shape: crate::lowering::StorageShape::Record(Vec::new()),
+            shape: crate::StorageShape::Record(Vec::new()),
             requires: Vec::new(),
             authored_layout: false,
         });
@@ -2421,7 +2421,7 @@ mod tests {
     /// one the typed trees hold without a tag is refused.
     #[test]
     fn a_data_declaration_states_each_lifetime_binder_once() {
-        let nowhere = SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent);
+        let nowhere = SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
         assert_eq!(lifetime_binders(machine(), &[], nowhere), Ok(()));
         assert_eq!(
             lifetime_binders(machine(), &tags(&["a", "b"]), nowhere),

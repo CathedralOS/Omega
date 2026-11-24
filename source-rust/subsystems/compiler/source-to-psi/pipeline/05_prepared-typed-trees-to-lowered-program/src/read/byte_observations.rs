@@ -8,8 +8,8 @@ use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 
 use super::{Program, Slot};
-use crate::lowering::body::{Expression, ExpressionKind, ValueType};
-use crate::lowering::{SourceOrigin, Unserved, refuse};
+use crate::body::{Expression, ExpressionKind, ValueType};
+use crate::{SourceOrigin, Unserved, refuse};
 
 impl Program<'_> {
     fn byte_observation_declaration(

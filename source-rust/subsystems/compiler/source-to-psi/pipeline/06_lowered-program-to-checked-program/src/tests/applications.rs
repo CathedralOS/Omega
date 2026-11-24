@@ -59,16 +59,16 @@ machine entry() -> Applied {{
             )
             .source_id
     });
-    let tokens = crate::checking::frontend_fixture::Lexer::new(&text)
+    let tokens = crate::frontend_fixture::Lexer::new(&text)
         .tokenize()
         .unwrap();
     let mut syntax =
-        crate::checking::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
+        crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
     if let Some(core) = core {
-        let tokens = crate::checking::frontend_fixture::Lexer::new(optional)
+        let tokens = crate::frontend_fixture::Lexer::new(optional)
             .tokenize()
             .unwrap();
-        crate::checking::frontend_fixture::parse(&mut syntax, core, &tokens).unwrap();
+        crate::frontend_fixture::parse(&mut syntax, core, &tokens).unwrap();
     }
     let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
         syntax,
@@ -199,7 +199,7 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
         terminal_codec::TerminalPublication::Invocation,
     )
     .expect("fixture must lower to checker input");
-    let mut verdicts = crate::checking::judge_compilation(prepared.program);
+    let mut verdicts = crate::judge_compilation(prepared.program);
     assert_eq!(verdicts.len(), 1);
     let verdict = verdicts.remove(0).unwrap();
     let RouteVerdict::Accepted(_) = verdict else {
@@ -236,7 +236,7 @@ fn source_application_cannot_change_its_payload_type() {
         .find(|machine| machine.name.as_str() == "entry")
         .unwrap()
         .symbol;
-    let verdicts = crate::checking::judge_compilation(
+    let verdicts = crate::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
             crate::lowering::Compilation {
@@ -289,7 +289,7 @@ fn a_local_generic_data_template_is_read_and_judged_where_it_is_applied() {
             .find(|machine| machine.name.as_str() == "entry")
             .unwrap()
             .symbol;
-        let verdicts = crate::checking::judge_compilation(
+        let verdicts = crate::judge_compilation(
             crate::lowering::prepare_compilation(
                 &typed,
                 crate::lowering::Compilation {

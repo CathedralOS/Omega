@@ -13,7 +13,7 @@
 
 use terminal_psi::{TerminalMathematicalCarrier, TerminalModule};
 
-use crate::checking::laws::SignatureJudgment;
+use crate::laws::SignatureJudgment;
 
 /// Adds the carrier of each judged data declaration to `module`. A carrier
 /// row already present under the same identity must carry the same key.

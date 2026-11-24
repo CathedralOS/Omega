@@ -51,7 +51,7 @@ impl<'a> Storage<'a> {
         let concerns = Construct::Operation(operation.id);
         let Some(observation) =
             terminal_semantics::structural_effect_leaf_observation(operation).map_err(
-                crate::checking::semantics_refusal(self.machine, operation.id),
+                crate::semantics_refusal(self.machine, operation.id),
             )?
         else {
             return Ok(None);
@@ -69,9 +69,9 @@ impl<'a> Storage<'a> {
         let actual = self.argument(&self.byte_operand_argument(operand, concerns)?, concerns)?;
         let subject = match self.byte_source(predicate, &actual, concerns) {
             Ok(subject) => subject,
-            Err(crate::checking::Unbound::Refused(refusal)) => return Err(refusal),
+            Err(crate::Unbound::Refused(refusal)) => return Err(refusal),
             Err(
-                crate::checking::Unbound::Unsupported(_) | crate::checking::Unbound::Unproved(_),
+                crate::Unbound::Unsupported(_) | crate::Unbound::Unproved(_),
             ) => return Ok(None),
         };
         let stable = match &subject {
@@ -145,7 +145,7 @@ impl<'a> Storage<'a> {
         ] {
             let condition = match self.byte_source(predicate, &actual, concerns) {
                 Ok(term) => term,
-                Err(crate::checking::Unbound::Refused(refused)) => return Err(refused),
+                Err(crate::Unbound::Refused(refused)) => return Err(refused),
                 Err(_) => {
                     let mut required = terminal_psi::ByteSequencePredicateSet::EMPTY;
                     required.insert(predicate);
@@ -1206,7 +1206,7 @@ impl<'a> Storage<'a> {
             return Err(self.foreign(concerns, "a subslice endpoint or length is not a u64"));
         }
         terminal_semantics::operation_safety_goal(operation, types)
-            .map_err(crate::checking::semantics_refusal(
+            .map_err(crate::semantics_refusal(
                 self.machine,
                 operation.id,
             ))?

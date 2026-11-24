@@ -8,7 +8,7 @@ use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct};
 
 use super::{CallGraph, index};
-use crate::lowering::{Unserved, refuse};
+use crate::{Unserved, refuse};
 
 struct Component {
     members: std::ops::Range<usize>,
@@ -267,7 +267,7 @@ impl Components {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lowering::components::CallSite;
+    use crate::components::CallSite;
 
     fn discover(adjacencies: &[Vec<usize>]) -> Components {
         discover_with_rankings(adjacencies, &vec![false; adjacencies.len()])

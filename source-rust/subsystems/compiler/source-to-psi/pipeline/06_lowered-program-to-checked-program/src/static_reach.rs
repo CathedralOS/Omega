@@ -8,7 +8,7 @@ use terminal_check_tables::program::Elaboration;
 use terminal_check_tables::{Checked, Construct, RefusalReason};
 
 fn fault(machine: MachineId, detail: &str) -> terminal_check_tables::Refusal {
-    crate::checking::refusal(
+    crate::refusal(
         RefusalReason::ForeignIdentity,
         machine,
         Construct::Machine,
@@ -60,7 +60,7 @@ pub(crate) fn validate(elaboration: &Elaboration) -> Checked<()> {
     {
         return Ok(());
     }
-    let declarations = crate::checking::static_contracts::requirement_declarations(elaboration)?;
+    let declarations = crate::static_contracts::requirement_declarations(elaboration)?;
     let requirement = |id| {
         declarations
             .get(id)
@@ -236,7 +236,7 @@ pub(crate) fn validate(elaboration: &Elaboration) -> Checked<()> {
             })
             .collect::<Checked<Vec<_>>>()?;
         let checking = &declaration.envelope;
-        crate::checking::static_contracts::check_envelope(&elaboration.module, id, checking, None)?;
+        crate::static_contracts::check_envelope(&elaboration.module, id, checking, None)?;
         if !checking
             .invocations
             .iter()
@@ -300,7 +300,7 @@ pub(crate) fn call_reach(
     elaboration: &Elaboration,
     caller: MachineId,
     site: InvocationSite,
-    inputs: crate::checking::call_contracts::Inputs<'_>,
+    inputs: crate::call_contracts::Inputs<'_>,
 ) -> Checked<Option<ReachContribution>> {
     let terminal_check_tables::edges::Callee::Declared(
         semantic_vocabulary::TargetMachineCallable::Machine(callee),

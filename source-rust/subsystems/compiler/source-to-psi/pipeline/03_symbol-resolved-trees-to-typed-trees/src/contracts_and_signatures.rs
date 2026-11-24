@@ -52,7 +52,7 @@ pub(crate) mod contracts {
                     }
                 };
                 lowered.push(typed::signature::AuthoredInvocation {
-                    name: crate::typing::lowerer::name::lower_name(declaration),
+                    name: crate::lowerer::name::lower_name(declaration),
                     source_span: declaration.source_span(),
                     target,
                 });
@@ -130,8 +130,8 @@ pub(crate) mod contracts {
     pub(crate) mod parameter_domains {
         use crate::source_resolved as resolved;
         use crate::source_state as typed;
-        use crate::typing::lowerer::Lowerer;
-        use crate::typing::signatures::parameters::lower_state_parameter;
+        use crate::lowerer::Lowerer;
+        use crate::signatures::parameters::lower_state_parameter;
 
         fn domain_constraints(
             program: &typed::TypedTrees,
@@ -275,7 +275,7 @@ pub(crate) mod contracts {
                 }
                 let mut rows = Vec::new();
                 let mut updates = Vec::new();
-                let mut types = crate::typing::typing_queries::DeclaredExpressionTypes::default();
+                let mut types = crate::typing_queries::DeclaredExpressionTypes::default();
                 for (handle, membership) in unselected {
                     let value = membership.value;
                     let source_span = program
@@ -287,7 +287,7 @@ pub(crate) mod contracts {
                         .filter(|owner| owner.is_valid())
                         .collect::<Vec<_>>();
                     if holders.is_empty() {
-                        return Err(crate::typing::unavailable_judgment(
+                        return Err(crate::unavailable_judgment(
                             "contract membership carrier selection",
                         )
                         .with_source_span(source_span));
@@ -315,13 +315,13 @@ pub(crate) mod contracts {
                     }
                     if !missing && let Some(carrier) = carrier {
                         let occurrence = membership.authored_domain_selection.ok_or_else(|| {
-                            crate::typing::unavailable_judgment("contract membership custody")
+                            crate::unavailable_judgment("contract membership custody")
                         })?;
                         let selection = program
                             .authored_declaration_selections()
                             .get(occurrence)
                             .ok_or_else(|| {
-                            crate::typing::unavailable_judgment("contract membership custody")
+                            crate::unavailable_judgment("contract membership custody")
                         })?;
                         let authored_span = selection.source_span();
                         if selection.kind() != Kind::DomainMembership
@@ -332,7 +332,7 @@ pub(crate) mod contracts {
                                     | Target::Resolved(_)
                             )
                         {
-                            return Err(crate::typing::unavailable_judgment(
+                            return Err(crate::unavailable_judgment(
                                 "contract membership domain custody",
                             )
                             .with_source_span(source_span));
@@ -347,7 +347,7 @@ pub(crate) mod contracts {
                             .type_reference_table
                             .type_reference_handles(membership.domain_arguments);
                         let matches =
-                            crate::typing::type_reference::domain_constraints::select_domain_candidates(
+                            crate::type_reference::domain_constraints::select_domain_candidates(
                                 source,
                                 program,
                                 carrier,
@@ -483,7 +483,7 @@ pub(crate) mod contracts {
 
                 #[test]
                 fn pending_reference_memberships_select_the_exact_referent_carrier() {
-                    let program = crate::typing::qualified_operator_home_tests::checked(&[(
+                    let program = crate::qualified_operator_home_tests::checked(&[(
                         "memberships.omg",
                         r#"
                             domain [u8; 4]::Ascii;
@@ -537,7 +537,7 @@ pub(crate) mod contracts {
 
                 #[test]
                 fn indexed_membership_selection_preserves_the_authored_arguments() {
-                    let program = crate::typing::qualified_operator_home_tests::checked(&[(
+                    let program = crate::qualified_operator_home_tests::checked(&[(
                         "indexed-membership.omg",
                         r#"
                             domain<Index> i64::Tagged<Index>;
@@ -584,7 +584,7 @@ pub(crate) mod contracts {
 
                 #[test]
                 fn a_membership_with_another_capacity_stays_unselected() {
-                    let program = crate::typing::qualified_operator_home_tests::checked(&[(
+                    let program = crate::qualified_operator_home_tests::checked(&[(
                         "mismatched-membership.omg",
                         r#"
                             domain [u8; 4]::Ascii;
@@ -624,17 +624,17 @@ pub(crate) mod contracts {
                     let id = sources
                         .add("membership-custody.omg".into(), text.to_owned())
                         .source_id;
-                    let tokens = crate::typing::frontend_fixture::Lexer::new(text)
+                    let tokens = crate::frontend_fixture::Lexer::new(text)
                         .tokenize()
                         .unwrap();
                     let syntax =
-                        crate::typing::frontend_fixture::parse_syntax_trees_with_id(id, &tokens)
+                        crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens)
                             .unwrap();
                     let mut request = crate::resolution::ResolutionRequest::new(syntax);
                     request.sources = Some(std::sync::Arc::new(sources));
                     let resolved = crate::resolution::resolve(request).unwrap();
                     let mut program =
-                        crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+                        crate::lower_symbol_resolved_trees(&resolved).unwrap();
                     let handle = program
                         .proof_facts
                         .iter()
@@ -709,20 +709,20 @@ pub(crate) mod contracts {
                 }
             }
         }
-        use crate::typing::type_reference::lower_type_reference_into_table;
+        use crate::type_reference::lower_type_reference_into_table;
         pub(crate) use domain_selections::normalize as normalize_membership_selections;
 
         use crate::source_resolved as resolved;
         use crate::source_state as typed;
         use crate::source_symbols::JoinedPath;
-        use crate::typing::expressions::expression::{
+        use crate::expressions::expression::{
             lower_expression_handle_from_table_with_symbol_substitution, lower_fact_expression,
         };
-        use crate::typing::expressions::proposition::is_proposition_call_target;
-        use crate::typing::lowerer::Lowerer;
-        use crate::typing::lowerer::name::lower_name;
-        use crate::typing::tables::resolved_expressions;
-        use crate::typing::type_reference::domain_aliases::expand_domain_reference;
+        use crate::expressions::proposition::is_proposition_call_target;
+        use crate::lowerer::Lowerer;
+        use crate::lowerer::name::lower_name;
+        use crate::tables::resolved_expressions;
+        use crate::type_reference::domain_aliases::expand_domain_reference;
         use arena::HandleSpan;
         use diagnostics::Diagnostic;
 
@@ -917,7 +917,7 @@ pub(crate) mod contracts {
             program: &mut typed::TypedTrees,
             owners: &typed::references::ProgramOperandOwners,
         ) -> Result<(), Diagnostic> {
-            let mut types = crate::typing::typing_queries::DeclaredExpressionTypes::default();
+            let mut types = crate::typing_queries::DeclaredExpressionTypes::default();
             let mut instances = Vec::new();
             for (handle, fact) in program.proof_facts.iter() {
                 let Some(membership) = fact.as_membership() else {
@@ -1096,7 +1096,7 @@ pub(crate) mod contracts {
                 binding: contract
                     .binding
                     .as_ref()
-                    .map(crate::typing::lowerer::name::lower_name),
+                    .map(crate::lowerer::name::lower_name),
                 facts,
             })
         }
@@ -1109,7 +1109,7 @@ pub(crate) mod contracts {
                 resolved_expressions(lowerer.source_trees).expression(expression)
                 && is_proposition_call_target(&lowerer.source_trees.symbols, call.target_symbol)
             {
-                return crate::typing::expressions::proposition::lower_proposition_application(
+                return crate::expressions::proposition::lower_proposition_application(
                     lowerer, call,
                 )
                 .map(typed::domain::ProofFact::Proposition);
@@ -1133,12 +1133,12 @@ pub(crate) mod signatures {
     pub(crate) mod callable_signature {
         use crate::source_resolved as resolved;
         use crate::source_state as typed;
-        use crate::typing::lowerer::Lowerer;
-        use crate::typing::lowerer::name::lower_names;
-        use crate::typing::signatures::type_parameters::lower_type_parameters;
+        use crate::lowerer::Lowerer;
+        use crate::lowerer::name::lower_names;
+        use crate::signatures::type_parameters::lower_type_parameters;
         use diagnostics::Diagnostic;
 
-        use crate::typing::contracts::invocations::lower_authored_invocations;
+        use crate::contracts::invocations::lower_authored_invocations;
 
         pub(crate) fn lower_state_signature(
             lowerer: &mut Lowerer,
@@ -1146,11 +1146,11 @@ pub(crate) mod signatures {
         ) -> Result<typed::signature::StateSignature, Diagnostic> {
             let mut typed_signature = typed::signature::StateSignature {
                 symbol: signature.symbol,
-                name: crate::typing::lowerer::name::lower_name(&signature.name),
+                name: crate::lowerer::name::lower_name(&signature.name),
                 spelling: signature.spelling,
                 lifetime_parameters: lower_names(&signature.lifetime_parameters),
                 type_parameters: Default::default(),
-                conformance_bounds: crate::typing::signatures::evidence::lower_conformance_bounds(
+                conformance_bounds: crate::signatures::evidence::lower_conformance_bounds(
                     lowerer,
                     &signature.conformance_bounds,
                 )?,
@@ -1160,12 +1160,12 @@ pub(crate) mod signatures {
                     .native_callback_parameters
                     .iter()
                     .map(|parameter| typed::signature::NativeCallbackParameter {
-                        name: crate::typing::lowerer::name::lower_name(&parameter.name),
-                        binder: crate::typing::lowerer::name::lower_name(&parameter.binder),
+                        name: crate::lowerer::name::lower_name(&parameter.name),
+                        binder: crate::lowerer::name::lower_name(&parameter.binder),
                         native_ordinal: parameter.native_ordinal,
                     })
                     .collect(),
-                return_type: crate::typing::type_reference::lower_return_type(
+                return_type: crate::type_reference::lower_return_type(
                     lowerer,
                     &signature.return_type,
                 )?,
@@ -1191,7 +1191,7 @@ pub(crate) mod signatures {
                 lower_type_parameters(lowerer, signature.type_parameters)?;
 
             let domain_constrained_parameters =
-        crate::typing::contracts::parameter_domains::lower_state_parameters_collecting_domain_constraints(
+        crate::contracts::parameter_domains::lower_state_parameters_collecting_domain_constraints(
             lowerer,
             signature.parameters,
             |typed_trees, parameter| {
@@ -1215,7 +1215,7 @@ pub(crate) mod signatures {
                 .source_trees
                 .signature_contracts(signature.contracts)
             {
-                let contract = crate::typing::contracts::proof_facts::lower_signature_contract(
+                let contract = crate::contracts::proof_facts::lower_signature_contract(
                     lowerer, contract,
                 )?;
                 lowerer
@@ -1223,7 +1223,7 @@ pub(crate) mod signatures {
                     .push_state_signature_contract(&mut typed_signature, contract);
             }
 
-            crate::typing::contracts::parameter_domains::push_domain_membership_contracts(
+            crate::contracts::parameter_domains::push_domain_membership_contracts(
                 lowerer,
                 domain_constrained_parameters,
                 |typed_trees, contract| {
@@ -1235,9 +1235,9 @@ pub(crate) mod signatures {
         }
     }
     pub(crate) mod evidence {
-        use crate::typing::lowerer::Lowerer;
-        use crate::typing::lowerer::name::lower_name;
-        use crate::typing::type_reference::lower_type_reference_into_table;
+        use crate::lowerer::Lowerer;
+        use crate::lowerer::name::lower_name;
+        use crate::type_reference::lower_type_reference_into_table;
         use diagnostics::Diagnostic;
 
         pub(crate) fn lower_conformance_bounds<'source>(
@@ -1318,7 +1318,7 @@ pub(crate) mod signatures {
             let mut arguments = captured_arguments(program, callee);
             for argument in authored {
                 arguments.push(
-                    crate::typing::expressions::expression::lower_static_machine_argument_with_occurrences(
+                    crate::expressions::expression::lower_static_machine_argument_with_occurrences(
                         program,
                         target,
                         exposure,
@@ -1355,14 +1355,14 @@ pub(crate) mod signatures {
                     .into_iter()
                     .map(|parameter| typed::expression::StaticMachineArgument {
                         symbol: parameter.symbol,
-                        path: vec![crate::typing::lowerer::name::lower_name(&parameter.name)]
+                        path: vec![crate::lowerer::name::lower_name(&parameter.name)]
                             .into_boxed_slice(),
                         ..Default::default()
                     })
                     .chain(enclosing_bounds(program, machine).map(|bound| {
                         typed::expression::StaticMachineArgument {
                             symbol: bound.binder,
-                            path: vec![crate::typing::lowerer::name::lower_name(
+                            path: vec![crate::lowerer::name::lower_name(
                                 &bound.binder_name,
                             )]
                             .into_boxed_slice(),
@@ -1376,8 +1376,8 @@ pub(crate) mod signatures {
     pub(crate) mod parameters {
         use crate::source_resolved as resolved;
         use crate::source_state as typed;
-        use crate::typing::lowerer::Lowerer;
-        use crate::typing::type_reference::lower_type_reference_into_table;
+        use crate::lowerer::Lowerer;
+        use crate::type_reference::lower_type_reference_into_table;
         use diagnostics::Diagnostic;
 
         pub(crate) fn lower_state_parameter(
@@ -1386,7 +1386,7 @@ pub(crate) mod signatures {
         ) -> Result<typed::signature::StateParameter, Diagnostic> {
             let type_reference =
                 lower_type_reference_into_table(lowerer, &parameter.type_reference)?;
-            crate::typing::type_reference::domain_constraints::normalize_domain_constraints_for_type(
+            crate::type_reference::domain_constraints::normalize_domain_constraints_for_type(
                 lowerer.source_trees,
                 &mut lowerer.typed_trees,
                 type_reference,
@@ -1400,7 +1400,7 @@ pub(crate) mod signatures {
         ) -> typed::signature::StateParameter {
             typed::signature::StateParameter {
                 symbol: parameter.symbol,
-                name: crate::typing::lowerer::name::lower_name(&parameter.name),
+                name: crate::lowerer::name::lower_name(&parameter.name),
                 type_reference,
                 is_const: parameter.is_const,
                 is_mutable: parameter.is_mutable,
@@ -1411,9 +1411,9 @@ pub(crate) mod signatures {
     pub(crate) mod type_parameters {
         use crate::source_resolved as resolved;
         use crate::source_state as typed;
-        use crate::typing::lowerer::Lowerer;
-        use crate::typing::signatures::callable_signature::lower_state_signature;
-        use crate::typing::type_reference::lower_type_reference_into_table;
+        use crate::lowerer::Lowerer;
+        use crate::signatures::callable_signature::lower_state_signature;
+        use crate::type_reference::lower_type_reference_into_table;
         use diagnostics::Diagnostic;
 
         pub(crate) fn lower_type_parameters(
@@ -1438,7 +1438,7 @@ pub(crate) mod signatures {
         ) -> Result<typed::data::TypeParameter, Diagnostic> {
             Ok(typed::data::TypeParameter {
                 symbol: parameter.symbol,
-                name: crate::typing::lowerer::name::lower_name(&parameter.name),
+                name: crate::lowerer::name::lower_name(&parameter.name),
                 kind: lower_type_parameter_kind(lowerer, &parameter.kind)?,
                 bounds: typed::data::DataProperties {
                     multiplicity: parameter.bounds.multiplicity,
@@ -1507,7 +1507,7 @@ pub(crate) mod signatures {
                                     "a nominal machine-parameter requirement lost its authored trait path before typed lowering",
                                 ));
                             }
-                            crate::typing::type_reference::retain_path_selection(
+                            crate::type_reference::retain_path_selection(
                         &mut lowerer.typed_trees,
                         trait_path,
                         *trait_definition,
@@ -1515,7 +1515,7 @@ pub(crate) mod signatures {
                         crate::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
                         "nominal machine-parameter trait requirement",
                     )?;
-                            crate::typing::type_reference::retain_static_path_selection(
+                            crate::type_reference::retain_static_path_selection(
                                 &mut lowerer.typed_trees,
                                 std::slice::from_ref(requirement_name),
                                 *requirement,
@@ -1545,7 +1545,7 @@ pub(crate) mod signatures {
                     let mut parameters = arena::HandleSpan::empty();
                     for parameter in lowerer.source_trees.state_parameters(contract.parameters) {
                         let parameter =
-                            crate::typing::signatures::parameters::lower_state_parameter(
+                            crate::signatures::parameters::lower_state_parameter(
                                 lowerer, parameter,
                             )?;
                         lowerer
@@ -1555,7 +1555,7 @@ pub(crate) mod signatures {
                     }
                     Ok(typed::data::TypeParameterKind::Proposition {
                         contract: typed::data::PropositionParameterSignature {
-                            name: crate::typing::lowerer::name::lower_name(&contract.name),
+                            name: crate::lowerer::name::lower_name(&contract.name),
                             parameters,
                         },
                     })

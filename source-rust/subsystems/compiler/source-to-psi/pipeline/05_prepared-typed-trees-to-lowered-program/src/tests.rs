@@ -1,7 +1,7 @@
 // Lowering tests build closed bodies directly, so each one states the exact
 // scalar program it lowers; the reader's refusals are tested in `read.rs`.
 
-use crate::lowering::body::Qualification;
+use crate::body::Qualification;
 use arena::{IdTable, NumericId};
 use semantic_vocabulary::{
     BlockId, CrashCause, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
@@ -17,12 +17,12 @@ use terminal_psi::{
     Terminator,
 };
 
-use crate::lowering::body::{
+use crate::body::{
     ArmGuard, Body, CaseSelector, CrashCeiling, Expression, ExpressionKind, Selector, Signature,
     Statement, Strict, Target, Termination, ValueType,
 };
-use crate::lowering::outcome::Outcome;
-use crate::lowering::{SourceOrigin, StorageShape, Unpositioned};
+use crate::outcome::Outcome;
+use crate::{SourceOrigin, StorageShape, Unpositioned};
 
 mod provider_source_identities {
     use std::sync::Arc;
@@ -73,20 +73,20 @@ mod provider_source_identities {
     #[test]
     fn provider_source_identities_share_storage_but_not_source_revisions() {
         let typed = typed_sources("first revision", false);
-        let shared = crate::lowering::shared_reading(&typed);
-        let product = crate::lowering::read::Program::with_captures(
+        let shared = crate::shared_reading(&typed);
+        let product = crate::read::Program::with_captures(
             &typed,
             false,
             DependencyScope::Product,
             shared.clone(),
         );
-        let witness = crate::lowering::read::Program::with_captures(
+        let witness = crate::read::Program::with_captures(
             &typed,
             true,
             DependencyScope::Product,
             shared.clone(),
         );
-        let build = crate::lowering::read::Program::with_captures(
+        let build = crate::read::Program::with_captures(
             &typed,
             false,
             DependencyScope::Build,
@@ -110,7 +110,7 @@ mod provider_source_identities {
             ));
         }
         let changed = typed_sources("second revision", false);
-        let changed = crate::lowering::read::Program::new(&changed, false);
+        let changed = crate::read::Program::new(&changed, false);
         let other = changed.exact_toolchain_sources().unwrap();
         assert_ne!(sources[0].1, other[0].1);
         assert_eq!(sources[1].1, other[1].1);
@@ -119,14 +119,14 @@ mod provider_source_identities {
     #[test]
     fn provider_source_identities_keep_malformed_custody_refused() {
         let typed = typed_sources("same bytes", true);
-        let shared = crate::lowering::shared_reading(&typed);
-        let first = crate::lowering::read::Program::with_captures(
+        let shared = crate::shared_reading(&typed);
+        let first = crate::read::Program::with_captures(
             &typed,
             false,
             DependencyScope::Product,
             shared.clone(),
         );
-        let second = crate::lowering::read::Program::with_captures(
+        let second = crate::read::Program::with_captures(
             &typed,
             true,
             DependencyScope::Product,
@@ -230,8 +230,8 @@ fn signature(parameters: Vec<ScalarType>, result: Option<ScalarType>) -> Signatu
         membership_ensures: Vec::new(),
         requires: Vec::new(),
         ensures: Vec::new(),
-        reaches: crate::lowering::Ceiling::Inferred,
-        invokes: crate::lowering::Ceiling::Inferred,
+        reaches: crate::Ceiling::Inferred,
+        invokes: crate::Ceiling::Inferred,
         crashes: CrashCeiling::Authored(Vec::new()),
         termination: Termination::Silent,
         ranking: None,
@@ -264,7 +264,7 @@ fn emitted_calls_have_behavior_before_any_judgment() {
     signatures.push(signature(Vec::new(), None));
     signatures.push(signature(Vec::new(), None));
     let elaboration =
-        crate::lowering::lower_bodies(id(1), &bodies, &signatures, &IdTable::default()).unwrap();
+        crate::lower_bodies(id(1), &bodies, &signatures, &IdTable::default()).unwrap();
     let behavior = &elaboration.module.execution.unoptimized_behavior;
     assert_eq!(behavior.len(), 2);
     assert_eq!(behavior[0].machine, id(1));
@@ -312,7 +312,7 @@ fn try_lower(
     body: Body,
     signatures: Vec<Signature>,
     outcomes: Vec<Outcome>,
-) -> terminal_check_tables::Checked<crate::lowering::lower::Lowered> {
+) -> terminal_check_tables::Checked<crate::lower::Lowered> {
     let mut signature_table: IdTable<MachineId, Signature> = IdTable::default();
     for signature in signatures {
         signature_table.push(signature);
@@ -329,19 +329,19 @@ fn lower_records(
     body: Body,
     signatures: &IdTable<MachineId, Signature>,
     outcomes: &IdTable<MachineId, Outcome>,
-    records: &IdTable<semantic_vocabulary::StructuralTypeId, crate::lowering::body::RecordType>,
-) -> terminal_check_tables::Checked<crate::lowering::lower::Lowered> {
+    records: &IdTable<semantic_vocabulary::StructuralTypeId, crate::body::RecordType>,
+) -> terminal_check_tables::Checked<crate::lower::Lowered> {
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     bodies.push(body);
-    let boundary_signatures = crate::lowering::boundaries::BoundaryNamespace::default();
-    let signatures = crate::lowering::body::Signatures {
+    let boundary_signatures = crate::boundaries::BoundaryNamespace::default();
+    let signatures = crate::body::Signatures {
         theorems: &[],
         declarations: &IdTable::default(),
         declaration_aliases: None,
         machines: signatures,
         boundaries: &boundary_signatures,
     };
-    let declared = crate::lowering::lower::places::declare(
+    let declared = crate::lower::places::declare(
         id(1),
         records,
         &bodies,
@@ -350,7 +350,7 @@ fn lower_records(
         None,
         terminal_psi::TerminalIdentityTableBuilder::default(),
     )?;
-    crate::lowering::lower::machine(
+    crate::lower::machine(
         id(1),
         semantic_vocabulary::ContractId::new(1).unwrap(),
         &bodies,
@@ -360,10 +360,10 @@ fn lower_records(
         outcomes,
         &declared.records,
         &declared.structural_types,
-        &crate::lowering::callables::CallableNamespace::default(),
-        &crate::lowering::boundaries::BoundaryNamespace::default(),
+        &crate::callables::CallableNamespace::default(),
+        &crate::boundaries::BoundaryNamespace::default(),
         false,
-        &mut crate::lowering::qualifications::Qualifications::default(),
+        &mut crate::qualifications::Qualifications::default(),
     )
 }
 
@@ -1480,7 +1480,7 @@ fn a_binding_of_a_call_that_never_returns_ends_the_body() {
     assert_eq!(obligations(&lowered.tables), Vec::new());
     assert_eq!(
         lowered.sources.unreachable,
-        vec![crate::lowering::Unreachable {
+        vec![crate::Unreachable {
             statement: authored(20).into(),
             call: authored(10).into(),
         }]
@@ -1592,7 +1592,7 @@ fn a_never_returning_argument_stops_later_arguments_and_the_outer_call() {
         Terminator::InvokeNoNormal { callee, .. } if callee == id(3)));
     assert_eq!(
         lowered.sources.unreachable,
-        vec![crate::lowering::Unreachable {
+        vec![crate::Unreachable {
             statement: authored(20).into(),
             call: authored(10).into(),
         }]
@@ -1789,7 +1789,7 @@ fn statements_after_a_call_that_never_returns_are_not_lowered() {
     assert_eq!(obligations(&lowered.tables), Vec::new());
     assert_eq!(
         lowered.sources.unreachable,
-        vec![crate::lowering::Unreachable {
+        vec![crate::Unreachable {
             statement: authored(20).into(),
             call: authored(10).into(),
         }]
@@ -1869,7 +1869,7 @@ fn designated_operands_on_a_machine_call_are_refused() {
     let ExpressionKind::Call { designated, .. } = &mut selection.kind else {
         unreachable!()
     };
-    *designated = Some(crate::lowering::body::DesignatedOperands {
+    *designated = Some(crate::body::DesignatedOperands {
         request: arena::Handle::invalid(),
         selecting: id(1),
         readiness: None,
@@ -1962,7 +1962,7 @@ fn ensures_over_result_name_the_result_pseudo_value() {
 /// has no normal completion.
 #[test]
 fn outcomes_follow_the_ceiling_or_the_body() {
-    use crate::lowering::outcome::outcomes;
+    use crate::outcome::outcomes;
     // machine 1 calls 2; 2 is `{ crash Trap; }`.
     let caller = Body {
         slots: Vec::new(),
@@ -1979,26 +1979,26 @@ fn outcomes_follow_the_ceiling_or_the_body() {
         let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
         for crashes in [first, second] {
             signatures.push(Signature {
-                reaches: crate::lowering::Ceiling::Inferred,
-                invokes: crate::lowering::Ceiling::Inferred,
+                reaches: crate::Ceiling::Inferred,
+                invokes: crate::Ceiling::Inferred,
                 crashes,
                 ..signature(Vec::new(), None)
             });
         }
         let table = outcomes(
             &bodies,
-            crate::lowering::body::Signatures {
+            crate::body::Signatures {
                 theorems: &[],
                 declarations: &IdTable::default(),
                 declaration_aliases: None,
                 machines: &signatures,
-                boundaries: &crate::lowering::boundaries::BoundaryNamespace::default(),
+                boundaries: &crate::boundaries::BoundaryNamespace::default(),
             },
             &[],
-            &crate::lowering::callables::CallableNamespace::default(),
+            &crate::callables::CallableNamespace::default(),
             None,
             &Default::default(),
-            &crate::lowering::components::discover(&bodies).unwrap(),
+            &crate::components::discover(&bodies).unwrap(),
         )
         .unwrap();
         [1, 2].map(|raw| table.get(id(raw)).unwrap().clone())
@@ -2030,7 +2030,7 @@ fn outcomes_follow_the_ceiling_or_the_body() {
 /// owed as coverage by no route, which terminal-psi-to-terminal-psi decides.
 #[test]
 fn a_body_that_declares_crashes_none_publishes_no_route() {
-    use crate::lowering::outcome::outcomes;
+    use crate::outcome::outcomes;
     let run = |statements: Vec<Statement>, callee_statements: Vec<Statement>| {
         let mut bodies: IdTable<MachineId, Body> = IdTable::default();
         let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
@@ -2043,26 +2043,26 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
                 statements,
             });
             signatures.push(Signature {
-                reaches: crate::lowering::Ceiling::Inferred,
-                invokes: crate::lowering::Ceiling::Inferred,
+                reaches: crate::Ceiling::Inferred,
+                invokes: crate::Ceiling::Inferred,
                 crashes,
                 ..signature(Vec::new(), None)
             });
         }
         outcomes(
             &bodies,
-            crate::lowering::body::Signatures {
+            crate::body::Signatures {
                 theorems: &[],
                 declarations: &IdTable::default(),
                 declaration_aliases: None,
                 machines: &signatures,
-                boundaries: &crate::lowering::boundaries::BoundaryNamespace::default(),
+                boundaries: &crate::boundaries::BoundaryNamespace::default(),
             },
             &[],
-            &crate::lowering::callables::CallableNamespace::default(),
+            &crate::callables::CallableNamespace::default(),
             None,
             &Default::default(),
-            &crate::lowering::components::discover(&bodies).unwrap(),
+            &crate::components::discover(&bodies).unwrap(),
         )
         .map(|table| table.get(id(1)).unwrap().clone())
     };
@@ -2090,7 +2090,7 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
 /// right operand never returns still completes; its causes stay published.
 #[test]
 fn a_skipped_operand_cannot_end_the_machine() {
-    use crate::lowering::outcome::outcomes;
+    use crate::outcome::outcomes;
     // machine 1(a: bool) -> bool { a && f() }  with f = `{ crash Trap; }`
     let caller = Body {
         slots: scalars(vec![ScalarType::Boolean]),
@@ -2112,16 +2112,16 @@ fn a_skipped_operand_cannot_end_the_machine() {
     bodies.push(crashing);
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     signatures.push(Signature {
-        reaches: crate::lowering::Ceiling::Inferred,
-        invokes: crate::lowering::Ceiling::Inferred,
+        reaches: crate::Ceiling::Inferred,
+        invokes: crate::Ceiling::Inferred,
         crashes: CrashCeiling::Inferred,
         termination: Termination::Silent,
         ranking: None,
         ..signature(vec![ScalarType::Boolean], Some(ScalarType::Boolean))
     });
     signatures.push(Signature {
-        reaches: crate::lowering::Ceiling::Inferred,
-        invokes: crate::lowering::Ceiling::Inferred,
+        reaches: crate::Ceiling::Inferred,
+        invokes: crate::Ceiling::Inferred,
         crashes: CrashCeiling::Inferred,
         termination: Termination::Silent,
         ranking: None,
@@ -2129,18 +2129,18 @@ fn a_skipped_operand_cannot_end_the_machine() {
     });
     let table = outcomes(
         &bodies,
-        crate::lowering::body::Signatures {
+        crate::body::Signatures {
             theorems: &[],
             declarations: &IdTable::default(),
             declaration_aliases: None,
             machines: &signatures,
-            boundaries: &crate::lowering::boundaries::BoundaryNamespace::default(),
+            boundaries: &crate::boundaries::BoundaryNamespace::default(),
         },
         &[],
-        &crate::lowering::callables::CallableNamespace::default(),
+        &crate::callables::CallableNamespace::default(),
         None,
         &Default::default(),
-        &crate::lowering::components::discover(&bodies).unwrap(),
+        &crate::components::discover(&bodies).unwrap(),
     )
     .unwrap();
     assert_eq!(
@@ -2203,7 +2203,7 @@ fn settle_both(
                 Step::Crash(guarded, cause) => crash_arm(guarded.then(yes), cause),
                 Step::Refuse => Statement::discard(expression(
                     ExpressionKind::Call {
-                        callee: crate::lowering::body::CallTarget::Boundary { boundary: id(1) },
+                        callee: crate::body::CallTarget::Boundary { boundary: id(1) },
                         arguments: Vec::new(),
                         designated: None,
                         required_contract: None,
@@ -2224,15 +2224,15 @@ fn settle_both(
             ..signature(Vec::new(), None)
         });
     }
-    let signatures = crate::lowering::body::Signatures {
+    let signatures = crate::body::Signatures {
         theorems: &[],
         declarations: &IdTable::default(),
         declaration_aliases: None,
         machines: &signatures,
-        boundaries: &crate::lowering::boundaries::BoundaryNamespace::default(),
+        boundaries: &crate::boundaries::BoundaryNamespace::default(),
     };
     let run = |by_rounds| {
-        crate::lowering::outcome::counted_outcomes(
+        crate::outcome::counted_outcomes(
             &bodies,
             signatures,
             requirements,
@@ -2487,7 +2487,7 @@ use semantic_vocabulary::{
 use terminal_check_tables::ExactPlaceId;
 use terminal_psi::{RecordFieldValue, StructuralAccess, StructuralArgument};
 
-use crate::lowering::body::{RecordField, RecordType};
+use crate::body::{RecordField, RecordType};
 
 fn point() -> ValueType {
     ValueType::record(id(1))
@@ -2509,7 +2509,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Point"),
-        shape: crate::lowering::StorageShape::Record(vec![
+        shape: crate::StorageShape::Record(vec![
             field(1, "x", ValueType::Scalar(u32_type(), Qualification::NONE)),
             field(2, "y", ValueType::Scalar(u32_type(), Qualification::NONE)),
         ]),
@@ -2520,7 +2520,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Line"),
-        shape: crate::lowering::StorageShape::Record(vec![
+        shape: crate::StorageShape::Record(vec![
             field(3, "from", point()),
             field(4, "to", point()),
         ]),
@@ -3041,7 +3041,7 @@ fn a_module_with_records_declares_them_and_encodes() {
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     signatures.push(shaped(vec![u32_type().into()], Some(line())));
     let elaboration =
-        crate::lowering::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap();
+        crate::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap();
     let module = &elaboration.module;
     assert_eq!(module.types.structural_types.len(), 2);
     assert_eq!(module.layouts.native_layouts.records().count(), 2);
@@ -3060,7 +3060,7 @@ fn a_module_with_records_declares_them_and_encodes() {
     });
     let mut scalar_signatures: IdTable<MachineId, Signature> = IdTable::default();
     scalar_signatures.push(signature(Vec::new(), Some(u32_type())));
-    let scalar = crate::lowering::lower_bodies(
+    let scalar = crate::lower_bodies(
         id(1),
         &scalar_bodies,
         &scalar_signatures,
@@ -3132,7 +3132,7 @@ fn a_moved_owned_field_is_refilled_before_its_whole_owner_is_transferred() {
     });
     let mut signatures = IdTable::default();
     signatures.push(shaped(vec![line()], Some(line())));
-    let elaboration = crate::lowering::lower_bodies(id(1), &bodies, &signatures, &records)
+    let elaboration = crate::lower_bodies(id(1), &bodies, &signatures, &records)
         .expect("the exact moved field can be filled before whole-owner use");
     let machine = &elaboration.module.machines[0];
     assert!(machine.operations().any(|operation| matches!(
@@ -3201,7 +3201,7 @@ fn a_subrecord_with_all_owned_fields_moved_out_can_be_filled_whole() {
         multiplicity: terminal_psi::StructuralMultiplicity::Affine,
         cleanup: None,
         identity: "Envelope".into(),
-        shape: crate::lowering::StorageShape::Record(vec![
+        shape: crate::StorageShape::Record(vec![
             RecordField {
                 id: id(5),
                 identity: "line".into(),
@@ -3240,7 +3240,7 @@ fn a_subrecord_with_all_owned_fields_moved_out_can_be_filled_whole() {
     });
     let mut signatures = IdTable::default();
     signatures.push(shaped(vec![envelope], Some(envelope)));
-    let elaboration = crate::lowering::lower_bodies(id(1), &bodies, &signatures, &records)
+    let elaboration = crate::lower_bodies(id(1), &bodies, &signatures, &records)
         .expect("all moved children leave their exact containing subrecord vacant");
     let machine = &elaboration.module.machines[0];
     assert!(machine.operations().any(|operation| matches!(
@@ -3453,7 +3453,7 @@ fn a_local_without_an_initializer_logs_the_zero_it_is_established_with() {
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     signatures.push(shaped(Vec::new(), Some(u32_type().into())));
     let elaboration =
-        crate::lowering::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap();
+        crate::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap();
     let machine = &elaboration.module.machines[0];
     let tables = elaboration.tables.machines.get(id(1)).unwrap();
     let operations = &block(machine, 1).operations;
@@ -3551,7 +3551,7 @@ fn a_local_without_an_initializer_logs_the_zero_it_is_established_with() {
         ..body()
     });
     let refusal =
-        crate::lowering::lower_bodies(id(1), &nameless, &signatures, &records()).unwrap_err();
+        crate::lower_bodies(id(1), &nameless, &signatures, &records()).unwrap_err();
     assert_eq!(
         refusal.reason,
         terminal_check_tables::RefusalReason::Unsupported
@@ -3570,7 +3570,7 @@ use semantic_vocabulary::StructuralCaseId;
 use terminal_check_tables::RefusalReason;
 use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
 
-use crate::lowering::body::CaseType;
+use crate::body::CaseType;
 
 const DOT: usize = 0;
 const PAIR: usize = 1;
@@ -3599,7 +3599,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Point"),
-        shape: crate::lowering::StorageShape::Record(vec![
+        shape: crate::StorageShape::Record(vec![
             field(1, "x", scalar),
             field(2, "y", scalar),
         ]),
@@ -3610,7 +3610,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Shape"),
-        shape: crate::lowering::StorageShape::Sum(vec![
+        shape: crate::StorageShape::Sum(vec![
             case(1, "Dot", vec![field(3, "at", scalar)]),
             case(
                 2,
@@ -3654,7 +3654,7 @@ fn is_case(subject: Expression, case: usize) -> Expression {
 fn try_lower_sums(
     body: Body,
     signatures: Vec<Signature>,
-) -> terminal_check_tables::Checked<crate::lowering::lower::Lowered> {
+) -> terminal_check_tables::Checked<crate::lower::Lowered> {
     let mut signature_table: IdTable<MachineId, Signature> = IdTable::default();
     let mut outcome_table: IdTable<MachineId, Outcome> = IdTable::default();
     for signature in signatures {
@@ -4108,7 +4108,7 @@ fn a_module_with_a_sum_declares_its_cases_and_encodes() {
     });
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     signatures.push(shaped(vec![u32_type().into()], Some(shape())));
-    let elaboration = crate::lowering::lower_bodies(id(1), &bodies, &signatures, &sums()).unwrap();
+    let elaboration = crate::lower_bodies(id(1), &bodies, &signatures, &sums()).unwrap();
     let module = &elaboration.module;
     let StructuralTypeShape::Sum { cases } = &module.types.structural_types[1].shape else {
         panic!("a sum");
@@ -4144,7 +4144,7 @@ fn a_module_with_a_sum_declares_its_cases_and_encodes() {
 fn constrained() -> IdTable<StructuralTypeId, RecordType> {
     let own = |fields: &[u64]| ScalarTerm::IntegerField {
         version: semantic_vocabulary::ContentPlaceVersion::Current,
-        root: crate::lowering::self_place().unwrap(),
+        root: crate::self_place().unwrap(),
         path: fields
             .iter()
             .map(|field| CanonicalStructuralPathSegment::Field(id(*field)))
@@ -4187,7 +4187,7 @@ fn each_operation_that_forms_or_changes_a_constrained_value_owes_its_clauses() {
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     signatures.push(shaped(Vec::new(), Some(u32_type().into())));
     let elaboration =
-        crate::lowering::lower_bodies(id(1), &bodies, &signatures, &constrained()).unwrap();
+        crate::lower_bodies(id(1), &bodies, &signatures, &constrained()).unwrap();
     // Each type's declaration in the module states its clauses, and the
     // checker's table beside the module restates them by the type's
     // identity.
@@ -4290,7 +4290,7 @@ fn an_entry_clause_over_a_record_formals_field_encodes_in_the_module_contract() 
         semantic_vocabulary::IntegerValue::Unsigned(7),
     )
     .unwrap();
-    let clause = crate::lowering::canonical::equal(field, seven, id(1)).unwrap();
+    let clause = crate::canonical::equal(field, seven, id(1)).unwrap();
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     bodies.push(Body {
         slots: vec![point()],
@@ -4302,7 +4302,7 @@ fn an_entry_clause_over_a_record_formals_field_encodes_in_the_module_contract() 
         ..shaped(vec![point()], Some(u32_type().into()))
     });
     let elaboration =
-        crate::lowering::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap();
+        crate::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap();
     let machine = &elaboration.module.machines[0];
     assert_eq!(machine.contract.requires, [clause]);
     assert_eq!(machine.structural_parameters[0].place, id::<PlaceId>(1));
@@ -4311,7 +4311,7 @@ fn an_entry_clause_over_a_record_formals_field_encodes_in_the_module_contract() 
 
 /// `main() -> u32 { let w [erased]: u32 = 100; keep(70, w) }` with
 /// `keep(n: u32, bound [erased]: u32) -> u32 requires n < bound { n }`.
-fn erased_module() -> crate::lowering::Elaboration {
+fn erased_module() -> crate::Elaboration {
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     bodies.push(Body {
@@ -4348,7 +4348,7 @@ fn erased_module() -> crate::lowering::Elaboration {
         )],
         ..signature(vec![u32_type(), u32_type()], Some(u32_type()))
     });
-    crate::lowering::lower_bodies(id(1), &bodies, &signatures, &IdTable::default()).unwrap()
+    crate::lower_bodies(id(1), &bodies, &signatures, &IdTable::default()).unwrap()
 }
 
 /// contracts.md, "Explicit erased bindings": "The binding remains in checking
@@ -4610,7 +4610,7 @@ fn logical_claim_publication_preserves_two_siblings_across_an_ordinary_call() {
     let mut signatures = IdTable::default();
     signatures.push(shaped(vec![pair], Some(pair)));
     signatures.push(shaped(vec![token, token], Some(pair)));
-    let output = crate::lowering::lower_bodies(id(2), &bodies, &signatures, &records)
+    let output = crate::lower_bodies(id(2), &bodies, &signatures, &records)
         .expect("the producer can describe two distinct incoming obligations and their transfer");
     for machine in &output.module.machines {
         assert_eq!(machine.entry_claims.len(), 2);
