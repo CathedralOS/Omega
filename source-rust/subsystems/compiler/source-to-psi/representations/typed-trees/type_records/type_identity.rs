@@ -147,7 +147,7 @@ pub(crate) mod callable_identity {
         }
     }
 
-    #[derive(Clone, record_storage::Record)]
+    #[derive(Clone, PartialEq, Eq, record_storage::Record)]
     struct CallableIdentityRecord {
         path: CallablePathId,
         parameters: CallableParametersId,
@@ -155,7 +155,7 @@ pub(crate) mod callable_identity {
         text: Box<str>,
     }
 
-    #[derive(Clone, Default, record_storage::Record)]
+    #[derive(Clone, Default, PartialEq, Eq, record_storage::Record)]
     pub struct CallableIdentityTable {
         paths: arena::RetainedRows<Box<str>>,
         path_slots: SharedValue<HashMap<SharedValue<Box<str>>, CallablePathId>>,
@@ -4167,6 +4167,15 @@ pub(crate) mod normalized_identities {
             identities: TypeIdentityTable,
             named: Vec<TypeIdentityId>,
             by_identity: BTreeMap<TypeIdentityId, u32>,
+        }
+
+        #[test]
+        fn identity_table_equality_resolves_the_text_at_each_slot() {
+            let first = TypeIdentityTable::default();
+            let second = TypeIdentityTable::default();
+            assert_eq!(first.intern("left"), second.intern("right"));
+            assert_ne!(first, second);
+            assert_eq!(first, first.clone());
         }
 
         const NAMED: [&str; 3] = ["b", "a", "c"];

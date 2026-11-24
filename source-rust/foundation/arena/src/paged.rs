@@ -1726,13 +1726,23 @@ impl<T: Clone> Clone for OwnedInterner<T> {
     }
 }
 
-impl<T> PartialEq for OwnedInterner<T> {
-    fn eq(&self, _: &Self) -> bool {
-        true
+impl<T: PartialEq> PartialEq for OwnedInterner<T> {
+    fn eq(&self, other: &Self) -> bool {
+        if std::ptr::eq(self, other) {
+            return true;
+        }
+        // Concurrent comparisons in opposite directions acquire both tables
+        // in the same order. Neither table can change during the comparison.
+        let (first, second) = if std::ptr::from_ref(self).addr() < std::ptr::from_ref(other).addr() {
+            (self, other)
+        } else {
+            (other, self)
+        };
+        first.with(|left| second.with(|right| left == right))
     }
 }
 
-impl<T> Eq for OwnedInterner<T> {}
+impl<T: Eq> Eq for OwnedInterner<T> {}
 
 impl<T> std::fmt::Debug for OwnedInterner<T> {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -2034,8 +2044,12 @@ impl Clone for OwnedTextInterner {
 }
 
 impl PartialEq for OwnedTextInterner {
-    fn eq(&self, _: &Self) -> bool {
-        true
+    fn eq(&self, other: &Self) -> bool {
+        if std::ptr::eq(self, other) {
+            return true;
+        }
+        let length = self.len();
+        length == other.len() && (0..length).all(|slot| self.text(slot) == other.text(slot))
     }
 }
 
@@ -2895,6 +2909,27 @@ mod tests {
         interner.with_mut(|table| table.push("record"));
         assert_eq!(interner.with(|table| table[first]), "writer");
         assert_eq!(copy.with(|table| table[first]), "writer");
+    }
+
+    #[test]
+    fn interner_equality_compares_the_values_at_each_live_slot() {
+        let left = OwnedInterner::<Vec<u32>>::default();
+        left.with_mut(|rows| rows.extend([5, 8]));
+        let right = left.clone();
+        assert_eq!(left, right);
+        right.with_mut(|rows| rows[1] = 9);
+        assert_ne!(left, right);
+
+        let texts = OwnedTextInterner::default();
+        texts.intern("alpha");
+        let fork = texts.clone();
+        assert_eq!(texts, fork);
+        assert_eq!(texts.intern("beta"), fork.intern("other"));
+        assert_ne!(texts, fork);
+        let reordered = OwnedTextInterner::default();
+        reordered.intern("beta");
+        reordered.intern("alpha");
+        assert_ne!(texts, reordered);
     }
 
     #[test]
