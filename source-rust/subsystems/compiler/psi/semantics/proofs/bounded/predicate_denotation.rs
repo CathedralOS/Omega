@@ -353,6 +353,54 @@ pub fn check_predicate_denotations_with_value_equalities<'input>(
     )
 }
 
+/// A single ordered roster checked in its original value and place context.
+/// It supplies candidate substitutions only; the caller still proves arrivals.
+/// Each query charges the entire roster against its own traversal budget.
+pub struct CheckedValueEquations<'input> {
+    context: &'input PropositionContext,
+    equalities: value_equalities::ValueEqualities<'input>,
+    cost: Budget,
+}
+
+impl<'input> CheckedValueEquations<'input> {
+    pub fn check(
+        context: &'input PropositionContext,
+        equations: impl IntoIterator<Item = &'input Proposition>,
+    ) -> Result<Self, PredicateDenotationError> {
+        let mut cost = Budget::default();
+        let equalities = checked_value_equalities(context, equations, &mut cost)?;
+        Ok(Self {
+            context,
+            equalities,
+            cost,
+        })
+    }
+
+    pub fn substitute(&self, goal: &Proposition) -> Result<Proposition, PredicateDenotationError> {
+        substitute_value_equalities(
+            self.context,
+            goal,
+            &self.equalities,
+            &mut self.goal_budget(goal)?,
+        )
+    }
+
+    pub fn denotation(&self, goal: &Proposition) -> Result<Proposition, PredicateDenotationError> {
+        transport_denotation(
+            self.context,
+            goal,
+            &self.equalities,
+            &mut self.goal_budget(goal)?,
+        )
+    }
+
+    fn goal_budget(&self, goal: &Proposition) -> Result<Budget, PredicateDenotationError> {
+        let mut budget = checked_goal(self.context, goal)?;
+        budget.include(&self.cost)?;
+        Ok(budget)
+    }
+}
+
 /// Substitute exact scalar definitions without normalizing Boolean structure.
 /// A join may retain that structure as a reusable predicate; its arrivals
 /// still require proofs. This query supplies no evidence for its equations.
@@ -361,9 +409,18 @@ pub fn check_value_equality_substitution<'input>(
     goal: &Proposition,
     equations: impl IntoIterator<Item = &'input Proposition>,
 ) -> Result<Proposition, PredicateDenotationError> {
-    let mut budget = Budget::default();
-    let equalities = checked_value_equalities(context, goal, equations, &mut budget)?;
-    let substituted = equalities.proposition(goal, &mut budget, 0)?;
+    let mut budget = checked_goal(context, goal)?;
+    let equalities = checked_value_equalities(context, equations, &mut budget)?;
+    substitute_value_equalities(context, goal, &equalities, &mut budget)
+}
+
+fn substitute_value_equalities(
+    context: &PropositionContext,
+    goal: &Proposition,
+    equalities: &value_equalities::ValueEqualities<'_>,
+    budget: &mut Budget,
+) -> Result<Proposition, PredicateDenotationError> {
+    let substituted = equalities.proposition(goal, budget, 0)?;
     context
         .validate(&substituted)
         .map_err(PredicateDenotationError::Malformed)?;
@@ -376,21 +433,28 @@ pub fn check_value_equality_denotation<'input>(
     goal: &Proposition,
     equations: impl IntoIterator<Item = &'input Proposition>,
 ) -> Result<Proposition, PredicateDenotationError> {
-    let mut budget = Budget::default();
-    let equalities = checked_value_equalities(context, goal, equations, &mut budget)?;
+    let mut budget = checked_goal(context, goal)?;
+    let equalities = checked_value_equalities(context, equations, &mut budget)?;
     transport_denotation(context, goal, &equalities, &mut budget)
 }
 
-fn checked_value_equalities<'input>(
+fn checked_goal(
     context: &PropositionContext,
     goal: &Proposition,
-    equations: impl IntoIterator<Item = &'input Proposition>,
-    budget: &mut Budget,
-) -> Result<value_equalities::ValueEqualities<'input>, PredicateDenotationError> {
+) -> Result<Budget, PredicateDenotationError> {
+    let mut budget = Budget::default();
     budget.proposition(goal, 0)?;
     context
         .validate(goal)
         .map_err(PredicateDenotationError::Malformed)?;
+    Ok(budget)
+}
+
+fn checked_value_equalities<'input>(
+    context: &PropositionContext,
+    equations: impl IntoIterator<Item = &'input Proposition>,
+    budget: &mut Budget,
+) -> Result<value_equalities::ValueEqualities<'input>, PredicateDenotationError> {
     let mut checked_equations = Vec::new();
     for equation in equations {
         budget.proposition(equation, 0)?;
@@ -791,6 +855,46 @@ mod value_equality_tests {
             substituted,
             check_value_equality_denotation(&context, &original, [&equation]).unwrap()
         );
+    }
+
+    #[test]
+    fn checked_equations_retain_their_order_and_charge_the_full_roster_to_each_query() {
+        use super::CheckedValueEquations;
+
+        let id = ValueId::new(1).unwrap();
+        let context = PropositionContext::from_value_types([(id, ScalarType::Boolean)]).unwrap();
+        let value = ScalarTerm::value(id, ScalarType::Boolean);
+        let yes = Proposition::Equal(value.clone(), ScalarTerm::Boolean(true));
+        let no = Proposition::Equal(value, ScalarTerm::Boolean(false));
+        let ordinary = CheckedValueEquations::check(&context, [&yes, &no]).unwrap();
+        let fixed = CheckedValueEquations::check(&context, [&no, &yes]).unwrap();
+        assert_eq!(ordinary.denotation(&yes), Ok(Proposition::Truth));
+        assert_eq!(fixed.denotation(&yes), Ok(Proposition::Falsehood));
+        assert_eq!(ordinary.denotation(&no), Ok(Proposition::Falsehood));
+
+        // The equations fit by themselves. Adding even a small goal or its
+        // transported form exceeds the shared limit, including on a later use.
+        let equations = vec![&yes; 1365];
+        let checked = CheckedValueEquations::check(&context, equations.iter().copied()).unwrap();
+        let malformed = Proposition::Conjunction(vec![Proposition::Truth]);
+        for goal in [&yes, &malformed, &Proposition::Truth] {
+            assert_eq!(
+                checked.denotation(goal),
+                check_value_equality_denotation(&context, goal, equations.iter().copied())
+            );
+            assert_eq!(
+                checked.substitute(goal),
+                check_value_equality_substitution(&context, goal, equations.iter().copied())
+            );
+        }
+        assert_eq!(
+            checked.denotation(&yes),
+            Err(PredicateDenotationError::ResourceLimitExceeded)
+        );
+        assert!(matches!(
+            checked.substitute(&malformed),
+            Err(PredicateDenotationError::Malformed(_))
+        ));
     }
 
     #[test]

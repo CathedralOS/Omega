@@ -448,7 +448,7 @@ pub use mathematical_kernel::{
 pub use predicate_denotation::{
     CheckedPredicateDenotations, PredicateDenotationError, check_predicate_denotations,
     check_predicate_denotations_with_value_equalities, check_predicate_evaluation_size,
-    check_value_equality_denotation, check_value_equality_substitution,
+    CheckedValueEquations, check_value_equality_denotation, check_value_equality_substitution,
 };
 pub use proof::subtract_antitone::{UnsignedDifference, unsigned_difference};
 pub use proof::{
