@@ -952,6 +952,37 @@ fn a_static_case_in_a_file_uses_the_type_even_when_a_parameter_has_its_name() {
 }
 
 #[test]
+fn a_fixed_carrier_keeps_its_indexed_domain_under_both_local_spellings() {
+    let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
+    for (domain, refusal) in [
+        ("Occupied<Word, Other>", None),
+        ("Tag::Occupied<Word, Other>", None),
+        ("Word::Occupied<Word, Other>", Some("no domain of that name is visible")),
+        ("Tag::Occupied<Word>", Some("2 closed index argument")),
+    ] {
+        let source = format!(
+            "data Tag {{}} data Word {{}} data Other {{}}
+             domain<P, T> Tag::Occupied<P, T>;
+             machine carry(value: Tag in {domain}) -> Tag in {domain} {{ value }}"
+        );
+        let (files, root) = captured(package, &source);
+        let result = source_compiler::check(
+            product(files, root, package, &[]).unwrap(),
+            &mut Default::default(),
+        );
+        if let Some(refusal) = refusal {
+            let errors = result.expect_err("the written carrier and indices must match");
+            assert!(
+                errors.iter().any(|error| error.message.contains(refusal)),
+                "{domain}: {errors:?}"
+            );
+        } else {
+            result.unwrap_or_else(|errors| panic!("{domain}: {errors:?}"));
+        }
+    }
+}
+
+#[test]
 fn a_file_qualified_domain_still_requires_its_declared_carrier() {
     let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
     for (domains, accepts_byte) in [
