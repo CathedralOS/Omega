@@ -467,57 +467,6 @@ pub(crate) mod proposition_encoding {
                 bytes.u32(clause.left.0);
                 bytes.u32(clause.right.0);
             }
-            // Publication refuses an unchecked declaration Identity, but a
-            // unit identity must still commit every field it is given.
-            Proposition::DeclarationIdentity(clause) => {
-                use semantic_vocabulary::{ClauseCarrier, ClauseOperand};
-                bytes.u8(23);
-                bytes.slice(&clause.values, |bytes, value| {
-                    match value.carrier {
-                        ClauseCarrier::Parameter(binder) => {
-                            bytes.u8(0);
-                            bytes.u32(binder);
-                        }
-                        ClauseCarrier::Scalar(scalar_type) => {
-                            bytes.u8(1);
-                            encode_scalar_type(bytes, scalar_type);
-                        }
-                        ClauseCarrier::Structural(structural_type) => {
-                            bytes.u8(2);
-                            bytes.id(structural_type);
-                        }
-                    }
-                    match &value.operand {
-                        ClauseOperand::Input(subject) => {
-                            bytes.u8(0);
-                            encode_case_subject(bytes, subject);
-                        }
-                        ClauseOperand::Scalar(term) => {
-                            bytes.u8(1);
-                            encode_scalar_term(bytes, term);
-                        }
-                        ClauseOperand::Formal(formal) => {
-                            bytes.u8(2);
-                            bytes.u32(*formal);
-                        }
-                        ClauseOperand::Application {
-                            declaration,
-                            arguments,
-                        } => {
-                            bytes.u8(3);
-                            encode_optional(bytes, declaration.supplier.as_ref(), |bytes, slot| {
-                                bytes.u32(slot.0);
-                                bytes.u32(slot.1);
-                            });
-                            bytes.u32(declaration.member.0);
-                            bytes.u32(declaration.member.1);
-                            bytes.slice(arguments, |bytes, argument| bytes.u32(*argument));
-                        }
-                    }
-                });
-                bytes.u32(clause.left);
-                bytes.u32(clause.right);
-            }
         }
     }
 
@@ -2814,7 +2763,7 @@ pub(crate) mod unit_encoding {
         ValueDefinitionSite, ValueUse, WorkSettlement,
     };
 
-    const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v60\0";
+    const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v61\0";
     pub fn recompute_psi_optimization_unit_identity(
         unit: &PsiOptimizationUnit,
     ) -> OptimizationUnitIdentity {
@@ -3582,6 +3531,16 @@ pub(crate) mod unit_encoding {
 pub(crate) mod operation_encoding {
     use super::CanonicalBytes;
     use abstract_operations::AbstractOperation;
+    // Each family numbers its own tags, and several numbers repeat across
+    // families (Jump and IeeeFloatConstant both use 42). The family byte
+    // written first keeps two operations from different families apart.
+    const STRUCTURAL: u8 = 0;
+    const ATOMIC: u8 = 1;
+    const CALLS_AND_EFFECTS: u8 = 2;
+    const IEEE_FLOAT: u8 = 3;
+    const SCALAR: u8 = 4;
+    const CONTROL: u8 = 5;
+
     pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
         use AbstractOperation as O;
         match operation {
@@ -3612,9 +3571,15 @@ pub(crate) mod operation_encoding {
             | O::DecomposeStructuralValue { .. }
             | O::TransformContent { .. }
             | O::EstablishNativeCodeLayout { .. }
-            | O::EstablishRecord { .. } => structural::encode(bytes, operation),
+            | O::EstablishRecord { .. } => {
+                bytes.u8(STRUCTURAL);
+                structural::encode(bytes, operation)
+            }
 
-            O::AtomicEvent { .. } => atomic::encode(bytes, operation),
+            O::AtomicEvent { .. } => {
+                bytes.u8(ATOMIC);
+                atomic::encode(bytes, operation)
+            }
 
             O::CallStructural { .. }
             | O::SelectImplementation { .. }
@@ -3627,12 +3592,18 @@ pub(crate) mod operation_encoding {
             | O::ReadSegmentSelector { .. }
             | O::GlobalDescriptorTable { .. }
             | O::RegisterAccess { .. }
-            | O::Call { .. } => calls_and_effects::encode(bytes, operation),
+            | O::Call { .. } => {
+                bytes.u8(CALLS_AND_EFFECTS);
+                calls_and_effects::encode(bytes, operation)
+            }
 
             O::IeeeFloatConstant { .. }
             | O::FloatResultPolicy { .. }
             | O::NearestIeeeFloatFusedMultiplyAdd { .. }
-            | O::IeeeFloatCompare { .. } => ieee_float::encode(bytes, operation),
+            | O::IeeeFloatCompare { .. } => {
+                bytes.u8(IEEE_FLOAT);
+                ieee_float::encode(bytes, operation)
+            }
 
             O::IntegerConstant { .. }
             | O::BooleanConstant { .. }
@@ -3653,6 +3624,7 @@ pub(crate) mod operation_encoding {
             | abstract_operations::bitwise_and_or_view_pair_pattern!(..)
             | abstract_operations::bitwise_or_xor_pair_pattern!(..)
             | abstract_operations::integer_dispatch_triple_pattern!(..) => {
+                bytes.u8(SCALAR);
                 scalar::encode(bytes, operation)
             }
 
@@ -3663,7 +3635,10 @@ pub(crate) mod operation_encoding {
             | O::InvokeNoNormal { .. }
             | O::ExternalCompletion { .. }
             | O::EliminateEmpty { .. }
-            | O::Crash { .. } => control::encode(bytes, operation),
+            | O::Crash { .. } => {
+                bytes.u8(CONTROL);
+                control::encode(bytes, operation)
+            }
         }
     }
 
