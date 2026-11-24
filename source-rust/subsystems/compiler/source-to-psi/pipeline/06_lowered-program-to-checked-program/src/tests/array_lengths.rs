@@ -480,6 +480,70 @@ machine entry<const N: u64, const M: u64>(token: @Token<N>) -> u64 {
 }
 
 #[test]
+fn a_const_record_requirement_follows_the_callers_bound_value() {
+    let source = "
+data Slots<const Count: u64> requires Count >= 1 { items: [u64; Count]; }
+machine entry<const Count: u64>(slots: @Slots<Count>) -> u64
+requires Count >= 1 {
+    read_slot(slots, 0)
+    machine read_slot(slots: @Slots<Count>, index: u64) -> u64
+    requires Count >= 1 && index < Count { slots.items[index] }
+}";
+    let baseline = rigid_array_form(source);
+    let mut valid = baseline.clone();
+    let checked = discharge(&mut valid, &mut Default::default()).unwrap();
+    assert!(
+        checked
+            .machines
+            .iter()
+            .all(|(_, machine)| machine.verdicts.iter().all(|(_, verdict)| verdict.is_ok())),
+        "{checked:?}"
+    );
+
+    let mut changed = baseline;
+    let expected = changed.nominal_calls[0].expected_constructor;
+    let declaration = changed
+        .module
+        .types
+        .structural_types
+        .iter_mut()
+        .find(|declaration| declaration.id == expected)
+        .unwrap();
+    declaration.requires[0] = semantic_vocabulary::Proposition::Falsehood;
+    let error = discharge(&mut changed, &mut Default::default()).unwrap_err();
+    assert!(
+        error
+            .detail
+            .contains("nominal call input changed its complete type or const actuals"),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn a_const_record_call_keeps_the_borrow_ceiling_when_its_fields_have_local_ids() {
+    let source = "
+data Slots<const Count: u64> requires Count >= 1 { items: [u64; Count]; }
+machine entry<const Count: u64>(slots: @mutable Slots<Count>)
+requires Count >= 1 {
+    write_slot(slots, 0);
+    machine write_slot(slots: @mutable Slots<Count>, index: u64)
+    requires Count >= 1 && index < Count {
+        let value: u64 = 42;
+        slots.items[index] = value;
+    }
+}";
+    let mut form = rigid_array_form(source);
+    let checked = discharge(&mut form, &mut Default::default()).unwrap();
+    assert!(
+        checked
+            .machines
+            .iter()
+            .all(|(_, machine)| machine.verdicts.iter().all(|(_, verdict)| verdict.is_ok())),
+        "{checked:?}"
+    );
+}
+
+#[test]
 fn a_literal_const_call_keeps_the_supplied_element_permissions() {
     let source = "
 data Buffer<Element, const N: u64> { items: [Element; N]; }

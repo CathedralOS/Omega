@@ -21,7 +21,7 @@ pub fn const_array_argument_matches(
     actual: semantic_vocabulary::StructuralTypeId,
     expected: semantic_vocabulary::StructuralTypeId,
 ) -> bool {
-    dependent_argument_matches(module, caller, callee, arguments, actual, expected, false)
+    dependent_argument_matches(module, caller, callee, arguments, actual, expected, None)
 }
 
 /// A checked source correspondence supplies nominal equality; the lowered
@@ -100,7 +100,7 @@ pub fn nominal_argument_matches(
         arguments,
         row.actual,
         row.expected,
-        true,
+        Some(&row.const_arguments),
     )
 }
 
@@ -111,7 +111,7 @@ fn dependent_argument_matches(
     arguments: &[semantic_vocabulary::ValueId],
     actual: semantic_vocabulary::StructuralTypeId,
     expected: semantic_vocabulary::StructuralTypeId,
-    nominal: bool,
+    const_arguments: Option<&[terminal_psi::generic_calls::NominalConstArgument]>,
 ) -> bool {
     use terminal_psi::{ArrayExtent, StructuralTypeShape};
     if arguments.len() != callee.parameters.len() {
@@ -130,7 +130,8 @@ fn dependent_argument_matches(
         ) else {
             if identical
                 && module
-                    .types.structural_referents
+                    .types
+                    .structural_referents
                     .iter()
                     .any(|referent| referent.id == expected && referent.abstract_opaque)
             {
@@ -177,11 +178,11 @@ fn dependent_argument_matches(
                 || expected.quotient_carrier.is_some()
                 || actual.scalar_restriction.is_some()
                 || expected.scalar_restriction.is_some()
-                || actual.requires != expected.requires)
+                || !dependent_requirements_match(actual, expected, callee, const_arguments))
         {
             return false;
         }
-        if nominal {
+        if const_arguments.is_some() {
             if let (
                 StructuralTypeShape::Reference {
                     referent: left,
@@ -299,6 +300,43 @@ fn dependent_argument_matches(
         pending.push((*ae, *ee));
     }
     true
+}
+
+fn dependent_requirements_match(
+    actual: &terminal_psi::StructuralTypeDeclaration,
+    expected: &terminal_psi::StructuralTypeDeclaration,
+    callee: &terminal_psi::TerminalMachine,
+    const_arguments: Option<&[terminal_psi::generic_calls::NominalConstArgument]>,
+) -> bool {
+    let Some(const_arguments) = const_arguments else {
+        return actual.requires == expected.requires;
+    };
+    if actual.requires.len() != expected.requires.len() {
+        return false;
+    }
+    // Record clauses retain their owning machine's const value IDs. Compare
+    // the callee's clauses after binding those IDs to the checked actuals.
+    let substitute = |value| {
+        const_arguments.iter().find_map(|argument| {
+            let formal = callee.parameters.get(argument.parameter as usize)?;
+            (formal.id == value).then_some(&argument.actual)
+        })
+    };
+    actual
+        .requires
+        .iter()
+        .zip(&expected.requires)
+        .all(|(actual, expected)| {
+            let mut bound = true;
+            let complete = expected.visit_value_ids(|value| bound &= substitute(value).is_some());
+            complete
+                && bound
+                && *actual
+                    == crate::substitution::substitute_proposition_values_with(
+                        expected,
+                        &substitute,
+                    )
+        })
 }
 
 pub mod callable_refinement;
