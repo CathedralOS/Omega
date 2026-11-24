@@ -8,7 +8,7 @@ aggregates and Microsoft x64 integer-class storage without consulting source
 declarations or provider selection.
 */
 
-use crate::{CallingPolicy, SystemVEightbyteClass, ValueClass, ValueShape};
+use crate::{CallingPolicy, ValueClass, ValueShape};
 
 /// The ABI position of an opaque value in the published movement plan.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -132,97 +132,19 @@ fn classify_boundary_aggregate(
         .ok_or_else(|| format!("shape root {root} is outside the normalized graph"))?;
     let mut leaves = Vec::new();
     collect_boundary_scalar_leaves(signature, root, 0, &mut leaves, 0)?;
-    if let Some(members) = homogeneous_float_leaf_shape(shape, &leaves) {
-        if policy.is_aapcs64()
-            || (policy == CallingPolicy::SystemVAMD64 && members > 1 && shape.byte_size <= 16)
-        {
-            return Ok(ValueClass::HomogeneousFloatAggregate { members });
-        }
-        if policy == CallingPolicy::SystemVAMD64 && members == 1 {
-            return Ok(ValueClass::Float);
-        }
-    }
-    if policy == CallingPolicy::DarwinAapcs64 {
-        return Ok(ValueClass::IntegerAggregate);
-    }
-    if policy != CallingPolicy::SystemVAMD64 || shape.byte_size > 16 {
-        return Ok(ValueClass::Integer);
-    }
-    let mut classes = [None, None];
-    for &(offset, byte_size, is_float) in &leaves {
-        let eightbyte = usize::from(offset) / 8;
-        let last = usize::from(offset)
-            .checked_add(usize::from(byte_size))
-            .and_then(|end| end.checked_sub(1))
-            .ok_or_else(|| "aggregate contains a zero-width scalar leaf".to_owned())?;
-        if eightbyte > 1 || eightbyte != last / 8 {
-            return Err(
-                "aggregate has a scalar leaf crossing a SysV eightbyte boundary".to_owned(),
-            );
-        }
-        classes[eightbyte] = Some(match classes[eightbyte] {
-            Some(existing_is_sse) => existing_is_sse && is_float,
-            None => is_float,
-        });
-    }
-    let first = classes[0].ok_or_else(|| "aggregate has no scalar leaves".to_owned())?;
-    let second = if shape.byte_size > 8 {
-        classes[1].ok_or_else(|| "aggregate leaves do not cover its second eightbyte".to_owned())?
-    } else {
-        false
-    };
-    if !first && !second {
-        return Ok(ValueClass::Integer);
-    }
-    if shape.byte_size <= 8 {
-        return Err(
-            "one-eightbyte non-homogeneous SSE aggregates are not representable in the closed ABI vocabulary"
-                .to_owned(),
-        );
-    }
-    Ok(ValueClass::SystemVAggregate {
-        first: if first {
-            SystemVEightbyteClass::Sse
-        } else {
-            SystemVEightbyteClass::Integer
-        },
-        second: if second {
-            SystemVEightbyteClass::Sse
-        } else {
-            SystemVEightbyteClass::Integer
-        },
-    })
-}
-
-fn homogeneous_float_leaf_shape(
-    aggregate: &BoundaryValueShape,
-    leaves: &[(u16, u16, bool)],
-) -> Option<u8> {
-    let &(first_offset, member_size, true) = leaves.first()? else {
-        return None;
-    };
-    let members = u8::try_from(leaves.len()).ok()?;
-    (first_offset == 0
-        && (1..=4).contains(&members)
-        && matches!(member_size, 4 | 8)
-        && leaves
-            .iter()
-            .enumerate()
-            .all(|(index, &(offset, size, is_float))| {
-                is_float
-                    && size == member_size
-                    && usize::from(offset) == index * usize::from(member_size)
-            })
-        && aggregate.byte_size == member_size * u16::from(members)
-        && aggregate.alignment == member_size)
-        .then_some(members)
+    crate::structural_shapes::classify_scalar_leaves(
+        &leaves,
+        ValueShape::integer(u32::from(shape.byte_size), shape.alignment),
+        policy,
+    )
+    .map_err(str::to_owned)
 }
 
 fn collect_boundary_scalar_leaves(
     signature: &BoundaryValueGraph<'_>,
     root: u16,
     base_offset: u16,
-    leaves: &mut Vec<(u16, u16, bool)>,
+    leaves: &mut Vec<(u32, u32, bool)>,
     depth: usize,
 ) -> Result<(), String> {
     if depth > 32 {
@@ -234,9 +156,11 @@ fn collect_boundary_scalar_leaves(
         .ok_or_else(|| format!("shape root {root} is outside the normalized graph"))?;
     match shape.class {
         BoundaryValueClass::Integer | BoundaryValueClass::Reference => {
-            leaves.push((base_offset, shape.byte_size, false));
+            leaves.push((u32::from(base_offset), u32::from(shape.byte_size), false));
         }
-        BoundaryValueClass::Float => leaves.push((base_offset, shape.byte_size, true)),
+        BoundaryValueClass::Float => {
+            leaves.push((u32::from(base_offset), u32::from(shape.byte_size), true))
+        }
         BoundaryValueClass::FixedArray { element, length } => {
             let element_shape = signature
                 .shapes
