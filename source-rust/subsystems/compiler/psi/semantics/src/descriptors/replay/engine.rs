@@ -276,6 +276,8 @@ pub(crate) struct PreparedStates {
     pub(crate) arrivals: States,
     pub(crate) invocations: InvocationStates,
     pub(crate) normal_exits: States,
+    #[cfg(test)]
+    visits: usize,
 }
 
 pub(crate) enum PreparedStateCache {
@@ -2978,7 +2980,7 @@ impl<'a> Replay<'a> {
             None,
             "descriptor case graph or invocation owners are incomplete",
         );
-        super::case_flow::validate_graph(self, machine)?;
+        let order = super::case_flow::validate_graph(self, machine)?;
         let normal_exit_positions = machine
             .normal_exits
             .iter()
@@ -3041,9 +3043,18 @@ impl<'a> Replay<'a> {
         let mut arrivals = States::new();
         let mut invocation_states = InvocationStates::new();
         let mut normal_exits = States::new();
-        let mut pending = vec![machine.entry];
+        // Visit a branch join after its acyclic predecessors. A backedge still
+        // requeues a changed state, and several arrivals only queue it once.
+        let ranks: BTreeMap<_, _> = order
+            .iter()
+            .copied()
+            .enumerate()
+            .map(|(rank, point)| (point, rank))
+            .collect();
+        let mut pending = BTreeSet::from([ranks[&machine.entry]]);
         let mut visits = 0usize;
-        while let Some(position) = pending.pop() {
+        while let Some(rank) = pending.pop_last() {
+            let position = order[rank];
             *failure = incomplete(
                 Some(position),
                 "descriptor state replay did not stabilize within its bound",
@@ -3264,11 +3275,11 @@ impl<'a> Replay<'a> {
                 match states.get_mut(&edge.target) {
                     None => {
                         states.insert(edge.target, carried);
-                        pending.push(edge.target);
+                        pending.insert(ranks[&edge.target]);
                     }
                     Some(existing) => {
                         if merge_state(existing, &carried) {
-                            pending.push(edge.target);
+                            pending.insert(ranks[&edge.target]);
                         }
                     }
                 }
@@ -3282,6 +3293,8 @@ impl<'a> Replay<'a> {
                 arrivals,
                 invocations: invocation_states,
                 normal_exits,
+                #[cfg(test)]
+                visits,
             }),
         );
         Some(states)

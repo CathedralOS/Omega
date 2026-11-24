@@ -229,10 +229,10 @@ pub fn normal_completion_possible(
     )
 }
 
-pub fn finished_order(
-    entry: BlockId,
-    successor: impl Fn(BlockId, usize) -> Option<BlockId>,
-) -> Vec<BlockId> {
+pub fn finished_order<Node: Ord + Copy>(
+    entry: Node,
+    successor: impl Fn(Node, usize) -> Option<Node>,
+) -> Vec<Node> {
     let mut entered = BTreeSet::from([entry]);
     let mut finished = Vec::new();
     let mut pending = vec![(entry, 0usize)];
