@@ -3,6 +3,7 @@ use super::scheme_dsl::{
     sup, ty, v, w,
 };
 use super::signature::Declaration;
+use super::substitution::relocate_constants;
 use super::term::{Level, Term, TermArena, TermHandle};
 
 macro_rules! pi {
@@ -436,8 +437,28 @@ pub fn indexed_scheme(arena: &mut TermArena) -> Vec<Declaration> {
     ]
 }
 
+/// The scheme for a signature that holds it at positions `base..base + 5`.
+/// Its five declarations name only each other, so each is the declaration
+/// of [`indexed_scheme`] with its constants moved by `base`. A family over
+/// it carries the same `base` ([`IndexedFamily::base`]).
+pub fn indexed_scheme_at(arena: &mut TermArena, base: u32) -> Vec<Declaration> {
+    indexed_scheme(arena)
+        .into_iter()
+        .map(|declaration| Declaration {
+            level_arity: declaration.level_arity,
+            ty: relocate_constants(arena, declaration.ty, base),
+            body: declaration
+                .body
+                .map(|body| relocate_constants(arena, body, base)),
+        })
+        .collect()
+}
+
 #[derive(Clone, Debug)]
 pub struct IndexedFamily {
+    /// Where the scheme's five declarations start in the signature the
+    /// family is used with: zero for [`indexed_scheme`].
+    pub base: u32,
     pub levels: [Level; 3],
     pub index: TermHandle,
     pub carrier: TermHandle,
@@ -455,7 +476,7 @@ impl IndexedFamily {
         arguments: &[TermHandle],
     ) -> TermHandle {
         let constant = arena.insert(Term::Constant {
-            declaration,
+            declaration: self.base + declaration,
             levels,
         });
         let instantiated = arena.apply_arguments(

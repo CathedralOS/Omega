@@ -155,6 +155,10 @@ pub(crate) struct FamilyTheorem {
     pub(crate) ensures: Vec<Proposition>,
     /// One per case of the family, in declared order.
     pub(crate) cases: Vec<FamilyTheoremCase>,
+    /// The index the theorem is ranked on (`terminates by Length`), by its
+    /// position among the family's indices. A theorem that cites itself has
+    /// one, and its type is unsigned.
+    pub(crate) rank: Option<u32>,
 }
 
 /// What a theorem's body does in one case of the family.
@@ -410,10 +414,51 @@ impl Program<'_> {
             .into_iter()
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| unserved("theorem dispatch without an arm for every case"))?;
+        // A citation of the theorem at a child rests on the theorem's rank
+        // being smaller there: one of its indices, which counts down to
+        // zero only if it cannot be negative.
+        let rank =
+            match crate::source_state::ranking::resolve_machine_witness_subjects(typed, machine)
+                .as_deref()
+            {
+                None | Some([]) => None,
+                Some([subject]) => {
+                    let position = match typed.expression_table.expression(*subject) {
+                        ExpressionNode::Name(path) => {
+                            values.iter().position(|value| *value == path.symbol)
+                        }
+                        _ => None,
+                    }
+                    .ok_or_else(|| {
+                        unserved(
+                            "theorem over indexed data ranked on other than one of its indices",
+                        )
+                    })?;
+                    if family.indices[position].integer.sign()
+                        != semantic_vocabulary::IntegerSign::Unsigned
+                    {
+                        return Err(unserved(
+                            "theorem over indexed data ranked on an index that may be negative",
+                        ));
+                    }
+                    Some(position as u32)
+                }
+                Some(_) => {
+                    return Err(unserved(
+                        "theorem over indexed data ranked on other than one of its indices",
+                    ));
+                }
+            };
+        if rank.is_none() && cases.iter().any(|case| case.cited.contains(&true)) {
+            return Err(unserved(
+                "theorem over indexed data that cites itself without a rank",
+            ));
+        }
         Ok(FamilyTheorem {
             record: family.record,
             ensures,
             cases,
+            rank,
         })
     }
 

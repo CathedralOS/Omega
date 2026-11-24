@@ -355,3 +355,41 @@ machine sign_of(value: Sign) -> Representative {
         "{verdicts:?}"
     );
 }
+
+const BOUND: &str =
+    include_str!("../../tests/fixtures/indexed_family/pass/vector_sum_bound/main.omg");
+
+#[test]
+fn a_program_may_hold_a_quotient_and_data_indexed_by_values() {
+    // Both rest on declarations of the kernel's own. The quotient's come
+    // first in the signature, and the family names its five from where they
+    // start, so the vector's theorem is judged beside the quotient's laws.
+    let start = BOUND.find("data Vector").expect("the fixture's data");
+    let end = BOUND.find("data Main").expect("the fixture's entry state");
+    let source = format!("{}{}", proofs(CLASS), &BOUND[start..end]);
+    let alone = judged(&proofs(CLASS));
+    let verdicts = judged(&source);
+    let judgment = signature(&verdicts);
+    assert_eq!(judgment.laws.len(), signature(&alone).laws.len() + 1);
+    assert!(
+        matches!(judged_laws(judgment, "vector_bound").as_slice(), [_]),
+        "{judgment:?}"
+    );
+
+    // The bound one element can break is still refused in its case.
+    let tight = source.replace("10 * embed(Length)", "9 * embed(Length)");
+    assert_ne!(tight, source);
+    let verdicts = judged(&tight);
+    let unproved: Vec<_> = verdicts
+        .iter()
+        .filter_map(|verdict| match verdict {
+            RouteVerdict::UnprovedLaws(laws) => Some(laws),
+            _ => None,
+        })
+        .flatten()
+        .collect();
+    assert!(
+        matches!(unproved.as_slice(), [law] if law.machine == "vector_bound"),
+        "{verdicts:?}"
+    );
+}

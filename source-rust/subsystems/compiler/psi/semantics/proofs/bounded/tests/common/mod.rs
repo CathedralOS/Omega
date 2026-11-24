@@ -511,6 +511,7 @@ pub(crate) fn vector_next_index(arena: &mut TermArena) -> TermHandle {
 /// `Vec n = IW Nat A B out next n` with the computed description above.
 pub(crate) fn vector_family(arena: &mut TermArena) -> IndexedFamily {
     IndexedFamily {
+        base: 0,
         levels: [Level::Constant(0), Level::Constant(0), Level::Constant(0)],
         index: nat(arena),
         carrier: carrier(arena, elem_nat_payload),

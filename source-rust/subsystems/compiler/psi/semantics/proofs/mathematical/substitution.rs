@@ -27,7 +27,11 @@ pub fn substitute(arena: &mut TermArena, body: TermHandle, argument: TermHandle)
 
 /// Replace every free variable of `term` by a term of the caller's context.
 /// `arguments` lists them outermost first, so the last one replaces index 0.
-pub fn instantiate(arena: &mut TermArena, term: TermHandle, arguments: &[TermHandle]) -> TermHandle {
+pub fn instantiate(
+    arena: &mut TermArena,
+    term: TermHandle,
+    arguments: &[TermHandle],
+) -> TermHandle {
     let mut term = term;
     for (outer, &argument) in arguments.iter().enumerate().rev() {
         let outer = u32::try_from(outer).expect("a telescope fits the variable index width");
@@ -43,6 +47,17 @@ pub fn instantiate_levels(
     arguments: &[Level],
 ) -> Result<TermHandle, u32> {
     remap(arena, term, 0, Remapping::Levels { arguments })
+}
+
+/// The same term with every constant naming the declaration `offset` places
+/// later. A block of declarations that name only each other, moved as a
+/// whole to start at `offset`, means what it meant at zero.
+pub fn relocate_constants(arena: &mut TermArena, term: TermHandle, offset: u32) -> TermHandle {
+    if offset == 0 {
+        return term;
+    }
+    remap(arena, term, 0, Remapping::Constants { offset })
+        .expect("moving a constant has no universe parameters to refuse")
 }
 
 /// The universe telescope needed by these terms, without opening declaration
@@ -90,11 +105,12 @@ enum Remapping<'a> {
     Shift { amount: u32 },
     Substitute { argument: TermHandle },
     Levels { arguments: &'a [Level] },
+    Constants { offset: u32 },
 }
 
 impl Remapping<'_> {
     fn preserves(self, arena: &TermArena, term: TermHandle, scope: u32) -> bool {
-        !matches!(self, Self::Levels { .. })
+        !matches!(self, Self::Levels { .. } | Self::Constants { .. })
             && arena
                 .required_bindings(term)
                 .is_some_and(|required| required <= scope)
@@ -102,19 +118,14 @@ impl Remapping<'_> {
 
     fn child_scope(self, scope: u32, binders: u32) -> u32 {
         match self {
-            Self::Levels { .. } => 0,
+            Self::Levels { .. } | Self::Constants { .. } => 0,
             Self::Shift { .. } | Self::Substitute { .. } => scope
                 .checked_add(binders)
                 .expect("term binder depth overflow"),
         }
     }
 
-    fn leaf(
-        self,
-        arena: &mut TermArena,
-        term: TermHandle,
-        scope: u32,
-    ) -> Result<TermHandle, u32> {
+    fn leaf(self, arena: &mut TermArena, term: TermHandle, scope: u32) -> Result<TermHandle, u32> {
         match (self, arena.node(term)) {
             (Self::Shift { amount }, Term::Variable(index)) if *index >= scope => {
                 let index = index.checked_add(amount).expect("variable shift overflow");
@@ -148,6 +159,22 @@ impl Remapping<'_> {
                     .iter()
                     .map(|level| instantiate_level(level, arguments))
                     .collect::<Result<Vec<_>, _>>()?;
+                Ok(arena.insert(Term::Constant {
+                    declaration,
+                    levels,
+                }))
+            }
+            (
+                Self::Constants { offset },
+                Term::Constant {
+                    declaration,
+                    levels,
+                },
+            ) => {
+                let declaration = declaration
+                    .checked_add(offset)
+                    .expect("declaration position overflow");
+                let levels = levels.clone();
                 Ok(arena.insert(Term::Constant {
                     declaration,
                     levels,

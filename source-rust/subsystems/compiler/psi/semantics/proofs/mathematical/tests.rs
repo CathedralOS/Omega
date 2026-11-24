@@ -5094,6 +5094,7 @@ fn two_indexed_family(arena: &mut TermArena) -> IndexedFamily {
         lambda(arena, domain, inner)
     };
     IndexedFamily {
+        base: 0,
         levels: [Level::Constant(0), Level::Constant(0), Level::Constant(0)],
         index,
         carrier,
@@ -5274,6 +5275,23 @@ fn quotient_signature(arena: &mut TermArena) -> Signature {
     let mut budget = default_budget();
     let declarations = quotient_scheme(arena);
     check_signature(arena, &declarations, &mut budget).unwrap()
+}
+
+#[test]
+fn the_indexed_scheme_checks_after_the_quotient_scheme() {
+    // A program with a quotient and indexed data holds both schemes. The
+    // quotient's declarations come first and the indexed scheme's five name
+    // each other from where they start.
+    let mut arena = TermArena::new();
+    let mut declarations = quotient_scheme(&mut arena);
+    let base = u32::try_from(declarations.len()).unwrap();
+    declarations.extend(crate::indexed_scheme_at(&mut arena, base));
+    check_signature(&mut arena, &declarations, &mut default_budget()).unwrap();
+    // Moved one place too few, each constant names the declaration before
+    // the one it means.
+    let mut misplaced = quotient_scheme(&mut arena);
+    misplaced.extend(crate::indexed_scheme_at(&mut arena, base - 1));
+    assert!(check_signature(&mut arena, &misplaced, &mut default_budget()).is_err());
 }
 
 fn is_set_zero(arena: &mut TermArena, ty: TermHandle) -> TermHandle {

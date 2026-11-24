@@ -428,6 +428,7 @@ fn next_index(arena: &mut TermArena) -> TermHandle {
 /// The derivation family: `Deriv ⟨Γ, φ⟩ = IW I A B out next ⟨Γ, φ⟩`.
 fn derivation_family(arena: &mut TermArena) -> IndexedFamily {
     IndexedFamily {
+        base: 0,
         levels: [Level::Constant(0), Level::Constant(0), Level::Constant(0)],
         index: judgment_type(arena),
         carrier: carrier(arena),

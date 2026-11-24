@@ -1481,19 +1481,33 @@ stages 03 and 04. What is built:
   type and left it unresolved, and the package review then refused the whole
   sample ("a stale declaration in a carried type"). Stage 02 now binds a
   name written where applied data takes a value to the definition's binder.
-- **Not done:**
-  - A running machine names an index or a payload value only as a number or
-    one of its own value parameters. A computed index (`Vector<Length + 1,
-    ..>`), a local or a formal there is refused by name. Evidence is built
-    only in an erased local of the machine's own statements, and evidence
-    returned from a machine or held in a field of other data is not read.
-  - The index a theorem is ranked on is not checked to get smaller. The
-    induction is over the evidence and does not need it; showing it for the
-    tree needs the fact that an unsigned value is not negative, which the
-    integer vocabulary does not carry yet.
-  - A program with both a quotient and indexed data, a case the `requires`
-    say nothing of, and a theorem body of any other shape than one dispatch
-    whose arms call a step.
+- **The rank.** A theorem that cites itself states the index it is ranked
+  on, and each cited child's value of it is shown to be smaller. For the
+  tree that needs `0 <= right`, so each case carries, for this check only,
+  that its unsigned values are not negative, and the integer search learned
+  two steps: `a <= a`, and a sum is at least one part when the other is not
+  negative. The second rests on two new trusted identities, `a + 0 = a` and
+  `0 + a = a`, each tested against computed arithmetic as the distributive
+  law is.
+- **A quotient and indexed data in one program.** Both rest on declarations
+  of the kernel's own. The quotient's come first and the indexed scheme's
+  five follow, each constant moved to where the scheme starts
+  (`indexed_scheme_at`, `IndexedFamily::base`).
+- **Not done, each waiting on something outside the proof layer:**
+  - A computed index (`Vector<Length + 1, ..>`). The compiler refuses any
+    operator in a static argument of a generic machine once the machine is
+    copied for closed values (`inner::<Count + 1>()` gives "admitted source
+    selection Operator remains unresolved as CheckedOperator"), with or
+    without indexed data. When that works, the evidence reader must read a
+    sum as an index and prove two indices equal where it now compares them
+    as written.
+  - Evidence held in a field of other data: the ordinary reader refuses any
+    data with an erased field.
+  - Evidence is not a machine's result. A result is a value that runs, and
+    the compiler refuses a runtime use of an erased binding; a definition
+    that returns its argument (`retain`) hands evidence on instead.
+  - A case the `requires` say nothing of, and a theorem body of any other
+    shape than one dispatch whose arms call a step.
 
 The first version of this plan started with level binders and value-indexed
 type arguments because they move 66 samples. They move those samples to

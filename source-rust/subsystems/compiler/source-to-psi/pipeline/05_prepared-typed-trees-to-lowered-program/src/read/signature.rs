@@ -189,6 +189,7 @@ impl Program<'_> {
             held: Vec::new(),
             stating_premises: false,
             integers: None,
+            indexed_scheme: 0,
             families: Vec::new(),
         };
         let mut refused = Vec::new();
@@ -206,16 +207,16 @@ impl Program<'_> {
             }
         }
         // Data indexed by values needs the kernel's indexed-family
-        // declarations, which it also numbers from zero, and an integer
-        // vocabulary for the indices.
+        // declarations and an integer vocabulary for the indices. The
+        // family names those declarations from where they start, so they
+        // follow the quotient's when the program has both.
         if !self.families.is_empty() {
-            if !self.quotients.is_empty() {
-                return Err(vec![unserved(
-                    diagnostic,
-                    "program with both a quotient and data indexed by values",
-                )]);
-            }
-            for declaration in mathematical_kernel::indexed_scheme(&mut converter.signature.arena) {
+            converter.indexed_scheme = index(diagnostic, converter.signature.declarations.len())
+                .map_err(|refusal| vec![refusal])?;
+            for declaration in mathematical_kernel::indexed_scheme_at(
+                &mut converter.signature.arena,
+                converter.indexed_scheme,
+            ) {
                 converter.push(
                     declaration,
                     SignatureEntryKind::Scheme,
@@ -583,6 +584,8 @@ struct Converter<'p, 't> {
     /// The integer vocabulary, declared when the program has data indexed
     /// by values.
     integers: Option<proof_admission::SourceIntegerTheory>,
+    /// Where the kernel's indexed-family declarations start.
+    indexed_scheme: u32,
     /// Each data declaration indexed by values, as it was declared.
     families: Vec<FamilyDeclared>,
 }
@@ -1692,7 +1695,11 @@ impl<'p> Converter<'p, '_> {
             cases: described,
             level_arity: 0,
         }
-        .declare(&mut self.signature.arena, &mut self.signature.declarations)
+        .declare_at(
+            &mut self.signature.arena,
+            &mut self.signature.declarations,
+            self.indexed_scheme,
+        )
         .map_err(|_| unserved(id, "indexed data the kernel's family builder refuses"))?;
         let name = self.name(family.declaration);
         self.sync(&name);
@@ -1870,8 +1877,15 @@ impl<'p> Converter<'p, '_> {
             .at(&mut self.signature.arena, &[])
             .map_err(|_| unserved(id, "indexed data the kernel's family builder refuses"))?;
         // What each step requires, per case, under the indices and the
-        // case's payload.
+        // case's payload; and, for the theorem's rank, that it is smaller
+        // at each child the step cites.
+        let zero = self.integer_literal(id, bignum::BigInt::from_u128(0))?;
+        let one = self.integer_literal(id, bignum::BigInt::from_u128(1))?;
+        let unsigned = |value: &super::families::FamilyValue| {
+            value.integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
+        };
         let mut owed = Vec::with_capacity(theorem.cases.len());
+        let mut ranked = Vec::with_capacity(theorem.cases.len());
         for ((case, read), terms) in source.cases.iter().zip(&theorem.cases).zip(&declared.cases) {
             let total = indices + terms.payload;
             let index_terms: Vec<_> = (0..indices)
@@ -1897,6 +1911,34 @@ impl<'p> Converter<'p, '_> {
                 self.integer_proposition(id, proposition, &scope, &mut required)?;
             }
             owed.push(required);
+            let at_most = self.constant(vocabulary.less_or_equal);
+            let add = self.constant(vocabulary.add);
+            let mut natural = Vec::new();
+            let held = source.indices.iter().zip(&index_terms).chain(
+                case.payload
+                    .iter()
+                    .zip(payload_terms.iter().map(|(_, term)| term)),
+            );
+            for (value, &term) in held {
+                if unsigned(value) {
+                    natural.push(self.signature.arena.apply_arguments(at_most, &[zero, term]));
+                }
+            }
+            let mut descent = Vec::new();
+            if let Some(rank) = theorem.rank {
+                for (child, _) in read.cited.iter().enumerate().filter(|(_, cited)| **cited) {
+                    let smaller = *terms
+                        .children
+                        .get(child)
+                        .and_then(|at| at.get(rank as usize))
+                        .ok_or_else(|| unserved(id, "cited child without the ranked index"))?;
+                    let arena = &mut self.signature.arena;
+                    let next = arena.apply_arguments(add, &[smaller, one]);
+                    descent
+                        .push(arena.apply_arguments(at_most, &[next, index_terms[rank as usize]]));
+                }
+            }
+            ranked.push((natural, descent));
         }
         let mut laws = Vec::with_capacity(theorem.ensures.len());
         for (clause, proposition) in theorem.ensures.iter().enumerate() {
@@ -1984,15 +2026,20 @@ impl<'p> Converter<'p, '_> {
                         .iter()
                         .zip(&theorem.cases)
                         .zip(owed.iter().zip(&source.cases))
-                        .map(|((terms, read), (owed, case))| FamilyLawCase {
-                            name: format!("{}::{}", self.name(source.declaration), case.name),
-                            payload: terms.payload,
-                            constraints: terms.constraints.clone(),
-                            children: terms.children.clone(),
-                            cited: read.cited.clone(),
-                            owed: owed.clone(),
-                            source: read.source,
-                        })
+                        .zip(&ranked)
+                        .map(
+                            |(((terms, read), (owed, case)), (natural, descent))| FamilyLawCase {
+                                natural: natural.clone(),
+                                descent: descent.clone(),
+                                name: format!("{}::{}", self.name(source.declaration), case.name),
+                                payload: terms.payload,
+                                constraints: terms.constraints.clone(),
+                                children: terms.children.clone(),
+                                cited: read.cited.clone(),
+                                owed: owed.clone(),
+                                source: read.source,
+                            },
+                        )
                         .collect(),
                 },
                 formal_names: source

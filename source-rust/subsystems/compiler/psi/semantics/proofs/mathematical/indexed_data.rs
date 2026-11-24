@@ -62,9 +62,11 @@
 //! projection recovers the payload. A single case, or payloads at `Type0`,
 //! need no padding.
 //!
-//! The scheme's five declarations must sit at positions 0..5 of the caller's
-//! declarations (`indexed_scheme`), because [`IndexedFamily`] names them by
-//! those positions.
+//! The scheme's five declarations sit together in the caller's declarations:
+//! at positions 0..5 (`indexed_scheme`, with [`IndexedData::declare`]), or
+//! from any other position (`indexed_scheme_at`, with
+//! [`IndexedData::declare_at`]). [`IndexedFamily`] names them from where
+//! they start.
 
 use crate::conversion::{Budget, DEFAULT_CONVERSION_STEPS};
 use crate::indexed::IndexedFamily;
@@ -912,6 +914,7 @@ fn describe(
     arena: &mut TermArena,
     declarations: &mut Vec<Declaration>,
     uniform: &[u32],
+    scheme: u32,
 ) -> Result<(IndexedFamily, Level, Vec<TermHandle>), IndexedDataError> {
     let mut b = Builder::new(data, &[], Level::Constant(0), &[]);
     // Close every entire case type over the shared telescope. A constraint
@@ -963,6 +966,7 @@ fn describe(
     }
     let mut scope = uniform.iter().copied().map(Key::Named).collect::<Vec<_>>();
     let family = IndexedFamily {
+        base: scheme,
         levels: [index_level, carrier_level, Level::Constant(0)],
         index: index.term(arena, &mut scope)?,
         carrier: carrier.term(arena, &mut scope)?,
@@ -1045,6 +1049,17 @@ impl IndexedData {
         arena: &mut TermArena,
         declarations: &mut Vec<Declaration>,
     ) -> Result<DeclaredIndexedData, IndexedDataError> {
+        self.declare_at(arena, declarations, 0)
+    }
+
+    /// [`Self::declare`] for a signature that holds `indexed_scheme_at` from
+    /// position `scheme`.
+    pub fn declare_at(
+        self,
+        arena: &mut TermArena,
+        declarations: &mut Vec<Declaration>,
+        scheme: u32,
+    ) -> Result<DeclaredIndexedData, IndexedDataError> {
         let uniform = self
             .uniform_parameters()
             .map(|p| p.name)
@@ -1054,7 +1069,7 @@ impl IndexedData {
             .map(|p| p.domain)
             .collect::<Vec<_>>();
         let (family, payload_level, payload_lifts) =
-            describe(&self, arena, declarations, &uniform)?;
+            describe(&self, arena, declarations, &uniform, scheme)?;
         let family = intern(arena, declarations, family, &domains, self.level_arity);
         Ok(DeclaredIndexedData {
             data: self,
@@ -1087,6 +1102,7 @@ impl DeclaredIndexedData {
         }
         let template = &self.family;
         let family = IndexedFamily {
+            base: template.base,
             levels: template.levels.clone(),
             index: arena.apply_arguments(template.index, uniform),
             carrier: arena.apply_arguments(template.carrier, uniform),
