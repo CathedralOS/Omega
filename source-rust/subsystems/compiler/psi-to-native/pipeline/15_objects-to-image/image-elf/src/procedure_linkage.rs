@@ -561,20 +561,13 @@ pub(crate) mod dynamic_import_relocations {
             hash.bytes(&(relocation.request_index as u64).to_le_bytes());
             hash.bytes(&relocation.dynamic_symbol_index.to_le_bytes());
             hash.bytes(&relocation.relocation_type.to_le_bytes());
-            hash.byte(section_tag(relocation.source_section));
+            hash.byte(crate::dynamic_executable::image_section_tag(
+                relocation.source_section,
+            ));
             hash.bytes(&(relocation.source_offset as u64).to_le_bytes());
             hash.bytes(&relocation.addend.to_le_bytes());
         }
         hash.finish()
-    }
-
-    const fn section_tag(section: FinalImageSection) -> u8 {
-        match section {
-            FinalImageSection::Text => 1,
-            FinalImageSection::Data => 2,
-            FinalImageSection::Bss => 3,
-            FinalImageSection::None => 4,
-        }
     }
 
     #[cfg(test)]

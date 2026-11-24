@@ -1,9 +1,9 @@
 /*
 We define the closed object target policy matrix (`object_target_policy`),
-mapping each of the five supported `(architecture, object_format)` pairs to its
-canonical process-entry spelling, section names, and text-section alignment.
-Undeclared pairs such as `(Aarch64, Coff)` return `None` rather than matching a
-format wildcard.
+mapping each `(architecture, object_format)` pair to its canonical
+process-entry spelling, section names, and text-section alignment. Every pair
+has a row; `(Aarch64, Coff)` serves `windows_arm64`. The match is exhaustive,
+so a new architecture or object format must declare its own row.
 */
 
 use target::{Architecture, NativeTarget, ObjectFormat};
