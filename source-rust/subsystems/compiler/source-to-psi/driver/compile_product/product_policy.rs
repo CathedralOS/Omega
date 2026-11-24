@@ -76,6 +76,14 @@ pub(super) fn admit_product_policy(
                 | BuildOperation::TestGroupRegistration
         ) || super::provider_requests::has_product_application(request)
     })?;
+    // A test product obtains its provider events from the exact registered group.
+    // Its groups must therefore close their own applications before that choice.
+    provider_requests::prepare_product_applications(
+        typed,
+        &formations,
+        request.executed,
+        |operation| operation == BuildOperation::TestGroupRegistration,
+    )?;
     let providers = provider_requests::admit_product_provider_requests(
         typed,
         activation,
