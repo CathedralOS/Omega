@@ -127,43 +127,15 @@ impl ResolveAndTypeRequest {
     }
 
     pub(crate) fn prepare(
-        self,
-        timings: &mut CompileTimings,
-    ) -> Result<SourceTypingCheckpoint, Vec<Diagnostic>> {
-        self.prepare_build_projection(timings, None, Vec::new())
-    }
-
-    pub(crate) fn resolve_build_scope(
-        &self,
-        timings: &mut CompileTimings,
-    ) -> Result<resolution::DeferredResolvedFrontier, Vec<Diagnostic>> {
-        resolve_build_bodies(
-            resolution::ResolutionRequest {
-                syntax: self.syntax.trees.clone(),
-                sources: Some(Arc::clone(&self.sources)),
-                top_level_bindings: self.top_level_bindings.clone(),
-                retained_base: None,
-            },
-            timings,
-        )
-    }
-
-    pub(crate) fn prepare_build_projection(
         mut self,
         timings: &mut CompileTimings,
-        resolved: Option<resolution::DeferredResolvedFrontier>,
-        parked: Vec<crate::source_state::ParkedBuildLocals>,
     ) -> Result<SourceTypingCheckpoint, Vec<Diagnostic>> {
         let context = SourceContext {
             bindings: self.top_level_bindings.clone(),
             declaration_scope: self.selection_authority.clone(),
             build_helper_identity: self.build_helper_identity.into(),
         };
-        let activation = if resolved.is_none() {
-            activation::select_retained_source(&self, &context, &parked, timings)?
-        } else {
-            None
-        };
+        let activation = activation::select_retained_source(&self, &context, timings)?;
         if let Some(activation) = &activation {
             activation.remove_retained_syntax(&mut self.syntax.trees, &self.source_items);
         }
@@ -191,18 +163,15 @@ impl ResolveAndTypeRequest {
             )?;
             (typing, frontier, activation.pre_checks)
         } else {
-            let frontier = match resolved {
-                Some(frontier) => frontier,
-                None => resolve_build_bodies(
-                    resolution::ResolutionRequest {
-                        syntax,
-                        sources: Some(self.sources),
-                        top_level_bindings: self.top_level_bindings,
-                        retained_base: None,
-                    },
-                    timings,
-                )?,
-            };
+            let frontier = resolve_build_bodies(
+                resolution::ResolutionRequest {
+                    syntax,
+                    sources: Some(self.sources),
+                    top_level_bindings: self.top_level_bindings,
+                    retained_base: None,
+                },
+                timings,
+            )?;
             let typing = {
                 timings
                     .record_result(stages::TYPE, || {
@@ -230,9 +199,6 @@ impl ResolveAndTypeRequest {
                 .record_result(stages::TYPE, || type_completed_bodies(typing, completed))
                 .map_err(|rows| DiagnosticStage::Typing.attribute(rows))?;
         }
-        typing.typed_mut().roots.partial_build_entry = self.syntax.partial_build_entry;
-        typing.typed_mut().roots.partial_build_can_return = self.syntax.partial_build_can_return;
-        typing.typed_mut().parked_build_locals = parked;
         PreCheckEvaluation::defer_declared_requests(typing.typed_mut())?;
         if let Some(retained_requests) = retained_requests {
             PreCheckEvaluation::require_recorded_requests(typing.typed())?;

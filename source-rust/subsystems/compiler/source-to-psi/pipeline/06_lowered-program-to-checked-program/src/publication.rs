@@ -281,22 +281,12 @@ mod tests {
     fn elaboration(
         publication: terminal_codec::TerminalPublication,
     ) -> crate::lowering::Elaboration {
-        elaboration_with(publication, "machine entry() crashes none {}", None)
+        elaboration_with(publication, "machine entry() crashes none {}")
     }
 
     fn elaboration_with(
         publication: terminal_codec::TerminalPublication,
         text: &str,
-        pending_call: Option<&str>,
-    ) -> crate::lowering::Elaboration {
-        elaboration_retaining(publication, text, pending_call, &[])
-    }
-
-    fn elaboration_retaining(
-        publication: terminal_codec::TerminalPublication,
-        text: &str,
-        pending_call: Option<&str>,
-        saved: &[&str],
     ) -> crate::lowering::Elaboration {
         let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0xa7; 32]).unwrap();
         let mut sources = crate::source_inputs::SourceMap::default();
@@ -322,29 +312,8 @@ mod tests {
             retained_base: None,
         })
         .unwrap();
-        let mut typed = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+        let typed = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
         let entry = typed.machines().at(0).symbol;
-        if let Some(name) = pending_call {
-            let start = text.find(name).unwrap();
-            typed
-                .parked_build_locals
-                .push(typed_trees::ParkedBuildLocals {
-                    entry: typed.symbols.symbol_source_span(entry).unwrap(),
-                    state: None,
-                    pending_completion_at: source_text::SourceSpan::new(
-                        source,
-                        source_text::Span::new(start, start + name.len()),
-                    ),
-                    declarations: saved
-                        .iter()
-                        .map(|name| {
-                            let start = text.find(name).unwrap();
-                            source_text::Span::new(start, start + name.len())
-                        })
-                        .collect(),
-                    deferred_subjects: Vec::new(),
-                });
-        }
         crate::lowering::elaborate_for(
             &typed,
             Compilation {
@@ -391,73 +360,79 @@ mod tests {
     }
 
     #[test]
-    fn a_projected_unit_entry_cannot_be_published_as_a_complete_program() {
-        // Passing an owned temporary gives the complete body a real
-        // post-call home-retirement edge. The parked body must leave before it.
+    fn a_suspending_call_keeps_the_normal_successor_for_owned_and_copied_arguments() {
         let source = "data Ticket MARK { code: i32; } machine entry() suspends { suspend pause(Ticket { code: 3 }); } machine pause(ticket: Ticket) suspends {}";
         for marker in ["", "[copy]"] {
             let source = source.replace("MARK", marker);
-            let publication = terminal_codec::TerminalPublication::Invocation;
-            let complete = elaboration_with(publication, &source, None);
-            let stated = elaboration_with(publication, &source, Some("pause"));
-            let RouteVerdict::AcceptedPrefix(closure) = crate::checking::judge(Ok(stated)).unwrap()
+            let stated = elaboration_with(terminal_codec::TerminalPublication::Invocation, &source);
+            let RouteVerdict::Accepted(closure) = crate::checking::judge(Ok(stated)).unwrap()
             else {
-                panic!("a projected unit entry still owes its suffix");
+                panic!("the call and its normal successor must check together");
             };
             let invocation = closure.publish_invocation().unwrap();
             let view = invocation.artifact.view();
-            let [(owner, call)] = view.pending_normal_completions() else {
-                panic!("the open entry must own exactly one mandatory wait");
+            assert!(view.pending_normal_completions().is_empty());
+            let entry = &view.module().machines[0];
+            let (block, call) = entry
+                .blocks
+                .iter()
+                .find_map(|block| {
+                    let call = block.operations.last()?;
+                    call.suspension_crossing.map(|_| (block, call))
+                })
+                .expect("the complete entry has one suspending call");
+            let [argument] = call.kind.structural_arguments() else {
+                panic!("the call passes the temporary Ticket");
             };
-            let full = complete.module.machine(*owner).unwrap();
-            assert!(full.blocks.iter().any(|block| {
-                block.operations.last().is_some_and(|op| op.id == *call)
-                    && matches!(block.terminator, terminal_psi::Terminator::Jump { .. })
-            }));
-            let RouteVerdict::Accepted(closure_full) =
-                crate::checking::judge(Ok(complete)).unwrap()
+            let terminal_psi::Terminator::Jump {
+                target,
+                cleanup_actions,
+                ..
+            } = &block.terminator
             else {
-                panic!("the ordinary call returns normally");
+                panic!("the call must reach its normal successor");
             };
-            let published_full = closure_full.publish_invocation().unwrap();
+            if marker == "[copy]" {
+                assert!(
+                    cleanup_actions.contains(
+                        &terminal_psi::TerminalAffineCleanupAction::RetireHome(argument.place)
+                    ),
+                    "{cleanup_actions:?}"
+                );
+            }
+            assert!(entry.blocks.iter().any(|next| next.id == *target
+                && matches!(next.terminator, terminal_psi::Terminator::ReturnUnit { .. })));
             terminal_semantics::continuation::CheckedPrefix::check(
                 view.module(),
-                (*owner, *call),
-                published_full.artifact.view().module(),
-                (*owner, *call),
+                (entry.id, call.id),
+                view.module(),
+                (entry.id, call.id),
             )
-            .expect("the outgoing call parks everything its real normal successor retires");
-            assert_eq!(*owner, view.module().machines[0].id);
-            assert!(view.closed_module().is_none());
-            assert!(closure.publish().is_err());
+            .expect("the ordinary successor agrees with the checked ownership at the call");
         }
     }
 
     #[test]
-    fn parking_an_owner_preserves_the_exclusive_borrow_of_its_field() {
+    fn a_field_borrow_used_after_suspension_excludes_conflicting_reads() {
         let source = r"
 machine entry() suspends {
     let mutable gauge: Gauge = Gauge { amount: 3, neighbor: 19 };
     let held: @mutable i32 = @mutable gauge.amount;
     OBSERVE
     suspend pause();
+    $held = 7;
 }
 data Gauge { amount: i32; neighbor: i32; }
 machine pause() suspends {}
 ";
         for (observe, legal) in [("", true), ("let conflict: i32 = gauge.amount;", false)] {
-            let stated = elaboration_retaining(
+            let stated = elaboration_with(
                 terminal_codec::TerminalPublication::Invocation,
                 &source.replace("OBSERVE", observe),
-                Some("pause"),
-                &["gauge", "held"],
             );
             let verdict = crate::checking::judge(Ok(stated)).unwrap();
             if legal {
-                assert!(
-                    matches!(verdict, RouteVerdict::AcceptedPrefix(_)),
-                    "{verdict:?}"
-                );
+                assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
             } else {
                 let diagnostics = accept_compilation(vec![Ok(verdict)]).unwrap_err();
                 assert!(
@@ -475,9 +450,18 @@ machine pause() suspends {}
         let publication = terminal_codec::TerminalPublication::Invocation;
         let mut stated = elaboration_with(
             publication,
-            "machine entry() -> i32 suspends { suspend pause(); } machine pause() suspends {}",
-            Some("pause"),
+            "machine entry() -> i32 suspends { suspend pause() } machine pause() -> i32 suspends { 7 }",
         );
+        // This verdict belongs to the lowered-form checker. Supply an open Psi
+        // block directly, leaving ordinary source lowering complete.
+        let block = &mut stated.module.machines[0].blocks[0];
+        let call = block.operations.last().unwrap();
+        assert!(call.suspension_crossing.is_some());
+        block.terminator = terminal_psi::Terminator::PendingNormalCompletion {
+            call: call.id,
+            scalars: Vec::new(),
+            storage: Vec::new(),
+        };
         let machine = &stated.module.machines[0];
         let declaration = machine.declaration.as_ref().unwrap().clone();
         let callable = declaration.callable;

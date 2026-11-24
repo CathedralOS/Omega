@@ -149,7 +149,7 @@ impl PendingPackageImport {
             })]);
         }
         if paths.is_empty() {
-            if self.request.defers_in(self.scope) {
+            if self.request.is_unbound_build_import(self.scope) {
                 return Ok(Vec::new());
             }
             return Err(vec![Diagnostic::error(format!(

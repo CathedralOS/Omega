@@ -923,8 +923,6 @@ pub struct Body {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
-    /// At this wait the successor still observes these local bindings.
-    ParkedBuildLocals(Vec<usize>, source_text::SourceSpan),
     /// Evaluate `value` and bind `slot` to it: a local's initializer, or an
     /// assignment of a whole value, which rebinds the slot. A scalar slot
     /// names the value from then on; a record slot names the fresh root that

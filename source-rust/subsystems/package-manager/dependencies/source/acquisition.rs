@@ -179,7 +179,7 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         self.acquire_requests(requester, result.requests(), purpose, ordinal)
     }
 
-    fn acquire_requests<'request>(
+    pub(crate) fn acquire_requests<'request>(
         &mut self,
         requester: &AcquiredBuildSource,
         requests: impl Iterator<Item = &'request build_declarations::BuildRequest>,
@@ -607,7 +607,7 @@ impl AcquiredBuildSource {
         returned.require_source_acquisition(self.source_capture())?;
         self.declare_requests(
             returned.declaration(),
-            returned.requests().iter().map(|issued| issued.request()),
+            returned.source_requests(),
         )
     }
 
@@ -616,7 +616,7 @@ impl AcquiredBuildSource {
         result: &build_execution::BuildSourceResult<'_>,
     ) -> Result<DeclaredBuildSource, String> {
         result.require_source_acquisition(self.source_capture())?;
-        self.declare_requests(result.declaration(), result.requests())
+        self.declare_requests(result.declaration(), result.source_requests())
     }
 
     fn declare_requests<'request>(

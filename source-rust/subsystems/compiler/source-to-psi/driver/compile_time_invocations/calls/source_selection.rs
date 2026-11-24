@@ -89,6 +89,24 @@ impl<'a> InvocationSelection<'a> {
     }
 }
 
+impl InvocationSelection<'_> {
+    fn selection_spans(
+        &self,
+        artifact: terminal_codec::TerminalExecutionView<'_>,
+        requester: Option<ProofDeclarationId>,
+        declaration: ProofDeclarationId,
+    ) -> Option<(SourceSpan, SourceSpan)> {
+        if artifact.custody_identity() != self.identity {
+            return None;
+        }
+        let requester = match requester {
+            Some(requester) => self.source(requester)?,
+            None => self.requester,
+        };
+        Some((requester, self.source(declaration)?))
+    }
+}
+
 impl evaluation_admission::InvocationSourceSelection for InvocationSelection<'_> {
     fn allows_selection(
         &self,
@@ -96,18 +114,27 @@ impl evaluation_admission::InvocationSourceSelection for InvocationSelection<'_>
         requester: Option<ProofDeclarationId>,
         declaration: ProofDeclarationId,
     ) -> bool {
-        if artifact.custody_identity() != self.identity {
-            return false;
-        }
-        let requester = match requester {
-            Some(requester) => self.source(requester),
-            None => Some(self.requester),
-        };
-        let Some((requester, declaration)) = requester.zip(self.source(declaration)) else {
-            return false;
-        };
-        self.entry.source_consent.as_ref().is_some_and(|consent| {
-            consent.allows_selection(&self.sources, requester, declaration, self.entry.purpose)
+        self.selection_spans(artifact, requester, declaration)
+            .is_some_and(|(from, to)| {
+                self.entry.source_consent.as_ref().is_some_and(|consent| {
+                    consent.allows_selection(&self.sources, from, to, self.entry.purpose)
+                })
         })
+    }
+
+    fn allows_supplied_library(
+        &self,
+        artifact: terminal_codec::TerminalExecutionView<'_>,
+        requester: Option<ProofDeclarationId>,
+        declaration: ProofDeclarationId,
+    ) -> bool {
+        self.entry.purpose == source_provenance::DependencyScope::Build
+            && self
+                .selection_spans(artifact, requester, declaration)
+                .is_some_and(|(from, to)| {
+                    self.entry.source_consent.as_ref().is_some_and(|consent| {
+                        consent.allows_supplied_library(&self.sources, from, to)
+                    })
+                })
     }
 }

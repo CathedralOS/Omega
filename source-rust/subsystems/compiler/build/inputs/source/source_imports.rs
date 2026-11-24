@@ -22,7 +22,9 @@ mod logical;
 mod package_selection;
 mod paths;
 mod product_queries;
+mod supplied_library;
 pub use product_queries::{ProductQueryDependency, ProductQueryInputs};
+pub use supplied_library::SuppliedBuildLibrary;
 
 pub(crate) use bindings::{
     PendingPackageImport, ResolvedSourceImport, pending_build_imports,
@@ -89,7 +91,7 @@ pub(crate) fn discover_imports(
                         imports.push((resolved.path.clone(), unit.scope));
                         retained.push(resolved);
                     }
-                    FileSelection::Unprepared => {}
+                    FileSelection::Unbound => {}
                     FileSelection::Package(_) => unreachable!("a standalone input has no mounted graph"),
                 }
                 continue;
@@ -201,7 +203,7 @@ pub(crate) fn discover_package_imports(
                         retained.push(resolved);
                     }
                     FileSelection::Package(pending) => collect_package_import(pending, phase, packages, discovery, &mut imports, retained, &mut requests)?,
-                    FileSelection::Unprepared => {}
+                    FileSelection::Unbound => {}
                 }
                 continue;
             }
