@@ -351,8 +351,15 @@ after the samples finish.
 Each run is recorded under the invoking checkout's `build/sample-gate-runs/`,
 with producer evidence under `producer/` and per-sample command receipts and
 times under the sample's relative path. Worktrees keep separate run directories.
-Programs run from a scratch directory under
-their own ignored `build/`, so files they write stay out of the checkout. A
+For a runnable application the gate starts `omega run --engine native` and
+`omega run --engine psi` in separate empty working directories under its
+per-sample evidence directory. Each receives the same captured stdin bytes.
+The gate compares their termination, stdout and stderr, and checks each
+against the sample's expected result. `native-outputs/` and `psi-outputs/`
+retain raw guest stdout and stderr separately from the CLI diagnostics.
+Their `termination.tsv` records the observed native wait status and trap
+presentation or the Psi return, exact exit status, crash or incomplete result.
+An exit whose visible host bits match a wider Psi status remains unverified. A
 failure caused by this checkout's stale package state (an accepted lock or
 review left by an interrupted run or another compiler build) is measured once
 more from a clean review and reported as `retried`; a compiler defect

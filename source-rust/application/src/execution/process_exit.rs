@@ -66,7 +66,7 @@ impl ProcessExitObservation {
         (presented_status == semantic_status).then_some(true)
     }
 
-    pub(super) fn matches_crash_presentation(self, cause: CrashCause) -> Option<bool> {
+    pub(crate) fn matches_crash_presentation(self, cause: CrashCause) -> Option<bool> {
         if cause != CrashCause::Trap {
             return None;
         }
