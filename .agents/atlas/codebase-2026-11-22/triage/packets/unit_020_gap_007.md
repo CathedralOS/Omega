@@ -52,7 +52,7 @@ Evidence baseline: `main` at `24ad2700685e6cc6062026c87ed5fd24ed415265`; the bra
 
 - `mbx test -p image-elf --lib general_relocation_bytes_outside` before the fix: 1 failed (replay accepted the
   flipped `r_info`). After: `mbx test -p image-elf --lib`: 139 passed, 0 failed.
-- After merging `main` at `5ade6b32` or later: `mbx test -p image-elf`: 139 passed; `mbx clippy -p image-elf
+- After merging `main` at `21283d61`: `mbx test -p image-elf`: 139 passed; `mbx clippy -p image-elf
   --all-targets -- -D warnings`: clean.
 - I searched open PRs (`gh api search/issues`, `image-elf`, `rela.dyn`, `DeclarationIdentity`,
   `optimization-unit`). The only related one, #5412 (unit 021), adds a different packet file and changes no code.
