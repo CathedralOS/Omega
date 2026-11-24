@@ -11,6 +11,7 @@ use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{DomainAliasDefinition, DomainDefinition, ProofFact, ProofMembershipFact};
+use syntax_trees::item::TypeParameterKind;
 use syntax_trees::types::TypeReferenceHandle;
 use syntax_trees::types::TypeReferenceNode;
 use tokens::{KeywordKind, PunctuationKind};
@@ -100,28 +101,34 @@ pub(crate) fn parse_domain_definition<'tokens, 'source>(
     } else {
         None
     };
-    let name = if generic_parameters.type_parameters.is_empty() {
-        Identifier::new(
-            format!(
-                "{target_label}::{}",
+    let parameters = syntax_trees
+        .items
+        .type_parameters(generic_parameters.type_parameters);
+    let named_carrier = syntax_trees
+        .type_references
+        .type_reference(target_type)
+        .as_named();
+    let fixed_name = named_carrier.is_some_and(|carrier| {
+        !parameters.iter().any(|parameter| {
+            matches!(parameter.kind, TypeParameterKind::Type)
+                && parameter.name.as_str(syntax_trees) == carrier.as_str(syntax_trees)
+        })
+    });
+    // A fixed carrier owns its part of the path even when the family binds indices.
+    // A parameter or an applied carrier is identified by its type at the use.
+    let name = Identifier::new(
+        (parameters.is_empty() || fixed_name)
+            .then_some(target_label.as_str())
+            .into_iter()
+            .chain(
                 name_segments
                     .iter()
-                    .map(|(segment, _)| segment.as_str(syntax_trees))
-                    .collect::<Vec<_>>()
-                    .join("::")
-            ),
-            domain_name.source_span(),
-        )
-    } else {
-        Identifier::new(
-            name_segments
-                .iter()
-                .map(|(segment, _)| segment.as_str(syntax_trees))
-                .collect::<Vec<_>>()
-                .join("::"),
-            domain_name.source_span(),
-        )
-    };
+                    .map(|(segment, _)| segment.as_str(syntax_trees)),
+            )
+            .collect::<Vec<_>>()
+            .join("::"),
+        domain_name.source_span(),
+    );
     let (
         alias,
         (authored_routes, access_policy),
