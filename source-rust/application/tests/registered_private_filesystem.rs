@@ -95,3 +95,68 @@ fn private_backing_does_not_grant_a_sibling_group_the_same_operation() {
         );
     }
 }
+
+#[test]
+fn both_engines_observe_the_seeded_files_and_independently_judge_their_outputs() {
+    const CONFIG: &str = include_str!("fixtures/build/run/registered_files/build.omg");
+    const SOURCE: &str = include_str!("fixtures/build/run/registered_files/main.omg");
+    let target = if cfg!(target_arch = "x86_64") {
+        "linux_x86_64"
+    } else {
+        "linux_arm64"
+    };
+    let correct = run(CONFIG, SOURCE, target);
+    let report = String::from_utf8_lossy(&correct.stderr);
+    let negative = CONFIG
+        .replace(
+            r#"expect_missing(group, "missing")"#,
+            r#"expect_file(group, "missing", "")"#,
+        )
+        .replace(
+            r#"expect_file(group, "note.txt", "Z")"#,
+            r#"expect_file(group, "note.txt", "X")"#,
+        );
+    let wrong = run(&negative, SOURCE, target);
+    assert!(!wrong.status.success());
+    let negative_report = String::from_utf8_lossy(&wrong.stderr);
+    for test in ["first_file", "second_file"] {
+        let needle = format!("test `{test}`");
+        let row = report
+            .lines()
+            .find(|row| row.contains(&needle))
+            .unwrap_or_else(|| panic!("{report}"));
+        let failed = negative_report
+            .lines()
+            .find(|row| row.contains(&needle))
+            .unwrap_or_else(|| panic!("{negative_report}"));
+        assert!(row.contains("passed on Psi interpreter"), "{row}");
+        assert!(
+            failed.contains("failed on the Psi interpreter engine"),
+            "{failed}"
+        );
+        assert!(
+            failed.contains("file `missing` expected 0 bytes, observed missing"),
+            "{failed}"
+        );
+        assert!(
+            failed.contains("file `note.txt` differs at byte 0: expected 0x58, observed 0x5a"),
+            "{failed}"
+        );
+        if correct.status.success() {
+            assert!(row.contains("native/Psi comparison agrees"), "{row}");
+            assert!(
+                failed.contains("failed on the native engine")
+                    && failed.contains("native/Psi comparison agrees"),
+                "{failed}"
+            );
+        } else {
+            assert!(
+                row.contains("native: cannot start the test")
+                    && (row.contains("Operation not permitted")
+                        || row.contains("Read-only file system")
+                        || row.contains("Permission denied")),
+                "{row}"
+            );
+        }
+    }
+}

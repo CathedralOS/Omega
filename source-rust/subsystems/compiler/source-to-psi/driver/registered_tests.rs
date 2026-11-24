@@ -8,8 +8,8 @@ use crate::source_state::{
 use crate::*;
 use diagnostics::Diagnostic;
 use source_admission::RetainedDeclaration;
+pub use source_declarations::declaration_selection::{TestExpectations, TestFileExpectation, TestInvocationInputs};
 use source_declarations::source_selections::TestGroupRegistration;
-pub use source_declarations::declaration_selection::{TestExpectations, TestInvocationInputs};
 
 pub struct TestRoot {
     pub group: String,

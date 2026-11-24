@@ -292,7 +292,7 @@ impl<'host> HostContext<'host> {
         native_provider: Option<native_provider_runtime::NativeProviderCommand>,
         native_services: super::TerminalNativeServiceDelegation,
         filesystem: super::TerminalFilesystemDelegation,
-    ) -> Self {
+    ) -> Result<Self, TerminalRuntimeError> {
         // The sponsor resolves its own relative paths (libc, Windows), so a
         // rooted namespace starts it in that root as well.
         let native_provider = native_provider.map(|mut command| {
@@ -304,13 +304,13 @@ impl<'host> HostContext<'host> {
         let allocations = std::sync::Arc::new(std::sync::Mutex::new(
             allocation::AllocationValues::default(),
         ));
-        Self {
+        Ok(Self {
             native: native_provider::NativeContext::new(
                 native_provider,
                 native_services,
                 std::sync::Arc::clone(&allocations),
             ),
-            filesystem: filesystem::FilesystemContext::new(filesystem),
+            filesystem: filesystem::FilesystemContext::new(filesystem)?,
             output: buffered_output::BufferedStreams::new(),
             input: input.map(|reader| std::sync::Arc::new(std::sync::Mutex::new(reader))),
             clock: clock.map(|snapshot| std::sync::Arc::new(std::sync::Mutex::new(snapshot))),
@@ -318,7 +318,11 @@ impl<'host> HostContext<'host> {
                 network_address::AddressValues::default(),
             )),
             allocations,
-        }
+        })
+    }
+
+    pub(super) fn declared_files(&self) -> Result<crate::ObservedFiles, TerminalRuntimeError> {
+        self.filesystem.declared_files()
     }
 }
 

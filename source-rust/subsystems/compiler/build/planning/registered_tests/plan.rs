@@ -77,6 +77,13 @@ impl PlannedTest {
             Destination::Unavailable("its target does not execute on this host")
         };
         let prepare = || {
+            if !root.inputs.private_filesystem
+                && (!root.inputs.files.is_empty() || !root.expected.files.is_empty())
+            {
+                return Err(vec![Diagnostic::error(
+                    "declared test files need a filesystem backing for this invocation",
+                )]);
+            }
             let mut native_target = stage.native_target(target, assumptions.to_vec())?;
             native_target.isolated_execution_grant = Some(
                 IsolatedExecutionGrant::captured_process(target, root.inputs.stdin.is_some(), root.inputs.private_filesystem && linux),

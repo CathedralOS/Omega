@@ -37,15 +37,15 @@ use terminal_interpreter::{
 mod group_providers;
 mod native_bindings;
 mod product_queries;
+mod test_fixtures;
 mod test_groups;
-mod test_streams;
 pub use product_queries::{BuildProductDescription, BuildProductQuery};
 use test_groups::GroupShape;
 
 pub struct TerminalBuildBindingHost {
     artifact: terminal_codec::TerminalExecutionIdentity,
     calls: Arc<[TerminalBuildBindingCall]>,
-    stream_calls: Vec<source_compiler::publication::BuildCallSite>,
+    fixture_calls: Vec<source_compiler::publication::BuildCallSite>,
     queries: Arc<[source_compiler::publication::TerminalBuildQueryCall]>,
     product_facet: Option<TerminalStructuralValue>,
     group_shape: Option<GroupShape>,
@@ -179,8 +179,8 @@ impl TerminalBuildBindingHost {
             artifact: artifact.custody_identity(),
             calls: Arc::clone(calls),
             queries: Arc::clone(queries),
-            stream_calls: requests.calls_for(artifact).ok_or("Build requests belong to another Terminal artifact")?
-                .iter().filter(|call| call.action == source_compiler::publication::TerminalBuildRequestOperation::ConfigureTestStream)
+            fixture_calls: requests.calls_for(artifact).ok_or("Build requests belong to another Terminal artifact")?
+                .iter().filter(|call| call.action == source_compiler::publication::TerminalBuildRequestOperation::ConfigureTestFixture)
                 .map(|call| call.site).collect(),
             product_facet,
             tests_facet,
@@ -348,15 +348,15 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
             .iter()
             .filter(|call| call.site.boundary == boundary)
             .find_map(|call| call.operand.as_ref());
-        let stream = self
+        let fixture = self
             .host
-            .stream_calls
+            .fixture_calls
             .iter()
             .any(|call| call.boundary == boundary);
         terminal_interpreter::TerminalCallStorageRequirements {
-            original: stream
+            original: fixture
                 || matches!(operand, Some(TerminalBuildBindingOperand::TestGroup { .. })),
-            arguments: if operand.is_some() || stream {
+            arguments: if operand.is_some() || fixture {
                 &[0]
             } else {
                 &[]
@@ -384,16 +384,16 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
         crate::host::require_effect_owner(effect, &self.host.artifact)?;
         if self
             .host
-            .stream_calls
+            .fixture_calls
             .iter()
             .any(|site| crate::host::is_call_at(effect, *site))
         {
             if !byte_buffers.is_empty() {
                 return Err(TerminalEffectRejection::new(
-                    "test stream configuration has an unexpected mutable byte view",
+                    "test fixture configuration has an unexpected mutable byte view",
                 ));
             }
-            return self.configure_test_stream(effect, storage_buffers);
+            return self.configure_test_fixture(effect, storage_buffers);
         }
         let operand = self
             .host

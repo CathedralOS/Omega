@@ -50,7 +50,11 @@ pub enum TerminalFilesystemDelegation {
     /// (wiki/spec/build/testing.md#group-configuration-and-authority). The
     /// guest's kernel filesystem calls reach only this state; nothing falls
     /// back to the host.
-    Private,
+    Private {
+        initial_files: std::collections::BTreeMap<Vec<u8>, std::sync::Arc<[u8]>>,
+        output_paths: Vec<Vec<u8>>,
+        capture_bytes: usize,
+    },
 }
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
@@ -90,7 +94,10 @@ pub struct TerminalRuntimeRequest<'program> {
     pub clock: Option<TerminalClockEnvironment>,
 }
 
+pub type ObservedFiles = std::collections::BTreeMap<Vec<u8>, Option<Vec<u8>>>;
+
 pub struct TerminalRuntimeObservation {
+    pub files: ObservedFiles,
     pub status: TerminalExecutionStatus,
     pub stdout: Vec<u8>,
     pub stderr: Vec<u8>,
@@ -109,6 +116,8 @@ pub enum TerminalRuntimeError {
     },
     InvalidProvision(&'static str),
     NativeArtifactInspection(String),
+    PrivateFilesystemSetup(std::io::Error),
+    FileObservation(std::io::Error),
     Artifact(TerminalArtifactInterpretError),
     Requirements(TerminalInterpretError),
     Binding(TerminalBindingRejection),
@@ -163,6 +172,12 @@ impl std::fmt::Display for TerminalRuntimeError {
                 write!(formatter, "{capability}: {reason}")
             }
             Self::InvalidProvision(reason) => formatter.write_str(reason),
+            Self::PrivateFilesystemSetup(error) => {
+                write!(formatter, "cannot prepare private files: {error}")
+            }
+            Self::FileObservation(error) => {
+                write!(formatter, "cannot observe declared files: {error}")
+            }
             Self::NativeArtifactInspection(reason) => {
                 write!(formatter, "native artifact inspection failed: {reason}")
             }

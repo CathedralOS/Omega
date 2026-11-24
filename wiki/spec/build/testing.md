@@ -226,6 +226,18 @@ sequence. The last setting for a stream in that group wins. An explicit empty
 expectation requires zero bytes. Omitting it leaves the stream available for
 engine comparison without imposing a group-wide expected value.
 
+With private filesystem backing, `TestGroup::seed_file(group, path, bytes)`
+copies a regular file into every invocation before the test starts. Parent
+directories are created in the private root. Paths are canonical relative byte
+names. A repeated seed for the same path replaces its initial bytes.
+
+`TestGroup::observe_file(group, path)` compares the engines' final observation
+of that path. `TestGroup::expect_file(group, path, bytes)` also checks each
+execution against the expected bytes. `TestGroup::expect_missing(group, path)`
+requires absence. The last output declaration for a path applies. An empty
+expected byte view requires a present, empty file. File expectations select
+observations independently of the group's filesystem backing and provider choice.
+
 - **Termination.** Compare normal return, exact process exit status, or crash
   as appropriate for the invocation. If the host loses information needed to
   decide, as with a truncated exit status, report the comparison as unavailable.

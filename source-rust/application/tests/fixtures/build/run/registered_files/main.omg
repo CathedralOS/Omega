@@ -1,0 +1,40 @@
+use omega\language\core\FilesystemContentRead;
+use omega\language\core\FilesystemContentWrite;
+use omega\language\core\FilesystemMetadataMutation;
+use omega\language\core\FilesystemNamespaceMutation;
+
+boundary trait FileCalls {
+    machine open(directory: i32, path: @[u8; 9], flags: i32, mode: i32) -> i32
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation crashes none;
+    machine write(file: i32, byte: @u8, count: u64) -> i64 reaches FilesystemContentWrite crashes none;
+    machine read(file: i32, byte: @mutable u8, count: u64) -> i64 reaches FilesystemContentRead crashes none;
+    machine close(file: i32) -> i32 reaches none crashes none;
+}
+
+trait Checks {
+    machine file() reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation crashes Trap;
+}
+
+machine first_file() satisfies Checks::file { copy_seed(); }
+machine second_file() satisfies Checks::file { copy_seed(); }
+
+machine copy_seed() reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation crashes Trap {
+    let input: [u8; 9] = [115, 117, 98, 47, 115, 101, 101, 100, 0];
+    let result: [u8; 9] = [110, 111, 116, 101, 46, 116, 120, 116, 0];
+    let file: i32 = FileCalls::open(-100, @input, 0, 0);
+    let mutable byte: u8 = 0;
+    let read: i64 = FileCalls::read(file, @mutable byte, 1u64);
+    let closed: i32 = FileCalls::close(file);
+    let created: i32 = FileCalls::open(-100, @result, 193, 384);
+    let output: u8 = 90u8;
+    let written: i64 = FileCalls::write(created, @output, 1u64);
+    let closed_output: i32 = FileCalls::close(created);
+    transition file >= 0 && read == 1 && byte == 254 && closed == 0 && created >= 0 && written == 1 && closed_output == 0 {
+        true -> passed(),
+        _ -> failed()
+    }
+    machine passed() {}
+    machine failed() crashes Trap { crash Trap; }
+}
+
+machine main() {}

@@ -3,7 +3,7 @@ use super::TestExecution;
 use crate::observations::{
     ProcessExitObservation, ProgramStream, ProgramStreams, first_byte_difference,
 };
-use source_compiler::registered_tests::TestExpectations;
+use source_compiler::registered_tests::{TestExpectations, TestFileExpectation};
 use terminal_psi::CrashCause;
 
 #[derive(Clone, Debug)]
@@ -15,6 +15,7 @@ pub(super) enum EngineError {
 
 pub(super) struct Observed<T> {
     pub termination: T,
+    pub files: terminal_runtime::ObservedFiles,
     pub stdout: Vec<u8>,
     pub stderr: Vec<u8>,
 }
@@ -131,6 +132,21 @@ fn verdict<T>(
             ));
         }
     }
+    for (path, wanted) in &expected.files {
+        let name = String::from_utf8_lossy(path);
+        let Some(actual) = observed.files.get(path) else {
+            mismatches.push(format!("file `{name}` has no observation"));
+            continue;
+        };
+        let difference = match wanted {
+            TestFileExpectation::Observe => None,
+            TestFileExpectation::Missing => file_difference(None, actual.as_deref()),
+            TestFileExpectation::Bytes(bytes) => file_difference(Some(bytes), actual.as_deref()),
+        };
+        if let Some(difference) = difference {
+            mismatches.push(format!("file `{name}` {difference}"));
+        }
+    }
     if mismatches.is_empty() {
         return termination;
     }
@@ -143,6 +159,27 @@ fn verdict<T>(
         mismatches.push(reason);
     }
     Err(EngineError::Failed(mismatches.join("; ")))
+}
+
+/// The first operand is the independent oracle, or the Psi result during comparison.
+fn file_difference(expected: Option<&[u8]>, observed: Option<&[u8]>) -> Option<String> {
+    match (expected, observed) {
+        (None, None) => None,
+        (None, Some(bytes)) => Some(format!("expected missing, observed {} bytes", bytes.len())),
+        (Some(bytes), None) => Some(format!("expected {} bytes, observed missing", bytes.len())),
+        (Some(expected), Some(actual)) => first_byte_difference(expected, actual).map(|offset| {
+            let show = |bytes: &[u8]| {
+                bytes
+                    .get(offset)
+                    .map_or_else(|| "end of file".to_owned(), |byte| format!("{byte:#04x}"))
+            };
+            format!(
+                "differs at byte {offset}: expected {}, observed {}",
+                show(expected),
+                show(actual)
+            )
+        }),
+    }
 }
 
 fn compare(psi: &Run<PsiTermination>, native: &Run<NativeTermination>) -> Result<(), String> {
@@ -161,6 +198,21 @@ fn compare(psi: &Run<PsiTermination>, native: &Run<NativeTermination>) -> Result
             stream.name(),
             offset
         ));
+    }
+    if psi.files.keys().ne(native.files.keys()) {
+        return Err(
+            "native/Psi comparison unavailable because the observed file names differ".into(),
+        );
+    }
+    for (path, psi_file) in &psi.files {
+        if let Some(difference) =
+            file_difference(psi_file.as_deref(), native.files[path].as_deref())
+        {
+            return Err(format!(
+                "native/Psi comparison for file `{}` {difference} (Psi, native)",
+                String::from_utf8_lossy(path)
+            ));
+        }
     }
     if termination.is_none() {
         return Err("native/Psi comparison unavailable because the host cannot distinguish the exact termination".into());
@@ -235,6 +287,7 @@ mod tests {
     fn observed<T>(termination: T, stdout: &[u8], stderr: &[u8]) -> Run<T> {
         Ok(Observed {
             termination,
+            files: Default::default(),
             stdout: stdout.to_vec(),
             stderr: stderr.to_vec(),
         })

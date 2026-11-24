@@ -43,8 +43,14 @@ pub(super) struct FilesystemContext {
     linux: Rc<RefCell<native_provider_runtime::LinuxFilesystem>>,
     /// The runner's private namespace; when present it answers every Linux
     /// kernel filesystem call instead of `linux`.
-    private: Option<Rc<RefCell<native_provider_runtime::PrivateLinuxFilesystem>>>,
+    private: Option<Rc<PrivateFilesystem>>,
     descriptors: Rc<RefCell<BTreeMap<i32, NativeDescriptor>>>,
+}
+
+struct PrivateFilesystem {
+    state: RefCell<native_provider_runtime::PrivateLinuxFilesystem>,
+    output_paths: Vec<Vec<u8>>,
+    capture_bytes: usize,
 }
 
 enum NativeDescriptor {
@@ -177,7 +183,9 @@ enum Formal {
 }
 
 impl FilesystemContext {
-    pub(super) fn new(delegation: TerminalFilesystemDelegation) -> Self {
+    pub(super) fn new(
+        delegation: TerminalFilesystemDelegation,
+    ) -> Result<Self, TerminalRuntimeError> {
         // A root that cannot be opened supplies no namespace at all, so every
         // filesystem call refuses rather than falling back to the process
         // directory.
@@ -185,17 +193,28 @@ impl FilesystemContext {
             delegation,
             TerminalFilesystemDelegation::StandardStreamsOnly
         );
-        let private = matches!(delegation, TerminalFilesystemDelegation::Private).then(|| {
-            Rc::new(RefCell::new(
-                native_provider_runtime::PrivateLinuxFilesystem::new(),
-            ))
-        });
+        let mut private = None;
         let (supplied, rooted, linux) = match delegation {
             TerminalFilesystemDelegation::Unprovided
             | TerminalFilesystemDelegation::StandardStreamsOnly => {
                 (false, false, Default::default())
             }
-            TerminalFilesystemDelegation::Private => (true, false, Default::default()),
+            TerminalFilesystemDelegation::Private {
+                initial_files,
+                output_paths,
+                capture_bytes,
+            } => {
+                let state = native_provider_runtime::PrivateLinuxFilesystem::with_initial_files(
+                    &initial_files,
+                )
+                .map_err(TerminalRuntimeError::PrivateFilesystemSetup)?;
+                private = Some(Rc::new(PrivateFilesystem {
+                    state: RefCell::new(state),
+                    output_paths,
+                    capture_bytes,
+                }));
+                (true, false, Default::default())
+            }
             TerminalFilesystemDelegation::HostNamespace => (true, false, Default::default()),
             TerminalFilesystemDelegation::HostDirectory(root) => {
                 match native_provider_runtime::LinuxFilesystem::rooted(&root) {
@@ -204,7 +223,7 @@ impl FilesystemContext {
                 }
             }
         };
-        Self {
+        Ok(Self {
             supplied,
             standard_streams_only,
             rooted,
@@ -212,14 +231,30 @@ impl FilesystemContext {
             descriptors: Rc::new(RefCell::new(BTreeMap::new())),
             linux: Rc::new(RefCell::new(linux)),
             private,
-        }
+        })
     }
 
     /// The private namespace, when this execution's runner supplies one.
     pub(super) fn private(
         &self,
-    ) -> Option<&Rc<RefCell<native_provider_runtime::PrivateLinuxFilesystem>>> {
-        self.private.as_ref()
+    ) -> Option<&RefCell<native_provider_runtime::PrivateLinuxFilesystem>> {
+        self.private.as_ref().map(|private| &private.state)
+    }
+
+    pub(super) fn declared_files(&self) -> Result<crate::ObservedFiles, TerminalRuntimeError> {
+        let mut observed = BTreeMap::new();
+        if let Some(private) = &self.private {
+            let state = private.state.borrow();
+            let mut remaining = private.capture_bytes;
+            for path in &private.output_paths {
+                let file = state
+                    .file_bytes(path, remaining)
+                    .map_err(TerminalRuntimeError::FileObservation)?;
+                remaining -= file.as_ref().map_or(0, Vec::len);
+                observed.insert(path.clone(), file);
+            }
+        }
+        Ok(observed)
     }
 
     /// The namespace the native sponsor's libc and Windows supplies use.
@@ -962,7 +997,7 @@ mod tests {
     #[test]
     fn canonical_filesystem_services_receive_the_existing_host_supply() {
         let module = canonical_filesystem_module();
-        let context = FilesystemContext::new(TerminalFilesystemDelegation::HostNamespace);
+        let context = FilesystemContext::new(TerminalFilesystemDelegation::HostNamespace).unwrap();
         assert_eq!(
             context.admit_service_ids(&module, module.interfaces.services.iter().map(|row| row.id)),
             Ok(())
@@ -1004,7 +1039,8 @@ mod tests {
             let surface =
                 std::sync::Arc::make_mut(&mut module.interfaces.service_schemas[2].surface);
             surface.receiver_applications[0].application = surface.identities.intern(&text);
-            let context = FilesystemContext::new(TerminalFilesystemDelegation::HostNamespace);
+            let context =
+                FilesystemContext::new(TerminalFilesystemDelegation::HostNamespace).unwrap();
             assert_eq!(
                 context.admit_service_ids(&module, [service]),
                 Err("filesystem supply does not provide this exact additional service"),
@@ -1038,7 +1074,7 @@ mod tests {
                 });
         }
         module.identities = identities.build();
-        let context = FilesystemContext::new(TerminalFilesystemDelegation::HostNamespace);
+        let context = FilesystemContext::new(TerminalFilesystemDelegation::HostNamespace).unwrap();
         assert_eq!(
             context.admit_service_ids(&module, module.interfaces.services.iter().map(|row| row.id)),
             Ok(())
@@ -1071,7 +1107,7 @@ mod tests {
 
     fn call(namespace_admission: Result<(), &'static str>) -> LibcFilesystemCall {
         LibcFilesystemCall {
-            context: FilesystemContext::new(TerminalFilesystemDelegation::HostNamespace),
+            context: FilesystemContext::new(TerminalFilesystemDelegation::HostNamespace).unwrap(),
             descriptor: DescriptorEffect::Io,
             namespace_admission,
             paths: Vec::new(),
@@ -1283,12 +1319,14 @@ mod tests {
                 published_service_ceiling: Vec::new(),
                 published_synchronous_entries: Vec::new(),
             };
-            let context = FilesystemContext::new(TerminalFilesystemDelegation::HostNamespace);
+            let context =
+                FilesystemContext::new(TerminalFilesystemDelegation::HostNamespace).unwrap();
             let admitted = context
                 .admit(&program, &declaration, &binding, &[])
                 .map(|call| matches!(call, Some(FilesystemCall::Libc(_))));
             assert!(matches!(admitted, Ok(true)), "{symbol:?}: {admitted:?}");
-            let unavailable = FilesystemContext::new(TerminalFilesystemDelegation::Unprovided);
+            let unavailable =
+                FilesystemContext::new(TerminalFilesystemDelegation::Unprovided).unwrap();
             assert!(
                 unavailable
                     .admit(&program, &declaration, &binding, &[])

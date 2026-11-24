@@ -4,9 +4,7 @@ use super::*;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, ScalarType, StructuralFieldId, StructuralTypeId,
 };
-use source_compiler::representations::declaration_selection::{
-    TestGroupConfiguration, TestInvocationInputs,
-};
+use source_compiler::representations::declaration_selection::TestGroupConfiguration;
 use terminal_interpreter::{
     TerminalAggregateValue, TerminalInvocationScalar, TerminalReferencePayload,
     TerminalReferenceResult, TerminalReferenceScalarBacking, TerminalScalarBacking,
@@ -15,7 +13,7 @@ use terminal_interpreter::{
 pub(super) struct RegisteredTestGroup {
     selection: ExecutedProductSelection,
     providers: Vec<ExecutedProductSelection>,
-    pub(super) streams: super::test_streams::TestStreams,
+    pub(super) fixture: super::test_fixtures::TestFixture,
     disabled: TerminalInvocationScalar,
     private_filesystem: TerminalInvocationScalar,
     _storage: Option<evaluation_accounting::EvaluationStorageLease>,
@@ -45,14 +43,13 @@ impl RegisteredTestGroup {
             TerminalScalarValue::Boolean(value) => Ok(value),
             _ => Err(String::from("test group lost its boolean setting")),
         };
-        let (stdin, expected) = self.streams.finish(account)?;
+        let (inputs, expected) = self
+            .fixture
+            .finish(boolean(&self.private_filesystem)?, account)?;
         self.selection.test_group = Some(TestGroupConfiguration {
             expected,
             disabled: boolean(&self.disabled)?,
-            inputs: TestInvocationInputs {
-                private_filesystem: boolean(&self.private_filesystem)?,
-                stdin,
-            },
+            inputs,
             providers: self.providers,
         });
         Ok(ExecutedBuildSelection::Declaration(self.selection))
@@ -197,7 +194,7 @@ impl TerminalBuildBindingHost {
                     composition: None,
                 },
                 providers: Vec::new(),
-                streams: Default::default(),
+                fixture: Default::default(),
                 disabled,
                 private_filesystem,
                 _storage: storage,
