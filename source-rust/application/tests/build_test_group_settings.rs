@@ -7,7 +7,7 @@ const BUILD: &str = r#"machine build(builder: @mutable Build) suspends {
     Build::bind(builder, linux_x86_64\ProgramEntry, main);
     let muted: TestGroup = builder.tests.group::<Checks::muted>();
     muted.disabled = false;
-    let dependency = Build::build_dependency(builder, dependency\from_source(Source::Path { location: "kit" }));
+    let dependency = Build::dependency(builder, dependency\from_source(Source::Path { location: "kit" }));
     suspend Build::prepare_dependency(builder, dependency);
     let live = builder.tests.group::<Checks::live>();
     live.disabled = true;

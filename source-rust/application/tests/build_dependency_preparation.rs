@@ -1,16 +1,16 @@
 /*
 
-End-to-end CLI check that a Build can wait for a build dependency it
+End-to-end CLI check that a Build can wait for a Product dependency it
 registered to be prepared (`omega --check`).
 
 `suspend Build::prepare_dependency(builder, registered);` asks the build
 evaluator to make one registered dependency ready before the Build goes on
 (`wiki/spec/build/scoped_execution.md`, "Dependency declarations and
 binding"). The Build parks at that call. The evaluator acquires the
-dependency, runs its Build, prepares its source and resumes the Build where
+dependency, runs its Build, prepares its Product and resumes the Build where
 it stopped; nothing before the call runs again.
 
-`registered` is the value `Build::build_dependency` returned. The evaluator
+`registered` is the value `Build::dependency` returned. The evaluator
 issued it, so it knows which registration to prepare. A
 `DependencyRegistration {}` written in source has the same type and names no
 registration.
@@ -25,7 +25,7 @@ third hands over a registration it wrote itself and is refused for that.
 
 use std::process::Command;
 
-/// `omega --check` on a project whose Build registers the build dependency
+/// `omega --check` on a project whose Build registers the Product dependency
 /// in `dep/` as `kit`, then runs `after`. The dependency's Build is `dep`.
 fn check(name: &str, after: &str, dep: &str) -> (bool, String) {
     let root = std::env::temp_dir().join(format!(
@@ -45,7 +45,7 @@ suspends
     Build::bind(builder, linux_x86_64\\ProgramEntry, main);
     let mutable request: DependencyDescription = dependency\\from_source(Source::Path {{ location: \"dep\" }});
     dependency\\with_alias(@mutable request, \"kit\");
-    let registered: DependencyRegistration = Build::build_dependency(builder, request);
+    let registered: DependencyRegistration = Build::dependency(builder, request);
 {after}}}
 "
         ),
