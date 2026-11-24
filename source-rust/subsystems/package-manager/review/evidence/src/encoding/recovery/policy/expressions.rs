@@ -62,6 +62,9 @@ pub(in crate::encoding::recovery) fn expression(
                     1 => PackageReviewCastForm::Recast(crate::record::PackageReviewReferenceAccess::Shared),
                     2 => PackageReviewCastForm::Recast(crate::record::PackageReviewReferenceAccess::Mutable),
                     3 => PackageReviewCastForm::Recast(crate::record::PackageReviewReferenceAccess::WriteOnly),
+                    4 => PackageReviewCastForm::KeepDomain,
+                    5 => PackageReviewCastForm::RemoveDomain,
+                    6 => PackageReviewCastForm::AddDomain,
                 }),
             },
             10 => Expression::DomainSubject,
@@ -300,11 +303,16 @@ mod codec_tests {
     }
 
     #[test]
-    fn recast_access_recovers_exact_modes_and_rejects_unknown_tags() {
-        for (tag, access) in [
-            (1, PackageReviewReferenceAccess::Shared),
-            (2, PackageReviewReferenceAccess::Mutable),
-            (3, PackageReviewReferenceAccess::WriteOnly),
+    fn cast_forms_recover_exact_modes_and_reject_unknown_tags() {
+        use PackageReviewCastForm::*;
+        for (tag, form) in [
+            (0, Value),
+            (1, Recast(PackageReviewReferenceAccess::Shared)),
+            (2, Recast(PackageReviewReferenceAccess::Mutable)),
+            (3, Recast(PackageReviewReferenceAccess::WriteOnly)),
+            (4, KeepDomain),
+            (5, RemoveDomain),
+            (6, AddDomain),
         ] {
             let canonical = "named(name(u32))";
             let mut bytes = vec![9, 3];
@@ -316,13 +324,13 @@ mod codec_tests {
             let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
             let recovered = expression(&mut reader).unwrap();
             assert!(matches!(recovered, PackageReviewContractExpression::Cast {
-                form: PackageReviewCastForm::Recast(recovered_access), ..
-            } if recovered_access == access));
+                form: recovered_form, ..
+            } if recovered_form == form));
             reader.finish().unwrap();
             bytes.pop();
             let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
             assert!(expression(&mut reader).is_err());
-            bytes.push(4);
+            bytes.push(7);
             let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
             assert!(expression(&mut reader).is_err());
         }

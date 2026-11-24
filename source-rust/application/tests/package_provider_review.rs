@@ -79,27 +79,73 @@ public LocalReader satisfies Reader {
     machine status() -> Status { Status::Read { count: 7 } }
     machine receipt() -> Receipt { Receipt::Read { count: 7 } }
 }"#;
-    let audit = |source: &str| {
-        fs::write(project.path().join("reader.omg"), source).unwrap();
-        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-            .current_dir(project.path())
-            .args(["packages", "audit", "--offline", "--target", "linux_x86_64"])
-            .output()
-            .unwrap();
-        (
-            output.status.code(),
-            String::from_utf8(output.stdout).unwrap(),
-        )
-    };
-    let (status, report) = audit(source);
+    let (status, report) = audit_reader(&project, source);
     assert_eq!(status, Some(0), "{report}");
     assert!(report.contains("fresh-analysis complete"), "{report}");
     assert!(report.contains("public declarations: data 2"), "{report}");
 
-    let (status, report) = audit(&source.replace("public data Status", "data Status"));
+    let (status, report) = audit_reader(
+        &project,
+        &source.replace("public data Status", "data Status"),
+    );
     assert_eq!(status, Some(1), "{report}");
     assert!(
         report.contains("result.multiplicity") && report.contains("Reader::status"),
         "{report}"
     );
+}
+
+#[test]
+fn review_retains_only_accounted_public_domain_casts_in_contracts() {
+    let project = TemporaryDirectory::create("review-domain-cast", false).unwrap();
+    fs::write(
+        project.path().join("build.omg"),
+        r#"machine build(builder: @mutable Build) {
+    Build::package(builder, "cast_contract");
+    Build::select_provider::<Reader, LocalReader>(builder, linux_x86_64);
+}"#,
+    )
+    .unwrap();
+    let source = r#"public domain u64::Handle;
+public domain u64::Other;
+public boundary trait Reader {
+    machine take(handle: u64 in Handle) -> u64
+    requires (handle as -Handle) != 0 reaches none crashes none;
+}
+public LocalReader satisfies Reader {
+    machine take(handle: u64 in Handle) -> u64
+    requires (handle as -Handle) != 0 { 17 }
+}"#;
+    let (status, report) = audit_reader(&project, source);
+    assert_eq!(status, Some(0), "{report}");
+    assert!(report.contains("fresh-analysis complete"), "{report}");
+
+    let (status, report) = audit_reader(&project, &source.replace("-Handle", "-Other"));
+    assert_eq!(status, Some(1), "{report}");
+    assert!(report.contains("does not carry `Other`"), "{report}");
+
+    let private_domain = source.replace("public domain u64::Handle", "domain u64::Handle");
+    let (status, report) = audit_reader(&project, &private_domain);
+    assert_eq!(status, Some(1), "{report}");
+    assert!(report.contains("private domain"), "{report}");
+
+    let private_schema = private_domain
+        .replace("public boundary trait Reader", "boundary trait Reader")
+        .replace("public LocalReader satisfies", "LocalReader satisfies");
+    let (status, report) = audit_reader(&project, &private_schema);
+    assert_eq!(status, Some(0), "{report}");
+    assert!(report.contains("fresh-analysis complete"), "{report}");
+}
+
+fn audit_reader(project: &TemporaryDirectory, source: &str) -> (Option<i32>, String) {
+    fs::write(project.path().join("reader.omg"), source).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .current_dir(project.path())
+        .args(["packages", "audit", "--offline", "--target", "linux_x86_64"])
+        .output()
+        .unwrap();
+    (
+        output.status.code(),
+        String::from_utf8(output.stdout).unwrap(),
+    )
 }

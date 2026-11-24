@@ -40,15 +40,20 @@ mod codec_tests {
     use super::*;
 
     #[test]
-    fn recast_access_keeps_distinct_stable_wire_tags() {
+    fn cast_forms_keep_distinct_stable_wire_tags() {
         use crate::record::{
             PackageReviewArithmeticDomain, PackageReviewCastForm, PackageReviewReferenceAccess,
             PackageReviewTypeIdentity,
         };
-        for (access, tag) in [
-            (PackageReviewReferenceAccess::Shared, 1),
-            (PackageReviewReferenceAccess::Mutable, 2),
-            (PackageReviewReferenceAccess::WriteOnly, 3),
+        use PackageReviewCastForm::*;
+        for (form, tag) in [
+            (Value, 0),
+            (Recast(PackageReviewReferenceAccess::Shared), 1),
+            (Recast(PackageReviewReferenceAccess::Mutable), 2),
+            (Recast(PackageReviewReferenceAccess::WriteOnly), 3),
+            (KeepDomain, 4),
+            (RemoveDomain, 5),
+            (AddDomain, 6),
         ] {
             let canonical = "named(name(u32))";
             let expression = PackageReviewContractExpression::Cast {
@@ -59,7 +64,7 @@ mod codec_tests {
                 arithmetic_domain: PackageReviewArithmeticDomain::Exact,
                 semantic_domain: None,
                 semantic_domain_arguments: Vec::new(),
-                form: PackageReviewCastForm::Recast(access),
+                form,
             };
             let mut expected = vec![9, 3];
             expected.extend_from_slice(&(canonical.len() as u64).to_le_bytes());
