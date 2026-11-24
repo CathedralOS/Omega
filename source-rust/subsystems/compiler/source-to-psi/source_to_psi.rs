@@ -202,16 +202,28 @@ impl CheckedPackageDeclarations {
 
     pub fn supplied_declarations(
         &self,
-    ) -> Result<
-        impl Iterator<Item = (symbols::SymbolHandle, symbols::SymbolHandle)> + '_,
-        Vec<Diagnostic>,
-    > {
-        Ok(self
-            .publication
-            .roster()?
+        target: &str,
+    ) -> Result<Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>, Vec<Diagnostic>> {
+        let roster = self.publication.roster()?;
+        let source = self.accepted()?.source();
+        let mut declarations: Vec<_> = roster
             .supplies
             .iter()
-            .map(|supply| (supply.slot, supply.provider)))
+            .map(|supply| (supply.slot, supply.provider))
+            .collect();
+        // A provider already realized during normalization needs no additional
+        // body judgment during settlement. Both belong to this accepted roster.
+        for choice in &roster.normalization.providers {
+            if choice.target == target {
+                let schema = choice.schema.scope(source).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "checked provider selection lost its source schema",
+                    )]
+                })?;
+                declarations.push((schema.declaration.symbol, choice.provider));
+            }
+        }
+        Ok(declarations)
     }
 }
 
