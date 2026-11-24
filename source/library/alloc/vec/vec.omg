@@ -19,7 +19,6 @@ use omega\language\core\LayoutTarget;
 use omega\language\core\reflect\TypeSchema;
 use omega\language\core\reflect\field;
 use omega\language\core\access;
-use omega\language\core\ResourceProfileSupply;
 use omega\language\core\AccessOutcome;
 use omega\language\core\read;
 use omega\language\core\write;
@@ -104,8 +103,6 @@ ensures result.length == 0, result.capacity == capacity,
 { Vec { storage: storage, length: 0, capacity: capacity } }
 
 public machine Vec::push<Role>(vec: Vec, value: u32) -> Vec
-reaches ResourceProfileSupply
-invokes ResourceProfileSupply
 requires vec.length < vec.capacity
 ensures result.length == vec.length + 1, result.capacity == vec.capacity,
     result.storage.base == vec.storage.base, result.storage.length == vec.storage.length
@@ -142,8 +139,6 @@ crashes Trap
 
 public data Read { vec: Vec; value: u32; }
 public machine Vec::get<Role>(vec: Vec, index: u64) -> Read
-reaches ResourceProfileSupply
-invokes ResourceProfileSupply
 requires index < vec.length
 ensures result.vec.length == vec.length, result.vec.capacity == vec.capacity,
     result.vec.storage.base == vec.storage.base, result.vec.storage.length == vec.storage.length
@@ -193,8 +188,6 @@ machine verify_vector(storage: @Extent in Granted & Vacant, length: u64, capacit
 requires length <= capacity, capacity <= 4611686018427387903, storage.length == capacity * 4 {}
 public machine Vec::grow<Role>(vec: Vec, replacement: Extent in Granted & Vacant, capacity: u64)
     -> Growth
-reaches ResourceProfileSupply
-invokes ResourceProfileSupply
 requires capacity <= 4611686018427387903, capacity >= vec.length,
     replacement.length == capacity * 4
 ensures result.vec.length == vec.length, result.vec.capacity == capacity,

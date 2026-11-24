@@ -50,8 +50,6 @@ public machine Run::initialize_cell<P, T, Role>(
     AccessReturn<Extent in Granted & Vacant, T>,
     AccessInitializationFailure
 >
-reaches ResourceProfileSupply
-invokes ResourceProfileSupply
 ensures (match result {
     AccessOutcome::Ready { view } -> view.storage.base == storage.base && view.storage.length == storage.length,
     AccessOutcome::Rejected { returned, reason } -> returned.source.base == storage.base && returned.source.length == storage.length,
@@ -66,8 +64,6 @@ ensures (match result {
 public machine Run::extract_cell<P, T, Role>(run: Run<P, T> in Live<P, T>)
     -> AccessExtraction<Extent in Granted & Vacant, T>
 requires run.count == 1
-reaches ResourceProfileSupply
-invokes ResourceProfileSupply
 ensures (match result {
     AccessExtraction::Moved { storage, value } -> storage.base == run.storage.base && storage.length == run.storage.length,
 })
@@ -106,8 +102,6 @@ public machine Run::relocate<P, T, SourceRole, DestinationRole>(
     AccessReturn<Run<P, T> in Live<P, T>, Extent in Granted & Vacant>,
     AccessInitializationFailure
 >
-reaches ResourceProfileSupply
-invokes ResourceProfileSupply
 ensures (match result {
     AccessOutcome::Ready { view } ->
         view.run.count == run.count &&
