@@ -71,6 +71,7 @@ impl Repository {
             fs::write(path, "").unwrap();
         }
         fs::write(root.join(".gitignore"), "/.agents/\n/target/\n").unwrap();
+        fs::write(root.join(".gitattributes"), "payload -text\n").unwrap();
         fs::write(root.join("payload"), ORIGINAL).unwrap();
         git(&root, &["add", "."]);
         git(&root, &["commit", "-qm", "original source"]);
@@ -135,7 +136,18 @@ impl Repository {
     }
 
     fn run(&self, current: &Path, arguments: &[&str]) -> Output {
-        let output = Command::new(env!("CARGO_BIN_EXE_xtask"))
+        let output = self.output(current, arguments);
+        assert!(
+            output.status.success(),
+            "worktree {arguments:?}: stdout={} stderr={}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        output
+    }
+
+    fn output(&self, current: &Path, arguments: &[&str]) -> Output {
+        Command::new(env!("CARGO_BIN_EXE_xtask"))
             .arg("worktree")
             .args(arguments)
             .current_dir(current)
@@ -145,14 +157,7 @@ impl Repository {
             .env("CODEX_ENVIRONMENT_ID", "")
             .stdin(Stdio::null())
             .output()
-            .expect("run worktree command in scratch repository");
-        assert!(
-            output.status.success(),
-            "worktree {arguments:?}: stdout={} stderr={}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        );
-        output
+            .expect("run worktree command in scratch repository")
     }
 
     fn assert_assigned_legacy_untouched(&self) {
@@ -244,4 +249,41 @@ fn resuming_the_same_pool_topic_still_resets_its_published_source() {
     repository.run(pool, &["acquire", POOL_TOPIC]);
     assert_eq!(fs::read_to_string(pool.join("payload")).unwrap(), CURRENT);
     repository.assert_assigned_legacy_untouched();
+}
+
+#[test]
+fn clean_requires_a_worktree_name_after_each_keep() {
+    let repository = Repository::new(true);
+    let orphan = repository.root.join(".agents/worktree/fixture-orphan");
+    fs::create_dir(&orphan).unwrap();
+    for arguments in [
+        vec!["clean", "--dry-run", "--keep"],
+        vec!["clean", "--keep", "--dry-run"],
+        vec!["clean", "--keep", ""],
+        vec!["clean", "--keep", "fixture-orphan", "--keep"],
+    ] {
+        let output = repository.output(&repository.root, &arguments);
+        assert_eq!(output.status.code(), Some(2), "{arguments:?}");
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("--keep requires a worktree name")
+        );
+        assert!(orphan.is_dir());
+    }
+}
+
+#[test]
+fn clean_preserves_explicitly_kept_unregistered_entries() {
+    let repository = Repository::new(true);
+    let worktrees = repository.root.join(".agents/worktree");
+    for name in ["keep-dir", "remove-dir"] {
+        fs::create_dir(worktrees.join(name)).unwrap();
+    }
+    fs::write(worktrees.join("keep-file"), "keep").unwrap();
+    repository.run(
+        &repository.root,
+        &["clean", "--keep", "keep-dir", "--keep", "keep-file"],
+    );
+    assert!(worktrees.join("keep-dir").is_dir());
+    assert_eq!(fs::read(worktrees.join("keep-file")).unwrap(), b"keep");
+    assert!(!worktrees.join("remove-dir").exists());
 }
