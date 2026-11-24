@@ -178,7 +178,7 @@ fn dependent_argument_matches(
                 || expected.quotient_carrier.is_some()
                 || actual.scalar_restriction.is_some()
                 || expected.scalar_restriction.is_some()
-                || !dependent_requirements_match(actual, expected, callee, const_arguments))
+                || !dependent_requirements_match(module, actual, expected, callee, const_arguments))
         {
             return false;
         }
@@ -303,6 +303,7 @@ fn dependent_argument_matches(
 }
 
 fn dependent_requirements_match(
+    module: &terminal_psi::TerminalModule,
     actual: &terminal_psi::StructuralTypeDeclaration,
     expected: &terminal_psi::StructuralTypeDeclaration,
     callee: &terminal_psi::TerminalMachine,
@@ -322,6 +323,8 @@ fn dependent_requirements_match(
             (formal.id == value).then_some(&argument.actual)
         })
     };
+    let actual_type = actual.id;
+    let expected_type = expected.id;
     actual
         .requires
         .iter()
@@ -329,14 +332,120 @@ fn dependent_requirements_match(
         .all(|(actual, expected)| {
             let mut bound = true;
             let complete = expected.visit_value_ids(|value| bound &= substitute(value).is_some());
-            complete
-                && bound
-                && *actual
-                    == crate::substitution::substitute_proposition_values_with(
-                        expected,
-                        &substitute,
-                    )
+            if !bound {
+                return false;
+            }
+            let mut expected = expected.clone();
+            if !complete
+                && !rebind_requirements_paths(&mut expected, &|path| {
+                    corresponding_record_path(module, actual_type, expected_type, path)
+                })
+            {
+                return false;
+            }
+            *actual
+                == crate::substitution::substitute_proposition_values_with(&expected, &substitute)
         })
+}
+
+fn corresponding_record_path(
+    module: &terminal_psi::TerminalModule,
+    actual: semantic_vocabulary::StructuralTypeId,
+    expected: semantic_vocabulary::StructuralTypeId,
+    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+) -> Option<Vec<semantic_vocabulary::CanonicalStructuralPathSegment>> {
+    use crate::exactly_one::exactly_one;
+    use semantic_vocabulary::CanonicalStructuralPathSegment;
+
+    let types = module.types.structural_types.iter();
+    let mut translated = Vec::with_capacity(path.len());
+    for (position, step) in path.iter().enumerate() {
+        let destination = crate::canonical_structural_path_tip(types.clone(), actual, &translated)?;
+        let source =
+            crate::canonical_structural_path_tip(types.clone(), expected, &path[..position])?;
+        let step = match *step {
+            CanonicalStructuralPathSegment::Field(id) => {
+                let field = exactly_one(source.shape.fields(), |field| field.id == id)?;
+                let corresponding = exactly_one(destination.shape.fields(), |candidate| {
+                    candidate.identity == field.identity
+                        && candidate.declaration_identity == field.declaration_identity
+                })?;
+                CanonicalStructuralPathSegment::Field(corresponding.id)
+            }
+            CanonicalStructuralPathSegment::Case(id) => {
+                let case = exactly_one(source.shape.cases().iter(), |case| case.id == id)?;
+                let corresponding = exactly_one(destination.shape.cases().iter(), |candidate| {
+                    candidate.identity == case.identity
+                        && candidate.declaration_identity == case.declaration_identity
+                })?;
+                CanonicalStructuralPathSegment::Case(corresponding.id)
+            }
+            step => step,
+        };
+        translated.push(step);
+    }
+    Some(translated)
+}
+
+fn rebind_requirements_paths(
+    clause: &mut semantic_vocabulary::Proposition,
+    path: &impl Fn(
+        &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    ) -> Option<Vec<semantic_vocabulary::CanonicalStructuralPathSegment>>,
+) -> bool {
+    use semantic_vocabulary::{IntegerMathTerm, Proposition, ScalarTerm};
+
+    let mut clauses = vec![clause];
+    let mut terms = Vec::new();
+    let mut math = Vec::new();
+    while let Some(clause) = clauses.pop() {
+        match clause {
+            Proposition::Equal(left, right)
+            | Proposition::LessThan(left, right)
+            | Proposition::LessOrEqual(left, right)
+            | Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
+                terms.extend([left, right]);
+            }
+            Proposition::IntegerMathEqual(left, right)
+            | Proposition::IntegerMathLessThan(left, right)
+            | Proposition::IntegerMathLessOrEqual(left, right) => {
+                math.extend([left, right]);
+            }
+            Proposition::Conjunction(clauses_to_visit)
+            | Proposition::Disjunction(clauses_to_visit) => clauses.extend(clauses_to_visit),
+            Proposition::Implication {
+                premise,
+                conclusion,
+            } => {
+                clauses.extend([premise.as_mut(), conclusion.as_mut()]);
+            }
+            Proposition::Truth | Proposition::Falsehood => {}
+            _ => return false,
+        }
+    }
+    while let Some(term) = math.pop() {
+        if let IntegerMathTerm::Embed(scalar) = term {
+            terms.push(scalar.as_mut());
+        } else {
+            math.extend(term.operands_mut());
+        }
+    }
+    while let Some(term) = terms.pop() {
+        match term {
+            semantic_vocabulary::scalar_term_predicate_quint_pattern!(path: current, root, ..) => {
+                if root.get() != 1 {
+                    return false;
+                }
+                let Some(rebound) = path(current) else {
+                    return false;
+                };
+                *current = rebound;
+            }
+            ScalarTerm::StructuralRead { .. } => return false,
+            _ => terms.extend(term.operands_mut()),
+        }
+    }
+    true
 }
 
 pub mod callable_refinement;
