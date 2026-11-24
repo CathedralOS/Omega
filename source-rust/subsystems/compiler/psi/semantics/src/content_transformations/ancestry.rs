@@ -19,7 +19,7 @@ pub(crate) struct OriginTraversal {
 }
 
 impl OriginTraversal {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             active: Vec::new(),
             completed: Vec::new(),
@@ -261,7 +261,7 @@ fn call_input_origins(
     origin.ok_or("content ancestry callee has no grounded normal result")
 }
 
-fn local_roots(
+pub(super) fn local_roots(
     module: &TerminalModule,
     machine: &TerminalMachine,
     claim: ClaimId,
