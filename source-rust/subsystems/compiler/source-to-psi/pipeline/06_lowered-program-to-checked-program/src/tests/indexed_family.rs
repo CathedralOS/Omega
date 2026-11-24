@@ -249,3 +249,273 @@ fn a_tree_with_two_children_needs_the_theorem_at_both() {
         "{law:?}"
     );
 }
+
+const RUNNING: &str =
+    include_str!("../../tests/fixtures/indexed_family/pass/evidence_in_a_running_machine/main.omg");
+const TOO_LARGE: &str = include_str!(
+    "../../tests/fixtures/indexed_family/fail/evidence_of_an_element_too_large/main.omg"
+);
+const ONE: &str = "Vector::Cons { previous: 0, previous_total: 0, head: 7, tail: nil }";
+
+/// The laws judged for `machine`, as how many assumptions each rests on.
+fn closures(verdicts: &[RouteVerdict], machine: &str) -> Vec<u32> {
+    verdicts
+        .iter()
+        .filter_map(|verdict| match verdict {
+            RouteVerdict::Laws(judgment) => Some(&judgment.laws),
+            _ => None,
+        })
+        .flatten()
+        .filter(|law| law.machine == machine)
+        .map(|law| match law.decision {
+            MathematicalCoreDecision::Judged(receipt) => receipt.assumption_closure,
+            _ => panic!("the kernel must judge the law: {law:?}"),
+        })
+        .collect()
+}
+
+#[test]
+fn a_running_machine_builds_evidence_and_uses_the_theorem() {
+    let verdicts = judged(&proofs(RUNNING));
+    for verdict in &verdicts {
+        assert!(
+            matches!(verdict, RouteVerdict::Accepted(_) | RouteVerdict::Laws(_)),
+            "every part must be accepted: {verdict:?}"
+        );
+    }
+    // `room` builds `Nil` at (0, 0) and `Cons` at (1, 7). Each thing the
+    // data requires of those two values is a law of its own: two for `Nil`,
+    // three for `Cons`.
+    assert_eq!(closures(&verdicts, "room").len(), 5);
+    assert_eq!(closures(&verdicts, "vector_bound").len(), 1);
+}
+
+#[test]
+fn evidence_of_a_list_the_data_does_not_allow_is_refused() {
+    let source = proofs(TOO_LARGE);
+    assert_eq!(
+        source,
+        proofs(RUNNING).replace(
+            ONE,
+            "Vector::Cons { previous: 0, previous_total: 0, head: 11, tail: nil }"
+        )
+    );
+    let verdicts = judged(&source);
+    let unproved: Vec<_> = verdicts
+        .iter()
+        .filter_map(|verdict| match verdict {
+            RouteVerdict::UnprovedLaws(laws) => Some(laws),
+            _ => None,
+        })
+        .flatten()
+        .collect();
+    // Eleven is more than ten, and the list does not sum to seven.
+    assert_eq!(unproved.len(), 2, "{unproved:?}");
+    for law in unproved {
+        assert_eq!(law.machine, "room");
+        assert_eq!(law.cause, UnprovedCause::NoDerivation);
+        assert_eq!(
+            law.statement,
+            "cannot prove what `Vector::Cons` requires of the value built here in `room`"
+        );
+    }
+}
+
+#[test]
+fn evidence_is_passed_only_at_the_index_it_has() {
+    // `one` is a list of one element summing to seven. Passing it as a
+    // list summing to twenty is refused where the call is read.
+    let source = proofs(RUNNING).replace("bounded::<1, 7>(one)", "bounded::<1, 20>(one)");
+    assert_ne!(source, proofs(RUNNING));
+    let verdicts = judged(&source);
+    let refused = refused(&verdicts);
+    assert!(
+        refused
+            .iter()
+            .any(|detail| detail.contains("evidence passed at another index than the formal takes")),
+        "{verdicts:?}"
+    );
+}
+
+#[test]
+fn a_child_of_a_literal_sits_at_the_index_the_case_declares() {
+    // A list of two whose tail is the empty list: the case says the tail of
+    // a list of two has one element.
+    let source = proofs(RUNNING).replace(
+        "    bounded::<1, 7>(one)\n",
+        "    let two [erased]: Vector<2, 14> = Vector::Cons { previous: 1, previous_total: 7, \
+         head: 7, tail: nil };\n    bounded::<1, 7>(one)\n",
+    );
+    assert_ne!(source, proofs(RUNNING));
+    let verdicts = judged(&source);
+    let refused = refused(&verdicts);
+    assert!(
+        refused.iter().any(|detail| detail
+            .contains("child of a literal at another index than the case declares for it")),
+        "{verdicts:?}"
+    );
+}
+
+#[test]
+fn without_the_citation_the_subtraction_is_not_justified() {
+    // `bounded` no longer cites the theorem, so nothing bounds `Total` and
+    // `80u64 - Total` may go below zero.
+    let source = proofs(RUNNING).replace(
+        "    vector_bound::<Length, Total>(evidence);\n    80u64",
+        "    80u64",
+    );
+    assert_ne!(source, proofs(RUNNING));
+    let verdicts = judged(&source);
+    assert!(
+        verdicts.iter().any(|verdict| matches!(
+            verdict,
+            RouteVerdict::Incomplete(_) | RouteVerdict::Rejected { .. }
+        )),
+        "{verdicts:?}"
+    );
+}
+
+#[test]
+fn a_caller_owes_what_the_cited_theorem_guarantees() {
+    // `relay` passes its own evidence on to `bounded`, which cites the
+    // theorem. The theorem's guarantee is one of `bounded`'s entry
+    // requirements, so `relay` owes it at the call. `relay` cannot prove it
+    // for every `Length` and `Total`, so it becomes `relay`'s requirement
+    // too, whether `relay` cites the theorem itself or not, and `room`,
+    // which passes numbers, proves it by arithmetic.
+    let relay = |citation: &str| {
+        format!(
+            "{}\nmachine relay<Length: u64, Total: u64>(evidence [erased]: Vector<Length, Total>) -> u64\n\
+             requires Length <= 8\n{{\n{citation}    bounded::<Length, Total>(evidence)\n}}\n",
+            proofs(RUNNING).replace("    bounded::<1, 7>(one)\n", "    relay::<1, 7>(one)\n")
+        )
+    };
+    for citation in ["    vector_bound::<Length, Total>(evidence);\n", ""] {
+        let source = relay(citation);
+        assert!(source.contains("relay::<1, 7>(one)"));
+        let verdicts = judged(&source);
+        for verdict in &verdicts {
+            assert!(
+                matches!(verdict, RouteVerdict::Accepted(_) | RouteVerdict::Laws(_)),
+                "every part must be accepted: {verdict:?}"
+            );
+        }
+    }
+}
+
+/// The running fixture with a type beside the indices: each longer list
+/// also holds a marker of the type the list is at.
+fn with_marker(source: &str) -> String {
+    let replaced = [
+        (
+            "data Vector<Length: u64, Total: u64>",
+            "data Vector<T [copy], Length: u64, Total: u64>",
+        ),
+        (
+            "head: u64,\n              tail [erased]: Vector<previous, previous_total>);",
+            "head: u64, marker: T,\n              tail [erased]: Vector<T, previous, previous_total>);",
+        ),
+        (
+            "machine vector_bound<Length: u64, Total: u64>(evidence [erased]: Vector<Length, Total>)",
+            "machine vector_bound<T [copy], Length: u64, Total: u64>(evidence [erased]: Vector<T, Length, Total>)",
+        ),
+        (
+            "tail [erased]: Vector<previous, previous_total>)\n    requires",
+            "tail [erased]: Vector<T, previous, previous_total>)\n    requires",
+        ),
+        (
+            "vector_bound::<previous, previous_total>(tail);",
+            "vector_bound::<T, previous, previous_total>(tail);",
+        ),
+        (
+            "machine bounded<Length: u64, Total: u64>(evidence [erased]: Vector<Length, Total>) -> u64",
+            "machine bounded<T [copy], Length: u64, Total: u64>(evidence [erased]: Vector<T, Length, Total>) -> u64",
+        ),
+        (
+            "vector_bound::<Length, Total>(evidence);",
+            "vector_bound::<T, Length, Total>(evidence);",
+        ),
+        (
+            "let nil [erased]: Vector<0, 0>",
+            "let nil [erased]: Vector<bool, 0, 0>",
+        ),
+        (
+            "let one [erased]: Vector<1, 7> = Vector::Cons { previous: 0, previous_total: 0, head: 7, tail: nil };",
+            "let one [erased]: Vector<bool, 1, 7> = Vector::Cons { previous: 0, previous_total: 0, head: 7, marker: true, tail: nil };",
+        ),
+        ("bounded::<1, 7>(one)", "bounded::<bool, 1, 7>(one)"),
+    ];
+    let mut source = source.to_owned();
+    for (old, new) in replaced {
+        assert_eq!(source.matches(old).count(), 1, "{old}");
+        source = source.replace(old, new);
+    }
+    source
+}
+
+#[test]
+fn a_type_beside_the_indices_changes_nothing_that_is_proved() {
+    // The theorem says nothing of `T` and no clause of the data can, so it
+    // is the same theorem and `room` owes the same five requirements.
+    let verdicts = judged(&with_marker(&proofs(RUNNING)));
+    for verdict in &verdicts {
+        assert!(
+            matches!(verdict, RouteVerdict::Accepted(_) | RouteVerdict::Laws(_)),
+            "every part must be accepted: {verdict:?}"
+        );
+    }
+    assert_eq!(closures(&verdicts, "room").len(), 5);
+    assert_eq!(
+        closures(&verdicts, "vector_bound"),
+        closures(&judged(&proofs(RUNNING)), "vector_bound")
+    );
+}
+
+#[test]
+fn a_list_with_a_marker_still_owes_what_its_case_requires() {
+    let source =
+        with_marker(&proofs(RUNNING)).replace("head: 7, marker: true", "head: 11, marker: true");
+    let verdicts = judged(&source);
+    let unproved: Vec<_> = verdicts
+        .iter()
+        .filter_map(|verdict| match verdict {
+            RouteVerdict::UnprovedLaws(laws) => Some(laws),
+            _ => None,
+        })
+        .flatten()
+        .collect();
+    assert_eq!(unproved.len(), 2, "{verdicts:?}");
+}
+
+const RETAIN: &str = "let retain<Length: u64, Total: u64>(value: Vector<Length, Total>): \
+                      Vector<Length, Total> = value;\n";
+
+#[test]
+fn a_definition_hands_evidence_on_at_the_index_it_has() {
+    // `retain` returns the evidence it takes, so `kept` is evidence of the
+    // same list. Naming it at another total is refused.
+    let handed = |at: &str| {
+        format!("{RETAIN}{}", proofs(RUNNING)).replace(
+            "    bounded::<1, 7>(one)\n",
+            &format!(
+                "    let kept [erased]: Vector<{at}> = retain::<{at}>(one);\n    \
+                 bounded::<{at}>(kept)\n"
+            ),
+        )
+    };
+    let verdicts = judged(&handed("1, 7"));
+    for verdict in &verdicts {
+        assert!(
+            matches!(verdict, RouteVerdict::Accepted(_) | RouteVerdict::Laws(_)),
+            "every part must be accepted: {verdict:?}"
+        );
+    }
+    let verdicts = judged(&handed("1, 20"));
+    assert!(
+        refused(&verdicts)
+            .iter()
+            .any(|detail| detail
+                .contains("evidence handed on at another index than the local declares")),
+        "{verdicts:?}"
+    );
+}

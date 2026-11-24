@@ -558,11 +558,12 @@ impl<'t> Program<'t> {
             }
             None if self.rigid && self.symbols.is_empty() => Reading::GenericEntry,
             // A mathematical machine generic over machines is read once,
-            // with its parameters left open (`templates`).
-            None if self
-                .typed
-                .machine_by_symbol(symbol)
-                .is_some_and(|machine| self.mathematical_template(machine)) =>
+            // with its parameters left open (`templates`). So is a theorem
+            // over indexed data, whatever types the data is at (`families`).
+            None if self.typed.machine_by_symbol(symbol).is_some_and(|machine| {
+                self.mathematical_template(machine)
+                    || (self.mathematical && self.is_family_theorem(machine))
+            }) =>
             {
                 Reading::GenericEntry
             }
@@ -1912,9 +1913,21 @@ impl<'t> Program<'t> {
                 Some(TypeReferenceNode::Reference { referee, .. }) => (*referee, true),
                 _ => (formal.type_reference, false),
             };
+            let erased = formal.relevance == language_core::BindingRelevance::Erased;
+            // Erased evidence of indexed data is a witness of its own
+            // (`families::evidence_witness`), as `formal` reads it.
+            let declared = if erased
+                && !borrowed
+                && !self.mathematical
+                && self.names_indexed_data(formal.type_reference)
+            {
+                super::families::evidence_witness().declared().is_some()
+            } else {
+                self.declared_value_shape(id, shape_type, &scope)?
+            };
             shapes.push(FormalValueShape {
-                declared: self.declared_value_shape(id, shape_type, &scope)?,
-                erased: formal.relevance == language_core::BindingRelevance::Erased,
+                declared,
+                erased,
                 borrowed,
             });
         }
@@ -3822,6 +3835,16 @@ impl<'t> Program<'t> {
                 ));
             }
         };
+        // A theorem over indexed data that the body cites is owed at entry
+        // (`families::cited_guarantees`).
+        if !self.mathematical {
+            for (clause, text) in self.cited_guarantees(id, owner)? {
+                if !requires.contains(&clause) {
+                    requires.push(clause);
+                    requires_text.push(text);
+                }
+            }
+        }
         let authored = requires.clone();
         let requires = canonical::clauses(requires, Repeated::Refuse, id)?;
         // Each clause's text follows it into canonical order. A repeated
@@ -4120,6 +4143,12 @@ impl<'t> Program<'t> {
             language_core::BindingRelevance::Erased => true,
         };
         let Some((referee, access)) = reference else {
+            // A machine that runs carries such evidence as an erased witness
+            // nothing reads; what the evidence is, the mathematical
+            // signature checks (`families::evidence_witness`).
+            if erased && !self.mathematical && self.names_indexed_data(formal.type_reference) {
+                return Ok((super::families::evidence_witness(), true, None));
+            }
             let value_type = self.value_type(id, formal.type_reference)?;
             if formal.is_mutable {
                 let unserved =
@@ -4316,6 +4345,15 @@ impl<'t> Program<'t> {
                 statements: Vec::new(),
             });
         }
+        // A running machine never enters such a theorem: a citation of it
+        // is owed at the citing machine's entry (`cited_guarantees`).
+        if self.is_family_theorem(machine) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("theorem over indexed data read as a machine that runs"),
+            ));
+        }
         // An operation on a quotient given by an operation on its
         // representatives has nothing to lower: the signature judges the
         // theorems it selects (`quotients`).
@@ -4482,6 +4520,16 @@ impl<'t> Program<'t> {
                     Construct::Machine,
                     Unserved::Completion("statement after an unconditional arm"),
                 ));
+            }
+            // A citation of a theorem over indexed data does nothing at
+            // run time. What it guarantees is one of this machine's entry
+            // requirements (`families::cited_guarantees`).
+            if !self.mathematical
+                && let StatementNode::Call(call) = statement
+                && self.cited_theorem(call.target_symbol).is_some()
+            {
+                position += 1;
+                continue;
             }
             let last = position + 1 == statements.len() && parked.is_none();
             // A statement skipped by `continue` may still have read a block.

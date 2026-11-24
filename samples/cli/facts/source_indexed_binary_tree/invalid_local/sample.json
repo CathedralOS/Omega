@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "source constructor predicate has no checked derivation yet"
+    "cannot prove what `Tree::Fork` requires of the value built here"
   ]
 }

@@ -47,6 +47,10 @@ pub(crate) fn read(
         let read = program.machine(root).map(|_| ());
         program.keep(read).map_err(alone)?;
     }
+    // The machines that run and hold evidence of indexed data: what they
+    // build and pass is checked here, and nowhere else.
+    let read = program.evidence_uses(first, subjects, *purpose);
+    program.keep(read).map_err(alone)?;
     // A machine that satisfies a requirement brings the rest of its
     // conformance: every machine over such data that satisfies a requirement
     // of the same trait at the same data. A program that only adds two

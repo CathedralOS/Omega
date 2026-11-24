@@ -269,6 +269,9 @@ pub(crate) struct Program<'t> {
     pub(crate) families: Vec<families::FamilyRecord>,
     /// Each theorem over such data read so far (`families`).
     pub(crate) family_theorems: Vec<(MachineId, families::FamilyTheorem)>,
+    /// What each machine that runs does with evidence of such data
+    /// (`families`).
+    pub(crate) evidence_uses: Vec<families::EvidenceUse>,
     /// Each machine read so far whose body is one `Quotient::lift` or
     /// `Quotient::define` (`quotients`).
     pub(crate) lifted_operations: Vec<(MachineId, quotients::LiftedOperation)>,
@@ -585,6 +588,7 @@ impl<'t> Program<'t> {
             quotients: Vec::new(),
             families: Vec::new(),
             family_theorems: Vec::new(),
+            evidence_uses: Vec::new(),
             lifted_operations: Vec::new(),
             clause_arguments: Vec::new(),
             readiness: Vec::new(),

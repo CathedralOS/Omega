@@ -152,20 +152,32 @@ impl Program<'_> {
         None
     }
 
-    /// Whether the machine takes or returns data that contains itself, or is
-    /// declared inside a machine that does.
+    /// Whether the machine is a definition or a law over data that contains
+    /// itself, or is declared inside one: it returns such data, takes it in
+    /// a formal that is not erased, or returns nothing and takes nothing
+    /// but erased values, one of them such data. A machine that runs and
+    /// only holds such data in erased formals is not one: the value is
+    /// evidence it carries for the checker.
     pub(crate) fn proof_machine(&self, machine: &Machine) -> bool {
         let typed = self.typed;
         let own = typed.machine_states(machine).first().is_some_and(|entry| {
+            let formals = typed.state_parameters.span(entry.parameters);
+            let erased = |formal: &crate::source_state::signature::StateParameter| {
+                formal.relevance == language_core::BindingRelevance::Erased
+            };
             self.proof_only_type(entry.return_type)
-                || typed
-                    .state_parameters
-                    .span(entry.parameters)
-                    .is_some_and(|formals| {
-                        formals
-                            .iter()
-                            .any(|formal| self.proof_only_type(formal.type_reference))
+                || formals.as_ref().is_some_and(|formals| {
+                    formals.iter().any(|formal| {
+                        !erased(formal) && self.proof_only_type(formal.type_reference)
                     })
+                })
+                || (!entry.return_type.is_valid()
+                    && formals.as_ref().is_some_and(|formals| {
+                        formals.iter().all(erased)
+                            && formals
+                                .iter()
+                                .any(|formal| self.proof_only_type(formal.type_reference))
+                    }))
         });
         if own {
             return true;

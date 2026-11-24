@@ -108,6 +108,15 @@ laws the cases used; the family, its constructors and the induction are
 definitions and add nothing. A case with no proof is reported by its name:
 "cannot prove ensures contract for `vector_bound` in the case `Vector::Cons`".
 
+A value of such data that a running machine builds owes what its case
+requires (`prove_integers` in `laws.rs`). Stage 05 states one law per
+requirement: for every value of the machine's value parameters that meets
+the machine's own `requires`, the requirement holds of the literal's values.
+The same integer search proves each one against the vocabulary stage 05
+declared, and the kernel checks the proof. A requirement with no proof
+refuses the program where the literal is written: "cannot prove what
+`Vector::Cons` requires of the value built here in `room`".
+
 Each proof is tried twice: first with every definition that is not by cases
 left as its name, so that a goal and its citations are compared as written,
 then with those definitions unfolded. When the search of every order of
