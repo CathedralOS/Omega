@@ -18,11 +18,6 @@ wire_record! {
         parameter_types: List<Text>,
         evidence: Evidence,
     }
-    ScalarPredicate: ScalarPredicateDefinition {
-        declaration: Index,
-        parameters: List<crate::signatures::Declaration>,
-        body: Proposition,
-    }
     Binder: PropositionBinderDeclaration { name: Text, kind: BinderKind }
     Application: PropositionApplicationIdentity {
         id: Id,
@@ -63,6 +58,63 @@ wire_enum! {
         1 => Type,
         2 => Const,
         3 => Machine,
+    }
+}
+
+// An absent declaration index introduces a telescope with erased types.
+// Scalar-only definitions retain their original bytes and fingerprints.
+pub struct ScalarPredicate;
+impl Field<ScalarPredicateDefinition> for ScalarPredicate {
+    fn write(writer: &mut Writer, value: &ScalarPredicateDefinition) -> Result<(), CodecError> {
+        use terminal_psi::MathematicalPredicateBody;
+        if !value.type_parameters.is_empty() {
+            Index::write(writer, &TerminalIdentityIndex::ABSENT)?;
+            List::<crate::fields::U32>::write(writer, &value.type_parameters)?;
+        }
+        Index::write(writer, &value.declaration)?;
+        List::<crate::signatures::Declaration>::write(writer, &value.parameters)?;
+        if !value.type_parameters.is_empty() {
+            writer.boolean(matches!(
+                value.body,
+                MathematicalPredicateBody::TypeParameter(_)
+            ));
+        }
+        match &value.body {
+            MathematicalPredicateBody::Proposition(body) => Proposition::write(writer, body),
+            MathematicalPredicateBody::TypeParameter(slot) if !value.type_parameters.is_empty() => {
+                writer.u32(*slot);
+                Ok(())
+            }
+            _ => Err(CodecError::MalformedStructuralFoundation(
+                "type projection without a formal",
+            )),
+        }
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<ScalarPredicateDefinition, CodecError> {
+        use terminal_psi::MathematicalPredicateBody;
+        let mut declaration = Index::read(reader)?;
+        let mut type_parameters = Vec::new();
+        if declaration.is_absent() {
+            type_parameters = List::<crate::fields::U32>::read(reader)?;
+            if type_parameters.is_empty() {
+                return Err(CodecError::MalformedStructuralFoundation(
+                    "empty erased type telescope extension",
+                ));
+            }
+            declaration = Index::read(reader)?;
+        }
+        let parameters = List::<crate::signatures::Declaration>::read(reader)?;
+        let body = if !type_parameters.is_empty() && reader.boolean()? {
+            MathematicalPredicateBody::TypeParameter(reader.u32()?)
+        } else {
+            MathematicalPredicateBody::Proposition(Proposition::read(reader)?)
+        };
+        Ok(ScalarPredicateDefinition {
+            declaration,
+            parameters,
+            type_parameters,
+            body,
+        })
     }
 }
 

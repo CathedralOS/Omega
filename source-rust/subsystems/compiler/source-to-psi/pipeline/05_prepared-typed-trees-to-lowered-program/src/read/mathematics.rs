@@ -16,6 +16,7 @@ use semantic_vocabulary::{
 };
 use symbols::{BuiltinFunction, BuiltinTypeMember, FixedCoreDeclaration, SymbolHandle};
 use terminal_check_tables::{Checked, Construct};
+use terminal_psi::MathematicalPredicateBody;
 
 use super::{
     Program,
@@ -73,6 +74,61 @@ pub(super) fn integer_embedding(
     IntegerMathTerm::embed(term).ok_or_else(unavailable)
 }
 
+pub(super) fn mathematical_sort(
+    typed: &crate::source_state::TypedTrees,
+    ty: crate::source_state::mathematical::MathematicalTypeHandle,
+) -> Option<FixedCoreDeclaration> {
+    if !typed.mathematical_types.is_valid(ty) {
+        return None;
+    }
+    let MathematicalType::Ordinary(reference) = typed.mathematical_type(ty) else {
+        return None;
+    };
+    if !typed
+        .type_reference_table
+        .contains_type_reference(*reference)
+    {
+        return None;
+    }
+    let TypeReferenceNode::Generic {
+        base_symbol,
+        arguments,
+        lifetime_arguments,
+        ..
+    } = typed.type_reference_table.type_reference(*reference)
+    else {
+        return None;
+    };
+    let sort = typed
+        .symbols
+        .fixed_core_declaration_for_symbol(*base_symbol)?;
+    if !matches!(
+        sort,
+        FixedCoreDeclaration::Strict | FixedCoreDeclaration::Type
+    ) || !lifetime_arguments.is_empty()
+        || arguments.len() != 1
+    {
+        return None;
+    }
+    let arguments = typed
+        .type_reference_table
+        .type_reference_handles(*arguments);
+    let [argument] = arguments else { return None };
+    if !typed
+        .type_reference_table
+        .contains_type_reference(*argument)
+    {
+        return None;
+    }
+    let TypeReferenceNode::ConstExpression(expression) =
+        typed.type_reference_table.type_reference(*argument)
+    else {
+        return None;
+    };
+    (typed.expression_table.expression_is_valid(*expression)
+            && matches!(typed.expression_table.expression(*expression), ExpressionNode::Integer(literal) if literal.value_u64() == Some(0))).then_some(sort)
+}
+
 impl<'t> Program<'t> {
     fn mathematical_definition(
         &self,
@@ -122,16 +178,12 @@ impl<'t> Program<'t> {
         }
     }
 
-    fn mathematical_application<'a>(
+    pub(super) fn applied_definition(
         &mut self,
         id: MachineId,
-        scope: &ClauseScope<'a>,
+        scope: &ClauseScope<'_>,
         call: &TableCallExpression,
-    ) -> Checked<(
-        usize,
-        &'t MathematicalDefinition,
-        Vec<(SymbolHandle, semantic_vocabulary::ScalarTerm)>,
-    )> {
+    ) -> Checked<MathematicalPredicateBody> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
         let (definition_index, definition) = self
             .mathematical_definition(call.target_symbol)
@@ -189,6 +241,7 @@ impl<'t> Program<'t> {
             return Err(unserved("mathematical premise argument correspondence"));
         }
         let mut bound = Vec::with_capacity(parameters.len());
+        let mut actual_inputs = MathematicalInputs::empty();
         for (parameter, argument) in parameters.iter().zip(arguments) {
             if !self.typed.mathematical_types.is_valid(parameter.ty) {
                 return Err(unserved("mathematical premise input has no formed type"));
@@ -197,6 +250,52 @@ impl<'t> Program<'t> {
             else {
                 return Err(unserved("higher-order mathematical premise input"));
             };
+            if parameter.relevance == language_core::BindingRelevance::Erased
+                && mathematical_sort(self.typed, parameter.ty) == Some(FixedCoreDeclaration::Type)
+            {
+                // Form both endpoints even if the callee discards this type.
+                let actual = self
+                    .clause_term(
+                        id,
+                        scope,
+                        *argument,
+                        super::clause_calls::ClauseUse::ProofRelevantType,
+                    )?
+                    .type_body(id)?;
+                match &actual {
+                    MathematicalPredicateBody::TypeParameter(_) => {}
+                    MathematicalPredicateBody::Proposition(Proposition::DeclarationIdentity(
+                        identity,
+                    )) => {
+                        let scalars =
+                            identity
+                                .values
+                                .iter()
+                                .filter_map(|value| match &value.operand {
+                                    semantic_vocabulary::ClauseOperand::Scalar(term) => {
+                                        Some((parameter.symbol, term.clone()))
+                                    }
+                                    _ => None,
+                                });
+                        self.retain_call_arguments(id, scalars)?;
+                    }
+                    MathematicalPredicateBody::Proposition(Proposition::FloatMeaningEqual(
+                        identity,
+                    )) => {
+                        self.retain_call_arguments(
+                            id,
+                            identity
+                                .sources()
+                                .map(|term| (parameter.symbol, term.clone())),
+                        )?;
+                    }
+                    MathematicalPredicateBody::Proposition(_) => {
+                        return Err(unserved("erased type argument has no type formation"));
+                    }
+                }
+                actual_inputs.bind_type(parameter.symbol, actual);
+                continue;
+            }
             let scalar = super::logical::scalar_type(
                 self.typed,
                 id,
@@ -214,24 +313,12 @@ impl<'t> Program<'t> {
             }
             bound.push((parameter.symbol, term));
         }
-        Ok((definition_index, definition, bound))
-    }
-
-    pub(super) fn mathematical_clause(
-        &mut self,
-        id: MachineId,
-        scope: &ClauseScope<'_>,
-        call: &TableCallExpression,
-    ) -> Checked<Proposition> {
-        let (definition_index, definition, bound) =
-            self.mathematical_application(id, scope, call)?;
         let address = MathematicalAddressContext::of(scope);
         let expanding = scope.logical.map_or(&[][..], |logical| logical.expanding);
         let expression =
             self.mathematical_predicate_definition(id, definition_index, address, expanding)?;
         let mut expanding = expanding.to_vec();
         expanding.push(definition.symbol);
-        let actual_inputs = MathematicalInputs::empty();
         let scope = ClauseScope {
             slots: &[],
             values: &[],
@@ -251,17 +338,15 @@ impl<'t> Program<'t> {
         scope: &ClauseScope<'_>,
         definition: &MathematicalDefinition,
         expression: ExpressionHandle,
-    ) -> Checked<Proposition> {
-        use super::clause_calls::{ClauseTerm, ClauseUse};
+    ) -> Checked<MathematicalPredicateBody> {
+        use super::clause_calls::ClauseUse;
         if self.predicate_result(definition) != Some(FixedCoreDeclaration::Type) {
-            return self.clause(id, scope, expression);
+            return self
+                .clause(id, scope, expression)
+                .map(MathematicalPredicateBody::Proposition);
         }
-        match self.clause_term(id, scope, expression, ClauseUse::ProofRelevantType)? {
-            ClauseTerm::Proposition(proposition) => Ok(proposition),
-            _ => Err(refuse(id, Construct::Machine, Unserved::Contract(
-                "mathematical type definition without a type body",
-            ))),
-        }
+        self.clause_term(id, scope, expression, ClauseUse::ProofRelevantType)?
+            .type_body(id)
     }
 
     pub(super) fn mathematical_definition_sort(
@@ -333,7 +418,8 @@ impl<'t> Program<'t> {
             logical: Some(formal_inputs.scope(id, address, &expanding)),
         };
         let formed = self.definition_body(id, &declaration_scope, definition, expression)?;
-        let parameters = formal_inputs.validate(id, &formed)?;
+        let parameters = formal_inputs.validate_body(id, &formed)?;
+        let type_parameters = formal_inputs.type_parameter_ordinals();
         let output = self
             .predicate_definitions
             .get_mut(definition_index)
@@ -341,6 +427,7 @@ impl<'t> Program<'t> {
         if let Some(retained) = output {
             if retained.symbol != definition.symbol
                 || retained.parameters != parameters
+                || retained.type_parameters != type_parameters
                 || retained.body != formed
             {
                 return Err(unserved(
@@ -352,62 +439,18 @@ impl<'t> Program<'t> {
                 symbol: definition.symbol,
                 diagnostic: id,
                 parameters,
+                type_parameters,
                 body: formed,
             });
         }
         Ok(expression)
     }
 
-    fn predicate_result(&self, definition: &MathematicalDefinition) -> Option<FixedCoreDeclaration> {
-        if !self.typed.mathematical_types.is_valid(definition.result) {
-            return None;
-        }
-        let MathematicalType::Ordinary(reference) = self.typed.mathematical_type(definition.result)
-        else {
-            return None;
-        };
-        if !self
-            .typed
-            .type_reference_table
-            .contains_type_reference(*reference)
-        {
-            return None;
-        }
-        let TypeReferenceNode::Generic {
-            base_symbol,
-            arguments,
-            lifetime_arguments,
-            ..
-        } = self.typed.type_reference_table.type_reference(*reference)
-        else {
-            return None;
-        };
-        let sort = self.typed.symbols.fixed_core_declaration_for_symbol(*base_symbol)?;
-        if !matches!(sort, FixedCoreDeclaration::Strict | FixedCoreDeclaration::Type)
-            || !lifetime_arguments.is_empty()
-            || arguments.len() != 1
-        {
-            return None;
-        }
-        let arguments = self
-            .typed
-            .type_reference_table
-            .type_reference_handles(*arguments);
-        let [argument] = arguments else { return None };
-        if !self
-            .typed
-            .type_reference_table
-            .contains_type_reference(*argument)
-        {
-            return None;
-        }
-        let TypeReferenceNode::ConstExpression(expression) =
-            self.typed.type_reference_table.type_reference(*argument)
-        else {
-            return None;
-        };
-        (self.typed.expression_table.expression_is_valid(*expression)
-            && matches!(self.typed.expression_table.expression(*expression), ExpressionNode::Integer(literal) if literal.value_u64() == Some(0))).then_some(sort)
+    fn predicate_result(
+        &self,
+        definition: &MathematicalDefinition,
+    ) -> Option<FixedCoreDeclaration> {
+        mathematical_sort(self.typed, definition.result)
     }
 
     pub(super) fn logical_mathematical_term(

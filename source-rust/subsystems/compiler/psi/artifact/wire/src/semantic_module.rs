@@ -607,7 +607,12 @@ pub(crate) mod canonical_order {
                 definition.parameters.iter().map(|parameter| parameter.id),
                 "scalar predicate inputs by ValueId",
             )?;
-            validate_canonical_proposition(&definition.body)?;
+            if let Some(body) = definition
+                .clause_body()
+                .map_err(CodecError::MalformedStructuralFoundation)?
+            {
+                validate_canonical_proposition(body)?;
+            }
         }
         require_increasing(
             module
@@ -5296,12 +5301,30 @@ mod scalar_predicate_definition_tests {
                     scalar_type: scalar,
                     qualifications: ScalarQualificationSetId::ZERO,
                 }],
-                body: Proposition::LessOrEqual(
-                    ScalarTerm::integer(integer, IntegerValue::Unsigned(0)).unwrap(),
-                    ScalarTerm::value(formal, scalar),
+                type_parameters: vec![],
+                body: terminal_psi::MathematicalPredicateBody::Proposition(
+                    Proposition::LessOrEqual(
+                        ScalarTerm::integer(integer, IntegerValue::Unsigned(0)).unwrap(),
+                        ScalarTerm::value(formal, scalar),
+                    ),
                 ),
             });
         module
+    }
+
+    #[test]
+    fn an_erased_type_projection_roundtrips_only_in_its_declared_scope() {
+        use terminal_psi::MathematicalPredicateBody::TypeParameter;
+        let mut module = predicate_module();
+        let definition = &mut module.scalars.scalar_predicate_definitions[0];
+        definition.type_parameters = vec![1];
+        definition.body = TypeParameter(1);
+        assert_eq!(
+            decode_module(&encode_module(&module).unwrap()).unwrap(),
+            module
+        );
+        module.scalars.scalar_predicate_definitions[0].body = TypeParameter(0);
+        assert!(decode_module(&module_wire::encode_raw(&module).unwrap()).is_err());
     }
 
     #[test]
@@ -5310,16 +5333,20 @@ mod scalar_predicate_definition_tests {
         let bytes = encode_module(&original).unwrap();
         assert_eq!(decode_module(&bytes).unwrap(), original);
         let mut changed = original.clone();
-        changed.scalars.scalar_predicate_definitions[0].body = Proposition::Truth;
+        changed.scalars.scalar_predicate_definitions[0].body =
+            terminal_psi::MathematicalPredicateBody::Proposition(Proposition::Truth);
         assert_ne!(
             semantic_fingerprint(&original).unwrap(),
             semantic_fingerprint(&changed).unwrap()
         );
 
         let mut capture = original.clone();
-        capture.scalars.scalar_predicate_definitions[0]
-            .body
-            .remap_value_ids(|_| ValueId::new(2).unwrap());
+        let terminal_psi::MathematicalPredicateBody::Proposition(body) =
+            &mut capture.scalars.scalar_predicate_definitions[0].body
+        else {
+            unreachable!()
+        };
+        body.remap_value_ids(|_| ValueId::new(2).unwrap());
         assert!(matches!(
             decode_module(&encode_module(&capture).unwrap()),
             Err(CodecError::MalformedProposition(_))

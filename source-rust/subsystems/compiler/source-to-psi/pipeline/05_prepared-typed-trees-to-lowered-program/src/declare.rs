@@ -420,6 +420,7 @@ pub(crate) fn declare(
                 terminal_psi::ScalarPredicateDefinition {
                     declaration,
                     parameters: definition.parameters.clone(),
+                    type_parameters: definition.type_parameters.clone(),
                     body: definition.body.clone(),
                 },
             );

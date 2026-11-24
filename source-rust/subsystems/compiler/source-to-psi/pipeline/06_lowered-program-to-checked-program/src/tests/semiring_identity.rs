@@ -98,7 +98,10 @@ fn generic(source: &str) -> RouteVerdict {
 
 #[test]
 fn semiring_identity_uses_the_cited_law() {
-    let verdict = generic(CITED);
+    assert_cited_semiring_identity(generic(CITED));
+}
+
+fn assert_cited_semiring_identity(verdict: RouteVerdict) {
     let RouteVerdict::Accepted(closure) = verdict else {
         panic!("expected an accepted generic contract: {verdict:?}")
     };
@@ -193,26 +196,34 @@ fn an_entry_equality_is_a_kernel_hypothesis() {
 
 #[test]
 fn semiring_identity_without_citation_names_the_unproved_equality() {
-    let verdict = generic(UNCITED);
+    let statement = unproved_statement_at_ensures(UNCITED, generic(UNCITED));
+    assert!(statement.contains(ensures_text(UNCITED)), "{statement}");
+}
+
+fn ensures_text(source: &str) -> &str {
+    source
+        .lines()
+        .find_map(|line| line.strip_prefix("ensures "))
+        .unwrap()
+}
+
+fn unproved_statement_at_ensures(source: &str, verdict: RouteVerdict) -> String {
     let RouteVerdict::Rejected { unproved, .. } = verdict else {
         panic!("expected an unproved return guarantee: {verdict:?}")
     };
     let [unproved] = unproved.as_slice() else {
         panic!("one unproved guarantee")
     };
-    let equality = UNCITED
-        .lines()
-        .find_map(|line| line.strip_prefix("ensures "))
-        .unwrap();
+    let equality = ensures_text(source);
     assert_eq!(unproved.cause, UnprovedCause::NoDerivation);
-    assert!(unproved.statement.contains(equality), "{unproved:?}");
     let terminal_check_tables::program::SourceOrigin::Authored(site) = unproved.site else {
         panic!("expected authored source position")
     };
     assert!(
-        UNCITED[site.span.start..site.span.end].contains(equality),
+        source[site.span.start..site.span.end].contains(equality),
         "{site:?}"
     );
+    unproved.statement.clone()
 }
 
 const ERASED: &str = r#"
@@ -392,4 +403,70 @@ machine entry<T [copy]>(x: u64, _fallback: T) ensures same(x) {}
         [(_, Ok(Discharged::Identity(judgment)))]
             if matches!(judgment.decision, MathematicalCoreDecision::Judged(_))
     ));
+}
+
+#[test]
+fn an_erased_type_argument_retains_the_callers_identity() {
+    let through_formal = |source: &str| {
+        let statement = ensures_text(source);
+        source
+            .replace(
+                "machine entry",
+                "let stated(p [erased]: core\\Type<0>): core\\Type<0> = p;\nmachine entry",
+            )
+            .replace(
+                &format!("ensures {statement}"),
+                &format!("ensures stated({statement})"),
+            )
+    };
+    let cited = through_formal(CITED);
+    let verdict = generic(&cited);
+    if let RouteVerdict::Accepted(closure) = &verdict {
+        let RouteVerdict::Accepted(direct) = generic(CITED) else {
+            panic!("direct Identity refused")
+        };
+        let actual = &closure.elaboration().module.machines[0];
+        let original = &direct.elaboration().module.machines[0];
+        assert!(
+            actual
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .eq(original.blocks.iter().flat_map(|block| &block.operations)),
+            "passing a proposition changed the executable operations"
+        );
+        let definitions = &closure
+            .elaboration()
+            .module
+            .scalars
+            .scalar_predicate_definitions;
+        assert!(
+            definitions
+                .iter()
+                .any(|definition| definition.type_parameters == [0]
+                    && definition.parameters.is_empty()
+                    && definition.body
+                        == terminal_psi::MathematicalPredicateBody::TypeParameter(0))
+        );
+    }
+    assert_cited_semiring_identity(verdict);
+    let uncited = through_formal(UNCITED);
+    let statement = unproved_statement_at_ensures(&uncited, generic(&uncited));
+    assert!(
+        statement.ends_with("stated(core::Identity::<T>(Ring.add(b, a), Ring.add(a, b)))"),
+        "{statement}"
+    );
+}
+
+#[test]
+fn an_unused_erased_type_argument_does_not_require_an_identity_witness() {
+    let verdict = generic(
+        r#"
+let ignore(p [erased]: core\Type<0>): core\Strict<0> = 0u64 == 0;
+machine probe<T [copy]>(x: u64, y: u64, _unused: T)
+ensures ignore(core\Identity::<u64>(x, y))
+{}
+"#,
+    );
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 }

@@ -150,7 +150,8 @@ pub(crate) struct PredicateDefinition {
     pub symbol: SymbolHandle,
     pub diagnostic: MachineId,
     pub parameters: Vec<terminal_psi::ValueDeclaration>,
-    pub body: semantic_vocabulary::Proposition,
+    pub type_parameters: Vec<u32>,
+    pub body: terminal_psi::MathematicalPredicateBody,
 }
 
 pub(crate) struct Program<'t> {
