@@ -99,12 +99,23 @@ expose a checked byte slice for serialized inputs or preserve separate shell
 arguments. An application that needs typed options can parse those bytes. An
 Omega host can instead call an agreed typed entry with the actual values.
 
+Each target uses the same `Build::bind` operation. Targets may bind one
+parameterless machine or bind separate startup machines that call common
+application code. The selected [calling policy](calling_plans.md#authorship-and-evaluation)
+describes how control and physical values arrive. The installed contract
+identifies the backing and authority supplied on that invocation. A target
+adapter that presents sized arguments must establish each length. Reading
+terminators, splitting a command line or copying text belongs in explicit
+adapter or library code when the application needs that representation.
+
 A shared slice permits reads. An exclusive mutable byte slice permits writes
 within the caller's authorized loan. For a live protected struct, the caller
 must establish the domain qualification, permitted operations, backing and
 lifetime for this occurrence. A cast or byte projection cannot grant access
 to a restricted field. A filename or an encoded handle number cannot establish
 file authority. Missing backing or an unestablished precondition prevents entry.
+A permitted issuer receiving a byte-for-byte copy of a firmware table still
+needs evidence that the platform delegated operations on that particular table.
 [Access plans](../resources/access.md#access-rule-subjects) · [Mutable recasts](../layouts/recasts.md#shared-and-mutable-views) · [UEFI handoff](uefi_entry.md#firmware-api-authority-and-storage-grants)
 
 An entry shape names distinct physical and semantic arrival requirements, the

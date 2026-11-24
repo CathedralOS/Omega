@@ -81,7 +81,7 @@ superseded run is not a current correctness or performance claim.
 ## Designs
 
 - [Hot swap in an application](designs/component_hot_swap_authorship.md) follows one editor through first bind, a failed load and live replacement.
-- [Structured program entry](designs/structured_program_entry.md) traces shell bytes, mutable backing, UEFI and embedded calls to their actual suppliers.
+- [Structured program entry](designs/structured_program_entry.md) shows the Build binding and startup code for a parameterless executable, a Linux/Windows CLI and a proposed Cathedral firmware entry. It also traces a typed IDE launch and mutable backing.
 - [Build libraries and services](designs/build_library_and_service_inputs.md) compares parent-supplied imports, staged source, recorded inputs and live host delegation.
 - [Required issuance choice](designs/required_issuance_choice.md): explicit
   establishment policy and review; delete when its implementation task closes.
