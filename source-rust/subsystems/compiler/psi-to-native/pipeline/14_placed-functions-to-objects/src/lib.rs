@@ -26,9 +26,10 @@ changes to one format never silently reinterpret hashed identities in the other:
 ```
 
 We enforce fail-closed semantics throughout both lanes:
-- `target_matrix` admits only the five canonical 64-bit `(architecture, object_format)`
-  pairs (`Aarch64` with `Elf`/`MachO`, `X86_64` with `Elf`/`Coff`/`MachO`),
-  rejecting `(Aarch64, Coff)` rather than falling back to a format wildcard.
+- `target_matrix` names one row for each of the six 64-bit `(architecture, object_format)`
+  pairs (`Aarch64` and `X86_64`, each with `Elf`/`Coff`/`MachO`) in an exhaustive
+  match, so a new architecture or format fails to compile instead of falling back
+  to a wildcard row.
 - `RelocationOrigin::SemanticOperation` and `RelocationOrigin::SemanticEdge`
   remain distinct variants and wire tags even though both carry a symbol handle
   and a `u64`, because operation and edge identities live in disjoint integer
@@ -39,9 +40,12 @@ We enforce fail-closed semantics throughout both lanes:
 - Single-variant enums in `OMGTRO` and `OMGTOM` still write an explicit tag byte
   (`1`) on the wire so future policy variants can be added without misparsing
   adjacent fields.
-- Function symbol names derive from the compiler-private `MachineFunctionIdentity`
-  (arena index, generation, and segment index) rather than source names,
-  preventing collisions across reused arena slots or identical source names.
+- Function symbol names never use source names. A placed machine is named
+  `omega_terminal_machine_{MachineId}`, or the target's entry symbol for the
+  semantic entry. A callback target is named from its `MachineFunctionIdentity`:
+  the caller's vocabulary marker and program fingerprint plus the callback-thunk
+  placement index (`private_function_symbol_name`). Identical source names
+  therefore cannot collide.
 */
 
 /*

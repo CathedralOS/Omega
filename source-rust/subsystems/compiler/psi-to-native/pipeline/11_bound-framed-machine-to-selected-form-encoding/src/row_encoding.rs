@@ -18,7 +18,7 @@ Each `SelectedInstructionKind` declares its encoding route (`route_of`):
   (`lea [rip + disp32]` on x86-64, `adrp` + `add` on AArch64) with an
   `UnresolvedImageAddress` fixup.
 - `RowRoute::DeferredControlFlow` records `DeferredControl` without bytes so
-  Stage 08 can encode the branch once block offsets are resolved.
+  stage 12 layout can encode the branch once block offsets are resolved.
 - `RowRoute::Ordinary` encodes a self-contained scalar or hosted process-exit
   instruction.
 
