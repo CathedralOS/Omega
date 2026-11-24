@@ -182,6 +182,7 @@ pub fn capture_child(
             return Ok(BoundedProcessOutput {
                 status: completion.status(),
                 resource_usage: completion.resource_usage().cloned(),
+                limits_reached: completion.limits_reached().to_vec(),
                 stdout,
                 stderr,
             });

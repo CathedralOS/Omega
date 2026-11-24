@@ -47,8 +47,8 @@ pub use bounded_process::{
 pub use private_root::{PrivateFilesystemFiles, PrivateFilesystemOutputs};
 pub use preparation::{BoundedProcessLimits, BoundedProcessPrepared};
 pub use process_child::{
-    BoundedProcessChild, BoundedProcessCompletion, BoundedProcessExitStatus, ProcessResourceUsage,
-    ToolCommandChild,
+    BoundedProcessChild, BoundedProcessCompletion, BoundedProcessExitStatus, ProcessLimit,
+    ProcessResourceUsage, ToolCommandChild,
 };
 
 pub use bounded_process::capture_child as capture_bounded_child;
