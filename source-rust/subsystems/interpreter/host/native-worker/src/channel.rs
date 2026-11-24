@@ -17,7 +17,7 @@ any adapter or request.
 
 #[cfg(unix)]
 mod unix {
-    use std::io;
+    use std::io::{self, Read};
     use std::os::fd::{FromRawFd, OwnedFd, RawFd};
     use std::os::unix::net::UnixStream;
     use std::time::Duration;
@@ -46,6 +46,17 @@ mod unix {
             parent,
             child: child.into(),
         })
+    }
+
+    pub(crate) fn first_request_byte(
+        stream: &mut UnixStream,
+        timeout: Duration,
+    ) -> io::Result<[u8; 1]> {
+        stream.set_read_timeout(None)?;
+        let mut first = [0];
+        stream.read_exact(&mut first)?;
+        stream.set_read_timeout(Some(timeout))?;
+        Ok(first)
     }
 
     pub(crate) fn receive(raw: RawFd, timeout: Duration) -> io::Result<UnixStream> {
@@ -111,7 +122,7 @@ mod windows {
                 ConnectNamedPipe, CreateNamedPipeW, GetNamedPipeClientProcessId,
                 GetNamedPipeServerProcessId, PIPE_REJECT_REMOTE_CLIENTS,
             },
-            Threading::{CreateEventW, WaitForSingleObject},
+            Threading::{CreateEventW, INFINITE, WaitForSingleObject},
         },
     };
 
@@ -187,8 +198,13 @@ mod windows {
             let error = io::Error::last_os_error();
             if started == 0 && error.raw_os_error() != Some(ERROR_PIPE_CONNECTED as i32) {
                 unsafe {
-                    self.pipe
-                        .complete(operation, event.as_raw_handle(), started, error)?;
+                    self.pipe.complete(
+                        operation,
+                        event.as_raw_handle(),
+                        started,
+                        error,
+                        milliseconds(self.pipe.timeout),
+                    )?;
                 }
             }
             let mut actual = 0;
@@ -247,12 +263,13 @@ mod windows {
             event: windows_sys::Win32::Foundation::HANDLE,
             started: i32,
             error: io::Error,
+            wait: u32,
         ) -> io::Result<u32> {
             if started == 0 && error.raw_os_error() != Some(ERROR_IO_PENDING as i32) {
                 return Err(error);
             }
             if started == 0 {
-                let waited = unsafe { WaitForSingleObject(event, milliseconds(self.timeout)) };
+                let waited = unsafe { WaitForSingleObject(event, wait) };
                 if waited != WAIT_OBJECT_0 {
                     let reason = if waited == WAIT_TIMEOUT {
                         io::Error::new(io::ErrorKind::TimedOut, "native worker channel timed out")
@@ -280,9 +297,8 @@ mod windows {
             }
             Ok(count)
         }
-    }
-    impl Read for Channel {
-        fn read(&mut self, output: &mut [u8]) -> io::Result<usize> {
+
+        fn read_with_wait(&mut self, output: &mut [u8], wait: u32) -> io::Result<usize> {
             if output.is_empty() {
                 return Ok(0);
             }
@@ -302,12 +318,29 @@ mod windows {
                 )
             };
             let error = io::Error::last_os_error();
-            match unsafe { self.complete(operation, event.as_raw_handle(), started, error) } {
+            match unsafe { self.complete(operation, event.as_raw_handle(), started, error, wait) } {
                 Err(error) if error.raw_os_error() == Some(ERROR_BROKEN_PIPE as i32) => Ok(0),
                 result => result.map(|count| count as usize),
             }
         }
     }
+    impl Read for Channel {
+        fn read(&mut self, output: &mut [u8]) -> io::Result<usize> {
+            self.read_with_wait(output, milliseconds(self.timeout))
+        }
+    }
+
+    pub(crate) fn first_request_byte(
+        stream: &mut Channel,
+        _timeout: Duration,
+    ) -> io::Result<[u8; 1]> {
+        let mut first = [0];
+        if stream.read_with_wait(&mut first, INFINITE)? == 0 {
+            return Err(io::ErrorKind::UnexpectedEof.into());
+        }
+        Ok(first)
+    }
+
     impl Write for Channel {
         fn write(&mut self, input: &[u8]) -> io::Result<usize> {
             if input.is_empty() {
@@ -329,8 +362,16 @@ mod windows {
                 )
             };
             let error = io::Error::last_os_error();
-            unsafe { self.complete(operation, event.as_raw_handle(), started, error) }
-                .map(|count| count as usize)
+            unsafe {
+                self.complete(
+                    operation,
+                    event.as_raw_handle(),
+                    started,
+                    error,
+                    milliseconds(self.timeout),
+                )
+            }
+            .map(|count| count as usize)
         }
         fn flush(&mut self) -> io::Result<()> {
             Ok(())
