@@ -20,7 +20,7 @@ pub(crate) struct NativeCompileRequest<'request> {
     pub installation_assumptions:
         &'request [installation_conditions::InstallationEnvironmentAssumption],
     pub isolated_execution_grant:
-        Option<&'request semantic_vocabulary::TerminalAuthorityDisposition>,
+        Option<&'request provider_admission::IsolatedExecutionGrant>,
     pub terminal_authority_policy: TerminalAuthorityPolicy,
     pub accepted_package_terminal_authority_permission_policy: TerminalAuthorityPermissionPolicy,
     pub terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,

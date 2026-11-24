@@ -9,8 +9,8 @@ use compiler::{Artifact, CompileRequest, Program};
 use diagnostics::Diagnostic;
 use installation_conditions::InstallationEnvironmentAssumption;
 use product_publication::CompletedProduct;
-use semantic_vocabulary::{TerminalAuthorityClass, TerminalAuthorityDisposition};
-use source_compiler::registered_tests::RegisteredTests;
+use provider_admission::IsolatedExecutionGrant;
+use source_compiler::registered_tests::{RegisteredTests, TestInvocationInputs};
 use target::TargetProfile;
 use terminal_runtime::{
     TerminalDomainExitDelegation, TerminalExecutionResult, TerminalExecutionStatus,
@@ -53,11 +53,14 @@ impl ProductStage<'_> {
         for test in &suite.roots {
             let prepare = || {
                 let mut native_target = self.native_target(profile, assumptions.to_vec())?;
-                native_target.isolated_execution_grant =
-                    Some(TerminalAuthorityDisposition::from_classes([
-                        TerminalAuthorityClass::ProcessOutput,
-                        TerminalAuthorityClass::ProcessTermination,
-                    ]));
+                let private_filesystem = test
+                    .inputs
+                    .private_filesystem
+                    .then(|| IsolatedExecutionGrant::private_linux_filesystem(profile))
+                    .flatten();
+                native_target.isolated_execution_grant = Some(
+                    private_filesystem.unwrap_or_else(IsolatedExecutionGrant::captured_process),
+                );
                 let program = Program::CheckedSource {
                     publication: suite.compile(test, target)?,
                     suppliers: self.product,
@@ -88,7 +91,7 @@ impl ProductStage<'_> {
                         diagnostics::join_messages(&errors)
                     )
                 })
-                .and_then(|product| run_test(product, profile, execution));
+                .and_then(|product| run_test(product, profile, execution, &test.inputs));
             roster.push(match result {
                 Ok(status) => Diagnostic::note(format!("{name} (target `{target}`): {status}")),
                 Err(reason) => Diagnostic::error(format!("{name} {reason} (target `{target}`)")),
@@ -115,16 +118,26 @@ fn run_test(
     product: Artifact,
     profile: TargetProfile,
     execution: TestExecution,
+    inputs: &TestInvocationInputs,
 ) -> Result<String, String> {
+    if inputs.private_filesystem
+        && !matches!(profile, TargetProfile::LinuxX64 | TargetProfile::LinuxArm64)
+    {
+        let unavailable = EngineError::Unavailable(format!(
+            "no private filesystem adapter for {}",
+            profile.target_name()
+        ));
+        return assess(Err(unavailable.clone()), Err(unavailable), execution);
+    }
     let (interpreted, native) = match product {
         Artifact::Runtime(report) => (
-            interpret(&report, profile),
+            interpret(&report, profile, inputs),
             Err(EngineError::Unavailable(
                 "its target does not execute on this host".into(),
             )),
         ),
         Artifact::Native(report) => {
-            let interpreted = interpret(&report, profile);
+            let interpreted = interpret(&report, profile, inputs);
             let program = report
                 .retained_native_program()
                 .ok_or("the native test lost its Psi artifact")?;
@@ -132,7 +145,7 @@ fn run_test(
                 .psi_artifact()
                 .semantic_module()
                 .can_end_the_process();
-            let native = execute_native(report, can_exit);
+            let native = execute_native(report, can_exit, inputs);
             (interpreted, native)
         }
         Artifact::Psi(_) => return Err("the test lacks an admitted execution product".into()),
@@ -140,7 +153,11 @@ fn run_test(
     assess(interpreted, native, execution)
 }
 
-fn interpret(report: &CompletedProduct, target: TargetProfile) -> Run<PsiTermination> {
+fn interpret(
+    report: &CompletedProduct,
+    target: TargetProfile,
+    inputs: &TestInvocationInputs,
+) -> Run<PsiTermination> {
     let Some(artifact) = report
         .retained_native_program()
         .map(|program| program.psi_artifact())
@@ -160,7 +177,11 @@ fn interpret(report: &CompletedProduct, target: TargetProfile) -> Run<PsiTermina
             entry: None,
             native_provider: None,
             native_services: terminal_runtime::TerminalNativeServiceDelegation::Unprovided,
-            filesystem: terminal_runtime::TerminalFilesystemDelegation::Unprovided,
+            filesystem: if inputs.private_filesystem {
+                terminal_runtime::TerminalFilesystemDelegation::Private
+            } else {
+                terminal_runtime::TerminalFilesystemDelegation::Unprovided
+            },
             x86_flags,
             memory_ordering:
                 terminal_runtime::TerminalMemoryOrderingEnvironment::private_sequential(target),
@@ -172,7 +193,9 @@ fn interpret(report: &CompletedProduct, target: TargetProfile) -> Run<PsiTermina
             provider_proposal: None,
             work_budget: TEST_PSI_WORK_ALLOWANCE,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
-            standard_input: None,
+            standard_input: inputs
+                .private_filesystem
+                .then(|| Box::new(std::io::empty()) as Box<dyn std::io::Read + Send>),
             clock: None,
         },
         report.retained_native_artifact(),
@@ -208,7 +231,11 @@ fn interpret(report: &CompletedProduct, target: TargetProfile) -> Run<PsiTermina
     })
 }
 
-fn execute_native(report: CompletedProduct, can_exit: bool) -> Run<NativeTermination> {
+fn execute_native(
+    report: CompletedProduct,
+    can_exit: bool,
+    inputs: &TestInvocationInputs,
+) -> Run<NativeTermination> {
     let directory =
         platform_custody::temporary_directory::TemporaryDirectory::create("test", false).map_err(
             |error| EngineError::Unavailable(format!("cannot create a test directory: {error}")),
@@ -229,8 +256,12 @@ fn execute_native(report: CompletedProduct, can_exit: bool) -> Run<NativeTermina
         ))
     })?;
     let mut command = std::process::Command::new(executable);
-    command.current_dir(working).env_clear();
-    let output = native::capture(command, crate::NativeEntryLimits::INSTALLED)?;
+    command.env_clear().current_dir(&working);
+    let output = native::capture(
+        command,
+        crate::NativeEntryLimits::INSTALLED,
+        inputs.private_filesystem.then_some(working.as_path()),
+    )?;
     Ok(Observed {
         termination: NativeTermination {
             status: output.status.into(),

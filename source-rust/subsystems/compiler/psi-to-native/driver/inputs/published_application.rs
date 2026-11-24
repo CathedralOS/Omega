@@ -21,7 +21,7 @@ pub struct SourceNativeTarget<'a> {
     pub settings: NativeApplicationSettings<'a>,
     /// Receiving execution in an isolated domain supplies only these physical classes
     /// and has no ambient foreign-call adapter.
-    pub isolated_execution_grant: Option<semantic_vocabulary::TerminalAuthorityDisposition>,
+    pub isolated_execution_grant: Option<provider_admission::IsolatedExecutionGrant>,
     pub package_permissions: Option<declaration_scope::ProductDeclarationScope>,
     pub semantic_bindings: Arc<[provider_acceptance::AcceptedSemanticBinding]>,
     pub installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
@@ -163,7 +163,7 @@ fn prepare_issued_program<Publisher>(
     settings: NativeApplicationSettings<'_>,
     behavior_exclusions: &[behavior_exclusion_requests::AuthoredBehaviorExclusion],
     installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
-    isolated_execution_grant: Option<semantic_vocabulary::TerminalAuthorityDisposition>,
+    isolated_execution_grant: Option<provider_admission::IsolatedExecutionGrant>,
 ) -> Result<crate::NativeProgram, Vec<Diagnostic>> {
     let admitted = native_inputs::admit(authorization, issued)
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;

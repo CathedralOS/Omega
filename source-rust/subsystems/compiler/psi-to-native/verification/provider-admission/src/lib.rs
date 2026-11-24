@@ -10,6 +10,7 @@ mod admission_source;
 mod callback_entries;
 mod compiler_builtins;
 pub mod installed_interrupt_helpers;
+mod isolated_execution;
 mod lowering_facts;
 mod model;
 mod native_binding_settlements;
@@ -44,6 +45,7 @@ pub use installation_conditions::{
     BootstrapAssumptionInterval, BootstrapEnvironmentAssumption, InstallationEnvironmentAssumption,
     InterruptDeliveryInterval, X86InterruptDeliveryAssumption, X86InterruptDeliveryProfile,
 };
+pub use isolated_execution::IsolatedExecutionGrant;
 pub use lowering_facts::{AdmittedInstalledInterruptCohort, AdmittedNativeCallbackCohort};
 pub use model::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedCallbackEntry,

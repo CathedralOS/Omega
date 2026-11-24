@@ -1,10 +1,12 @@
 //! A registration lends the Build its own mutable configuration. The guest writes
-//! the ordinary field, and normal Build return reads the same cell.
+//! the ordinary settings, and normal Build return reads the same cells.
 use super::*;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, ScalarType, StructuralFieldId, StructuralTypeId,
 };
-use source_compiler::representations::declaration_selection::TestGroupConfiguration;
+use source_compiler::representations::declaration_selection::{
+    TestGroupConfiguration, TestInvocationInputs,
+};
 use terminal_interpreter::{
     TerminalAggregateValue, TerminalInvocationScalar, TerminalReferencePayload,
     TerminalReferenceResult, TerminalReferenceScalarBacking, TerminalScalarBacking,
@@ -13,16 +15,22 @@ use terminal_interpreter::{
 pub(super) struct RegisteredTestGroup {
     selection: ExecutedProductSelection,
     disabled: TerminalInvocationScalar,
+    private_filesystem: TerminalInvocationScalar,
     _storage: Option<evaluation_accounting::EvaluationStorageLease>,
 }
 
 impl RegisteredTestGroup {
     pub(super) fn finish(mut self) -> Result<ExecutedBuildSelection, String> {
-        let TerminalScalarValue::Boolean(disabled) = self.disabled.read().map_err(|e| e.reason)?
-        else {
-            return Err("test group lost its boolean setting".into());
+        let boolean = |cell: &TerminalInvocationScalar| match cell.read().map_err(|e| e.reason)? {
+            TerminalScalarValue::Boolean(value) => Ok(value),
+            _ => Err(String::from("test group lost its boolean setting")),
         };
-        self.selection.test_group = Some(TestGroupConfiguration { disabled });
+        self.selection.test_group = Some(TestGroupConfiguration {
+            disabled: boolean(&self.disabled)?,
+            inputs: TestInvocationInputs {
+                private_filesystem: boolean(&self.private_filesystem)?,
+            },
+        });
         Ok(ExecutedBuildSelection::Declaration(self.selection))
     }
 }
@@ -30,6 +38,8 @@ impl RegisteredTestGroup {
 pub(super) struct GroupShape {
     referent: StructuralTypeId,
     disabled: StructuralFieldId,
+    inputs: StructuralFieldId,
+    private_filesystem: StructuralFieldId,
 }
 
 impl GroupShape {
@@ -48,34 +58,52 @@ impl GroupShape {
         else {
             return None;
         };
-        let [disabled] = module.structural_type(referent)?.shape.record_fields()? else {
+        let [disabled, inputs] = module.structural_type(referent)?.shape.record_fields()? else {
             return None;
         };
+        let input_type = inputs.field_type.as_structural()?;
+        let [filesystem] = module.structural_type(input_type)?.shape.record_fields()? else {
+            return None;
+        };
+        let boolean = terminal_psi::StructuralFieldType::Scalar(ScalarType::Boolean);
         (module.identities.text(disabled.identity) == Some("disabled")
-            && disabled.field_type
-                == terminal_psi::StructuralFieldType::Scalar(ScalarType::Boolean))
-        .then_some(Self {
-            referent,
-            disabled: disabled.id,
-        })
+            && disabled.field_type == boolean
+            && module.identities.text(inputs.identity) == Some("inputs")
+            && module.identities.text(filesystem.identity) == Some("private_filesystem")
+            && filesystem.field_type == boolean)
+            .then_some(Self {
+                referent,
+                disabled: disabled.id,
+                inputs: inputs.id,
+                private_filesystem: filesystem.id,
+            })
     }
 
     fn issue(
         &self,
         disabled: TerminalInvocationScalar,
+        private_filesystem: TerminalInvocationScalar,
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        let path = vec![CanonicalStructuralPathSegment::Field(self.disabled)];
+        use CanonicalStructuralPathSegment::Field;
+        let mut values = Vec::with_capacity(2);
+        let mut scalars = Vec::with_capacity(2);
+        for (path, cell) in [
+            (vec![Field(self.disabled)], disabled),
+            (
+                vec![Field(self.inputs), Field(self.private_filesystem)],
+                private_filesystem,
+            ),
+        ] {
+            values.push((path.clone(), cell.read()?));
+            scalars.push(TerminalReferenceScalarBacking {
+                path,
+                backing: std::rc::Rc::new(cell),
+            });
+        }
         Ok(TerminalEffectResult::Reference(TerminalReferenceResult {
             referent: TerminalReferencePayload::Resident {
-                aggregate: TerminalAggregateValue::from_scalars(
-                    self.referent,
-                    None,
-                    vec![(path.clone(), disabled.read()?)],
-                ),
-                scalars: vec![TerminalReferenceScalarBacking {
-                    path,
-                    backing: std::rc::Rc::new(disabled),
-                }],
+                aggregate: TerminalAggregateValue::from_scalars(self.referent, None, values),
+                scalars,
             },
             references: Vec::new(),
         }))
@@ -111,15 +139,17 @@ impl TerminalBuildBindingHost {
         let storage = self
             .account
             .as_ref()
-            .map(|account| account.reserve_storage(1, 1))
+            .map(|account| account.reserve_storage(2, 2))
             .transpose()
             .map_err(|error| {
                 TerminalEffectRejection::new(format!("test group configuration storage: {error}"))
             })?;
         let disabled = TerminalInvocationScalar::new(TerminalScalarValue::Boolean(false))?;
-        let result = shape.issue(disabled.clone())?;
+        let private_filesystem =
+            TerminalInvocationScalar::new(TerminalScalarValue::Boolean(false))?;
+        let result = shape.issue(disabled.clone(), private_filesystem.clone())?;
         if let Some(account) = &self.account {
-            account.charge_result_custody(1, 1).map_err(|error| {
+            account.charge_result_custody(2, 2).map_err(|error| {
                 TerminalEffectRejection::new(format!("test group configuration result: {error}"))
             })?;
         }
@@ -135,6 +165,7 @@ impl TerminalBuildBindingHost {
                     composition: None,
                 },
                 disabled,
+                private_filesystem,
                 _storage: storage,
             }));
         Ok(result)

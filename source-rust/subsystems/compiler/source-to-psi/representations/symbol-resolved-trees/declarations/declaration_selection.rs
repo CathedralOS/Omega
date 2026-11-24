@@ -320,6 +320,12 @@ mod product {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct TestGroupConfiguration {
         pub disabled: bool,
+        pub inputs: TestInvocationInputs,
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub struct TestInvocationInputs {
+        pub private_filesystem: bool,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -864,7 +870,7 @@ pub use product::{
     ExecutedNativeBinding, ExecutedProductSelection, ProductEntryBinding,
     ProductDeclarationOperand, ProductDeclarationRequest,
     ProviderReadinessRequest, RootBindingOperand, RootBindingRequest, RootBindingSelection,
-    TestGroupConfiguration,
+    TestGroupConfiguration, TestInvocationInputs,
 };
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, record_storage::Record)]
