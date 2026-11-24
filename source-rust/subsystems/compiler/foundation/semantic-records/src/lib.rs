@@ -870,6 +870,9 @@ pub mod compiler_evaluation {
             (DeclarationCustody::Missing, _) | (_, DeclarationCustody::Missing) => {
                 Err("build-time invocation lacks compiler-owned source/package provenance")
             }
+            (DeclarationCustody::UnownedUser, _) | (_, DeclarationCustody::UnownedUser) => {
+                Err("build-time invocation has user source without reconciled package custody")
+            }
             (DeclarationCustody::ToolchainContract, DeclarationCustody::Package(_))
             | (DeclarationCustody::Package(_), DeclarationCustody::ToolchainContract) => {
                 Err("build-time invocation crosses closed-contract/package custody")
@@ -879,9 +882,6 @@ pub mod compiler_evaluation {
             | (_, DeclarationCustody::Toolchain) => Ok(None),
             (DeclarationCustody::Package(requester), DeclarationCustody::Package(owner)) => {
                 Ok(Some(DeclarationAuthorityRequest { requester, owner }))
-            }
-            (DeclarationCustody::UnownedUser, _) | (_, DeclarationCustody::UnownedUser) => {
-                Err("build-time invocation has user source without reconciled package custody")
             }
         }
     }
