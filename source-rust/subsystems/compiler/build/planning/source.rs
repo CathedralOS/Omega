@@ -392,7 +392,7 @@ impl PlanningSource {
                             && !authority.as_ref().is_some_and(|graph| graph.dependency_target_for_purpose(
                                 graph.root(), build_declarations::DependencyPurpose::Build, alias).is_some())
                         {
-                            row.message.push_str(&format!(". Alias `{alias}` was prepared as a Product dependency. To call it from Build, register it with `Build::build_dependency(builder, description)` and prepare that registration."));
+                            row.message.push_str(&format!(". Alias `{alias}` was prepared as a Product dependency. To call it from this Build, the invoker must supply `{alias}` as a Build library before entry."));
                         }
                     }
                 }
