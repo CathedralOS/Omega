@@ -91,16 +91,16 @@ pub(crate) fn publish_access_plans(
                 let ValueType::Record(carrier, _, _) = declared.carrier else {
                     return None;
                 };
-                Some((declared.instance, carrier, false))
+                Some((declared.instance, carrier, false, declared.schema_source()))
             })
             .chain(
                 source
                     .byte_domains
                     .iter()
-                    .map(|declared| (declared.source, declared.carrier, true)),
+                    .map(|declared| (declared.source, declared.carrier, true, None)),
             );
-        for (instance, carrier, byte_domain) in domains {
-            let definition = source.domain_theory(diagnostic, instance)?;
+        for (instance, carrier, byte_domain, scope) in domains {
+            let definition = source.domain_theory_in_scope(diagnostic, instance, scope)?;
             let Some(policy) = &definition.access_policy else {
                 continue;
             };
@@ -527,7 +527,7 @@ impl Qualifications {
             let builder = &mut result.identities;
             let id = ScalarDomainId::new(result.catalog.domains.len() as u64 + 1)
                 .ok_or_else(|| unavailable("scalar domain identity overflow"))?;
-            let definition = source.domain_theory(diagnostic, symbol)?;
+            let definition = source.domain_theory_in_scope(diagnostic, symbol, declared.schema_source())?;
             if definition.access_policy.as_ref().is_some_and(|policy| {
                 policy
                     .plan_without_supply()
@@ -768,7 +768,7 @@ impl Qualifications {
         let ValueType::Record(carrier, _, _) = declared.carrier else {
             return Err(unavailable("structural domain has a nonstructural carrier"));
         };
-        let definition = source.domain_theory(diagnostic, symbol)?;
+        let definition = source.domain_theory_in_scope(diagnostic, symbol, declared.schema_source())?;
         // A complete empty theory has an explicit Truth predicate in the
         // saved representation. None continues to mean unavailable theory.
         let predicate = declared

@@ -122,6 +122,46 @@ fn a_requirement_reads_nested_nominal_arguments_in_its_own_type_scope() {
 }
 
 #[test]
+fn a_requirement_keeps_its_domain_index_inside_a_record_result() {
+    let package = PackageKeyIdentity::from_digest([0x73; 32]).unwrap();
+    let source = r#"
+        data Read {}
+        data Write {}
+        data Token { value: u32; }
+        domain<P> Token::Issued<P>;
+        data Receipt<T> { value: T; }
+        boundary trait Forward<P> {
+            machine pass(input: Receipt<Token in Issued<P>>) -> Receipt<Token in Issued<P>>
+                reaches none crashes none;
+        }
+        Reader satisfies Forward<Read> {
+            machine pass(input: Receipt<Token in Issued<Read>>) -> Receipt<Token in Issued<Read>> { input }
+        }
+        Writer satisfies Forward<Write> {
+            machine pass(input: Receipt<Token in Issued<Write>>) -> Receipt<Token in Issued<Write>> { input }
+        }
+        machine main() {}
+    "#;
+    let check = |source: &str| {
+        let (files, root) = captured(package, source);
+        source_compiler::check(
+            product(files, root, package, &[]).unwrap(),
+            &mut Default::default(),
+        )
+    };
+    check(source).unwrap();
+    let wrong = source.replace(
+        "-> Receipt<Token in Issued<Write>> {",
+        "-> Receipt<Token in Issued<Read>> {",
+    );
+    let errors = check(&wrong).expect_err("the writer returns a receipt issued to another policy");
+    assert!(
+        errors.iter().any(|error| error.message.contains("differs from its requirement")),
+        "{errors:?}"
+    );
+}
+
+#[test]
 fn inherited_provider_methods_keep_the_declaring_application_and_result() {
     let package = PackageKeyIdentity::from_digest([0x72; 32]).unwrap();
     let source = "public boundary trait Reading<T> {

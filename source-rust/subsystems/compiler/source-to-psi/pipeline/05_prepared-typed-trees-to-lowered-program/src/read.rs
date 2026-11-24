@@ -147,10 +147,18 @@ impl LocalSummaryScope {
 }
 
 pub(crate) struct DeclaredDomain {
+    /// Rigid indices remain in the declaring schema when its predicates are read.
+    schema_scope: Option<traits::RequirementTypeScope>,
     pub instance: crate::lowering::body::DomainInstance,
     pub carrier: ValueType,
     pub predicate: Option<semantic_vocabulary::Proposition>,
     pub complete_predicate_theory: bool,
+}
+
+impl DeclaredDomain {
+    pub(crate) fn schema_source(&self) -> Option<&crate::source_state::SourceTypeScope> {
+        self.schema_scope.as_ref().map(|scope| scope.source.as_ref())
+    }
 }
 
 pub(crate) struct PredicateDefinition {
@@ -1087,6 +1095,7 @@ mod tests {
         program
             .declared_domains
             .extend(domains.iter().map(|&symbol| DeclaredDomain {
+                schema_scope: None,
                 instance: crate::lowering::body::DomainInstance {
                     declaration: symbol,
                     identity: typed.domain_definition(symbol).unwrap().semantic_id,
@@ -1162,6 +1171,7 @@ mod tests {
         let mut unprepared = Program::new(&typed, false);
         let carrier = unprepared.record(machine(), point).unwrap();
         unprepared.declared_domains.push(DeclaredDomain {
+            schema_scope: None,
             instance: unprepared_instance,
             carrier,
             predicate: None,
