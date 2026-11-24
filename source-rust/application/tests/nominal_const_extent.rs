@@ -1,54 +1,24 @@
 //! Nominal extents retain each constant’s declared integer type.
 
+#[path = "support/build_fixture.rs"]
+mod build_fixture;
 mod support;
 
-use platform_custody::temporary_directory::TemporaryDirectory;
-use std::process::{Command, Output, Stdio};
-
-fn invoke(tier: &str, arguments: &[&str]) -> (Output, String) {
-    let fixture = support::repository_root()
+fn fixture(tier: &str) -> std::path::PathBuf {
+    support::repository_root()
         .join("tests/fixtures/generics")
         .join(tier)
-        .join("nominal_const_extent");
-    let scratch = TemporaryDirectory::create("nominal-const-extent", false).unwrap();
-    for name in ["main.omg", "build.omg"] {
-        std::fs::copy(fixture.join(name), scratch.path().join(name)).unwrap();
-    }
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(arguments)
-        .args([
-            "--build-input",
-            "build.omg",
-            "--build-input",
-            "main.omg",
-            "build.omg",
-        ])
-        .current_dir(scratch.path())
-        .stdin(Stdio::null())
-        .output()
-        .expect("the compiler runs with the fixture's explicit inputs");
-    let report = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    eprintln!("{report}");
-    (output, report)
+        .join("nominal_const_extent")
 }
 
 #[test]
 fn nominal_extents_survive_generic_headers_in_both_engines() {
-    let (output, report) = invoke("run", &["run", "--both"]);
-    assert!(output.status.success(), "{report}");
-    assert!(output.stdout.is_empty(), "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
-        assert!(report.lines().any(|line| line == receipt), "{report}");
-    }
+    build_fixture::assert_silent_return(&fixture("run"));
 }
 
 #[test]
 fn a_const_argument_cannot_change_its_declared_width() {
-    let (output, report) = invoke("fail", &["--check"]);
+    let (output, report) = build_fixture::check(&fixture("fail"));
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("record const argument does not inhabit its declared carrier"),
