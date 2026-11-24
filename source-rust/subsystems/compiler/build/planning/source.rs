@@ -14,17 +14,24 @@ use diagnostics::Diagnostic;
 use package_compilation::source_assembly::{
     AssembledSyntax, DeferredProductSources, ImmutableSourceParseCheckpoint,
 };
-use package_compilation::source_imports::{ProductQueryDependency, ProductQueryInputs};
+use package_compilation::source_imports::{
+    ProductQueryDependency, ProductQueryInputs, SuppliedBuildLibrary,
+};
 use package_compilation::{BuildExecutionInputs, CapturedLocalSource, PackageCompilationInputs};
 use review_evidence::permission_acceptance::TerminalPermissionAcceptance;
-use source_compiler::{ProductDeclarations, SourcePreparation};
 use source_compiler::representations::source_inputs::SourceMap;
 use source_compiler::{BuildStage, TypedBuildInterval};
+use source_compiler::{ProductDeclarations, SourcePreparation};
 use std::{path::Path, sync::Arc};
 use target::TargetProfile;
 
 pub enum PlanningSources<'a> {
     Captured(&'a CapturedLocalSource),
+    /// The receiving Build has no declaration owner yet. Each library already has its own.
+    CapturedWithLibraries {
+        source: &'a CapturedLocalSource,
+        libraries: Vec<SuppliedBuildLibrary>,
+    },
     Package(&'a PackageCompilationInputs),
 }
 
@@ -50,6 +57,7 @@ pub(super) struct PlanningSource {
     pub(super) deferred: DeferredProductSources,
     pub(super) preparation: SourcePreparation,
     pub(super) timings: CompileTimings,
+    pub(super) supplied_libraries: Arc<[SuppliedBuildLibrary]>,
     original: Option<PackageCompilationInputs>,
     profile: TargetProfile,
 }
@@ -175,16 +183,25 @@ pub fn prepare(
     preparation: SourcePreparation,
     mut timings: CompileTimings,
 ) -> Result<PreparedPlanningStage, CompileFailure> {
-    let (inputs, capture) = match request.sources {
-        PlanningSources::Captured(capture) => (None, Some(capture)),
-        PlanningSources::Package(inputs) => (Some(inputs), None),
+    let (inputs, capture, supplied_libraries) = match request.sources {
+        PlanningSources::Captured(capture) => (None, Some(capture), Vec::new()),
+        PlanningSources::CapturedWithLibraries { source, libraries } => {
+            (None, Some(source), libraries)
+        }
+        PlanningSources::Package(inputs) => (Some(inputs), None, Vec::new()),
     };
+    let supplied_libraries: Arc<[_]> = supplied_libraries.into();
     let execution = request.execution.resolve_compilation_defaults(inputs);
     let profile = execution.profile.ok_or_else(|| {
         vec![Diagnostic::error(
             "Build execution requires an explicit profile on an uncatalogued host",
         )]
     })?;
+    for library in supplied_libraries.iter() {
+        library
+            .require_execution_profile(profile)
+            .map_err(refusal)?;
+    }
     let mut assembled = {
         let mut catalogue = preparation.catalogue()?;
         let checkpoint = ImmutableSourceParseCheckpoint::prepare(
@@ -194,7 +211,15 @@ pub fn prepare(
             &mut timings,
             &mut catalogue,
         )?;
-        checkpoint.assemble(inputs, &mut timings, &mut catalogue)?.1
+        if supplied_libraries.is_empty() {
+            checkpoint.assemble(inputs, &mut timings, &mut catalogue)?.1
+        } else {
+            checkpoint.assemble_supplied_build_libraries(
+                Arc::clone(&supplied_libraries),
+                &mut timings,
+                &mut catalogue,
+            )?
+        }
     };
     let interval = resolve(&mut assembled, None, &preparation, profile, inputs)?;
     let check_only_subject = check_only_subject(&assembled, &interval, &preparation, profile)?;
@@ -210,6 +235,7 @@ pub fn prepare(
             anonymous_source: assembled.anonymous_owner.as_ref(),
             generated_source_custody: &assembled.generated_source_custody,
             execution,
+            source_acquisition: assembled.build_source_acquisition.as_ref(),
             artifact_only: request.artifact_only,
         },
         &mut timings,
@@ -218,6 +244,7 @@ pub fn prepare(
     Ok(PreparedPlanningStage {
         evaluation,
         source: PlanningSource {
+            supplied_libraries,
             stage: interval.plan,
             prepared_product_aliases: Vec::new(),
             query_authors: interval.program.symbols.source_map(),
@@ -426,6 +453,12 @@ impl PlanningSource {
         mut evaluated: EvaluatedBuild,
         inputs: Option<&PackageCompilationInputs>,
     ) -> Result<PlannedProduct, CompileFailure> {
+        for library in self.supplied_libraries.iter() {
+            let joined = inputs.ok_or_else(|| {
+                refusal("a supplied Build library has no joined Product inputs".into())
+            })?;
+            library.validate_handoff(joined).map_err(refusal)?;
+        }
         let source = self
             .deferred
             .assemble(
