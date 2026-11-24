@@ -73,12 +73,34 @@ mod addition {
 
     #[derive(Default)]
     pub(super) struct Addition {
-        operation: Option<u32>,
+        pub(super) operation: Option<u32>,
         laws: BTreeMap<Law, u32>,
         pub(super) numeral_sums: BTreeMap<(IntegerValue, IntegerValue, IntegerValue), u32>,
     }
 
+    impl Addition {
+        pub(super) fn source_safety_roster(&self) -> Vec<u32> {
+            self.operation
+                .into_iter()
+                .chain(self.laws.values().copied())
+                .chain(self.numeral_sums.values().copied())
+                .collect()
+        }
+    }
+
     impl Denotation {
+        pub(super) fn add_order_both(
+            &mut self,
+            a: TermHandle,
+            b: TermHandle,
+            c: TermHandle,
+            d: TermHandle,
+            first: TermHandle,
+            second: TermHandle,
+        ) -> Result<TermHandle, BoundedDenotationError> {
+            self.add_law_application(Law::MonotoneBoth, &[a, b, c, d, first, second])
+        }
+
         pub(super) fn add_order_translation(
             &mut self,
             left: TermHandle,
@@ -1275,7 +1297,9 @@ mod binary_numerals {
     use bignum::BigInt;
     use semantic_vocabulary::{IntegerValue, Proposition, ScalarTerm};
 
-    use super::{BoundedDenotationError, Declaration, Denotation, IntegerLaw, Term, TermHandle};
+    use super::{
+        BoundedDenotationError, Declaration, Denotation, IntegerLaw, MathTermKey, Term, TermHandle,
+    };
     use mathematical_kernel::scheme_dsl::{Syntax, apps, id, pi, scheme_at, v};
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -1300,6 +1324,153 @@ mod binary_numerals {
         constructors: BTreeMap<Constructor, u32>,
         prefixes: BTreeMap<(Constructor, u32), u32>,
         laws: BTreeMap<Law, u32>,
+    }
+
+    /// The numeral zero and constructor positions that `SourceIntegerTheory`
+    /// declares up front and hands to a later stage.
+    #[derive(Clone, Copy)]
+    pub(super) struct NumeralPositions {
+        pub(super) zero: u32,
+        pub(super) double: u32,
+        pub(super) odd: u32,
+        pub(super) negate: u32,
+    }
+
+    impl BinaryNumerals {
+        pub(super) fn source_safety_roster(&self) -> Vec<u32> {
+            self.zero
+                .into_iter()
+                .chain(self.constructors.values().copied())
+                .chain(self.laws.values().copied())
+                .collect()
+        }
+    }
+
+    impl Denotation {
+        /// Declare the numeral zero and the double, odd and negate
+        /// constructors now, in that order, so they sit at known positions.
+        pub(super) fn declare_numerals(
+            &mut self,
+        ) -> Result<NumeralPositions, BoundedDenotationError> {
+            let zero = self.numeral_zero()?;
+            let double = self.numeral_constructor(Constructor::Double)?;
+            let odd = self.numeral_constructor(Constructor::Odd)?;
+            let negate = self.numeral_constructor(Constructor::Negate)?;
+            Ok(NumeralPositions {
+                zero,
+                double,
+                odd,
+                negate,
+            })
+        }
+
+        /// Take over the numeral zero and constructors an earlier
+        /// `Denotation` declared at `positions`, and the numeral definitions
+        /// it appended after them. A definition `c p : Int` whose constructor
+        /// `c` is one of `positions` and whose argument `p` is zero or a
+        /// numeral found before it becomes the definition `binary_integer`
+        /// reuses for `c` applied to `p`. When it has the form
+        /// `binary_integer` builds (double or negate of a positive numeral,
+        /// odd of zero or of a positive numeral), its value is recorded too,
+        /// so the closed search treats it as that literal. The value follows
+        /// from what the constructors mean: double is `2x`, odd is `2x + 1`
+        /// and negate is `-x`.
+        pub(super) fn adopt_numerals(
+            &mut self,
+            positions: NumeralPositions,
+        ) -> Result<(), BoundedDenotationError> {
+            let constructors = [
+                (Constructor::Double, positions.double),
+                (Constructor::Odd, positions.odd),
+                (Constructor::Negate, positions.negate),
+            ];
+            self.binary_numerals.zero = Some(positions.zero);
+            self.binary_numerals.constructors.extend(constructors);
+            // Record the numeral zero as the literal 0; this declares nothing.
+            let zero = self.math_literal(BigInt::zero())?;
+            debug_assert!(matches!(
+                self.arena.get(zero),
+                Term::Constant { declaration, .. } if declaration == positions.zero
+            ));
+            let integer = self.integer_constant()?;
+            let base = positions.zero as usize;
+            // The value of each canonical numeral, indexed from the zero.
+            let mut values: Vec<Option<BigInt>> =
+                vec![None; self.declarations.len().saturating_sub(base)];
+            if let Some(first) = values.first_mut() {
+                *first = Some(BigInt::zero());
+            }
+            for index in positions.negate as usize + 1..self.declarations.len() {
+                let Ok(position) = u32::try_from(index) else {
+                    break;
+                };
+                let Declaration {
+                    level_arity,
+                    ty,
+                    body,
+                } = self.declarations[index].clone();
+                let Some(body) = body else {
+                    continue;
+                };
+                if level_arity != 0 || !self.arena.structurally_equal(ty, integer) {
+                    continue;
+                }
+                let Term::Apply { function, argument } = self.arena.get(body) else {
+                    continue;
+                };
+                let (
+                    Term::Constant {
+                        declaration: function,
+                        levels: function_levels,
+                    },
+                    Term::Constant {
+                        declaration: prefix,
+                        levels: prefix_levels,
+                    },
+                ) = (self.arena.get(function), self.arena.get(argument))
+                else {
+                    continue;
+                };
+                if !function_levels.is_empty() || !prefix_levels.is_empty() {
+                    continue;
+                }
+                let Some(&(constructor, _)) = constructors
+                    .iter()
+                    .find(|&&(_, constructor)| constructor == function)
+                else {
+                    continue;
+                };
+                let Some(prefix_value) = (prefix as usize)
+                    .checked_sub(base)
+                    .and_then(|offset| values.get(offset))
+                    .cloned()
+                    .flatten()
+                else {
+                    continue;
+                };
+                let positive = !prefix_value.is_negative() && prefix_value != BigInt::zero();
+                let value = match constructor {
+                    Constructor::Double if positive => Some(prefix_value.add(&prefix_value)),
+                    Constructor::Odd if !prefix_value.is_negative() => {
+                        Some(prefix_value.add(&prefix_value).add(&BigInt::from_u64(1)))
+                    }
+                    Constructor::Negate if positive => Some(BigInt::zero().sub(&prefix_value)),
+                    _ => None,
+                };
+                self.binary_numerals
+                    .prefixes
+                    .entry((constructor, prefix))
+                    .or_insert(position);
+                if let Some(value) = value {
+                    values[index - base] = Some(value.clone());
+                    self.closed_math_values.insert(position, value.clone());
+                    self.math_terms
+                        .entry(MathTermKey::Closed(value))
+                        .or_insert(position);
+                }
+            }
+            Ok(())
+        }
     }
 
     pub(super) fn fixed_magnitude(value: &BigInt) -> Option<(bool, u128)> {
@@ -4768,6 +4939,15 @@ mod denotation {
             self.intern_math_term(key)
         }
 
+        /// The literal for `value`: a binary numeral within 128 bits of
+        /// magnitude, otherwise an opaque constant recorded as that value.
+        pub(super) fn math_literal(
+            &mut self,
+            value: BigInt,
+        ) -> Result<TermHandle, BoundedDenotationError> {
+            self.intern_math_term(MathTermKey::Closed(value))
+        }
+
         fn intern_math_term(
             &mut self,
             key: MathTermKey,
@@ -6258,6 +6438,75 @@ mod equality_transport {
     }
 
     impl Denotation {
+        /// Prove `goal` after rewriting it with hypotheses `x = t` or `t = x`
+        /// at `Int`, where `x` is an unknown: an assumption constant that is
+        /// not a literal. `identities` pairs each hypothesis with its proof.
+        /// `solve` proves the rewritten goal, and this carries its proof back
+        /// to `goal` along the same equations.
+        pub(super) fn source_rewrite_proof(
+            &mut self,
+            goal: TermHandle,
+            identities: &[(TermHandle, TermHandle)],
+            solve: impl FnOnce(
+                &mut Self,
+                TermHandle,
+            ) -> Result<Option<TermHandle>, BoundedDenotationError>,
+        ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+            let integer = self.integer_constant()?;
+            let mut equations = Vec::new();
+            for &(statement, evidence) in identities {
+                let Some((carrier, left, right)) = self.identity_parts(statement) else {
+                    continue;
+                };
+                if !self.arena.structurally_equal(carrier, integer) {
+                    continue;
+                }
+                let (from, to, evidence) = if self.rewritable_unknown(left) {
+                    (left, right, evidence)
+                } else if self.rewritable_unknown(right) {
+                    (right, left, self.symmetry(carrier, left, right, evidence))
+                } else {
+                    continue;
+                };
+                if from != to
+                    && !equations
+                        .iter()
+                        .any(|equation: &Equation| equation.from == from)
+                {
+                    equations.push(Equation {
+                        carrier,
+                        from,
+                        to,
+                        evidence,
+                    });
+                }
+            }
+            let mut remaining = MAX_ELABORATION_NODES;
+            let Some((normal, replacements)) =
+                self.expand_equations(goal, &equations, &mut remaining)?
+            else {
+                return Ok(None);
+            };
+            let Some(mut evidence) = solve(self, normal)? else {
+                return Ok(None);
+            };
+            for replacement in replacements.into_iter().rev() {
+                evidence = self.replace_evidence(replacement, evidence, true);
+            }
+            Ok(Some(evidence))
+        }
+
+        fn rewritable_unknown(&self, term: TermHandle) -> bool {
+            let Term::Constant { declaration, .. } = self.arena.get(term) else {
+                return false;
+            };
+            !self.closed_math_values.contains_key(&declaration)
+                && self
+                    .declarations
+                    .get(declaration as usize)
+                    .is_some_and(|declaration| declaration.body.is_none())
+        }
+
         pub(super) fn compositional_transport(
             &mut self,
             premise: &Proposition,
@@ -11151,10 +11400,22 @@ mod multiplication {
         BoundedDenotationError, Denotation, IntegerLaw, Term, TermHandle,
         affine_witness_root_expression, unbounded_integer,
     };
-    use mathematical_kernel::scheme_dsl::{self, apps, pi, pis, scheme_at, v};
+    use mathematical_kernel::scheme_dsl::{self, apps, id, pi, pis, scheme_at, v};
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
     enum Law {
+        /// `scale * (left + right) = scale * left + scale * right` for all
+        /// unbounded integers `scale`, `left` and `right`, with no side
+        /// condition. This is a trusted assumption of the integer model,
+        /// believed and not derived, like `MonotonePositive` and
+        /// `AntitoneNegative`; it is not a certificate rule. The source
+        /// integer search needs it for the induction step of `vector_bound`
+        /// in `samples/cli/facts/source_indexed_family/main.omg`, which
+        /// rewrites `10 * (previous + 1)` to `10 * previous + 10`. A checked
+        /// proof replaces it when the kernel can derive it. The test
+        /// `distribute_add_statement_agrees_with_computed_arithmetic` checks
+        /// the declared statement against arithmetic.
+        DistributeAdd,
         MonotonePositive,
         AntitoneNegative,
         DivideLowerPositive(IntegerType),
@@ -11165,14 +11426,35 @@ mod multiplication {
 
     #[derive(Default)]
     pub(super) struct Multiplication {
-        operation: Option<u32>,
+        pub(super) operation: Option<u32>,
         laws: BTreeMap<Law, u32>,
         pub(super) numeral_products: BTreeMap<(IntegerValue, IntegerValue, IntegerValue), u32>,
         pub(super) numeral_quotients:
             BTreeMap<(IntegerType, IntegerValue, IntegerValue, IntegerValue), u32>,
     }
 
+    impl Multiplication {
+        pub(super) fn source_safety_roster(&self) -> Vec<u32> {
+            self.operation
+                .into_iter()
+                .chain(self.laws.values().copied())
+                .chain(self.numeral_products.values().copied())
+                .chain(self.numeral_quotients.values().copied())
+                .collect()
+        }
+    }
+
     impl Denotation {
+        /// `scale * (left + right) = scale * left + scale * right`.
+        pub(super) fn distribute_add(
+            &mut self,
+            scale: TermHandle,
+            left: TermHandle,
+            right: TermHandle,
+        ) -> Result<TermHandle, BoundedDenotationError> {
+            self.multiply_law_application(Law::DistributeAdd, &[scale, left, right])
+        }
+
         pub(super) fn multiply_operation(&mut self) -> Result<u32, BoundedDenotationError> {
             self.binary_integer_operation(|this| &mut this.multiplication.operation)
         }
@@ -11208,6 +11490,18 @@ mod multiplication {
                     let le = |left, right| apps(constant(less_or_equal), [left, right]);
                     let mul = |left, right| apps(constant(operation), [left, right]);
                     let statement = match law {
+                        Law::DistributeAdd => {
+                            let addition = this.add_operation()?;
+                            let add = |left, right| apps(constant(addition), [left, right]);
+                            binders(
+                                &["scale", "left", "right"],
+                                id(
+                                    carrier(),
+                                    mul(v("scale"), add(v("left"), v("right"))),
+                                    add(mul(v("scale"), v("left")), mul(v("scale"), v("right"))),
+                                ),
+                            )
+                        }
                         Law::MonotonePositive => binders(
                             &["a", "b", "r"],
                             pi(
@@ -12436,6 +12730,1679 @@ mod source_content {
     }
 }
 pub use source_content::SourceContentTheory;
+mod source_integer {
+    /*
+    Source predicates over unbounded integers, such as an indexed family's
+    constructor requirement or a theorem's `ensures embed(Total) <= 10 *
+    embed(Length)`, are stated in one integer vocabulary that this module
+    declares in the caller's kernel signature: the carrier `Int`, `<`, `<=`,
+    `+`, `-`, `*`, and the binary numeral zero and constructors that literals
+    are built from. The searches below only assemble candidate proof terms
+    from the integer, order, arithmetic and numeral laws the rest of this file
+    declares; the kernel decides whether a term proves its goal. A goal the
+    searches cannot reach gets no term, and the caller refuses the program.
+    */
+
+    use super::binary_numerals::NumeralPositions;
+    use super::{BoundedDenotationError, Denotation};
+    use bignum::BigInt;
+    use mathematical_kernel::{Declaration, Level, Sort, Term, TermArena, TermHandle};
+
+    mod closed {
+        use super::super::{
+            BoundedDenotationError, Denotation, IntegerLaw, IntegerRelation, integer_value_of,
+        };
+        use bignum::BigInt;
+        use mathematical_kernel::{
+            Budget, DEFAULT_CONVERSION_STEPS, Signature, Term, TermHandle, substitute,
+            weak_head_normalize_retaining,
+        };
+
+        impl Denotation {
+            /// Weak-head normalize `term` without unfolding a numeral literal,
+            /// so a literal stays a constant whose value the theory knows.
+            pub(super) fn source_head(
+                &mut self,
+                term: TermHandle,
+            ) -> Result<TermHandle, BoundedDenotationError> {
+                let signature = Signature::from_declarations(self.declarations.clone());
+                let values = &self.closed_math_values;
+                weak_head_normalize_retaining(
+                    &mut self.arena,
+                    &signature,
+                    term,
+                    &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+                    &|position| values.contains_key(&position),
+                )
+                .map_err(BoundedDenotationError::Kernel)
+            }
+
+            pub(super) fn source_apply(
+                &mut self,
+                function: TermHandle,
+                argument: TermHandle,
+            ) -> TermHandle {
+                self.arena.insert(Term::Apply { function, argument })
+            }
+
+            /// From `proof : from = to` build `function from = function to`.
+            pub(super) fn source_congruence(
+                &mut self,
+                function: TermHandle,
+                from: TermHandle,
+                to: TermHandle,
+                proof: TermHandle,
+            ) -> Result<TermHandle, BoundedDenotationError> {
+                let integer = self.integer_constant()?;
+                let start = self.source_apply(function, from);
+                let y = self.arena.insert(Term::Variable(0));
+                let identity = self.arena.insert(Term::Id {
+                    ty: integer,
+                    left: from,
+                    right: y,
+                });
+                let y = self.arena.insert(Term::Variable(1));
+                let end = self.source_apply(function, y);
+                let result = self.arena.insert(Term::Id {
+                    ty: integer,
+                    left: start,
+                    right: end,
+                });
+                let inner = self.arena.insert(Term::Lambda {
+                    domain: identity,
+                    body: result,
+                });
+                let motive = self.arena.insert(Term::Lambda {
+                    domain: integer,
+                    body: inner,
+                });
+                let base = self.arena.insert(Term::Refl {
+                    ty: integer,
+                    value: start,
+                });
+                Ok(self.arena.insert(Term::IdElim {
+                    motive,
+                    base,
+                    endpoint: to,
+                    proof,
+                }))
+            }
+
+            /// Evaluate a closed integer term built from literals with `+`,
+            /// `-` and `*`. Returns its value, the literal for that value and
+            /// a proof that the term equals the literal; `None` when the term
+            /// has an unknown or another operation in it.
+            pub(super) fn source_integer_value(
+                &mut self,
+                original: TermHandle,
+                depth: usize,
+            ) -> Result<Option<(BigInt, TermHandle, TermHandle)>, BoundedDenotationError>
+            {
+                if depth > 128 {
+                    return Err(BoundedDenotationError::DepthLimitExceeded);
+                }
+                let term = self.source_head(original)?;
+                let integer = self.integer_constant()?;
+                if let Some(value) = self.closed_math_value(term) {
+                    let proof = self.arena.insert(Term::Refl {
+                        ty: integer,
+                        value: term,
+                    });
+                    return Ok(Some((value, term, proof)));
+                }
+                let Term::Apply {
+                    function,
+                    argument: right,
+                } = self.arena.get(term)
+                else {
+                    return Ok(None);
+                };
+                let function = self.source_head(function)?;
+                let Term::Apply {
+                    function: operation,
+                    argument: left,
+                } = self.arena.get(function)
+                else {
+                    return Ok(None);
+                };
+                let Term::Constant { declaration, .. } = self.arena.get(operation) else {
+                    return Ok(None);
+                };
+                let kind = if declaration == self.add_operation()? {
+                    0
+                } else if declaration == self.subtract_operation()? {
+                    1
+                } else if declaration == self.multiply_operation()? {
+                    2
+                } else {
+                    return Ok(None);
+                };
+                let Some((left_value, left_term, left_proof)) =
+                    self.source_integer_value(left, depth + 1)?
+                else {
+                    return Ok(None);
+                };
+                let Some((right_value, right_term, right_proof)) =
+                    self.source_integer_value(right, depth + 1)?
+                else {
+                    return Ok(None);
+                };
+                let value = match kind {
+                    0 => left_value.add(&right_value),
+                    1 => left_value.sub(&right_value),
+                    _ => left_value.mul(&right_value),
+                };
+                let (Some(l), Some(r), Some(v)) = (
+                    integer_value_of(&left_value),
+                    integer_value_of(&right_value),
+                    integer_value_of(&value),
+                ) else {
+                    return Ok(None);
+                };
+                let result = self.math_literal(value.clone())?;
+                let applied = self.source_apply(operation, left_term);
+                let normalized = self.source_apply(applied, right_term);
+                let equation = match kind {
+                    0 => self.numeral_sum(l, r, v, left_term, right_term, result)?,
+                    1 => self.numeral_difference(l, r, v, left_term, right_term, result)?,
+                    _ => self.numeral_product(l, r, v, left_term, right_term, result)?,
+                };
+                let Some(equation) = equation else {
+                    return Ok(None);
+                };
+                let variable = self.arena.insert(Term::Variable(0));
+                let applied = self.source_apply(operation, variable);
+                let body = self.source_apply(applied, right);
+                let function = self.arena.insert(Term::Lambda {
+                    domain: integer,
+                    body,
+                });
+                let first = self.source_congruence(function, left, left_term, left_proof)?;
+                let applied = self.source_apply(operation, left_term);
+                let middle = self.source_apply(applied, right);
+                let variable = self.arena.insert(Term::Variable(0));
+                let body = self.source_apply(applied, variable);
+                let function = self.arena.insert(Term::Lambda {
+                    domain: integer,
+                    body,
+                });
+                let second = self.source_congruence(function, right, right_term, right_proof)?;
+                let combined = self.transitivity(integer, term, middle, normalized, first, second);
+                let proof =
+                    self.transitivity(integer, term, normalized, result, combined, equation);
+                Ok(Some((value, result, proof)))
+            }
+
+            pub(crate) fn closed_source_predicate(
+                &mut self,
+                original: TermHandle,
+                depth: usize,
+            ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+                if depth > 128 {
+                    return Err(BoundedDenotationError::DepthLimitExceeded);
+                }
+                let goal = self.source_head(original)?;
+                if let Some((ty, left, right)) = self.identity_parts(goal) {
+                    if self.arena.structurally_equal(left, right) {
+                        return Ok(Some(self.arena.insert(Term::Refl { ty, value: left })));
+                    }
+                    let Some((lv, lc, lp)) = self.source_integer_value(left, depth + 1)? else {
+                        return Ok(None);
+                    };
+                    let Some((rv, rc, rp)) = self.source_integer_value(right, depth + 1)? else {
+                        return Ok(None);
+                    };
+                    if lv != rv {
+                        return Ok(None);
+                    }
+                    let integer = self.integer_constant()?;
+                    let reverse = self.symmetry(integer, right, rc, rp);
+                    return Ok(Some(
+                        self.transitivity(integer, left, lc, right, lp, reverse),
+                    ));
+                }
+                if let Some(relation) = self.integer_relation(goal) {
+                    let (strict, left, right) = match relation {
+                        IntegerRelation::LessThan { left, right } => (true, left, right),
+                        IntegerRelation::LessOrEqual { left, right } => (false, left, right),
+                        _ => return Ok(None),
+                    };
+                    let Some((_, lc, lp)) = self.source_integer_value(left, depth + 1)? else {
+                        return Ok(None);
+                    };
+                    let Some((_, rc, rp)) = self.source_integer_value(right, depth + 1)? else {
+                        return Ok(None);
+                    };
+                    let normalized = self.order_term_application(strict, lc, rc)?;
+                    let Some(evidence) = self.closed_inhabitant(normalized)? else {
+                        return Ok(None);
+                    };
+                    let integer = self.integer_constant()?;
+                    let left_reverse = self.symmetry(integer, left, lc, lp);
+                    let right_reverse = self.symmetry(integer, right, rc, rp);
+                    let first = self.integer_law_application(
+                        if strict {
+                            IntegerLaw::LessThanSubstituteLeft
+                        } else {
+                            IntegerLaw::LessOrEqualSubstituteLeft
+                        },
+                        &[lc, left, rc, left_reverse, evidence],
+                    )?;
+                    return self
+                        .integer_law_application(
+                            if strict {
+                                IntegerLaw::LessThanSubstituteRight
+                            } else {
+                                IntegerLaw::LessOrEqualSubstituteRight
+                            },
+                            &[left, rc, right, right_reverse, first],
+                        )
+                        .map(Some);
+                }
+                match self.arena.get(goal) {
+                    Term::Sigma { domain, codomain } => {
+                        let Some(first) = self.closed_source_predicate(domain, depth + 1)? else {
+                            return Ok(None);
+                        };
+                        let rest = substitute(&mut self.arena, codomain, first);
+                        let Some(second) = self.closed_source_predicate(rest, depth + 1)? else {
+                            return Ok(None);
+                        };
+                        Ok(Some(self.arena.insert(Term::Pair { first, second })))
+                    }
+                    Term::Box { ty } => {
+                        let Term::Pi { domain, codomain } = self.arena.get(ty) else {
+                            return Ok(None);
+                        };
+                        if !matches!(self.arena.get(domain), Term::Empty)
+                            || !matches!(self.arena.get(codomain), Term::Empty)
+                        {
+                            return Ok(None);
+                        }
+                        let body = self.arena.insert(Term::Variable(0));
+                        let value = self.arena.insert(Term::Lambda { domain, body });
+                        Ok(Some(self.arena.insert(Term::BoxIntro { ty, value })))
+                    }
+                    _ => Ok(None),
+                }
+            }
+        }
+    }
+
+    mod open {
+        use super::super::{BoundedDenotationError, Denotation, IntegerLaw, IntegerRelation};
+        use mathematical_kernel::{
+            Budget, Context, DEFAULT_CONVERSION_STEPS, Signature, Term, TermHandle, infer_sort,
+            substitute,
+        };
+
+        #[derive(Clone, Copy)]
+        struct NormalInteger {
+            term: TermHandle,
+            equation: TermHandle,
+        }
+
+        impl Denotation {
+            fn source_binary(
+                &mut self,
+                term: TermHandle,
+            ) -> Result<Option<(u32, TermHandle, TermHandle)>, BoundedDenotationError> {
+                let term = self.source_head(term)?;
+                let Term::Apply {
+                    function,
+                    argument: right,
+                } = self.arena.get(term)
+                else {
+                    return Ok(None);
+                };
+                let function = self.source_head(function)?;
+                let Term::Apply {
+                    function,
+                    argument: left,
+                } = self.arena.get(function)
+                else {
+                    return Ok(None);
+                };
+                let Term::Constant { declaration, .. } = self.arena.get(function) else {
+                    return Ok(None);
+                };
+                Ok(Some((declaration, left, right)))
+            }
+
+            /// Head-normalize every application, identity and pair in a
+            /// proposition. Each level-free constant becomes this theory's
+            /// one handle for it, because the rewriting search recognizes an
+            /// unknown by its handle: a caller may build `Length` in the goal
+            /// and in a hypothesis as two separate nodes.
+            fn source_normal_proposition(
+                &mut self,
+                term: TermHandle,
+                depth: usize,
+            ) -> Result<TermHandle, BoundedDenotationError> {
+                if depth > 128 {
+                    return Err(BoundedDenotationError::DepthLimitExceeded);
+                }
+                let head = self.source_head(term)?;
+                let node = match self.arena.get(head) {
+                    Term::Constant {
+                        declaration,
+                        levels,
+                    } if levels.is_empty() => return Ok(self.constant(declaration)),
+                    Term::Apply { function, argument } => Term::Apply {
+                        function: self.source_normal_proposition(function, depth + 1)?,
+                        argument: self.source_normal_proposition(argument, depth + 1)?,
+                    },
+                    Term::Id { ty, left, right } => Term::Id {
+                        ty: self.source_normal_proposition(ty, depth + 1)?,
+                        left: self.source_normal_proposition(left, depth + 1)?,
+                        right: self.source_normal_proposition(right, depth + 1)?,
+                    },
+                    Term::Sigma { domain, codomain } => Term::Sigma {
+                        domain: self.source_normal_proposition(domain, depth + 1)?,
+                        codomain: self.source_normal_proposition(codomain, depth + 1)?,
+                    },
+                    _ => return Ok(head),
+                };
+                Ok(self.arena.insert(node))
+            }
+
+            /// Bring an integer term to the form the order search compares:
+            /// closed arithmetic folded to a literal, and `a * (b + c)`
+            /// distributed. Returns the form and a proof that `original`
+            /// equals it.
+            fn source_normal_integer(
+                &mut self,
+                original: TermHandle,
+                depth: usize,
+            ) -> Result<NormalInteger, BoundedDenotationError> {
+                if depth > 128 {
+                    return Err(BoundedDenotationError::DepthLimitExceeded);
+                }
+                if let Some((_, term, equation)) = self.source_integer_value(original, depth + 1)? {
+                    return Ok(NormalInteger { term, equation });
+                }
+                let term = self.source_head(original)?;
+                let integer = self.integer_constant()?;
+                let Some((operation, left, right)) = self.source_binary(term)? else {
+                    let equation = self.arena.insert(Term::Refl {
+                        ty: integer,
+                        value: term,
+                    });
+                    return Ok(NormalInteger { term, equation });
+                };
+                if operation != self.add_operation()?
+                    && operation != self.subtract_operation()?
+                    && operation != self.multiply_operation()?
+                {
+                    let equation = self.arena.insert(Term::Refl {
+                        ty: integer,
+                        value: term,
+                    });
+                    return Ok(NormalInteger { term, equation });
+                }
+                let l = self.source_normal_integer(left, depth + 1)?;
+                let r = self.source_normal_integer(right, depth + 1)?;
+                let op = self.constant(operation);
+                let variable = self.arena.insert(Term::Variable(0));
+                let function = self.source_apply(op, variable);
+                let body = self.source_apply(function, right);
+                let function = self.arena.insert(Term::Lambda {
+                    domain: integer,
+                    body,
+                });
+                let first = self.source_congruence(function, left, l.term, l.equation)?;
+                let function = self.source_apply(op, l.term);
+                let middle = self.source_apply(function, right);
+                let variable = self.arena.insert(Term::Variable(0));
+                let body = self.source_apply(function, variable);
+                let function = self.arena.insert(Term::Lambda {
+                    domain: integer,
+                    body,
+                });
+                let second = self.source_congruence(function, right, r.term, r.equation)?;
+                let function = self.source_apply(op, l.term);
+                let normalized = self.source_apply(function, r.term);
+                let equation = self.transitivity(integer, term, middle, normalized, first, second);
+                if operation == self.multiply_operation()?
+                    && let Some((add, a, b)) = self.source_binary(r.term)?
+                    && add == self.add_operation()?
+                {
+                    let expansion = self.distribute_add(l.term, a, b)?;
+                    let first = self.multiply_terms(l.term, a)?;
+                    let second = self.multiply_terms(l.term, b)?;
+                    let expanded = self.add_terms(first, second)?;
+                    let rest = self.source_normal_integer(expanded, depth + 1)?;
+                    let combined =
+                        self.transitivity(integer, term, normalized, expanded, equation, expansion);
+                    let equation = self.transitivity(
+                        integer,
+                        term,
+                        expanded,
+                        rest.term,
+                        combined,
+                        rest.equation,
+                    );
+                    return Ok(NormalInteger {
+                        term: rest.term,
+                        equation,
+                    });
+                }
+                Ok(NormalInteger {
+                    term: normalized,
+                    equation,
+                })
+            }
+
+            /// Split a hypothesis that is a non-dependent pair into its parts,
+            /// each with its projection of `evidence`.
+            fn source_flat_premises(
+                &mut self,
+                proposition: TermHandle,
+                evidence: TermHandle,
+                premises: &mut Vec<(TermHandle, TermHandle)>,
+                depth: usize,
+            ) -> Result<(), BoundedDenotationError> {
+                if depth > 128 {
+                    return Err(BoundedDenotationError::DepthLimitExceeded);
+                }
+                let proposition = self.source_normal_proposition(proposition, 0)?;
+                if let Term::Sigma { domain, codomain } = self.arena.get(proposition) {
+                    if self.occurs_free(codomain, 0) {
+                        return Err(BoundedDenotationError::Unsupported(
+                            "dependent source predicate premises require value abstraction",
+                        ));
+                    }
+                    let first = self.arena.insert(Term::Fst { pair: evidence });
+                    let second = self.arena.insert(Term::Snd { pair: evidence });
+                    self.source_flat_premises(domain, first, premises, depth + 1)?;
+                    let codomain = substitute(&mut self.arena, codomain, first);
+                    self.source_flat_premises(codomain, second, premises, depth + 1)?;
+                } else {
+                    premises.push((proposition, evidence));
+                }
+                Ok(())
+            }
+
+            fn source_normal_order(
+                &mut self,
+                proposition: TermHandle,
+                evidence: TermHandle,
+            ) -> Result<Option<(TermHandle, TermHandle)>, BoundedDenotationError> {
+                let Some(relation) = self.integer_relation(proposition) else {
+                    return Ok(None);
+                };
+                let (strict, left, right) = match relation {
+                    IntegerRelation::LessOrEqual { left, right } => (false, left, right),
+                    IntegerRelation::LessThan { left, right } => (true, left, right),
+                    _ => return Ok(None),
+                };
+                let l = self.source_normal_integer(left, 0)?;
+                let r = self.source_normal_integer(right, 0)?;
+                let first = self.integer_law_application(
+                    if strict {
+                        IntegerLaw::LessThanSubstituteLeft
+                    } else {
+                        IntegerLaw::LessOrEqualSubstituteLeft
+                    },
+                    &[left, l.term, right, l.equation, evidence],
+                )?;
+                let proof = self.integer_law_application(
+                    if strict {
+                        IntegerLaw::LessThanSubstituteRight
+                    } else {
+                        IntegerLaw::LessOrEqualSubstituteRight
+                    },
+                    &[l.term, right, r.term, r.equation, first],
+                )?;
+                Ok(Some((
+                    self.order_term_application(strict, l.term, r.term)?,
+                    proof,
+                )))
+            }
+
+            /// Close a normalized `<=` goal: by closed arithmetic, by a
+            /// hypothesis with the same normal form, or by splitting
+            /// `a + c <= b + d` into `a <= b` and `c <= d`.
+            fn source_order_goal(
+                &mut self,
+                goal: TermHandle,
+                premises: &[(TermHandle, TermHandle)],
+                depth: usize,
+            ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+                if depth > 128 {
+                    return Err(BoundedDenotationError::DepthLimitExceeded);
+                }
+                if let Some(proof) = self.closed_source_predicate(goal, 0)? {
+                    return Ok(Some(proof));
+                }
+                for &(proposition, evidence) in premises {
+                    if self.arena.structurally_equal(goal, proposition) {
+                        return Ok(Some(evidence));
+                    }
+                }
+                let Some(IntegerRelation::LessOrEqual { left, right }) =
+                    self.integer_relation(goal)
+                else {
+                    return Ok(None);
+                };
+                let (Some((left_add, a, c)), Some((right_add, b, d))) =
+                    (self.source_binary(left)?, self.source_binary(right)?)
+                else {
+                    return Ok(None);
+                };
+                if left_add != self.add_operation()? || right_add != self.add_operation()? {
+                    return Ok(None);
+                }
+                let first_goal = self.order_term_application(false, a, b)?;
+                let second_goal = self.order_term_application(false, c, d)?;
+                let Some(first) = self.source_order_goal(first_goal, premises, depth + 1)? else {
+                    return Ok(None);
+                };
+                let Some(second) = self.source_order_goal(second_goal, premises, depth + 1)? else {
+                    return Ok(None);
+                };
+                self.add_order_both(a, b, c, d, first, second).map(Some)
+            }
+
+            fn source_symbolic_goal(
+                &mut self,
+                goal: TermHandle,
+                premises: &[(TermHandle, TermHandle)],
+            ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+                let Some(IntegerRelation::LessOrEqual { left, right }) =
+                    self.integer_relation(goal)
+                else {
+                    return self.closed_source_predicate(goal, 0);
+                };
+                let l = self.source_normal_integer(left, 0)?;
+                let r = self.source_normal_integer(right, 0)?;
+                let normal = self.order_term_application(false, l.term, r.term)?;
+                let Some(evidence) = self.source_order_goal(normal, premises, 0)? else {
+                    return Ok(None);
+                };
+                let integer = self.integer_constant()?;
+                let reverse_l = self.symmetry(integer, left, l.term, l.equation);
+                let reverse_r = self.symmetry(integer, right, r.term, r.equation);
+                let first = self.integer_law_application(
+                    IntegerLaw::LessOrEqualSubstituteLeft,
+                    &[l.term, left, r.term, reverse_l, evidence],
+                )?;
+                self.integer_law_application(
+                    IntegerLaw::LessOrEqualSubstituteRight,
+                    &[left, r.term, right, reverse_r, first],
+                )
+                .map(Some)
+            }
+
+            /// `level_arity` is the caller's universe-level binder count: a goal
+            /// over a level-generic family (a type-parameterized source data
+            /// constructor) mentions those level parameters, so sorting it in a
+            /// level-free context would refuse a well-formed proposition.
+            pub(super) fn source_assumption_predicate(
+                &mut self,
+                goal: TermHandle,
+                assumptions: &[TermHandle],
+                level_arity: u32,
+            ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+                let context = Context::with_level_arity(level_arity)
+                    .with_signature(Signature::from_declarations(self.declarations.clone()));
+                for proposition in assumptions.iter().copied().chain(std::iter::once(goal)) {
+                    infer_sort(
+                        &mut self.arena,
+                        &context,
+                        proposition,
+                        &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+                    )
+                    .map_err(BoundedDenotationError::Kernel)?;
+                }
+                let goal = self.source_normal_proposition(goal, 0)?;
+                let mut premises = Vec::new();
+                for (position, &assumption) in assumptions.iter().enumerate() {
+                    let evidence = self
+                        .arena
+                        .insert(Term::Variable((assumptions.len() - 1 - position) as u32));
+                    self.source_flat_premises(assumption, evidence, &mut premises, 0)?;
+                }
+                let identities = premises
+                    .iter()
+                    .copied()
+                    .filter(|(proposition, _)| self.identity_parts(*proposition).is_some())
+                    .collect::<Vec<_>>();
+                let mut orders = Vec::new();
+                for &(proposition, evidence) in &premises {
+                    if let Some(order) = self.source_normal_order(proposition, evidence)? {
+                        orders.push(order);
+                    }
+                }
+                let Some(mut proof) =
+                    self.source_rewrite_proof(goal, &identities, |this, rewritten| {
+                        this.source_symbolic_goal(rewritten, &orders)
+                    })?
+                else {
+                    return Ok(None);
+                };
+                for &domain in assumptions.iter().rev() {
+                    proof = self.arena.insert(Term::Lambda {
+                        domain,
+                        body: proof,
+                    });
+                }
+                Ok(Some(proof))
+            }
+        }
+    }
+
+    /// Declaration positions of the integer carrier and its relations and
+    /// operations. A caller builds source terms from them with
+    /// `Term::Constant { declaration, levels: vec![] }`: `less_or_equal`
+    /// applied to `a` and then `b` is the proposition `a <= b`, and `add`
+    /// applied to `a` and then `b` is `a + b`. Equality is the kernel's
+    /// `Term::Id` at the carrier.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct SourceIntegerVocabulary {
+        pub carrier: u32,
+        pub less_than: u32,
+        pub less_or_equal: u32,
+        pub add: u32,
+        pub subtract: u32,
+        pub multiply: u32,
+    }
+
+    /// What a later stage needs to keep using the integer vocabulary one
+    /// `SourceIntegerTheory` declared, as plain declaration positions: the
+    /// vocabulary and the binary numeral zero and constructors that literals
+    /// are built from. `SourceIntegerTheory::new` declares these ten as
+    /// consecutive assumptions in field order; pass the record it returns
+    /// from `positions` to `SourceIntegerTheory::resume`.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct SourceIntegerPositions {
+        pub vocabulary: SourceIntegerVocabulary,
+        pub numeral_zero: u32,
+        pub numeral_double: u32,
+        pub numeral_odd: u32,
+        pub numeral_negate: u32,
+    }
+
+    impl SourceIntegerPositions {
+        fn in_declaration_order(&self) -> [u32; 10] {
+            let vocabulary = self.vocabulary;
+            [
+                vocabulary.carrier,
+                vocabulary.less_than,
+                vocabulary.less_or_equal,
+                vocabulary.add,
+                vocabulary.subtract,
+                vocabulary.multiply,
+                self.numeral_zero,
+                self.numeral_double,
+                self.numeral_odd,
+                self.numeral_negate,
+            ]
+        }
+
+        /// Refuse a record that does not name the ten declarations `new`
+        /// appended. Their types cannot tell `+` from `-` or `<` from `<=`,
+        /// and a resumed theory that mixed them up would state its laws about
+        /// the wrong operation, so the record must also keep `new`'s order.
+        fn check(
+            &self,
+            arena: &mut TermArena,
+            declarations: &[Declaration],
+        ) -> Result<(), BoundedDenotationError> {
+            let refused = || {
+                BoundedDenotationError::Unsupported(
+                    "source integer positions do not name the declarations SourceIntegerTheory::new appended",
+                )
+            };
+            let order = self.in_declaration_order();
+            let carrier = order[0];
+            if (0..)
+                .zip(order)
+                .any(|(offset, position)| carrier.checked_add(offset) != Some(position))
+            {
+                return Err(refused());
+            }
+            let integer = arena.insert(Term::Constant {
+                declaration: carrier,
+                levels: Vec::new(),
+            });
+            let type_zero = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
+            let to_type = arena.insert(Term::Pi {
+                domain: integer,
+                codomain: type_zero,
+            });
+            let relation = arena.insert(Term::Pi {
+                domain: integer,
+                codomain: to_type,
+            });
+            let constructor = arena.insert(Term::Pi {
+                domain: integer,
+                codomain: integer,
+            });
+            let operation = arena.insert(Term::Pi {
+                domain: integer,
+                codomain: constructor,
+            });
+            let expected = [
+                type_zero,
+                relation,
+                relation,
+                operation,
+                operation,
+                operation,
+                integer,
+                constructor,
+                constructor,
+                constructor,
+            ];
+            for (position, ty) in order.into_iter().zip(expected) {
+                let Some(declaration) = declarations.get(position as usize) else {
+                    return Err(refused());
+                };
+                if declaration.body.is_some()
+                    || declaration.level_arity != 0
+                    || !arena.structurally_equal(declaration.ty, ty)
+                {
+                    return Err(refused());
+                }
+            }
+            Ok(())
+        }
+    }
+
+    impl Denotation {
+        fn declare_source_integer(
+            &mut self,
+        ) -> Result<SourceIntegerPositions, BoundedDenotationError> {
+            let carrier = self.integer()?;
+            let less_than = self.integer_less_than()?;
+            let less_or_equal = self.integer_less_or_equal()?;
+            let add = self.add_operation()?;
+            let subtract = self.subtract_operation()?;
+            let multiply = self.multiply_operation()?;
+            let numerals = self.declare_numerals()?;
+            // Record the numeral zero as the literal 0; this declares nothing.
+            self.math_literal(BigInt::zero())?;
+            Ok(SourceIntegerPositions {
+                vocabulary: SourceIntegerVocabulary {
+                    carrier,
+                    less_than,
+                    less_or_equal,
+                    add,
+                    subtract,
+                    multiply,
+                },
+                numeral_zero: numerals.zero,
+                numeral_double: numerals.double,
+                numeral_odd: numerals.odd,
+                numeral_negate: numerals.negate,
+            })
+        }
+
+        fn adopt_source_integer(
+            &mut self,
+            positions: SourceIntegerPositions,
+        ) -> Result<(), BoundedDenotationError> {
+            let vocabulary = positions.vocabulary;
+            self.integer = Some(vocabulary.carrier);
+            self.integer_less_than = Some(vocabulary.less_than);
+            self.integer_less_or_equal = Some(vocabulary.less_or_equal);
+            self.addition.operation = Some(vocabulary.add);
+            self.subtraction.operation = Some(vocabulary.subtract);
+            self.multiplication.operation = Some(vocabulary.multiply);
+            self.adopt_numerals(NumeralPositions {
+                zero: positions.numeral_zero,
+                double: positions.numeral_double,
+                odd: positions.numeral_odd,
+                negate: positions.numeral_negate,
+            })
+        }
+    }
+
+    /// One integer vocabulary in one caller's arena and declarations, and
+    /// proof searches against it. Every call takes that same arena and that
+    /// same declaration list; the theory only appends to the list, and the
+    /// caller may append its own declarations between calls.
+    pub struct SourceIntegerTheory {
+        state: Denotation,
+        positions: SourceIntegerPositions,
+    }
+
+    impl SourceIntegerTheory {
+        /// Append the integer vocabulary to `declarations`: ten assumptions,
+        /// in this order, the carrier `Int : Type 0`, `<` and `<=`
+        /// (`Int -> Int -> Type 0`), `+`, `-` and `*` (`Int -> Int -> Int`),
+        /// the numeral zero (`Int`) and the numeral constructors double, odd
+        /// and negate (`Int -> Int`). Laws and numeral definitions follow
+        /// later, only when a search or `literal` needs them.
+        pub fn new(
+            arena: &mut TermArena,
+            declarations: &mut Vec<Declaration>,
+        ) -> Result<Self, BoundedDenotationError> {
+            let mut state = Denotation::new_in(std::mem::take(arena), std::mem::take(declarations));
+            let positions = state.declare_source_integer();
+            std::mem::swap(arena, &mut state.arena);
+            std::mem::swap(declarations, &mut state.declarations);
+            Ok(Self {
+                state,
+                positions: positions?,
+            })
+        }
+
+        /// Keep using the vocabulary an earlier `SourceIntegerTheory`
+        /// declared in `declarations`, without declaring a second one.
+        /// `positions` is what that theory's `positions` returned, and
+        /// `declarations` still holds those ten declarations unchanged
+        /// (anything may follow them). The call refuses a record whose ten
+        /// positions are not consecutive assumptions in `new`'s order with
+        /// `new`'s types. It also takes over the numeral definitions that
+        /// follow them, so `literal(7)` returns the constant the earlier
+        /// theory made for 7 and the closed search knows its value. The
+        /// resumed theory appends only its own laws, numeral equations and
+        /// numeral definitions; it never declares a carrier, relation,
+        /// operation or numeral constructor.
+        pub fn resume(
+            arena: &mut TermArena,
+            declarations: &mut Vec<Declaration>,
+            positions: SourceIntegerPositions,
+        ) -> Result<Self, BoundedDenotationError> {
+            positions.check(arena, declarations)?;
+            let mut state = Denotation::new_in(std::mem::take(arena), std::mem::take(declarations));
+            let adopted = state.adopt_source_integer(positions);
+            std::mem::swap(arena, &mut state.arena);
+            std::mem::swap(declarations, &mut state.declarations);
+            adopted?;
+            Ok(Self { state, positions })
+        }
+
+        /// The ten declaration positions a later stage passes to `resume`.
+        pub fn positions(&self) -> SourceIntegerPositions {
+            self.positions
+        }
+
+        /// Every assumption this theory declared or took over: the
+        /// vocabulary, the numeral zero and constructors, and the laws and
+        /// numeral equations it appended itself. A caller audits a returned
+        /// proof by checking that `judgment_assumption_closure` of the proof
+        /// and its type holds nothing besides these and the unknowns the
+        /// caller declared. Sorted, without duplicates. A resumed theory's
+        /// roster does not list the laws the earlier theory appended, and
+        /// its proofs do not use them.
+        pub fn source_safety_roster(&self) -> Vec<u32> {
+            let state = &self.state;
+            let mut positions = state
+                .integer
+                .into_iter()
+                .chain(state.integer_less_than)
+                .chain(state.integer_less_or_equal)
+                .chain(state.integer_laws.values().copied())
+                .collect::<Vec<_>>();
+            positions.extend(state.binary_numerals.source_safety_roster());
+            positions.extend(state.addition.source_safety_roster());
+            positions.extend(state.subtraction.source_safety_roster());
+            positions.extend(state.multiplication.source_safety_roster());
+            positions.sort_unstable();
+            positions.dedup();
+            positions
+        }
+
+        /// The carrier, relation and operation positions; see
+        /// `SourceIntegerVocabulary` for how to build terms from them.
+        pub fn vocabulary(&self) -> SourceIntegerVocabulary {
+            self.positions.vocabulary
+        }
+
+        /// The literal for `value`, a term of type `Int`. Within 128 bits of
+        /// magnitude it is a constant naming a definition built from the
+        /// numeral zero and constructors, appended on first use; a larger
+        /// value is an opaque `Int` constant the theory remembers as that
+        /// value, which a resumed theory does not recognize. The same value
+        /// always returns a constant for the same declaration.
+        pub fn literal(
+            &mut self,
+            arena: &mut TermArena,
+            declarations: &mut Vec<Declaration>,
+            value: BigInt,
+        ) -> Result<TermHandle, BoundedDenotationError> {
+            self.with(arena, declarations, |state| state.math_literal(value))
+        }
+
+        /// Prove a goal that mentions no unknown: `a = b` (`Term::Id` at the
+        /// carrier), `a < b` or `a <= b` whose sides are literals combined by
+        /// `+`, `-` and `*`, a pair (`Term::Sigma`) of such goals, or
+        /// `Box (Empty -> Empty)`. Returns `Ok(Some(term))` where `term`
+        /// has type `goal` in the empty local context over `declarations`;
+        /// `Ok(None)` when the goal is false or has another form. The term
+        /// mentions the constants in `goal` and the assumptions listed by
+        /// `source_safety_roster`, nothing else.
+        pub fn closed_predicate(
+            &mut self,
+            arena: &mut TermArena,
+            declarations: &mut Vec<Declaration>,
+            goal: TermHandle,
+        ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+            self.with(arena, declarations, |state| {
+                state.closed_source_predicate(goal, 0)
+            })
+        }
+
+        /// Search for a proof of `goal` from the hypotheses `assumptions`.
+        /// Both are closed propositions over `declarations`: an unknown
+        /// integer such as `Length` is a constant naming an `Int` assumption
+        /// the caller declared, never a de Bruijn variable. `level_arity` is
+        /// the number of universe level parameters they may mention.
+        ///
+        /// On success the result is
+        /// `λ (h0 : assumptions[0]) ... λ (hn-1 : assumptions[n-1]). body`,
+        /// whose type is `Π assumptions[0]. ... Π assumptions[n-1]. goal` in
+        /// the empty local context over `declarations` with `level_arity`
+        /// level parameters. Inside `body` the proof of `assumptions[i]` is
+        /// `Variable(n - 1 - i)`. A caller that holds proofs of the
+        /// hypotheses applies the result to them in order; one checking a
+        /// local context of hypotheses `assumptions[0..n]` applies it to
+        /// `Variable(n - 1)`, ..., `Variable(0)`. The term mentions the
+        /// constants in `goal` and `assumptions` and the assumptions listed
+        /// by `source_safety_roster`, nothing else.
+        ///
+        /// `Ok(None)` means the search found no proof. It finds none for a
+        /// false goal, and also for true goals beyond its reach: it rewrites
+        /// each unknown `x` with a hypothesis `t = x` or `x = t`, distributes
+        /// `*` over `+`, folds closed arithmetic, and then closes `a <= b`
+        /// with a hypothesis of the same normal form, closed arithmetic, or
+        /// by splitting `a + c <= b + d` into `a <= b` and `c <= d`. A
+        /// hypothesis that is a non-dependent pair is split into its parts;
+        /// a dependent pair is refused with `Unsupported`.
+        pub fn predicate_from_assumptions(
+            &mut self,
+            arena: &mut TermArena,
+            declarations: &mut Vec<Declaration>,
+            goal: TermHandle,
+            assumptions: &[TermHandle],
+            level_arity: u32,
+        ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+            self.with(arena, declarations, |state| {
+                state.source_assumption_predicate(goal, assumptions, level_arity)
+            })
+        }
+
+        fn with<T>(
+            &mut self,
+            arena: &mut TermArena,
+            declarations: &mut Vec<Declaration>,
+            produce: impl FnOnce(&mut Denotation) -> Result<T, BoundedDenotationError>,
+        ) -> Result<T, BoundedDenotationError> {
+            std::mem::swap(arena, &mut self.state.arena);
+            std::mem::swap(declarations, &mut self.state.declarations);
+            let result = produce(&mut self.state);
+            std::mem::swap(arena, &mut self.state.arena);
+            std::mem::swap(declarations, &mut self.state.declarations);
+            result
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::{
+            Budget, Context, DEFAULT_CONVERSION_STEPS, MathematicalCertificate, Signature,
+            check_signature, check_type, indexed_scheme, judgment_assumption_closure,
+            verify_mathematical_certificate,
+        };
+
+        fn constant(arena: &mut TermArena, declaration: u32) -> TermHandle {
+            arena.insert(Term::Constant {
+                declaration,
+                levels: Vec::new(),
+            })
+        }
+
+        fn binary(
+            arena: &mut TermArena,
+            operation: u32,
+            left: TermHandle,
+            right: TermHandle,
+        ) -> TermHandle {
+            let function = constant(arena, operation);
+            arena.apply_binary(function, left, right)
+        }
+
+        fn literal(
+            theory: &mut SourceIntegerTheory,
+            arena: &mut TermArena,
+            declarations: &mut Vec<Declaration>,
+            value: u64,
+        ) -> TermHandle {
+            theory
+                .literal(arena, declarations, BigInt::from_u64(value))
+                .unwrap()
+        }
+
+        /// One induction step of `Vector`'s budget theorem
+        /// (`samples/cli/facts/source_indexed_family/main.omg`): a `Cons`
+        /// cell with `head <= 10`, `previous + 1 = Length` and
+        /// `previous_total + head = Total`, and the induction hypothesis
+        /// `previous_total <= 10 * previous`, must show
+        /// `Total <= scale * Length`, which holds for `scale` 10.
+        struct VectorStep {
+            unknowns: [u32; 5],
+            assumptions: [TermHandle; 4],
+            goal: TermHandle,
+        }
+
+        impl VectorStep {
+            /// Each occurrence of an unknown is its own node, as a caller
+            /// that elaborates each source mention separately would build it.
+            fn new(
+                theory: &mut SourceIntegerTheory,
+                arena: &mut TermArena,
+                declarations: &mut Vec<Declaration>,
+                scale: u64,
+            ) -> Self {
+                let vocabulary = theory.vocabulary();
+                let integer = constant(arena, vocabulary.carrier);
+                let mut unknowns = [0; 5];
+                for unknown in &mut unknowns {
+                    *unknown = declarations.len() as u32;
+                    declarations.push(Declaration::assumption(0, integer));
+                }
+                let [length, total, previous, previous_total, head] = unknowns;
+                let one = literal(theory, arena, declarations, 1);
+                let ten = literal(theory, arena, declarations, 10);
+                let scale = literal(theory, arena, declarations, scale);
+                let at = |arena: &mut TermArena, unknown| constant(arena, unknown);
+
+                let head_term = at(arena, head);
+                let head_bound = binary(arena, vocabulary.less_or_equal, head_term, ten);
+                let previous_term = at(arena, previous);
+                let increment = binary(arena, vocabulary.add, previous_term, one);
+                let length_term = at(arena, length);
+                let length_equation = arena.insert(Term::Id {
+                    ty: integer,
+                    left: increment,
+                    right: length_term,
+                });
+                let previous_total_term = at(arena, previous_total);
+                let head_term = at(arena, head);
+                let sum = binary(arena, vocabulary.add, previous_total_term, head_term);
+                let total_term = at(arena, total);
+                let total_equation = arena.insert(Term::Id {
+                    ty: integer,
+                    left: sum,
+                    right: total_term,
+                });
+                let previous_term = at(arena, previous);
+                let prior_limit = binary(arena, vocabulary.multiply, ten, previous_term);
+                let previous_total_term = at(arena, previous_total);
+                let hypothesis = binary(
+                    arena,
+                    vocabulary.less_or_equal,
+                    previous_total_term,
+                    prior_limit,
+                );
+                let length_term = at(arena, length);
+                let limit = binary(arena, vocabulary.multiply, scale, length_term);
+                let total_term = at(arena, total);
+                let goal = binary(arena, vocabulary.less_or_equal, total_term, limit);
+                Self {
+                    unknowns,
+                    assumptions: [head_bound, length_equation, total_equation, hypothesis],
+                    goal,
+                }
+            }
+
+            /// `Π assumptions[0]. ... Π assumptions[3]. goal`.
+            fn implication(&self, arena: &mut TermArena) -> TermHandle {
+                self.assumptions
+                    .iter()
+                    .rev()
+                    .fold(self.goal, |codomain, &domain| {
+                        arena.insert(Term::Pi { domain, codomain })
+                    })
+            }
+        }
+
+        /// Have the kernel check `proof`, applied to the hypotheses of a local
+        /// context, at the goal itself. Returns the kernel steps it took.
+        fn check_under_hypotheses(
+            arena: &mut TermArena,
+            declarations: &[Declaration],
+            step: &VectorStep,
+            proof: TermHandle,
+        ) -> u32 {
+            let count = step.assumptions.len() as u32;
+            let hypotheses = (0..count)
+                .map(|position| arena.insert(Term::Variable(count - 1 - position)))
+                .collect::<Vec<_>>();
+            let applied = arena.apply_arguments(proof, &hypotheses);
+            let certificate = MathematicalCertificate {
+                signature: declarations.to_vec(),
+                level_arity: 0,
+                context: step.assumptions.to_vec(),
+                term: applied,
+                expected: step.goal,
+            };
+            let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
+            verify_mathematical_certificate(arena, &certificate, &mut budget).unwrap();
+            DEFAULT_CONVERSION_STEPS - budget.remaining()
+        }
+
+        /// Every assumption a proof and its type depend on is in the
+        /// theory's roster or is one of the caller's unknowns.
+        fn assert_within_roster(
+            theory: &SourceIntegerTheory,
+            arena: &TermArena,
+            declarations: &[Declaration],
+            terms: &[TermHandle],
+            unknowns: &[u32],
+        ) {
+            let roster = theory.source_safety_roster();
+            let signature = Signature::from_declarations(declarations.to_vec());
+            let closure = judgment_assumption_closure(arena, &signature, terms);
+            assert!(closure.contains(&theory.vocabulary().carrier));
+            let outside = closure
+                .into_iter()
+                .filter(|position| {
+                    roster.binary_search(position).is_err() && !unknowns.contains(position)
+                })
+                .collect::<Vec<_>>();
+            assert!(
+                outside.is_empty(),
+                "proof depends on assumptions outside the roster: {outside:?}"
+            );
+            for unknown in unknowns {
+                assert!(roster.binary_search(unknown).is_err());
+            }
+        }
+
+        #[test]
+        fn vector_step_proves_the_budget_bound_from_its_hypotheses() {
+            let mut arena = TermArena::new();
+            let mut declarations = indexed_scheme(&mut arena);
+            let mut theory = SourceIntegerTheory::new(&mut arena, &mut declarations).unwrap();
+            let step = VectorStep::new(&mut theory, &mut arena, &mut declarations, 10);
+            let proof = theory
+                .predicate_from_assumptions(
+                    &mut arena,
+                    &mut declarations,
+                    step.goal,
+                    &step.assumptions,
+                    0,
+                )
+                .unwrap()
+                .expect("the vector step follows from its four hypotheses");
+            let steps = check_under_hypotheses(&mut arena, &declarations, &step, proof);
+            eprintln!("vector step under its hypotheses: {steps} kernel steps");
+
+            let implication = step.implication(&mut arena);
+            let signature = check_signature(
+                &mut arena,
+                &declarations,
+                &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+            )
+            .unwrap();
+            let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
+            check_type(
+                &mut arena,
+                &Context::empty().with_signature(signature),
+                proof,
+                implication,
+                &mut budget,
+            )
+            .unwrap();
+            eprintln!(
+                "vector step as an implication: {} kernel steps",
+                DEFAULT_CONVERSION_STEPS - budget.remaining()
+            );
+            assert_within_roster(
+                &theory,
+                &arena,
+                &declarations,
+                &[proof, implication],
+                &step.unknowns,
+            );
+        }
+
+        #[test]
+        fn vector_step_without_a_needed_hypothesis_or_with_a_tighter_bound_has_no_proof() {
+            let mut arena = TermArena::new();
+            let mut declarations = indexed_scheme(&mut arena);
+            let mut theory = SourceIntegerTheory::new(&mut arena, &mut declarations).unwrap();
+            let step = VectorStep::new(&mut theory, &mut arena, &mut declarations, 10);
+            for missing in 0..step.assumptions.len() {
+                let reduced = step
+                    .assumptions
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(position, &assumption)| {
+                        (position != missing).then_some(assumption)
+                    })
+                    .collect::<Vec<_>>();
+                assert!(
+                    theory
+                        .predicate_from_assumptions(
+                            &mut arena,
+                            &mut declarations,
+                            step.goal,
+                            &reduced,
+                            0
+                        )
+                        .unwrap()
+                        .is_none(),
+                    "proved the vector step without hypothesis {missing}"
+                );
+            }
+            let tighter = VectorStep::new(&mut theory, &mut arena, &mut declarations, 9);
+            assert!(
+                theory
+                    .predicate_from_assumptions(
+                        &mut arena,
+                        &mut declarations,
+                        tighter.goal,
+                        &tighter.assumptions,
+                        0
+                    )
+                    .unwrap()
+                    .is_none(),
+                "proved Total <= 9 * Length, which the hypotheses do not imply"
+            );
+            for goal in [step.goal, tighter.goal] {
+                assert!(
+                    !declarations
+                        .iter()
+                        .any(|declaration| declaration.body.is_none()
+                            && arena.structurally_equal(declaration.ty, goal)),
+                    "a search declared its goal as an assumption"
+                );
+            }
+        }
+
+        #[test]
+        fn closed_predicate_proves_true_closed_arithmetic_and_order_only() {
+            let mut arena = TermArena::new();
+            let mut declarations = indexed_scheme(&mut arena);
+            let mut theory = SourceIntegerTheory::new(&mut arena, &mut declarations).unwrap();
+            let vocabulary = theory.vocabulary();
+            let zero = literal(&mut theory, &mut arena, &mut declarations, 0);
+            let one = literal(&mut theory, &mut arena, &mut declarations, 1);
+            let two = literal(&mut theory, &mut arena, &mut declarations, 2);
+            let seven = literal(&mut theory, &mut arena, &mut declarations, 7);
+            // The caller may append its own declarations between calls.
+            let type_zero = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
+            declarations.push(Declaration::assumption(0, type_zero));
+            let three = literal(&mut theory, &mut arena, &mut declarations, 3);
+            let ten = literal(&mut theory, &mut arena, &mut declarations, 10);
+            let eleven = literal(&mut theory, &mut arena, &mut declarations, 11);
+            let integer = constant(&mut arena, vocabulary.carrier);
+            let equal = |arena: &mut TermArena, left, right| {
+                arena.insert(Term::Id {
+                    ty: integer,
+                    left,
+                    right,
+                })
+            };
+            let zero_plus_one = binary(&mut arena, vocabulary.add, zero, one);
+            let seven_plus_three = binary(&mut arena, vocabulary.add, seven, three);
+            let true_goals = [
+                equal(&mut arena, zero_plus_one, one),
+                equal(&mut arena, seven_plus_three, ten),
+                binary(&mut arena, vocabulary.less_or_equal, seven, ten),
+                binary(&mut arena, vocabulary.less_or_equal, seven_plus_three, ten),
+                binary(&mut arena, vocabulary.less_than, seven, ten),
+            ];
+            let false_goals = [
+                equal(&mut arena, zero_plus_one, two),
+                equal(&mut arena, seven_plus_three, seven),
+                binary(&mut arena, vocabulary.less_or_equal, eleven, ten),
+                binary(&mut arena, vocabulary.less_than, ten, ten),
+            ];
+            let proofs = true_goals.map(|goal| {
+                theory
+                    .closed_predicate(&mut arena, &mut declarations, goal)
+                    .unwrap()
+                    .expect("a true closed goal has a proof")
+            });
+            for goal in false_goals {
+                assert!(
+                    theory
+                        .closed_predicate(&mut arena, &mut declarations, goal)
+                        .unwrap()
+                        .is_none()
+                );
+            }
+            let signature = check_signature(
+                &mut arena,
+                &declarations,
+                &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+            )
+            .unwrap();
+            let context = Context::empty().with_signature(signature);
+            for (proof, goal) in proofs.into_iter().zip(true_goals) {
+                check_type(
+                    &mut arena,
+                    &context,
+                    proof,
+                    goal,
+                    &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+                )
+                .unwrap();
+                assert_within_roster(&theory, &arena, &declarations, &[proof, goal], &[]);
+            }
+            assert!(
+                check_type(
+                    &mut arena,
+                    &context,
+                    proofs[1],
+                    false_goals[1],
+                    &mut Budget::new(DEFAULT_CONVERSION_STEPS)
+                )
+                .is_err()
+            );
+        }
+
+        #[test]
+        fn resumed_theory_proves_goals_stated_with_the_first_vocabulary() {
+            let mut arena = TermArena::new();
+            let mut declarations = indexed_scheme(&mut arena);
+            let (positions, step, closed_goal, seven) = {
+                let mut first = SourceIntegerTheory::new(&mut arena, &mut declarations).unwrap();
+                let vocabulary = first.vocabulary();
+                let seven = literal(&mut first, &mut arena, &mut declarations, 7);
+                let three = literal(&mut first, &mut arena, &mut declarations, 3);
+                let ten = literal(&mut first, &mut arena, &mut declarations, 10);
+                let sum = binary(&mut arena, vocabulary.add, seven, three);
+                let integer = constant(&mut arena, vocabulary.carrier);
+                let closed_goal = arena.insert(Term::Id {
+                    ty: integer,
+                    left: sum,
+                    right: ten,
+                });
+                let step = VectorStep::new(&mut first, &mut arena, &mut declarations, 10);
+                (first.positions(), step, closed_goal, seven)
+            };
+            let before = declarations.len();
+            let mut resumed =
+                SourceIntegerTheory::resume(&mut arena, &mut declarations, positions).unwrap();
+            assert_eq!(resumed.positions(), positions);
+            assert_eq!(declarations.len(), before, "resuming declares nothing");
+            let again = literal(&mut resumed, &mut arena, &mut declarations, 7);
+            assert!(
+                arena.structurally_equal(again, seven),
+                "the resumed theory reuses the first theory's literal"
+            );
+
+            let closed = resumed
+                .closed_predicate(&mut arena, &mut declarations, closed_goal)
+                .unwrap()
+                .expect("7 + 3 = 10 with the first theory's literals");
+            let proof = resumed
+                .predicate_from_assumptions(
+                    &mut arena,
+                    &mut declarations,
+                    step.goal,
+                    &step.assumptions,
+                    0,
+                )
+                .unwrap()
+                .expect("the resumed theory proves the vector step");
+            let steps = check_under_hypotheses(&mut arena, &declarations, &step, proof);
+            eprintln!("resumed vector step under its hypotheses: {steps} kernel steps");
+            let signature = check_signature(
+                &mut arena,
+                &declarations,
+                &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+            )
+            .unwrap();
+            check_type(
+                &mut arena,
+                &Context::empty().with_signature(signature),
+                closed,
+                closed_goal,
+                &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+            )
+            .unwrap();
+            let implication = step.implication(&mut arena);
+            assert_within_roster(
+                &resumed,
+                &arena,
+                &declarations,
+                &[proof, implication, closed, closed_goal],
+                &step.unknowns,
+            );
+
+            // No appended declaration has the type of a carrier, relation,
+            // operation, numeral constructor or bare integer constant.
+            let vocabulary = positions.vocabulary;
+            let integer = constant(&mut arena, vocabulary.carrier);
+            let vocabulary_types = [
+                vocabulary.carrier,
+                vocabulary.less_than,
+                vocabulary.add,
+                positions.numeral_zero,
+                positions.numeral_double,
+            ]
+            .map(|position| declarations[position as usize].ty);
+            for declaration in &declarations[before..] {
+                assert!(
+                    declaration.body.is_some()
+                        || !vocabulary_types
+                            .iter()
+                            .any(|&ty| arena.structurally_equal(declaration.ty, ty)),
+                    "the resumed theory declared a second integer vocabulary member"
+                );
+                assert!(!matches!(arena.get(declaration.ty), Term::Sort(_)));
+            }
+            assert!(
+                declarations[before..]
+                    .iter()
+                    .filter(|declaration| declaration.body.is_some())
+                    .all(|declaration| arena.structurally_equal(declaration.ty, integer)),
+                "the resumed theory defines nothing but numerals"
+            );
+        }
+
+        #[test]
+        fn resume_refuses_a_record_that_does_not_match_the_declarations() {
+            let mut arena = TermArena::new();
+            let mut declarations = indexed_scheme(&mut arena);
+            let positions = SourceIntegerTheory::new(&mut arena, &mut declarations)
+                .unwrap()
+                .positions();
+            let mut swapped = positions;
+            swapped.vocabulary.add = positions.vocabulary.subtract;
+            swapped.vocabulary.subtract = positions.vocabulary.add;
+            let mut relations = positions;
+            relations.vocabulary.less_than = positions.vocabulary.less_or_equal;
+            relations.vocabulary.less_or_equal = positions.vocabulary.less_than;
+            let mut shifted = positions;
+            for position in [
+                &mut shifted.vocabulary.carrier,
+                &mut shifted.vocabulary.less_than,
+                &mut shifted.vocabulary.less_or_equal,
+                &mut shifted.vocabulary.add,
+                &mut shifted.vocabulary.subtract,
+                &mut shifted.vocabulary.multiply,
+                &mut shifted.numeral_zero,
+                &mut shifted.numeral_double,
+                &mut shifted.numeral_odd,
+                &mut shifted.numeral_negate,
+            ] {
+                *position -= 1;
+            }
+            for record in [swapped, relations, shifted] {
+                assert!(matches!(
+                    SourceIntegerTheory::resume(&mut arena, &mut declarations, record),
+                    Err(BoundedDenotationError::Unsupported(_))
+                ));
+            }
+            let mut truncated = declarations.clone();
+            truncated.truncate(positions.numeral_negate as usize);
+            assert!(SourceIntegerTheory::resume(&mut arena, &mut truncated, positions).is_err());
+            assert!(SourceIntegerTheory::resume(&mut arena, &mut declarations, positions).is_ok());
+        }
+
+        /// Instantiate a closed statement `Π s. Π a. Π b. Id Int left right`
+        /// at the literals for each `s`, `a` and `b` in `range` and evaluate
+        /// both sides with the theory's closed numeral evaluation
+        /// (`source_integer_value`), which folds `+`, `-` and `*` over
+        /// literals by computing the result and never cites a law. Returns
+        /// the first triple whose sides differ. Panics when a side cannot be
+        /// evaluated, so the check never passes by skipping a case.
+        fn equation_counterexample(
+            state: &mut Denotation,
+            statement: TermHandle,
+            range: std::ops::RangeInclusive<i64>,
+        ) -> Option<[i64; 3]> {
+            let integer = state.integer_constant().unwrap();
+            for s in range.clone() {
+                for a in range.clone() {
+                    for b in range.clone() {
+                        let mut instance = statement;
+                        for value in [s, a, b] {
+                            let Term::Pi { domain, codomain } = state.arena.get(instance) else {
+                                panic!("the statement binds three integers");
+                            };
+                            assert!(state.arena.structurally_equal(domain, integer));
+                            let literal = state.math_literal(BigInt::from_i64(value)).unwrap();
+                            instance = crate::substitute(&mut state.arena, codomain, literal);
+                        }
+                        let Term::Id { ty, left, right } = state.arena.get(instance) else {
+                            panic!("the instantiated statement is an integer equation");
+                        };
+                        assert!(state.arena.structurally_equal(ty, integer));
+                        let mut evaluate = |side| {
+                            let (value, _, _) = state
+                                .source_integer_value(side, 0)
+                                .unwrap()
+                                .expect("both sides are closed arithmetic over literals");
+                            value
+                        };
+                        if evaluate(left) != evaluate(right) {
+                            return Some([s, a, b]);
+                        }
+                    }
+                }
+            }
+            None
+        }
+
+        /// The statement `Π s. Π a. Π b. Id Int left (x + y * z)` with
+        /// its right side's last summand `y * z` replaced by `z`: for
+        /// `DistributeAdd` that is the wrong law `s * (a + b) = s * a + b`.
+        fn unscale_last_summand(arena: &mut TermArena, statement: TermHandle) -> TermHandle {
+            let mut domains = Vec::new();
+            let mut body = statement;
+            for _ in 0..3 {
+                let Term::Pi { domain, codomain } = arena.get(body) else {
+                    panic!("the statement binds three integers");
+                };
+                domains.push(domain);
+                body = codomain;
+            }
+            let Term::Id { ty, left, right } = arena.get(body) else {
+                panic!("the statement is an integer equation");
+            };
+            let Term::Apply {
+                function: sum,
+                argument: product,
+            } = arena.get(right)
+            else {
+                panic!("the right side is a sum");
+            };
+            let Term::Apply {
+                argument: unscaled, ..
+            } = arena.get(product)
+            else {
+                panic!("the last summand is a product");
+            };
+            let right = arena.insert(Term::Apply {
+                function: sum,
+                argument: unscaled,
+            });
+            let mut wrong = arena.insert(Term::Id { ty, left, right });
+            for domain in domains.into_iter().rev() {
+                wrong = arena.insert(Term::Pi {
+                    domain,
+                    codomain: wrong,
+                });
+            }
+            wrong
+        }
+
+        /// `DistributeAdd` is trusted, not derived, so its declared statement
+        /// is checked against computed arithmetic for every `s`, `a` and `b`
+        /// in -4..=4. The statement is read from the declaration
+        /// `distribute_add` cites, not retyped. This checks the statement's
+        /// instances in that range, evaluated by closed numeral arithmetic;
+        /// it does not check the law for other values, and it relies on the
+        /// numeral evaluation being correct. A control with `s * a + b` on
+        /// the right shows the same check finds a counterexample.
+        #[test]
+        fn distribute_add_statement_agrees_with_computed_arithmetic() {
+            let mut arena = TermArena::new();
+            let mut declarations = indexed_scheme(&mut arena);
+            let mut theory = SourceIntegerTheory::new(&mut arena, &mut declarations).unwrap();
+            let (correct, control) = theory
+                .with(&mut arena, &mut declarations, |state| {
+                    let zero = state.math_literal(BigInt::zero())?;
+                    let mut head = state.distribute_add(zero, zero, zero)?;
+                    while let Term::Apply { function, .. } = state.arena.get(head) {
+                        head = function;
+                    }
+                    let Term::Constant { declaration, .. } = state.arena.get(head) else {
+                        panic!("distribute_add applies its law's declaration");
+                    };
+                    let law = &state.declarations[declaration as usize];
+                    assert!(law.body.is_none(), "the law is an assumption");
+                    let statement = law.ty;
+                    let wrong = unscale_last_summand(&mut state.arena, statement);
+                    Ok((
+                        equation_counterexample(state, statement, -4..=4),
+                        equation_counterexample(state, wrong, -4..=4),
+                    ))
+                })
+                .unwrap();
+            assert_eq!(correct, None, "DistributeAdd disagrees with arithmetic");
+            let [s, a, b] = control.expect("the wrong law has a counterexample in range");
+            eprintln!("control counterexample: s = {s}, a = {a}, b = {b}");
+            assert_ne!(s * (a + b), s * a + b);
+        }
+
+        #[test]
+        fn dependent_value_premises_are_explicitly_unsupported() {
+            let mut arena = TermArena::new();
+            let mut declarations = indexed_scheme(&mut arena);
+            let mut theory = SourceIntegerTheory::new(&mut arena, &mut declarations).unwrap();
+            let integer = constant(&mut arena, theory.vocabulary().carrier);
+            let variable = arena.insert(Term::Variable(0));
+            let predicate = arena.insert(Term::Id {
+                ty: integer,
+                left: variable,
+                right: variable,
+            });
+            let premise = arena.insert(Term::Sigma {
+                domain: integer,
+                codomain: predicate,
+            });
+            let zero = literal(&mut theory, &mut arena, &mut declarations, 0);
+            let goal = arena.insert(Term::Id {
+                ty: integer,
+                left: zero,
+                right: zero,
+            });
+            assert!(matches!(
+                theory.predicate_from_assumptions(
+                    &mut arena,
+                    &mut declarations,
+                    goal,
+                    &[premise],
+                    0
+                ),
+                Err(BoundedDenotationError::Unsupported(_))
+            ));
+        }
+    }
+}
+pub use source_integer::{SourceIntegerPositions, SourceIntegerTheory, SourceIntegerVocabulary};
 mod subtraction {
     use std::collections::BTreeMap;
 
@@ -12464,10 +14431,21 @@ mod subtraction {
 
     #[derive(Default)]
     pub(super) struct Subtraction {
-        operation: Option<u32>,
+        pub(super) operation: Option<u32>,
         laws: BTreeMap<Law, u32>,
         irreflexivity: Option<u32>,
         pub(super) numeral_differences: BTreeMap<(IntegerValue, IntegerValue, IntegerValue), u32>,
+    }
+
+    impl Subtraction {
+        pub(super) fn source_safety_roster(&self) -> Vec<u32> {
+            self.operation
+                .into_iter()
+                .chain(self.laws.values().copied())
+                .chain(self.irreflexivity)
+                .chain(self.numeral_differences.values().copied())
+                .collect()
+        }
     }
 
     impl Denotation {

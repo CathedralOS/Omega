@@ -396,8 +396,9 @@ pub use admission::evidence::{
 };
 pub use bounded_denotation::{
     BoundedDenotation, BoundedDenotationError, BoundedImplicationType, BoundedTheorem,
-    BoundedTheoremError, SourceContentTheory, denote_bounded_certificate,
-    denote_bounded_implication_type, verify_bounded_certificate, verify_bounded_theorem,
+    BoundedTheoremError, SourceContentTheory, SourceIntegerPositions, SourceIntegerTheory,
+    SourceIntegerVocabulary, denote_bounded_certificate, denote_bounded_implication_type,
+    verify_bounded_certificate, verify_bounded_theorem,
 };
 pub use classicality::ProofRuleFoundation;
 pub use closed_predicates::{closed_guard, closed_guard_with};
