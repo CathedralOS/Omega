@@ -352,19 +352,19 @@ pub(crate) fn is_branch_fact(proposition: &Proposition) -> bool {
 }
 
 impl Known {
-    pub(crate) fn new(
+    pub(crate) fn new<'a>(
         context: &PropositionContext,
-        assumptions: &[Proposition],
-        axioms: &[Proposition],
+        assumptions: impl IntoIterator<Item = &'a Proposition>,
+        axioms: impl IntoIterator<Item = &'a Proposition>,
         values: &dyn ProofValues,
     ) -> Self {
-        Self::prepare(context, assumptions.iter(), axioms, values, None)
+        Self::prepare(context, assumptions.into_iter(), axioms, values, None)
     }
 
     pub(crate) fn prepare<'a>(
         context: &PropositionContext,
         assumptions: impl Iterator<Item = &'a Proposition>,
-        axioms: &[Proposition],
+        axioms: impl IntoIterator<Item = &'a Proposition>,
         values: &dyn ProofValues,
         mut branch: Option<&mut BranchPreparation<'_>>,
     ) -> Self {
@@ -380,7 +380,7 @@ impl Known {
             );
         }
         let assumption_count = facts.len();
-        for (index, axiom) in axioms.iter().enumerate() {
+        for (index, axiom) in axioms.into_iter().enumerate() {
             flatten(
                 axiom,
                 Origin::SemanticAxiom(index),
