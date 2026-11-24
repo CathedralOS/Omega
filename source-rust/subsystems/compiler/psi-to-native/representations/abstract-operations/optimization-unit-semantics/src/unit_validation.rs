@@ -2651,6 +2651,115 @@ mod catalogs {
         validate_root_service_reach(unit, machines, boundary_machines, services)?;
         Ok(())
     }
+
+    #[cfg(test)]
+    mod field_range_pairing_tests {
+        use super::scalar_initializer_declarations;
+        use semantic_vocabulary::{
+            BoundedIntegerType, IntegerSign, IntegerType, IntegerValue, ObligationId, ScalarType,
+            StructuralFieldId, ValueId,
+        };
+        use terminal_psi::{
+            BindingRelevance, RecordFieldInitializer, RecordFieldValue, StructuralFieldDeclaration,
+            StructuralFieldType,
+        };
+
+        fn field(
+            id: u64,
+            relevance: BindingRelevance,
+            field_type: StructuralFieldType,
+        ) -> StructuralFieldDeclaration {
+            StructuralFieldDeclaration {
+                declaration_identity: Default::default(),
+                inline_carrier: None,
+                id: StructuralFieldId::new(id).unwrap(),
+                identity: Default::default(),
+                relevance,
+                field_type,
+                storage: None,
+            }
+        }
+
+        fn scalar(id: u64, value: u64, obligation: Option<u64>) -> RecordFieldInitializer {
+            RecordFieldInitializer {
+                field: StructuralFieldId::new(id).unwrap(),
+                value: RecordFieldValue::Scalar {
+                    value: ValueId::new(value).unwrap(),
+                    range_obligation: obligation.map(|id| ObligationId::new(id).unwrap()),
+                },
+            }
+        }
+
+        fn byte() -> IntegerType {
+            IntegerType::new(IntegerSign::Unsigned, 8).unwrap()
+        }
+
+        fn bounded() -> StructuralFieldType {
+            StructuralFieldType::BoundedInteger(
+                BoundedIntegerType::new(
+                    byte(),
+                    IntegerValue::Unsigned(0),
+                    IntegerValue::Unsigned(9),
+                )
+                .unwrap(),
+            )
+        }
+
+        /// A record `{ [erased] ghost: u8, count: u8 in 0..=9 }` is built with
+        /// one initializer, for `count`. Its range obligation must be checked
+        /// against `count`'s bounded declaration, not the erased field before
+        /// it.
+        #[test]
+        fn erased_field_does_not_shift_initializer_declarations() {
+            let roster = [
+                field(
+                    1,
+                    BindingRelevance::Erased,
+                    StructuralFieldType::Scalar(ScalarType::Integer(byte())),
+                ),
+                field(2, BindingRelevance::Relevant, bounded()),
+            ];
+            let fields = [scalar(2, 7, Some(3))];
+            let pairs = scalar_initializer_declarations(roster.iter(), &fields).unwrap();
+            assert_eq!(pairs.len(), 1);
+            assert_eq!(pairs[0].0.id, StructuralFieldId::new(2).unwrap());
+            assert_eq!(pairs[0].0.field_type, bounded());
+            assert_eq!(pairs[0].2, Some(ObligationId::new(3).unwrap()));
+        }
+
+        /// A mixed type's case constructor initializes the common fields first,
+        /// then the case's own fields; both lists take part in the pairing.
+        #[test]
+        fn mixed_case_pairs_common_and_case_fields() {
+            let common = [field(1, BindingRelevance::Relevant, bounded())];
+            let case = [field(
+                2,
+                BindingRelevance::Relevant,
+                StructuralFieldType::Scalar(ScalarType::Integer(byte())),
+            )];
+            let fields = [scalar(1, 4, Some(5)), scalar(2, 6, None)];
+            let pairs =
+                scalar_initializer_declarations(common.iter().chain(&case), &fields).unwrap();
+            let ids = pairs
+                .iter()
+                .map(|(declaration, _, _)| declaration.id.get())
+                .collect::<Vec<_>>();
+            assert_eq!(ids, [1, 2]);
+        }
+
+        /// An initializer for an erased or unknown field has no declaration to
+        /// check against, so the range check refuses it.
+        #[test]
+        fn initializer_without_relevant_declaration_is_refused() {
+            let roster = [field(1, BindingRelevance::Erased, bounded())];
+            assert!(
+                scalar_initializer_declarations(roster.iter(), &[scalar(1, 2, None)]).is_none()
+            );
+            assert!(
+                scalar_initializer_declarations(roster.iter(), &[scalar(9, 2, None)]).is_none()
+            );
+        }
+    }
 }
 pub(crate) mod derived_metadata {
     use crate::OptimizationUnitValidationError;
