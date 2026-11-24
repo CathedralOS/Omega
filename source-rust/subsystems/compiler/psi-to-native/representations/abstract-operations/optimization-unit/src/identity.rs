@@ -415,7 +415,69 @@ pub(crate) mod proposition_encoding {
                 bytes.u32(clause.left.0);
                 bytes.u32(clause.right.0);
             }
+            Proposition::DeclarationIdentity(clause) => {
+                bytes.u8(23);
+                encode_declaration_identity(bytes, clause);
+            }
         }
+    }
+
+    // A published Psi program never carries a declaration Identity: the wire
+    // validator refuses one in a portable proposition. The unit identity still
+    // encodes every field, so two different clauses never share an identity.
+    fn encode_declaration_identity(
+        bytes: &mut CanonicalBytes,
+        clause: &semantic_vocabulary::ClauseIdentity,
+    ) {
+        use semantic_vocabulary::{ClauseCarrier, ClauseDeclaration, ClauseOperand};
+        fn encode_declaration(bytes: &mut CanonicalBytes, declaration: &ClauseDeclaration) {
+            encode_optional(bytes, declaration.supplier.as_ref(), |bytes, (slot, generation)| {
+                bytes.u32(*slot);
+                bytes.u32(*generation);
+            });
+            bytes.u32(declaration.member.0);
+            bytes.u32(declaration.member.1);
+        }
+        bytes.slice(&clause.values, |bytes, value| {
+            match value.carrier {
+                ClauseCarrier::Parameter(index) => {
+                    bytes.u8(0);
+                    bytes.u32(index);
+                }
+                ClauseCarrier::Scalar(scalar) => {
+                    bytes.u8(1);
+                    encode_scalar_type(bytes, scalar);
+                }
+                ClauseCarrier::Structural(structural) => {
+                    bytes.u8(2);
+                    bytes.id(structural);
+                }
+            }
+            match &value.operand {
+                ClauseOperand::Scalar(term) => {
+                    bytes.u8(0);
+                    encode_scalar_term(bytes, term);
+                }
+                ClauseOperand::Input(subject) => {
+                    bytes.u8(1);
+                    encode_case_subject(bytes, subject);
+                }
+                ClauseOperand::Formal(index) => {
+                    bytes.u8(2);
+                    bytes.u32(*index);
+                }
+                ClauseOperand::Application {
+                    declaration,
+                    arguments,
+                } => {
+                    bytes.u8(3);
+                    encode_declaration(bytes, declaration);
+                    bytes.slice(arguments, |bytes, argument| bytes.u32(*argument));
+                }
+            }
+        });
+        bytes.u32(clause.left);
+        bytes.u32(clause.right);
     }
 
     fn encode_integer_math_term(bytes: &mut CanonicalBytes, term: &IntegerMathTerm) {
