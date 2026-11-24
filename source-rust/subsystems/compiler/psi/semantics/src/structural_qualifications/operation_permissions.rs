@@ -424,6 +424,34 @@ impl<'a> Permissions<'a> {
             let Some(plan) = &declaration.access_policy else {
                 continue;
             };
+            let mut enforce = |path: &[StructuralPathSegment], allowed: &[Caller], denied| {
+                if StructuralPathQualification::selected_suffix(path, &selected).is_none()
+                    && StructuralPathQualification::selected_suffix(&selected, path).is_none()
+                {
+                    return Ok(());
+                }
+                let mut judgment = RuleJudgment {
+                    target: subject,
+                    allowed,
+                    denied: failure(original.machine, denied),
+                    answers: std::collections::BTreeMap::new(),
+                };
+                if self.route(original.clone(), false, false, &mut judgment)? {
+                    Ok(())
+                } else {
+                    Err(failure(
+                        subject.machine,
+                        "the compiler cannot match this access to the value supplied by its caller",
+                    ))
+                }
+            };
+            // An inaccessible field permits no observation by any caller.
+            // An erased field has no storage path that an operation can touch.
+            for ((_, path), demand) in &plan.observations {
+                if demand.is_none() && let Some(path) = path {
+                    enforce(path, &[], "this field is inaccessible")?;
+                }
+            }
             for (needed, rules, denied) in [
                 (
                     read,
@@ -436,34 +464,15 @@ impl<'a> Permissions<'a> {
                     "this function is not allowed to write this value",
                 ),
             ] {
-                if !needed {
-                    continue;
-                }
-                for ((_, path), allowed) in rules {
-                    let path = path.as_deref().ok_or_else(|| {
-                        failure(
-                            subject.machine,
-                            "these access rules name a field without supported runtime storage",
-                        )
-                    })?;
-                    if StructuralPathQualification::selected_suffix(path, &selected).is_none()
-                        && StructuralPathQualification::selected_suffix(&selected, path)
-                            .is_none()
-                    {
-                        continue;
-                    }
-                    let mut judgment = RuleJudgment {
-                        target: subject,
-                        allowed,
-                        denied: failure(original.machine, denied),
-                        answers: std::collections::BTreeMap::new(),
-                    };
-                    let reached = self.route(original.clone(), false, false, &mut judgment)?;
-                    if !reached {
-                        return Err(failure(
-                            subject.machine,
-                            "the compiler cannot match this access to the value supplied by its caller",
-                        ));
+                if needed {
+                    for ((_, path), allowed) in rules {
+                        let path = path.as_deref().ok_or_else(|| {
+                            failure(
+                                subject.machine,
+                                "these access rules name a field without supported runtime storage",
+                            )
+                        })?;
+                        enforce(path, allowed, denied)?;
                     }
                 }
             }
@@ -572,7 +581,7 @@ pub(super) fn validate(module: &TerminalModule) -> Judged<()> {
     let has_rules = |id| {
         domain(module, id)
             .and_then(|row| row.access_policy.as_ref())
-            .is_some_and(|plan| !plan.readers.is_empty() || !plan.writers.is_empty())
+            .is_some_and(|plan| plan.has_operation_rules())
     };
     let mut roots = Vec::new();
     for machine in &module.machines {

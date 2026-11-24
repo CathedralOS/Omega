@@ -3140,7 +3140,7 @@ fn validate_access_policies(module: &TerminalModule) -> Judged<()> {
         if domain
             .access_policy
             .as_ref()
-            .is_some_and(|plan| !plan.observations.is_empty() || plan.reach.services().len() != 0)
+            .is_some_and(|plan| plan.requires_observation_backing() || plan.reach.services().len() != 0)
         {
             return malformed(
                 None,
