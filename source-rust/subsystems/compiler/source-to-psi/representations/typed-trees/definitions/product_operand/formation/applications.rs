@@ -599,6 +599,7 @@ pub(super) fn form(
             | ProductOperandRole::RootGrantSubject
             | ProductOperandRole::Provider
             | ProductOperandRole::Requirement
+            | ProductOperandRole::TestRequirement
     ) {
         return Err(unserved(
             "an applied operand that is not a slot, provider or requirement",
@@ -615,10 +616,14 @@ pub(super) fn form(
         return Err(unserved("an applied operand with no argument list"));
     }
     let application = graph.applications.get(root.application).clone();
-    if application.member.is_valid() || !application.lifetimes.is_empty() {
-        return Err(unserved(
-            "a slot or provider applied at lifetimes or naming a member",
-        ));
+    if !application.lifetimes.is_empty()
+        || application.member.is_valid() != (role == ProductOperandRole::TestRequirement)
+    {
+        return Err(unserved(if role == ProductOperandRole::TestRequirement {
+            "a test group without its exact member of a concrete trait application"
+        } else {
+            "a slot or provider applied at lifetimes or naming a member"
+        }));
     }
     let declaration = match retained {
         Some(declaration) => Some(declaration),
@@ -640,6 +645,16 @@ pub(super) fn form(
         .map_err(unserved)?
         .ok_or(unserved("a Product application with no declaration role"))?;
     let (declaration_parameters, lifetimes) = match role {
+        ProductOperandRole::TestRequirement => {
+            let (owner, requirement) = program
+                .trait_machine_signature(declaration)
+                .filter(|(owner, requirement)| !owner.is_boundary && requirement.symbol == declaration)
+                .ok_or(unserved("a test group without an exact ordinary trait requirement"))?;
+            if !requirement.type_parameters.is_empty() || !requirement.lifetime_parameters.is_empty() {
+                return Err(unserved("a test group requirement with open machine parameters"));
+            }
+            (owner.type_parameters, owner.lifetime_parameters.len())
+        }
         ProductOperandRole::Requirement => program
             .trait_machine_signature(declaration)
             .filter(|(owner, requirement)| owner.is_boundary && requirement.symbol == declaration)
@@ -737,10 +752,15 @@ pub(super) fn form(
             .map_err(unformed)?;
         let incomplete = unserved("an application with no complete trait scope");
         match role {
-            ProductOperandRole::BoundarySubject => {
-                let definition = program
-                    .trait_definition_by_symbol(declaration)
-                    .ok_or(unserved("an applied slot that is not a boundary trait"))?;
+            ProductOperandRole::BoundarySubject | ProductOperandRole::TestRequirement => {
+                let definition = if role == ProductOperandRole::TestRequirement {
+                    program
+                        .trait_machine_signature(declaration)
+                        .map(|(owner, _)| owner)
+                } else {
+                    program.trait_definition_by_symbol(declaration)
+                }
+                .ok_or(unserved("a Product application with no declaring trait"))?;
                 AppliedTraitScope::new(
                     program,
                     definition,
@@ -775,12 +795,20 @@ pub(super) fn form(
     if role == ProductOperandRole::BoundarySubject {
         prepare_boundary_requirements(program, &scope, author)?;
     }
-    let scope = scope.retain(program).map_err(unserved)?;
+    let requirement = matches!(
+        role,
+        ProductOperandRole::Requirement | ProductOperandRole::TestRequirement
+    );
+    let local_arguments = if role == ProductOperandRole::Requirement {
+        closed.as_slice()
+    } else {
+        &[]
+    };
     let supplying = program.expression_table.retain_static_machine_application(
         declaration,
         Identifier::generated(&operand.path),
-        if role == ProductOperandRole::Requirement {
-            &closed
+        if requirement {
+            local_arguments
         } else {
             std::slice::from_ref(&whole)
         },
@@ -790,11 +818,11 @@ pub(super) fn form(
         .static_machine_application_mut(supplying);
     retained.binding_declaration = declaration;
     retained.lexical_owner = author;
-    let selected = if role == ProductOperandRole::Requirement {
+    let selected = if requirement {
         use crate::static_operand_binding::{
-            Stop as RequirementStop, prepare_requirement_application,
+            Stop as RequirementStop, prepare_requirement_in_scope,
         };
-        prepare_requirement_application(program, declaration, supplying, &closed)
+        prepare_requirement_in_scope(program, &scope, declaration, supplying, local_arguments)
             .map_err(|stop| match stop {
                 RequirementStop::Unserved(reason) => Stop::Unserved(reason),
                 RequirementStop::Rejected(reason) => Stop::Rejected(reason),
@@ -808,6 +836,7 @@ pub(super) fn form(
     } else {
         declaration
     };
+    let scope = scope.retain(program).map_err(unserved)?;
     Ok(Some(program.retain_product_operand_application(
         ProductOperandApplication {
             operand: operand.clone(),

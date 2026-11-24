@@ -18,12 +18,36 @@ pub(super) fn admit_product_provider_requests(
     executed: &[ExecutedProductSelection],
     formations: &[(Arc<ProductDeclarationRequest>, SymbolHandle)],
 ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
+    prepare_product_applications(typed, formations, executed, |operation| {
+        operation != BuildOperation::TestGroupRegistration
+    })?;
+    collect_product_provider_selections(
+        ProviderPlanningContext::new(
+            typed,
+            source_provenance::DependencyScope::Product,
+        ),
+        activation,
+        declared,
+        executed,
+    )
+}
+
+/// Form each operand in its authored scope and apply the exact executed environment.
+pub(super) fn prepare_product_applications(
+    typed: &mut TypedTrees,
+    formations: &[(Arc<ProductDeclarationRequest>, SymbolHandle)],
+    executed: &[ExecutedProductSelection],
+    select: impl Fn(BuildOperation) -> bool,
+) -> Result<(), Vec<Diagnostic>> {
+    let applies = |request: &ProductDeclarationRequest| {
+        select(request.operation) && has_product_application(request)
+    };
     if formations
         .iter()
-        .any(|(request, _)| has_provider_application(request))
+        .any(|(request, _)| applies(request))
         || executed
             .iter()
-            .any(|event| has_provider_application(&event.request))
+            .any(|event| applies(&event.request))
     {
         // Applying an operand mutates the consuming program, not the source
         // declarations and lexical authors that authorized this batch.
@@ -33,9 +57,9 @@ pub(super) fn admit_product_provider_requests(
         );
         for (request, author) in formations
             .iter()
-            .filter(|(request, _)| has_provider_application(request))
+            .filter(|(request, _)| applies(request))
         {
-            prepare_provider_request(
+            prepare_application_request(
                 typed,
                 &lookups,
                 request,
@@ -46,7 +70,7 @@ pub(super) fn admit_product_provider_requests(
         }
         for event in executed
             .iter()
-            .filter(|event| has_provider_application(&event.request))
+            .filter(|event| applies(&event.request))
         {
             let author = lookups
                 .authors
@@ -56,7 +80,7 @@ pub(super) fn admit_product_provider_requests(
                     )]
                 })?)
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            prepare_provider_request(
+            prepare_application_request(
                 typed,
                 &lookups,
                 &event.request,
@@ -66,15 +90,7 @@ pub(super) fn admit_product_provider_requests(
             )?;
         }
     }
-    collect_product_provider_selections(
-        ProviderPlanningContext::new(
-            typed,
-            source_provenance::DependencyScope::Product,
-        ),
-        activation,
-        declared,
-        executed,
-    )
+    Ok(())
 }
 
 pub(super) fn product_formation_authors(
@@ -96,7 +112,7 @@ pub(super) fn product_formation_authors(
     formation_authors(typed, &declared, &occurrences)
 }
 
-fn prepare_provider_request(
+fn prepare_application_request(
     typed: &mut TypedTrees,
     source: &crate::source_state::product_operand::ProductSourceLookups<'_>,
     request: &ProductDeclarationRequest,
@@ -109,7 +125,7 @@ fn prepare_provider_request(
             .operation
             .product_operand_role(operand_index)
             .ok_or_else(|| {
-                vec![Diagnostic::error("provider recipe lost its operand role")]
+                vec![Diagnostic::error("Product application lost its operand role")]
             })?;
         typed_trees::product_operand::formation::prepare_product_operand_application(
             typed,
@@ -170,10 +186,12 @@ fn formation_authors(
     Ok(formations)
 }
 
-pub(super) fn has_provider_application(request: &ProductDeclarationRequest) -> bool {
+pub(super) fn has_product_application(request: &ProductDeclarationRequest) -> bool {
     matches!(
         request.operation,
-        BuildOperation::ProviderSelection | BuildOperation::BoundaryAcceptance
+        BuildOperation::ProviderSelection
+            | BuildOperation::BoundaryAcceptance
+            | BuildOperation::TestGroupRegistration
     ) && request
         .operands
         .iter()

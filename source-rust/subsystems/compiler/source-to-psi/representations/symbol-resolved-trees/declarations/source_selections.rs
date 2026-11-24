@@ -50,7 +50,9 @@ pub struct ServiceAuditRegistration {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TestGroupRegistration {
     pub configuration: crate::declaration_selection::TestGroupConfiguration,
+    pub origin: crate::declaration_selection::BuildSelectionOrigin,
     pub requirement: SymbolHandle,
+    pub closed_requirement: Option<SymbolHandle>,
     pub selecting_machine: SymbolHandle,
     pub source_span: SourceSpan,
 }

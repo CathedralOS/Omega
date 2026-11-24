@@ -495,6 +495,7 @@ impl<'program> ProductSourceLookups<'program> {
                     ProductOperandKind::RootGrantSubject,
                     ProductOperandKind::Provider,
                     ProductOperandKind::Requirement,
+                    ProductOperandKind::TestRequirement,
                     ProductOperandKind::Data,
                 ],
             ),
