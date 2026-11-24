@@ -349,6 +349,7 @@ impl Converter<'_, '_> {
             SignatureEntryKind::Data {
                 declaration: source.declaration,
                 shape: shape.clone(),
+                type_identity: declared.identity.clone(),
             },
             name.clone(),
         );
