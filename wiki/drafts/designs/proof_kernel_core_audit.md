@@ -1352,16 +1352,28 @@ type), and the clause's `ClauseScope` says what each name denotes there.
     whether a clause may unfold a call of a machine's non-entry state.
   - "borrowed formal outside an admitted storage clause", "clause that
     projects a formal or result", "formal field in a postcondition" and
-    "extent without a structural subject" are **not rules** (checked
-    2026-11-24). All four are raised only where a clause is read without
-    `formal_fields`, which today is a crash guard. `requires` and `ensures`
-    already read a field of an owned or borrowed formal and of the result
-    (five small programs, one for each of those forms, were accepted). The
-    specification lets a guard
-    name its contract inputs ([guarded crashes](../../spec/language/effects.md#guarded-crashes)),
-    and the eighteen programs of `samples/cli/facts/indexed_crash_guard/`
-    write `crashes Trap items[index] == 0` over a borrowed array and are
-    refused for it. A trial showed three layers to build. (1) Stage 05 reads
+    "extent without a structural subject" refuse a form the specification
+    admits (checked against it 2026-11-24). All four are raised only where
+    a clause is read without `formal_fields`, which today is a crash guard.
+    A guard may read storage behind a borrowed formal: a published crash
+    route is "a canonical disjunction of predicates over the same lowered
+    values and places as executable Terminal Psi"
+    ([crash](../../spec/terminal-psi/calls_and_outcomes.md#crash)), and in a
+    declared guard "borrowed observations still use their appropriate
+    storage revisions, not an invented deep snapshot"
+    ([entry facts and crash coverage](../../spec/terminal-psi/fact_validity.md#entry-facts-and-crash-coverage)).
+    The guard is over the invocation's inputs: a crash site in the body
+    "must prove its relationship to the published input-based guard", and a
+    caller decides a route by substituting its actuals
+    ([guarded crashes](../../spec/language/effects.md#guarded-crashes)). No
+    page names the storage revision in so many words; the one at entry is
+    the only one a caller can substitute. The eighteen programs of
+    `samples/cli/facts/indexed_crash_guard/` are the customer, not the
+    ground: they write `crashes Trap items[index] == 0` over a borrowed
+    array and are refused for it. `requires` and `ensures` already read a
+    field of an owned or borrowed formal and of the result (five small
+    programs, one for each of those forms, were accepted). A trial showed
+    three layers to build. (1) Stage 05 reads
     the guard once it uses the scope `requires` uses. (2) Stage 05 restates
     a callee's crash routes at each call over scalar actuals only
     (`canonical::substituted_routes`); passing the whole structural
@@ -1371,11 +1383,23 @@ type), and the clause's `ClauseScope` says what each name denotes there.
     over values (`crashes.rs`, `ScalarActuals`), with no storage to observe
     the argument at the call, as `AtCall` does for a `requires`. The
     callee's own coverage of a guard over storage is untested.
-  - "case membership" in a machine clause (`read_clause`) was **not a rule**
-    and is now served where the clause states the test outright (2026-11-24).
-    `core/representation.omg` writes `ensures result in Result::Ok`, and 615
-    clause lines in 55 files of `samples/` and the library name a case of
-    `Result` or `Option` alone. Stage 05 forms the test of a formal or of
+  - "case membership" in a machine clause (`read_clause`) refused a form
+    the specification admits, and is now served where the clause states the
+    test outright (2026-11-24). A case is a domain: "A case implicitly
+    declares its same-named domain. `Type::Case` therefore denotes case
+    membership in domain position"
+    ([data](../../spec/language/data_and_literals.md)), and "Contracts may
+    state `requires value in Domain` and corresponding `ensures`"
+    ([dependent values](../../spec/language/dependent_values.md#mutable-receivers-and-declared-field-domains)).
+    Such a clause "proves a fact about `x`"
+    ([domain casts](../../spec/language/domains.md#domain-casts)), and a
+    payload read needs "established case knowledge", which a callee's
+    guarantee supplies. #5606 named other pages on its `Spec:` line (case
+    constraints, patterns, structural access); those govern data predicates
+    and matches, not this clause. The customers are
+    `core/representation.omg`, which writes `ensures result in Result::Ok`,
+    and 615 clause lines in 55 files of `samples/` and the library that name
+    a case of `Result` or `Option` alone. Stage 05 forms the test of a formal or of
     the result; stage 06 answers "which case does this place hold" at entry
     from the machine's own `requires` and at a call's result from the
     callee's `ensures`, where it used to answer "unknown" (`stated_cases`
@@ -1519,6 +1543,20 @@ stages 03 and 04. What is built:
   a caller that passes numbers proves it by arithmetic. So nothing in a
   running machine is taken on trust: the theorem is proved once for every
   index, and each use is a requirement someone proves.
+  **This is not the specification's rule and is owed a repair** (checked
+  against it 2026-11-24). The
+  [citation rule](../../spec/proofs/contracts.md#citation-and-induction)
+  imports the theorem's `ensures` at the citation, once its `requires`
+  hold there, and erases the call. A machine's own `requires` stays as
+  written: "An authored `requires` is complete, including on a private
+  helper. Inference cannot silently conjoin further entry conditions to
+  make the body check"
+  ([private entry inference](../../spec/language/state_contracts.md#private-entry-inference)).
+  What is built adds a requirement the author did not write. It is sound,
+  because some caller proves it, but it differs from the rule in what it
+  accepts: the guarantee holds from the machine's entry and not from the
+  citation, the requirement spreads to every machine that passes the
+  evidence on, and a citation reached at values no caller fixes is refused.
 - **A type parameter beside the indices.** `Vector<T [copy], Length, Total>`
   with a field `marker: T` is the same kernel family as without `T`: no
   clause can say anything of a value of type `T` and no index depends on
@@ -1540,6 +1578,17 @@ stages 03 and 04. What is built:
   negative. The second rests on two new trusted identities, `a + 0 = a` and
   `0 + a = a`, each tested against computed arithmetic as the distributive
   law is.
+  These three laws fall under the rule for
+  [admitting an arithmetic rule](../../spec/proofs/foundation.md#admitting-an-arithmetic-rule)
+  (checked against it 2026-11-24). #5554 and #5587 name the programs that
+  need them, none has a side condition to state, and each is tested against
+  computed arithmetic. Two of the rule's conditions were not met and are
+  owed: each law landed with other changes, where the rule asks for one per
+  pull request, and none is recorded in the specification, whose
+  [rule table](../../spec/proofs/classicality.md) lists only the rules a
+  certificate can cite. The rank is also narrower than the specification,
+  which lets a proof "rank on mathematical structure": a theorem ranked on
+  its evidence is refused.
 - **A quotient and indexed data in one program.** Both rest on declarations
   of the kernel's own. The quotient's come first and the indexed scheme's
   five follow, each constant moved to where the scheme starts
