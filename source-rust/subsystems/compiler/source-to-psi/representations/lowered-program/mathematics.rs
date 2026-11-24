@@ -8,7 +8,7 @@
 //! stage 06 produces. A law's own statement is not among the entries its
 //! proof is checked against, so a law cannot supply its own evidence.
 
-use mathematical_kernel::{Declaration, PlainData, TermArena, TermHandle};
+use mathematical_kernel::{Declaration, PlainData, Term, TermArena, TermHandle};
 use source_text::SourceSpan;
 use symbols::SymbolHandle;
 
@@ -20,6 +20,109 @@ pub struct MathematicalSignature {
     /// What each declaration is, by the same index.
     pub entries: Vec<SignatureEntry>,
     pub laws: Vec<Law>,
+    /// The laws that let a proof regroup or reorder the operands of one
+    /// operation, in the order of their statements. A proof may use the
+    /// ones whose statement comes before its own law's.
+    pub licenses: Vec<OperandLicense>,
+}
+
+/// What a law says about the operands of one binary operation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OperandLaw {
+    /// `op(x, y) = op(y, x)`.
+    Commutes,
+    /// `op(op(x, y), z) = op(x, op(y, z))`, or the same equality with its
+    /// sides exchanged when `left_nested_first` is false.
+    Associates { left_nested_first: bool },
+}
+
+/// A law that satisfies a requirement of a trait application and states
+/// `law` of an operation satisfying a requirement of the same application.
+/// A program licenses rearrangement by declaring the conformance; a law
+/// that merely has the right shape does not.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OperandLicense {
+    /// The entry of the operation.
+    pub operation: u32,
+    /// The entry of the law's statement.
+    pub statement: u32,
+    pub law: OperandLaw,
+}
+
+/// Reads a closed statement as commutativity or associativity of the one
+/// operation it applies, over formals of one type. Stage 05 uses it on a
+/// requirement to read such laws first and on each statement to record the
+/// license; nothing else decides what counts as either law.
+pub fn operand_law(arena: &TermArena, statement: TermHandle) -> Option<(u32, OperandLaw)> {
+    let mut body = statement;
+    let mut formals = Vec::new();
+    while let Term::Pi { domain, codomain } = arena.get(body) {
+        formals.push(domain);
+        body = codomain;
+    }
+    let Term::Id { ty, left, right } = arena.get(body) else {
+        return None;
+    };
+    if formals
+        .iter()
+        .any(|&formal| !arena.structurally_equal(formal, ty))
+    {
+        return None;
+    }
+    let applied = |term| {
+        let Term::Apply {
+            function,
+            argument: second,
+        } = arena.get(term)
+        else {
+            return None;
+        };
+        let Term::Apply {
+            function: head,
+            argument: first,
+        } = arena.get(function)
+        else {
+            return None;
+        };
+        match arena.get(head) {
+            Term::Constant { declaration, .. } => Some((declaration, first, second)),
+            _ => None,
+        }
+    };
+    let (operation, ..) = applied(left)?;
+    let is = |term, index| arena.get(term) == Term::Variable(index);
+    // `op(first, second)` over two formals, by their distance from the body.
+    let pair = |term, first, second| {
+        applied(term).is_some_and(|(head, a, b)| head == operation && is(a, first) && is(b, second))
+    };
+    let law = match formals.len() {
+        2 if pair(left, 1, 0) && pair(right, 0, 1) => OperandLaw::Commutes,
+        3 => {
+            let left_nested = |term| {
+                applied(term).is_some_and(|(head, inner, last)| {
+                    head == operation && is(last, 0) && pair(inner, 2, 1)
+                })
+            };
+            let right_nested = |term| {
+                applied(term).is_some_and(|(head, first, inner)| {
+                    head == operation && is(first, 2) && pair(inner, 1, 0)
+                })
+            };
+            if left_nested(left) && right_nested(right) {
+                OperandLaw::Associates {
+                    left_nested_first: true,
+                }
+            } else if right_nested(left) && left_nested(right) {
+                OperandLaw::Associates {
+                    left_nested_first: false,
+                }
+            } else {
+                return None;
+            }
+        }
+        _ => return None,
+    };
+    Some((operation, law))
 }
 
 impl MathematicalSignature {

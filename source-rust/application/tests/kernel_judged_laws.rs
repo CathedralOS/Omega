@@ -114,6 +114,27 @@ fn peano_addition_associativity_compiles_and_its_saved_program_names_the_kernel_
 }
 
 #[test]
+fn peano_right_distributivity_regroups_under_its_associativity_law_and_compiles() {
+    let (output, report) = check("ring_law/pass/peano_right_distributivity");
+    assert_eq!(output.status.code(), Some(0), "{report}");
+}
+
+#[test]
+fn right_distributivity_without_its_recursive_call_is_refused_at_the_successor_arm() {
+    let (output, report) = check("ring_law/fail/peano_right_distributivity_uncited");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains(
+            "cannot prove ensures contract for `times_distributes_right` in the case \
+             `Peano::Succ`: core\\\\Identity::<Peano>(times(plus(Peano::Succ(pred), b), c), \
+             plus(times(Peano::Succ(pred), c), times(b, c)))"
+        ) && report.contains(UNPROVED)
+            && report.contains("main.omg:51:30"),
+        "{report}"
+    );
+}
+
+#[test]
 fn a_satisfier_that_proves_nothing_is_refused_for_the_law_it_inherits() {
     let (output, report) = check("ring_law/fail/ring_law_unproven_rejected");
     assert_eq!(output.status.code(), Some(1), "{report}");

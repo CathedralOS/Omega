@@ -61,6 +61,14 @@ closure in `PreparedCompilation::mathematics`:
   A call of another law is a citation of that law's statement entry. A call
   of the law itself at a field of the dispatched case is the induction
   hypothesis; at any other argument stage 05 refuses it.
+- **Licenses**: the laws under which a proof may regroup or reorder the
+  operands of one operation without citing them. A law is one when it
+  satisfies a requirement of a trait application and states associativity or
+  commutativity of an operation that satisfies a requirement of the same
+  application; `operand_law` is the one reader of those two shapes. Stage 05
+  reads such laws before the other machines, so their statements come first
+  and any other law may use them wherever the source declares it. A law of
+  the right shape that satisfies no requirement licenses nothing.
 
 Stage 05 writes the table ([`read/signature.rs`](../../pipeline/05_prepared-typed-trees-to-lowered-program/src/read/signature.rs)).
 Stage 06 checks every declaration once with the kernel and judges each law

@@ -22,8 +22,8 @@ use semantic_vocabulary::{
 };
 use symbols::SymbolHandle;
 use terminal_check_tables::mathematics::{
-    Citation, Evidence, Law, LawCase, LawProof, MathematicalSignature, SignatureEntry,
-    SignatureEntryKind,
+    Citation, Evidence, Law, LawCase, LawProof, MathematicalSignature, OperandLicense,
+    SignatureEntry, SignatureEntryKind, operand_law,
 };
 use terminal_check_tables::{Checked, Construct, Refusal};
 
@@ -166,7 +166,38 @@ impl Program<'_> {
                 ));
             }
         }
+        // A law whose requirement states associativity or commutativity of
+        // an operation is read before the other machines. A proof may only
+        // rest on statements that come before its own, so this is what lets
+        // any other law regroup and reorder under these wherever the source
+        // declares them.
+        let mut first = Vec::new();
+        for satisfaction in satisfactions {
+            let id = satisfaction.machine;
+            let read = match converter.requires_operand_law(satisfaction) {
+                Ok(false) => continue,
+                Ok(true) => converter.declare(id),
+                Err(refusal) => {
+                    if let Some(state @ Read::Unread) = converter.machines.get_mut(id) {
+                        *state = Read::Refused;
+                    }
+                    Err(refusal)
+                }
+            };
+            first.push(id);
+            if let Err(refusal) = read {
+                let symbol = self
+                    .symbols
+                    .get(id)
+                    .copied()
+                    .unwrap_or_else(SymbolHandle::invalid);
+                refused.push(self.read_failure_at(refusal, symbol, "the mathematical declaration"));
+            }
+        }
         for (id, symbol) in self.symbols.iter() {
+            if first.contains(&id) {
+                continue;
+            }
             let read = converter.declare(id).map_err(|refusal| {
                 self.read_failure_at(refusal, *symbol, "the mathematical declaration")
             });
@@ -191,11 +222,43 @@ impl Program<'_> {
                 ));
             }
         }
-        if refused.is_empty() {
-            Ok(converter.signature)
-        } else {
-            Err(refused)
+        if !refused.is_empty() {
+            return Err(refused);
         }
+        // The license is the declared conformance: the law and the
+        // operation it speaks of satisfy requirements of one trait at the
+        // same type arguments.
+        let mut licenses = Vec::new();
+        for satisfaction in satisfactions {
+            let Some(Read::Laws(laws)) = converter.machines.get(satisfaction.machine) else {
+                continue;
+            };
+            for &law in laws {
+                let statement = converter.signature.laws[law as usize].statement;
+                let stated = converter.signature.declarations[statement as usize].ty;
+                let Some((operation, law)) = operand_law(&converter.signature.arena, stated) else {
+                    continue;
+                };
+                let conforms = satisfactions.iter().any(|other| {
+                    other.declaring_trait == satisfaction.declaring_trait
+                        && other.scope == satisfaction.scope
+                        && matches!(
+                            converter.machines.get(other.machine),
+                            Some(Read::Function(entry)) if *entry == operation
+                        )
+                });
+                if conforms {
+                    licenses.push(OperandLicense {
+                        operation,
+                        statement,
+                        law,
+                    });
+                }
+            }
+        }
+        licenses.sort_by_key(|license| license.statement);
+        converter.signature.licenses = licenses;
+        Ok(converter.signature)
     }
 }
 
@@ -412,6 +475,28 @@ impl Converter<'_, '_> {
             .into_iter()
             .map(|formal| self.ty(id, formal))
             .collect()
+    }
+
+    /// Whether the requirement this machine satisfies states associativity
+    /// or commutativity of an operation, read without the machine's body.
+    fn requires_operand_law(&mut self, satisfaction: &Satisfaction) -> Checked<bool> {
+        let id = satisfaction.machine;
+        let [clause] = satisfaction.ensures.as_slice() else {
+            return Ok(false);
+        };
+        let formals = self.formals(id)?;
+        let count = formals.len();
+        let open: Vec<_> = (0..count)
+            .map(|formal| self.variable((count - 1 - formal) as u32))
+            .collect();
+        let mut statement = self.equality(id, clause, &open, Some(satisfaction))?;
+        for &(formal, _) in formals.iter().rev() {
+            statement = self.signature.arena.insert(Term::Pi {
+                domain: formal,
+                codomain: statement,
+            });
+        }
+        Ok(operand_law(&self.signature.arena, statement).is_some())
     }
 
     fn declare(&mut self, id: MachineId) -> Checked<()> {

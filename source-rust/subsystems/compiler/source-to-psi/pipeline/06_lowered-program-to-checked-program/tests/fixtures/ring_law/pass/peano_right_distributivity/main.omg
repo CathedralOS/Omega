@@ -1,0 +1,90 @@
+// Right distributivity of Peano multiplication over addition, by induction on
+// `a`. The successor case computes to
+//     plus(c, times(plus(pred, b), c)) = plus(plus(c, times(pred, c)), times(b, c)).
+// The cited law at `pred` rewrites the left side to
+//     plus(c, plus(times(pred, c), times(b, c))),
+// and what remains is one regrouping of three addends. The body cites no
+// associativity law: `plus_assoc` satisfies `Semiring2<Peano>::add_assoc`, and
+// that declared conformance is what lets the proof regroup `plus`.
+use omega\language\core\ProcessExit;
+
+data Peano {
+    case Zero;
+    case Succ(pred: Peano);
+}
+
+trait Semiring2<T> {
+    machine add(a: T, b: T) -> T reaches none crashes none terminates;
+    machine mul(a: T, b: T) -> T reaches none crashes none terminates;
+    machine add_assoc(a: T, b: T, c: T)
+    ensures core\Identity::<T>(add(add(a, b), c), add(a, add(b, c)));
+    machine mul_distributes_right(a: T, b: T, c: T)
+    ensures core\Identity::<T>(mul(add(a, b), c), add(mul(a, c), mul(b, c)));
+}
+
+machine plus(a: Peano, b: Peano) -> Peano
+satisfies Semiring2<Peano>::add
+terminates by a
+{
+    transition a {
+        Peano::Zero -> (b),
+        Peano::Succ { pred } -> Peano::Succ { pred: plus(pred, b) }
+    }
+}
+
+machine times(a: Peano, b: Peano) -> Peano
+satisfies Semiring2<Peano>::mul
+terminates by a
+{
+    transition a {
+        Peano::Zero -> Peano::Zero,
+        Peano::Succ { pred } -> plus(b, times(pred, b))
+    }
+}
+
+// Declared above the associativity law it leans on: a proof may regroup under
+// any associativity law of the conformance, wherever the source puts it.
+machine times_distributes_right(a: Peano, b: Peano, c: Peano)
+satisfies Semiring2<Peano>::mul_distributes_right
+terminates by a
+ensures
+    core\Identity::<Peano>(times(plus(a, b), c), plus(times(a, c), times(b, c)))
+{
+    transition a {
+        Peano::Zero -> base(),
+        Peano::Succ { pred } -> step(pred, b, c)
+    }
+    machine base() {
+    }
+    machine step(pred: Peano, b: Peano, c: Peano) {
+        times_distributes_right(pred, b, c);
+    }
+}
+
+machine plus_assoc(a: Peano, b: Peano, c: Peano)
+satisfies Semiring2<Peano>::add_assoc
+terminates by a
+ensures
+    core\Identity::<Peano>(plus(plus(a, b), c), plus(a, plus(b, c)))
+{
+    transition a {
+        Peano::Zero -> base(),
+        Peano::Succ { pred } -> step(pred, b, c)
+    }
+    machine base() {
+    }
+    machine step(pred: Peano, b: Peano, c: Peano) {
+        plus_assoc(pred, b, c);
+    }
+}
+
+data Main { }
+machine exit_with_status(main: @mutable Main) reaches ProcessExit {
+    ProcessExit::exit_process(0);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit {
+    let mutable entry_storage: Main;
+    block exit_with_status(@mutable entry_storage);
+}

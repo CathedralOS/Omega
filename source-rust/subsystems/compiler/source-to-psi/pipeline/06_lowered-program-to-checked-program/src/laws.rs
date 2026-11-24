@@ -16,10 +16,11 @@ use proof_admission::{
 };
 use terminal_check_tables::UnprovedCause;
 use terminal_check_tables::mathematics::{
-    Evidence, Law, LawCase, LawProof, MathematicalSignature, SignatureEntry, SignatureEntryKind,
+    Evidence, Law, LawCase, LawProof, MathematicalSignature, OperandLaw, OperandLicense,
+    SignatureEntry, SignatureEntryKind,
 };
 
-use super::equality::{SearchError, prove};
+use super::equality::{License, SearchError, prove_under};
 
 /// How many rewrite attempts one case of one law may make.
 const SEARCH_STEPS: usize = 65_536;
@@ -167,6 +168,7 @@ pub(crate) fn judge(
         declarations,
         entries,
         laws,
+        licenses,
     } = signature;
     let steps = DEFAULT_CONVERSION_STEPS.saturating_mul(declarations.len() as u32 + 1);
     if let Err(refused) =
@@ -196,7 +198,7 @@ pub(crate) fn judge(
     let mut judged = Vec::with_capacity(laws.len());
     let mut unproved = Vec::new();
     for law in &laws {
-        match prove_law(&mut arena, &declarations, &entries, law) {
+        match prove_law(&mut arena, &declarations, &entries, &licenses, law) {
             Ok(judgment) => judged.push(judgment),
             Err(Failure {
                 case,
@@ -243,12 +245,72 @@ fn constant(arena: &mut TermArena, declaration: u32) -> TermHandle {
     })
 }
 
+/// The operations whose operands this law's proof may regroup or reorder,
+/// each with the laws that say so: the licenses stated before the law. That
+/// keeps a law out of its own proof and keeps two laws from resting on each
+/// other. The search puts each law it uses into the proof term, so a wrong
+/// license fails the kernel's check and the certificate names every law the
+/// proof relied on.
+fn licenses(
+    arena: &mut TermArena,
+    declarations: &[Declaration],
+    granted: &[OperandLicense],
+    law: &Law,
+) -> Vec<License> {
+    let mut found: Vec<(u32, License)> = Vec::new();
+    for grant in granted
+        .iter()
+        .filter(|grant| grant.statement < law.statement)
+    {
+        let Term::Pi {
+            domain: carrier, ..
+        } = arena.get(declarations[grant.statement as usize].ty)
+        else {
+            continue;
+        };
+        let proved = constant(arena, grant.statement);
+        let at = match found
+            .iter()
+            .position(|(operation, _)| *operation == grant.operation)
+        {
+            Some(at) => at,
+            None => {
+                let operation = constant(arena, grant.operation);
+                found.push((
+                    grant.operation,
+                    License {
+                        operation,
+                        carrier,
+                        associates: None,
+                        commutes: None,
+                    },
+                ));
+                found.len() - 1
+            }
+        };
+        let license = &mut found[at].1;
+        match grant.law {
+            OperandLaw::Commutes => {
+                license.commutes.get_or_insert(proved);
+            }
+            OperandLaw::Associates { left_nested_first } => {
+                license
+                    .associates
+                    .get_or_insert((proved, left_nested_first));
+            }
+        }
+    }
+    found.into_iter().map(|(_, license)| license).collect()
+}
+
 fn prove_law(
     arena: &mut TermArena,
     declarations: &[Declaration],
     entries: &[SignatureEntry],
+    granted: &[OperandLicense],
     law: &Law,
 ) -> Result<LawJudgment, Failure> {
+    let licenses = licenses(arena, declarations, granted, law);
     let prefix = declarations[..law.statement as usize].to_vec();
     let closed = Context::empty().with_signature(Signature::from_declarations(prefix.clone()));
     let statement = declarations[law.statement as usize].ty;
@@ -268,11 +330,12 @@ fn prove_law(
                 let head = constant(arena, cited);
                 evidence.push(arena.apply_arguments(head, &citation.arguments));
             }
-            prove(
+            prove_under(
                 arena,
                 &context,
                 law.goal,
                 &evidence,
+                &licenses,
                 SEARCH_STEPS,
                 &mut budget,
             )
@@ -344,8 +407,16 @@ fn prove_law(
                         .collect();
                     evidence.push(arena.apply_arguments(head, &arguments));
                 }
-                let mut branch = prove(arena, &context, goal, &evidence, SEARCH_STEPS, &mut budget)
-                    .map_err(|error| failure(Some(case), error))?;
+                let mut branch = prove_under(
+                    arena,
+                    &context,
+                    goal,
+                    &evidence,
+                    &licenses,
+                    SEARCH_STEPS,
+                    &mut budget,
+                )
+                .map_err(|error| failure(Some(case), error))?;
                 for &other in others.iter().rev() {
                     branch = arena.insert(Term::Lambda {
                         domain: law.formals[other],
