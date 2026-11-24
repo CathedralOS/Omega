@@ -7,6 +7,7 @@ mod certificate_abstraction;
 mod certificate_strict;
 mod conversion;
 mod indexed;
+mod indexed_data;
 mod plain_data;
 mod quotient;
 pub mod scheme_dsl;
@@ -37,6 +38,10 @@ pub use conversion::{
 pub use indexed::{
     INDEXED_AT, INDEXED_IND, INDEXED_PACK, INDEXED_SUP, INDEXED_W, IndexedFamily,
     indexed_correctness, indexed_scheme,
+};
+pub use indexed_data::{
+    ConstructorArguments, DeclaredIndexedData, IndexedCase, IndexedData, IndexedDataError,
+    IndexedField, IndexedInduction, IndexedInstance, IndexedValue,
 };
 pub use plain_data::PlainData;
 pub use quotient::{
