@@ -26,7 +26,6 @@ mod compute {
         pub(super) struct CutIndex<'a> {
             fixed: BTreeMap<(u32, u32), Vec<&'a FixedPrecoloredInterval>>,
             transitions: BTreeMap<(SiteKey, u16), BTreeSet<u16>>,
-            used: BTreeSet<(SiteKey, u16, u16)>,
         }
 
         impl<'a> CutIndex<'a> {
@@ -51,7 +50,6 @@ mod compute {
                 Self {
                     fixed: fixed_by_point,
                     transitions: transition_index,
-                    used: BTreeSet::new(),
                 }
             }
 
@@ -122,69 +120,69 @@ mod compute {
             }
 
             pub(super) fn require_transition(
-                &mut self,
+                &self,
                 function: usize,
                 register: u32,
                 source: &BTreeSet<RegisterViewId>,
                 site: VirtualFixedConstraintSite,
                 destination: RegisterViewId,
             ) -> Result<(), FixedPrecoloredSplitRequirementError> {
-                if self.use_transition(source, site, destination) {
+                let unique = self
+                    .transitions
+                    .get(&(site_key(site), destination.0))
+                    .is_some_and(|from| {
+                        let mut matching = from
+                            .iter()
+                            .copied()
+                            .filter(|view| source.contains(&RegisterViewId(*view)));
+                        matching.next().is_some() && matching.next().is_none()
+                    });
+                if unique {
                     Ok(())
                 } else {
-                    Err(
-                        FixedPrecoloredSplitRequirementError::UnauthenticatedDomainBreak {
-                            function,
-                            register,
-                            point: site_point(site),
-                        },
-                    )
+                    Err(FixedPrecoloredSplitRequirementError::UnauthenticatedDomainBreak {
+                        function,
+                        register,
+                        point: site_point(site),
+                    })
                 }
             }
+        }
 
-            pub(super) fn use_transition(
-                &mut self,
-                source: &BTreeSet<RegisterViewId>,
-                site: VirtualFixedConstraintSite,
-                destination: RegisterViewId,
-            ) -> bool {
-                let key = (site_key(site), destination.0);
-                let Some(from) = self.transitions.get(&key) else {
-                    return false;
-                };
-                let mut matching = from
-                    .iter()
-                    .copied()
-                    .filter(|view| source.contains(&RegisterViewId(*view)));
-                let Some(chosen) = matching.next() else {
-                    return false;
-                };
-                if matching.next().is_some() {
-                    return false;
-                }
-                self.used.insert((key.0, key.1, chosen));
-                true
-            }
+        #[cfg(test)]
+        mod tests {
+            use super::*;
 
-            pub(super) fn finish(
-                self,
-                function: usize,
-                register: u32,
-            ) -> Result<(), FixedPrecoloredSplitRequirementError> {
-                let exhausted = self.used.iter().all(|(site, destination, from)| {
-                    self.transitions
-                        .get(&(*site, *destination))
-                        .is_some_and(|declared| declared.contains(from))
+            #[test]
+            fn incoming_cut_requires_one_matching_source_view() {
+                let site = VirtualFixedConstraintSite::Operand {
+                    position: selected_instructions::LivenessPosition(4),
+                    point: selected_instructions::LiveRangePoint(8),
+                    instruction: selected_instructions::SelectedInstructionId(2),
+                    operand: 0,
+                    access: RegisterOperandAccess::Use,
+                };
+                let destination = RegisterViewId(3);
+                let transitions = [RegisterViewId(1), RegisterViewId(2)].map(|from_view| {
+                    EntryFixedViewTransition {
+                        from_view,
+                        to_site: site,
+                        to_view: destination,
+                    }
                 });
-                if exhausted {
-                    Ok(())
-                } else {
-                    Err(
-                        FixedPrecoloredSplitRequirementError::UnsupportedCrossBlockRange {
-                            function,
-                            register,
-                        },
-                    )
+                let cuts = CutIndex::new(&[], &transitions);
+                let check = |views: &[u16]| {
+                    let sources = views.iter().copied().map(RegisterViewId).collect();
+                    cuts.require_transition(0, 1, &sources, site, destination)
+                };
+                assert!(check(&[1, 4]).is_ok());
+                for rejected in [&[4][..], &[1, 2][..]] {
+                    assert!(matches!(
+                        check(rejected),
+                        Err(FixedPrecoloredSplitRequirementError::UnauthenticatedDomainBreak {
+                            function: 0, register: 1, point: 8,
+                        })
+                    ));
                 }
             }
         }
@@ -332,7 +330,7 @@ mod compute {
             }
 
             let inputs = topology::tree(function, range, legality)?;
-            let mut cuts = CutIndex::new(fixed, &legality.entry_transitions);
+            let cuts = CutIndex::new(fixed, &legality.entry_transitions);
             let mut next_segment_id = 0u32;
             let mut fragments = Vec::with_capacity(inputs.len());
             let mut closing_by_block = BTreeMap::<_, BTreeSet<RegisterViewId>>::new();
@@ -388,14 +386,13 @@ mod compute {
                     input.spans,
                     initial,
                     opening,
-                    &mut cuts,
+                    &cuts,
                     &mut next_segment_id,
                     work,
                 )?;
                 closing_by_block.insert(input.fragment.block, closing);
                 fragments.push(derived);
             }
-            cuts.finish(function, register)?;
             Ok(FixedPrecoloredRegisterSplitRequirements {
                 virtual_register: range.virtual_register,
                 class: range.class,
@@ -411,7 +408,7 @@ mod compute {
             spans: &[VirtualLegalitySpan],
             mut shared: BTreeSet<RegisterViewId>,
             mut opening: FixedPrecoloredSourceSegmentOpening,
-            cuts: &mut CutIndex<'_>,
+            cuts: &CutIndex<'_>,
             next_segment_id: &mut u32,
             work: &mut Work,
         ) -> Result<
@@ -448,11 +445,10 @@ mod compute {
                     next_segment_id,
                     segment_start,
                     point.start,
-                    prior.clone(),
+                    prior,
                     opening,
                     work,
                 )?;
-                cuts.use_transition(&prior, site, destination_view);
                 work.commits(1)?;
                 segment_start = point.start;
                 opening =
