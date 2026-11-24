@@ -14809,7 +14809,9 @@ mod memory {
             kind,
             SelectedInstructionKind::Load8 { .. } | SelectedInstructionKind::Load16 { .. }
         );
-        if matches!(kind, selected_instructions::load_width_triple_pattern!(byte_offset, ..) | SelectedInstructionKind::Store { byte_offset, .. } | SelectedInstructionKind::AddressOffset { byte_offset } if i64::from(byte_offset) != displacement)
+        // Stage 15 reads the access offset from the kind, so every pointer
+        // form's kind must name the displacement its bytes encode.
+        if matches!(kind, selected_instructions::load_width_triple_pattern!(byte_offset, ..) | SelectedInstructionKind::Load64 { byte_offset } | SelectedInstructionKind::Store { byte_offset, .. } | SelectedInstructionKind::AddressOffset { byte_offset } if i64::from(byte_offset) != displacement)
         {
             return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
         }
