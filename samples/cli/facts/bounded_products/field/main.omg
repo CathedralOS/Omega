@@ -7,6 +7,7 @@ data Factors requires left <= 50 && right <= 50 {
 }
 
 machine mul(factors: Factors) -> u64
+requires true
 ensures result <= 2500
 {
     factors.left * factors.right
