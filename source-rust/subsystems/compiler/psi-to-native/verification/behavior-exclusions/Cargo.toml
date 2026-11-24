@@ -15,3 +15,4 @@ selected-provider-plans = { path = "../../../build/providers/selections" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-authority-receipts = { path = "../provider-admission/authority" }
 terminal-psi = { path = "../../../psi" }
+terminal-semantics = { path = "../../../psi/semantics" }

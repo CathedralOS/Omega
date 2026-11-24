@@ -1547,6 +1547,7 @@ dependencies = [
  "semantic-vocabulary",
  "terminal-authority-receipts",
  "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]
