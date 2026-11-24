@@ -24,7 +24,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
   - Give an unannotated constant the type of an initializer that only typing can find: a call, another constant or a typed operand, as in `const second = flag();`, `const first = second;` and `const mask = 2u8 + 3;`. The [parser](source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/declarations/constants.rs) writes the type of a suffixed literal, a cast or a Boolean and refuses the rest as unsupported, because name resolution reads every constant's declared type before typing runs.
 
-  - Carry bounds on stored integers through nested value matches. With `total: u32` initialized to 4, `match first { true -> match second { true -> { total = 8; 0 }, false -> 1 }, false -> 2 }` leaves either 4 or 8. The checker refuses `total + 1` for possible overflow after the outer join.
+  - Carry integer bounds through nested matches on computed subjects. Matching a projected flag from a temporary record with a [selected cleanup](wiki/spec/terminal-psi/ownership.md) retires the record and sets its caller’s marker. Both markers and the selected write reach the caller on native and Psi, but adding one to the stored value after the matches is refused for possible overflow even when its only incoming values are 6 and 10.
   - Let a block-valued arm hold a `crash` or `transition` statement. The [parser](source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/statements/sequence.rs) refuses these statements.
 
 - **NESTED-MACHINE-UNIFICATION.** Finish checking calls and returns in nested machines ([machines.md](wiki/spec/language/machines.md#nested-machines-and-identity), [state_contracts.md](wiki/spec/language/state_contracts.md)).
