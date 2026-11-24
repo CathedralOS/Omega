@@ -246,7 +246,7 @@ const fn compiler_builtin_execution_tag(execution: CompilerBuiltinExecution) -> 
     match execution {
         CompilerBuiltinExecution::StaticInterrupt { .. } => 254,
         CompilerBuiltinExecution::AccessLifecycle { .. } => 253,
-        CompilerBuiltinExecution::EmptyRunRelease => 254,
+        CompilerBuiltinExecution::EmptyRunRelease => 249,
         CompilerBuiltinExecution::AccessorScalarAccess { .. } => 250,
         CompilerBuiltinExecution::ProgramImageRetainedSuffixStart => 251,
         CompilerBuiltinExecution::ProgramStorageEntry => 252,
@@ -279,7 +279,8 @@ fn hash_boundary_realization(
             boundary,
             operation,
         } => {
-            digest.byte(12);
+            // Tag 12 is `EmptyRunRelease`; this matches the target-vocabulary encoder.
+            digest.byte(13);
             digest.raw(&boundary.get().to_le_bytes());
             digest.byte(operation.code());
         }
