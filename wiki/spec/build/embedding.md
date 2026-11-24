@@ -170,10 +170,12 @@ Neither `public` nor `satisfies` alone exports a callable ABI. No `main`, `run`,
 An instance's import roster identifies each exact slot/occurrence, closed
 requirement application, and full contract. Multiple static roles use distinct
 applications or wrapper requirements, not same-typed source fields. Establish
-every demanded import before running guest code, except an explicitly reserved
-component under the readiness lifecycle above; missing, duplicate,
-wrong-instance, incompatible, ambiguous, or unauthorized supply rejects without
-an ambient fallback. Provider supply does not transfer authority; operation
+every demanded import before running guest code, subject to the two startup
+rules above. An explicitly runtime-bound occurrence may start empty on checked
+paths that establish first binding before use. A component reserved under Build
+provider readiness follows its separate suspension and resumption protocol.
+Any other missing supply, or duplicate, wrong-instance, incompatible, ambiguous,
+or unauthorized supply, rejects. Provider supply does not transfer authority; operation
 arguments and admitted receiver policy carry their own obligations.
 
 The library supplies typed import/export adapters and descriptions, rather than

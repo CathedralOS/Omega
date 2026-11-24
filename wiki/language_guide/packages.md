@@ -184,6 +184,15 @@ closed code/state/resource graph, not intrinsically one package. Calls cross a
 stable requirement; already-entered calls and returned era-dependent handles
 retain their old era until their obligations end.
 
+For example, an editor's Build can leave its Console empty and designate an
+installer. Once startup successfully publishes a terminal provider, every caller
+wired to that slot can use `Console::write_line` directly. If the editor later
+publishes a separately built quiet provider, its next write reaches that
+provider. A read already waiting for input finishes on the terminal that
+started it. A second running editor keeps its own binding. The [worked
+example](../drafts/designs/component_hot_swap_authorship.md) follows both Builds
+and a failed install.
+
 Publication of new routing therefore does not imply reclamation of old code.
 Runtime packages coordinate admission, peak coexistence resources, state transfer,
 quiescence, and recovery inside an owner-authorized envelope. A migration theorem

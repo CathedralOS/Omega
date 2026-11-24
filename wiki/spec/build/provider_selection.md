@@ -109,6 +109,21 @@ inside the provider redispatches and can recurse.
 
 Build can instead describe an explicitly runtime-bound independent product
 slot and leave the first compatible provider to the application or installer.
+For a runtime-bound slot, the host product's root Build designates the boundary
+operation allowed to publish into it and selects a backing for that operation
+under ordinary provider selection. The backing may vary by target, or a common
+backing may call a target-selected executable installer. It must be available
+before the first call that needs it. Selection alone grants neither executable
+installation authority nor the right to widen the slot's frozen envelope.
+
+A supplier's own Build selects a closed satisfaction for independent library
+output. The resulting export identifies the exact requirement it implements.
+The consuming product owns the decision to make its slot replaceable. A host
+can be built before any supplier exists. Installation checks each later
+candidate against the slot's contract and envelope without a roster of future
+implementation names. The [Build authorship question](../../../OWNER_QUESTIONS.md#component-producer-and-host-build)
+covers the source forms for these two declarations.
+
 An initial provider supplied by Build can also be independently replaceable.
 The [first-binding rules](component_publication.md#first-binding-of-a-runtime-bound-slot)
 govern when calls become legal and who may publish a replacement.

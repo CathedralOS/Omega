@@ -302,6 +302,14 @@ through helpers and appear in the full reach report.
 | Call an already-loaded foreign SDK routine | `ForeignCodeExecution`, plus the routine's other declared services. |
 | Load a library through an operation that may run a foreign initializer | `NativeImageLoad + ForeignCodeExecution`, even if a particular image has no initializer. |
 
+Ordinary allocation of non-executable storage has its allocator's own reach.
+Executable installation of a native image reports `NativeImageLoad` even when
+a target implements it through several lower-level operations. A backing that
+enters a foreign SDK also reports that foreign call. Redirecting a slot between
+two already installed, admitted exports adds neither reach by itself. The
+selected updater reports the union of the operations it can perform, and the
+Build must separately supply the required authority.
+
 The receiver separately enforces [executable installation](../build/executable_installation.md)
 and the slot owner authorizes [publication](../build/component_publication.md#first-binding-of-a-runtime-bound-slot).
 

@@ -313,7 +313,13 @@ Composition fixes its exact requirement and permitted envelope. Runtime binding
 must be explicit. Omitting a required build-time selection still rejects.
 An authorized application or installer supplies the first compatible provider
 for that installation. Loading a candidate makes it available for installation.
-Binding publishes its admitted export to this particular slot.
+Binding publishes its admitted export to this particular slot. The installation
+owns the slot storage and gives its designated supervisor sole update authority
+for that occurrence. Publication requires both this authority and the admitted
+export backed by the installed realization. Success atomically redirects future
+entries from every caller wired to that occurrence. Another installation of the
+same program has its own occurrence. The right to call the requirement, possession
+of the image, and the ability to load native code each confer no publication right.
 
 Startup can run while the slot is empty. Every path into code that requires
 the slot, including through a helper or callback, must establish successful
@@ -323,6 +329,14 @@ binding leaves the slot empty and preserves the caller's authority to retry,
 bind a separately admitted built-in provider, or exit. An empty slot performs
 no implicit no-op. A successful bind lets ordinary callers use the declared
 requirement directly.
+
+The success path of first publication establishes a bound-slot fact for that
+occurrence. A wrapper promising first binding must establish that fact on
+every successful return. Returning a success variant alone proves nothing.
+At a control-flow join, every incoming path that continues to a consumer must
+establish supply. This applies to error reporting, callbacks and the installer's
+own transitive callees. An installer cannot use the empty Console to report
+its first load failure. It can exit or retry without entering a Console consumer.
 
 Replacing a bound provider keeps the slot bound throughout cutover. On failure
 the previous provider continues serving. New calls enter a successfully
@@ -406,6 +420,12 @@ Continuity-free replacement publishes/routes new calls first and drains the old
 era afterward. Resettable state alone requires no pause. Observable continuity
 is an explicit service promise proved through provider projections and migration
 theorems under the selected composition plan; no `HotSwappable` marker supplies it.
+For example, an editor may stage V2 while a read is blocked in V1, publish V2
+for new calls, then unload V1 once its calls, sessions and callbacks drain. If
+both versions need exclusive ownership of one device, prepare V2, quiesce the
+old owner and transfer custody under the service's cutover and recovery contract
+before publishing V2. A long-lived device service can retain ownership across
+console replacements. Splitting source modules alone transfers no device claim.
 If a cutover freezes entry, waiting must be allowed by the service contract.
 Otherwise the OS coordinates scheduler/caller topology. Pause authority threads
 linearly through a crash-free window or explicit supervisor recovery.
