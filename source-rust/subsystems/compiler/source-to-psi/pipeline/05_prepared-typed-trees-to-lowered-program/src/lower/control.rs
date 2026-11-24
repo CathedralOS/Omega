@@ -679,22 +679,47 @@ impl Lowering<'_> {
     ) -> Evaluation<Value> {
         let before = BeforeArms::capture(self);
         let mut arrivals = Arrivals::default();
-        if let Reached::Ended(call) = self.dispatch_match(
-            subject,
-            arms,
-            default,
-            source,
-            capture,
-            |lowering, value, temporary| lowering.arm(value, &mut arrivals, temporary),
-        )? {
-            arrivals.ended = Some(call);
-        }
+        self.match_arrivals(subject, arms, default, source, capture, &mut arrivals)?;
         self.join(
             arrivals,
             result_type,
             SourceOrigin::Unpositioned(Unpositioned::MatchJoin),
             before,
         )
+    }
+
+    /// Lower the selected leaves into the caller's continuation. A nested
+    /// match in scalar or Unit tail position has the same continuation as
+    /// its enclosing arm. Each leaf then delivers its value and its own
+    /// reaching storage writes on one actual incoming edge.
+    fn match_arrivals(
+        &mut self,
+        subject: &Expression,
+        arms: &[(Selector, Expression)],
+        default: Option<&Expression>,
+        source: SourceOrigin,
+        capture: Option<arena::Handle<crate::source_state::expression::CompletedValueCapture>>,
+        arrivals: &mut Arrivals,
+    ) -> Checked<()> {
+        let first = arrivals.values.len();
+        if let Reached::Ended(call) = self.dispatch_match(
+            subject,
+            arms,
+            default,
+            source,
+            capture,
+            |lowering, value, temporary| lowering.arm(value, arrivals, temporary),
+        )? {
+            arrivals.ended = Some(call);
+        }
+        // A final nonreturning arm can leave no current block even if an
+        // earlier leaf continued. An enclosing case dispatch inspects this
+        // state when retaining invalidations from its selected arm.
+        if let Some(&(block, point, _)) = arrivals.values[first..].last() {
+            self.current = Some(block);
+            self.point = Some(point);
+        }
+        Ok(())
     }
 
     /// Evaluate the selector once and enter each authored arm with its exact
@@ -1030,6 +1055,41 @@ impl Lowering<'_> {
         arrivals: &mut Arrivals,
         temporary: Option<PlaceId>,
     ) -> Checked<()> {
+        // A structural result has an ownership transfer of its own. A
+        // selected subject temporary must likewise retire after its arm
+        // completes. Keep both continuations at their original positions.
+        let mut value = value;
+        if temporary.is_none() && matches!(value.result, None | Some(ValueType::Scalar(..))) {
+            while let ExpressionKind::Block {
+                statements,
+                value: Some(tail),
+            } = &value.kind
+            {
+                for statement in statements {
+                    if let Reached::Ended(call) = self.statement(statement)? {
+                        arrivals.ended = Some(call);
+                        return Ok(());
+                    }
+                }
+                value = tail;
+            }
+            if let ExpressionKind::Match {
+                subject,
+                arms,
+                default,
+                capture,
+            } = &value.kind
+            {
+                return self.match_arrivals(
+                    subject,
+                    arms,
+                    default.as_deref(),
+                    value.source,
+                    *capture,
+                    arrivals,
+                );
+            }
+        }
         let source = value.source;
         match self.expression(value)? {
             Reached::Value(value) => {
