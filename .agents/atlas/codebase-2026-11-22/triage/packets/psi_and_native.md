@@ -1,6 +1,6 @@
 # Psi and native boundary packet
 
-This packet gives every claim in [the Psi/native boundary note](../../boundaries/psi_and_native.md) a disposition. It found one latent miscompile in native stage 08, repaired in this PR. It also found that `main` did not compile `optimization-unit-semantics` after #5393, and that `optimization-unit` fails Clippy on a duplicate match arm; this PR repairs both. Every other lead is intended behavior, a duplicate of an earlier ledger row, a tracked feature gap, or one of four items listed under "Still open" below.
+This packet gives every claim in [the Psi/native boundary note](../../boundaries/psi_and_native.md) a disposition. It found one latent miscompile in native stage 08, repaired in this PR. It also found that #5393 broke the build of two native crates. Parallel repairs have since landed on `main` and left a duplicate match arm in `optimization-unit-semantics`; this PR removes it. Every other lead is intended behavior, a duplicate of an earlier ledger row, a tracked feature gap, or one of four items listed under "Still open" below.
 
 The note was written at `4f3c255d`. Every code check below was made at the common baseline `24ad2700685e6cc6062026c87ed5fd24ed415265` unless a row names another revision. This packet joins the rows already in the [Psi and native ledger](../07-13-psi-and-native.md) rather than repeating them.
 
@@ -22,12 +22,11 @@ Stage 08's declared-form rule could rewrite an instruction into a form that clob
 - **Repair:** the cached table now records the units it was built for. A candidate that adds different units rebuilds the table. The xor-zero rule normally adds only the flags, so the common case still builds one table per function.
 - **Reach:** the only in-tree rule, `X86SelectXorZeroI64MaterializationV1`, adds `{flags}` unless the instruction already writes them. No shipped selection was shown to produce the first instruction's shape. The repair removes the dependence on that accident.
 
-### `main` did not compile `optimization-unit-semantics` after #5393
+### Duplicate `DeclarationIdentity` arms after #5393
 
-#5393 added `Proposition::DeclarationIdentity` without extending two exhaustive matches. While building the stage 08 fixture at `a0152d26`, `mbx test` stopped with E0004 in `optimization-unit` (`src/identity.rs`, `encode_proposition`) and then in `optimization-unit-semantics` (`src/unit_validation.rs`, `collect` in the claim-root walk). Every crate that depends on them, including native stage 08, failed to build.
+#5393 added `Proposition::DeclarationIdentity` without extending two exhaustive matches. While building the stage 08 fixture at `a0152d26`, `mbx test` stopped with E0004 in `optimization-unit` (`src/identity.rs`, `encode_proposition`) and then in `optimization-unit-semantics` (`src/unit_validation.rs`, `collect` in the claim-root walk). Every crate built on them, including native stage 08, failed to compile.
 
-- #5427 and #5434 each landed an identity-encoder arm while this packet was in review. The second arm is unreachable, and `mbx clippy ... -D warnings` refuses the crate (`unreachable pattern` at `identity.rs:472`). This PR deletes the second arm. Both arms encode the same fields under tag 23, and the first one, which every encoding already uses, stays.
-- The claim-root walk was still missing its arm on `main` at `3d153621`. This PR adds it: the walk collects the roots of the clause's scalar and input operands, as `semantic-records` does when it validates the same clause.
+Several PRs then repaired the same two matches in parallel. #5427 and #5434 each added an identity-encoder arm, and `main` later dropped one of them. #5449 and another PR each added a claim-root arm, so `main` at `bdea7aa1` has two identical arms in `collect`. A second identical arm can never run, and `-D warnings` turns that into an error; this was read from the code, not run on `main`. This PR's own claim-root arm and identity-arm deletion are now superseded. When `main` was merged in, the resolution keeps the commented #5449 arm and deletes the other two.
 
 ## Dispositions
 
@@ -89,5 +88,6 @@ All commands ran in this cloud checkout on linux/x86_64 with the pinned toolchai
 - Green, after the repair: the same command → 10 passed.
 - Area, after rebasing onto `3d153621`: `mbx test -p register-homes-to-post-allocation-machine -p optimization-unit -p optimization-unit-semantics --lib` → 13, 16 and 24 passed.
 - `mbx clippy -p register-homes-to-post-allocation-machine -p optimization-unit -p optimization-unit-semantics --all-targets -- -D warnings`: at `3d153621` it fails with `unreachable pattern` in `optimization-unit/src/identity.rs:472`. After the duplicate arm is removed, it is clean.
+- After merging `main` at `bdea7aa1`: the same area tests → 13, 17 and 28 passed, and Clippy on the three crates is clean.
 - `mbx xtask fmt --check` reports differences only at lines this PR does not touch. `mbx xtask check-boundary` reports two contract changes in stage 01 `realized_supply.rs`, a file this PR does not touch. Both checks fail the same way on `main`.
 - Code reads for every other row were made with `git show 24ad2700:<path>` and `git grep ... 24ad2700`.
