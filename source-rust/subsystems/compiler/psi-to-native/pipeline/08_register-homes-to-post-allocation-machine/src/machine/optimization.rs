@@ -17,9 +17,10 @@ none of those units is read before the whole set is overwritten along any
 control-flow path.
 
 Because rewriting an instruction onto an optimizer form only adds clobbers, it
-can only shorten unit liveness; a single `UnitLivenessTable` computed per
-function and unit set remains conservatively sound across all candidates in
-that function. After all selected rules finish and work usage is checked
+can only shorten unit liveness; a `UnitLivenessTable` computed for one function
+and unit set remains conservatively sound for every later candidate in that
+function with the same extra units. A candidate with a different set gets a
+table computed for that set. After all selected rules finish and work usage is checked
 against the phase budget, we recompute the plan's canonical digest so rewritten
 plans bind their new contents while identity runs preserve the source digest.
 */
@@ -332,16 +333,19 @@ fn rewrite_declared_forms(
                     continue;
                 }
                 let extra = extra_units(instruction, form);
-                let (live, scanned) = {
-                    let (units, table) = table.get_or_insert_with(|| {
-                        (
-                            extra.clone(),
-                            UnitLivenessTable::compute(function, successors, &extra),
-                        )
-                    });
-                    debug_assert_eq!(*units, extra);
-                    table.live_after(function, successors, block_index, index, &extra)
+                // A table answers only for the unit set it was computed for. Two
+                // candidates' extra sets differ when one baseline already defines
+                // some of the form's units, so a different set gets a fresh table.
+                let (units, unit_table) = match table.take() {
+                    Some((units, unit_table)) if units == extra => (units, unit_table),
+                    _ => {
+                        let unit_table = UnitLivenessTable::compute(function, successors, &extra);
+                        (extra, unit_table)
+                    }
                 };
+                let (live, scanned) =
+                    unit_table.live_after(function, successors, block_index, index, &units);
+                table = Some((units, unit_table));
                 usage.validation_steps = usage.validation_steps.saturating_add(scanned);
                 if live {
                     continue;
