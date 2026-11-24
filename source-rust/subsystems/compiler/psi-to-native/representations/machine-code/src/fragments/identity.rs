@@ -473,7 +473,8 @@ mod tag_tests {
     #[test]
     fn image_address_fixup_presence_is_part_of_the_identity() {
         let fixup = crate::FunctionFragmentImageAddressFixup {
-            reference: selected_instructions::SelectedImageAddressReference::RetainedEntryStorageStart,
+            reference:
+                selected_instructions::SelectedImageAddressReference::RetainedEntryStorageStart,
             fields: crate::ImageAddressFields::X86_64Relative32 { patch_offset: 3 },
         };
         let nothing = digest(|_| {});
