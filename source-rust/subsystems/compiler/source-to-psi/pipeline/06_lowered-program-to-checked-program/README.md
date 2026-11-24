@@ -63,6 +63,18 @@ conversion steps of a 65,536 budget for associativity, 1,660 and 1,659 for the
 two distributivity laws, 1,105 for commutativity. The largest law of
 `core/nat.omg` takes 5,628.
 
+When that finds no proof, the search tries again with products expanded over
+sums under the distributivity laws the conformance declares, so both sides
+reach one polynomial form. A product whose sum is on the side its law states
+expands by the law; one whose sum is on the other side is commuted first when
+its operation commutes. Each expansion is an application of the law in the
+proof term. A product may expand to at most 64 summands (`MAX_SUMMANDS`),
+counted before anything is built; a larger one stops the proof as out of
+budget, never as wrong. The customer is `mul(add(a, b), add(c, d))` equal to
+its four-term expansion over the library's `Nat`, judged in 1,170 conversion
+steps on `mul_distributes`, `mul_comm`, `add_comm` and `add_assoc`
+([polynomial_expansion.rs](src/tests/polynomial_expansion.rs)).
+
 When every part is accepted, publication writes one Psi mathematical carrier
 row per data declaration into the root module
 ([publication/mathematics.rs](src/publication/mathematics.rs)). The row names

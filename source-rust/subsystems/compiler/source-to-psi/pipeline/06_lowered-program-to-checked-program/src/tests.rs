@@ -73,6 +73,7 @@ mod owned_dispatch;
 mod owned_match_results;
 mod owned_records;
 mod parallel_checks;
+mod polynomial_expansion;
 mod proof_scope;
 mod provider_supplies;
 mod published_no_return;

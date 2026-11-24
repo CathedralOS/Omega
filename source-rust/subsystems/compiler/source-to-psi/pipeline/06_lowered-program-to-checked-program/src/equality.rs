@@ -604,6 +604,39 @@ pub(crate) struct License {
     pub commutes: Option<TermHandle>,
 }
 
+/// A proved law that one binary operation distributes over another. Using
+/// it puts it in the proof, like a [`License`]'s laws.
+#[derive(Clone, Copy)]
+pub(crate) struct Distribution {
+    /// The operation that is expanded: multiplication in a semiring.
+    pub outer: TermHandle,
+    /// The operation it distributes over: addition in a semiring.
+    pub inner: TermHandle,
+    pub carrier: TermHandle,
+    pub law: TermHandle,
+    /// `outer(x, inner(y, z)) = inner(outer(x, y), outer(x, z))` when true;
+    /// `outer(inner(x, y), z) = inner(outer(x, z), outer(y, z))` when false.
+    pub from_left: bool,
+    /// Whether the law's statement has the product on its left side.
+    pub product_first: bool,
+}
+
+/// The laws a proof may rearrange under without citing them: each licensed
+/// operation's associativity and commutativity, and distributivity of one
+/// licensed operation over another.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct Licenses<'l> {
+    pub operations: &'l [License],
+    pub distributions: &'l [Distribution],
+}
+
+/// The most summands one product may expand to, counted before the
+/// expansion is built: the default of the automatic expansion strategy
+/// (`wiki/spec/proofs/contracts.md`, "Proved index compatibility").
+/// A product that would expand further stops the proof with
+/// [`SearchError::Budget`], which says nothing about whether the goal holds.
+pub(crate) const MAX_SUMMANDS: usize = 64;
+
 /// One rewrite of the term at the subterm reached by taking these child
 /// slots in turn.
 struct Step {
@@ -611,11 +644,8 @@ struct Step {
     rule: Equality,
 }
 
-fn licensed<'l>(
-    arena: &TermArena,
-    licenses: &'l [License],
-    term: TermHandle,
-) -> Option<(&'l License, TermHandle, TermHandle)> {
+/// The operation and the two operands of a binary application.
+fn binary(arena: &TermArena, term: TermHandle) -> Option<(TermHandle, TermHandle, TermHandle)> {
     let Term::Apply {
         function,
         argument: second,
@@ -630,6 +660,192 @@ fn licensed<'l>(
     else {
         return None;
     };
+    Some((operation, first, second))
+}
+
+/// The two operands of `term` when it applies `operation`.
+fn operands_of(
+    arena: &TermArena,
+    operation: TermHandle,
+    term: TermHandle,
+) -> Option<(TermHandle, TermHandle)> {
+    binary(arena, term)
+        .filter(|&(head, ..)| arena.structurally_equal(head, operation))
+        .map(|(_, first, second)| (first, second))
+}
+
+/// Which operands of a product the licensed laws expand.
+#[derive(Clone, Copy)]
+enum Expands {
+    /// Only a sum on the right, as a left distributivity law states it.
+    Right,
+    /// Only a sum on the left.
+    Left,
+    /// A sum on either side: both laws, or one law and commutativity.
+    Both,
+}
+
+/// How many summands of `law.inner` the term expands to under `law` and
+/// `expands`, or `None` past `usize`. The count walks the term once and
+/// builds nothing.
+fn summands(
+    arena: &TermArena,
+    law: &Distribution,
+    expands: Expands,
+    term: TermHandle,
+) -> Option<usize> {
+    let count = |term| summands(arena, law, expands, term);
+    if let Some((first, second)) = operands_of(arena, law.inner, term) {
+        return count(first)?.checked_add(count(second)?);
+    }
+    if let Some((first, second)) = operands_of(arena, law.outer, term) {
+        return match expands {
+            Expands::Right => count(second),
+            Expands::Left => count(first),
+            Expands::Both => count(first)?.checked_mul(count(second)?),
+        };
+    }
+    Some(1)
+}
+
+/// Whether the term applies `operation` anywhere, beneath any term former.
+fn mentions(arena: &TermArena, operation: TermHandle, term: TermHandle) -> bool {
+    arena.structurally_equal(term, operation)
+        || arena
+            .get(term)
+            .children()
+            .any(|child| mentions(arena, operation, child))
+}
+
+/// The law at `x`, `y`, `z`, oriented from the product to its expansion.
+fn distributivity(
+    arena: &mut TermArena,
+    law: &Distribution,
+    x: TermHandle,
+    y: TermHandle,
+    z: TermHandle,
+) -> Equality {
+    let (product, sum) = if law.from_left {
+        let inner = arena.apply_binary(law.inner, y, z);
+        let left = arena.apply_binary(law.outer, x, y);
+        let right = arena.apply_binary(law.outer, x, z);
+        (
+            arena.apply_binary(law.outer, x, inner),
+            arena.apply_binary(law.inner, left, right),
+        )
+    } else {
+        let inner = arena.apply_binary(law.inner, x, y);
+        let left = arena.apply_binary(law.outer, x, z);
+        let right = arena.apply_binary(law.outer, y, z);
+        (
+            arena.apply_binary(law.outer, inner, z),
+            arena.apply_binary(law.inner, left, right),
+        )
+    };
+    let proof = arena.apply_arguments(law.law, &[x, y, z]);
+    if law.product_first {
+        Equality {
+            carrier: law.carrier,
+            from: product,
+            to: sum,
+            proof,
+        }
+    } else {
+        Equality {
+            carrier: law.carrier,
+            from: sum,
+            to: product,
+            proof,
+        }
+        .reversed(arena)
+    }
+}
+
+/// The rewrites that expand the product at `term` by one licensed
+/// distributivity law: the law itself where the sum is on the side the law
+/// states, or a commutation first where the product's operation commutes and
+/// the sum is on the other side. The product's full expansion is counted
+/// before anything is built.
+fn next_expansion(
+    arena: &mut TermArena,
+    licenses: &[License],
+    distributions: &[Distribution],
+    term: TermHandle,
+    slots: &[usize],
+) -> Result<Option<Vec<Step>>, SearchError> {
+    let Some((operation, first, second)) = binary(arena, term) else {
+        return Ok(None);
+    };
+    for law in distributions {
+        if !arena.structurally_equal(law.outer, operation) {
+            continue;
+        }
+        let (stated, other) = if law.from_left {
+            (second, first)
+        } else {
+            (first, second)
+        };
+        let commutes = licenses
+            .iter()
+            .find(|license| arena.structurally_equal(license.operation, operation))
+            .and_then(|license| license.commutes.map(|_| *license));
+        let swap = if operands_of(arena, law.inner, stated).is_some() {
+            None
+        } else if operands_of(arena, law.inner, other).is_some()
+            && let Some(license) = &commutes
+            && let Some(swap) = commutativity(arena, license, first, second)
+        {
+            Some(swap)
+        } else {
+            continue;
+        };
+        let mirrored = distributions.iter().any(|other| {
+            other.from_left != law.from_left
+                && arena.structurally_equal(other.outer, law.outer)
+                && arena.structurally_equal(other.inner, law.inner)
+        });
+        let expands = match (commutes.is_some() || mirrored, law.from_left) {
+            (true, _) => Expands::Both,
+            (false, true) => Expands::Right,
+            (false, false) => Expands::Left,
+        };
+        if summands(arena, law, expands, term).is_none_or(|count| count > MAX_SUMMANDS) {
+            return Err(SearchError::Budget);
+        }
+        let (first, second) = if swap.is_some() {
+            (second, first)
+        } else {
+            (first, second)
+        };
+        let rule = if law.from_left {
+            let (y, z) = operands_of(arena, law.inner, second).ok_or(SearchError::NoProof)?;
+            distributivity(arena, law, first, y, z)
+        } else {
+            let (x, y) = operands_of(arena, law.inner, first).ok_or(SearchError::NoProof)?;
+            distributivity(arena, law, x, y, second)
+        };
+        let mut steps = Vec::with_capacity(2);
+        if let Some(rule) = swap {
+            steps.push(Step {
+                slots: slots.to_vec(),
+                rule,
+            });
+        }
+        steps.push(Step {
+            slots: slots.to_vec(),
+            rule,
+        });
+        return Ok(Some(steps));
+    }
+    Ok(None)
+}
+
+fn licensed<'l>(
+    arena: &TermArena,
+    licenses: &'l [License],
+    term: TermHandle,
+) -> Option<(&'l License, TermHandle, TermHandle)> {
+    let (operation, first, second) = binary(arena, term)?;
     licenses
         .iter()
         .find(|license| arena.structurally_equal(license.operation, operation))
@@ -718,16 +934,22 @@ fn commutativity(
 }
 
 /// The next rewrites toward the canonical form of a licensed operation's
-/// chains: nested to the right and, where the operation also commutes, with
-/// operands in `order`. One call returns one regrouping, or the three
-/// rewrites that swap two neighbours. `None` means the term is canonical.
+/// chains: products expanded under the distributivity laws in
+/// `distributions`, then each chain nested to the right and, where the
+/// operation also commutes, with operands in `order`. One call returns one
+/// expansion, one regrouping, or the three rewrites that swap two
+/// neighbours. `None` means the term is canonical.
 fn next_rearrangement(
     arena: &mut TermArena,
     licenses: &[License],
+    distributions: &[Distribution],
     term: TermHandle,
     slots: &mut Vec<usize>,
-) -> Option<Vec<Step>> {
+) -> Result<Option<Vec<Step>>, SearchError> {
     use std::cmp::Ordering::Greater;
+    if let Some(steps) = next_expansion(arena, licenses, distributions, term, slots)? {
+        return Ok(Some(steps));
+    }
     if let Some((license, first, second)) = licensed(arena, licenses, term) {
         let license = *license;
         // op(op(x, y), z) regroups to op(x, op(y, z)).
@@ -735,10 +957,10 @@ fn next_rearrangement(
             && arena.structurally_equal(inner.operation, license.operation)
             && let Some(rule) = associativity(arena, &license, x, y, second)
         {
-            return Some(vec![Step {
+            return Ok(Some(vec![Step {
                 slots: slots.clone(),
                 rule,
-            }]);
+            }]));
         }
         if license.commutes.is_some() {
             let tail = licensed(arena, licenses, second)
@@ -755,7 +977,7 @@ fn next_rearrangement(
                     {
                         let mut pair = slots.clone();
                         pair.extend([0, 1]);
-                        return Some(vec![
+                        return Ok(Some(vec![
                             Step {
                                 slots: slots.clone(),
                                 rule: regroup.reversed(arena),
@@ -768,17 +990,17 @@ fn next_rearrangement(
                                 slots: slots.clone(),
                                 rule: back,
                             },
-                        ]);
+                        ]));
                     }
                 }
                 None => {
                     if order(arena, first, second) == Greater
                         && let Some(rule) = commutativity(arena, &license, first, second)
                     {
-                        return Some(vec![Step {
+                        return Ok(Some(vec![Step {
                             slots: slots.clone(),
                             rule,
-                        }]);
+                        }]));
                     }
                 }
             }
@@ -789,14 +1011,14 @@ fn next_rearrangement(
     if let Term::Apply { function, argument } = arena.get(term) {
         for (slot, child) in [function, argument].into_iter().enumerate() {
             slots.push(slot);
-            let found = next_rearrangement(arena, licenses, child, slots);
+            let found = next_rearrangement(arena, licenses, distributions, child, slots);
             slots.pop();
-            if found.is_some() {
+            if !matches!(found, Ok(None)) {
                 return found;
             }
         }
     }
-    None
+    Ok(None)
 }
 
 /// The path of surrounding terms for a list of child slots.
@@ -815,18 +1037,23 @@ fn path_to(arena: &TermArena, term: TermHandle, slots: &[usize]) -> Option<Vec<S
 }
 
 /// The canonical form of the term under the licenses, and the rewrites that
-/// reach it in order.
+/// reach it in order. Every rewrite is charged to `search_steps`, so a
+/// rearrangement that does not finish within it stops with
+/// [`SearchError::Budget`].
 fn rearrange(
     arena: &mut TermArena,
     licenses: &[License],
+    distributions: &[Distribution],
     mut term: TermHandle,
     search_steps: &mut usize,
 ) -> Result<(TermHandle, Vec<Step>), SearchError> {
     let mut taken = Vec::new();
-    if licenses.is_empty() {
+    if licenses.is_empty() && distributions.is_empty() {
         return Ok((term, taken));
     }
-    while let Some(steps) = next_rearrangement(arena, licenses, term, &mut Vec::new()) {
+    while let Some(steps) =
+        next_rearrangement(arena, licenses, distributions, term, &mut Vec::new())?
+    {
         for step in steps {
             charge(search_steps)?;
             let path = path_to(arena, term, &step.slots).ok_or(SearchError::NoProof)?;
@@ -884,14 +1111,7 @@ pub(crate) fn prove(
     )
 }
 
-/// Both sides of the goal and both endpoints of every citation are
-/// normalized first. The search then rewrites one side with the citations,
-/// beneath any term former and any binder. A term it reaches proves the goal
-/// when it and the other side have one canonical form under the licensed
-/// operations' laws. Every rewrite, a citation's or a law's, is an identity
-/// elimination, so the result is one kernel term from the left side to the
-/// right. The term is a candidate: the caller has the kernel check it, once,
-/// with everything else it is part of.
+/// [`prove_licensed`] with no distributivity law.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn prove_under(
     arena: &mut TermArena,
@@ -900,6 +1120,94 @@ pub(crate) fn prove_under(
     goal: TermHandle,
     citations: &[TermHandle],
     licenses: &[License],
+    search_steps: usize,
+    conversion: &mut Budget,
+) -> Result<TermHandle, SearchError> {
+    prove_licensed(
+        arena,
+        context,
+        definitions,
+        goal,
+        citations,
+        Licenses {
+            operations: licenses,
+            distributions: &[],
+        },
+        search_steps,
+        conversion,
+    )
+}
+
+/// The distributivity laws each attempt may expand products under, in the
+/// order they are tried. The first attempt expands nothing, so a goal that
+/// regrouping and reordering already prove gets the same proof it had
+/// without the laws. When two operations each distribute over the other,
+/// expanding both ways would undo itself, so each attempt takes one of the
+/// two directions and every other law: neither law disables the other.
+fn expansion_attempts(arena: &TermArena, distributions: &[Distribution]) -> Vec<Vec<Distribution>> {
+    let mut attempts = vec![Vec::new()];
+    if distributions.is_empty() {
+        return attempts;
+    }
+    let same = |a: &Distribution, b: &Distribution| {
+        arena.structurally_equal(a.outer, b.outer) && arena.structurally_equal(a.inner, b.inner)
+    };
+    let mutual = |law: &Distribution| {
+        distributions.iter().any(|other| {
+            arena.structurally_equal(other.outer, law.inner)
+                && arena.structurally_equal(other.inner, law.outer)
+        })
+    };
+    let one_way: Vec<_> = distributions
+        .iter()
+        .copied()
+        .filter(|law| !mutual(law))
+        .collect();
+    let mut directions: Vec<Distribution> = Vec::new();
+    for law in distributions.iter().filter(|law| mutual(law)) {
+        if !directions.iter().any(|known| same(known, law)) {
+            directions.push(*law);
+        }
+    }
+    if directions.is_empty() {
+        attempts.push(one_way);
+        return attempts;
+    }
+    for direction in &directions {
+        let mut attempt = one_way.clone();
+        attempt.extend(
+            distributions
+                .iter()
+                .copied()
+                .filter(|law| same(law, direction)),
+        );
+        attempts.push(attempt);
+    }
+    attempts
+}
+
+/// Both sides of the goal and both endpoints of every citation are
+/// normalized first. The search then rewrites one side with the citations,
+/// beneath any term former and any binder. A term it reaches proves the goal
+/// when it and the other side have one canonical form under the licensed
+/// laws: products expanded under distributivity, then each operation's
+/// operands regrouped and reordered. Every rewrite, a citation's or a law's,
+/// is an identity elimination, so the result is one kernel term from the
+/// left side to the right. The term is a candidate: the caller has the
+/// kernel check it, once, with everything else it is part of.
+///
+/// Expansion is tried only after the search without it finds no proof, once
+/// per entry of [`expansion_attempts`], and only when a product it could
+/// expand appears in the goal or a citation. All attempts share
+/// `search_steps`.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prove_licensed(
+    arena: &mut TermArena,
+    context: &Context,
+    definitions: &Definitions,
+    goal: TermHandle,
+    citations: &[TermHandle],
+    licenses: Licenses<'_>,
     mut search_steps: usize,
     conversion: &mut Budget,
 ) -> Result<TermHandle, SearchError> {
@@ -912,7 +1220,83 @@ pub(crate) fn prove_under(
     if arena.structurally_equal(left, right) {
         return Ok(reflexivity);
     }
-    let (canonical, from_right) = rearrange(arena, licenses, right, &mut search_steps)?;
+    let goal = Goal {
+        stated: goal,
+        ty,
+        left,
+        right,
+        reflexivity,
+    };
+    let mut rules = None;
+    for distributions in expansion_attempts(arena, licenses.distributions) {
+        if !distributions.is_empty() {
+            let expands = |arena: &TermArena, term| {
+                distributions
+                    .iter()
+                    .any(|law| mentions(arena, law.outer, term))
+            };
+            let cited = rules
+                .iter()
+                .flatten()
+                .any(|rule: &Equality| expands(arena, rule.from) || expands(arena, rule.to));
+            if !cited && !expands(arena, left) && !expands(arena, right) {
+                continue;
+            }
+        }
+        match search(
+            arena,
+            context,
+            definitions,
+            goal,
+            citations,
+            &mut rules,
+            licenses.operations,
+            &distributions,
+            &mut search_steps,
+            conversion,
+        ) {
+            Err(SearchError::NoProof) => {}
+            found => return found,
+        }
+    }
+    Err(SearchError::NoProof)
+}
+
+/// The goal as stated, its two sides normalized, and the proof that its left
+/// side is itself.
+#[derive(Clone, Copy)]
+struct Goal {
+    stated: TermHandle,
+    ty: TermHandle,
+    left: TermHandle,
+    right: TermHandle,
+    reflexivity: TermHandle,
+}
+
+/// One attempt of [`prove_licensed`] under one set of distributivity laws.
+/// The citations' rewrite rules are built on the first attempt that needs
+/// them and kept in `rules` for the others.
+#[allow(clippy::too_many_arguments)]
+fn search(
+    arena: &mut TermArena,
+    context: &Context,
+    definitions: &Definitions,
+    goal: Goal,
+    citations: &[TermHandle],
+    rules: &mut Option<Vec<Equality>>,
+    licenses: &[License],
+    distributions: &[Distribution],
+    search_steps: &mut usize,
+    conversion: &mut Budget,
+) -> Result<TermHandle, SearchError> {
+    let Goal {
+        stated: stated_goal,
+        ty,
+        left,
+        right,
+        reflexivity,
+    } = goal;
+    let (canonical, from_right) = rearrange(arena, licenses, distributions, right, search_steps)?;
     // Whether the reached term closes the goal: rearrange it, then undo the
     // right side's rearrangement from the shared canonical form.
     let close = |arena: &mut TermArena,
@@ -923,10 +1307,10 @@ pub(crate) fn prove_under(
         if arena.structurally_equal(term, right) {
             return Ok(Some(base));
         }
-        if licenses.is_empty() {
+        if licenses.is_empty() && distributions.is_empty() {
             return Ok(None);
         }
-        let (reached, forward) = rearrange(arena, licenses, term, search_steps)?;
+        let (reached, forward) = rearrange(arena, licenses, distributions, term, search_steps)?;
         if !arena.structurally_equal(reached, canonical) {
             return Ok(None);
         }
@@ -940,53 +1324,57 @@ pub(crate) fn prove_under(
         }
         Ok(Some(proof))
     };
-    if let Some(proof) = close(arena, left, reflexivity, &mut search_steps)? {
+    if let Some(proof) = close(arena, left, reflexivity, search_steps)? {
         return Ok(proof);
     }
-    let mut rules = Vec::new();
-    for &proof in citations {
-        charge(&mut search_steps)?;
-        let inferred = infer_type(arena, context, proof, conversion)?;
-        let head = weak_head_normalize(arena, context.signature(), inferred, conversion)?;
-        if let Term::Id {
-            ty: carrier,
-            left: from,
-            right: to,
-        } = arena.get(head)
-        {
-            // The equality as stated, then what injectivity gives from it,
-            // down to the fields of fields.
-            let mut stated = vec![Equality {
-                carrier,
-                from: normal(arena, context, definitions, from, conversion)?,
-                to: normal(arena, context, definitions, to, conversion)?,
-                proof,
-            }];
-            let mut next = 0;
-            while let Some(&equality) = stated.get(next) {
-                next += 1;
-                charge(&mut search_steps)?;
-                stated.extend(definitions.injective(arena, equality));
-            }
-            for equality in stated {
-                if let Some(proof) = definitions.absurd(arena, equality, goal) {
-                    return Ok(proof);
+    if rules.is_none() {
+        let mut built = Vec::new();
+        for &proof in citations {
+            charge(search_steps)?;
+            let inferred = infer_type(arena, context, proof, conversion)?;
+            let head = weak_head_normalize(arena, context.signature(), inferred, conversion)?;
+            if let Term::Id {
+                ty: carrier,
+                left: from,
+                right: to,
+            } = arena.get(head)
+            {
+                // The equality as stated, then what injectivity gives from it,
+                // down to the fields of fields.
+                let mut stated = vec![Equality {
+                    carrier,
+                    from: normal(arena, context, definitions, from, conversion)?,
+                    to: normal(arena, context, definitions, to, conversion)?,
+                    proof,
+                }];
+                let mut next = 0;
+                while let Some(&equality) = stated.get(next) {
+                    next += 1;
+                    charge(search_steps)?;
+                    stated.extend(definitions.injective(arena, equality));
                 }
-                rules.extend([equality, equality.reversed(arena)]);
+                for equality in stated {
+                    if let Some(proof) = definitions.absurd(arena, equality, stated_goal) {
+                        return Ok(proof);
+                    }
+                    built.extend([equality, equality.reversed(arena)]);
+                }
             }
         }
+        *rules = Some(built);
     }
-    if rules.is_empty() {
-        return Err(SearchError::NoProof);
-    }
+    let rules = match rules.as_deref() {
+        Some(rules) if !rules.is_empty() => rules,
+        _ => return Err(SearchError::NoProof),
+    };
     let mut reached = vec![(left, reflexivity)];
     let mut next = 0;
     while let Some(&(current, base)) = reached.get(next) {
         next += 1;
         let mut pending = vec![(current, Vec::new(), 0u32)];
         while let Some((focus, path, depth)) = pending.pop() {
-            for &rule in &rules {
-                charge(&mut search_steps)?;
+            for &rule in rules.iter() {
+                charge(search_steps)?;
                 // A citation is stated outside every binder the focus is under.
                 if !arena.structurally_equal_shifted(rule.from, focus, depth) {
                     continue;
@@ -999,7 +1387,7 @@ pub(crate) fn prove_under(
                 let rewritten = normal(arena, context, definitions, rewritten, conversion)?;
                 let mut seen = false;
                 for &(known, _) in &reached {
-                    charge(&mut search_steps)?;
+                    charge(search_steps)?;
                     if arena.structurally_equal(known, rewritten) {
                         seen = true;
                         break;
@@ -1018,7 +1406,7 @@ pub(crate) fn prove_under(
                     right: under_binders,
                 });
                 let proof = rule.eliminate(arena, conclusion, base);
-                if let Some(proof) = close(arena, rewritten, proof, &mut search_steps)? {
+                if let Some(proof) = close(arena, rewritten, proof, search_steps)? {
                     return Ok(proof);
                 }
                 reached.push((rewritten, proof));

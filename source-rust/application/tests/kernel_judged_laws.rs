@@ -189,6 +189,25 @@ fn a_citation_without_its_premise_is_refused() {
 }
 
 #[test]
+fn a_product_of_two_sums_over_the_library_nat_expands_and_compiles() {
+    let (output, report) = check("polynomial/pass/ring_full_polynomial_compile");
+    assert_eq!(output.status.code(), Some(0), "{report}");
+}
+
+#[test]
+fn the_recovered_unlicensed_rearrangement_is_refused_at_its_satisfier_groups() {
+    // Refused, but not yet for the reason the program was written to test:
+    // the mathematical signature does not read `satisfies ... as Name`.
+    let (output, report) = check("polynomial/fail/ring_rearrange_unlicensed_rejected");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains("`satisfies` clause with a binding, an alias or lifetimes")
+            && report.contains("no claim that it is wrong"),
+        "{report}"
+    );
+}
+
+#[test]
 fn a_satisfier_that_proves_nothing_is_refused_for_the_law_it_inherits() {
     let (output, report) = check("ring_law/fail/ring_law_unproven_rejected");
     assert_eq!(output.status.code(), Some(1), "{report}");
