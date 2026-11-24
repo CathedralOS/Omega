@@ -127,3 +127,65 @@ fn content_algebra_source_requires_the_core_owner_and_bundled_file() {
         );
     }
 }
+
+#[test]
+fn a_user_rational_namesake_keeps_its_own_const_carrier() {
+    for name in ["Score", "Rat"] {
+        let source = format!("
+            data {name} [copy] {{ marks: u32; }}
+            const KEY: {name} = {name} {{ marks: 7u32 }};
+            data Mark<const Key: {name}> {{ value: u32; }}
+            data Parcel<Payload, const Key: {name}> requires Payload == Mark<Key> {{ cell: Payload; }}
+            data Demand {{ parcel: Parcel<Mark<KEY> >; }}
+        ");
+        resolve(source_request(&source)).unwrap_or_else(|errors| panic!("{name}: {errors:?}"));
+    }
+}
+
+#[test]
+fn rational_const_indices_from_the_toolchain_still_require_a_positive_denominator() {
+    use crate::frontend_fixture::{Lexer, parse};
+    use source_admission::SourceOrigin;
+
+    let core = "
+        public data Nat { case Zero; case Succ(prev: Nat); }
+        public data IntPair { neg: Nat; pos: Nat; }
+        public data Rat { num: IntPair; den: Nat; }
+    ";
+    for (denominator, accepted) in [
+        ("Nat::Zero", false),
+        ("Nat::Succ { prev: Nat::Zero }", true),
+    ] {
+        let source = format!("
+            const KEY: Rat = Rat {{ num: IntPair {{ neg: Nat::Zero, pos: Nat::Zero }}, den: {denominator} }};
+            data Mark<const Key: Rat> {{ value: u32; }}
+            data Parcel<Payload, const Key: Rat> requires Payload == Mark<Key> {{ cell: Payload; }}
+            data Demand {{ parcel: Parcel<Mark<KEY> >; }}
+        ");
+        let mut request = source_request(&source);
+        let files = std::sync::Arc::make_mut(request.sources.as_mut().unwrap());
+        let core_id = files
+            .add_with_metadata(
+                "core/rat.omg".into(),
+                core.to_owned(),
+                "core".into(),
+                None,
+                SourceOrigin::Toolchain,
+            )
+            .source_id;
+        let tokens = Lexer::new(core).tokenize().unwrap();
+        parse(&mut request.syntax, core_id, &tokens).unwrap();
+        match resolve(request) {
+            Ok(_) => assert!(accepted, "accepted {denominator}"),
+            Err(errors) => {
+                assert!(!accepted, "{denominator}: {errors:?}");
+                assert!(
+                    errors
+                        .iter()
+                        .any(|error| error.message.contains("index denominator must be positive")),
+                    "{errors:?}"
+                );
+            }
+        }
+    }
+}
