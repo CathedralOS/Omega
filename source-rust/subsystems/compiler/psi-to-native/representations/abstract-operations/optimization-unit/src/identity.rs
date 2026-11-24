@@ -964,6 +964,47 @@ pub(crate) mod proposition_encoding {
     encode_rooted_field!(encode_byte_field, ByteSequenceStructuralField);
     encode_rooted_field!(encode_case_subject, StructuralCaseSubject);
 
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use semantic_vocabulary::{
+            ClauseCarrier, ClauseDeclaration, ClauseIdentity, ClauseOperand, ClauseValue,
+        };
+
+        fn identity_bytes(supplier: Option<(u32, u32)>, member: (u32, u32)) -> Vec<u8> {
+            let carrier = ClauseCarrier::Parameter(0);
+            let proposition = Proposition::DeclarationIdentity(ClauseIdentity {
+                values: vec![
+                    ClauseValue {
+                        carrier,
+                        operand: ClauseOperand::Formal(0),
+                    },
+                    ClauseValue {
+                        carrier,
+                        operand: ClauseOperand::Application {
+                            declaration: ClauseDeclaration { supplier, member },
+                            arguments: vec![0],
+                        },
+                    },
+                ],
+                left: 0,
+                right: 1,
+            });
+            let mut bytes = CanonicalBytes::collect();
+            encode_proposition(&mut bytes, &proposition);
+            bytes.finish()
+        }
+
+        #[test]
+        fn declaration_identity_commits_its_cited_declaration() {
+            let cited = identity_bytes(Some((1, 1)), (2, 1));
+            assert_eq!(cited[0], 23);
+            assert_eq!(cited, identity_bytes(Some((1, 1)), (2, 1)));
+            assert_ne!(cited, identity_bytes(Some((1, 2)), (2, 1)));
+            assert_ne!(cited, identity_bytes(None, (2, 1)));
+            assert_ne!(cited, identity_bytes(Some((1, 1)), (3, 1)));
+        }
+    }
 }
 
 pub(crate) mod runtime_evidence_encoding {
