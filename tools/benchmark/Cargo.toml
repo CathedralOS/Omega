@@ -9,10 +9,6 @@ default-run = "omega-bench"
 fixtures = []
 
 [[bin]]
-name = "omega-bench-workload"
-path = "src/workloads.rs"
-
-[[bin]]
 name = "benchmark-probe"
 path = "tests/fixtures/probe.rs"
 required-features = ["fixtures"]

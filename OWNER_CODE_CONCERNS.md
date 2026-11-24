@@ -75,13 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### `omega-bench proof-plan prepare|prove` names a replay tool the repository no longer builds
-- Category: 8. Zombie machinery.
-- Where: [`make_plan`](tools/benchmark/src/proof_preparation.rs#L19) in `tools/benchmark`
-- Saw: The `prepare` and `prove` modes pass `<main.omg> <repeats> <mode>` to a baseline and a candidate binary. Only the stage-06 `checking_proof_preparation` example accepted those arguments, and it was deleted with the other unused benchmark examples. The `source` mode, which runs `omega`, still works.
-- Cost: The modes and their tests still pass, so a reader assumes a working proof-preparation benchmark that nothing in the checkout can run. Delete the two modes, or restore a replay binary under `tools/benchmark/` if someone needs the measurement again.
-- Reported: 2026-11-24, Claude Code, while deleting the unused stage examples
-
 ### A resumed Build refuses itself whenever it is typed again, because region owners print as symbol slots
 
 - Category: Knowledge crossing a boundary
