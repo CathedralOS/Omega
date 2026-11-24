@@ -522,6 +522,17 @@ impl Term {
     pub fn children(&self) -> impl Iterator<Item = TermHandle> {
         self.subterms().slots.into_iter().flatten().map(|(handle, _)| handle)
     }
+
+    /// Each immediate subterm with the number of binders this term puts
+    /// around it, in the constructor's order.
+    pub fn bound_children(&self) -> impl Iterator<Item = (TermHandle, u32)> {
+        self.subterms().slots.into_iter().flatten()
+    }
+
+    /// The same term former around other subterms, one per slot in order.
+    pub fn rebuilt(&self, children: &[TermHandle]) -> Term {
+        self.with_children(children)
+    }
 }
 
 macro_rules! term_layout {

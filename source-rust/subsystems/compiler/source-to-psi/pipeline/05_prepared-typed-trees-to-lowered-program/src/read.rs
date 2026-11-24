@@ -51,6 +51,7 @@ mod nominal_applications;
 mod numeric_contracts;
 mod places;
 mod predicates;
+mod proof_stratum;
 mod provider_methods;
 mod provider_selections;
 mod providers;
@@ -62,6 +63,7 @@ mod regions;
 mod rejections;
 mod review_requirements;
 pub(crate) mod services;
+mod signature;
 mod source_operators;
 mod source_records;
 mod source_views;
@@ -358,6 +360,13 @@ pub(crate) struct Program<'t> {
         SymbolHandle,
         Option<crate::source_state::SourceTypeApplication>,
     )>,
+    /// Set for the reader of the compilation's mathematical declarations
+    /// (`crate::lowering::mathematics`). Only that reader admits data that
+    /// contains itself and the machines over it; it lowers nothing.
+    pub(crate) mathematical: bool,
+    /// The records of data that contains itself, in identity order. Such a
+    /// record names a mathematical type and has no storage.
+    pub(crate) self_containing: Vec<StructuralTypeId>,
     /// The declaration being read, which is the lexical owner of the
     /// lifetimes its types name when the typed trees retained none for an
     /// occurrence: the data declaration whose members are read, or the
@@ -586,6 +595,8 @@ impl<'t> Program<'t> {
             inhabitation: Default::default(),
             record_sources: IdTable::default(),
             resolving: Vec::new(),
+            mathematical: false,
+            self_containing: Vec::new(),
             lifetime_owner: SymbolHandle::invalid(),
             region_tuples: vec![Vec::new()],
             fixed_regions: Vec::new(),

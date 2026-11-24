@@ -829,6 +829,33 @@ integer math and content operands are their own encodings inside the row.
 | 21 | IeeeFloatIntegerExact | scalar source + integer type |
 | 22 | IntegerIeeeFloatExact | scalar integer source + IEEE target format |
 
+Tag 23 is not a portable proposition and is absent from the table on purpose:
+a decoder rejects it. A `DeclarationIdentity`, the typed `core\Identity` of a
+source clause, has no portable row until its mathematical signature is
+published with it. The encoder refuses one in a module, and module validation
+refuses one in a portable proposition. Only the source checker writes tag 23,
+into the byte key it uses to put a machine's clauses in canonical order; that
+key never leaves the compiler. Its layout is a counted list of clause values,
+then the `u32` positions of the left and right value. Each value is a carrier
+followed by an operand:
+
+| Carrier tag | Form | Fields |
+| --- | --- | --- |
+| 0 | Parameter | `u32` type binder |
+| 1 | Scalar | scalar type |
+| 2 | Structural | structural type id |
+
+| Operand tag | Form | Fields |
+| --- | --- | --- |
+| 0 | Input | canonical structural field |
+| 1 | Scalar | scalar term |
+| 2 | Formal | `u32` formal position |
+| 3 | Application | Boolean supplier flag, then when set the supplier's `u32` slot and `u32` generation; the applied declaration's `u32` slot and `u32` generation; counted `u32` positions of earlier values |
+
+An application names a declaration and its arguments in order. The declaration
+is a trait operation with its supplying record, a machine with a result, or a
+case of a data declaration applied to its fields.
+
 A `FloatMeaningEqual` clause records structural meaning equality before a
 call supplies its actual arguments and result. Its slots index only its own
 flat table; they are not runtime values or module proof-value ids.

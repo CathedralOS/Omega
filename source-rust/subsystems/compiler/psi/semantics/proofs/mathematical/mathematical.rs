@@ -7,6 +7,7 @@ mod certificate_abstraction;
 mod certificate_strict;
 mod conversion;
 mod indexed;
+mod plain_data;
 mod quotient;
 pub mod scheme_dsl;
 mod signature;
@@ -37,6 +38,7 @@ pub use indexed::{
     INDEXED_AT, INDEXED_IND, INDEXED_PACK, INDEXED_SUP, INDEXED_W, IndexedFamily,
     indexed_correctness, indexed_scheme,
 };
+pub use plain_data::PlainData;
 pub use quotient::{
     EquivalenceProofs, QUOTIENT, QUOTIENT_BETA, QUOTIENT_BOX_PROP, QUOTIENT_COVERAGE,
     QUOTIENT_EFFECTIVE, QUOTIENT_ELIM, QUOTIENT_ID_CANCEL, QUOTIENT_ID_SYM, QUOTIENT_ID_TRANS,
@@ -48,7 +50,9 @@ pub use signature::{
     Declaration, Signature, SignatureCheckError, assumption_closure, check_signature,
     check_signature_with_attribution, judgment_assumption_closure,
 };
-pub use substitution::{instantiate_levels, shift, substitute, universe_parameter_arity};
+pub use substitution::{
+    instantiate, instantiate_levels, shift, substitute, universe_parameter_arity,
+};
 pub use term::{Level, Sort, Term, TermArena, TermHandle, sorts_equal};
 pub use theorems::identity_substitution;
 pub use typing::{Context, CoreError, check_type, infer_sort, infer_type};

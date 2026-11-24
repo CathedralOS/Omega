@@ -84,6 +84,7 @@ mod references;
 mod representation_views;
 mod result_fields;
 mod result_summaries;
+mod ring_law;
 mod semiring_identity;
 mod returned_views;
 mod routed_domain_writes;
@@ -6532,6 +6533,7 @@ mod generic_bodies {
             witnesses: vec![refinement],
             specializations,
             selection_witnesses: (0..selections).map(|selection| (selection, 0)).collect(),
+            mathematics: Default::default(),
         })
     }
 

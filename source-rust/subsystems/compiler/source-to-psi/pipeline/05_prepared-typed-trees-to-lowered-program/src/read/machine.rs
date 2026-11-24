@@ -2401,6 +2401,13 @@ impl<'t> Program<'t> {
         machine: &'t Machine,
     ) -> Checked<Option<(SymbolHandle, &'t StateSignature)>> {
         let typed = self.typed;
+        // A mathematical declaration has no executable entry for a requirement
+        // to replace. The signature reads the requirement at the trait's
+        // actual arguments and states its law beside the machine's own
+        // (`signature::satisfaction`).
+        if self.mathematical {
+            return Ok(None);
+        }
         // Name the conformer: the refusal is raised before its signature is read.
         let unserved = |what| {
             self.read_failure_at(

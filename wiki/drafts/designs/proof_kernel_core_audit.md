@@ -951,6 +951,34 @@ the old elaborator needed budget tests for its indexed-vector terms
 (`mathematical_declarations.rs:9847-10330`). Measure the kernel's cost on the
 Peano fixture before taking on all of `nat.omg`.
 
+**Step 2 as built (2026-11-23).** The recovered `ring_law_conformance` program
+is judged by the kernel: `Peano` is a W type, `plus` an `indW` definition and
+`plus_assoc` an induction whose certificate rests on no assumption. Both
+recovered programs live beside the stage 06 test, with only their spelling
+moved to today's syntax; the trait's `add` also gained `reaches none crashes
+none`, which a clause application now requires. What step 2 did not build:
+
+- **Publication.** The signature is in the lowered program and stage 06 judges
+  it, but nothing writes it to the Psi carrier, Id formation and theorem root
+  tables. A theorem root row carries a checked-machine declaration, which
+  stage 05 builds only from a lowered machine, and a law has none.
+- **One table for step 1's goals.** A generic machine's Identity goal still
+  gets its own table per obligation in `equality::discharge`. Only the
+  declarations over data that contains itself are in the shared signature.
+- **Projection, and fields of another type.** A field of a case is read only
+  through the dispatch that binds it. Data whose case has a field of another
+  type is refused, because that type has no carrier in the signature yet.
+- **Cost.** The hand-built proof of the same law checks in 439 conversion
+  steps. The producer's proof takes 23,113 of a 65,536 budget, nearly all in
+  normalizing and searching, and its scratch terms fill 271,116 arena slots.
+  Step 3a should bound the search before `nat.omg` multiplies it.
+- **Unit eta.** A W type has no function extensionality, so a branch is
+  stated over an arbitrary child function `k` and a field is `k` at its
+  canonical position. That is enough when the tree is consumed only by
+  recursion, as here. A law that returns the tree itself, such as
+  `add(a, Zero) = a`, also needs `Succ(k position) = sup(succ, k)`, which
+  this kernel does not convert. Step 3 meets it at `add_zero_right`.
+
 The first version of this plan started with level binders and value-indexed
 type arguments because they move 66 samples. They move those samples to
 their next failure, the library needs neither, and level binders wait on

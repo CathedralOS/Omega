@@ -114,6 +114,12 @@ pub enum RouteVerdict {
     /// so the whole closure is refused as not supported yet. The first such
     /// refusal.
     FallBack(Refusal),
+    /// The compilation's mathematical signature: the kernel checked every
+    /// declaration once and judged every law. Reported after every closure.
+    Laws(Box<crate::checking::laws::SignatureJudgment>),
+    /// Laws of that signature the checker could not prove, one entry per
+    /// law. The compilation is refused.
+    UnprovedLaws(Vec<crate::checking::laws::UnprovedLaw>),
 }
 
 pub use super::publication::AcceptedClosure;
@@ -1568,7 +1574,7 @@ pub(crate) fn judge_compilation_with_activity(
     activity: &mut crate::checking::ProofSearchActivity,
 ) -> Vec<Result<RouteVerdict, CompilationRefusal>> {
     use terminal_check_tables::compilation::TerminalCompilation;
-    let prepared = match input {
+    let mut prepared = match input {
         TerminalCompilation::FormationFailures(formations) => {
             return vec![Ok(RouteVerdict::Rejected {
                 formations,
@@ -1611,6 +1617,7 @@ pub(crate) fn judge_compilation_with_activity(
             ];
         }
     }
+    let mathematics = std::mem::take(&mut prepared.mathematics);
     let mut further = Vec::new();
     let forms = examine_generic_forms(prepared.forms, activity, &mut further);
     // A selection borrows the same discharge that later decides its witness's
@@ -1673,6 +1680,14 @@ pub(crate) fn judge_compilation_with_activity(
             .into_iter()
             .map(|refused| Ok(RouteVerdict::FallBack(refused))),
     );
+    // The signature is one judgment for the whole compilation, independent of
+    // every closure above: no machine's obligations are among its inputs.
+    if !mathematics.is_empty() {
+        verdicts.push(Ok(match crate::checking::laws::judge(mathematics) {
+            Ok(judged) => RouteVerdict::Laws(Box::new(judged)),
+            Err(unproved) => RouteVerdict::UnprovedLaws(unproved),
+        }));
+    }
     verdicts
 }
 
