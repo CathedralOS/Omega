@@ -50,7 +50,9 @@ impl TargetProfileIdentity {
     }
 }
 
-pub use semantic_vocabulary::{ProgramEntrySchema, ProgramEntryVisibleParameters};
+pub use semantic_vocabulary::{
+    ProgramEntryArgument, ProgramEntrySchema, ProgramStorageEntryRootRole,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProgramEntryCallingConvention {
@@ -170,7 +172,7 @@ pub struct ProgramEntrySlotDeclaration {
     pub boundary_schema: Option<&'static str>, // Source boundary schema whose evaluated `Calling<C>` plan owns the physical entry contract.
     pub physical_calling_convention: Option<ProgramEntryCallingConvention>, // Calling convention for the target-fixed physical arrival.
     pub semantic_calling_convention: Option<ProgramEntryCallingConvention>, // Private ABI used by the generated bridge to call the selected semantic continuation.
-    pub visible_parameters: ProgramEntryVisibleParameters,
+    pub visible_parameters: &'static [ProgramEntryArgument],
 }
 
 pub struct ProgramEntrySlots;
@@ -462,6 +464,17 @@ impl TargetProfile {
     }
 
     pub const fn program_entry_slot(self) -> ProgramEntrySlotDeclaration {
+        const NO_ARGUMENTS: &[ProgramEntryArgument] = &[];
+        const STORAGE_ARGUMENTS: &[ProgramEntryArgument] = &[
+            ProgramEntryArgument {
+                requirement_parameter: 0,
+                role: ProgramStorageEntryRootRole::Image,
+            },
+            ProgramEntryArgument {
+                requirement_parameter: 1,
+                role: ProgramStorageEntryRootRole::InitialStorage,
+            },
+        ];
         let (
             schema,
             visible_parameters,
@@ -473,7 +486,7 @@ impl TargetProfile {
         ) = match self {
             Self::UefiX64 => (
                 ProgramEntrySchema::ProgramStorageApplication,
-                ProgramEntryVisibleParameters::ImageAndInitialStorage,
+                STORAGE_ARGUMENTS,
                 Some("UefiApplication"),
                 Some("UefiPhysicalEntry::enter"),
                 Some(ProgramEntryPhysicalContractPackage::UefiX64),
@@ -482,7 +495,7 @@ impl TargetProfile {
             ),
             Self::MacosArm64 => (
                 ProgramEntrySchema::HostedApplication,
-                ProgramEntryVisibleParameters::None,
+                NO_ARGUMENTS,
                 Some("targets::macos_arm64::MacosApplication"),
                 Some("targets::macos_arm64::MacosArm64PhysicalEntry::enter"),
                 Some(ProgramEntryPhysicalContractPackage::MacosArm64),
@@ -491,7 +504,7 @@ impl TargetProfile {
             ),
             Self::LinuxX64 => (
                 ProgramEntrySchema::HostedApplication,
-                ProgramEntryVisibleParameters::None,
+                NO_ARGUMENTS,
                 Some("targets::linux_x86_64::LinuxX86_64Application"),
                 Some("targets::linux_x86_64::LinuxX86_64PhysicalEntry::enter"),
                 Some(ProgramEntryPhysicalContractPackage::LinuxX86_64),
@@ -500,7 +513,7 @@ impl TargetProfile {
             ),
             Self::LinuxArm64 => (
                 ProgramEntrySchema::HostedApplication,
-                ProgramEntryVisibleParameters::None,
+                NO_ARGUMENTS,
                 Some("targets::linux_arm64::LinuxArm64Application"),
                 Some("targets::linux_arm64::LinuxArm64PhysicalEntry::enter"),
                 Some(ProgramEntryPhysicalContractPackage::LinuxArm64),
@@ -509,7 +522,7 @@ impl TargetProfile {
             ),
             Self::MacosX64 => (
                 ProgramEntrySchema::HostedApplication,
-                ProgramEntryVisibleParameters::None,
+                NO_ARGUMENTS,
                 Some("targets::macos_x86_64::MacosX64Application"),
                 Some("targets::macos_x86_64::MacosX64PhysicalEntry::enter"),
                 Some(ProgramEntryPhysicalContractPackage::MacosX64),
@@ -518,7 +531,7 @@ impl TargetProfile {
             ),
             Self::WindowsX64 => (
                 ProgramEntrySchema::HostedApplication,
-                ProgramEntryVisibleParameters::None,
+                NO_ARGUMENTS,
                 Some("targets::windows_x86_64::WindowsX86_64Application"),
                 Some("targets::windows_x86_64::WindowsProcessEntry::enter"),
                 Some(ProgramEntryPhysicalContractPackage::WindowsX64),
@@ -529,7 +542,7 @@ impl TargetProfile {
             // function and maps the returned w0 to the process exit code.
             Self::WindowsArm64 => (
                 ProgramEntrySchema::HostedApplication,
-                ProgramEntryVisibleParameters::None,
+                NO_ARGUMENTS,
                 Some("targets::windows_arm64::WindowsArm64Application"),
                 Some("targets::windows_arm64::WindowsArm64ProcessEntry::enter"),
                 Some(ProgramEntryPhysicalContractPackage::WindowsArm64),
@@ -538,7 +551,7 @@ impl TargetProfile {
             ),
             _ => (
                 ProgramEntrySchema::HostedApplication,
-                ProgramEntryVisibleParameters::None,
+                NO_ARGUMENTS,
                 None,
                 None,
                 None,
@@ -783,8 +796,8 @@ fn host_object_format() -> ObjectFormat {
 #[cfg(test)]
 mod tests {
     use super::{
-        Architecture, HostedIntrinsicBundle, NativeTarget, ObjectFormat,
-        ProgramEntryPhysicalContractPackage, ProgramEntrySchema, ProgramEntryVisibleParameters,
+        Architecture, HostedIntrinsicBundle, NativeTarget, ObjectFormat, ProgramEntryArgument,
+        ProgramEntryPhysicalContractPackage, ProgramEntrySchema, ProgramStorageEntryRootRole,
         TargetProfile, TargetRequiredRootSlotDeclaration, TargetWireIdentityError,
     };
 
@@ -853,7 +866,7 @@ mod tests {
             slot.semantic_calling_convention,
             Some(super::ProgramEntryCallingConvention::MicrosoftX64)
         );
-        assert_eq!(slot.visible_parameters, ProgramEntryVisibleParameters::None);
+        assert!(slot.visible_parameters.is_empty());
     }
 
     #[test]
@@ -873,7 +886,7 @@ mod tests {
         );
         let slot = profile.program_entry_slot();
         assert_eq!(slot.schema, ProgramEntrySchema::HostedApplication);
-        assert_eq!(slot.visible_parameters, ProgramEntryVisibleParameters::None);
+        assert!(slot.visible_parameters.is_empty());
         eq!(slot.boundary_schema => Some("targets::windows_arm64::WindowsArm64Application"));
         eq!(slot.physical_arrival_requirement => Some("targets::windows_arm64::WindowsArm64ProcessEntry::enter"));
         let package = slot
@@ -915,7 +928,19 @@ mod tests {
             slot.semantic_calling_convention,
             Some(super::ProgramEntryCallingConvention::MicrosoftX64)
         );
-        eq!(slot.visible_parameters => ProgramEntryVisibleParameters::ImageAndInitialStorage);
+        assert_eq!(
+            slot.visible_parameters,
+            [
+                ProgramEntryArgument {
+                    requirement_parameter: 0,
+                    role: ProgramStorageEntryRootRole::Image
+                },
+                ProgramEntryArgument {
+                    requirement_parameter: 1,
+                    role: ProgramStorageEntryRootRole::InitialStorage
+                },
+            ]
+        );
     }
 
     #[test]
@@ -998,7 +1023,7 @@ mod tests {
         assert_eq!(slot.owner, profile);
         assert_eq!(slot.slot_name, "ProgramEntry");
         assert_eq!(slot.schema, ProgramEntrySchema::HostedApplication);
-        assert_eq!(slot.visible_parameters, ProgramEntryVisibleParameters::None);
+        assert!(slot.visible_parameters.is_empty());
         assert_eq!(slot.physical_contract_package, None);
         eq!(slot.semantic_arrival_requirement => "ProgramStorageEntry::enter");
         assert_eq!(
@@ -1058,7 +1083,7 @@ mod tests {
         assert_eq!(slot.owner, profile);
         assert_eq!(slot.slot_name, "ProgramEntry");
         assert_eq!(slot.schema, ProgramEntrySchema::HostedApplication);
-        assert_eq!(slot.visible_parameters, ProgramEntryVisibleParameters::None);
+        assert!(slot.visible_parameters.is_empty());
         assert_eq!(
             slot.boundary_schema,
             Some("targets::macos_x86_64::MacosX64Application")

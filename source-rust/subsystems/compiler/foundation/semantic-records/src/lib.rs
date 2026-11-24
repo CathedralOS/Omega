@@ -312,9 +312,17 @@ mod boundary {
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        pub enum ProgramEntryVisibleParameters {
-            None,
-            ImageAndInitialStorage,
+        pub enum ProgramStorageEntryRootRole {
+            Image,
+            InitialStorage,
+        }
+
+        /// One source-visible argument supplied by the installed entry. The
+        /// ordinal identifies its formal on the semantic arrival requirement.
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub struct ProgramEntryArgument {
+            pub requirement_parameter: usize,
+            pub role: ProgramStorageEntryRootRole,
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -323,7 +331,7 @@ mod boundary {
             pub slot_name: &'static str,
             pub schema: ProgramEntrySchema,
             pub semantic_arrival_requirement: &'static str,
-            pub visible_parameters: ProgramEntryVisibleParameters,
+            pub visible_parameters: &'static [ProgramEntryArgument],
         }
 
         pub trait ProgramEntrySourceCatalog: Sync {
@@ -892,8 +900,8 @@ mod closed_integers;
 mod identity;
 mod proposition;
 pub use boundary::program_entry::{
-    ProgramEntrySchema, ProgramEntrySourceCatalog, ProgramEntrySourceContract,
-    ProgramEntryVisibleParameters,
+    ProgramEntryArgument, ProgramEntrySchema, ProgramEntrySourceCatalog,
+    ProgramEntrySourceContract, ProgramStorageEntryRootRole,
 };
 pub use closed_integers::{ClosedIntegerType, ClosedScalarType, IntegerWidthClosureError};
 pub use storage::atomic_cell::AtomicCellType;

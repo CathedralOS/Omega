@@ -4,7 +4,7 @@
 use calling_conventions::terminal_layout::NativeGeometry;
 use program_entry_contracts::{
     ProgramEntryExtentValueLayout, ProgramEntryVisibleParameterSignature,
-    ProgramStorageEntryRootRole, SelectedProgramEntrySignature,
+    SelectedProgramEntrySignature,
 };
 use terminal_psi::{
     BoundaryParameterKind, CheckedMachineDeclaration, StructuralTypeDeclaration, TerminalMachine,
@@ -30,7 +30,7 @@ pub(super) fn from_terminal(
     {
         return Err("the selected entry exposes additional arguments outside its slot".into());
     }
-    if slot.visible_parameters == target::ProgramEntryVisibleParameters::None {
+    if slot.visible_parameters.is_empty() {
         if !machine.structural_parameters.is_empty()
             || !machine.parameter_order.is_empty()
             || !checked.parameter_types.is_empty()
@@ -63,25 +63,24 @@ pub(super) fn from_terminal(
             "storage entry declared types differ from the installed arrival requirement".into(),
         );
     }
-    let [image, storage] = machine.structural_parameters.as_slice() else {
-        return Err("storage entry must consume two separate granted Extent parameters".into());
-    };
-    let [first, second] = machine.entry_claims.as_slice() else {
-        return Err("storage entry must own a claim for each granted extent".into());
-    };
-    if machine.parameter_order != [BoundaryParameterKind::Structural; 2]
-        || checked.parameter_types.len() != 2
-        || method.parameter_count != 2
+    let arguments = slot.visible_parameters;
+    let parameters = &machine.structural_parameters;
+    if parameters.len() != arguments.len()
+        || machine.parameter_order.len() != arguments.len()
+        || machine.parameter_order.iter().any(|kind| *kind != BoundaryParameterKind::Structural)
+        || checked.parameter_types.len() != arguments.len()
         || method.has_result
-        || method.entry_claims.len() != 2
-        || image.place == storage.place
-        || first.claim == second.claim
-        || first.input == second.input
-        || ![first, second]
-            .iter()
-            .all(|c| c.path.is_empty() && (c.input == image.place || c.input == storage.place))
+        || machine.entry_claims.len() != arguments.len()
+        || method.entry_claims.len() != method.parameter_count
     {
-        return Err("storage entry has extra or substituted parameters or claims".into());
+        return Err("storage entry has extra or missing parameters or claims".into());
+    }
+    let mut places = std::collections::BTreeSet::new();
+    let mut claim_ids = std::collections::BTreeSet::new();
+    for claim in &machine.entry_claims {
+        if !claim.path.is_empty() || !places.insert(claim.input) || !claim_ids.insert(claim.claim) {
+            return Err("storage entry requires a distinct whole claim for each argument".into());
+        }
     }
     let requirement = ids
         .index_of(surface.identity_text(method.requirement_identity))
@@ -92,16 +91,15 @@ pub(super) fn from_terminal(
     )?;
     let geometry = NativeGeometry::new(&module.types.structural_types)
         .map_err(|error| format!("storage entry has invalid type geometry: {error:?}"))?;
-    let roles = [
-        ProgramStorageEntryRootRole::Image,
-        ProgramStorageEntryRootRole::InitialStorage,
-    ];
-    let mut signature = Vec::with_capacity(roles.len());
-    for (ordinal, (role, parameter)) in roles.into_iter().zip([image, storage]).enumerate() {
+    let mut signature = Vec::with_capacity(arguments.len());
+    for (ordinal, (argument, parameter)) in arguments.iter().zip(parameters).enumerate() {
+        if !places.remove(&parameter.place) {
+            return Err("storage entry parameter lacks its own whole claim".into());
+        }
         let claim = method
             .entry_claims
             .iter()
-            .find(|claim| claim.parameter_index == ordinal)
+            .find(|claim| claim.parameter_index == argument.requirement_parameter)
             .ok_or("storage entry has no declared grant for its parameter")?;
         let carrier = module
             .structural_type(parameter.structural_type)
@@ -119,7 +117,7 @@ pub(super) fn from_terminal(
         }
         let layout = extent_layout(module, &geometry, carrier)?;
         signature.push(SelectedProgramEntrySignature::visible_parameter(
-            role,
+            argument.role,
             ordinal,
             checked.parameter_types[ordinal],
             layout.shape(),

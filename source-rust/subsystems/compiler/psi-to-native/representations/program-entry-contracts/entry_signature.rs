@@ -255,10 +255,24 @@ impl SelectedProgramEntrySignature {
             &mut canonical,
             self.target_slot.semantic_calling_convention,
         );
-        canonical.push(match self.target_slot.visible_parameters {
-            target::ProgramEntryVisibleParameters::None => 1,
-            target::ProgramEntryVisibleParameters::ImageAndInitialStorage => 2,
-        });
+        // Preserve the v4 keys for a hidden or position-for-position arrival.
+        // A projection selecting other formals must also identify those formals.
+        let arguments = self.target_slot.visible_parameters;
+        if arguments.is_empty() {
+            canonical.push(1);
+        } else if arguments
+            .iter()
+            .enumerate()
+            .all(|(index, argument)| index == argument.requirement_parameter)
+        {
+            canonical.push(2);
+        } else {
+            canonical.push(3);
+            canonical.extend_from_slice(&(arguments.len() as u64).to_le_bytes());
+            for argument in arguments {
+                canonical.extend_from_slice(&(argument.requirement_parameter as u64).to_le_bytes());
+            }
+        }
         push_string(
             &mut canonical,
             self.identities
@@ -321,6 +335,21 @@ impl SelectedProgramEntrySignature {
             || self.result != ProgramEntryResultSignature::Unit
         {
             return Err("selected source signature is not one exact typed Unit entry".into());
+        }
+        let installed = self.target_slot.visible_parameters;
+        if self.visible_parameters.len() != installed.len()
+            || self
+                .visible_parameters
+                .iter()
+                .zip(installed)
+                .enumerate()
+                .any(|(ordinal, (captured, expected))| {
+                    captured.visible_parameter_index != ordinal || captured.role != expected.role
+                })
+        {
+            return Err(
+                "selected source arguments differ from the installed entry contract".into(),
+            );
         }
         if self.visible_parameters.iter().any(|parameter| {
             parameter.normalized_type_identity.is_absent()
@@ -418,6 +447,56 @@ fn push_shape(canonical: &mut Vec<u8>, shape: calling_conventions::ValueShape) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn captured_arguments_match_the_installed_slots_in_order() {
+        use crate::{ProgramEntryExtentValueLayout, ProgramStorageEntryRootRole};
+        use calling_conventions::ValueShape;
+        use target::TargetProfile;
+
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        let callable = identities.intern("package::entry");
+        let extent = identities.intern("Extent in Granted");
+        let identities = identities.build();
+        let scalar = ValueShape::integer(8, 8);
+        let shape = ValueShape::integer(16, 8);
+        let layout =
+            ProgramEntryExtentValueLayout::from_checked_record(0, scalar, 8, scalar, shape)
+                .unwrap();
+        let parameter = |role, index| {
+            SelectedProgramEntrySignature::visible_parameter(
+                role,
+                index,
+                extent,
+                shape,
+                layout.clone(),
+                false,
+                false,
+            )
+        };
+        let capture = |profile: TargetProfile, parameters| {
+            SelectedProgramEntrySignature::from_checked_declaration(
+                profile.program_entry_slot(),
+                "package::entry".into(),
+                "entry".into(),
+                "entry".into(),
+                callable,
+                parameters,
+                identities.clone(),
+            )
+        };
+        let image = parameter(ProgramStorageEntryRootRole::Image, 0);
+        let storage = parameter(ProgramStorageEntryRootRole::InitialStorage, 1);
+        assert!(capture(TargetProfile::LinuxX64, vec![]).is_ok());
+        assert!(capture(TargetProfile::UefiX64, vec![image.clone(), storage.clone()]).is_ok());
+        assert!(capture(TargetProfile::LinuxX64, vec![image.clone()]).is_err());
+        assert!(capture(TargetProfile::UefiX64, vec![]).is_err());
+        assert!(capture(TargetProfile::UefiX64, vec![storage.clone(), image.clone()]).is_err());
+        let wrong_role = parameter(ProgramStorageEntryRootRole::Image, 1);
+        assert!(capture(TargetProfile::UefiX64, vec![image.clone(), wrong_role]).is_err());
+        let wrong_position = parameter(ProgramStorageEntryRootRole::InitialStorage, 0);
+        assert!(capture(TargetProfile::UefiX64, vec![image, wrong_position]).is_err());
+    }
 
     #[test]
     fn captured_callable_identity_uses_its_table_not_its_ordinal_or_display_name() {
