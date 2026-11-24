@@ -1,0 +1,47 @@
+// A machine that calls itself on a computed value, and a law about its own
+// result. `drain` steps its argument down by one until the step below it is
+// zero. Its recursive call is at `before(a)`, which is no field of a case of
+// `a`, and it chooses by a computed value, `before(a)`. The kernel recurses
+// only on the structure of a value, so the compiler defines `drain` by
+// recursion on fuel taken from `a`, and proves the law for every amount of
+// fuel: where the body calls `drain` again, the law with one unit less is
+// the hypothesis.
+use omega\language\core\ProcessExit;
+
+data Peano {
+    case Zero;
+    case Succ(pred: Peano);
+}
+
+machine before(a: Peano) -> Peano {
+    transition a {
+        Peano::Zero -> Peano::Zero,
+        Peano::Succ { pred } -> (pred)
+    }
+}
+
+machine drain(a: Peano) -> Peano
+terminates by a
+ensures
+    core\Identity::<Peano>(result, Peano::Zero)
+{
+    transition (before(a)) {
+        Peano::Zero -> Peano::Zero,
+        Peano::Succ { pred as rest } -> again(a)
+    }
+
+    machine again(a: Peano) -> Peano {
+        transition { _ -> (drain(before(a))) }
+    }
+}
+
+data Main { }
+machine exit_with_status(main: @mutable Main) reaches ProcessExit {
+    ProcessExit::exit_process(0);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit {
+    let mutable entry_storage: Main;
+    block exit_with_status(@mutable entry_storage);
+}
