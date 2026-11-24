@@ -1537,26 +1537,19 @@ stages 03 and 04. What is built:
   requires of that case, as a law about integers the kernel judges: a list
   whose head is eleven, or whose total is not the sum, is refused at the
   literal. Evidence is passed and held only at the index it has, compared
-  as written. A machine does not enter a theorem it cites. The theorem's
-  guarantee at the citation's values becomes a requirement of the citing
-  machine, and of each machine that passes its own evidence on to it, until
-  a caller that passes numbers proves it by arithmetic. So nothing in a
-  running machine is taken on trust: the theorem is proved once for every
-  index, and each use is a requirement someone proves.
-  **This is not the specification's rule and is owed a repair** (checked
-  against it 2026-11-24). The
+  as written. A machine cites a theorem by calling it, and imports the
+  theorem's guarantee at the call's values from the call on, as the
   [citation rule](../../spec/proofs/contracts.md#citation-and-induction)
-  imports the theorem's `ensures` at the citation, once its `requires`
-  hold there, and erases the call. A machine's own `requires` stays as
-  written: "An authored `requires` is complete, including on a private
-  helper. Inference cannot silently conjoin further entry conditions to
-  make the body check"
-  ([private entry inference](../../spec/language/state_contracts.md#private-entry-inference)).
-  What is built adds a requirement the author did not write. It is sound,
-  because some caller proves it, but it differs from the rule in what it
-  accepts: the guarantee holds from the machine's entry and not from the
-  citation, the requirement spreads to every machine that passes the
-  evidence on, and a citation reached at values no caller fixes is refused.
+  says. The citing machine's `requires` stays as its author wrote it
+  ([private entry inference](../../spec/language/state_contracts.md#private-entry-inference):
+  "An authored `requires` is complete"). The theorem's own machine has no
+  statements, and stage 06 takes the signature's proof of the theorem as
+  the proof of its guarantee, so the guarantee is never assumed: with no
+  proof of the theorem, the program is refused. (Until 2026-11-24 the
+  guarantee was instead added to the citing machine's `requires`, which
+  the specification does not allow.) Not done: the specification erases
+  a call made only for its guarantee, and the call still runs, as an empty
+  machine.
 - **A type parameter beside the indices.** `Vector<T [copy], Length, Total>`
   with a field `marker: T` is the same kernel family as without `T`: no
   clause can say anything of a value of type `T` and no index depends on

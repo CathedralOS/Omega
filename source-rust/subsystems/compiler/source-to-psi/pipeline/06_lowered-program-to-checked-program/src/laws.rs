@@ -44,6 +44,11 @@ pub struct LawJudgment {
     pub certificate: Vec<u8>,
     /// Kernel conversion steps spent finding and checking the proof.
     pub conversion_steps: u32,
+    /// The machine whose `ensures` clause `clause` this law proves for every
+    /// value of the machine's formals, when the law is a theorem over data
+    /// indexed by values (`prove_family`). A running machine that cites the
+    /// theorem calls that machine, and its guarantee is this proof.
+    pub theorem: Option<symbols::SymbolHandle>,
 }
 
 /// The signature after the kernel checked its declarations and every law.
@@ -193,9 +198,39 @@ fn kernel(error: CoreError) -> Failure {
     failure(None, error.into())
 }
 
-pub(crate) fn judge(
+/// The signature's verdict, and the theorems over indexed data it proved.
+pub(crate) struct Judged {
+    pub(crate) verdict: Result<SignatureJudgment, Vec<UnprovedLaw>>,
+    /// Every proved law that is a theorem's guarantee (`LawJudgment::theorem`),
+    /// also when another law is unproved. Each is checked by the kernel on
+    /// its own and rests on no other law, so a machine that states it keeps
+    /// its proof, and the refusal names the law that is unproved.
+    pub(crate) theorems: Vec<LawJudgment>,
+}
+
+pub(crate) fn judge(signature: MathematicalSignature) -> Judged {
+    let theorems = |laws: &[LawJudgment]| {
+        laws.iter()
+            .filter(|law| law.theorem.is_some())
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+    match judge_laws(signature) {
+        Ok(judged) => Judged {
+            theorems: theorems(&judged.laws),
+            verdict: Ok(judged),
+        },
+        Err((unproved, proved)) => Judged {
+            theorems: theorems(&proved),
+            verdict: Err(unproved),
+        },
+    }
+}
+
+/// `Err` holds what is unproved and every law that was proved beside it.
+fn judge_laws(
     signature: MathematicalSignature,
-) -> Result<SignatureJudgment, Vec<UnprovedLaw>> {
+) -> Result<SignatureJudgment, (Vec<UnprovedLaw>, Vec<LawJudgment>)> {
     let MathematicalSignature {
         mut arena,
         declarations,
@@ -217,22 +252,28 @@ pub(crate) fn judge(
             .get(refused.declaration)
             .map_or("?", |entry| entry.name.as_str());
         let Failure { cause, detail, .. } = kernel(refused.error);
-        return Err(vec![UnprovedLaw {
-            machine: name.to_owned(),
-            site: None,
-            cause,
-            statement: format!("the mathematical declaration `{name}` is not well formed"),
-            detail,
-        }]);
+        return Err((
+            vec![UnprovedLaw {
+                machine: name.to_owned(),
+                site: None,
+                cause,
+                statement: format!("the mathematical declaration `{name}` is not well formed"),
+                detail,
+            }],
+            Vec::new(),
+        ));
     }
     let carriers = carriers(&mut arena, &declarations, &entries).map_err(|_| {
-        vec![UnprovedLaw {
-            machine: String::new(),
-            site: None,
-            cause: UnprovedCause::KernelRefused,
-            statement: "the mathematical declarations cannot be published".to_owned(),
-            detail: "could not encode a data declaration's carrier key".to_owned(),
-        }]
+        (
+            vec![UnprovedLaw {
+                machine: String::new(),
+                site: None,
+                cause: UnprovedCause::KernelRefused,
+                statement: "the mathematical declarations cannot be published".to_owned(),
+                detail: "could not encode a data declaration's carrier key".to_owned(),
+            }],
+            Vec::new(),
+        )
     })?;
     let mut judged = Vec::with_capacity(laws.len());
     let mut unproved = Vec::new();
@@ -283,7 +324,7 @@ pub(crate) fn judge(
             laws: judged,
         })
     } else {
-        Err(unproved)
+        Err((unproved, judged))
     }
 }
 
@@ -1176,6 +1217,7 @@ fn prove_family(
         decision: MathematicalCoreDecision::Judged(receipt),
         certificate: bytes,
         conversion_steps: DEFAULT_CONVERSION_STEPS - check.remaining(),
+        theorem: Some(law.machine),
     })
 }
 
@@ -1269,6 +1311,7 @@ fn prove_integers(
         decision: MathematicalCoreDecision::Judged(receipt),
         certificate: bytes,
         conversion_steps: DEFAULT_CONVERSION_STEPS - check.remaining(),
+        theorem: None,
     })
 }
 
@@ -1485,6 +1528,7 @@ fn prove_law(
         decision: MathematicalCoreDecision::Judged(receipt),
         certificate: bytes,
         conversion_steps: DEFAULT_CONVERSION_STEPS - check.remaining(),
+        theorem: None,
     })
 }
 

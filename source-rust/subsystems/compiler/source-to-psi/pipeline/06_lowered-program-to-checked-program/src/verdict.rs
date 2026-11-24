@@ -931,7 +931,7 @@ pub(super) fn judge_owing_with_activity(
     activity: &mut crate::checking::ProofSearchActivity,
 ) -> Checked<RouteVerdict> {
     let mut further = Vec::new();
-    match examine(elaborated, &[], activity, &mut further) {
+    match examine(elaborated, &[], &[], activity, &mut further) {
         Ok(examined) => conclude(examined, applied, &mut further),
         Err(decided) => decided,
     }
@@ -959,6 +959,7 @@ struct Examined {
 fn examine(
     elaborated: Checked<Elaboration>,
     carried: &[crate::checking::Carried<'_>],
+    laws: &[crate::checking::laws::LawJudgment],
     activity: &mut crate::checking::ProofSearchActivity,
     further: &mut Vec<Refusal>,
 ) -> Result<Examined, Checked<RouteVerdict>> {
@@ -1155,6 +1156,7 @@ fn examine(
     match crate::checking::discharge_inner(
         &mut elaboration,
         carried,
+        laws,
         Some(&verified_borrow_ends),
         activity,
     ) {
@@ -1618,15 +1620,24 @@ pub(crate) fn judge_compilation_with_activity(
         }
     }
     let mathematics = std::mem::take(&mut prepared.mathematics);
+    // The signature is one judgment for the whole compilation, independent
+    // of every closure below: no machine's obligations are among its inputs.
+    // It goes first because a theorem over indexed data has its guarantees
+    // proved there, and a machine that cites the theorem imports them
+    // (`Discharged::Law`).
+    let signature = (!mathematics.is_empty()).then(|| crate::checking::laws::judge(mathematics));
+    let laws = signature
+        .as_ref()
+        .map_or(&[][..], |judged| judged.theorems.as_slice());
     let mut further = Vec::new();
-    let forms = examine_generic_forms(prepared.forms, activity, &mut further);
+    let forms = examine_generic_forms(prepared.forms, laws, activity, &mut further);
     // A selection borrows the same discharge that later decides its witness's
     // verdict. Several selections may name one witness; none owns a second
     // copy to prove independently.
     let examined_witnesses: Vec<_> = prepared
         .witnesses
         .into_iter()
-        .map(|witness| examine(witness, &[], activity, &mut further))
+        .map(|witness| examine(witness, &[], laws, activity, &mut further))
         .collect();
     let closure_verdict = match prepared.closure {
         Ok(closure) => {
@@ -1638,7 +1649,7 @@ pub(crate) fn judge_compilation_with_activity(
                 &examined_witnesses,
             );
             let carried = carried(&closure, &forms, &witnesses, &prepared.specializations);
-            match examine(Ok(closure), &carried, activity, &mut further) {
+            match examine(Ok(closure), &carried, laws, activity, &mut further) {
                 Ok(examined) => conclude(examined, AppliedContracts::Undecided, &mut further),
                 Err(decided) => decided,
             }
@@ -1680,10 +1691,8 @@ pub(crate) fn judge_compilation_with_activity(
             .into_iter()
             .map(|refused| Ok(RouteVerdict::FallBack(refused))),
     );
-    // The signature is one judgment for the whole compilation, independent of
-    // every closure above: no machine's obligations are among its inputs.
-    if !mathematics.is_empty() {
-        verdicts.push(Ok(match crate::checking::laws::judge(mathematics) {
+    if let Some(signature) = signature {
+        verdicts.push(Ok(match signature.verdict {
             Ok(judged) => RouteVerdict::Laws(Box::new(judged)),
             Err(unproved) => RouteVerdict::UnprovedLaws(unproved),
         }));
@@ -1921,6 +1930,7 @@ fn carried<'a>(
 /// their body obligations to exact implementation witnesses.
 fn examine_generic_forms(
     forms: Vec<terminal_check_tables::compilation::GenericForms>,
+    laws: &[crate::checking::laws::LawJudgment],
     activity: &mut crate::checking::ProofSearchActivity,
     further: &mut Vec<Refusal>,
 ) -> Vec<GenericForm> {
@@ -1947,7 +1957,7 @@ fn examine_generic_forms(
         }
         match form.forms {
             Ok(forms) => examined.extend(forms.into_iter().map(|form| {
-                match examine(Ok(form), &[], activity, further) {
+                match examine(Ok(form), &[], laws, activity, further) {
                     Ok(examined) => GenericForm::Examined { template, examined },
                     Err(decided) => GenericForm::Decided(decided),
                 }

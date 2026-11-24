@@ -180,6 +180,17 @@ pub enum Discharged {
     Identity(equality::Judgment),
     /// A certificate the kernel accepted.
     Certificate(Evidence),
+    /// A `NormalGuarantee` of a theorem over data indexed by values. The
+    /// theorem's body is an induction over erased evidence, which no machine
+    /// runs; the mathematical signature proves the clause for every value of
+    /// the machine's formals and the kernel checks that proof
+    /// (`laws::prove_family`). A running machine that cites the theorem
+    /// calls it and imports this clause at the citation:
+    /// `wiki/spec/proofs/contracts.md`, "Citation and induction": "An
+    /// ordinary statement call cites a checked theorem. Establish its
+    /// `requires` under exact operand substitution before importing its
+    /// `ensures`".
+    Law(Box<laws::LawJudgment>),
     /// A ground prerequisite still owed in its actual target closure.
     TargetCondition(Box<TargetCondition>),
     /// A `PublishedGuarantee`: the `NormalGuarantee` of every normal return
@@ -236,7 +247,7 @@ impl Discharged {
     pub const fn certificate(&self) -> Option<&Evidence> {
         match self {
             Self::Certificate(evidence) => Some(evidence),
-            Self::Identity(_) | Self::TargetCondition(_)
+            Self::Identity(_) | Self::Law(_) | Self::TargetCondition(_)
             | Self::PendingNormalGuarantee(_)
             | Self::EveryExit(_)
             | Self::Window(_)
@@ -415,7 +426,7 @@ pub fn discharge(
     elaboration: &mut Elaboration,
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
-    discharge_inner(elaboration, &[], None, activity)
+    discharge_inner(elaboration, &[], &[], None, activity)
 }
 
 /// `discharge`, where each machine of `carried` is one stage 04 generated
@@ -434,12 +445,16 @@ pub fn discharge_carrying(
     carried: &[Carried<'_>],
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
-    discharge_inner(elaboration, carried, None, activity)
+    discharge_inner(elaboration, carried, &[], None, activity)
 }
 
-fn discharge_inner(
+/// `laws` are the laws the mathematical signature proved. A machine of the
+/// elaboration that one of them is the theorem of takes that law as the
+/// proof of the clause it states (`Discharged::Law`).
+pub(crate) fn discharge_inner(
     elaboration: &mut Elaboration,
     carried: &[Carried<'_>],
+    laws: &[laws::LawJudgment],
     verified_borrow_ends: Option<&VerifiedBorrowEnds>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
@@ -543,6 +558,18 @@ fn discharge_inner(
     if !law_instances.is_empty() {
         static_contracts::admit(scope.source())?;
     }
+    // Each machine that is the theorem of a proved law, with that law, in
+    // machine order.
+    let theorems: Vec<(MachineId, &laws::LawJudgment)> = scope
+        .source()
+        .machines
+        .iter()
+        .flat_map(|(id, symbol)| {
+            laws.iter()
+                .filter(move |law| law.theorem == Some(*symbol))
+                .map(move |law| (id, law))
+        })
+        .collect();
     let (formed, domains, checking, sources, requirements) = scope.checking();
     let module = formed.source();
     let inputs = machine_inputs::PreparedMachineInputs::new(
@@ -582,6 +609,8 @@ fn discharge_inner(
                 });
             }
             let beyond = unreached.values(terminal_machine(&module.machines, id, id)?, tables);
+            let proved = &theorems[theorems.partition_point(|(machine, _)| *machine < id)
+                ..theorems.partition_point(|(machine, _)| *machine <= id)];
             let borrow_ends = verified_borrow_ends.map(|ends| {
                 ends.binary_search_by_key(&id, |(machine, _)| *machine)
                     .map_or(&[][..], |position| ends[position].1.as_slice())
@@ -596,6 +625,7 @@ fn discharge_inner(
                 inputs.carried.map(|position| &carried[position]),
                 inputs.branches,
                 &law_instances,
+                proved,
                 &empty_contracts,
                 borrow_ends,
                 activity,
@@ -709,6 +739,7 @@ fn machine(
     carried: Option<&Carried<'_>>,
     branches: &[terminal_check_tables::program::Branch],
     law_instances: &[MachineId],
+    proved: &[(MachineId, &laws::LawJudgment)],
     empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
     borrow_ends: Option<&[(EdgeId, PlaceId)]>,
     activity: &mut ProofSearchActivity,
@@ -737,6 +768,7 @@ fn machine(
                 unreached,
                 carried,
                 law_instances,
+                proved,
                 empty_contracts,
                 borrow_ends,
                 activity,
@@ -758,6 +790,7 @@ fn check_prepared_machine(
     unreached: &[ValueId],
     carried: Option<&Carried<'_>>,
     law_instances: &[MachineId],
+    proved: &[(MachineId, &laws::LawJudgment)],
     empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
     borrow_ends: Option<&[(EdgeId, PlaceId)]>,
     activity: &mut ProofSearchActivity,
@@ -896,6 +929,13 @@ fn check_prepared_machine(
             decided[index] = Some(Ok(Discharged::TargetCondition(Box::new(
                 TargetCondition::Range(range),
             ))));
+            continue;
+        }
+        // A theorem over indexed data: the signature proved this clause.
+        if let ObligationKind::NormalGuarantee { clause, .. } = row.kind
+            && let Some((_, law)) = proved.iter().find(|(_, law)| law.clause == clause)
+        {
+            decided[index] = Some(Ok(Discharged::Law(Box::new((*law).clone()))));
             continue;
         }
         let verdict = goal(
@@ -1652,7 +1692,9 @@ fn published(
         };
         let position = usize::try_from(obligation.get() - 1).unwrap_or(usize::MAX);
         match decided.get(position) {
-            Some(Some(Ok(Discharged::Certificate(_) | Discharged::Identity(_)))) => exits.push(obligation),
+            Some(Some(Ok(
+                Discharged::Certificate(_) | Discharged::Identity(_) | Discharged::Law(_),
+            ))) => exits.push(obligation),
             _ => return Err(unproved("a normal return does not establish this clause")),
         }
     }
