@@ -220,6 +220,40 @@ public machine read(bytes: @[u8; 4]) -> i32 reaches Reader {
     assert!(report.contains("cannot prove requires clause"), "{report}");
 }
 
+#[test]
+fn review_retains_a_domain_on_a_nested_borrowed_field() {
+    let project = TemporaryDirectory::create("review-nested-field-domain", false).unwrap();
+    fs::write(
+        project.path().join("build.omg"),
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "nested_fields"); }"#,
+    )
+    .unwrap();
+    let source = r#"domain [u8; 4]::ValidPath;
+data Name<'scope> { bytes: @'scope [u8; 4] in ValidPath; }
+data Attributes<'scope> { name: @'scope Name<'scope>; }
+boundary trait Reader {
+    machine open<'scope>(attributes: @Attributes<'scope>) -> i32 reaches none crashes none;
+}
+public machine read() -> i32 reaches Reader {
+    let bytes: [u8; 4] in ValidPath = [0u8, 0u8, 0u8, 0u8] as +ValidPath;
+    let name: Name = Name { bytes: @bytes };
+    let attributes: Attributes = Attributes { name: @name };
+    Reader::open(@attributes)
+}"#;
+    let (status, report) = audit_reader(&project, source);
+    assert_eq!(status, Some(0), "{report}");
+    assert!(report.contains("fresh-analysis complete"), "{report}");
+
+    // A public requirement cannot publish the package's private field contract.
+    let leaked = source.replace("boundary trait Reader", "public boundary trait Reader");
+    let (status, report) = audit_reader(&project, &leaked);
+    assert_eq!(status, Some(1), "{report}");
+    assert!(
+        report.contains("Reader::open") || report.contains("non-public declaration"),
+        "{report}"
+    );
+}
+
 fn audit_reader(project: &TemporaryDirectory, source: &str) -> (Option<i32>, String) {
     fs::write(project.path().join("reader.omg"), source).unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))

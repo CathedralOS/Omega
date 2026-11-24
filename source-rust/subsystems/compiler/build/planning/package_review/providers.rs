@@ -206,6 +206,7 @@ impl<'module> AcceptedDeclarations<'module> {
         requirement: &PackageReviewNominalIdentity,
         boundary: &BoundaryMachineDeclaration,
         contracts: &[review_evidence::record::PackageReviewCallableContract],
+        private_owner: Option<semantic_vocabulary::PackageKeyIdentity>,
     ) -> Result<(), Vec<Diagnostic>> {
         use terminal_psi::{BoundaryParameterKind, StructuralDomainRequirement};
         use terminal_semantics::scalar_qualifications::{
@@ -255,6 +256,7 @@ impl<'module> AcceptedDeclarations<'module> {
                 formal.structural_type,
                 &formal.projected_qualifications,
                 parameter.type_reference,
+                private_owner,
             ) {
                 return Err(mismatch());
             }
@@ -1448,6 +1450,14 @@ impl PolicySource<'_> {
             },
             signature.return_type,
         )?;
+        let (owner, _) = source
+            .trait_machine_signature(signature.symbol)
+            .ok_or_else(|| unavailable("the boundary requirement's original source"))?;
+        let private_owner = if owner.is_public {
+            None
+        } else {
+            source.symbols.symbol_package_identity(owner.symbol)
+        };
         if !declaration.method_arguments.is_empty() {
             let abi = direct_boundary_bindings::DirectBoundaryLeaf::declared_calling_abi(
                 declarations.accepted.module(),
@@ -1455,9 +1465,6 @@ impl PolicySource<'_> {
             )
             .map_err(|reason| unavailable(&reason))?;
             let module = declarations.accepted.module();
-            let (owner, _) = source
-                .trait_machine_signature(signature.symbol)
-                .ok_or_else(|| unavailable("the boundary requirement's original source"))?;
             if module.identities.text(abi.requirement_identity)
                 != Some(
                     source
@@ -1473,7 +1480,13 @@ impl PolicySource<'_> {
         let authored_routes = source.state_signature_contracts(signature).iter().any(|clause| {
             matches!(clause.kind, source_compiler::representations::source_state::signature::SignatureContractKind::Crashes { .. })
         });
-        declarations.validate_parameter_domains(signature, &requirement, boundary, &contracts)?;
+        declarations.validate_parameter_domains(
+            signature,
+            &requirement,
+            boundary,
+            &contracts,
+            private_owner,
+        )?;
         declarations.validate_boundary_predicates(signature, &requirement, boundary)?;
         let mut fields = Vec::new();
         macro_rules! unretained {
@@ -1538,6 +1551,7 @@ impl PolicySource<'_> {
                     result.structural_type,
                     &result.projected_qualifications,
                     signature.return_type,
+                    private_owner,
                 )
             } else {
                 result.projected_qualifications.is_empty()
