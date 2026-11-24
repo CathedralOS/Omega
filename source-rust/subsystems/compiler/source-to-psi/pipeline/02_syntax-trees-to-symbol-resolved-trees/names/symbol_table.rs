@@ -58,6 +58,7 @@ mod children {
 
         pub(in crate::resolution::names::symbol_table) fn insert_data_symbol_children(
             builder: &mut impl SymbolTableAppender,
+            evidence: &mut crate::resolution::names::requirement_namespaces::PendingEvidence,
             program: &SymbolResolvedTrees,
             data_symbol: SymbolHandle,
             data_definition: &crate::source_resolved::data::DataDefinition,
@@ -91,6 +92,7 @@ mod children {
             let mut data_children = SymbolTableBuilder::child_handles(data_children);
             insert_generic_parameter_children(
                 builder,
+                evidence,
                 program,
                 program.data_type_parameters(data_definition.type_parameters),
                 &data_definition.conformance_bounds,
@@ -114,31 +116,6 @@ mod children {
             }
         }
     }
-    mod evidence {
-        /* Explicit evidence namespaces shared by declaration and callable telescopes. */
-
-        use crate::resolution::names::symbol_table::names::evidence_requirement_seed;
-        use crate::source_resolved::SymbolResolvedTrees;
-        use crate::source_symbols::SymbolTableAppender;
-        use symbols::SymbolHandle;
-
-        pub(super) fn insert_evidence_children(
-            builder: &mut impl SymbolTableAppender,
-            program: &SymbolResolvedTrees,
-            binder: SymbolHandle,
-            bound: &crate::source_resolved::machine::GenericConformanceBound,
-            sources: Option<&crate::source_inputs::SourceMap>,
-        ) {
-            builder.insert_children(
-                binder,
-                crate::resolution::names::requirement_namespaces::visible_requirements(
-                    program, bound, sources,
-                )
-                .into_iter()
-                .map(|requirement| evidence_requirement_seed(&requirement.name)),
-            );
-        }
-    }
     mod machines {
         use crate::source_resolved::SymbolResolvedTrees;
         use crate::source_symbols::{SymbolTableAppender, SymbolTableBuilder};
@@ -151,11 +128,11 @@ mod children {
 
         pub(in crate::resolution::names::symbol_table) fn insert_machine_symbol_children(
             builder: &mut impl SymbolTableAppender,
+            evidence: &mut crate::resolution::names::requirement_namespaces::PendingEvidence,
             program: &SymbolResolvedTrees,
             machine_symbol: SymbolHandle,
             machine: &crate::source_resolved::machine::Machine,
             has_sources: bool,
-            sources: Option<&crate::source_inputs::SourceMap>,
         ) {
             let machine_children = builder.insert_children(
                 machine_symbol,
@@ -182,6 +159,7 @@ mod children {
 
             insert_generic_parameter_children(
                 builder,
+                evidence,
                 program,
                 program.machine_type_parameters(machine),
                 &machine.conformance_bounds,
@@ -192,13 +170,7 @@ mod children {
                 let Some(binder_symbol) = machine_children.next() else {
                     break;
                 };
-                super::evidence::insert_evidence_children(
-                    builder,
-                    program,
-                    binder_symbol,
-                    bound,
-                    sources,
-                );
+                evidence.push((binder_symbol, bound.trait_name.clone()));
             }
             for _ in program.machine_owned_data(machine.owned_data) {
                 let _ = machine_children.next();
@@ -386,6 +358,7 @@ mod children {
 
         pub(in crate::resolution::names::symbol_table) fn insert_trait_symbol_children(
             builder: &mut impl SymbolTableAppender,
+            evidence: &mut crate::resolution::names::requirement_namespaces::PendingEvidence,
             program: &SymbolResolvedTrees,
             trait_symbol: SymbolHandle,
             trait_definition: &TraitDefinition,
@@ -426,6 +399,7 @@ mod children {
             let mut trait_children = SymbolTableBuilder::child_handles(trait_children);
             super::insert_generic_parameter_children(
                 builder,
+                evidence,
                 program,
                 program.trait_type_parameters(trait_definition),
                 &trait_definition.conformance_bounds,
@@ -446,6 +420,7 @@ mod children {
             ) {
                 super::insert_callable_signature_children(
                     builder,
+                    evidence,
                     program,
                     machine_symbol,
                     machine,
@@ -469,6 +444,7 @@ mod children {
 
         pub(in crate::resolution::names::symbol_table) fn insert_type_alias_symbol_children(
             builder: &mut impl SymbolTableAppender,
+            evidence: &mut crate::resolution::names::requirement_namespaces::PendingEvidence,
             program: &SymbolResolvedTrees,
             alias_symbol: SymbolHandle,
             alias: &TypeAliasDefinition,
@@ -488,6 +464,7 @@ mod children {
                         if let Some(contract) = contract.structural() {
                             insert_callable_signature_children(
                                 builder,
+                                evidence,
                                 program,
                                 symbol,
                                 contract,
@@ -548,6 +525,7 @@ mod children {
     */
     fn insert_generic_parameter_children(
         builder: &mut impl SymbolTableAppender,
+        evidence: &mut crate::resolution::names::requirement_namespaces::PendingEvidence,
         program: &SymbolResolvedTrees,
         parameters: &[crate::source_resolved::data::TypeParameter],
         bounds: &[crate::source_resolved::machine::GenericConformanceBound],
@@ -563,6 +541,7 @@ mod children {
                     if let Some(contract) = contract.structural() {
                         insert_callable_signature_children(
                             builder,
+                            evidence,
                             program,
                             parameter_symbol,
                             contract,
@@ -575,14 +554,7 @@ mod children {
                         .iter()
                         .find(|bound| bound.binder_name == parameter.name)
                     {
-                        let sources = builder.source_map();
-                        evidence::insert_evidence_children(
-                            builder,
-                            program,
-                            parameter_symbol,
-                            bound,
-                            sources.as_deref(),
-                        );
+                        evidence.push((parameter_symbol, bound.trait_name.clone()));
                     }
                 }
                 TypeParameterKind::Proposition { contract } => {
@@ -598,6 +570,7 @@ mod children {
 
     pub(super) fn insert_callable_signature_children(
         builder: &mut impl SymbolTableAppender,
+        evidence: &mut crate::resolution::names::requirement_namespaces::PendingEvidence,
         program: &SymbolResolvedTrees,
         owner_symbol: SymbolHandle,
         signature: &crate::source_resolved::signature::StateSignature,
@@ -619,6 +592,7 @@ mod children {
         let mut children = SymbolTableBuilder::child_handles(children);
         insert_generic_parameter_children(
             builder,
+            evidence,
             program,
             program.data_type_parameters(signature.type_parameters),
             &signature.conformance_bounds,
@@ -629,6 +603,7 @@ mod children {
 
     pub(in crate::resolution::names::symbol_table) fn insert_conformance_symbol_children(
         builder: &mut impl SymbolTableAppender,
+        evidence: &mut crate::resolution::names::requirement_namespaces::PendingEvidence,
         program: &SymbolResolvedTrees,
         conformance_symbol: SymbolHandle,
         conformance: &crate::source_resolved::trait_definition::Conformance,
@@ -653,6 +628,7 @@ mod children {
                     if let Some(contract) = contract.structural() {
                         insert_callable_signature_children(
                             builder,
+                            evidence,
                             program,
                             parameter_symbol,
                             contract,
@@ -695,17 +671,6 @@ mod names {
         } else {
             (kind, SymbolNameRef::Borrowed(name.as_str()))
         }
-    }
-
-    /*
-        A bound requirement is a child of the local evidence binder, rather than
-        another declaration at the requirement's original source occurrence.
-        Keep its spelling while inheriting provenance from that exact binder.
-    */
-    pub(in crate::resolution::names::symbol_table) fn evidence_requirement_seed(
-        name: &crate::source_resolved::name::DiagnosticName,
-    ) -> SymbolSeed<'_> {
-        (SymbolKind::State, SymbolNameRef::Borrowed(name.as_str()))
     }
 
     /*
@@ -875,6 +840,7 @@ use crate::resolution::names::symbol_table::names::{
 };
 
 pub(super) fn extend_symbol_table(
+    evidence: &mut super::requirement_namespaces::PendingEvidence,
     program: &mut SymbolResolvedTrees,
     sources: Arc<SourceMap>,
     source_scoped_top_level_bindings: Vec<crate::source_symbols::SourceScopedTopLevelBinding>,
@@ -903,7 +869,7 @@ pub(super) fn extend_symbol_table(
         .begin_extension(Some(sources.clone()), source_scoped_top_level_bindings);
 
     macro_rules! extend_root_family {
-        ($roster:ident, $kind:ident, $insert:path $(, $argument:expr)*) => {
+        ($roster:ident, $kind:ident, $insert:path $(, $evidence:expr)*) => {
             for index in roots.$roster..program.$roster.len() {
                 let definition = program.$roster[index].clone();
                 let symbol = extension.insert_top_level([symbol_seed(
@@ -911,7 +877,7 @@ pub(super) fn extend_symbol_table(
                     &definition.name,
                     has_sources,
                 )])[0];
-                $insert(&mut extension, program, symbol, &definition, has_sources $(, $argument)*);
+                $insert(&mut extension $(, $evidence)*, program, symbol, &definition, has_sources);
                 program.$roster[index].symbol = symbol;
             }
         };
@@ -941,8 +907,18 @@ pub(super) fn extend_symbol_table(
             insert_operator_symbol_children(&mut extension, program, symbol, operator, has_sources);
         }
     }
-    extend_root_family!(data_definitions, Data, insert_data_symbol_children);
-    extend_root_family!(type_aliases, TypeAlias, insert_type_alias_symbol_children);
+    extend_root_family!(
+        data_definitions,
+        Data,
+        insert_data_symbol_children,
+        evidence
+    );
+    extend_root_family!(
+        type_aliases,
+        TypeAlias,
+        insert_type_alias_symbol_children,
+        evidence
+    );
     for index in roots.conformances..program.conformances.len() {
         let conformance = program.conformances[index].clone();
         let Some(alias) = &conformance.alias else {
@@ -953,6 +929,7 @@ pub(super) fn extend_symbol_table(
                 [0];
         insert_conformance_symbol_children(
             &mut extension,
+            evidence,
             program,
             symbol,
             &conformance,
@@ -1002,7 +979,7 @@ pub(super) fn extend_symbol_table(
         insert_measure_symbol_children(&mut extension, symbol, &measure, has_sources);
         program.measures[index].symbol = symbol;
     }
-    extend_root_family!(traits, Trait, insert_trait_symbol_children);
+    extend_root_family!(traits, Trait, insert_trait_symbol_children, evidence);
     for index in roots.wire_schemas..program.wire_schemas.len() {
         let schema = program.wire_schemas[index].clone();
         let symbol = extension.insert_top_level([symbol_seed(
@@ -1030,6 +1007,7 @@ pub(super) fn extend_symbol_table(
 }
 
 pub(super) fn build_symbol_table(
+    evidence: &mut super::requirement_namespaces::PendingEvidence,
     program: &mut SymbolResolvedTrees,
     sources: Option<Arc<SourceMap>>,
     source_scoped_top_level_bindings: Vec<crate::source_symbols::SourceScopedTopLevelBinding>,
@@ -1144,19 +1122,19 @@ pub(super) fn build_symbol_table(
         let _ = root_children.next();
     }
     macro_rules! install_root_family {
-        ($roster:ident, $insert:path $(, $argument:expr)*) => {
+        ($roster:ident, $insert:path $(, $evidence:expr)*) => {
             for ordinal in 0..program.$roster.len() {
                 let item = &program.$roster[ordinal];
                 if let Some(symbol) = root_children.next() {
-                    $insert(&mut builder, program, symbol, item, has_sources $(, $argument)*);
+                    $insert(&mut builder $(, $evidence)*, program, symbol, item, has_sources);
                     program.$roster[ordinal].symbol = symbol;
                 }
             }
         };
     }
     install_root_family!(domain_definitions, insert_domain_symbol_children);
-    install_root_family!(data_definitions, insert_data_symbol_children);
-    install_root_family!(type_aliases, insert_type_alias_symbol_children);
+    install_root_family!(data_definitions, insert_data_symbol_children, evidence);
+    install_root_family!(type_aliases, insert_type_alias_symbol_children, evidence);
     for ordinal in 0..program.conformances.len() {
         let conformance = &program.conformances[ordinal];
         if conformance.alias.is_some()
@@ -1164,6 +1142,7 @@ pub(super) fn build_symbol_table(
         {
             insert_conformance_symbol_children(
                 &mut builder,
+                evidence,
                 program,
                 conformance_symbol,
                 conformance,
@@ -1190,7 +1169,7 @@ pub(super) fn build_symbol_table(
             program.measures[ordinal].symbol = measure_symbol;
         }
     }
-    install_root_family!(traits, insert_trait_symbol_children);
+    install_root_family!(traits, insert_trait_symbol_children, evidence);
     program.wire_schemas.for_each_mut(|schema| {
         schema.symbol = root_children.next().unwrap_or_default();
     });
@@ -1209,6 +1188,7 @@ pub(super) fn build_symbol_table(
     exist. Carrier qualification supplies neither field aliases nor storage.
 */
 pub(super) fn insert_selected_machine_children(
+    evidence: &mut super::requirement_namespaces::PendingEvidence,
     program: &mut SymbolResolvedTrees,
     table: SymbolTable,
     sources: Option<Arc<SourceMap>>,
@@ -1229,11 +1209,11 @@ pub(super) fn insert_selected_machine_children(
         };
         insert_machine_symbol_children(
             &mut extension,
+            evidence,
             program,
             symbol,
             &machine,
             has_sources,
-            sources.as_deref(),
         );
     }
     extension.finish()
@@ -1257,6 +1237,7 @@ pub(super) fn append_runtime_callable_symbols(
     let sources = program.symbols.source_map();
     let has_sources = sources.is_some();
     let mut extension = std::mem::take(&mut program.symbols).begin_extension(sources, Vec::new());
+    let mut evidence = Vec::new();
     let mut appended = Vec::with_capacity(pending.len());
     for (handle, signature) in pending {
         let symbol = extension
@@ -1271,6 +1252,7 @@ pub(super) fn append_runtime_callable_symbols(
             .start();
         children::insert_callable_signature_children(
             &mut extension,
+            &mut evidence,
             program,
             symbol,
             &signature,
@@ -1285,7 +1267,9 @@ pub(super) fn append_runtime_callable_symbols(
             .symbol = symbol;
         appended.push(handle);
     }
-    program.symbols = extension.finish();
+    let mut symbols = extension.finish();
+    super::requirement_namespaces::install_evidence(program, &mut symbols, evidence);
+    program.symbols = symbols;
     appended
 }
 
