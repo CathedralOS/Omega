@@ -58,7 +58,7 @@ omega-bench compare <plan.json> <new-result-directory>\nomega-bench suite <suite
 omega-bench progress [--omega <release-omega>] [--results <dir>] [--runs N] [--aa-runs N] [--only <workload>]
 omega-bench scaling --omega <release-omega> [--shape machines|citations] [--sizes 0,1000,2000] [--runs N] [--max-ratio R]
 omega-bench dominance-summary <graph-run-directory>
-omega-bench proof-plan <source|prepare|prove> <baseline> <candidate> <main.omg> <new-plan.json> [options]
+omega-bench proof-plan source <baseline> <candidate> <main.omg> <new-plan.json> --target <hosted-target> [--pairs N]
 omega-bench proof-square <new-directory> [--identity-build]
 omega-bench selected-body-inputs <baseline-omega> <new-directory>
 omega-bench selected-body-plan <profile-driver> <copied-main.omg> <target[,target]> <new-plan.json>

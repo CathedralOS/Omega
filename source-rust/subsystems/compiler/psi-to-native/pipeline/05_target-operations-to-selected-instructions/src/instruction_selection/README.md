@@ -5,7 +5,7 @@ prepared. Stage 04 decides what must execute: concrete types, placements,
 proof identities and ownership evidence. This stage decides how the target's
 instructions and registers carry that out.
 
-[`select_instructions`](../select_instructions.rs) consumes a prepared target
+[`select_instructions`](../lib.rs) consumes a prepared target
 body, its admitted entry and stack requirements. It binds the surviving
 installations to that body, selects instructions using the target register
 environment and returns the selected program and its receipt to stage 06.

@@ -4,9 +4,6 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
-[lib]
-path = "scope.rs"
-
 [dependencies]
 target-bound-program = { path = "../../../representations/target-bound-program" }
 native-execution-reach = { path = "../../../representations/target-bound-program/execution-reach" }

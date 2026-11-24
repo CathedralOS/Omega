@@ -9,7 +9,6 @@ test-support = []
 
 [lib]
 name = "image"
-path = "src/lib.rs"
 
 [dependencies]
 machine-code = { path = "../../../representations/machine-code" }

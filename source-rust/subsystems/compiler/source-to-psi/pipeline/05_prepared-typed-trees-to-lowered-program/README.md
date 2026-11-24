@@ -1,6 +1,6 @@
 # 05 - Prepared typed trees to lowered program
 
-This stage accepts the `PreparedTypedTrees` issued by [stage 04](../04_typed-trees-to-prepared-typed-trees/prepare.rs). It lowers those trees and fills the [check tables](../../representations/lowered-program/README.md) that stage 06 reads. It covers scalar code and plain data:
+This stage accepts the `PreparedTypedTrees` issued by [stage 04](../04_typed-trees-to-prepared-typed-trees/src/lib.rs). It lowers those trees and fills the [check tables](../../representations/lowered-program/README.md) that stage 06 reads. It covers scalar code and plain data:
 records (literals, field reads, stores, whole copies) and sums (case literals,
 case tests, dispatch and `match` with payload bindings). It is the second
 piece of [check on the lowered form](../../../../../../wiki/drafts/designs/check_on_lowered_form.md):
@@ -1224,7 +1224,7 @@ everywhere else.
 
 Stage 01 desugars `transition subject { arms }` into a `DispatchSubject`
 local, evaluated once, followed by one `Transition` statement per arm
-(`01_tokens-to-syntax-trees/transitions/guards.rs`,
+(`01_tokens-to-syntax-trees/src/transitions/guards.rs`,
 `parse_transition_block_handles`). Each guarded arm ends the current block in
 a `Conditional`: true enters the arm, which completes the machine; false
 continues with the next statement. An unguarded arm completes the machine and

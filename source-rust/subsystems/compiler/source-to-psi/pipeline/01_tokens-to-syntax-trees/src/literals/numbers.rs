@@ -90,5 +90,5 @@ fn strip_float_suffix(text: &str) -> Result<&str, &'static str> {
 const FLOAT_SUFFIXES: &[&str] = &["f32", "f64"];
 
 #[cfg(test)]
-#[path = "../tests/unit/numbers.rs"]
+#[path = "../../tests/unit/numbers.rs"]
 mod tests;

@@ -6,7 +6,6 @@ version.workspace = true
 
 [lib]
 name = "image_macho"
-path = "src/lib.rs"
 
 [dependencies]
 machine-code = { path = "../../../representations/machine-code" }

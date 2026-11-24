@@ -4,9 +4,6 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
-[lib]
-path = "installation.rs"
-
 [dependencies]
 provider-acceptance = { path = "../../../../build/providers/acceptance" }
 declaration-scope = { path = "../../../../foundation/declaration-scope" }

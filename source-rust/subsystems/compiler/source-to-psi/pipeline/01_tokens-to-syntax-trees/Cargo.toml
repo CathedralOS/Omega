@@ -7,9 +7,6 @@ publish = false
 autotests = false
 autobenches = false
 
-[lib]
-path = "parser.rs"
-
 [dependencies]
 arena = { path = "../../../../../foundation/arena" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
