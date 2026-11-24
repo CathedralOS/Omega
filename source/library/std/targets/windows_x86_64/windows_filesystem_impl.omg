@@ -50,11 +50,11 @@ NativeWindowsFilesystem satisfies |win_fs|::WindowsFilesystemHost {
     machine canonicalize(path: @[u8] in |paths|::Path, output: @mutable [u8]) -> i32 reaches FilesystemMetadataQuery {
         block |path_query|::windows_filesystem_native_canonicalize(path, output)
     }
-    machine directory_count(path: @[u8] in |paths|::Path) -> i64
+    machine directory_count(path: @[u8] in |paths|::Path) -> |win_fs|::WindowsDirectoryCountResult
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration {
         block |directory|::windows_directory_count_names(path, false)
     }
-    machine directory_has_entry(path: @[u8] in |paths|::Path) -> i64
+    machine directory_has_entry(path: @[u8] in |paths|::Path) -> |win_fs|::WindowsDirectoryCountResult
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration {
         block |directory|::windows_directory_count_names(path, true)
     }

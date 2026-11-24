@@ -82,14 +82,6 @@ framework or a list of unimplemented features.
 - Cost: an agent cannot tell from the exit code whether its own files are formatted; each must list the reported files and look for its own, or skip the check.
 - Reported: 2026-11-24, Claude Code, while landing the proof kernel plan's step 6
 
-### Windows directory counting uses a signed 64-bit result
-
-- Category: Knowledge crossing a boundary
-- Where: [Windows names walker](source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg) and [raw filesystem service](source/library/std/windows_filesystem_host.omg).
-- Saw: The portable count is a `u64`. Windows uses the negative half of its raw `i64` result for errors, so its names walker refuses the first ordinary entry after `i64::MAX`. POSIX counts up to the portable limit.
-- Cost: Windows cannot express the upper half of the portable count through that raw result. A typed count-or-error result would keep the native failure separate. Exercise the boundary by starting the shared count at its maximum and supplying one more ordinary name.
-- Reported: 2026-11-24 while exercising directory enumeration on both engines.
-
 ### A resumed Build refuses itself whenever it is typed again, because region owners print as symbol slots
 
 - Category: Knowledge crossing a boundary

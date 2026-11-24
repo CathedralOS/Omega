@@ -54,6 +54,13 @@ public data WindowsMetadataResult {
     case Value(metadata: WindowsFileMetadata);
 }
 
+// Directory counts use the full unsigned range. Native failures carry their
+// Win32 error code independently.
+public data WindowsDirectoryCountResult {
+    case Error(code: u32);
+    case Count(count: u64);
+}
+
 // The raw directory entry retains native attributes. Bounded UTF-8 spelling
 // failure is explicit; a long or unrepresentable name is never truncated.
 public data WindowsDirectoryEntry [copy] {
@@ -100,11 +107,11 @@ public boundary trait WindowsFilesystemHost {
     crashes none;
     // Counts every non-dot native name without UTF-8 decoding or metadata
     // queries. A private synchronous directory object owns the complete scan.
-    machine directory_count(path: @[u8] in |paths|::Path) -> i64
+    machine directory_count(path: @[u8] in |paths|::Path) -> WindowsDirectoryCountResult
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration blocks
     crashes none;
     // Returns one after the first non-dot name, or zero at the native end.
-    machine directory_has_entry(path: @[u8] in |paths|::Path) -> i64
+    machine directory_has_entry(path: @[u8] in |paths|::Path) -> WindowsDirectoryCountResult
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration blocks
     crashes none;
     // Reopen an independent synchronous file object without increasing the
