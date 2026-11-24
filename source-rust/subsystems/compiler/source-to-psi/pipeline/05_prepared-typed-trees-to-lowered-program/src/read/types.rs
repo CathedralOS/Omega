@@ -192,9 +192,10 @@ impl<'t> Program<'t> {
             && !application.is_closed
             && !scope.is_some_and(|scope| {
                 application.arguments.iter().all(|argument| {
-                    scope.admits_argument(self.typed, *argument)
-                        && scope.type_identity(self.typed, *argument)
-                            == self.typed.normalized_type_identity(*argument)
+                    let retained = self.typed.normalized_type_identity(*argument);
+                    retained.is_valid()
+                        && scope.admits_argument(self.typed, *argument)
+                        && scope.type_identity(self.typed, *argument) == retained
                 })
             })
         {
