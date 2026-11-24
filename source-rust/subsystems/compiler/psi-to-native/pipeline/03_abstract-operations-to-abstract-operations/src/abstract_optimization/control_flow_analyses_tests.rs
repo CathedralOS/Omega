@@ -625,14 +625,22 @@ fn pruning_keeps_a_machine_reached_only_by_a_call_without_normal_return() {
         panic!("pruning patch")
     };
     assert_eq!(
-        patch.machines.iter().map(|row| row.machine).collect::<Vec<_>>(),
+        patch
+            .machines
+            .iter()
+            .map(|row| row.machine)
+            .collect::<Vec<_>>(),
         [machine(3)]
     );
     let output = validate_psi_rewrite_candidate(&input, candidate)
         .unwrap()
         .into_unit();
     assert_eq!(
-        output.functions.iter().map(|function| function.machine).collect::<Vec<_>>(),
+        output
+            .functions
+            .iter()
+            .map(|function| function.machine)
+            .collect::<Vec<_>>(),
         [machine(1), machine(2)]
     );
 }
