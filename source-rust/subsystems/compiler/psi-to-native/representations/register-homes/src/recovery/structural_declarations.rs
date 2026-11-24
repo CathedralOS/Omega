@@ -616,11 +616,12 @@ pub(super) fn encode_target_argument(
     crate::codec_bytes::push_encoded(bytes, argument.source_byte_offset.to_le_bytes());
     encode_option_u64(bytes, argument.fixed_array_length);
     encode_option_u32(bytes, argument.element_stride);
-    bytes.extend_from_slice(
-        &u32::try_from(argument.indices.len())
-            .unwrap_or(u32::MAX)
-            .to_le_bytes(),
-    );
+    // The decoder reads exactly this many index rows, so a count that does not
+    // fit the u32 field must refuse rather than saturate.
+    let index_count = u32::try_from(argument.indices.len()).map_err(|_| {
+        terminal_wire::CodecError::CollectionTooLong("structural argument runtime indices")
+    })?;
+    bytes.extend_from_slice(&index_count.to_le_bytes());
     for index in &argument.indices {
         encode_scalar_source(bytes, index.operand)?;
         crate::codec_bytes::push_encoded(bytes, index.stride.to_le_bytes());
