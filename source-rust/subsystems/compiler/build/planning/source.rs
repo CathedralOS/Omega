@@ -308,6 +308,47 @@ fn deferred(assembled: AssembledSyntax) -> Result<DeferredProductSources, Compil
 }
 
 impl PlanningSource {
+    pub(super) fn provide(
+        &self,
+        owner: semantic_vocabulary::PackageKeyIdentity,
+        declaration: &str,
+        services: &mut impl PlanningServices,
+    ) -> Result<build_execution::ProducedBuildProvider, CompileFailure> {
+        let mut available = self
+            .supplied_libraries
+            .iter()
+            .filter_map(|library| library.provider_handoff(owner))
+            .chain(self.original.iter().flat_map(|inputs| {
+                inputs
+                    .dependency_build_handoff_instances()
+                    .filter(move |(scope, handoff)| {
+                        *scope == build_declarations::DependencyPurpose::Build
+                            && handoff.package() == owner
+                    })
+                    .map(|(_, handoff)| handoff)
+            }));
+        let selected = available.next().ok_or_else(|| {
+            refusal(
+                "Build provider requires an implementation from an invoker-supplied library".into(),
+            )
+        })?;
+        if available.any(|other| other != selected) {
+            return Err(refusal(
+                "Build libraries disagree on the source of the selected provider".into(),
+            ));
+        }
+        let product = services.provider_product(selected)?;
+        if product.build_handoff(self.profile)? != *selected {
+            return Err(refusal(
+                "Build provider Product differs from the supplied library handoff".into(),
+            ));
+        }
+        product
+            .product_stage(&[self.profile])?
+            .produce_build_provider(self.profile, declaration)
+            .map_err(Into::into)
+    }
+
     fn named_source(
         &self,
         activation: &TerminalBuildActivation,

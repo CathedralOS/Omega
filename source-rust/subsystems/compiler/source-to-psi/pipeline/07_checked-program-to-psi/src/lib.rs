@@ -104,7 +104,7 @@ pub use build_companions::BuildProtocolUse;
 pub use build_filesystem::{
     TerminalBuildFilesystem, TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation,
 };
-pub use build_provider::ProducedBuildProvider;
+pub use build_provider::{BuildProviderDeclaration, ProducedBuildProvider};
 pub use build_queries::{TerminalBuildQueryCall, TerminalBuildQueryOperation};
 pub use build_requests::{
     BuildCallSite, TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,

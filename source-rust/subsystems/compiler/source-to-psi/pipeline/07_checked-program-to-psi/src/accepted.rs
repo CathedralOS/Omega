@@ -495,6 +495,51 @@ impl AcceptedTerminalSource {
         })
     }
 
+    /// Resolve the backing in the authoring file's ordinary Build scope before entry.
+    pub fn resolve_build_backing(
+        &self,
+        operand: &crate::declaration_selection::ProductDeclarationOperand,
+    ) -> Result<crate::BuildProviderDeclaration, Vec<Diagnostic>> {
+        let refuse = |why: &str| vec![Diagnostic::error(why).with_source_span(operand.source_span)];
+        let source = self.source();
+        let symbol = source
+            .symbols
+            .find_top_level_by_name_and_kinds_from_source(
+                &operand.path,
+                &[symbols::SymbolKind::Conformance],
+                operand.source_span,
+            )
+            .filter(|&symbol| {
+                source
+                    .conformance_by_symbol(symbol)
+                    .is_some_and(|row| row.is_public)
+            })
+            .ok_or_else(|| {
+                refuse(
+                    "Build backing names no visible public implementation in its supplied library",
+                )
+            })?;
+        let package = source
+            .symbols
+            .symbol_package_identity(symbol)
+            .ok_or_else(|| {
+                refuse("Build backing must name an implementation in its supplied package")
+            })?;
+        let toolchain = source_admission::source_identity::toolchain_source_identities(
+            source.symbols.source_files(),
+        )
+        .map_err(|_| refuse("Build backing has no exact toolchain source identity"))?;
+        let identity = source
+            .exact_owner_nominal_identity(symbol, &toolchain)
+            .and_then(|id| source.type_identity_text(id))
+            .ok_or_else(|| refuse("Build backing has no exact declaration owner"))?;
+        Ok(crate::BuildProviderDeclaration {
+            package,
+            path: source.symbols.display_path(symbol, "::"),
+            identity,
+        })
+    }
+
     /// Publishes this accepted source as the provider `declaration_path`
     /// of `package` for a Build host to install. The source must have been
     /// judged with the backing's supply (`build_backing_supply`), so the

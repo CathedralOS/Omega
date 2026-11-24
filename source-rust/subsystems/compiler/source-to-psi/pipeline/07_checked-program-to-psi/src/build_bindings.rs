@@ -277,6 +277,21 @@ pub(crate) mod build_filesystem {
 }
 
 pub(crate) mod build_provider {
+    /// The declaration selected at a readiness operand in its author's Build scope.
+    pub struct BuildProviderDeclaration {
+        pub package: semantic_vocabulary::PackageKeyIdentity,
+        pub path: String,
+        pub(crate) identity: String,
+    }
+
+    impl BuildProviderDeclaration {
+        pub fn matches(&self, provider: &ProducedBuildProvider) -> bool {
+            self.package == provider.package
+                && self.path == provider.path
+                && self.identity == provider.declaration
+        }
+    }
+
     #[derive(Clone)]
     pub struct ProducedBuildProvider {
         code: Option<std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>>,

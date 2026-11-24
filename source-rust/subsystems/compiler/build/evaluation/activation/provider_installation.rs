@@ -1,18 +1,5 @@
-/*
-Admit and bind a `Build`-dependency provider artifact to the suspended
-activation's deferred boundary slots (`admit_request`, `prepare`).
-
-When a `Build` activation pauses on `Build::select_provider` readiness,
-`admit_request` checks that the compiled `ProducedBuildProvider` matches the
-exact dependency backing path, requirement declaration identity, and type
-application requested by the paused `BuildProviderRequest`. `prepare` then
-retains the provider's code (`TerminalProgram::retain`), admits target machine
-selections and layouts for the `Build` execution profile, resolves the unique
-`provider_candidates` entry for each demanded boundary slot, completes any
-scalar applications required by that exact slot selection (charging the live
-`Build` invocation account and recording `SourceCompletionAccounting`), and
-produces the `TerminalComponentBinding`s installed into `TerminalInstance`.
-*/
+//! Check the caller-supplied provider against each authored readiness operation before
+//! Build entry, then install its checked component into the waiting interpreter.
 
 use crate::host::bindings::BuildProviderRequest;
 use psi_provider_selections::ProviderInstallationSelection;
@@ -30,28 +17,58 @@ use terminal_interpreter::{
 };
 use terminal_psi::TargetMachineCallable;
 
-pub(super) fn admit_request(
-    receiver: TerminalExecutionView<'_>,
-    request: &BuildProviderRequest,
-    provider: &ProducedBuildProvider,
-) -> Result<(), String> {
-    let (_, declaration) = request
-        .backing
-        .path
-        .split_once("::")
-        .ok_or("Build backing must name its requested dependency and implementation")?;
-    if declaration != provider.path() {
-        return Err("prepared Build provider differs from the explicitly named backing".into());
+/// Resolve each authored backing in its own file's Build scope. The host supplies the
+/// Product that owns the declaration, and its candidate must satisfy this exact requirement.
+pub(super) fn check_backings(
+    accepted: &source_compiler::publication::AcceptedTerminalSource,
+    produced: &source_compiler::publication::ProducedTerminalProgram,
+    mut provide: impl FnMut(
+        semantic_vocabulary::PackageKeyIdentity,
+        &str,
+    ) -> Result<ProducedBuildProvider, crate::CompileFailure>,
+) -> Result<Vec<(BuildProviderRequest, ProducedBuildProvider)>, crate::CompileFailure> {
+    use source_compiler::representations::declaration_selection::BuildSelectionRequest;
+    let receiver = produced.view();
+    let calls = produced
+        .build_bindings()
+        .calls_for(receiver)
+        .ok_or_else(|| {
+            vec![diagnostics::Diagnostic::error(
+                "Build provider bindings lost their artifact custody",
+            )]
+        })?;
+    let mut selected = Vec::new();
+    for call in calls.iter() {
+        let BuildSelectionRequest::ProviderReadiness(request) = &call.request else {
+            continue;
+        };
+        if selected.iter().any(|(already, _)| already == request) {
+            continue;
+        }
+        let operand = &request.backing;
+        let refuse = |why: &str| {
+            vec![diagnostics::Diagnostic::error(why).with_source_span(operand.source_span)]
+        };
+        let declaration = accepted.resolve_build_backing(operand)?;
+        let provider = provide(declaration.package, &declaration.path)?;
+        if !declaration.matches(&provider) {
+            return Err(
+                refuse("supplied Build provider differs from the checked declaration").into(),
+            );
+        }
+        let identities = &receiver.module().identities;
+        if identities.text(request.requirement.declaration.identity())
+            != Some(provider.requirement())
+            || identities.text(request.requirement.application) != Some(provider.application())
+        {
+            return Err(refuse(
+                "supplied Build provider satisfies a different exact requirement application",
+            )
+            .into());
+        }
+        selected.push((request.clone(), provider));
     }
-    let identities = &receiver.module().identities;
-    if identities.text(request.requirement.declaration.identity()) != Some(provider.requirement())
-        || identities.text(request.requirement.application) != Some(provider.application())
-    {
-        return Err(
-            "prepared Build provider satisfies a different exact requirement application".into(),
-        );
-    }
-    Ok(())
+    Ok(selected)
 }
 
 pub(super) fn prepare<'host, 'code>(
