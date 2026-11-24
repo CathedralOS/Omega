@@ -152,7 +152,11 @@ and nothing reads it, so the two readers split the work:
   caller that passes its own value parameters cannot, so what the machines it
   passes evidence on to require this way is its requirement too, at the
   values it passes. Nothing is assumed: the root caller always proves the
-  guarantee from numbers.
+  guarantee from numbers. This is not the specification's
+  [citation rule](../../../../../../wiki/spec/proofs/contracts.md#citation-and-induction),
+  which imports the guarantee at the citation and leaves the machine's
+  `requires` as its author wrote it; `TASKS.md` **PROOF-KERNEL-CORE** owes
+  the repair.
 - The mathematical reader checks every use of the evidence
   (`evidence_uses`). A value is built only by a case literal in an erased
   local, each child of the literal must be evidence the machine holds at the
