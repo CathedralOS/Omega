@@ -8064,7 +8064,7 @@ mod source {
             };
             if candidates.next().is_some()
                 || !cleanup_rosters_match(
-                    source,
+                    source.cleanup_rosters(),
                     candidate.operations(),
                     &target.graph.structural_types,
                 )
@@ -8267,8 +8267,17 @@ mod source {
                 && target.cleanup_actions == source.cleanup_actions
         }
 
-        fn cleanup_rosters_match<'operations>(
-            source: &AbstractOperation,
+        /// A block's cleanup calls must be exactly the `InvokeOwned` actions of
+        /// the cleanup rosters on its terminator's edges: each edge's calls
+        /// match its roster, and the block holds no other cleanup call.
+        /// Terminators without rosters therefore admit no cleanup call.
+        pub(super) fn cleanup_rosters_match<'rosters, 'operations>(
+            rosters: impl Iterator<
+                Item = (
+                    semantic_vocabulary::EdgeId,
+                    &'rosters [TerminalAffineCleanupAction],
+                ),
+            >,
             operations: impl Iterator<Item = &'operations target_operations::TargetUnitOperation>
             + Clone,
             structural_types: &abstract_operations::StructuralTypeCatalog,
@@ -8276,20 +8285,27 @@ mod source {
             let Ok(mut layouts) = crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay::from_catalog(structural_types) else {
                 return false;
             };
-            let expected = source
-                .cleanup_rosters()
-                .map(|(_, actions)| {
-                    actions
-                        .iter()
-                        .filter(|action| {
-                            matches!(action, TerminalAffineCleanupAction::InvokeOwned(_))
-                        })
-                        .count()
-                })
-                .sum::<usize>();
-            expected == operations.clone().filter(|operation| matches!(operation, target_operations::TargetUnitOperation::CleanupCall { .. })).count()
-                && source.cleanup_rosters().all(|(edge, actions)| edge_cleanup_calls_match(actions, operations.clone().filter(|operation|
-                    matches!(operation, target_operations::TargetUnitOperation::CleanupCall { owner, .. } if owner.edge() == Some(edge))), &mut layouts, edge))
+            let mut expected = 0usize;
+            for (edge, actions) in rosters {
+                expected += actions
+                    .iter()
+                    .filter(|action| matches!(action, TerminalAffineCleanupAction::InvokeOwned(_)))
+                    .count();
+                if !edge_cleanup_calls_match(actions, operations.clone().filter(|operation|
+                    matches!(operation, target_operations::TargetUnitOperation::CleanupCall { owner, .. } if owner.edge() == Some(edge))), &mut layouts, edge)
+                {
+                    return false;
+                }
+            }
+            expected
+                == operations
+                    .filter(|operation| {
+                        matches!(
+                            operation,
+                            target_operations::TargetUnitOperation::CleanupCall { .. }
+                        )
+                    })
+                    .count()
         }
 
         pub(super) fn return_cleanup_calls_match<'operations>(
@@ -12492,21 +12508,28 @@ mod source {
                     indices,
                     *byte_offset,
                     *region_byte_size,
-                    block.block,
+                    block,
                 ))
             });
-            let Some((
-                target_source,
-                target_cases,
-                indices,
-                byte_offset,
-                region_byte_size,
-                current_block,
-            )) = matching.next()
+            let Some((target_source, target_cases, indices, byte_offset, region_byte_size, block)) =
+                matching.next()
             else {
                 return false;
             };
-            if matching.next().is_some() || target_cases.len() != cases.len() {
+            let current_block = block.block;
+            // Target lowering emits each case edge's owned cleanup calls into
+            // the dispatching block, so they are checked against the case
+            // rosters like any other terminator's.
+            if matching.next().is_some()
+                || target_cases.len() != cases.len()
+                || !super::control_flow::cleanup_rosters_match(
+                    cases
+                        .iter()
+                        .map(|case| (case.psi_edge, case.cleanup_actions.as_slice())),
+                    block.operations(),
+                    &target.graph.structural_types,
+                )
+            {
                 return false;
             }
             if !super::structural_fields::retained_selectors(path, indices) {
