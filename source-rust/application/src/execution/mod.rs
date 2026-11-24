@@ -281,6 +281,10 @@ pub fn run_project(
     if request.keep_artifacts {
         retained_artifacts::retain(&report, &build_dir)?;
     }
+    // Publication consumes the retained Psi when it installs the executable.
+    let can_end_the_process = report
+        .artifact()
+        .map(|published| published.artifact.semantic_module().can_end_the_process());
     let (report, executable) = report.publish(&build_dir).map_err(RunError::Publication)?;
     let execution = match request.target_name {
         Some(target_name) => ExecutionOutcome::TargetOnly { target_name },
@@ -334,9 +338,6 @@ pub fn run_project(
                 },
                 interpretation,
             );
-            let can_end_the_process = report
-                .artifact()
-                .map(|published| published.artifact.semantic_module().can_end_the_process());
             ExecutionOutcome::Host {
                 can_end_the_process,
                 private_entry_ram,
