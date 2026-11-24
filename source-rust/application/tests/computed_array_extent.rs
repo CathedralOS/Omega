@@ -31,11 +31,7 @@ fn fixture(tier: &str) -> PathBuf {
 #[test]
 fn an_array_sized_by_a_computed_constant_runs_natively_and_in_psi() {
     let source = std::fs::read_to_string(fixture("run").join("main.omg")).unwrap();
-    let (output, report) = invoke(&source, &["run", "--both"]);
-    assert_eq!(output.status.code(), Some(0), "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
-        assert!(report.lines().any(|line| line == receipt), "{report}");
-    }
+    program::assert_silent_return(&source);
 }
 
 #[test]
@@ -60,12 +56,7 @@ fn a_literal_initializer_supplies_its_declared_array_length() {
     let source = std::fs::read_to_string(fixture("run").join("main.omg")).unwrap();
     let (before, after) = source.split_once("const N: u64 = extent();").unwrap();
     let literal = |n| format!("{before}const N: u64 = {n}u64;{after}");
-    let (output, report) = invoke(&literal(2), &["run", "--both"]);
-    assert_eq!(output.status.code(), Some(0), "{report}");
-    assert!(
-        report.contains("native exit 0") && report.contains("interp exit: 0"),
-        "{report}"
-    );
+    program::assert_silent_return(&literal(2));
     let (output, report) = invoke(&literal(3), &["--check"]);
     assert!(!output.status.success(), "{report}");
     let expected = std::fs::read_to_string(fixture("fail").join("expected.txt")).unwrap();
