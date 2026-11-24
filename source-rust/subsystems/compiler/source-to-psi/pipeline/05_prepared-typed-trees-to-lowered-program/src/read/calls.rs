@@ -2290,13 +2290,7 @@ impl<'t> Program<'t> {
             if let Some(read) = self.read_rigid_call(id, slots, invocation, source)? {
                 return Ok(CallBinding::Generic(read));
             }
-            let application_source = match call {
-                StaticArgumentCall::Expression(_, _) => source,
-                StaticArgumentCall::Statement(call) => SourceOrigin::of(call.source_span),
-            };
-            if let Some(read) =
-                self.generic_application_call(id, slots, &invocation, application_source)?
-            {
+            if let Some(read) = self.generic_application_call(id, slots, &invocation, source)? {
                 return Ok(CallBinding::Generic(read));
             }
         }
