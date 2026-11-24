@@ -10725,6 +10725,22 @@ pub(crate) mod operation_contracts {
                         collect(premise, roots);
                         collect(conclusion, roots);
                     }
+                    // Formals and applications name other clause values by
+                    // position, so only inputs and scalar terms read storage.
+                    Proposition::DeclarationIdentity(clause) => {
+                        for value in &clause.values {
+                            match &value.operand {
+                                semantic_vocabulary::ClauseOperand::Input(subject) => {
+                                    roots.insert(subject.root());
+                                }
+                                semantic_vocabulary::ClauseOperand::Scalar(term) => {
+                                    scalar_term_roots(term, roots);
+                                }
+                                semantic_vocabulary::ClauseOperand::Formal(_)
+                                | semantic_vocabulary::ClauseOperand::Application { .. } => {}
+                            }
+                        }
+                    }
                     Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
                 }
             }
