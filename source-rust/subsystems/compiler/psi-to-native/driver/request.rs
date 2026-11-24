@@ -19,6 +19,8 @@ pub(crate) struct NativeCompileRequest<'request> {
     pub private_entry_ram: &'request [psi_entry_memory::PrivateEntryRamInitialization],
     pub installation_assumptions:
         &'request [installation_conditions::InstallationEnvironmentAssumption],
+    pub isolated_execution_grant:
+        Option<&'request semantic_vocabulary::TerminalAuthorityDisposition>,
     pub terminal_authority_policy: TerminalAuthorityPolicy,
     pub accepted_package_terminal_authority_permission_policy: TerminalAuthorityPermissionPolicy,
     pub terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,

@@ -98,6 +98,59 @@ pub struct AdmittedNativeProviders<'execution> {
 }
 
 impl AdmittedNativeProviders<'_> {
+    /// Check what the selected entry can actually execute against a receiver
+    /// with isolated process state and no ambient foreign-call adapter.
+    pub fn check_isolated_execution_grant(
+        &self,
+        grant: &semantic_vocabulary::TerminalAuthorityDisposition,
+    ) -> Result<(), Vec<Diagnostic>> {
+        use terminal_authority_receipts::TerminalMechanismIdentity;
+
+        if !self.installed_interrupts.scopes().is_empty() {
+            return Err(vec![Diagnostic::error(
+                "isolated execution has no grant for host interrupt installation",
+            )]);
+        }
+        if self.installation.as_ref().is_some_and(|installation| {
+            !installation
+                .terminal_selection()
+                .assumed_bindings()
+                .is_empty()
+        }) {
+            return Err(vec![Diagnostic::error(
+                "isolated execution cannot admit an assumed provider binding",
+            )]);
+        }
+
+        let review = self.terminal_authority_closure_review();
+        for leaf in review.leaves() {
+            let subject = review
+                .identities()
+                .text(leaf.subject_identity())
+                .unwrap_or_default();
+            let Some(exercised) = leaf.exercised() else {
+                return Err(vec![Diagnostic::error(format!(
+                    "isolated execution cannot grant unclassified physical authority to `{subject}`"
+                ))]);
+            };
+            if let Some(missing) = grant.first_missing_class(exercised) {
+                return Err(vec![Diagnostic::error(format!(
+                    "isolated execution has no {missing:?} grant for `{subject}`"
+                ))]);
+            }
+            if !matches!(
+                leaf.mechanism(),
+                TerminalMechanismIdentity::CompilerIntrinsic(_)
+                    | TerminalMechanismIdentity::CheckedPhysical(_)
+            ) {
+                return Err(vec![Diagnostic::error(format!(
+                    "isolated execution has no scoped host adapter for `{subject}`"
+                ))]);
+            }
+        }
+        Ok(())
+    }
+
     pub fn native_bindings(&self) -> &native_binding_admission::RetainedNativeBindings {
         &self.native_bindings
     }

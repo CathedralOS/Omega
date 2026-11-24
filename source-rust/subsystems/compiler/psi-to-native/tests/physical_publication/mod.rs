@@ -953,6 +953,7 @@ fn check_canonical_publication(
         },
         boundary_application_coverage: Some(&coverage),
         behavior_exclusions: &exclusions,
+        isolated_execution_grant: None,
     };
     let admitted =
         artifact_lowering::test_support::admit_native_realization(&authorize_fixture(&artifact), &admission)

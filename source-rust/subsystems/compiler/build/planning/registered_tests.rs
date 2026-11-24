@@ -8,6 +8,7 @@ use compiler::{Artifact, CompileRequest, Program};
 use diagnostics::Diagnostic;
 use installation_conditions::InstallationEnvironmentAssumption;
 use product_publication::CompletedProduct;
+use semantic_vocabulary::{TerminalAuthorityClass, TerminalAuthorityDisposition};
 use source_compiler::registered_tests::RegisteredTests;
 use target::TargetProfile;
 use terminal_runtime::{
@@ -50,11 +51,17 @@ impl ProductStage<'_> {
         let mut roster = Vec::new();
         for test in &suite.roots {
             let prepare = || {
+                let mut native_target = self.native_target(profile, assumptions.to_vec())?;
+                native_target.isolated_execution_grant =
+                    Some(TerminalAuthorityDisposition::from_classes([
+                        TerminalAuthorityClass::ProcessOutput,
+                        TerminalAuthorityClass::ProcessTermination,
+                    ]));
                 let program = Program::CheckedSource {
                     publication: suite.compile(test, target)?,
                     suppliers: self.product,
                     runtime_consent: self.runtime_consent(profile)?,
-                    target: self.native_target(profile, assumptions.to_vec())?,
+                    target: native_target,
                 };
                 let request = if TargetProfile::host_if_supported() == Some(profile) {
                     CompileRequest::Native {
