@@ -10847,20 +10847,6 @@ pub(crate) mod operation_contracts {
                             scalar_term_roots(source, roots);
                         }
                     }
-                    Proposition::DeclarationIdentity(clause) => {
-                        for value in &clause.values {
-                            match &value.operand {
-                                semantic_vocabulary::ClauseOperand::Scalar(term) => {
-                                    scalar_term_roots(term, roots)
-                                }
-                                semantic_vocabulary::ClauseOperand::Input(subject) => {
-                                    roots.insert(subject.root());
-                                }
-                                semantic_vocabulary::ClauseOperand::Formal(_)
-                                | semantic_vocabulary::ClauseOperand::Application { .. } => {}
-                            }
-                        }
-                    }
                     Proposition::ContentConservation(conservation) => {
                         content_term_roots(conservation.left(), roots);
                         content_term_roots(conservation.right(), roots);
@@ -10894,22 +10880,6 @@ pub(crate) mod operation_contracts {
                     } => {
                         collect(premise, roots);
                         collect(conclusion, roots);
-                    }
-                    // Applications and formals name other clause values by
-                    // index, so the scalar and input operands hold every root.
-                    Proposition::DeclarationIdentity(clause) => {
-                        for value in &clause.values {
-                            match &value.operand {
-                                semantic_vocabulary::ClauseOperand::Scalar(term) => {
-                                    scalar_term_roots(term, roots)
-                                }
-                                semantic_vocabulary::ClauseOperand::Input(subject) => {
-                                    roots.insert(subject.root());
-                                }
-                                semantic_vocabulary::ClauseOperand::Formal(_)
-                                | semantic_vocabulary::ClauseOperand::Application { .. } => {}
-                            }
-                        }
                     }
                     Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
                 }
