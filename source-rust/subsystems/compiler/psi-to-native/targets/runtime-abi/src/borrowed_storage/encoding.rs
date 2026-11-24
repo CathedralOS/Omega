@@ -131,6 +131,8 @@ fn path(
     layout: &NativeBorrowedStorageLayout,
     span: HandleSpan<NativeStoragePathStep>,
     repetitions: HandleSpan<NativeStorageRepetition>,
+    byte_offset: u32,
+    byte_size: u64,
 ) -> Result<(), &'static str> {
     let path = rows(&layout.paths, span)?;
     count(bytes, path.len());
@@ -158,6 +160,21 @@ fn path(
         bytes.extend_from_slice(&repetition.length.to_le_bytes());
         bytes.extend_from_slice(&repetition.byte_stride.to_le_bytes());
     }
+    // An empty array dimension has no addressable element, even when its element
+    // type describes fields at nonzero offsets.
+    if repetitions.iter().all(|dimension| dimension.length != 0) {
+        let end =
+            repetitions
+                .iter()
+                .try_fold(u64::from(byte_offset) + byte_size, |end, dimension| {
+                    let displacement =
+                        (dimension.length - 1).checked_mul(u64::from(dimension.byte_stride))?;
+                    end.checked_add(displacement)
+                });
+        if end.is_none_or(|end| end > u64::from(layout.byte_size)) {
+            return Err("storage row exceeds the root layout extent");
+        }
+    }
     Ok(())
 }
 
@@ -165,6 +182,17 @@ fn scalar(bytes: &mut Vec<u8>, scalar: ScalarType) -> Result<(), &'static str> {
     semantic_vocabulary::ClosedScalarType::try_from(scalar).map_err(|_| "unclosed scalar type")?;
     encode_scalar_type(bytes, scalar, Vec::push, encode_integer_type);
     Ok(())
+}
+
+fn stored_scalar_size(scalar: ScalarType) -> Result<u64, &'static str> {
+    let closed = semantic_vocabulary::ClosedScalarType::try_from(scalar)
+        .map_err(|_| "unclosed scalar type")?;
+    if let semantic_vocabulary::ClosedScalarType::Integer(integer) = closed {
+        return Ok(u64::from(integer.bits().div_ceil(8)));
+    }
+    crate::ScalarStorageCodec::from_closed_scalar(closed)
+        .map(|codec| u64::from(codec.byte_size()))
+        .ok_or("stored scalar has no native width")
 }
 
 fn unique_paths(
@@ -185,6 +213,9 @@ fn encode_layout(
     bytes: &mut Vec<u8>,
     layout: &NativeBorrowedStorageLayout,
 ) -> Result<(), &'static str> {
+    if !layout.alignment.is_power_of_two() {
+        return Err("storage layout alignment must be a positive power of two");
+    }
     bytes.extend_from_slice(&layout.structural_type.get().to_le_bytes());
     bytes.extend_from_slice(&layout.byte_size.to_le_bytes());
     bytes.extend_from_slice(&layout.alignment.to_le_bytes());
@@ -192,7 +223,14 @@ fn encode_layout(
     unique_paths(layout, fields.iter().map(|field| field.path))?;
     count(bytes, fields.len());
     for field in fields {
-        path(bytes, layout, field.path, field.repetitions)?;
+        path(
+            bytes,
+            layout,
+            field.path,
+            field.repetitions,
+            field.byte_offset,
+            stored_scalar_size(field.stored_scalar)?,
+        )?;
         bytes.extend_from_slice(&field.byte_offset.to_le_bytes());
         scalar(bytes, field.logical_scalar)?;
         scalar(bytes, field.stored_scalar)?;
@@ -203,7 +241,14 @@ fn encode_layout(
     for slot in discriminators {
         let discriminator = slot.0.as_ref().ok_or("missing discriminator row")?;
         discriminator_paths.push(discriminator.path);
-        path(bytes, layout, discriminator.path, discriminator.repetitions)?;
+        path(
+            bytes,
+            layout,
+            discriminator.path,
+            discriminator.repetitions,
+            discriminator.byte_offset,
+            crate::CASE_TAG_BYTE_SIZE,
+        )?;
         bytes.extend_from_slice(&discriminator.structural_type.get().to_le_bytes());
         bytes.extend_from_slice(&discriminator.byte_offset.to_le_bytes());
         let cases = rows(&layout.cases, discriminator.cases)?;
@@ -234,7 +279,14 @@ fn encode_layout(
     unique_paths(layout, regions.iter().map(|region| region.path))?;
     count(bytes, regions.len());
     for region in regions {
-        path(bytes, layout, region.path, region.repetitions)?;
+        path(
+            bytes,
+            layout,
+            region.path,
+            region.repetitions,
+            region.byte_offset,
+            u64::from(region.byte_size),
+        )?;
         bytes.extend_from_slice(&region.byte_offset.to_le_bytes());
         bytes.extend_from_slice(&region.byte_size.to_le_bytes());
     }
