@@ -52,7 +52,7 @@ pub fn ieee_float_arithmetic_size(form: IeeeFloatArithmeticForm) -> MachineSizeK
         FusedMultiplyAdd => ((21, 25), (25, 25)),
         IsNan | IsInfinite | IsFinite | IsNormal | IsSubnormal => ((149, 150), (150, 150)),
         Classify => ((186, 187), (187, 187)),
-        Compare(_) => ((21, 24), (24, 24)),
+        Compare(_) => ((22, 25), (25, 25)),
         DirectedBinary { .. } => ((47, 50), (50, 50)),
         DirectedSquareRoot { .. } => ((43, 45), (45, 45)),
         DirectedFusedMultiplyAdd { .. } => ((52, 56), (56, 56)),
