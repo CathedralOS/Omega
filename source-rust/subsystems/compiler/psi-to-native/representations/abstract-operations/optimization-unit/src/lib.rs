@@ -87,8 +87,9 @@ mod rewrite;
 mod structural_places;
 
 pub use construction::{
-    OptimizationUnitBuildError, operation_definition, operation_ownership, operation_uses,
-    reconstruct_psi_optimization_function_seed, reconstruct_psi_optimization_unit_seed,
+    OptimizationUnitBuildError, collect_fact, operation_definition, operation_ownership,
+    operation_uses, reconstruct_psi_optimization_function_seed,
+    reconstruct_psi_optimization_unit_seed,
 };
 pub use dominance::{DominatorSet, DominatorSets};
 pub use graph::{
