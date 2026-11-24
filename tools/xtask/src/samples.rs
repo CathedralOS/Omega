@@ -1,5 +1,7 @@
 //! Check samples and compare native/Psi execution (`cargo xtask sample-gate`).
 
+mod application;
+
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -573,20 +575,6 @@ pub fn bound_targets(sample_dir: &Path) -> Result<BTreeSet<String>, String> {
         .collect())
 }
 
-fn compared_host_command(cli: &Path, target: &str) -> Result<Command, String> {
-    let host = host_target();
-    if target != host {
-        return Err(format!(
-            "native/Psi execution requires host target {host}, requested {target}"
-        ));
-    }
-    // An explicit CLI --target requests compilation without execution, even
-    // when it names this host. Both engines run only through the host request.
-    let mut command = Command::new(cli);
-    command.args(["run", "--both"]);
-    Ok(command)
-}
-
 /// Exit 1 alone also describes unrelated compiler errors. A negative sample
 /// needs a diagnostic oracle before its refusal can earn credit.
 fn expectations_usable(project: &SampleProject) -> Result<(), String> {
@@ -751,10 +739,12 @@ pub fn verify_sample(
         return Ok("checked".to_owned());
     }
 
-    let (expected_exit, expected_output) = parse_header_oracle(entry)?;
-    let input_path = project.directory.join("input.txt");
-    let has_input = input_path.is_file();
-    if !has_input && expected_exit.is_none() && expected_output.is_none() {
+    let input = project.directory.join("input.txt");
+    let has_input = input
+        .try_exists()
+        .map_err(|error| format!("{}: {error}", input.display()))?;
+    let oracle = application::Oracle::load(&project.directory, entry, target, has_input)?;
+    if !has_input && oracle.is_empty() {
         if project.rel_path.split('/').any(|p| p == "probes") {
             return Ok("no-oracle".to_owned());
         }
@@ -779,67 +769,15 @@ pub fn verify_sample(
         return Ok("no-oracle".to_owned());
     }
 
-    let mut cmd = compared_host_command(cli, target)?;
-    with_source_inputs(&mut cmd, &project.source_inputs);
-    let scratch = project.directory.join("build/gate-run");
-    let _ = fs::create_dir_all(&scratch);
-    cmd.arg(product_entry).current_dir(&scratch);
-    if has_input {
-        let file = fs::File::open(&input_path)
-            .map_err(|e| format!("failed opening {}: {e}", input_path.display()))?;
-        cmd.stdin(Stdio::from(file));
-    } else {
-        cmd.stdin(Stdio::null());
-    }
-    let out = execution::output(&mut cmd, evidence, "run-both")?;
-    let stdout = String::from_utf8_lossy(&out.stdout).replace("\r\n", "\n");
-    let stderr = String::from_utf8_lossy(&out.stderr).replace("\r\n", "\n");
-
-    let mut native_exit: Option<i32> = None;
-    let mut interp_exit: Option<i32> = None;
-    for line in stderr.lines() {
-        if let Some(rest) = line.strip_prefix("native exit ")
-            && let Ok(c) = rest.trim().parse::<i32>()
-        {
-            native_exit = Some(c);
-        } else if let Some(rest) = line.strip_prefix("interp exit: ")
-            && let Ok(c) = rest.trim().parse::<i32>()
-        {
-            interp_exit = Some(c);
-        }
-    }
-    let (Some(n_exit), Some(i_exit)) = (native_exit, interp_exit) else {
-        return Err(format!(
-            "execution failed (exit {:?}): {stdout}{stderr}",
-            out.status.code()
-        ));
-    };
-    if n_exit != i_exit {
-        return Err(format!(
-            "engine disagreement: native exit {n_exit} != interp exit {i_exit}"
-        ));
-    }
-    // The CLI returns the program's exit on agreement, including authored
-    // nonzero exits. Require the CLI result to match the two observed engine exits.
-    if out.status.code() != Some(n_exit) {
-        return Err(format!(
-            "execution failed (exit {:?}, engines {n_exit}): {stdout}{stderr}",
-            out.status.code()
-        ));
-    }
-    if let Some(exp) = expected_exit
-        && n_exit != exp
-    {
-        return Err(format!("expected exit {exp}, got {n_exit}"));
-    }
-    if let Some(exp_out) = expected_output
-        && !stdout.contains(&exp_out)
-    {
-        return Err(format!(
-            "expected output containing {exp_out:?}, got {stdout:?}"
-        ));
-    }
-    Ok(format!("pass (native exit {n_exit}, Psi exit {i_exit})"))
+    application::compare(
+        cli,
+        project,
+        product_entry,
+        target,
+        evidence,
+        has_input.then_some(input.as_path()),
+        &oracle,
+    )
 }
 
 // Compiler errors often put their cause after a heading. Keep those following
@@ -1394,8 +1332,20 @@ case "$1" in
       echo "expected the gate to launch $expected, got $previous" >&2
       exit 93
     fi
-    echo 'native exit 0' >&2
-    echo 'interp exit: 0' >&2
+    [ "$2" = --engine ] && [ "$4" = --outputs ] || exit 94
+    mkdir "$5" || exit 95
+    [ ! -e guest-state ] || exit 98
+    touch guest-state
+    cat > "$5/stdout"
+    printf 'spoofed status -- native exit 9\377' > "$5/stderr"
+    case "$3" in
+      native) printf 'native\texit\t0\tother\tprocess-exit-excluded\n' > "$5/termination.tsv";;
+      psi) printf 'psi\treturn\n' > "$5/termination.tsv";;
+      *) exit 96;;
+    esac
+    if [ "$3" = psi ] && [ -e "${0%/*}/diverge" ]; then
+      printf '!' >> "$5/stderr"
+    fi
     exit 0
     ;;
   *) exit 92;;
@@ -1404,12 +1354,40 @@ esac
         )
         .unwrap();
         fs::set_permissions(&cli, fs::Permissions::from_mode(0o700)).unwrap();
+        fs::write(directory.join("input.txt"), [0xff, 0, b'\r', b'\n']).unwrap();
+        fs::write(
+            directory.join("expected_stdout.txt"),
+            [0xff, 0, b'\r', b'\n'],
+        )
+        .unwrap();
+        fs::write(directory.join("expected_native_exit.txt"), "7").unwrap();
+        fs::write(
+            directory.join(format!("expected_native_exit.{}.txt", host_target())),
+            "0",
+        )
+        .unwrap();
         let project = project_at(&directory, &directory).unwrap();
         assert!(
             verify_sample(&cli, &project, host_target(), &directory.join("evidence"))
                 .unwrap()
                 .starts_with("pass")
         );
+        fs::write(directory.join("diverge"), []).unwrap();
+        let mismatch =
+            verify_sample(&cli, &project, host_target(), &directory.join("mismatch")).unwrap_err();
+        assert!(mismatch.contains("stderr differs at byte"), "{mismatch}");
+        fs::remove_file(directory.join("diverge")).unwrap();
+        fs::write(directory.join("expected_stdout.txt"), [0xfe]).unwrap();
+        let wrong =
+            verify_sample(&cli, &project, host_target(), &directory.join("wrong")).unwrap_err();
+        for fragment in [
+            "native expectation: expected stdout differs at byte 0",
+            "Psi expectation: expected stdout differs at byte 0",
+            "comparison: native and Psi agree",
+        ] {
+            assert!(wrong.contains(fragment), "{wrong}");
+        }
+        fs::remove_file(directory.join("expected_stdout.txt")).unwrap();
         fs::remove_file(directory.join("build.omg")).unwrap();
         fs::write(
             directory.join("sample.json"),
@@ -1527,24 +1505,6 @@ esac
             "rejected"
         );
         fs::remove_dir_all(directory).unwrap();
-    }
-
-    #[test]
-    fn compared_host_request_executes_both_without_compile_only_target() {
-        let command = compared_host_command(Path::new("omega"), host_target()).unwrap();
-        assert_eq!(command.get_args().collect::<Vec<_>>(), ["run", "--both"]);
-    }
-
-    #[test]
-    fn compared_host_request_refuses_a_different_target() {
-        let other = if host_target() == "linux_x86_64" {
-            "windows_x86_64"
-        } else {
-            "linux_x86_64"
-        };
-        let error = compared_host_command(Path::new("omega"), other).unwrap_err();
-        assert!(error.contains(host_target()));
-        assert!(error.contains(other));
     }
 
     #[test]
