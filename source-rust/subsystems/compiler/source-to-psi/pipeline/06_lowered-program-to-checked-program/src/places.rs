@@ -386,6 +386,87 @@ struct Contents {
     calls: Vec<Vec<(ExactPlaceId, ValueId)>>,
 }
 
+/// The case tests a clause states outright: each conjunct of it that is a
+/// case membership. A test beneath `||` or inside an equality states nothing
+/// alone, because the clause may hold with that test false, so it is left
+/// out and the question it would answer stays unknown.
+fn stated_case_tests(
+    clause: &Proposition,
+    found: &mut Vec<(PlaceId, Vec<Segment>, StructuralCaseId)>,
+) {
+    match clause {
+        Proposition::Conjunction(parts) => {
+            for part in parts {
+                stated_case_tests(part, found);
+            }
+        }
+        Proposition::StructuralCaseMembership { subject, case } => {
+            let place = Lineage {
+                root: subject.root(),
+                segments: Vec::new(),
+            };
+            if let Ok(place) = extended(place, subject.path()) {
+                found.push((place.root, place.segments, *case));
+            }
+        }
+        _ => {}
+    }
+}
+
+/// The cases the machine's `requires` state of its formals, and the cases
+/// each callee's `ensures` state of its result. A call whose contract cannot
+/// be read here contributes nothing: its result's case stays unknown, and
+/// the call is refused where its contract is owed.
+#[allow(clippy::type_complexity)]
+fn stated_cases(
+    lowered: &TerminalMachine,
+    module: &terminal_psi::TerminalModule,
+    tables: &MachineTables,
+    operations: usize,
+) -> (
+    Vec<(Lineage, StructuralCaseId)>,
+    Vec<Vec<(Vec<Segment>, StructuralCaseId)>>,
+) {
+    let mut found = Vec::new();
+    for clause in &lowered.requires {
+        stated_case_tests(clause, &mut found);
+    }
+    let entry = found
+        .drain(..)
+        .map(|(root, segments, case)| (Lineage { root, segments }, case))
+        .collect();
+    let mut calls = vec![Vec::new(); operations];
+    for (id, row) in tables.invocations.iter() {
+        let InvocationSite::Operation(site) = row.site else {
+            continue;
+        };
+        let Ok(call) =
+            crate::checking::call_contracts::invocation(module, lowered, tables, id, row)
+        else {
+            continue;
+        };
+        let crate::checking::call_contracts::ResultFormal::Structural(formal, _) =
+            call.contract.result
+        else {
+            continue;
+        };
+        for clause in call.contract.ensures.iter() {
+            stated_case_tests(clause, &mut found);
+        }
+        let Some(returned) = calls.get_mut(index(site.get())) else {
+            found.clear();
+            continue;
+        };
+        returned.extend(
+            found
+                .drain(..)
+                .filter(|(root, ..)| *root == formal)
+                .map(|(_, segments, case)| (segments, case)),
+        );
+    }
+    (entry, calls)
+}
+
 fn initial_contents(
     machine: MachineId,
     tables: &MachineTables,
@@ -1060,6 +1141,14 @@ pub(crate) struct Storage<'a> {
     graph: &'a Graph,
     initial_contents: Vec<Option<ValueId>>,
     returned_contents: Vec<Vec<(ExactPlaceId, ValueId)>>,
+    /// The case a formal's place holds at entry, where the machine's own
+    /// `requires` states one outright (`requires outcome in Outcome::Good`).
+    /// Each caller proved it at its call.
+    entry_cases: Vec<(Lineage, StructuralCaseId)>,
+    /// For each call, the case its result holds where the callee's `ensures`
+    /// states one outright: the path beneath the result, and the case. The
+    /// callee proved it at each of its returns.
+    returned_cases: Vec<Vec<(Vec<Segment>, StructuralCaseId)>>,
     /// Bound actual operations and structural edge bindings once per machine.
     reaching_budget: usize,
     log: Vec<Logged>,
@@ -1121,6 +1210,8 @@ impl<'a> Storage<'a> {
             .sum::<usize>()
             + 1;
         let contents = initial_contents(machine, tables, graph.operation_count())?;
+        let (entry_cases, returned_cases) =
+            stated_cases(lowered, module, tables, graph.operation_count());
         let defaults = terminal_semantics::structural_qualifications::DefaultRequirements::new(
             &module.types.structural_types,
             &module.types.structural_domains,
@@ -1196,6 +1287,8 @@ impl<'a> Storage<'a> {
             graph,
             initial_contents: contents.entry,
             returned_contents: contents.calls,
+            entry_cases,
+            returned_cases,
             reaching_budget,
             log: Vec::new(),
             fixed_write_indices: IdTable::default(),
@@ -1282,7 +1375,9 @@ impl<'a> Storage<'a> {
                 // A read through a provider reference yields a fresh scalar.
                 // Its public permission identifies no address for a later read to observe.
                 if let Some(at) = storage.descriptor_position((block.id, before))
-                    && storage.provider_referent(references, &leaf, at, concerns)?.is_some()
+                    && storage
+                        .provider_referent(references, &leaf, at, concerns)?
+                        .is_some()
                 {
                     continue;
                 }
@@ -3287,7 +3382,27 @@ impl<'a> Storage<'a> {
                         Reached::Unknown
                     }
                 }
-                (Stored::Established, Asked::Case(..)) => Reached::Unknown,
+                // A call's result holds the case its callee's `ensures`
+                // states of it outright, which the callee proved at its
+                // return. Nothing else says which case established storage
+                // holds.
+                (Stored::Established, Asked::Case(sum, excluded)) => {
+                    let produced = row.backing.place.segments.is_empty()
+                        && matches!(self.root_kind(sum.root, concerns)?,
+                            StructuralPlaceKind::OperationResult { producer, .. }
+                                if producer == row.operation);
+                    self.returned_cases
+                        .get(index(row.operation.get()))
+                        .filter(|_| produced)
+                        .and_then(|cases| {
+                            cases
+                                .iter()
+                                .find(|(segments, _)| segments.as_slice() == beneath)
+                        })
+                        .map_or(Reached::Unknown, |(_, case)| {
+                            case_selection(*case, excluded)
+                        })
+                }
                 // A window is answered by the row alone, above.
                 (Stored::Zeroed | Stored::Established, Asked::Window { .. }) => {
                     return Err(
@@ -4207,10 +4322,20 @@ impl<'a> Storage<'a> {
                                     })
                             }
                         }
-                        // Which case a formal holds at entry is not known, and
+                        // Which case a formal holds at entry is known only
+                        // where the machine's own `requires` states it, and
                         // other storage holds nothing there; that it holds
                         // nothing is the contents question's answer to give.
-                        (Asked::Case(..), _) => Supply::Direct(Reached::Unknown),
+                        (Asked::Case(sum, excluded), _) => Supply::Direct(
+                            self.entry_cases
+                                .iter()
+                                .find(|(place, _)| {
+                                    place.root == sum.root && place.segments == sum.segments
+                                })
+                                .map_or(Reached::Unknown, |(_, case)| {
+                                    case_selection(*case, excluded)
+                                }),
+                        ),
                         (
                             Asked::Contents(_),
                             StructuralPlaceKind::BlockParameter { .. }
@@ -7016,13 +7141,28 @@ impl crate::checking::Bindings for AtEntry<'_, '_> {
 
     fn case(
         &mut self,
-        _: PlaceId,
-        _: &[CanonicalStructuralPathSegment],
-        _: StructuralCaseId,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        case: StructuralCaseId,
     ) -> Result<bool, crate::checking::Unbound> {
-        Err(crate::checking::Unbound::Unsupported(
-            "a case test in an entry clause",
-        ))
+        // The machine's own `requires` states this place's case outright, so
+        // it holds at entry. Nothing decides any other test in an entry
+        // clause.
+        let place = extended(
+            Lineage {
+                root,
+                segments: Vec::new(),
+            },
+            path,
+        )?;
+        self.storage
+            .entry_cases
+            .iter()
+            .find(|(known, _)| known.root == place.root && known.segments == place.segments)
+            .map(|(_, known)| *known == case)
+            .ok_or(crate::checking::Unbound::Unsupported(
+                "a case test in an entry clause",
+            ))
     }
 }
 
@@ -7398,7 +7538,8 @@ impl<'a> CallObservations<'_, 'a> {
                     ) else {
                         continue;
                     };
-                    let Some(ScalarTerm::Value { id, .. }) = self.contents(leaf, scalar_type) else {
+                    let Some(ScalarTerm::Value { id, .. }) = self.contents(leaf, scalar_type)
+                    else {
                         continue;
                     };
                     let version = semantic_vocabulary::ContentPlaceVersion::Entry;
@@ -7672,11 +7813,22 @@ impl crate::checking::Bindings for AtCall<'_, '_> {
         let actual = self.actual(root, &[])?;
         let mut trace = self.storage.budget();
         trace.observations = Observations::WholeInput;
-        match self.storage.reaching(self.references, self.tables, Asked::Contents(&actual),
-            (self.block, self.up_to), &mut trace, self.concerns)
-            .map_err(crate::checking::Unbound::Refused)? {
+        match self
+            .storage
+            .reaching(
+                self.references,
+                self.tables,
+                Asked::Contents(&actual),
+                (self.block, self.up_to),
+                &mut trace,
+                self.concerns,
+            )
+            .map_err(crate::checking::Unbound::Refused)?
+        {
             Reached::Input(parameter) => Ok(parameter),
-            _ => Err(crate::checking::Unbound::Unproved("no single input supplies this whole value")),
+            _ => Err(crate::checking::Unbound::Unproved(
+                "no single input supplies this whole value",
+            )),
         }
     }
     fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
@@ -7785,13 +7937,19 @@ impl crate::checking::Bindings for AtCall<'_, '_> {
 
     fn case(
         &mut self,
-        _: PlaceId,
-        _: &[CanonicalStructuralPathSegment],
-        _: StructuralCaseId,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        case: StructuralCaseId,
     ) -> Result<bool, crate::checking::Unbound> {
-        Err(crate::checking::Unbound::Unsupported(
-            "a case test in an entry clause",
-        ))
+        // A callee's `requires` that tests a case is owed like any other
+        // clause: what was stored in the argument must show that case.
+        let actual = self.actual(root, path)?;
+        self.held_at(&actual)
+            .case_at(&actual, case)
+            .map_err(crate::checking::Unbound::Refused)?
+            .ok_or(crate::checking::Unbound::Unproved(
+                "the case a requires clause tests is not established by structure at this call",
+            ))
     }
 }
 
@@ -9076,9 +9234,9 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
 
     #[test]
     fn a_recaptured_index_cannot_identify_a_previous_iterations_cell() {
-        let input = storage_fixture(
-            include_str!("../tests/fixtures/ownership/run/recaptured_index/main.omg"),
-        );
+        let input = storage_fixture(include_str!(
+            "../tests/fixtures/ownership/run/recaptured_index/main.omg"
+        ));
         let module = &input.module;
         let mut compared = false;
         for machine in &module.machines {

@@ -1,0 +1,8 @@
+// A machine clause may state which case a value holds. `pick` guarantees
+// its result is `Good` and proves it where it returns; `take` requires a
+// `Good` argument; the caller meets that requirement from what `pick`
+// guarantees, with no test of its own.
+data Outcome { case Good; case Bad; }
+machine pick() -> Outcome ensures result in Outcome::Good { Outcome::Good }
+machine take(outcome: Outcome) requires outcome in Outcome::Good { }
+machine build_entry() { let picked: Outcome = pick(); take(picked); }

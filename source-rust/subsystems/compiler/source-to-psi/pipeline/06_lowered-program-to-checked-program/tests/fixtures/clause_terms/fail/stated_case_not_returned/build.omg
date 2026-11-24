@@ -1,0 +1,6 @@
+// `pick` guarantees `Good` and returns `Bad`, so its own guarantee is false
+// where it returns.
+data Outcome { case Good; case Bad; }
+machine pick() -> Outcome ensures result in Outcome::Good { Outcome::Bad }
+machine take(outcome: Outcome) requires outcome in Outcome::Good { }
+machine build_entry() { let picked: Outcome = pick(); take(picked); }

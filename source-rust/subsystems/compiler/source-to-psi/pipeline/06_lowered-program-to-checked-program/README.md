@@ -660,7 +660,12 @@ normal continuation:
   a record stored into a field is followed to its source, as for a read.
 - **A case test** `self in S::C` becomes `Truth` or `Falsehood`: whether the
   walk finds the place established as that case there, which a construction
-  or a zero establishment decides by structure. The connective around it is
+  or a zero establishment decides by structure. A machine clause's test of a
+  formal or of its result is decided the same way: a required case is owed
+  at each call from what was stored in the argument, a guaranteed case at
+  each return from what was stored in the result, and both are then known
+  to the callee at entry and to the caller after the call
+  ([payload access](#payload-access)). The connective around it is
   simplified: a conjunction with a false conjunct is false, a disjunction
   with a true disjunct is true, and then their other parts are not looked
   at, which is what lets a clause project a payload under the test of its
@@ -848,11 +853,20 @@ accepted only when the answer is that one case. Going back from the use:
   `StructuralCaseMembership` on exactly this sum supplies the tested case,
   when the test stands in the branching block and no write to the sum or a
   place above it follows the test there.
-- The machine's entry supplies none: which case a formal holds is not known.
+- The machine's entry supplies the case the machine's own `requires` states
+  outright of that formal (`requires outcome in Outcome::Good`), which every
+  caller proved at its call. It supplies none otherwise.
+- A call's result holds the case the callee's `ensures` states outright of
+  it (`ensures result in Result::Ok`), which the callee proved where it
+  returns. Any other established storage supplies none.
 
-So the three accepted shapes are a dominating dispatch edge, a dominating
-true edge of a membership test, and a construction that is every reaching
-write. The false edge of a test supplies nothing: "Otherwise the case holds
+"Outright" means the test is a conjunct of the clause. A test beside an
+alternative (`(x in S::C) || flag`) may be false while the clause holds, so
+it states nothing and supplies nothing (`stated_case_tests` in `places.rs`).
+
+So the accepted shapes are a dominating dispatch edge, a dominating true edge
+of a membership test, a construction that is every reaching write, a case the
+machine requires of a formal, and a case a callee guarantees of its result. The false edge of a test supplies nothing: "Otherwise the case holds
 when every other declared case of that sum is refuted" needs proof about the
 other cases and is refused here, not guessed. A refusal has reason
 `Unestablished` and concerns the access.

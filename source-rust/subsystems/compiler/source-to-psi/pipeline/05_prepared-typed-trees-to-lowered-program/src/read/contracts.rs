@@ -679,16 +679,16 @@ impl Program<'_> {
                 };
             }
         }
-        // `self in S::C`, in a data clause only. `self == S::C` is the same
-        // test only on a payload-free sum (`require_intrinsic_tag_equality`).
+        // `x in S::C`: in a data clause `x` is the value the clause is about
+        // or a part of it, and in a machine clause a formal or the result,
+        // wherever `projected` can name its place. `self == S::C` is the
+        // same test only on a payload-free sum
+        // (`require_intrinsic_tag_equality`).
         if matches!(
             operator,
             BinaryOperator::CaseMembership | BinaryOperator::Equal
         ) && let Some(case) = self.named_case(binary.right)
         {
-            if scope.subject.is_none() {
-                return unserved("case membership");
-            }
             let Some((root, path, tested)) = self.projected(id, scope, binary.left)? else {
                 return unserved("case test of something that is not a sum");
             };

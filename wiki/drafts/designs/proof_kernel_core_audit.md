@@ -1355,52 +1355,27 @@ type), and the clause's `ClauseScope` says what each name denotes there.
     "extent without a structural subject": a crash guard reads invocation
     entry, and a borrowed formal or a field of a formal there has no
     observation chosen for it (stage 05 README, crash guards).
-  - "case membership" in a machine clause (`read_clause`) is **not a rule**
-    (checked 2026-11-24). `requires outcome in Outcome::Good` and `ensures
-    result in Outcome::Good` are both refused with "contract case membership
-    while reading the signature", yet the library states such clauses
-    (`core/representation.omg`: `ensures result in Result::Ok`, and
-    `ensures Model::valid(source.frame) == (result in Result::Ok)`, which
-    also uses the membership as a Boolean operand), and 615 clause lines in
-    55 files of `samples/` and the library name a case of `Result` or
-    `Option` alone. `x in S::C` is read only in a data or domain
-    predicate, where the value the clause is about is the subject. Serving
-    it in a machine clause needs the case of a formal's value at entry and
-    of the result at return as a proposition the caller proves or learns.
-    A trial that only removed stage 05's refusal (the reader can already
-    name a formal's or a structural result's place, and forms
-    `Proposition::StructuralCaseMembership`) moved the refusal into stage 06,
-    which shows what is missing there (`InputPlaces::case` in `places.rs`).
-    Stage 06 decides a case test to true or false from what structure shows
-    while it substitutes a clause, and never carries one as a fact. So an
-    entry clause is refused outright ("a case test in an entry clause"),
-    and a caller importing `ensures result in Outcome::Good` is asked to
-    decide the result's case itself and cannot ("the case the data requires
-    clause tests is not established by structure here"). The work is a way
-    to assume a case test: record the case of the formal's place at entry
-    and of the result's place after a call, including under `||` and `==`,
-    where one test alone decides nothing. The hook is `case` of the
-    `Bindings` trait that clause substitution calls
-    (`psi/semantics/src/substitution/clauses.rs`); it returns a decided
-    Boolean and has about thirty implementations across stage 06 and
-    `psi/semantics`, so the change reaches the Psi-side checker as well as
-    the source compiler. Two designs were read out of the code. (1) Stage 06
-    answers "which case does this place hold" from the stores that reach a
-    point (`Asked::Case` in `Storage::reaching`), and answers `Unknown` at a
-    call's result (`(Stored::Established, Asked::Case(..))`) and at entry.
-    Tables of the cases a callee's `ensures` and the machine's own
-    `requires` state as conjuncts of their own, consulted at those two
-    places, would serve `ensures result in Result::Ok` and `requires x in
-    S::C`; a test under `||` would stay refused, because an unknown test
-    cannot be assumed true there without knowing its polarity. (2) Scalar
-    contents already work the other way: the lowered program names the
-    content of each scalar leaf at entry and after each call as a value
-    (`ValueOrigin::StorageContent`), and clauses are propositions over those
-    values, so `||`, `==` and import all come for free. Naming a sum's case
-    the same way would serve every form, including `Model::valid(..) ==
-    (result in Result::Ok)`, at the cost of a new content kind in the
-    lowered program and in Terminal Psi. (2) is the general mechanism; (1)
-    is a narrower first slice.
+  - "case membership" in a machine clause (`read_clause`) was **not a rule**
+    and is now served where the clause states the test outright (2026-11-24).
+    `core/representation.omg` writes `ensures result in Result::Ok`, and 615
+    clause lines in 55 files of `samples/` and the library name a case of
+    `Result` or `Option` alone. Stage 05 forms the test of a formal or of
+    the result; stage 06 answers "which case does this place hold" at entry
+    from the machine's own `requires` and at a call's result from the
+    callee's `ensures`, where it used to answer "unknown" (`stated_cases`
+    in `places.rs`). A caller proves a required case from what it stored in
+    the argument, and a callee proves a guaranteed case where it returns.
+    Still refused: a test beside an alternative (`(result in Result::Err)
+    || ..`), which may be false while the clause holds, and a test used as a
+    Boolean operand (`Model::valid(..) == (result in Result::Ok)`). Both
+    need a sum's case named as a content value, the way the lowered program
+    names each scalar leaf at entry and after each call
+    (`ValueOrigin::StorageContent`), so that a clause is a proposition over
+    it; that is a new content kind in the lowered program and in Terminal
+    Psi. The three sample families that write these clauses
+    (`resource_representation`, `representation_agreement`,
+    `buffered_representation_agreement`) are refused earlier for other
+    reasons today, so this change moves none of them.
   - "Identity operand has no term at its written carrier" for a field of a
     record formal outside the mathematical signature: the field arm serves
     data that contains itself only.

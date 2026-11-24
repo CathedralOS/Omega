@@ -217,7 +217,10 @@ for example, is a Boolean operand (`a == !b`) as well as a whole clause, and
 so is a comparison (`flag == (a < b)`): it is the Boolean value it computes,
 with `>` and `>=` read as `<` and `<=` of the exchanged operands and `!=` as
 the negation of `==`. A comparison under an arithmetic policy is refused as
-an operand by name.
+an operand by name. A case test `x in S::C` is read in a machine clause as
+well as in a data clause, of a formal or of the result (`requires outcome in
+Outcome::Good`, `ensures result in Result::Ok`); stage 06 decides it and
+makes it known to the other side of the call.
 `tools/ratchets/clause_term_readers.txt` counts the functions in `read/` that
 return a clause term, so the number can only fall.
 
