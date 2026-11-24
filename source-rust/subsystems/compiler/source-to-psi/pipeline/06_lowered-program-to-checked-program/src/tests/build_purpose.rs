@@ -81,29 +81,38 @@ pub(super) fn frontier_with_core(
         }
     }
     let mut syntax = syntax.unwrap();
-    let root =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../../../source/library/core");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../../../../source/library/core");
     let mut bindings = Vec::with_capacity(core.len());
     let importing_source = match core_scope {
         DependencyScope::Product => product_source.unwrap(),
         DependencyScope::Build => build_source.unwrap(),
     };
+    let mut loaded = Vec::<(&str, _)>::new();
     for &(file, declaration, text) in core {
-        let id = sources
-            .add_checked_instance(
-                root.join(file),
-                text,
-                root.clone(),
-                None,
-                source_admission::SourceOrigin::Toolchain,
-                source_admission::SourceResolutionStratum::Base,
-                core_scope,
-            )
-            .source_id;
-        let tokens = crate::checking::frontend_fixture::Lexer::new(text)
-            .tokenize()
-            .unwrap();
-        crate::checking::frontend_fixture::parse(&mut syntax, id, &tokens).unwrap();
+        // One file may supply several declarations; it is loaded once.
+        let id = match loaded.iter().find(|(known, _)| *known == file) {
+            Some((_, id)) => *id,
+            None => {
+                let id = sources
+                    .add_checked_instance(
+                        root.join(file),
+                        text,
+                        root.clone(),
+                        None,
+                        source_admission::SourceOrigin::Toolchain,
+                        source_admission::SourceResolutionStratum::Base,
+                        core_scope,
+                    )
+                    .source_id;
+                let tokens = crate::checking::frontend_fixture::Lexer::new(text)
+                    .tokenize()
+                    .unwrap();
+                crate::checking::frontend_fixture::parse(&mut syntax, id, &tokens).unwrap();
+                loaded.push((file, id));
+                id
+            }
+        };
         bindings.push(
             crate::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
                 importing_source,

@@ -84,6 +84,7 @@ mod references;
 mod representation_views;
 mod result_fields;
 mod result_summaries;
+mod nat_semiring;
 mod ring_law;
 mod ring_law_publication;
 mod semiring_identity;

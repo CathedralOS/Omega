@@ -155,6 +155,23 @@ fn left_distributivity_is_refused_when_commutativity_is_outside_the_conformance(
 }
 
 #[test]
+fn a_program_over_the_library_nat_compiles_on_its_semiring_conformance() {
+    let (output, report) = check("nat_semiring/pass/library_conformance");
+    assert_eq!(output.status.code(), Some(0), "{report}");
+}
+
+#[test]
+fn a_local_operation_gets_no_license_from_the_library_conformance() {
+    let (output, report) = check("nat_semiring/fail/local_operation_unlicensed");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains("cannot prove ensures contract for `relies_on_nothing`")
+            && report.contains(UNPROVED),
+        "{report}"
+    );
+}
+
+#[test]
 fn a_satisfier_that_proves_nothing_is_refused_for_the_law_it_inherits() {
     let (output, report) = check("ring_law/fail/ring_law_unproven_rejected");
     assert_eq!(output.status.code(), Some(1), "{report}");

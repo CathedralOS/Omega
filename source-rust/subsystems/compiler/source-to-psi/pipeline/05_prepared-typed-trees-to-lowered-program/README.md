@@ -20,7 +20,12 @@ into the compilation's
 [read/proof_stratum.rs](src/read/proof_stratum.rs) decides which declarations
 those are. A law whose requirement states associativity or commutativity of
 an operation is read first, and the signature records it as a license for
-the proofs of the laws after it. The ordinary reader refuses the same data and machines when a
+the proofs of the laws after it. A machine that satisfies a requirement of a
+trait brings in every other machine over such data that satisfies a
+requirement of the same trait at the same data, so a program that calls the
+library's `add` on `Nat` gets `core/nat.omg`'s whole `CommutativeSemiring`
+conformance. A machine that returns a value and states an equality is read
+as a definition and as a law. The ordinary reader refuses the same data and machines when a
 runtime machine reaches them. A field of any other type in such data, a
 premise on such a machine and a result together with a guarantee are refused
 as not supported yet.

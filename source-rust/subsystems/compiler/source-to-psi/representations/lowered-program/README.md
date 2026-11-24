@@ -56,7 +56,9 @@ closure in `PreparedCompilation::mathematics`:
   formal is that induction over the formal's data, and its entry records the
   motive and the branch of each case (`FunctionCases`), which is how stage 06
   computes it on a case without reading the shape of a term.
-- **Laws**: one per `ensures` equality of a machine with no result. A law's
+- **Laws**: one per `ensures` equality of a machine over such data. A machine
+  that also returns a value has a definition entry too, and its statement may
+  name that result. A law's
   statement is an entry with no body. The entries before it are everything
   its proof is checked against, so a law is never its own evidence, and a law
   another law cites comes earlier.

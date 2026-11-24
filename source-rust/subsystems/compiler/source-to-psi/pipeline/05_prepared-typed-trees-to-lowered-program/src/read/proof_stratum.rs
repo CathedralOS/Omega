@@ -53,6 +53,50 @@ impl Program<'_> {
             .is_some_and(|data| self.contains_itself(data))
     }
 
+    /// The trait a machine satisfies a requirement of, with the data each of
+    /// the trait's type arguments names: which conformance the machine is a
+    /// part of. Read from the declaration as written, before the machine.
+    pub(crate) fn conformance(
+        &self,
+        machine: &Machine,
+    ) -> Option<(SymbolHandle, Vec<Option<SymbolHandle>>)> {
+        let typed = self.typed;
+        let mut edges = typed.machine_trait_conformances(machine).into_iter();
+        let (Some(edge), None) = (edges.next(), edges.next()) else {
+            return None;
+        };
+        let Some(crate::source_state::machine::SatisfiedDeclaration::Trait { definition, .. }) =
+            crate::source_state::machine::resolve_satisfied_declaration(typed, machine, edge)
+        else {
+            return None;
+        };
+        let application =
+            crate::source_state::trait_definition::AppliedTraitScope::from_machine_conformance(
+                typed, machine, edge,
+            )?;
+        Some((
+            definition.symbol,
+            application
+                .substitutions
+                .iter()
+                .map(|(_, argument)| self.names_data(*argument))
+                .collect(),
+        ))
+    }
+
+    /// The machine a nested machine is declared inside, if any.
+    pub(crate) fn enclosing_machine(&self, symbol: SymbolHandle) -> Option<SymbolHandle> {
+        let typed = self.typed;
+        let mut enclosing = typed.symbols.get(symbol).parent;
+        while enclosing.is_valid() && typed.symbols.symbols().nodes().is_valid(enclosing) {
+            if let Some(outer) = typed.machine_by_symbol(enclosing) {
+                return (outer.symbol != symbol).then_some(outer.symbol);
+            }
+            enclosing = typed.symbols.get(enclosing).parent;
+        }
+        None
+    }
+
     /// Whether the machine takes or returns data that contains itself, or is
     /// declared inside a machine that does.
     pub(crate) fn proof_machine(&self, machine: &Machine) -> bool {
