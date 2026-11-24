@@ -3818,23 +3818,21 @@ pub(crate) mod record_input {
                 }
                 let child_type = view_type(source, argument.place)
                     .or_else(|| element_view_type(source, argument.place))?;
-                let readable = match view_access(source, argument.place) {
+                let occurrence_access = view_access(source, argument.place);
+                let readable = match occurrence_access {
                     Some(terminal_psi::StructuralAccess::SharedBorrow) => true,
                     Some(terminal_psi::StructuralAccess::MutableBorrow) => {
                         parent.multiplicity == StructuralMultiplicity::Affine
                     }
                     _ => false,
                 };
-                if (find_structural_type(declarations, child_type)
-                    .map(|declaration| &declaration.shape)
-                    != Some(&expected)
-                    && !descriptor_family(
+                if !readable
+                    || !descriptor_family(
                         find_structural_type(declarations, child_type)
                             .map(|declaration| &declaration.shape),
                         &expected,
-                        view_access(source, argument.place),
-                    ))
-                    || !readable
+                        occurrence_access,
+                    )
                 {
                     return None;
                 }
@@ -3914,39 +3912,20 @@ pub(crate) mod record_input {
         expected: &StructuralTypeShape,
         occurrence_access: Option<terminal_psi::StructuralAccess>,
     ) -> bool {
-        match (actual, expected) {
-            (
-                Some(StructuralTypeShape::ElementView {
-                    element: source,
-                    access: source_access,
-                }),
-                StructuralTypeShape::ElementView {
-                    element: destination,
-                    access: destination_access,
-                },
-            ) => {
-                source == destination
-                    && destination_access.is_none_or(|requested| {
-                        source_access.or(occurrence_access).is_some_and(|supplied| {
-                            supplied == requested
-                                || supplied == terminal_psi::StructuralAccess::MutableBorrow
-                                    && matches!(
-                                        requested,
-                                        terminal_psi::StructuralAccess::SharedBorrow
-                                            | terminal_psi::StructuralAccess::WriteOnlyBorrow
-                                    )
-                        })
-                    })
-            }
-            (
-                Some(StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                )),
-                StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                ),
-            ) => true,
-            _ => false,
+        let Some(actual) = actual else {
+            return false;
+        };
+        match terminal_semantics::stored_reference_access(expected) {
+            Some(requested) => occurrence_access.is_some_and(|access| {
+                terminal_semantics::descriptor_reborrow_shapes_match(
+                    actual,
+                    access,
+                    Some(access),
+                    expected,
+                    requested,
+                )
+            }),
+            None => terminal_semantics::descriptor_geometry_matches(actual, expected),
         }
     }
 
@@ -3986,6 +3965,30 @@ pub(crate) mod record_input {
                 source.geometry(),
             )?;
         (physical_type == selected.id).then_some((physical_type, offset))
+    }
+
+    #[cfg(test)]
+    mod descriptor_tests {
+        use super::{StructuralTypeShape, descriptor_family};
+        use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
+
+        #[test]
+        fn borrowed_byte_fields_preserve_declared_and_occurrence_access() {
+            use StructuralAccess::{MutableBorrow, SharedBorrow, WriteOnlyBorrow};
+            let view = |access| {
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access })
+            };
+            let shared = view(Some(SharedBorrow));
+            let mutable = view(Some(MutableBorrow));
+            let write_only = view(Some(WriteOnlyBorrow));
+            let unspecified = view(None);
+            assert!(descriptor_family(Some(&mutable), &shared, Some(MutableBorrow)));
+            assert!(descriptor_family(Some(&mutable), &write_only, Some(MutableBorrow)));
+            assert!(descriptor_family(Some(&unspecified), &mutable, Some(MutableBorrow)));
+            assert!(descriptor_family(Some(&shared), &unspecified, Some(SharedBorrow)));
+            assert!(!descriptor_family(Some(&shared), &mutable, Some(SharedBorrow)));
+            assert!(!descriptor_family(Some(&mutable), &mutable, Some(SharedBorrow)));
+        }
     }
 }
 
