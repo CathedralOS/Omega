@@ -813,9 +813,9 @@ const READS_PACKET: &str = "data Packet { bytes: u8; }
     machine spare(held: Spare) -> u8 crashes none { held.bytes }
     machine main() -> u8 crashes none { VALUE }";
 
-/// Evaluates `READS_PACKET`, then installs a layout for `data` as a later
-/// round would, after `VALUE`'s receipt was recorded, and joins the receipt.
-fn join_after_a_later_layout_of(data: &str) -> Result<(), String> {
+/// Install a later plan at a real written type reference. The application
+/// identifies the storage. Its semantic declaration can have other storage.
+fn join_after_a_later_layout_of(data: &str, storage: &str) -> Result<(), String> {
     let mut typed = typed_source(READS_PACKET);
     let entry = typed.realized_machine_named("main").unwrap().symbol;
     let mut accounting = SourceCompletionAccounting::default();
@@ -823,11 +823,22 @@ fn join_after_a_later_layout_of(data: &str) -> Result<(), String> {
         evaluate_with_reaches(&mut typed, request(&[entry]), None, &mut accounting).unwrap();
     validate_constant_evaluations(&typed, &accounting, &evaluated.constant_reaches).unwrap();
     let symbol = typed.data_definition_by_name_str(data).unwrap().symbol;
+    let storage_symbol = typed.data_definition_by_name_str(storage).unwrap().symbol;
+    let occurrences = crate::source_state::references::collect_program_type_occurrences(&typed);
+    let written = |owner| {
+        occurrences
+            .iter()
+            .map(|row| row.reference)
+            .find(|&reference| typed.type_reference_symbol(reference) == owner)
+            .expect("the fixture uses both types")
+    };
+    let application = written(storage_symbol);
+    let semantic_type = written(symbol);
     typed
         .plan_laid_layouts
         .push(crate::source_state::PlanLaidLayout {
-            application: arena::Handle::invalid(),
-            semantic_type: arena::Handle::invalid(),
+            application,
+            semantic_type,
             target_inputs: Vec::new(),
             data_name: data.to_owned(),
             data_symbol: symbol,
@@ -846,13 +857,38 @@ fn join_after_a_later_layout_of(data: &str) -> Result<(), String> {
 
 #[test]
 fn a_later_layout_of_data_the_constant_never_reached_is_accepted() {
-    join_after_a_later_layout_of("Spare").unwrap();
+    join_after_a_later_layout_of("Spare", "Spare").unwrap();
+}
+
+#[test]
+fn receipt_storage_inputs_include_a_type_inferred_from_a_call() {
+    let typed = typed_source(
+        "data Packet { byte: u8; }
+         machine make_packet() -> Packet { Packet { byte: 3u8 } }
+         machine read_packet() -> u8 { let packet = make_packet(); packet.byte }",
+    );
+    let reader = typed.realized_machine_named("read_packet").unwrap().symbol;
+    let packet = typed.data_definition_by_name_str("Packet").unwrap().symbol;
+    let reads = crate::source_state::references::selected_storage_type_references(
+        &typed,
+        &super::DeclarationSelection::from_symbols([reader]),
+    );
+    assert!(
+        reads
+            .into_iter()
+            .any(|reference| typed.type_reference_symbol(reference) == packet)
+    );
+}
+
+#[test]
+fn another_storage_of_the_same_semantic_data_does_not_change_the_constant() {
+    join_after_a_later_layout_of("Packet", "Spare").unwrap();
 }
 
 #[test]
 fn a_later_layout_of_data_the_constant_reached_refuses_its_receipt() {
     assert_eq!(
-        join_after_a_later_layout_of("Packet").unwrap_err(),
+        join_after_a_later_layout_of("Packet", "Packet").unwrap_err(),
         "constant receipt read a layout that changed after the constant was evaluated"
     );
 }

@@ -74,8 +74,8 @@ impl ConstantReaches {
 
 /// Requires every declaration in `reached` to read the same in `program` as
 /// in `source`, the program the constant was evaluated in: each type written
-/// in it, the layout planned for each of those types and for it as data, its
-/// access plan as a domain, and its value as a constant.
+/// in it, the selected storage layouts its computation used, its access plan
+/// as a domain, and its value as a constant.
 ///
 /// The demand order evaluated the constant only after every value those
 /// declarations hold. If it missed one, a later round changed what the
@@ -87,18 +87,6 @@ fn reached_declarations_unchanged(
     reached: &[SymbolHandle],
 ) -> Result<(), &'static str> {
     let is_reached = |symbol: SymbolHandle| family_position(reached, symbol).is_some();
-    let layout_reads_the_same =
-        |before: Option<&crate::source_state::PlanLaidLayout>,
-         after: Option<&crate::source_state::PlanLaidLayout>| {
-            match (before, after) {
-                (None, None) => true,
-                (Some(before), Some(after)) => {
-                    before == after
-                        && before.target_layouts(source) == after.target_layouts(program)
-                }
-                _ => false,
-            }
-        };
     const TYPE: &str = "constant receipt read a type that changed after the constant was evaluated";
     const LAYOUT: &str =
         "constant receipt read a layout that changed after the constant was evaluated";
@@ -114,26 +102,31 @@ fn reached_declarations_unchanged(
         {
             return Err(TYPE);
         }
-        if !layout_reads_the_same(
-            source.plan_laid_layout_for_type(reference),
-            program.plan_laid_layout_for_type(reference),
-        ) {
-            return Err(LAYOUT);
-        }
     }
-    let mut before = source
-        .plan_laid_layouts
-        .iter()
-        .filter(|plan| is_reached(plan.data_symbol));
-    let mut after = program
-        .plan_laid_layouts
-        .iter()
-        .filter(|plan| is_reached(plan.data_symbol));
-    loop {
-        match (before.next(), after.next()) {
-            (None, None) => break,
-            (before, after) if layout_reads_the_same(before, after) => {}
-            _ => return Err(LAYOUT),
+
+    // A semantic data declaration can have several independently selected
+    // storage applications. Publication retains all those plans with the data.
+    // The constant observes only the applications used by its computation.
+    if !source.plan_laid_layouts.is_empty() || !program.plan_laid_layouts.is_empty() {
+        let inputs =
+            crate::source_state::references::selected_storage_type_references(program, &selection);
+        for reference in inputs {
+            if !source
+                .type_reference_table
+                .contains_type_reference(reference)
+            {
+                return Err(TYPE);
+            }
+            match (
+                source.plan_laid_layout_for_type(reference),
+                program.plan_laid_layout_for_type(reference),
+            ) {
+                (None, None) => {}
+                (Some(before), Some(after))
+                    if before == after
+                        && before.target_layouts(source) == after.target_layouts(program) => {}
+                _ => return Err(LAYOUT),
+            }
         }
     }
     for (_, domain) in program.domain_definitions.iter() {
