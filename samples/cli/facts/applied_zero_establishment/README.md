@@ -65,9 +65,8 @@ still rejects. They are pinned as `applied_zero_establishment_field_bound_{exit,
 and `applied_zero_establishment_open_application_unestablished`.
 
 This row establishes ordinary initialization validity. The companion
-[installed-entry storage row](../installed_entry_storage/README.md) establishes
-static-backed exclusive state and exact installed handoff with actual original
-backing observations; those obligations are not inferred from this row.
+[installed-entry storage row](../installed_entry_storage/README.md) records earlier original-backing observations and the installed contract needed
+to repeat them.
 
 ## Build-owned target-body migration
 

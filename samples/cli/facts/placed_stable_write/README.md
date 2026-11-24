@@ -8,7 +8,8 @@ retains its original backing, storage projection, access and established domain
 interpretation together. Every incoming path must justify the same interpretation
 before a call can consume it; the carrier type alone establishes none of these.
 Externally installed entry lending and its retirement remain separate acceptance
-of that task, exercised by `installed_entry_storage` and the source-access customer.
+of that task. The [installed entry storage row](../installed_entry_storage/README.md)
+records the previous hosted contract and the expected handback bytes.
 
 This is a prerequisite of BUMP-ALLOCATOR-CANARY, not allocator completion.
 The [live linear owner control](controls/live_linear_owner/main.omg) keeps an
