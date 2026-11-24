@@ -218,6 +218,9 @@ pub(super) fn encode_contract_expression_body(
                             encoder.tag("recast_write_only", 3)
                         }
                     },
+                    PackageReviewCastForm::KeepDomain => encoder.tag("keep_domain", 4),
+                    PackageReviewCastForm::RemoveDomain => encoder.tag("remove_domain", 5),
+                    PackageReviewCastForm::AddDomain => encoder.tag("add_domain", 6),
                 };
                 Ok(())
             })?;

@@ -94,6 +94,9 @@ pub enum PackageReviewArithmeticDomain {
 pub enum PackageReviewCastForm {
     Value,
     Recast(PackageReviewReferenceAccess),
+    KeepDomain,
+    RemoveDomain,
+    AddDomain,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

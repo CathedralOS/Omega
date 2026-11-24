@@ -163,6 +163,27 @@ impl<'a> PolicySource<'a> {
         Ok(PackageReviewTypeIdentity { canonical })
     }
 
+    fn contract_declaration(&self, owner: SymbolHandle) -> SymbolHandle {
+        let source = self.typed();
+        let template = source
+            .closed_requirement_application(owner)
+            .map_or(owner, |application| application.template);
+        source
+            .trait_machine_signature(template)
+            .map_or(template, |(service, _)| service.symbol)
+    }
+
+    fn exposes_contract(&self, declaration: SymbolHandle) -> Result<bool, Vec<Diagnostic>> {
+        use source_compiler::representations::source_state::visibility::declaration_visibility;
+        let source = self.typed();
+        if let Some(machine) = source.machine_by_symbol(declaration) {
+            return Ok(super::callables::exposes_machine_interface(machine));
+        }
+        declaration_visibility(source, declaration)
+            .map(|visibility| visibility.is_public())
+            .ok_or_else(|| unavailable("the visibility of a reviewed contract's declaration"))
+    }
+
     pub(super) fn require_type_dependencies(
         &self,
         owner: SymbolHandle,
@@ -177,31 +198,16 @@ impl<'a> PolicySource<'a> {
             .package_identity()
             .ok_or_else(|| unavailable("a type outside the reviewed package subject"))?;
         let source = self.typed();
-        let declaration = source
-            .closed_requirement_application(owner)
-            .map_or(owner, |application| application.template);
-        let declaration = source
-            .trait_machine_signature(declaration)
-            .map_or(declaration, |(service, _)| service.symbol);
+        let declaration = self.contract_declaration(owner);
         // Reading the supplier's schema establishes the meaning of a grant,
         // but only a declaration owned by this Product contributes a use.
         if !self.owns(declaration, package)? {
             return Ok(());
         }
-        let exposure = if exposure == PackageReviewSemanticDependencyExposure::PublicInterface {
-            let exposed = match source.machine_by_symbol(declaration) {
-                Some(machine) => super::callables::exposes_machine_interface(machine),
-                None => declaration_visibility(source, declaration)
-                    .ok_or_else(|| {
-                        unavailable("the visibility of the declaration that uses a carried type")
-                    })?
-                    .is_public(),
-            };
-            if exposed {
-                PackageReviewSemanticDependencyExposure::PublicInterface
-            } else {
-                PackageReviewSemanticDependencyExposure::PrivateImplementation
-            }
+        let exposure = if exposure == PackageReviewSemanticDependencyExposure::PublicInterface
+            && !self.exposes_contract(declaration)?
+        {
+            PackageReviewSemanticDependencyExposure::PrivateImplementation
         } else {
             exposure
         };
@@ -793,18 +799,27 @@ impl<'a> PolicySource<'a> {
                 target: Box::new(self.scoped_expression(borrow.target, scope, depth + 1)?),
             },
             ExpressionNode::Cast(cast) => {
-                use language_core::cast_form::CastForm;
+                use language_core::cast_form::{CastEntryKind, CastForm};
                 use numerics::arithmetic::ArithmeticDomain;
                 use review_evidence::record::{
                     PackageReviewArithmeticDomain as Policy, PackageReviewCastForm,
                 };
-                let form = match cast.form {
-                    CastForm::Value => PackageReviewCastForm::Value,
-                    CastForm::Recast(access) => {
-                        PackageReviewCastForm::Recast(reference_access(access))
-                    }
-                    CastForm::Entry(_) => {
-                        return Err(unavailable("an unaccounted domain-cast entry"));
+                let (form, target) = match cast.form {
+                    CastForm::Value => (PackageReviewCastForm::Value, cast.target_type),
+                    CastForm::Recast(access) => (
+                        PackageReviewCastForm::Recast(reference_access(access)),
+                        cast.target_type,
+                    ),
+                    CastForm::Entry(entry) => {
+                        if !cast.result_type.is_valid() {
+                            return Err(unavailable("an unaccounted domain-cast entry"));
+                        }
+                        let form = match entry.kind {
+                            CastEntryKind::Keep => PackageReviewCastForm::KeepDomain,
+                            CastEntryKind::Remove => PackageReviewCastForm::RemoveDomain,
+                            CastEntryKind::Add => PackageReviewCastForm::AddDomain,
+                        };
+                        (form, cast.result_type)
                     }
                 };
                 let semantic_domain = if cast.semantic_domain_symbol.is_valid() {
@@ -812,10 +827,19 @@ impl<'a> PolicySource<'a> {
                         .typed()
                         .domain_definition(cast.semantic_domain_symbol)
                         .ok_or_else(|| unavailable("a cast domain without its declaration"))?;
+                    let identity = self.nominal(domain.symbol)?;
                     if !domain.is_public {
-                        return Err(unavailable("a private domain's exposed cast contract"));
+                        let owner = self.contract_declaration(scope.owner);
+                        let declaring = self.nominal(owner)?;
+                        if declaring.owner != identity.owner || self.exposes_contract(owner)? {
+                            return Err(unavailable(format!(
+                                "private domain `{}` in the cast contract of `{}`",
+                                domain.name.as_str(),
+                                declaring.path
+                            )));
+                        }
                     }
-                    Some(self.nominal(domain.symbol)?)
+                    Some(identity)
                 } else if !cast.semantic_domain.is_empty() {
                     return Err(unavailable("an unresolved cast qualification"));
                 } else {
@@ -823,7 +847,7 @@ impl<'a> PolicySource<'a> {
                 };
                 Expression::Cast {
                     value: Box::new(self.scoped_expression(cast.value, scope, depth + 1)?),
-                    target: self.declared_type(scope.owner, cast.target_type)?,
+                    target: self.declared_type(scope.owner, target)?,
                     arithmetic_domain: match cast.domain {
                         ArithmeticDomain::Exact => Policy::Exact,
                         ArithmeticDomain::Wrapping => Policy::Wrapping,

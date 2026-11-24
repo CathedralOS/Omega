@@ -67,13 +67,9 @@ pub mod cast_form {
         #[default]
         Value, // Value conversion (`x as T`).
         Recast(crate::ReferenceAccess), // Re-view the same backing with the stated reference access.
-        /*
-            One `=D`, `-D` or `+D` entry of a domain cast (domains.md, "Domain
-            casts"). The parser writes one node per entry because each entry
-            names one domain; typing accounts for the whole run at once and
-            then leaves ordinary `Value` casts behind, so no later stage sees
-            this form.
-        */
+        // One `=D`, `-D` or `+D` operation. Typing accounts for the entire
+        // run and sets each entry's result type. Lowering and package review
+        // read the operation with the domain it selected.
         Entry(CastEntry),
     }
 
