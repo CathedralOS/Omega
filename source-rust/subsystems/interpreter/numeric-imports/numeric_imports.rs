@@ -289,8 +289,10 @@ fn evaluate(
             let integer = match domain {
                 IeeeFloatToIntegerDomain::Saturating => {
                     FloatSemantics::to_integer_saturating(first, integer_format, 64).map_err(
-                        |error| TerminalEffectRejection {
-                            reason: format!("native conversion endpoint refused: {error:?}"),
+                        |error| {
+                            TerminalEffectRejection::new(format!(
+                                "native conversion endpoint refused: {error:?}"
+                            ))
                         },
                     )?
                 }

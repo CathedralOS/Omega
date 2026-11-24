@@ -421,27 +421,7 @@ fn explicit_process_exit_is_observed_on_both_engines_and_never_passes_the_test()
     let Some(host) = target::TargetProfile::host_if_supported() else {
         return;
     };
-    let scratch =
-        platform_custody::temporary_directory::TemporaryDirectory::create("exit-test", false)
-            .unwrap();
-    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/build/run/registered_process_exit/build.omg");
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args([
-            "build",
-            "--compare-tests",
-            "--target",
-            host.target_name(),
-            "--build-dir",
-        ])
-        .arg(scratch.path())
-        .arg(&fixture)
-        .current_dir(scratch.path())
-        .stdin(std::process::Stdio::null())
-        .output()
-        .unwrap();
-    assert!(!output.status.success());
-    let report = String::from_utf8_lossy(&output.stderr);
+    let report = failing_registered_fixture("registered_process_exit", host, &["--compare-tests"]);
     for (name, code, agreed) in [
         ("exits_with_23", 23, cfg!(windows)),
         ("exits_with_zero", 0, false),
@@ -473,16 +453,7 @@ fn explicit_process_exit_is_observed_on_both_engines_and_never_passes_the_test()
 
     // All three failures have the same cause. The ordinary concise report must
     // still name each test and preserve the exact status supplied by Psi.
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["build", "--target", host.target_name(), "--build-dir"])
-        .arg(scratch.path())
-        .arg(&fixture)
-        .current_dir(scratch.path())
-        .stdin(std::process::Stdio::null())
-        .output()
-        .unwrap();
-    assert!(!output.status.success());
-    let report = String::from_utf8_lossy(&output.stderr);
+    let report = failing_registered_fixture("registered_process_exit", host, &[]);
     for (name, code) in [
         ("exits_with_zero", 0),
         ("exits_with_23", 23),
@@ -496,4 +467,62 @@ fn explicit_process_exit_is_observed_on_both_engines_and_never_passes_the_test()
             "{report}"
         );
     }
+}
+
+fn failing_registered_fixture(name: &str, host: target::TargetProfile, options: &[&str]) -> String {
+    let scratch =
+        platform_custody::temporary_directory::TemporaryDirectory::create("registered-test", false)
+            .unwrap();
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/build/run")
+        .join(name)
+        .join("build.omg");
+    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .arg("build")
+        .args(options)
+        .args(["--target", host.target_name(), "--build-dir"])
+        .arg(scratch.path())
+        .arg(&fixture)
+        .current_dir(scratch.path())
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap();
+    let report = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(!output.status.success(), "{report}");
+    for artifact in ["omega-program", "omega-program.exe"] {
+        assert!(
+            !scratch.path().join(artifact).exists(),
+            "{name} published {artifact}"
+        );
+    }
+    report
+}
+
+#[cfg(all(
+    target_os = "linux",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
+#[test]
+fn registered_output_ceiling_stops_only_the_exhausted_invocation() {
+    let host = target::TargetProfile::host_if_supported().unwrap();
+    let report = failing_registered_fixture("registered_output_limit", host, &["--compare-tests"]);
+    let exhausted = report
+        .lines()
+        .find(|row| row.contains("test `fills_the_capture_buffer` in group"))
+        .unwrap_or_else(|| panic!("{report}"));
+    for engine in ["Psi interpreter", "native"] {
+        let reason = format!(
+            "has an incomplete result on the {engine} engine: stdout exceeded its 4194304-byte capture allowance"
+        );
+        assert!(exhausted.contains(&reason), "{exhausted}");
+    }
+    let returned = report
+        .lines()
+        .find(|row| row.contains("test `returns_normally` in group"))
+        .unwrap_or_else(|| panic!("{report}"));
+    assert!(
+        returned.contains("passed on Psi interpreter, native")
+            && returned.contains("native/Psi comparison agrees"),
+        "{returned}"
+    );
 }

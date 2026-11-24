@@ -156,6 +156,7 @@ fn interpret(
             "the test report lost its Psi artifact".to_owned(),
         ));
     };
+    let limits = crate::NativeEntryLimits::INSTALLED;
     let target = target.target_name();
     let x86_flags = match terminal_runtime::capture_host_x86_flags(target) {
         Ok(flags) => flags,
@@ -186,6 +187,11 @@ fn interpret(
             provider_proposal: None,
             work_budget: TEST_PSI_WORK_ALLOWANCE,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
+            output_limits: Some(terminal_runtime::TerminalOutputLimits {
+                stdout_bytes: limits.capture.stdout_bytes,
+                stderr_bytes: limits.capture.stderr_bytes,
+                combined_bytes: usize::try_from(limits.combined_output_bytes).unwrap_or(usize::MAX),
+            }),
             standard_input: standard_input(inputs).map(|bytes| {
                 Box::new(std::io::Cursor::new(bytes)) as Box<dyn std::io::Read + Send>
             }),
@@ -194,7 +200,9 @@ fn interpret(
         report.retained_native_artifact(),
     );
     let observation = observation.map_err(|error| {
-        if matches!(
+        if let Some(reason) = error.sponsor_exhaustion() {
+            EngineError::Incomplete(reason.to_owned())
+        } else if matches!(
             error,
             terminal_runtime::TerminalRuntimeError::FileObservation(_)
         ) {

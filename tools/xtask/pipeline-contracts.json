@@ -17341,6 +17341,39 @@
     },
     {
       "consumers": [
+        "buffered output adapters"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/src/execution.rs",
+      "item": "TerminalOutputLimits::field:stdout_bytes#1",
+      "kind": "carried_record",
+      "meaning": "Maximum stdout bytes retained during this invocation.",
+      "producer": "execution sponsor",
+      "signature": "bf9f746ab272b00d6788a85c1db5a5f20c392d76e9b84cc5668c95dc83bc704f"
+    },
+    {
+      "consumers": [
+        "buffered output adapters"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/src/execution.rs",
+      "item": "TerminalOutputLimits::field:stderr_bytes#1",
+      "kind": "carried_record",
+      "meaning": "Maximum stderr bytes retained during this invocation.",
+      "producer": "execution sponsor",
+      "signature": "4a0366bf25dbca434d5a933ece4d985654530e01b577907bce84f8a64a170bde"
+    },
+    {
+      "consumers": [
+        "buffered output adapters"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/src/execution.rs",
+      "item": "TerminalOutputLimits::field:combined_bytes#1",
+      "kind": "carried_record",
+      "meaning": "Maximum bytes retained across stdout and stderr together.",
+      "producer": "execution sponsor",
+      "signature": "97de214a6c720efd846800569cfa704bb5d048d25475576033d090b69fdb6423"
+    },
+    {
+      "consumers": [
         "portable execution",
         "Build published-image execution",
         "PSI embedders"
@@ -17455,6 +17488,17 @@
       "meaning": "Optional Build proposal independently admitted before installation.",
       "producer": "terminal hosted interpreter",
       "signature": "6b8a200f299119108ca2e472a9802b2daaa792086155da0c949cb9ae13148441"
+    },
+    {
+      "consumers": [
+        "hosted invocation setup"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/src/execution.rs",
+      "item": "TerminalRuntimeRequest::field:output_limits#1",
+      "kind": "carried_record",
+      "meaning": "Optional capture limits supplied to the host before its output adapters are bound.",
+      "producer": "host requesting execution",
+      "signature": "f4f55ec8fdc6583f6ee71f6bd4d8ca92e61b4db25bca6e17d23a14bdb0f3ae73"
     },
     {
       "consumers": [
@@ -17805,7 +17849,7 @@
       "kind": "definition",
       "meaning": "Groups TerminalRuntimeError operations with their defining host or checked image.",
       "producer": "terminal hosted interpreter",
-      "signature": "f70e2f963a05bc1dc05a879553892acff743c19b9240688e645f9f24b99b471b"
+      "signature": "78acfa4cc8c45f4942031601596c6c208f655a4c958393b4731bbe50c191c6b6"
     },
     {
       "consumers": [
@@ -17832,6 +17876,17 @@
       "meaning": "Construct the diagnostic for an explicitly unavailable host capability.",
       "producer": "terminal hosted interpreter",
       "signature": "2023636ea20af154e677067a85b9b3b32853551f0ec636fe5708fae9fd3db282"
+    },
+    {
+      "consumers": [
+        "registered test runner"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/src/execution.rs",
+      "item": "impl:TerminalRuntimeError::method:sponsor_exhaustion#1",
+      "kind": "checker",
+      "meaning": "Recover a reported sponsor resource refusal from an error during guest execution.",
+      "producer": "terminal hosted interpreter",
+      "signature": "42cdcabf3cf19a9d915e1eb3cf82801bdafa1f1c2a3b9e638e90ab3a4935cd0a"
     },
     {
       "consumers": [
@@ -17965,6 +18020,18 @@
     },
     {
       "consumers": [
+        "hosted invocation setup",
+        "buffered output adapters"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/src/execution.rs",
+      "item": "struct:TerminalOutputLimits#1",
+      "kind": "carried_record",
+      "meaning": "Per-stream and combined byte ceilings for output retained across one invocation and its components.",
+      "producer": "execution sponsor",
+      "signature": "10f43dd5e0f634bd5efa877fff3802bafa25053b4c965b4c9886db3ca0c5e700"
+    },
+    {
+      "consumers": [
         "portable execution",
         "Build published-image execution",
         "Psi embedders"
@@ -17974,7 +18041,7 @@
       "kind": "carried_record",
       "meaning": "Portable host request containing canonical code and chosen host capabilities; completed native metadata enters through the separate typed Build API.",
       "producer": "terminal hosted interpreter",
-      "signature": "fb9abeae4bb6c7f61731d46cd1d0243e62012cb81c6dac5f9fa834c4f92fefde"
+      "signature": "180c97859dd262457a4487dbed511f8a543995ab08d338c5e2cbf123e27288f3"
     },
     {
       "consumers": [
@@ -18101,7 +18168,7 @@
       "kind": "definition",
       "meaning": "Groups HostContext < 'host > operations with their defining host or checked image.",
       "producer": "terminal hosted interpreter",
-      "signature": "721dcd20e0c241e197c6ecaaef3d786a58abd9d5d346e21c99a87e830c5af7e3"
+      "signature": "12fefbaa8862ba6cc04083c959c3014e873238e9f12153193a6259f925c1b96c"
     },
     {
       "consumers": [
@@ -18127,7 +18194,18 @@
       "kind": "host_operation",
       "meaning": "Snapshot the standard streams owned by this host.",
       "producer": "terminal hosted interpreter",
-      "signature": "00700f45e71b90613c0d30374e80aa77ef36303a983a60d0a4755c606119e920"
+      "signature": "5b406884d58507722643339c4bcf3c63293a7ccccd8bd5efa87f4a97560758ad"
+    },
+    {
+      "consumers": [
+        "hosted invocation completion"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/src/execution/host_imports/embedding.rs",
+      "item": "impl:HostContext < 'host >::method:take_output#1",
+      "kind": "host_operation",
+      "meaning": "Move the stdout and stderr buffers into the completed invocation observation.",
+      "producer": "terminal hosted interpreter",
+      "signature": "43e837550fc49e317978c74b59a8ae867a5b9342a4e893004daa1ab2f880fade"
     },
     {
       "consumers": [
@@ -18188,9 +18266,9 @@
       "file": "source-rust/subsystems/interpreter/host/src/execution/hosted_invocation.rs",
       "item": "function:execute_installed#1",
       "kind": "host_operation",
-      "meaning": "Install the validated component graph and run the entry with its supplied capabilities. Completion returns the captured streams and the declared file states.",
+      "meaning": "Install the validated component graph and run the entry with its supplied capabilities. Components share the sponsor’s output allowance. Completion returns the captured streams and the declared file states.",
       "producer": "hosted Terminal execution",
-      "signature": "c7bb6506606826550ca68f0df9d478762d53aa97dae9311ab4adfea6ac8a6607"
+      "signature": "57addf861ea52ecfaf92f9b242245b5a44c5a030259d634b3782f2631b38c54b"
     },
     {
       "consumers": [
@@ -18256,7 +18334,7 @@
       "kind": "test_support",
       "meaning": "Accept the matching native image, reject wrong-target and changed-manifest inputs, and verify full and sliced execution without decoding again.",
       "producer": "retained-image runtime regression",
-      "signature": "4cfb77ac8956c791e6537cddef0274674bf9b9fb475de263731979417cf1432d"
+      "signature": "5f88ec38db0d77335821a35b2071c0e7a103d2cd0283bc052d3028dce8c38448"
     },
     {
       "consumers": [

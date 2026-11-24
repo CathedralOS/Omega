@@ -64,6 +64,7 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
         memory_ordering: None,
         work_budget: 100_000,
         domain_exit: TerminalDomainExitDelegation::Unprovided,
+        output_limits: None,
         standard_input: None,
         clock: None,
     };

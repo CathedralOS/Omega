@@ -70,6 +70,14 @@ use terminal_interpreter::{
     TerminalInstanceError, TerminalInterpretError, TerminalProgram, TerminalRuntimeSupplyRequest,
 };
 
+/// Maximum bytes the sponsor will retain for one invocation and its components.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TerminalOutputLimits {
+    pub stdout_bytes: usize,
+    pub stderr_bytes: usize,
+    pub combined_bytes: usize,
+}
+
 /// Host capabilities for execution of a canonical Terminal program.
 ///
 /// ```compile_fail
@@ -87,9 +95,11 @@ pub struct TerminalRuntimeRequest<'program> {
     pub artifact: &'program terminal_codec::CanonicalTerminalArtifact,
     pub target: Option<&'program str>, // Exact deployment tag admitted by this invocation.
     pub provisions: Option<&'program TerminalRuntimeProvisions>,
-    pub provider_proposal: Option<&'program target_provider_admission::TerminalTargetProviderProposal>, // Checked candidate selection from the Build companion.
+    pub provider_proposal:
+        Option<&'program target_provider_admission::TerminalTargetProviderProposal>, // Checked candidate selection from the Build companion.
     pub work_budget: u64,
     pub domain_exit: TerminalDomainExitDelegation,
+    pub output_limits: Option<TerminalOutputLimits>,
     pub standard_input: Option<Box<dyn std::io::Read + Send + 'program>>, // Explicit finite replay stream; `None` supplies no stdin capability.
     pub clock: Option<TerminalClockEnvironment>,
 }
@@ -143,6 +153,13 @@ impl TerminalRuntimeError {
                 | TerminalInterpretError::ScalarEntryQualificationUnsupported
                 | TerminalInterpretError::AffineProjectionNotRepresentable { .. }
         )
+    }
+
+    pub fn sponsor_exhaustion(&self) -> Option<&str> {
+        match self {
+            Self::Execution(error) => error.sponsor_exhaustion(),
+            _ => None,
+        }
     }
 
     pub fn unavailable_before_guest_effects(&self) -> bool {

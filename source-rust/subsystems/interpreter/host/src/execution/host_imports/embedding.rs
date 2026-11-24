@@ -33,9 +33,10 @@ impl<'host> HostContext<'host> {
     }
 
     pub fn output(&self) -> Result<(Vec<u8>, Vec<u8>), TerminalRuntimeError> {
-        Ok((
-            self.output.stdout.snapshot()?,
-            self.output.stderr.snapshot()?,
-        ))
+        self.output.snapshot()
+    }
+
+    pub(crate) fn take_output(&self) -> Result<(Vec<u8>, Vec<u8>), TerminalRuntimeError> {
+        self.output.take()
     }
 }

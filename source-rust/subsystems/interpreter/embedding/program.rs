@@ -270,8 +270,8 @@ pub(crate) mod instance {
         use crate::embedding::program::TerminalProgram;
         use crate::engine::calls::{ComponentCallScope, ComponentInputCustody};
         use crate::{
-            TerminalImportAdapter, TerminalRuntimeSupplies, TerminalScalarValue,
-            TerminalStructuralInputs,
+            TerminalEffectRejection, TerminalImportAdapter, TerminalRuntimeSupplies,
+            TerminalScalarValue, TerminalStructuralInputs,
         };
         use terminal_psi::BoundaryMachineDeclaration;
 
@@ -571,11 +571,10 @@ pub(crate) mod instance {
                 arguments: &[TerminalScalarValue],
                 structural_operands: &[terminal_psi::StructuralArgument],
                 meter: &mut dyn ExecutionMeter,
-            ) -> Result<Option<TerminalExecutionStatus>, String> {
-                let pending = self
-                    .pending
-                    .as_mut()
-                    .ok_or("component invocation was not prepared")?;
+            ) -> Result<Option<TerminalExecutionStatus>, TerminalEffectRejection> {
+                let pending = self.pending.as_mut().ok_or_else(|| {
+                    TerminalEffectRejection::new("component invocation was not prepared")
+                })?;
                 if pending.caller != caller
                     || pending.operation != operation
                     || pending.arguments != arguments
@@ -587,29 +586,35 @@ pub(crate) mod instance {
                         .as_ref()
                         .is_some_and(|source| source.values.len() != structural_operands.len())
                 {
-                    return Err(
-                        "pending component invocation has another operation or input snapshot"
-                            .into(),
-                    );
+                    return Err(TerminalEffectRejection::new(
+                        "pending component invocation has another operation or input snapshot",
+                    ));
                 }
                 if pending.completed.is_some() {
                     return Ok(None);
                 }
-                let instance = pending
-                    .instance
-                    .as_mut()
-                    .ok_or("component invocation lost its live instance")?;
+                let instance = pending.instance.as_mut().ok_or_else(|| {
+                    TerminalEffectRejection::new("component invocation lost its live instance")
+                })?;
                 match instance
                     .invoke(meter)
-                    .map_err(|error| format!("component invocation: {error:?}"))?
-                {
+                    .map_err(|error| match error.sponsor_exhaustion() {
+                        Some(reason) => TerminalEffectRejection::sponsor_exhausted(format!(
+                            "component invocation: {reason}"
+                        )),
+                        None => {
+                            TerminalEffectRejection::new(format!("component invocation: {error:?}"))
+                        }
+                    })? {
                     TerminalExecutionStatus::Complete(_) => {
                         let instance = *pending.instance.take().expect("borrowed above");
                         match instance.into_component_return(&self.selected) {
                             Ok(completed) => pending.completed = Some(completed),
                             Err((instance, error)) => {
                                 pending.instance = Some(Box::new(instance));
-                                return Err(format!("component return custody: {error:?}"));
+                                return Err(TerminalEffectRejection::new(format!(
+                                    "component return custody: {error:?}"
+                                )));
                             }
                         }
                         Ok(None)
@@ -1635,6 +1640,28 @@ pub(crate) mod instance {
             missing: Vec<crate::engine::capabilities::TerminalExternalCompletionDemand>,
         },
         Execution(TerminalInterpretError),
+    }
+
+    impl TerminalInstanceError {
+        /// Follow the interpreter's operation context to the resource the host refused.
+        pub fn sponsor_exhaustion(&self) -> Option<&str> {
+            let Self::Execution(error) = self else {
+                return None;
+            };
+            let mut current = error;
+            loop {
+                match current {
+                    TerminalInterpretError::ExecutionSite { cause, .. }
+                    | TerminalInterpretError::StructuralReplacement { cause, .. } => {
+                        current = cause;
+                    }
+                    TerminalInterpretError::EffectRejected { rejection, .. } => {
+                        return rejection.exhaustion_reason();
+                    }
+                    _ => return None,
+                }
+            }
+        }
     }
 
     impl std::fmt::Display for TerminalInstanceError {

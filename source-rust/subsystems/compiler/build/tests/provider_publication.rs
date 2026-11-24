@@ -702,6 +702,7 @@ fn folded_layout_reopens_only_with_its_selected_target_and_plan_preimages() {
             .map(|runtime| runtime.execution()),
         work_budget: 100_000,
         domain_exit: terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
+        output_limits: None,
         standard_input: None,
         clock: None,
     })

@@ -45,6 +45,11 @@ zero comparisons. The current runner accepts parameterless tests with no
 configured services. The remaining work includes declared file and field
 observations. [Build test comparison](../../wiki/spec/build/testing.md#comparing-native-and-psi-tests)
 
+Each registered test receives 4 MiB for stdout, 4 MiB for stderr and 8 MiB
+in total per engine. Native runs have 60 seconds for execution and cleanup.
+When a test exhausts its work, time or output allowance, Build reports the
+invocation incomplete and runs the remaining selected tests.
+
 A registered test that calls `ProcessExit::exit_process` fails its requirement
 to return. On Unix the native wait status exposes only the low eight bits. A
 different visible byte proves disagreement. A matching byte leaves the exact
