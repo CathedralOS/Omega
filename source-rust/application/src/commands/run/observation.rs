@@ -1,9 +1,8 @@
 //! Files produced by a single-engine `omega run --outputs <new-dir>`.
 //! Write the termination record last so a partial stream write cannot certify a run.
 
-use crate::execution::{ExecutionOutcome, ProcessExitObservation, TerminalOutcome};
+use crate::execution::{ExecutionOutcome, ProcessExitObservation, PsiTermination, TerminalOutcome};
 use std::{fs, io, path::Path};
-use terminal_runtime::{TerminalExecutionResult, TerminalExecutionStatus};
 
 pub(super) fn write(directory: &Path, execution: &ExecutionOutcome) -> io::Result<bool> {
     fs::create_dir(directory)?;
@@ -36,44 +35,23 @@ pub(super) fn write(directory: &Path, execution: &ExecutionOutcome) -> io::Resul
             };
             (format!("native\t{status}\t{trap}\t{process_exit}"), true)
         }
-        ExecutionOutcome::Terminal(TerminalOutcome::Completed(observation)) => {
-            write_outputs(
-                directory,
-                &observation.stdout,
-                &observation.stderr,
-                &observation.private_entry_ram,
-            )?;
-            match &observation.status {
-                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => {
-                    ("psi\treturn".into(), true)
-                }
-                TerminalExecutionStatus::ExternalCompletion(completion) => {
-                    (format!("psi\texit\t{}", completion.return_code), true)
-                }
-                TerminalExecutionStatus::Crashed(crash) => {
-                    (format!("psi\tcrash\t{:?}", crash.cause), true)
-                }
-                TerminalExecutionStatus::Complete(result) => {
-                    (format!("psi\tincomplete\tentry returned {result:?}"), false)
-                }
-                TerminalExecutionStatus::SponsorExhausted(exhaustion) => {
-                    (format!("psi\tincomplete\t{exhaustion}"), false)
-                }
-                TerminalExecutionStatus::AwaitingEffect(site) => (
-                    format!("psi\tincomplete\tawaiting host readiness at {site:?}"),
-                    false,
-                ),
-                TerminalExecutionStatus::HostComputationPending(site) => (
-                    format!("psi\tincomplete\tunfinished host computation at {site:?}"),
-                    false,
-                ),
+        ExecutionOutcome::Terminal(outcome) => {
+            if let TerminalOutcome::Completed(observation) = outcome {
+                write_outputs(
+                    directory,
+                    &observation.stdout,
+                    &observation.stderr,
+                    &observation.private_entry_ram,
+                )?;
             }
-        }
-        ExecutionOutcome::Terminal(TerminalOutcome::Unavailable(reason)) => {
-            (format!("psi\tunavailable\t{reason}"), false)
-        }
-        ExecutionOutcome::Terminal(TerminalOutcome::Failed(reason)) => {
-            (format!("psi\tfailed\t{reason}"), false)
+            let termination = PsiTermination::of(outcome);
+            let (kind, detail) = termination.columns();
+            let record = if matches!(termination, PsiTermination::Returned) {
+                format!("psi\t{kind}")
+            } else {
+                format!("psi\t{kind}\t{detail}")
+            };
+            (record, termination.complete())
         }
     };
     fs::write(

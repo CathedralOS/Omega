@@ -1,0 +1,9 @@
+machine build(builder: @mutable Build) {
+    Build::application(builder, "psi_input_cases");
+    Build::bind(builder, linux_x86_64\ProgramEntry, main);
+    Build::bind(builder, linux_arm64\ProgramEntry, main);
+    Build::bind::<Streams::read>(builder, linux_x86_64, ForeignBinding::Syscall { number: 0 });
+    Build::bind::<Streams::write>(builder, linux_x86_64, ForeignBinding::Syscall { number: 1 });
+    Build::bind::<Streams::read>(builder, linux_arm64, ForeignBinding::Syscall { number: 63 });
+    Build::bind::<Streams::write>(builder, linux_arm64, ForeignBinding::Syscall { number: 64 });
+}

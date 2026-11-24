@@ -73,15 +73,22 @@ input with EOF. The saved input is deleted even with `--keep`.
 `--inputs <dir> --outputs <dir>` runs many cases against one compilation.
 Every `*.stdin` file in the directory, in name order (or each repeated
 `--input <file>`, in the given order and named by file stem), is fed to the
-native program and, with `--both`, replayed through the interpreter before
-publication. Each case writes `<case>.stdout` and `<case>.stderr`, plus
+selected engine. With `--engine psi`, `--target` selects the target environment
+for every case. Each input has its own invocation and work allowance. A Psi-only
+batch creates a fresh output directory, writes the guest bytes to `<case>.stdout` and `<case>.stderr`, retains
+`<case>.psi.work.tsv`, and records the termination and its detail in
+`results.tsv`. A recorded return, exit or crash completes that case. An
+incomplete, unavailable or failed execution makes the batch exit 200. Case
+names must be distinct file stems and fit one TSV field.
+
+With native execution or the legacy comparison, each case writes `<case>.stdout` and `<case>.stderr`, plus
 `<case>.terminal.stdout` and `<case>.terminal.stderr` when interpreted, and
 `results.tsv` lists each case's native status, comparison verdict and
 interpreter status. The command exits 201 when any case diverges or fails to
 interpret, 204 if any comparison was declined and none failed, and 0 otherwise.
 The programs' own statuses are in `results.tsv`. Validations that compiled once per
 input, or linked their own capture program, use this.
-A run with `--target` does not read stdin. The command holds stdout/stderr until
+A native target-only build does not read stdin. The command holds stdout/stderr until
 native execution ends, then forwards the original bytes without UTF-8 decoding,
 before its own diagnostics on stderr. If writing or flushing a stream fails, the
 command reports an error (status 200), not a successful program result.
@@ -169,7 +176,7 @@ omega [--check] [--offline] [--timings]
       [--report-file <path>]
       [--build-input <path>]... [--optional-build-input <path>]...
       [--build-dir <dir>] [--target <name>]... [--disable-optimization <ExactName>]... <root.omg>
-omega run [--engine <native|psi> | --both] [--psi-work-budget <positive-u64>] [--keep] [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>
+omega run [--engine <native|psi> | --both] [--psi-work-budget <positive-u64>] [--keep] [--entry-ram <position>=<hex-bytes>]... [--target <name>] [(--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>
 omega psi inspect --machine <qualified> [--target <name>] <root.omg>
 omega source rewrite <ExactRule>... [--check] <root.omg>
 omega packages audit --kind <local|git> <locator> [--rev <rev>]
@@ -223,8 +230,7 @@ buffered output is lost), or execution that stops without a process result.
 The Psi engine requests the ordinary native product, which passes the same
 Build, package, trust, provider and entry admission, then stops before
 emitting an object or image. `--keep` keeps `program.oterm` and the
-interpreter's streams, work and effect receipts, never a native image. Case runs
-(`--inputs`/`--input`) do not yet accept `--engine psi`. A program that binds
+interpreter's streams, work and effect receipts, never a native image. A program that binds
 separately produced components is refused during compilation on this engine
 (`Psi compile FAILED`, status 200), since those components only run as
 native images. Streams are forwarded afterwards, not live.
