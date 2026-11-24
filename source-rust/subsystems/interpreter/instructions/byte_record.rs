@@ -2,17 +2,15 @@
 
 use super::{
     OperationFlow, RuntimeRows, ScalarType, StructuralPathSegment, StructuralRuntimePlace,
-    StructuralScalarRuntimeField, TerminalExecution, TerminalInterpretError, TerminalScalarValue,
+    StructuralScalarRuntimeField, TerminalExecution, TerminalInterpretError,
     TerminalStructuralValue, malformed,
 };
 use crate::storage::primitive_storage::encoding::decode;
 use crate::storage::scalar_storage::ScalarStorageRows;
-use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, ContentPlaceVersion, PlaceId, Proposition, ScalarTerm,
-    StructuralCaseId, StructuralFieldId, ValueId,
-};
 use terminal_semantics::scalar_qualifications::field_qualifications;
-use terminal_semantics::substitution::clauses::{ClauseBindings, substitute_clause};
+use terminal_semantics::structural::decoded_record::{
+    DecodedRecordError, check_decoded_record_requirements,
+};
 use terminal_semantics::{byte_carrier_scalar_layout, reference_storage_byte_width};
 
 impl TerminalExecution<'_> {
@@ -47,7 +45,7 @@ impl TerminalExecution<'_> {
             });
         }
         let index = usize::try_from(*index).map_err(|_| malformed())?;
-        let mut fields_to_publish = DecodedFields(Vec::with_capacity(fields.len()));
+        let mut fields_to_publish = Vec::with_capacity(fields.len());
         for (declared, member) in fields.iter().zip(&layout.leaves) {
             if !field_qualifications(&self.program.catalogs, declared.id).is_empty() {
                 return Err(TerminalInterpretError::UnsupportedSemanticVariant(
@@ -72,9 +70,24 @@ impl TerminalExecution<'_> {
                     reason: "a decoded scalar is outside the field's declared type",
                 });
             }
-            fields_to_publish.0.push((member.field, scalar));
+            fields_to_publish.push((member.field, scalar));
         }
-        fields_to_publish.check(&declaration.requires)?;
+        check_decoded_record_requirements(
+            &declaration.requires,
+            &mut fields_to_publish,
+            |(id, _)| *id,
+            |(_, scalar)| scalar.literal(),
+        )
+        .map_err(|error| match error {
+            DecodedRecordError::Violated => {
+                TerminalInterpretError::StructuralContentsResultInvalid {
+                    reason: error.reason(),
+                }
+            }
+            DecodedRecordError::Unsupported(reason) => {
+                TerminalInterpretError::UnsupportedSemanticVariant(reason)
+            }
+        })?;
         let mut cursor = self.local_structural_identities.cursor();
         let copied = TerminalStructuralValue::minted(
             self.local_structural_identities
@@ -86,7 +99,7 @@ impl TerminalExecution<'_> {
         let mut result_row =
             RuntimeRows::from_rows(self.account.as_ref(), [(result.place, copied)])?;
         let mut cells = ScalarStorageRows::new(self.account.as_ref());
-        for (field, scalar) in fields_to_publish.0 {
+        for (field, scalar) in fields_to_publish {
             cells.insert(
                 StructuralScalarRuntimeField::member(parent.clone(), field),
                 scalar,
@@ -96,82 +109,5 @@ impl TerminalExecution<'_> {
         self.structural_values.append(&mut result_row)?;
         self.local_structural_identities.commit_cursor(cursor);
         Ok(OperationFlow::Advance)
-    }
-}
-
-struct DecodedFields(Vec<(StructuralFieldId, TerminalScalarValue)>);
-
-impl DecodedFields {
-    fn check(&mut self, requirements: &[Proposition]) -> Result<(), TerminalInterpretError> {
-        const LIMIT: TerminalInterpretError = TerminalInterpretError::UnsupportedSemanticVariant(
-            "decoded record requirement evaluation exceeds the resource limit",
-        );
-        if requirements.is_empty() {
-            return Ok(());
-        }
-        self.0.sort_unstable_by_key(|(field, _)| *field);
-        closed_predicates::check_predicate_evaluation_size(requirements).map_err(|_| LIMIT)?;
-        let mut integers = closed_predicates::ClosedIntegerEvaluator::default();
-        for requirement in requirements {
-            let holds = closed_predicates::closed_guard_with(requirement, |leaf| {
-                let closed = substitute_clause(leaf, self)
-                    .map_err(TerminalInterpretError::UnsupportedSemanticVariant)?;
-                closed_predicates::closed_guard(&closed, &mut integers).map_err(|_| LIMIT)
-            })?;
-            match holds {
-                Some(true) => {}
-                Some(false) => {
-                    return Err(TerminalInterpretError::StructuralContentsResultInvalid {
-                        reason: "the decoded fields violate the record requirement",
-                    });
-                }
-                None => {
-                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                        "the decoded fields do not establish the record requirement",
-                    ));
-                }
-            }
-        }
-        Ok(())
-    }
-}
-
-impl ClauseBindings for DecodedFields {
-    type Error = &'static str;
-
-    fn field(
-        &mut self,
-        version: ContentPlaceVersion,
-        root: PlaceId,
-        path: &[CanonicalStructuralPathSegment],
-        ty: ScalarType,
-    ) -> Result<ScalarTerm, Self::Error> {
-        let [CanonicalStructuralPathSegment::Field(field)] = path else {
-            return Err("the decoded record requirement needs a direct scalar field");
-        };
-        // Data requirements use place 1 for self and observe its current contents.
-        if version != ContentPlaceVersion::Current || root.get() != 1 {
-            return Err("the decoded record requirement observes a different subject");
-        }
-        self.0
-            .binary_search_by_key(field, |(id, _)| *id)
-            .ok()
-            .map(|index| self.0[index].1)
-            .filter(|value| value.scalar_type() == ty)
-            .and_then(TerminalScalarValue::literal)
-            .ok_or("the decoded record requirement names an absent or differently typed field")
-    }
-
-    fn value(&mut self, _: ValueId, _: ScalarType) -> Result<ScalarTerm, Self::Error> {
-        Err("the decoded record requirement observes an external scalar")
-    }
-
-    fn case(
-        &mut self,
-        _: PlaceId,
-        _: &[CanonicalStructuralPathSegment],
-        _: StructuralCaseId,
-    ) -> Result<bool, Self::Error> {
-        Err("the decoded scalar record has no sum case")
     }
 }
