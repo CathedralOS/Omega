@@ -453,7 +453,7 @@ impl Program<'_> {
                         definition.name.as_str(),
                         arguments
                             .iter()
-                            .map(|argument| self.typed.display_type_reference(*argument))
+                            .map(|argument| self.typed.display_type_reference_with_constraints(*argument))
                             .collect::<Vec<_>>()
                             .join(", ")
                     ),
