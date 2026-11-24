@@ -399,7 +399,7 @@ fn compile_target(
             } else {
                 CompileTimings::default()
             };
-            let checked = compiler::check(stage.source(), &mut timings);
+            let checked = stage.check(profile, &mut timings);
             if arguments.timings {
                 print_phases(&format!("Product ({})", profile.target_name()), &timings);
             }
