@@ -784,7 +784,8 @@ pub(crate) fn known_at(
     id: MachineId,
     point: ProgramPoint,
 ) -> Checked<crate::checking::known::Known> {
-    let mut available = Vec::new();
+    let mut assumptions = Vec::new();
+    let mut axioms = Vec::new();
     for (_, row) in tables.knowledge.iter() {
         if graph.dominates(row.available_from, point)? {
             let proposition = terminal_check_tables::row(
@@ -793,25 +794,21 @@ pub(crate) fn known_at(
                 id,
                 Construct::Machine,
             )?;
-            flatten(row.justification, proposition, &mut available);
+            let premises = if matches!(row.justification, Justification::OperationSemantics(_)) {
+                &mut axioms
+            } else {
+                &mut assumptions
+            };
+            flatten(proposition, premises);
         }
     }
     // Use the same equality transport as proof search. In particular, a taken
     // result such as `(condition == true) == true` establishes `condition`'s
     // literal value before caller-only Boolean identities are projected away.
-    let mut assumptions = Vec::new();
-    let mut axioms = Vec::new();
-    for (why, proposition) in &available {
-        if matches!(why, Justification::OperationSemantics(_)) {
-            axioms.push((*proposition).clone());
-        } else {
-            assumptions.push((*proposition).clone());
-        }
-    }
     Ok(crate::checking::known::Known::new(
         context,
-        &assumptions,
-        &axioms,
+        assumptions,
+        axioms,
         &*tables.values,
     ))
 }
@@ -960,17 +957,13 @@ impl Bindings for RenamedTerm<'_> {
     }
 }
 
-fn flatten<'a>(
-    why: Justification,
-    proposition: &'a Proposition,
-    available: &mut Vec<(Justification, &'a Proposition)>,
-) {
+fn flatten<'a>(proposition: &'a Proposition, available: &mut Vec<&'a Proposition>) {
     if let Proposition::Conjunction(parts) = proposition {
         for part in parts {
-            flatten(why, part, available);
+            flatten(part, available);
         }
     } else {
-        available.push((why, proposition));
+        available.push(proposition);
     }
 }
 
