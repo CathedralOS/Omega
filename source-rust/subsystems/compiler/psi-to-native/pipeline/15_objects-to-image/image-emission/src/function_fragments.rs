@@ -13624,6 +13624,77 @@ mod source {
             }
 
             #[test]
+            fn byte_length_footprint_requires_one_indexed_row_per_runtime_index() {
+                use selected_instructions::{
+                    SelectedInstructionId, SelectedMemoryAccess,
+                    SelectedMemoryAccessOrigin as Origin, SelectedMemoryAccessRole as Role,
+                };
+                let psi_operation = OperationId::new(1).unwrap();
+                let source = PlaceId::new(1).unwrap();
+                let index = ValueId::new(7).unwrap();
+                let obligation = semantic_vocabulary::ObligationId::new(3).unwrap();
+                let length = |path| AbstractOperation::StructuralByteSequenceFieldLength {
+                    psi_operation,
+                    result: AbstractResult {
+                        value: ValueId::new(1).unwrap(),
+                        scalar_type: ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                        ),
+                    },
+                    source,
+                    path,
+                    field: StructuralFieldId::new(1).unwrap(),
+                };
+                let access = |role| SelectedMemoryAccess {
+                    instruction: SelectedInstructionId(0),
+                    origin: Origin::Operation(psi_operation),
+                    place: source,
+                    byte_offset: 0,
+                    byte_count: 8,
+                    role,
+                };
+                let indexed = access(Role::ReadIndexedPrimitive {
+                    index,
+                    stride: 8,
+                    extent: Some(4),
+                    obligation,
+                    accepted_fact:
+                        optimization_core::AcceptedObligationFactIdentity::from_canonical_bytes(
+                            b"byte length index",
+                        ),
+                });
+
+                // Selection writes an indexed row only for a runtime index, so a
+                // read with no runtime index must not carry one.
+                let direct = length(vec![StructuralPathSegment::Field(
+                    terminal_psi::TerminalIdentityIndex(6),
+                )]);
+                assert!(super::runtime_footprint_retained(&direct, &[]));
+                assert!(super::runtime_footprint_retained(
+                    &direct,
+                    &[access(Role::ReadPlace)]
+                ));
+                assert!(!super::runtime_footprint_retained(
+                    &direct,
+                    std::slice::from_ref(&indexed)
+                ));
+
+                let selected = length(vec![
+                    StructuralPathSegment::RuntimeIndex { index, obligation },
+                    StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(6)),
+                ]);
+                assert!(super::runtime_footprint_retained(
+                    &selected,
+                    std::slice::from_ref(&indexed)
+                ));
+                assert!(!super::runtime_footprint_retained(&selected, &[]));
+                assert!(!super::runtime_footprint_retained(
+                    &selected,
+                    &[indexed.clone(), indexed]
+                ));
+            }
+
+            #[test]
             fn local_byte_length_membership_requires_the_exact_owned_home() {
                 use target_operations::{
                     TargetStructuralHomeLayout, TargetStructuralHomeOrigin,
@@ -15770,9 +15841,8 @@ mod source {
                         )
                 })
                 .collect::<Vec<_>>();
-            if elements.is_empty() {
-                return true;
-            }
+            // Selection writes one indexed row per runtime index and none
+            // without one, so an index-free operation needs zero indexed rows.
             rows.len() == elements.len()
                 && rows
                     .iter()
