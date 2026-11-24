@@ -255,18 +255,26 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
         &mut self,
         handoff: &PackageBuildHandoff,
     ) -> Result<project_build::PlannedProduct, CompileFailure> {
-        let settled = self
+        let products = self.host.handoffs();
+        for settled in self
             .host
             .settled
             .iter()
-            .find(|settled| settled.declaration.identity() == handoff.package())
-            .ok_or_else(|| refused("Build provider source has no settled library Product"))?;
-        self.host.handoffs().dependency_product(
-            &settled.build,
-            handoff.purpose(),
-            handoff.target(),
-            &mut DependencyProducts::default(),
-        )
+            .filter(|settled| settled.declaration.identity() == handoff.package())
+        {
+            let product = products.dependency_product(
+                &settled.build,
+                handoff.purpose(),
+                handoff.target(),
+                &mut DependencyProducts::default(),
+            )?;
+            if product.build_handoff(handoff.target())? == *handoff {
+                return Ok(product);
+            }
+        }
+        Err(refused(
+            "Build provider source has no settled Product matching its library handoff",
+        ))
     }
 }
 
