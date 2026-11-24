@@ -1352,9 +1352,24 @@ type), and the clause's `ClauseScope` says what each name denotes there.
     whether a clause may unfold a call of a machine's non-entry state.
   - "borrowed formal outside an admitted storage clause", "clause that
     projects a formal or result", "formal field in a postcondition" and
-    "extent without a structural subject": a crash guard reads invocation
-    entry, and a borrowed formal or a field of a formal there has no
-    observation chosen for it (stage 05 README, crash guards).
+    "extent without a structural subject" are **not rules** (checked
+    2026-11-24). All four are raised only where a clause is read without
+    `formal_fields`, which today is a crash guard. `requires` and `ensures`
+    already read a field of an owned or borrowed formal and of the result
+    (seven small programs were accepted). The specification lets a guard
+    name its contract inputs ([guarded crashes](../../spec/language/effects.md#guarded-crashes)),
+    and the eighteen programs of `samples/cli/facts/indexed_crash_guard/`
+    write `crashes Trap items[index] == 0` over a borrowed array and are
+    refused for it. A trial showed three layers to build. (1) Stage 05 reads
+    the guard once it uses the scope `requires` uses. (2) Stage 05 restates
+    a callee's crash routes at each call over scalar actuals only
+    (`canonical::substituted_routes`); passing the whole structural
+    arguments' places lets it restate a storage guard. (3) Stage 06 then
+    refuses the caller with "indexed clause needs a current observation of
+    its selected storage": it judges a call's crash route as a proposition
+    over values (`crashes.rs`, `ScalarActuals`), with no storage to observe
+    the argument at the call, as `AtCall` does for a `requires`. The
+    callee's own coverage of a guard over storage is untested.
   - "case membership" in a machine clause (`read_clause`) was **not a rule**
     and is now served where the clause states the test outright (2026-11-24).
     `core/representation.omg` writes `ensures result in Result::Ok`, and 615
