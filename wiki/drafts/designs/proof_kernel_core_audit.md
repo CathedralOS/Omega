@@ -48,6 +48,8 @@ Delete it when that task closes or its plan carries these findings.
    and none that takes a type. That is why Identity serves two types and a
    call inside a clause serves one shape of machine. See
    [how a clause becomes a proof term today](#how-a-clause-becomes-a-proof-term-today).
+   Step 5 has since put the term readers into one, `clause_term`
+   ([Step 5 as built](#plan-order)).
 6. **The deleted corpus was 38% one matrix.** Of its 16,759 fixtures, 6,438
    were 379 features each written through the same nine placements, accepted
    and rejected. The old compiler had one rule per placement and so needed
@@ -557,7 +559,8 @@ last can state a type, and no source stage writes it.
 
 What the code shows:
 
-- **Thirteen term readers.** Thirteen functions in four files return a
+- **Thirteen term readers.** (Step 5 replaced them with one; see
+  [Step 5 as built](#plan-order).) Thirteen functions in four files return a
   `ScalarTerm` or `IntegerMathTerm` read from a source expression:
   `term`, `read_term`, `old_term`, `clause_cast`, `arithmetic_term`,
   `mathematical_term`, `read_mathematical_term` and `field_term` in
@@ -1294,12 +1297,76 @@ starts with records.
     machine parameter. Nothing in the library does any of these.
   - `extent.omg`'s contract over `IntervalSet<Nat>` (the plan's
     `extent.omg:219`) is a clause of a runtime boundary trait over generic
-    data. It is read by the scalar clause readers when a program reaches
-    it, not into this signature; moving it is part of step 5.
+    data. It is read by the carrier clause reader when a program reaches
+    it, not into this signature. Step 5 did not move it (below).
   - The `<=` and `-` machines of `nat.omg` are still left out of every
     test: the compiler rejects a machine that a data declaration owns.
   - A refused law whose goal names a field inside one case of an induction
     prints `?` for that field.
+
+**Step 5 as built (2026-11-24): one reader for every clause term.**
+`clause_term` in stage 05's `read/clause_terms.rs` is now the only function
+that reads an expression into a clause term, at every position: a machine's
+`requires` and `ensures`, a data or domain predicate, the body of a
+transparent `let` definition, a logical invocation input, an argument of a
+clause call and an operand of Identity. The caller names the sort it needs
+(`ClauseUse`: a carrier value, a mathematical integer, an operand of
+Identity or of a clause application, a proposition or a proof-relevant
+type), and the clause's `ClauseScope` says what each name denotes there.
+
+- **Readers deleted.** Of the thirteen listed
+  [above](#how-a-clause-becomes-a-proof-term-today), `called_term` had
+  already gone into `clause_term` in steps 1-4. The other twelve are
+  deleted: `term`, `read_term`, `old_term`, `clause_cast`,
+  `arithmetic_term`, `mathematical_term`, `read_mathematical_term` and
+  `field_term` from `read/contracts.rs`, `mathematical_integer_literal`,
+  `integer_embedding` and `logical_mathematical_term` from
+  `read/mathematics.rs`, and `LogicalScope::term` (the audit's
+  `input_term`), which now only says what a logical input denotes
+  (`LogicalScope::input`). `tools/ratchets/clause_term_readers.txt` counts
+  functions in `read/` that return a clause term: 23 before this step, 13
+  after. Three of the 13 are in `clause_terms.rs` (`clause_term` and the
+  `ClauseTerm::scalar` and `ClauseTerm::integer` accessors); the other ten
+  read call arguments, static arguments and fixed byte arrays, not clauses.
+- **Forms that now work where they were refused.** A transparent definition
+  and a logical invocation input read mathematical integers with a reader of
+  their own, which refused wholly anonymous arithmetic as "mathematical
+  premise contains computational arithmetic". `embed(length) <= 4 * 1024`
+  now reads as `embed(length) <= 4096` there too
+  (`transparent_definition/{pass,fail}` beside stage 06's
+  `address_bounds.rs`). `!b` was read only as a whole clause; it is now a
+  Boolean operand as well, so `requires a == !b` works
+  (`clause_terms/{pass,fail}` beside stage 06's `tests/clause_terms.rs`).
+- **Refusals reworded as the rule.** "embed outside a mathematical
+  comparison" is now "embed where a carrier value is needed: it is a
+  mathematical integer"; "old outside a callable contract" is now "old in a
+  data or domain predicate, which has no invocation entry"; "term other than
+  a formal, a literal or an embedded integer" is now "expression with no
+  carrier value term"; "term other than a field of the value or a literal"
+  is now "name other than the clause's subject, a field of it or a literal".
+  `ResultTerm::Absent` keeps its reasons ("result in an entry clause"): no
+  result exists there.
+- **Kept, not yet known to be a rule.** These still name a position. Each
+  may state a real rule, so none was removed:
+  - "call in a clause of a state other than the entry" (`unfold_definition`):
+    whether a clause may unfold a call of a machine's non-entry state.
+  - "borrowed formal outside an admitted storage clause", "clause that
+    projects a formal or result", "formal field in a postcondition" and
+    "extent without a structural subject": a crash guard reads invocation
+    entry, and a borrowed formal or a field of a formal there has no
+    observation chosen for it (stage 05 README, crash guards).
+  - "case membership" in a machine clause (`read_clause`): `x in S::C` is
+    read only in a data or domain predicate, whose names the checker replaces
+    by values before it is a goal.
+  - "Identity operand has no term at its written carrier" for a field of a
+    record formal outside the mathematical signature: the field arm serves
+    data that contains itself only.
+- **Not done:**
+  - Propositions are still read by `read_clause`, a separate function, and
+    a comparison is not a Boolean operand: `flag == (a < b)` is refused.
+  - `extent.omg`'s `core\Identity::<IntervalSet<Nat>>` contract
+    (`extent.omg:219`) needs Identity over a domain's content projection of
+    `old(@storage)`. Step 5 did not change how it is read.
 
 **Step 7 as built (2026-11-24): a quotient of mathematical data, equal
 classes for related representatives, and operations on a quotient.** `data Sign = Representative %
