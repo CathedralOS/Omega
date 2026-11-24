@@ -3720,9 +3720,9 @@ pub(crate) mod product_selections {
         prelude module the namespace, so typing, checking, execution and admission
         never see a second receiver-shaped route. A resolved user method keeps
         ordinary resolution; only the unresolved toolchain spelling with no
-        ordinary arguments takes this route. Its preparation (`prepare_tests`)
-        is typed against `BuildTests` and authenticated by the evaluator as the
-        activation's original Build facet, never a copied or authored value.
+        ordinary arguments takes this route. The evaluator authenticates the
+        activation's original tests facet when the registration executes and
+        returns the checked mutable reference to that group's configuration.
     */
     pub(crate) fn test_group_facet(
         source: &crate::source_resolved::SymbolResolvedTrees,

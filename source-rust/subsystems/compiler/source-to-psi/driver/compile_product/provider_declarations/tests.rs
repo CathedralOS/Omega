@@ -221,6 +221,7 @@ impl Fixture {
             .zip(values)
             .map(
                 |((request, author), (target, composition))| ExecutedProductSelection {
+                    test_group: None,
                     static_environment: None,
                     target: Some(*target),
                     request: Arc::clone(request),

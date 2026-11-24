@@ -25,8 +25,8 @@ use source_compiler::publication::{
 };
 use source_compiler::representations::declaration_selection::{
     BuildOperation, BuildSelectionRequest, ExecutedBuildSelection, ExecutedProductSelection,
-    NativeBindingFormation, ProductDeclarationRequest, ProductEntryBinding, ProviderReadinessRequest,
-    RootBindingOperand, RootBindingSelection,
+    NativeBindingFormation, ProductDeclarationRequest, ProductEntryBinding,
+    ProviderReadinessRequest, RootBindingOperand, RootBindingSelection,
 };
 use std::sync::{Arc, Mutex, MutexGuard};
 use terminal_interpreter::{
@@ -36,13 +36,16 @@ use terminal_interpreter::{
 
 mod native_bindings;
 mod product_queries;
+mod test_groups;
 pub use product_queries::{BuildProductDescription, BuildProductQuery};
+use test_groups::GroupShape;
 
 pub struct TerminalBuildBindingHost {
     artifact: terminal_codec::TerminalExecutionIdentity,
     calls: Arc<[TerminalBuildBindingCall]>,
     queries: Arc<[source_compiler::publication::TerminalBuildQueryCall]>,
     product_facet: Option<TerminalStructuralValue>,
+    group_shape: Option<GroupShape>,
     tests_facet: Option<TerminalStructuralValue>, // The original Build's `tests` facet, when a test group is registered.
     account: Option<evaluation_accounting::EvaluationInvocationAccount>,
     declarations: Arc<[Arc<ProductDeclarationRequest>]>,
@@ -51,10 +54,15 @@ pub struct TerminalBuildBindingHost {
     state: Mutex<BindingState>, // Shared between prepare/commit adapters of one activation.
 }
 
+enum ActivationSelection {
+    Final(ExecutedBuildSelection),
+    TestGroup(test_groups::RegisteredTestGroup),
+}
+
 #[derive(Default)]
 struct BindingState {
     pending: Vec<Option<source_compiler::publication::TerminalBuildSelectionRequest>>,
-    executed: Vec<ExecutedBuildSelection>,
+    executed: Vec<ActivationSelection>,
     native_storage: Vec<evaluation_accounting::EvaluationStorageLease>,
     awaiting_provider: Option<usize>,
     installed_providers: Vec<InstalledBuildProvider>,
@@ -71,7 +79,7 @@ pub(crate) struct CarriedBindings {
     pending: Vec<Option<source_compiler::publication::TerminalBuildSelectionRequest>>,
     descriptions: Vec<product_queries::IssuedDescription>,
     pub(crate) installed_providers: Vec<InstalledBuildProvider>,
-    executed: Vec<ExecutedBuildSelection>,
+    executed: Vec<ActivationSelection>,
     native_storage: Vec<evaluation_accounting::EvaluationStorageLease>,
     declarations: Vec<Arc<ProductDeclarationRequest>>,
     native_formations: Vec<NativeBindingFormation>,
@@ -116,7 +124,13 @@ impl BindingState {
         if self.pending.iter().any(Option::is_some) || self.query.is_some() {
             return Err("Build binding activation ended with an uncommitted request".to_owned());
         }
-        Ok(std::mem::take(&mut self.executed))
+        self.executed
+            .drain(..)
+            .map(|selection| match selection {
+                ActivationSelection::Final(selection) => Ok(selection),
+                ActivationSelection::TestGroup(group) => group.finish(),
+            })
+            .collect()
     }
 }
 
@@ -141,6 +155,14 @@ impl TerminalBuildBindingHost {
         } else {
             Some(build_facet(artifact, &original, "product")?)
         };
+        let group_shape = calls
+            .iter()
+            .find(|call| call.action == TerminalBuildBindingOperation::RegisterTestGroup)
+            .map(|call| {
+                GroupShape::from_boundary(artifact.module(), call)
+                    .ok_or("Build group registration must lend its disabled setting")
+            })
+            .transpose()?;
         let tests_facet = calls
             .iter()
             .any(|call| call.action == TerminalBuildBindingOperation::PrepareTests)
@@ -152,6 +174,7 @@ impl TerminalBuildBindingHost {
             queries: Arc::clone(queries),
             product_facet,
             tests_facet,
+            group_shape,
             account: account.cloned(),
             declarations: Arc::clone(declarations),
             native_formations: bindings
@@ -564,6 +587,11 @@ impl TerminalBuildBindingAdapter {
         };
         let (ticket, values) =
             activation_ticket(arguments, structural_operands, &state, &call.request)?;
+        if call.action == TerminalBuildBindingOperation::RegisterTestGroup && values.is_empty() {
+            let result = self.host.register_test_group(&mut state, call)?;
+            state.pending[ticket] = None;
+            return Ok(result);
+        }
         if let (
             BuildSelectionRequest::ProviderReadiness(request),
             TerminalBuildBindingOperation::AwaitProvider,
@@ -654,6 +682,7 @@ impl TerminalBuildBindingAdapter {
                     ));
                 }
                 ExecutedBuildSelection::Declaration(ExecutedProductSelection {
+                    test_group: None,
                     static_environment: call.static_environment.clone(),
                     request: request.clone(),
                     selecting_machine: call.selecting_machine,
@@ -697,7 +726,7 @@ impl TerminalBuildBindingAdapter {
             .try_reserve(1)
             .map_err(|_| refuse("cannot retain executed Build selection"))?;
         state.pending[ticket] = None;
-        state.executed.push(selection);
+        state.executed.push(ActivationSelection::Final(selection));
         Ok(TerminalEffectResult::Unit)
     }
 }

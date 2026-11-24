@@ -125,14 +125,14 @@ impl TerminalBuildBindingAdapter {
                 TerminalEffectRejection::new(format!("native Build result custody: {error}"))
             })?;
         }
-        state
-            .executed
-            .push(ExecutedBuildSelection::Native(ExecutedNativeBinding {
+        state.executed.push(super::ActivationSelection::Final(
+            ExecutedBuildSelection::Native(ExecutedNativeBinding {
                 request: request.clone(),
                 target,
                 locator,
                 selecting_machine,
-            }));
+            }),
+        ));
         if let Some(storage) = storage {
             state.native_storage.push(storage);
         }

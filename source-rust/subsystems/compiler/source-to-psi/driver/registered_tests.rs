@@ -118,7 +118,7 @@ impl<'a> RegisteredTests<'a> {
         let mut notes = Vec::new();
         for group in &checked.declarations.test_groups {
             let path = typed.symbols.display_path(group.requirement, "::");
-            if disabled {
+            if disabled || group.configuration.disabled {
                 notes.push(format!(
                     "group `{path}` (target `{target}`): disabled; its tests were not run"
                 ));

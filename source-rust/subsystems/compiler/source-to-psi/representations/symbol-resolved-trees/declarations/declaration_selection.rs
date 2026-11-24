@@ -317,8 +317,15 @@ mod product {
         Native(ExecutedNativeBinding),
     }
 
+    /// Configuration frozen when the Build that registered the group returns.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct TestGroupConfiguration {
+        pub disabled: bool,
+    }
+
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ExecutedProductSelection {
+        pub test_group: Option<TestGroupConfiguration>,
         pub static_environment:
             Option<std::sync::Arc<super::product_operands::ProductStaticEnvironment>>,
         pub target: Option<super::ProductTarget>,
@@ -858,6 +865,7 @@ pub use product::{
     ExecutedNativeBinding, ExecutedProductSelection, ProductEntryBinding,
     ProductDeclarationOperand, ProductDeclarationRequest,
     ProviderReadinessRequest, RootBindingOperand, RootBindingRequest, RootBindingSelection,
+    TestGroupConfiguration,
 };
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, record_storage::Record)]

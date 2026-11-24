@@ -271,6 +271,7 @@ public machine build_selection_receiver<'a>(builder: @'a mutable Build) -> @'a m
         let author = typed.symbols.authored_origin(occurrence.machine);
         let declared = [occurrence.request];
         let event = ExecutedProductSelection {
+            test_group: None,
             request: Arc::clone(&declared[0]),
             selecting_machine: typed.symbols.symbol_source_span(author),
             target: None,

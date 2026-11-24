@@ -270,6 +270,9 @@ fn admit_test_groups(
                     ));
                 }
                 groups.push(TestGroupRegistration {
+                    configuration: event.test_group.clone().ok_or_else(|| {
+                        refuse(request, "test group registration lost its evaluated configuration")
+                    })?,
                     requirement,
                     selecting_machine: formation.author,
                     source_span,

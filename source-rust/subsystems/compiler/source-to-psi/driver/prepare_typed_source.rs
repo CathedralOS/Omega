@@ -267,6 +267,7 @@ mod tests {
         });
         let declared = [std::sync::Arc::clone(&request)];
         let executed = [ExecutedProductSelection {
+            test_group: None,
             static_environment: None,
             target: None,
             request,
@@ -358,6 +359,7 @@ mod tests {
         });
         let declared = [std::sync::Arc::clone(&request)];
         let executed = [ExecutedProductSelection {
+            test_group: None,
             static_environment: None,
             target: None,
             request,
