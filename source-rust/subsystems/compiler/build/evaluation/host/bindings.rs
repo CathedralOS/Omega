@@ -494,7 +494,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
             .queries
             .iter()
             .map(|query| query.site)
-            .chain(self.host.stream_calls.iter().copied())
+            .chain(self.host.fixture_calls.iter().copied())
             .any(|site| crate::host::is_call_at(effect, site))
         {
             return Ok(true);
