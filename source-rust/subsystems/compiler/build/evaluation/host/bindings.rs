@@ -45,7 +45,7 @@ use test_groups::GroupShape;
 pub struct TerminalBuildBindingHost {
     artifact: terminal_codec::TerminalExecutionIdentity,
     calls: Arc<[TerminalBuildBindingCall]>,
-    fixture_calls: Vec<source_compiler::publication::BuildCallSite>,
+    group_requests: Vec<source_compiler::publication::TerminalBuildRequestCall>,
     queries: Arc<[source_compiler::publication::TerminalBuildQueryCall]>,
     product_facet: Option<TerminalStructuralValue>,
     group_shape: Option<GroupShape>,
@@ -179,9 +179,13 @@ impl TerminalBuildBindingHost {
             artifact: artifact.custody_identity(),
             calls: Arc::clone(calls),
             queries: Arc::clone(queries),
-            fixture_calls: requests.calls_for(artifact).ok_or("Build requests belong to another Terminal artifact")?
-                .iter().filter(|call| call.action == source_compiler::publication::TerminalBuildRequestOperation::ConfigureTestFixture)
-                .map(|call| call.site).collect(),
+            group_requests: requests
+                .calls_for(artifact)
+                .ok_or("Build requests belong to another Terminal artifact")?
+                .iter()
+                .filter(|call| call.action.configures_test_group())
+                .cloned()
+                .collect(),
             product_facet,
             tests_facet,
             group_shape,
@@ -348,15 +352,15 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
             .iter()
             .filter(|call| call.site.boundary == boundary)
             .find_map(|call| call.operand.as_ref());
-        let fixture = self
+        let group_request = self
             .host
-            .fixture_calls
+            .group_requests
             .iter()
-            .any(|call| call.boundary == boundary);
+            .any(|call| call.site.boundary == boundary);
         terminal_interpreter::TerminalCallStorageRequirements {
-            original: fixture
+            original: group_request
                 || matches!(operand, Some(TerminalBuildBindingOperand::TestGroup { .. })),
-            arguments: if operand.is_some() || fixture {
+            arguments: if operand.is_some() || group_request {
                 &[0]
             } else {
                 &[]
@@ -382,18 +386,27 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
         storage_buffers: &mut [terminal_interpreter::TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         crate::host::require_effect_owner(effect, &self.host.artifact)?;
-        if self
+        if let Some(action) = self
             .host
-            .fixture_calls
+            .group_requests
             .iter()
-            .any(|site| crate::host::is_call_at(effect, *site))
+            .find(|request| crate::host::is_call_at(effect, request.site))
+            .map(|request| request.action)
         {
             if !byte_buffers.is_empty() {
                 return Err(TerminalEffectRejection::new(
-                    "test fixture configuration has an unexpected mutable byte view",
+                    "group configuration has an unexpected mutable byte view",
                 ));
             }
-            return self.configure_test_fixture(effect, storage_buffers);
+            let group = self.take_presented_group(storage_buffers)?;
+            use source_compiler::publication::TerminalBuildRequestOperation as Action;
+            return match action {
+                Action::ConfigureTestFixture => self.configure_test_fixture(group, effect),
+                Action::ConfigureTestEngine => self.configure_test_engine(group, effect),
+                _ => Err(TerminalEffectRejection::new(
+                    "unknown group configuration request",
+                )),
+            };
         }
         let operand = self
             .host

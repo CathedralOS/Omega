@@ -417,6 +417,75 @@ fn a_required_native_engine_on_another_target_leaves_the_build_incomplete() {
 }
 
 #[test]
+fn a_group_selects_engines_for_one_target_without_weakening_required_runs() {
+    let host = target::TargetProfile::host_if_supported();
+    let cross = if host == Some(target::TargetProfile::LinuxArm64) {
+        "linux_x86_64"
+    } else {
+        "linux_arm64"
+    };
+    let group = "let group = builder.tests.group::<Tests::arithmetic>();";
+    let choose = |target, engine, policy| {
+        format!(
+            "TestGroup::engine(group, {target}, TestEngine::{engine}, TestEnginePolicy::{policy});"
+        )
+    };
+    let required = choose(cross, "Native", "Required");
+    let registration = format!("{group}\n{required}");
+    let (ok, report) = build_with("required_native", "5u32", &registration, cross, &[]);
+    assert!(!ok, "{report}");
+    assert!(report.contains("native unavailable (required,"), "{report}");
+    assert!(
+        report.contains("required by the Build group but unavailable"),
+        "{report}"
+    );
+    assert!(report.contains("passed on Psi interpreter"), "{report}");
+
+    let optional = choose(cross, "Native", "IfAvailable");
+    let registration = format!("{registration}\n{optional}");
+    let (ok, report) = build_with("optional_native", "5u32", &registration, cross, &[]);
+    assert!(ok, "{report}");
+    assert!(
+        report.contains("native unavailable (if available,"),
+        "{report}"
+    );
+
+    let exclude = choose(cross, "Psi", "Disabled");
+    let registration = format!("{registration}\n{exclude}");
+    let (ok, report) = build_with("no_engine", "5u32", &registration, cross, &[]);
+    assert!(!ok, "{report}");
+    assert!(
+        report.contains("Psi interpreter explicitly disabled"),
+        "{report}"
+    );
+    assert!(report.contains("has no runnable engine"), "{report}");
+
+    if let Some(host) = host {
+        let target = host.target_name();
+        let exclude_native = choose(target, "Native", "Disabled");
+        let registration = format!("{registration}\n{exclude_native}");
+        let (ok, report) = build_with(
+            "excluded_comparison",
+            "5u32",
+            &registration,
+            target,
+            &["--compare-tests"],
+        );
+        assert!(!ok, "{report}");
+        assert!(
+            report.contains("Psi interpreter scheduled (required)"),
+            "{report}"
+        );
+        assert!(report.contains("native explicitly disabled"), "{report}");
+        assert!(report.contains("passed on Psi interpreter"), "{report}");
+        assert!(
+            report.contains("native/Psi comparison unavailable"),
+            "{report}"
+        );
+    }
+}
+
+#[test]
 fn explicit_process_exit_is_observed_on_both_engines_and_never_passes_the_test() {
     let Some(host) = target::TargetProfile::host_if_supported() else {
         return;

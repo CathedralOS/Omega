@@ -2,11 +2,11 @@
 //! Execution consumes the same checked product used to report its bindings.
 use super::{
     Artifact, CompileRequest, CompletedProduct, Diagnostic, EngineError,
-    InstallationEnvironmentAssumption, ProductStage, Program, RegisteredTests, Run, TargetProfile,
-    TestExecution, run_test,
+    InstallationEnvironmentAssumption, ProductStage, Program,
+    RegisteredTests, Run, TargetProfile, TestExecution, run_test,
 };
 use provider_admission::IsolatedExecutionGrant;
-use source_compiler::registered_tests::TestRoot;
+use source_compiler::registered_tests::{TestEnginePolicy, TestRoot};
 
 #[path = "plan/bindings.rs"]
 mod bindings;
@@ -30,28 +30,49 @@ pub(super) struct Engines {
 }
 
 #[derive(Clone, Copy)]
-pub(super) enum Destination {
-    Scheduled,
-    Unavailable(&'static str),
+pub(super) struct Destination {
+    policy: TestEnginePolicy,
+    unavailable: Option<&'static str>,
 }
 
 impl Destination {
+    fn scheduled(self) -> bool {
+        self.policy != TestEnginePolicy::Disabled && self.unavailable.is_none()
+    }
+
     fn describe(self, request: TestExecution) -> String {
-        let requirement = if request == TestExecution::Compare {
-            "required"
-        } else {
-            "if available"
-        };
-        match self {
-            Self::Scheduled => format!("scheduled ({requirement})"),
-            Self::Unavailable(reason) => format!("unavailable ({requirement}, {reason})"),
+        if self.policy == TestEnginePolicy::Disabled {
+            return "explicitly disabled".into();
+        }
+        let requirement =
+            if self.policy == TestEnginePolicy::Required || request == TestExecution::Compare {
+                "required"
+            } else {
+                "if available"
+            };
+        match self.unavailable {
+            None => format!("scheduled ({requirement})"),
+            Some(reason) => format!("unavailable ({requirement}, {reason})"),
         }
     }
 
     pub(super) fn run<T>(self, invoke: impl FnOnce() -> Run<T>) -> Run<T> {
-        match self {
-            Self::Scheduled => invoke(),
-            Self::Unavailable(reason) => Err(EngineError::Unavailable(reason.into())),
+        if self.policy == TestEnginePolicy::Disabled {
+            return Err(EngineError::Unavailable(
+                "explicitly disabled by the Build group".into(),
+            ));
+        }
+        let outcome = match self.unavailable {
+            None => invoke(),
+            Some(reason) => Err(EngineError::Unavailable(reason.into())),
+        };
+        match (self.policy, outcome) {
+            (TestEnginePolicy::Required, Err(EngineError::Unavailable(reason))) => {
+                Err(EngineError::Incomplete(format!(
+                    "required by the Build group but unavailable: {reason}"
+                )))
+            }
+            (_, outcome) => outcome,
         }
     }
 }
@@ -66,15 +87,19 @@ impl PlannedTest {
         request: TestExecution,
     ) -> Self {
         let linux = matches!(target, TargetProfile::LinuxX64 | TargetProfile::LinuxArm64);
-        let psi = if root.inputs.private_filesystem && !linux {
-            Destination::Unavailable("the target has no private filesystem adapter")
-        } else {
-            Destination::Scheduled
+        let missing_adapter = (root.inputs.private_filesystem && !linux)
+            .then_some("the target has no private filesystem adapter");
+        let psi = Destination {
+            policy: root.engines.psi,
+            unavailable: missing_adapter,
         };
-        let native = if TargetProfile::host_if_supported() == Some(target) {
-            psi
-        } else {
-            Destination::Unavailable("its target does not execute on this host")
+        let native = Destination {
+            policy: root.engines.native,
+            unavailable: if TargetProfile::host_if_supported() == Some(target) {
+                missing_adapter
+            } else {
+                Some("its target does not execute on this host")
+            },
         };
         let prepare = || {
             if !root.inputs.private_filesystem
@@ -85,30 +110,32 @@ impl PlannedTest {
                 )]);
             }
             let mut native_target = stage.native_target(target, assumptions.to_vec())?;
-            native_target.isolated_execution_grant = Some(
-                IsolatedExecutionGrant::captured_process(target, root.inputs.stdin.is_some(), root.inputs.private_filesystem && linux),
-            );
+            native_target.isolated_execution_grant =
+                Some(IsolatedExecutionGrant::captured_process(
+                    target,
+                    root.inputs.stdin.is_some(),
+                    root.inputs.private_filesystem && linux,
+                ));
             let program = Program::CheckedSource {
                 publication: suite.compile(&root, target.target_name())?,
                 suppliers: stage.product,
                 runtime_consent: stage.runtime_consent(target)?,
                 target: native_target,
             };
-            let request = match native {
-                Destination::Scheduled => CompileRequest::Native {
+            let request = match native.scheduled() {
+                true => CompileRequest::Native {
                     program,
                     entry_memory: &[],
                 },
-                Destination::Unavailable(_) => CompileRequest::Runtime {
+                false => CompileRequest::Runtime {
                     program,
                     entry_memory: &[],
                 },
             };
             let result = compiler::compile(request, Default::default())
                 .map_err(compiler::stage_validators::NativeValidationError::into_diagnostics)?;
-            let report = match (native, result.artifact) {
-                (Destination::Scheduled, Artifact::Native(product))
-                | (Destination::Unavailable(_), Artifact::Runtime(product)) => product,
+            let report = match (native.scheduled(), result.artifact) {
+                (true, Artifact::Native(product)) | (false, Artifact::Runtime(product)) => product,
                 _ => {
                     return Err(vec![Diagnostic::error(
                         "compiler returned a product that does not match the registered test plan",
@@ -167,17 +194,22 @@ impl PlannedTest {
                 return rows;
             }
         };
-        vec![
-            match run_test(product.report, &self.engines, &self.root.inputs, &self.root.expected, self.target, self.request) {
-                Ok(status) => Diagnostic::note(format!(
-                    "{name} (target `{}`): {status}",
-                    self.target.target_name()
-                )),
-                Err(reason) => Diagnostic::error(format!(
-                    "{name} {reason} (target `{}`)",
-                    self.target.target_name()
-                )),
-            },
-        ]
+        vec![match run_test(
+            product.report,
+            &self.engines,
+            &self.root.inputs,
+            &self.root.expected,
+            self.target,
+            self.request,
+        ) {
+            Ok(status) => Diagnostic::note(format!(
+                "{name} (target `{}`): {status}",
+                self.target.target_name()
+            )),
+            Err(reason) => Diagnostic::error(format!(
+                "{name} {reason} (target `{}`)",
+                self.target.target_name()
+            )),
+        }]
     }
 }

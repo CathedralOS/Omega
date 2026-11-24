@@ -4,6 +4,7 @@ use super::*;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, ScalarType, StructuralFieldId, StructuralTypeId,
 };
+use source_compiler::registered_tests::{TestEnginePolicy, TestTargetEngines};
 use source_compiler::representations::declaration_selection::TestGroupConfiguration;
 use terminal_interpreter::{
     TerminalAggregateValue, TerminalInvocationScalar, TerminalReferencePayload,
@@ -13,6 +14,10 @@ use terminal_interpreter::{
 pub(super) struct RegisteredTestGroup {
     selection: ExecutedProductSelection,
     providers: Vec<ExecutedProductSelection>,
+    engines: Vec<(
+        TestTargetEngines,
+        Option<evaluation_accounting::EvaluationStorageLease>,
+    )>,
     pub(super) fixture: super::test_fixtures::TestFixture,
     disabled: TerminalInvocationScalar,
     private_filesystem: TerminalInvocationScalar,
@@ -46,7 +51,14 @@ impl RegisteredTestGroup {
         let (inputs, expected) = self
             .fixture
             .finish(boolean(&self.private_filesystem)?, account)?;
+        if let Some(account) = account {
+            let rows = self.engines.len() as u64;
+            account
+                .charge_result_custody(rows, rows * std::mem::size_of::<TestTargetEngines>() as u64)
+                .map_err(|e| e.to_string())?;
+        }
         self.selection.test_group = Some(TestGroupConfiguration {
+            engines: self.engines.into_iter().map(|(row, _lease)| row).collect(),
             expected,
             disabled: boolean(&self.disabled)?,
             inputs,
@@ -194,11 +206,110 @@ impl TerminalBuildBindingHost {
                     composition: None,
                 },
                 providers: Vec::new(),
+                engines: Vec::new(),
                 fixture: Default::default(),
                 disabled,
                 private_filesystem,
                 _storage: storage,
             }));
         Ok(result)
+    }
+}
+
+impl TerminalBuildBindingAdapter {
+    pub(super) fn configure_test_engine(
+        &mut self,
+        registration: usize,
+        effect: &TerminalEffect,
+    ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        use semantic_vocabulary::{IntegerValue, source_selections::ProductTarget};
+        let refuse = TerminalEffectRejection::new;
+        let TerminalEffect::BoundaryCall {
+            arguments,
+            byte_sequence_arguments,
+            result,
+            ..
+        } = effect
+        else {
+            return Err(refuse("test engine configuration requires a boundary call"));
+        };
+        let [target, engine, policy] = arguments.as_slice() else {
+            return Err(refuse(
+                "test engine configuration lost its target, engine or policy",
+            ));
+        };
+        if byte_sequence_arguments.as_slice() != [None]
+            || *result != terminal_psi::BoundaryMachineResult::Unit
+        {
+            return Err(refuse(
+                "test engine configuration lost its group or unit result",
+            ));
+        }
+        let number = |value: &TerminalScalarValue| match value {
+            TerminalScalarValue::Integer {
+                value: IntegerValue::Unsigned(value),
+                ..
+            } => u64::try_from(*value).map_err(|_| refuse("test engine selector is too large")),
+            _ => Err(refuse("test engine selector must be an unsigned integer")),
+        };
+        let target = ProductTarget::from_code(number(target)?)
+            .ok_or_else(|| refuse("unknown test target"))?;
+        let policy = match number(policy)? {
+            0 => TestEnginePolicy::IfAvailable,
+            1 => TestEnginePolicy::Required,
+            2 => TestEnginePolicy::Disabled,
+            _ => return Err(refuse("unknown test engine policy")),
+        };
+        let native = match number(engine)? {
+            0 => false,
+            1 => true,
+            _ => return Err(refuse("unknown test engine")),
+        };
+        let mut state = lock_state(&self.host.state).map_err(refuse)?;
+        let Some(ActivationSelection::TestGroup(group)) = state.executed.get_mut(registration)
+        else {
+            return Err(refuse(
+                "test engine configuration lost its registered group",
+            ));
+        };
+        let index = match group
+            .engines
+            .binary_search_by_key(&target.code(), |(row, _)| row.target.code())
+        {
+            Ok(index) => index,
+            Err(index) => {
+                let lease = self
+                    .host
+                    .account
+                    .as_ref()
+                    .map(|account| {
+                        account.reserve_storage(1, std::mem::size_of::<TestTargetEngines>() as u64)
+                    })
+                    .transpose()
+                    .map_err(|e| TerminalEffectRejection::new(e.to_string()))?;
+                group
+                    .engines
+                    .try_reserve(1)
+                    .map_err(|_| refuse("cannot retain test engine configuration"))?;
+                group.engines.insert(
+                    index,
+                    (
+                        TestTargetEngines {
+                            target,
+                            selection: Default::default(),
+                        },
+                        lease,
+                    ),
+                );
+                index
+            }
+        };
+        let selection = &mut group.engines[index].0.selection;
+        if native {
+            selection.native = policy;
+        } else {
+            selection.psi = policy;
+        }
+        Ok(TerminalEffectResult::Unit)
     }
 }

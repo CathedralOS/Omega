@@ -6,7 +6,6 @@ use source_compiler::registered_tests::{
     TestExpectations, TestFileExpectation, TestInvocationInputs,
 };
 use std::collections::BTreeMap;
-use terminal_interpreter::TerminalBoundaryStorageBuffer;
 
 #[derive(Default)]
 pub(super) struct TestFixture {
@@ -66,11 +65,10 @@ impl TestFixture {
 impl TerminalBuildBindingAdapter {
     pub(super) fn configure_test_fixture(
         &mut self,
+        group: usize,
         effect: &TerminalEffect,
-        storage: &[TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         let refuse = TerminalEffectRejection::new;
-        let group = self.take_presented_group(storage)?;
         let TerminalEffect::BoundaryCall {
             arguments,
             byte_sequence_arguments,

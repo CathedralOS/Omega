@@ -8,7 +8,7 @@ use crate::source_state::{
 use crate::*;
 use diagnostics::Diagnostic;
 use source_admission::RetainedDeclaration;
-pub use source_declarations::declaration_selection::{TestExpectations, TestFileExpectation, TestInvocationInputs};
+pub use source_declarations::declaration_selection::{TestEnginePolicy, TestEngineSelection, TestTargetEngines, TestExpectations, TestFileExpectation, TestInvocationInputs};
 use source_declarations::source_selections::TestGroupRegistration;
 
 pub struct TestRoot {
@@ -16,6 +16,7 @@ pub struct TestRoot {
     pub name: String,
     pub inputs: TestInvocationInputs,
     pub expected: TestExpectations,
+    pub engines: TestEngineSelection,
     group_declaration: RetainedDeclaration,
     registration: crate::declaration_selection::BuildSelectionOrigin,
     declaration: RetainedDeclaration,
@@ -202,6 +203,10 @@ impl<'a> RegisteredTests<'a> {
                     name,
                     inputs: group.configuration.inputs.clone(),
                     expected: group.configuration.expected.clone(),
+                    engines: group.configuration.engines.iter()
+                        .find(|row| row.target.canonical_name() == target)
+                        .map(|row| row.selection)
+                        .unwrap_or_default(),
                     group_declaration: retain(group.requirement)?,
                     registration: group.origin.clone(),
                     declaration: retain(machine.symbol)?,

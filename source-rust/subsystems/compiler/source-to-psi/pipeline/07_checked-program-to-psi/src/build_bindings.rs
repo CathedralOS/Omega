@@ -373,8 +373,15 @@ pub(crate) mod build_requests {
         GitDependency,
         PrepareDependency,
         LogLine,
-        ConfigureTestFixture,
         PublishSource,
+        ConfigureTestFixture,
+        ConfigureTestEngine,
+    }
+
+    impl TerminalBuildRequestOperation {
+        pub fn configures_test_group(self) -> bool {
+            matches!(self, Self::ConfigureTestFixture | Self::ConfigureTestEngine)
+        }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
