@@ -5,6 +5,6 @@ machine build(builder: @mutable Build) {
     let std_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
         location: "../../../../../../../../source/library/std"
     }));
-    Build::bind(builder, windows_x86_64\ProgramEntry, entry_start);
-    Build::bind(builder, linux_x86_64\ProgramEntry, entry_start);
+    Build::bind(builder, windows_x86_64\ProgramEntry, windows_entry);
+    Build::bind(builder, linux_x86_64\ProgramEntry, posix_entry);
 }
