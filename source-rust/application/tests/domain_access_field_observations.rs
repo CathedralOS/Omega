@@ -50,3 +50,40 @@ fn a_loan_cannot_read_or_write_the_excluded_field() {
         );
     }
 }
+
+#[test]
+fn a_policy_follows_its_semantic_fields_through_reordered_storage() {
+    let layout = r#"data Storage = |layout|::LayoutStorage<Pair, Reversed>;
+Reversed satisfies |layout|::FixedLayout<Pair> {
+    machine plan(schema: |layout|::Schema, target: |layout|::LayoutTarget) -> |layout|::LayoutPlan
+    reaches none crashes none terminates {
+        let mutable entries: [|layout|::FieldEntry; 64];
+        entries[0] = |layout|::FieldEntry { key: schema.fields[0].key, representation: |layout|::FieldPlan::At { offset: 4 } };
+        entries[1] = |layout|::FieldEntry { key: schema.fields[1].key, representation: |layout|::FieldPlan::At { offset: 0 } };
+        |layout|::LayoutPlan { entries: entries, entry_count: 2, size_fixed: 8, size_is_dynamic: false, align: 4 }
+    }
+}
+machine make() -> Storage crashes Trap {
+    let mutable value: Storage;
+    value.visible = 1u32;
+    value.hidden = 17u32;
+    let bytes: @[u8; 8] = @value as @[u8; 8];
+    transition bytes[0] == 17u8 && bytes[4] == 1u8 { true -> done(value), _ -> bad() }
+    machine done(value: Storage) -> Storage { value }
+    machine bad() -> Storage { crash Trap; }
+}
+machine select(pair: @mutable Storage"#;
+    let source = SOURCE
+        .replace("machine select(pair: @mutable Pair", layout)
+        .replace(
+            "let mutable pair: Pair in Restricted = Pair { visible: 1u32, hidden: 17u32 }",
+            "let mutable pair: Storage in Restricted = make()",
+        );
+    program::assert_silent_return(&source);
+    let denied = source.replace("    pair.visible\n", "    pair.hidden\n");
+    let (output, report) = program::invoke(&denied, &["run", "--engine", "psi"]);
+    assert!(
+        !output.status.success() && report.contains("this field is inaccessible"),
+        "{report}"
+    );
+}
