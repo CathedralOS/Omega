@@ -19,9 +19,11 @@ pub(crate) fn parse_machine<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Machine> {
-    let (spelling, input) = if input.tokens.first().is_some_and(|token| {
-        token.punctuation().is_some() && token.punctuation() != Some(PunctuationKind::Semicolon)
-    }) {
+    let (spelling, input) = if !input.at_path_head()
+        && input.tokens.first().is_some_and(|token| {
+            token.punctuation().is_some() && token.punctuation() != Some(PunctuationKind::Semicolon)
+        })
+    {
         let (spelling, input) = parse_operator_spelling(input)?;
         (Some(spelling), input)
     } else {

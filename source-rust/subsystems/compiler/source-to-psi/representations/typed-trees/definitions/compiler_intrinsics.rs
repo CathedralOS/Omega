@@ -256,6 +256,7 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
         name: _,
         attached_data,
         attached_data_symbol,
+        attached_domain_symbol,
         attached_data_application,
         generic_data_template,
         spelling,
@@ -291,6 +292,7 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
     if purpose.is_active_case_visitor() || lexical_region_origin.is_some()
         || attached_data.is_some()
         || attached_data_symbol.is_valid()
+        || attached_domain_symbol.is_valid()
         || attached_data_application.is_valid()
         || generic_data_template.is_valid()
         || target.is_some()

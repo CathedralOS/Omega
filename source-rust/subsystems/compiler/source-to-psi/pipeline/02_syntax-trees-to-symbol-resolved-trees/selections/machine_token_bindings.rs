@@ -60,6 +60,7 @@ use crate::source_resolved::types::TypeReference;
 use crate::source_symbols::JoinedPath;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
+use crate::resolution::names::domain_attachments::domain_named;
 use source_text::SourceSpan;
 use source_text::Span;
 use symbols::{SymbolHandle, SymbolKind};
@@ -794,24 +795,6 @@ fn declared_operand_symbols(
     symbols
 }
 
-/*
-    Resolve a token's domain home with the membership pool. A signature-free
-    unique hit does not return before the exposure scan. The same
-    symbol reached by lookup and by the exposure scan is one home. Two
-    different symbols stay unresolved even when they print the same.
-*/
-fn domain_named(program: &SymbolResolvedTrees, name: &DiagnosticName) -> Option<SymbolHandle> {
-    match crate::resolution::names::membership_domain_lookup(
-        &program.symbols,
-        name.as_str(),
-        name.source_span(),
-    ) {
-        crate::resolution::names::DomainMembership::Unique(symbol) => Some(symbol),
-        crate::resolution::names::DomainMembership::NotFound
-        | crate::resolution::names::DomainMembership::Ambiguous { .. }
-        | crate::resolution::names::DomainMembership::Contested => None,
-    }
-}
 
 /*
     Two unsourced `Quantity` rows are different symbols. A shared display
@@ -984,39 +967,12 @@ fn attached_domain<'program>(
     program: &'program SymbolResolvedTrees,
     machine: &Machine,
 ) -> Option<&'program crate::source_resolved::domain::DomainDefinition> {
-    if !machine.operator_home_domain.is_valid() {
+    if !machine.attached_domain_symbol.is_valid() {
         return None;
     }
-    program.domain_definition_by_symbol(machine.operator_home_domain)
+    program.domain_definition_by_symbol(machine.attached_domain_symbol)
 }
 
-/*
-    Resolve semantic association once in the declaration's own source scope.
-    A token binding remains a lexical machine; its domain association grants
-    no imports, denotation role, membership or access authority.
-*/
-pub(crate) fn resolve_token_bound_domain_homes(program: &mut SymbolResolvedTrees) {
-    let homes = program
-        .machines
-        .iter()
-        .enumerate()
-        .filter(|(_, machine)| {
-            machine.spelling.is_some() && program.symbols.symbol_source_is_selected(machine.symbol)
-        })
-        .map(|(position, machine)| {
-            let home = machine
-                .attached_data
-                .as_ref()
-                .filter(|_| !machine.attached_data_symbol.is_valid())
-                .and_then(|name| domain_named(program, name))
-                .unwrap_or_else(SymbolHandle::invalid);
-            (position, home)
-        })
-        .collect::<Vec<_>>();
-    for (position, home) in homes {
-        program.machines[position].operator_home_domain = home;
-    }
-}
 
 /*
     Renders the complete operand telescope by resolved identity: symbols
