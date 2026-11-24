@@ -6077,6 +6077,7 @@ pub(crate) mod scalar_observations {
                         }
                     }
                 }
+                Proposition::DeclarationIdentity(_) => return malformed("unpublished declaration Identity in a portable proposition"),
                 Proposition::StructuralIdentity { left, right } => {
                     if left.structural_type() != right.structural_type() {
                         return malformed(

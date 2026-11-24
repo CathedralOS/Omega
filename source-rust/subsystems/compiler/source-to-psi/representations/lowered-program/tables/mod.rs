@@ -221,6 +221,8 @@ pub enum UnprovedCause {
     /// The prover has rules for the goal's form and found no derivation of
     /// it from the knowledge available at the obligation's point.
     NoDerivation,
+    /// Proof search or kernel conversion reached its configured work limit.
+    BudgetExhausted,
     /// The prover has no rule for the goal's form (an order or equality over
     /// non-integers, a proposition form it does not reason about), so it
     /// cannot judge the obligation either way.
@@ -239,6 +241,7 @@ impl UnprovedCause {
     /// obligation is false.
     pub const fn describe(self) -> &'static str {
         match self {
+            Self::BudgetExhausted => "mathematical proof budget exhausted",
             Self::NoDerivation => "no proof found from the facts available here",
             Self::NoRuleForGoalForm => "the prover has no rule for this form of goal",
             Self::KernelRefused => "invalid proof: the proof kernel refused the certificate",
@@ -248,7 +251,7 @@ impl UnprovedCause {
 
     /// True when the outcome is `Incomplete` rather than `Reject`.
     pub const fn is_incomplete(self) -> bool {
-        matches!(self, Self::NoRuleForGoalForm)
+        matches!(self, Self::NoRuleForGoalForm | Self::BudgetExhausted)
     }
 }
 

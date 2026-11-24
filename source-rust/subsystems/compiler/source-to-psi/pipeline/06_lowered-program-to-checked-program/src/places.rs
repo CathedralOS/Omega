@@ -455,6 +455,8 @@ pub(crate) fn content_root<'a>(
 /// What one scalar leaf holds on every path to a point.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Reached {
+    /// The complete inline value supplied by this invocation parameter.
+    Input(PlaceId),
     /// No real arrival supplies this equation yet. A cycle of copies has
     /// no contents of its own.
     Cycle,
@@ -658,6 +660,7 @@ struct ReachingEquation {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Observations {
     None,
+    WholeInput,
     Boundary,
     All,
 }
@@ -4111,7 +4114,9 @@ impl<'a> Storage<'a> {
                         // especially when its index changes in a ranked loop.
                         (Asked::Contents(leaf), StructuralPlaceKind::Parameter { .. }) => {
                             let depth = leaf.segments.len();
-                            if budget.observations == Observations::None {
+                            if budget.observations == Observations::WholeInput && depth == 0 {
+                                Supply::Direct(Reached::Input(leaf.root))
+                            } else if budget.observations == Observations::None {
                                 Supply::Direct(Reached::Established(depth))
                             } else {
                                 self.interned(tables, leaf, concerns)?
@@ -4493,6 +4498,7 @@ impl<'a> Storage<'a> {
                 }
             }
             Reached::Case(_)
+            | Reached::Input(_)
             | Reached::ExcludedCase
             | Reached::Zero(_)
             | Reached::Extent(_)
@@ -6597,6 +6603,9 @@ impl<'s, 'a, Inputs: InputPlaces<'a>> Returned<'s, 'a, Inputs> {
 
 impl<'a, Inputs: InputPlaces<'a>> crate::checking::Bindings for Returned<'_, 'a, Inputs> {
     type Error = crate::checking::Unbound;
+    fn whole_input(&mut self, root: PlaceId) -> Result<PlaceId, Self::Error> {
+        self.owned_inputs(root)?.whole_input(root)
+    }
     fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
         self.storage.validate_float_meaning_source(source)
     }
@@ -6830,6 +6839,9 @@ impl AtEntry<'_, '_> {
 
 impl crate::checking::Bindings for AtEntry<'_, '_> {
     type Error = crate::checking::Unbound;
+    fn whole_input(&mut self, root: PlaceId) -> Result<PlaceId, Self::Error> {
+        self.input_place(root, &[]).map(|place| place.root)
+    }
 
     /// Entry propositions can name only projections whose scalar sources
     /// belong to this machine. Rejoin them at the same owner as call imports.
@@ -7566,6 +7578,17 @@ fn formal_observation_path(
 
 impl crate::checking::Bindings for AtCall<'_, '_> {
     type Error = crate::checking::Unbound;
+    fn whole_input(&mut self, root: PlaceId) -> Result<PlaceId, Self::Error> {
+        let actual = self.actual(root, &[])?;
+        let mut trace = self.storage.budget();
+        trace.observations = Observations::WholeInput;
+        match self.storage.reaching(self.references, self.tables, Asked::Contents(&actual),
+            (self.block, self.up_to), &mut trace, self.concerns)
+            .map_err(crate::checking::Unbound::Refused)? {
+            Reached::Input(parameter) => Ok(parameter),
+            _ => Err(crate::checking::Unbound::Unproved("no single input supplies this whole value")),
+        }
+    }
     fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
         self.storage.validate_float_meaning_source(source)
     }

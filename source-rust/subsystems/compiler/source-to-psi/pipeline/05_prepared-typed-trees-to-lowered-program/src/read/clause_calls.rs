@@ -1,10 +1,12 @@
 /*
-A contract clause or domain predicate that calls a declared machine
-(`domain bool::Held requires premise(self);`) states what that machine's body
-computes for the arguments. The clause reader unfolds the call: it reads the
-arguments as terms in the caller's scope, binds the callee's parameters to
-those terms and reads the callee's body under that binding. The result is the
-same proposition or term the author could have written inline.
+A clause that calls a pure, total declaration can name the result even when
+the declaration has no body. The term records the selected operation, its
+supplying record, and each typed argument. A cited law can then prove an
+identity about those results for an arbitrary carrier.
+
+For a closed scalar helper such as `domain bool::Held requires premise(self);`,
+the reader can also compute the term by reading the helper's body with its
+formal parameters bound to the caller's arguments.
 
 `wiki/spec/language/domains.md`: "Eligible total, pure machine calls may
 occur as denotational value terms inside propositions", and "Predicate calls
@@ -23,8 +25,7 @@ expression. Scalar helpers declare no contracts. Proof-only IEEE views may
 declare result guarantees that their checked body establishes for every
 input (`float_meaning`). A callee with `requires`
 would owe them at the call, which this reader does not yet discharge, so it
-is refused, as is any recursion through unfolding. Anything else stays
-refused at the clause that calls it.
+is refused, as is any recursion through unfolding.
 */
 
 use crate::source_state::expression::TableCallExpression;
@@ -56,67 +57,357 @@ pub(super) struct Unfolding {
     used: Vec<bool>,
 }
 
-impl Program<'_> {
-    /// The clause a call of a declared Boolean machine states.
-    pub(super) fn called_clause(
-        &mut self,
-        id: MachineId,
-        scope: &ClauseScope<'_>,
-        call: &TableCallExpression,
-    ) -> Checked<Proposition> {
-        let unfolded = self.unfold(id, scope, call)?;
-        if unfolded.result != ScalarType::Boolean {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Contract("called predicate whose result is not Boolean"),
-            ));
-        }
-        let body = unfolded.body;
-        let (clause, _) =
-            self.within_unfolding(id, unfolded.machine, unfolded.bound.len(), |program| {
-                let callee = callee_scope(&unfolded.bound, unfolded.machine);
-                program.clause(id, &callee, body)
-            })?;
-        self.retain_call_arguments(id, unfolded.bound)?;
-        Ok(clause)
-    }
+pub(super) enum ClauseUse<'a> {
+    Operand(ValueType, &'a mut Vec<semantic_vocabulary::ClauseValue>),
+    Proposition,
+    Value,
+}
 
-    /// The term a call of a declared scalar machine denotes.
-    pub(super) fn called_term(
+pub(super) enum ClauseTerm {
+    Operand(u32),
+    Proposition(Proposition),
+    Scalar(ScalarTerm, ValueType),
+}
+
+impl ClauseTerm {
+    pub(super) fn operand(self, id: MachineId) -> Checked<u32> {
+        match self {
+            Self::Operand(position) => Ok(position),
+            _ => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("expected a value operand of Identity"),
+            )),
+        }
+    }
+}
+
+impl Program<'_> {
+    /// The scope binds names. The requested use gives calls and both operands
+    /// of Identity the same interpretation in each enclosing source clause.
+    pub(super) fn clause_term(
         &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
-        call: &TableCallExpression,
-    ) -> Checked<(ScalarTerm, ValueType)> {
+        expression: crate::source_state::expression::ExpressionHandle,
+        usage: ClauseUse<'_>,
+    ) -> Checked<ClauseTerm> {
+        use crate::source_state::expression::ExpressionNode;
+        use semantic_vocabulary::{ClauseCarrier, ClauseDeclaration, ClauseOperand, ClauseValue};
+        let typed = self.typed;
+        let table = &typed.expression_table;
+        let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        if let ExpressionNode::Call(call) = table.expression(expression)
+            && typed
+                .symbols
+                .fixed_core_declaration_for_symbol(call.target_symbol)
+                == Some(symbols::FixedCoreDeclaration::Identity)
+        {
+            return self
+                .identity_clause(id, scope, expression, call)
+                .map(ClauseTerm::Proposition);
+        }
+        let bodyless = match table.expression(expression) {
+            ExpressionNode::Call(call) if !call.receiver.is_valid() => typed
+                .bodyless_machine_signature(call.target_symbol)
+                .map_err(unavailable)?,
+            _ => None,
+        };
+        let abstract_application = bodyless.is_some()
+            || matches!(table.expression(expression), ExpressionNode::Call(call)
+            if call.receiver.is_valid() || (typed.symbols.symbols().nodes().is_valid(call.target_symbol)
+                && (typed.closed_requirement_application(call.target_symbol).is_some()
+                    || typed.trait_definition_by_symbol(typed.symbols.get(call.target_symbol).parent).is_some())));
+        if abstract_application && matches!(usage, ClauseUse::Proposition) {
+            // A proposition-valued use of a Boolean operation requires its
+            // actual result to be true under the same declaration and inputs.
+            let mut values = Vec::new();
+            let boolean = ValueType::plain(ScalarType::Boolean);
+            let left = self
+                .clause_term(
+                    id,
+                    scope,
+                    expression,
+                    ClauseUse::Operand(boolean, &mut values),
+                )?
+                .operand(id)?;
+            let right = u32::try_from(values.len())
+                .map_err(|_| unavailable("clause term table overflow"))?;
+            values.push(ClauseValue {
+                carrier: ClauseCarrier::Scalar(ScalarType::Boolean),
+                operand: ClauseOperand::Scalar(ScalarTerm::Boolean(true)),
+            });
+            return Ok(ClauseTerm::Proposition(Proposition::DeclarationIdentity(
+                semantic_vocabulary::ClauseIdentity {
+                    values,
+                    left,
+                    right,
+                },
+            )));
+        }
+        if let ClauseUse::Operand(expected, values) = usage {
+            let carrier = match expected {
+                ValueType::Rigid(parameter) => ClauseCarrier::Parameter(parameter.0),
+                ValueType::Record(record, _, _) => {
+                    match self.records.get(record).map(|record| &record.shape) {
+                        Some(crate::lowering::StorageShape::TypeParameter(parameter)) => {
+                            ClauseCarrier::Parameter(parameter.0)
+                        }
+                        Some(_) => ClauseCarrier::Structural(record),
+                        None => {
+                            return Err(unavailable(
+                                "Identity carrier has no structural declaration",
+                            ));
+                        }
+                    }
+                }
+                ValueType::Scalar(scalar, _) => ClauseCarrier::Scalar(scalar),
+            };
+            let operand = match table.expression(expression) {
+                ExpressionNode::Call(call)
+                    if expected.scalar().is_none() || abstract_application =>
+                {
+                    let target = call.target_symbol;
+                    if !typed.symbols.symbols().nodes().is_valid(target) {
+                        return Err(unavailable(
+                            "clause application lost its selected declaration",
+                        ));
+                    }
+                    let owner = self.contract_operator_owner(id, scope)?;
+                    let invocation = self.static_invocation(
+                        crate::source_state::references::StaticArgumentCall::Expression(
+                            expression, call,
+                        ),
+                    );
+                    if invocation.unsupported
+                        || call.operational_acknowledgement.acknowledges_suspend
+                        || call.operational_acknowledgement.acknowledges_block
+                    {
+                        return Err(unavailable(
+                            "clause application has another dispatch or effect",
+                        ));
+                    }
+                    self.direct_selection(
+                        id,
+                        target,
+                        call.authored_call_selection,
+                        call.authored_call_binding,
+                    )?;
+                    let receiver = table.name_path_node(call.receiver).map(|name| name.symbol);
+                    if call.receiver.is_valid() && receiver.is_none() {
+                        return Err(unavailable(
+                            "clause application has no selected static receiver",
+                        ));
+                    }
+                    let supplier = receiver
+                        .or(self.clause_supplier)
+                        .filter(|_| bodyless.is_none());
+                    let member = bodyless
+                        .as_ref()
+                        .map(|(machine, _)| *machine)
+                        .unwrap_or_else(|| {
+                            typed
+                                .closed_requirement_application(target)
+                                .map_or(target, |row| row.template)
+                        });
+                    let signature = if let Some((_, signature)) = &bodyless {
+                        Some(signature)
+                    } else if let Some(supplier) = supplier {
+                        let lexical = typed.symbols.get(supplier).parent;
+                        if receiver.is_some()
+                            && typed
+                                .static_record_parameter_schema(owner, supplier)
+                                .map_err(|_| {
+                                    unavailable("clause application uses a foreign record")
+                                })?
+                                .is_none()
+                        {
+                            return Err(unavailable("clause application has no record in scope"));
+                        }
+                        typed
+                            .static_record_bound_requirement(lexical, supplier, target)
+                            .map_err(|_| {
+                                unavailable("clause application lost its applied requirement")
+                            })?
+                            .map(|required| required.signature)
+                    } else {
+                        let owner = typed
+                            .closed_requirement_application(owner)
+                            .map_or(owner, |row| row.template);
+                        let schema = typed.symbols.get(member).parent;
+                        if typed.symbols.get(owner).parent != schema {
+                            return Err(unavailable(
+                                "clause operation has no supplying declaration",
+                            ));
+                        }
+                        typed.trait_definition_by_symbol(schema).and_then(|schema| {
+                            typed.trait_machine_signature_by_symbol(schema, target)
+                        })
+                    }
+                    .ok_or_else(|| {
+                        unavailable("clause application has no requirement signature")
+                    })?;
+                    let envelope = self.static_envelope(id, signature, false)?;
+                    if !matches!(envelope.service_reach, crate::lowering::static_contracts::SourceServiceCeiling::Closed(ref row) if row.is_empty())
+                        || !matches!(envelope.termination, terminal_psi::TerminalCallableTermination::Terminates { ref premises } if premises.is_empty())
+                        || !envelope.invocations.is_empty()
+                        || envelope.suspends
+                        || envelope.blocks
+                        || !signature.declares_no_crash_route
+                        || !signature.contracts.is_empty()
+                        || !call.machine_arguments.is_empty()
+                        || !call.evidence_arguments.is_empty()
+                        || call.runtime_call.is_some()
+                        || call.build_selection.is_valid()
+                    {
+                        return Err(unavailable(
+                            "clause application needs an unconditional pure and total operation",
+                        ));
+                    }
+                    if self.value_type(id, signature.return_type)? != expected {
+                        return Err(unavailable(
+                            "clause application result differs from the written carrier",
+                        ));
+                    }
+                    let parameters = typed
+                        .state_parameters
+                        .span(signature.parameters)
+                        .ok_or_else(|| unavailable("clause application lost its parameters"))?;
+                    let actuals = table.expression_handles(call.arguments);
+                    if parameters.len() != actuals.len() {
+                        return Err(unavailable(
+                            "clause application arity differs from its signature",
+                        ));
+                    }
+                    let mut arguments = Vec::with_capacity(actuals.len());
+                    for (formal, &actual) in parameters.iter().zip(actuals) {
+                        let ty = self.value_type(id, formal.type_reference)?;
+                        arguments.push(
+                            self.clause_term(id, scope, actual, ClauseUse::Operand(ty, values))?
+                                .operand(id)?,
+                        );
+                    }
+                    ClauseOperand::Application {
+                        declaration: ClauseDeclaration {
+                            member: (member.arena_index(), member.generation()),
+                            supplier: supplier
+                                .map(|symbol| (symbol.arena_index(), symbol.generation())),
+                        },
+                        arguments,
+                    }
+                }
+                _ if expected.scalar().is_some() => {
+                    let (term, actual) = self.term(id, scope, expression, expected.scalar())?;
+                    if expected != actual {
+                        return Err(unavailable(
+                            "Identity operand differs from the written carrier",
+                        ));
+                    }
+                    ClauseOperand::Scalar(term)
+                }
+                ExpressionNode::Name(path)
+                    if path.reserved_result_of.is_valid()
+                        || scope
+                            .subject
+                            .is_some_and(|subject| subject.symbol == path.symbol) =>
+                {
+                    let (root, path, ty) = self
+                        .projected(id, scope, expression)?
+                        .ok_or_else(|| unavailable("Identity operand has no bound subject"))?;
+                    if ty != expected {
+                        return Err(unavailable(
+                            "Identity subject differs from the written carrier",
+                        ));
+                    }
+                    ClauseOperand::Input(semantic_vocabulary::StructuralCaseSubject::new(
+                        root, path,
+                    ))
+                }
+                ExpressionNode::Name(path)
+                    if !path.static_application.is_valid()
+                        && !path.reserved_result_of.is_valid()
+                        && table.name_path_members(path.members).len() == 1 =>
+                {
+                    let (position, slot) = scope
+                        .slots
+                        .iter()
+                        .enumerate()
+                        .find(|(_, slot)| slot.symbol == path.symbol)
+                        .ok_or_else(|| unavailable("Identity operand has no bound formal"))?;
+                    if slot.value_type != expected || slot.borrowed.is_some() {
+                        return Err(unavailable(
+                            "Identity operand has no exact input observation",
+                        ));
+                    }
+                    if matches!(expected, ValueType::Rigid(_)) {
+                        ClauseOperand::Formal(
+                            u32::try_from(position)
+                                .map_err(|_| unavailable("formal ordinal overflow"))?,
+                        )
+                    } else {
+                        ClauseOperand::Input(semantic_vocabulary::StructuralCaseSubject::new(
+                            super::contracts::formal_place(id, scope.slots, position)?,
+                            Vec::new(),
+                        ))
+                    }
+                }
+                _ => {
+                    return Err(unavailable(
+                        "Identity operand has no term at its written carrier",
+                    ));
+                }
+            };
+            let position = u32::try_from(values.len())
+                .map_err(|_| unavailable("clause term table overflow"))?;
+            values.push(ClauseValue { carrier, operand });
+            return Ok(ClauseTerm::Operand(position));
+        }
+        let ExpressionNode::Call(call) = table.expression(expression) else {
+            return Err(unavailable("clause application lost its selected call"));
+        };
         let unfolded = self.unfold(id, scope, call)?;
-        let body = unfolded.body;
-        let result = unfolded.result;
-        let ((term, value_type), used) =
+        let (term, used) =
             self.within_unfolding(id, unfolded.machine, unfolded.bound.len(), |program| {
                 let callee = callee_scope(&unfolded.bound, unfolded.machine);
-                program.term(id, &callee, body, Some(result))
+                match usage {
+                    ClauseUse::Operand(..) => unreachable!("operands are read above"),
+                    ClauseUse::Proposition if unfolded.result == ScalarType::Boolean => program
+                        .clause(id, &callee, unfolded.body)
+                        .map(ClauseTerm::Proposition),
+                    ClauseUse::Proposition => Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Contract("called predicate whose result is not Boolean"),
+                    )),
+                    ClauseUse::Value => {
+                        let (value, ty) =
+                            program.term(id, &callee, unfolded.body, Some(unfolded.result))?;
+                        if ty.scalar() != Some(unfolded.result) {
+                            return Err(refuse(
+                                id,
+                                Construct::Machine,
+                                Unserved::Contract(
+                                    "called machine's body differs from its result type",
+                                ),
+                            ));
+                        }
+                        Ok(ClauseTerm::Scalar(value, ValueType::plain(unfolded.result)))
+                    }
+                }
             })?;
-        if value_type.scalar() != Some(result) {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Contract("called machine's body differs from its result type"),
-            ));
-        }
-        // This body returns a scalar term, whose complete operand tree must
-        // form. A substituted argument survives there, or in a nested call's
-        // discarded-argument clause. Boolean clause bodies keep every guard:
-        // reading a branch alone does not establish eager argument formation.
+        // A scalar term still contains each used argument. Reading a
+        // predicate may discard a branch, so all its arguments must form.
         self.retain_call_arguments(
             id,
             unfolded
                 .bound
                 .into_iter()
                 .zip(used)
-                .filter_map(|(bound, used)| (!used).then_some(bound)),
+                .filter_map(|(bound, used)| {
+                    (matches!(usage, ClauseUse::Proposition) || !used).then_some(bound)
+                }),
         )?;
-        Ok((term, ValueType::plain(result)))
+        Ok(term)
     }
 
     /// Read `body` with `machine` marked as being unfolded, refusing a

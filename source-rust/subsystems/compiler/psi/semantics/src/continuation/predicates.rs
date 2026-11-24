@@ -269,6 +269,7 @@ impl CheckedPrefix<'_> {
                 *case = self.case_for_clause(roots, parent, *case)?;
                 *subject = semantic_vocabulary::StructuralCaseSubject::new(subject.root(), path);
             }
+            DeclarationIdentity(_) => return None,
             StructuralIdentity { left, right } => {
                 for subject in [&mut *left, &mut *right] {
                     let mut path = subject.path().to_vec();

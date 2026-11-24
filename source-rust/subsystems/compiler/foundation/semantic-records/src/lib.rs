@@ -9,6 +9,8 @@
 #![forbid(unsafe_code)]
 
 mod declaration_contracts;
+mod clause_identity;
+pub use clause_identity::{ClauseCarrier, ClauseDeclaration, ClauseIdentity, ClauseOperand, ClauseValue};
 pub use self::declaration_contracts::{
     BlockingInterface, BlockingPlan, BlockingSummary, ExternalBindingId, ExternalBindingIdentity,
     ExternalBindingMechanism, RANKING_VIEW_CORE_SOURCE, RankingViewDeclaration, RankingViewId,

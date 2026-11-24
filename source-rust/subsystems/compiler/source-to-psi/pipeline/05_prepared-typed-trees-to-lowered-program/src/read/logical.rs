@@ -375,45 +375,31 @@ impl LogicalScope<'_> {
     }
 
     pub(super) fn term(
-        &self,
-        typed: &TypedTrees,
-        expression: ExpressionHandle,
+        &self, typed: &TypedTrees, expression: ExpressionHandle, explicit_old: bool,
     ) -> Checked<Option<(ScalarTerm, ScalarType)>> {
-        let Some(position) = self.source_leaf(typed, expression)? else {
-            return Ok(None);
-        };
-        let leaf = &self.inputs.leaves[position];
-        if self.observation == ContentPlaceVersion::Current && leaf.reference.is_some() {
-            return Err(refuse(
-                self.machine,
-                Construct::Machine,
-                Unserved::Contract(
-                    "logical guarantee needs its normal-return reference observation",
-                ),
-            ));
-        }
-        self.input_term(position).map(Some)
-    }
-
-    pub(super) fn old_term(
-        &self,
-        typed: &TypedTrees,
-        expression: ExpressionHandle,
-    ) -> Checked<Option<(ScalarTerm, ScalarType)>> {
-        let Some(position) = self.source_leaf(typed, expression)? else {
-            return Ok(None);
-        };
+        let Some(position) = self.source_leaf(typed, expression)? else { return Ok(None) };
         if self.inputs.leaves[position].reference.is_some() {
-            // Selecting the entry version cannot establish that referenced
-            // storage had a formed, readable value. No such receipt is present
-            // in this mathematical projection; the ordinary owner must supply it.
-            return Err(refuse(
+            // A reference needs a separate receipt for the selected observation.
+            let reason = if explicit_old {
+                Some("logical old needs ordinary reference observation formation")
+            } else if self.observation == ContentPlaceVersion::Current {
+                Some("logical guarantee needs its normal-return reference observation")
+            } else {
+                None
+            };
+            if let Some(reason) = reason {
+                return Err(refuse(self.machine, Construct::Machine, Unserved::Contract(reason)));
+            }
+        }
+        let leaf = &self.inputs.leaves[position];
+        let value = ValueId::new(position as u64 + 1).ok_or_else(|| {
+            refuse(
                 self.machine,
                 Construct::Machine,
-                Unserved::Contract("logical old needs ordinary reference observation formation"),
-            ));
-        }
-        self.input_term(position).map(Some)
+                Unserved::Contract("logical value identity overflow"),
+            )
+        })?;
+        Ok(Some((ScalarTerm::value(value, leaf.scalar), leaf.scalar)))
     }
 
     fn source_leaf(
@@ -451,17 +437,7 @@ impl LogicalScope<'_> {
         Ok(Some(self.inputs.lookup[found]))
     }
 
-    fn input_term(&self, position: usize) -> Checked<(ScalarTerm, ScalarType)> {
-        let leaf = &self.inputs.leaves[position];
-        let value = ValueId::new(position as u64 + 1).ok_or_else(|| {
-            refuse(
-                self.machine,
-                Construct::Machine,
-                Unserved::Contract("logical value identity overflow"),
-            )
-        })?;
-        Ok((ScalarTerm::value(value, leaf.scalar), leaf.scalar))
-    }
+
 
     pub(super) fn signature(
         self,
@@ -528,7 +504,7 @@ impl LogicalScope<'_> {
             })?;
             requires.push((
                 Proposition::Atom(atom),
-                crate::lowering::ClauseText(vec![crate::lowering::Piece::Text(format!(
+                crate::lowering::ClauseText::from(vec![crate::lowering::Piece::Text(format!(
                     "{} in {}",
                     program.typed.symbols.name(membership.subject.root),
                     membership.domain.name.as_str()
@@ -1200,7 +1176,7 @@ impl Inputs {
         };
         Ok((
             proposition,
-            crate::lowering::ClauseText(vec![crate::lowering::Piece::Text(format!(
+            crate::lowering::ClauseText::from(vec![crate::lowering::Piece::Text(format!(
                 "{} in {}",
                 program.typed.symbols.name(path.root),
                 membership.domain.name.as_str()

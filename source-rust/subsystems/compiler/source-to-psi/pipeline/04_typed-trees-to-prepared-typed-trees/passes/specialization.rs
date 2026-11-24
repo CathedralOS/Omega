@@ -1078,17 +1078,25 @@ fn apply_requirement(
     arguments: &[StaticMachineArgument],
 ) -> Served<()> {
     let reference = site.requirement_application(program);
+    let receiver = match site.call(program) {
+        Some(StaticArgumentCall::Expression(_, call)) => program.expression_table
+            .name_path_node(call.receiver).map(|name| name.symbol),
+        Some(StaticArgumentCall::Statement(call)) => Some(call.receiver_symbol),
+        None => None,
+    };
+    let lexical_owner = program.expression_table.static_machine_application(applied.application).lexical_owner;
     let environment = if reference.is_valid() {
-        let owner = program
-            .expression_table
-            .static_machine_application(applied.application)
-            .lexical_owner;
         Some(
             program
-                .applied_requirement_scope(owner, reference)
+                .applied_requirement_scope(lexical_owner, reference)
                 .ok_or(unserved("requirement call lost its applied trait scope"))?
                 .environment(),
         )
+    } else if let Some(receiver) = receiver
+        && let Some(member) = program.static_record_bound_requirement(lexical_owner, receiver, applied.target)
+            .map_err(|_| unserved("static record call lost its declared requirement application"))?
+    {
+        Some(member.application.environment())
     } else if program
         .trait_machine_signature(applied.target)
         .is_some_and(|(owner, _)| {
