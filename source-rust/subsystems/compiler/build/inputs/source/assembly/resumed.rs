@@ -164,17 +164,6 @@ impl DeferredProductSources {
             },
         ))
     }
-
-    /// Select the Build files against their exact library bindings and keep the Product deferred.
-    pub fn assemble_build_stage(
-        &self,
-        inputs: &crate::source::source_imports::ProductQueryInputs,
-        timings: &mut CompileTimings,
-        catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
-    ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
-        self.checkpoint
-            .assemble_build_stage(inputs, timings, catalogue)
-    }
 }
 
 impl super::ImmutableSourceParseCheckpoint {

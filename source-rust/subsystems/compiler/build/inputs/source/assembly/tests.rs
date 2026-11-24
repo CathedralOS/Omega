@@ -121,7 +121,7 @@ fn original_build_bindings_retain_their_real_toolchain_requirement_calls() {
     let interval = assembled
         .build_stage_source()
         .unwrap()
-        .prepare(None, &Default::default(), "linux_x86_64", None)
+        .prepare(&Default::default(), "linux_x86_64", None)
         .expect("exact declared requirement calls reach typed preparation");
     let typed = interval.program.as_ref();
     let unresolved: Vec<_> = typed
@@ -195,41 +195,40 @@ fn original_build_bindings_retain_their_real_toolchain_requirement_calls() {
 }
 
 #[test]
-fn checked_build_receives_the_import_which_waits_for_its_registration() {
-    let root = fixture_repository::root()
-        .join(
-            "source-rust/application/tests/fixtures/build/run/borrowed_field_after_mount/build.omg",
-        )
-        .canonicalize()
-        .unwrap();
+fn the_build_assembly_reports_only_the_imports_needed_to_execute_it() {
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "build-import-purposes",
+        false,
+    )
+    .unwrap();
+    let root = temporary.path().join("build.omg");
+    std::fs::write(
+        &root,
+        r#"use {scores}/score.omg as score;
+use {product}/main.omg as entry;
+machine build(builder: @mutable Build) {
+    let n: i32 = |score|::read();
+    Build::bind(builder, linux_x86_64\ProgramEntry, |entry|::main);
+}
+"#,
+    )
+    .unwrap();
     let mut catalogue = source_compiler::representations::source_inputs::SourceCatalogue::default();
     let mut timings = CompileTimings::default();
     let capture = crate::capture_anonymous_compilation_source(&root).unwrap();
     let checkpoint = ImmutableSourceParseCheckpoint::prepare_from_sources(
-        &root,
-        None,
-        Some(&capture),
-        &mut timings,
-        &mut catalogue,
-    )
-    .unwrap();
+        &root, None, Some(&capture), &mut timings, &mut catalogue,
+    ).unwrap();
     let (_, assembled) = checkpoint
         .assemble(None, &mut timings, &mut catalogue)
         .unwrap();
     let source = assembled.build_stage_source().unwrap();
-    assert!(
-        source
-            .pending_imports
-            .iter()
-            .any(|item| matches!(&item.target, source_compiler::SourceImportTarget::Namespace(path) if path == &["kit"]) && item.source == source.entry.source_id),
-        "expected the selected Build's kit import among {:?}",
-        source.pending_imports
-    );
-    let interval = source
-        .prepare(None, &Default::default(), "linux_x86_64", None)
-        .unwrap();
-    assert_eq!(
-        interval.plan.outgoing_preparation_path().map(<[_]>::len),
-        Some(1)
-    );
+    let [required] = source.pending_imports.as_slice() else {
+        panic!(
+            "unexpected unbound Build imports: {:?}",
+            source.pending_imports
+        )
+    };
+    assert_eq!(required.source, source.entry.source_id);
+    assert_eq!(required.target.to_string(), "{scores}/score.omg as score");
 }

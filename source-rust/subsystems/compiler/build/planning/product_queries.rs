@@ -4,9 +4,9 @@ use super::{PlanningServices, PlanningSource, refusal};
 use build_declarations::{BuildRequest, DependencyPurpose};
 use build_execution::host::bindings::{BuildProductDescription, BuildProductQuery};
 use build_execution::{BuildDependencySelection, CompileFailure, TerminalBuildActivation};
-use package_compilation::source_imports::{ProductQueryDependency, ProductQueryInputs};
-use source_compiler::{ProductDeclarations, representations::source_inputs::SourceMap};
+use package_compilation::source_imports::ProductQueryInputs;
 use source_compiler::publication::TerminalBuildQueryOperation;
+use source_compiler::{ProductDeclarations, representations::source_inputs::SourceMap};
 use std::sync::Arc;
 
 impl PlanningSource {
@@ -14,7 +14,6 @@ impl PlanningSource {
         &mut self,
         activation: &TerminalBuildActivation,
         query: &BuildProductQuery,
-        prepared: &[ProductQueryDependency],
         services: &mut impl PlanningServices,
     ) -> Result<(BuildProductDescription, Vec<BuildDependencySelection>), CompileFailure> {
         let dependencies = services.query_dependencies(activation, query)?;
@@ -61,8 +60,13 @@ impl PlanningSource {
             .requires_named_source()
             .then(|| self.named_source(activation, services))
             .transpose()?;
+        let libraries = self
+            .supplied_libraries
+            .iter()
+            .map(|library| library.dependency().clone())
+            .collect();
         let inputs = ProductQueryInputs::new(self.original.clone(), dependencies)
-            .and_then(|inputs| inputs.with_prepared_build_dependencies(prepared.to_vec()))
+            .and_then(|inputs| inputs.with_prepared_build_dependencies(libraries))
             .and_then(|inputs| inputs.with_named_source(named))
             .map_err(refusal)?;
         let inputs = match query.operation {

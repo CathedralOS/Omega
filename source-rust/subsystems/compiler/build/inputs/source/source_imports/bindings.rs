@@ -167,8 +167,8 @@ impl PendingPackageImport {
     }
 }
 
-/// An authored Build import without a selected declaration can become visible
-/// at a later preparation. Keep its importer so another file cannot use its scope.
+/// Report imports that the Build itself needs and its caller has not supplied.
+/// A file used exclusively as a Product operand resolves in the Product scope.
 pub(crate) fn pending_build_imports(
     storage: &SourceStorage,
 ) -> Vec<source_compiler::PendingBuildImport> {
@@ -184,7 +184,7 @@ pub(crate) fn pending_build_imports(
             continue;
         }
         for import in &roots.build_imports {
-            if selected
+            if !import.only_product_operands && selected
                 .binary_search(&(roots.source_id.0, import.ordinal))
                 .is_err()
             {
