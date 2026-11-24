@@ -12825,7 +12825,7 @@ mod memory {
             }
             let (address, value) = request(physical, kind, alternative, operands)?;
             let displacement = i32::try_from(displacement)
-                .map_err(|_| X86_64SelectedFormEncodingError::ImmediateOutsideU12)?;
+                .map_err(|_| X86_64SelectedFormEncodingError::MemoryDisplacementOutsideI32)?;
             let member = match kind {
                 Kind::Store64 { byte_offset, .. } | Kind::FrameAddress { byte_offset, .. } => {
                     byte_offset
@@ -12885,7 +12885,7 @@ mod memory {
             }
             let (address, value) = request(physical, kind, alternative, operands)?;
             let displacement = i32::try_from(displacement)
-                .map_err(|_| X86_64SelectedFormEncodingError::ImmediateOutsideU12)?;
+                .map_err(|_| X86_64SelectedFormEncodingError::MemoryDisplacementOutsideI32)?;
             let member = match kind {
                 Kind::Store64 { byte_offset, .. } | Kind::FrameAddress { byte_offset, .. } => {
                     byte_offset
@@ -14668,7 +14668,7 @@ mod memory {
         }
         let (opcode, register, base, _) = request(physical, kind, alternative, operands)?;
         let displacement = i32::try_from(displacement)
-            .map_err(|_| X86_64SelectedFormEncodingError::ImmediateOutsideU12)?;
+            .map_err(|_| X86_64SelectedFormEncodingError::MemoryDisplacementOutsideI32)?;
         let width = store_width(kind)?;
         let narrow_load = matches!(
             kind,
@@ -15146,7 +15146,7 @@ mod memory {
                         &[value, scratch],
                         displacement,
                     ),
-                    Err(X86_64SelectedFormEncodingError::ImmediateOutsideU12)
+                    Err(X86_64SelectedFormEncodingError::MemoryDisplacementOutsideI32)
                 );
             }
             let encoded = encode_x86_64_selected_memory_form(
@@ -21783,6 +21783,7 @@ pub enum X86_64SelectedFormEncodingError {
     UnknownOrNonGpr64View(RegisterViewId),
     IntegerOutsideI64Bits,
     ImmediateOutsideU12,
+    MemoryDisplacementOutsideI32,
     BranchDisplacementOutsideI32,
     MalformedEncoding,
     EncodedFormMismatch,

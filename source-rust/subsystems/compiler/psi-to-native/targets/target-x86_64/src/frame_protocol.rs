@@ -24,6 +24,7 @@ pub enum X86_64FrameProtocolError {
     NonCanonicalProbe,
     UnknownOrUnsupportedView(RegisterViewId),
     OffsetOutOfRange,
+    UnsupportedTransferWidth(u8),
 }
 
 diagnostics::failed_display!(

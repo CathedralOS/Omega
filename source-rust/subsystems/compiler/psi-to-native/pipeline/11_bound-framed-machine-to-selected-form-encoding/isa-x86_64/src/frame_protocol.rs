@@ -259,7 +259,7 @@ fn encode_memory(
             4 => Some(0xf3),
             8 => Some(0xf2),
             16 => None,
-            _ => return Err(X86_64FrameProtocolError::OffsetOutOfRange),
+            _ => return Err(X86_64FrameProtocolError::UnsupportedTransferWidth(byte_size)),
         };
         if let Some(prefix) = prefix {
             bytes.push(prefix);
@@ -278,7 +278,7 @@ fn encode_memory(
         return Ok(bytes);
     }
     if !matches!(byte_size, 1 | 2 | 4 | 8) {
-        return Err(X86_64FrameProtocolError::OffsetOutOfRange);
+        return Err(X86_64FrameProtocolError::UnsupportedTransferWidth(byte_size));
     }
     if byte_size == 2 && !load {
         bytes.push(0x66);
@@ -293,7 +293,7 @@ fn encode_memory(
         (true, 4 | 8) => bytes.push(0x8b),
         (false, 1) => bytes.push(0x88),
         (false, _) => bytes.push(0x89),
-        _ => return Err(X86_64FrameProtocolError::OffsetOutOfRange),
+        _ => return Err(X86_64FrameProtocolError::UnsupportedTransferWidth(byte_size)),
     }
     append_memory_operand(&mut bytes, register, base, offset_bytes)?;
     Ok(bytes)
@@ -495,6 +495,19 @@ mod tests {
         }
         let integer = model.model().view_named("r15").unwrap().id;
         assert!(super::encode_x86_64_frame_memory(&model, integer, 8, 16, false).is_err());
+    }
+
+    #[test]
+    fn frame_transfer_reports_the_unsupported_width_for_each_register_class() {
+        let model =
+            validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
+        for name in ["rsi", "xmm8"] {
+            let view = model.model().view_named(name).unwrap().id;
+            assert_eq!(
+                super::encode_x86_64_frame_memory(&model, view, 0, 3, true),
+                Err(super::X86_64FrameProtocolError::UnsupportedTransferWidth(3))
+            );
+        }
     }
 
     #[test]
