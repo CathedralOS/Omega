@@ -296,20 +296,19 @@ fn optimized_publication_keeps_block_ownership_after_node_removal() {
     assert_eq!(control_flow(&unit(&published)), control_flow(&optimized));
 }
 
-#[test]
-fn block_merging_preserves_the_indexed_discriminators_checked_site() {
-    use crate::abstract_optimization::rules::control_flow_cleanup::AdjacentBlockMergeRule;
+// Block 2 dispatches on the array element its runtime index selects. With
+// `forward_index`, block 1 passes the index to block 2 as a scalar parameter,
+// so merging the blocks must substitute the index inside the case path.
+fn indexed_dispatch_input(forward_index: bool) -> PsiOptimizationUnit {
     use optimization_unit::{
         AcceptedObligationFact, attach_accepted_obligation_facts, attach_ownership_frontier_facts,
     };
-    use optimization_unit_semantics::{
-        reconstruct_ownership_frontier_facts_with_admitted_cycle_machines,
-        validate_psi_optimization_unit_with_admitted_cycle_machines,
-        validate_psi_rewrite_candidate,
-    };
+    use optimization_unit_semantics::reconstruct_ownership_frontier_facts_with_admitted_cycle_machines;
     use semantic_vocabulary::{IntegerSign, IntegerType, ObligationId};
     use terminal_psi::StructuralPathSegment;
 
+    let index_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let forwarded = ValueId::new(5).unwrap();
     let mut plan = case_plan();
     let mut array = plan.structural_types[0].clone();
     array.id = StructuralTypeId::new(2).unwrap();
@@ -323,8 +322,7 @@ fn block_merging_preserves_the_indexed_discriminators_checked_site() {
     };
     plan.structural_types = vec![plan.structural_types[0].clone(), array].into();
     let function = &mut plan.functions[0];
-    function.parameters[0].scalar_type =
-        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    function.parameters[0].scalar_type = index_type;
     function.structural_parameters[0].structural_type = StructuralTypeId::new(2).unwrap();
     let mut dispatch = function.blocks[0].clone();
     dispatch.block = block(2);
@@ -339,9 +337,21 @@ fn block_merging_preserves_the_indexed_discriminators_checked_site() {
     };
     *psi_block = block(2);
     path.push(StructuralPathSegment::RuntimeIndex {
-        index: ValueId::new(1).unwrap(),
+        index: if forward_index {
+            forwarded
+        } else {
+            ValueId::new(1).unwrap()
+        },
         obligation: ObligationId::new(1).unwrap(),
     });
+    if forward_index {
+        dispatch
+            .parameters
+            .push(abstract_operations::AbstractParameter {
+                value: forwarded,
+                scalar_type: index_type,
+            });
+    }
     cases[0].target = block(3);
     cases[1].target = block(4);
     cases[0].structural_bindings.clear();
@@ -365,7 +375,15 @@ fn block_merging_preserves_the_indexed_discriminators_checked_site() {
             operations: vec![O::Jump {
                 psi_edge: EdgeId::new(100).unwrap(),
                 target: block(2),
-                bindings: vec![],
+                bindings: if forward_index {
+                    vec![abstract_operations::ValueBinding {
+                        parameter: forwarded,
+                        argument: ValueId::new(1).unwrap(),
+                        scalar_type: index_type,
+                    }]
+                } else {
+                    vec![]
+                },
                 structural_bindings: vec![],
                 cleanup_actions: vec![],
             }],
@@ -383,24 +401,38 @@ fn block_merging_preserves_the_indexed_discriminators_checked_site() {
         ObligationId::new(1).unwrap(),
         vec![],
     );
-    let fact_identity = fact.identity;
     let input = attach_accepted_obligation_facts(seed, vec![fact]).unwrap();
     let frontiers =
         reconstruct_ownership_frontier_facts_with_admitted_cycle_machines(&input, &[]).unwrap();
-    let input = attach_ownership_frontier_facts(input, frontiers).unwrap();
-    let mut analyses = AnalysisRevision::bind(&input).unwrap();
+    attach_ownership_frontier_facts(input, frontiers).unwrap()
+}
+
+fn merge_indexed_dispatch(input: &PsiOptimizationUnit) -> PsiOptimizationUnit {
+    use crate::abstract_optimization::rules::control_flow_cleanup::AdjacentBlockMergeRule;
+    use optimization_unit_semantics::validate_psi_rewrite_candidate;
+
+    let mut analyses = AnalysisRevision::bind(input).unwrap();
     let candidates = AdjacentBlockMergeRule
         .propose(
-            &input,
+            input,
             analyses
                 .require_all(AdjacentBlockMergeRule::contract().required_analyses())
                 .unwrap(),
         )
         .unwrap();
     assert_eq!(candidates.len(), 1);
-    let mut output = validate_psi_rewrite_candidate(&input, &candidates[0])
+    validate_psi_rewrite_candidate(input, &candidates[0])
         .unwrap()
-        .into_unit();
+        .into_unit()
+}
+
+#[test]
+fn block_merging_preserves_the_indexed_discriminators_checked_site() {
+    use optimization_unit_semantics::validate_psi_optimization_unit_with_admitted_cycle_machines;
+
+    let input = indexed_dispatch_input(false);
+    let fact_identity = input.accepted_obligation_facts[0].identity;
+    let mut output = merge_indexed_dispatch(&input);
     let node = output.functions[0].blocks[0].nodes.last_mut().unwrap();
     let O::StructuralCase { psi_block, .. } = &mut node.operation else {
         panic!("merged dispatch")
@@ -410,6 +442,23 @@ fn block_merging_preserves_the_indexed_discriminators_checked_site() {
     *psi_block = block(1);
     output.identity = optimization_unit::recompute_psi_optimization_unit_identity(&output);
     assert!(matches!(validate_psi_optimization_unit_with_admitted_cycle_machines(&output, &[]), Err(optimization_unit_semantics::OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)));
+}
+
+// Merging removes the forwarded index parameter, so the case path must read
+// the argument that block 1 passed instead.
+#[test]
+fn block_merging_substitutes_a_forwarded_runtime_index() {
+    use terminal_psi::StructuralPathSegment;
+
+    let output = merge_indexed_dispatch(&indexed_dispatch_input(true));
+    let node = output.functions[0].blocks[0].nodes.last().unwrap();
+    let O::StructuralCase { path, .. } = &node.operation else {
+        panic!("merged dispatch")
+    };
+    assert!(matches!(
+        path.as_slice(),
+        [StructuralPathSegment::RuntimeIndex { index, .. }] if *index == ValueId::new(1).unwrap()
+    ));
 }
 
 #[test]
