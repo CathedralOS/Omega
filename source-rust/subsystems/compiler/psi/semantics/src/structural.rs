@@ -4,6 +4,7 @@ paths, and affine cleanup obligations.
 */
 
 pub(crate) mod atomic_cell;
+pub mod decoded_record;
 pub(crate) mod inline_carriers;
 pub mod nominal_cleanup;
 pub mod owned_structure;

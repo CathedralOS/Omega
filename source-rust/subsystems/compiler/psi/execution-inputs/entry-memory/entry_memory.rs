@@ -157,28 +157,53 @@ pub fn admit_private_entry_ram(
             "private entry RAM requires the complete nonempty bounded schema extent".into(),
         );
     }
-    if module
-        .types.structural_domains
-        .iter()
-        .any(|domain| domain.carrier == plan.schema)
-    {
-        return Err("private entry RAM does not establish schema qualification predicates".into());
-    }
     let schema = declarations
         .iter()
         .find(|declaration| declaration.id == plan.schema)
         .ok_or("private entry RAM schema declaration is missing")?;
+    let initializers = initialize_record(
+        module,
+        artifact.closed_module().closed_types(),
+        &declarations,
+        schema,
+        &recipe.contents,
+    )?;
+    Ok(CheckedPrivateEntryRamRecipe {
+        terminal: artifact.identity(),
+        layouts: layouts.clone(),
+        input: recipe.input.clone(),
+        parameter: parameter.clone(),
+        schema: plan.schema,
+        alignment,
+        correspondence,
+        contents: recipe.contents.clone(),
+        fields: initializers,
+    })
+}
+
+/// Decode the supplied bytes against the selected declaration before its
+/// value and the resulting loan become observable.
+fn initialize_record(
+    module: &terminal_psi::TerminalModule,
+    catalog: &terminal_codec::ClosedTypeCatalog,
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+    schema: &terminal_psi::StructuralTypeDeclaration,
+    contents: &[u8],
+) -> Result<Vec<PrivateEntryRamScalarInitialization>, String> {
     let StructuralTypeShape::Record { fields, .. } = &schema.shape else {
         return Err("private entry RAM currently constructs plain scalar records".into());
     };
-    if !schema.no_code_affine_cleanup {
+    if !schema.no_code_affine_cleanup
+        || schema.owns_linear_claim
+        || schema.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+    {
         return Err("private entry RAM requires checked no-code cleanup custody".into());
     }
     if schema.scalar_restriction.is_some() {
         return Err("private entry RAM does not establish declaration predicates".into());
     }
-    let mut initialized = vec![false; recipe.contents.len()];
-    let mut initializers = Vec::new();
+    let mut initialized = vec![false; contents.len()];
+    let mut initializers = Vec::with_capacity(fields.len());
     for field in fields {
         let StructuralFieldType::Scalar(scalar @ (ScalarType::Boolean | ScalarType::Integer(_))) =
             field.field_type
@@ -188,12 +213,17 @@ pub fn admit_private_entry_ram(
                     .into(),
             );
         };
+        if !terminal_semantics::scalar_qualifications::field_qualifications(module, field.id)
+            .is_empty()
+        {
+            return Err("private entry RAM does not establish a declared scalar field domain".into());
+        }
         if field.relevance.is_erased() {
             return Err("private entry RAM does not establish erased custody".into());
         }
         let projection = terminal_semantics::reference_storage_projection(
             declarations.iter(),
-            plan.schema,
+            schema.id,
             &[StructuralPathSegment::Field(field.identity)],
         )
         .ok_or("private entry RAM field has no scalar storage projection")?;
@@ -204,8 +234,7 @@ pub fn admit_private_entry_ram(
         let end = start
             .checked_add(width)
             .ok_or("private entry RAM field extent overflows")?;
-        let bytes = recipe
-            .contents
+        let bytes = contents
             .get(start..end)
             .ok_or("private entry RAM field lies outside its allocation")?;
         let occupied = initialized
@@ -219,7 +248,6 @@ pub fn admit_private_entry_ram(
         // The recipe decodes storage in this artifact, not an independently
         // chosen host carrier. Retain its exact closed logical and stored
         // descriptors before performing byte-width or sign arithmetic.
-        let catalog = artifact.closed_module().closed_types();
         let logical = catalog.scalar(scalar).map_err(|reason| {
             format!("private entry RAM logical scalar is not closed: {reason:?}")
         })?;
@@ -280,22 +308,19 @@ pub fn admit_private_entry_ram(
     }
     if initialized
         .iter()
-        .zip(&recipe.contents)
+        .zip(contents)
         .any(|(live, byte)| !live && *byte != 0)
     {
         return Err("private entry RAM padding must be initialized to canonical zero".into());
     }
-    Ok(CheckedPrivateEntryRamRecipe {
-        terminal: artifact.identity(),
-        layouts: layouts.clone(),
-        input: recipe.input.clone(),
-        parameter: parameter.clone(),
-        schema: plan.schema,
-        alignment,
-        correspondence,
-        contents: recipe.contents.clone(),
-        fields: initializers,
-    })
+    terminal_semantics::structural::decoded_record::check_decoded_record_requirements(
+        &schema.requires,
+        &mut initializers,
+        |field| field.field,
+        |field| Some(field.value.clone()),
+    )
+    .map_err(|error| error.reason().to_owned())?;
+    Ok(initializers)
 }
 
 pub fn decode_private_entry_observations(
@@ -329,3 +354,6 @@ pub fn decode_private_entry_observations(
     }
     Ok(observations)
 }
+
+#[cfg(test)]
+mod tests;
