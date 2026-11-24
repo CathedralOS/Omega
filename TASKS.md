@@ -318,7 +318,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 ## Embedding and interpreted components
 
 - **EMBEDDING-SOURCE-TO-HOST.** (covers **INTERPRETED-CATHEDRAL**) Finish [embedding](wiki/spec/build/embedding.md), evidence-bearing qualified host inputs, and interpreted Cathedral.
-  - Derive visible source parameters from the [installed entry contract](wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge) across source checking and native entry validation. Retire the fixed zero-or-two parameter switch. Reject missing arguments, forged backing and a mutable byte view of a protected field.
+  - Derive visible source parameters from the [installed entry contract](wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge) across source checking and native entry validation. Retire the fixed zero-or-two parameter switch. Reject missing arguments, forged backing and a mutable byte view of a protected field. Exercise the [Linux argument view](wiki/drafts/designs/structured_program_entry.md#how-linux-supplies-the-editors-pathname) through a static ELF entry. Check the indexed pathname, an empty argument, and refusal of a fabricated view or an out-of-range projection.
   - Admit an explicitly [runtime-bound slot](wiki/spec/build/component_publication.md#first-binding-of-a-runtime-bound-slot). Refuse a transitive use before successful bind, exercise a failed first bind followed by a permitted fallback, and retain V1 on failed replacement. Show a guest-owned update during a blocked V1 call and a new V2 call in the same running instance.
 
 ## Parallel language and compiler lanes

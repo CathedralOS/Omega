@@ -43,8 +43,9 @@ machine build(plan: @mutable Build) {
 // tool/startup.omg
 use main.omg as app;
 
-public machine linux(args: @LinuxProcessArguments) {
-    let help = LinuxProcessArguments::contains_user_argument(args, "--help");
+// linux_args denotes the proposed system module for Linux arguments.
+public machine linux(args: @|linux_args|::Arguments) {
+    let help = |linux_args|::contains_user_argument(args, "--help");
     |app|::main(help);
 }
 
@@ -66,7 +67,7 @@ public machine main(help: bool) {
 }
 ```
 
-On Linux x86-64 the kernel places `argc` and the argument pointers on the initial stack. The proposed adapter lends a read-only view of that table. The lookup skips the executable name and can compare the zero-terminated bytes in place. A helper returning an indexed byte slice would scan that argument for its terminator. A helper collecting all slices would also need backing for the descriptors. The parameterless entry needs neither operation. [Linux physical entry](../../../source/library/std/targets/linux_x86_64/entry.omg)
+On Linux, `contains_user_argument` is a library helper. It skips slot zero, obtains each user argument by index from the [installed argument view](#how-linux-supplies-the-editors-pathname), and compares its bytes. The parameterless program above needs none of these operations.
 
 On Windows x86-64 the OS starts the executable without a command-line parameter. The proposed `command_line` calls `GetCommandLineW`, scans its system-owned UTF-16 buffer to the first zero code unit and lends a read-only slice of that length. The matcher uses a documented quoting rule (Microsoft C argument quoting in this example). A portable reader can expose successive arguments while preserving boundaries and empty arguments. Any conversion to Unicode text needs a policy for invalid input. A validated filename still conveys no directory or file authority. [Windows physical entry](../../../source/library/std/targets/windows_x86_64/entry.omg) · [Windows command-line buffer](https://learn.microsoft.com/en-us/windows/win32/api/processenv/nf-processenv-getcommandlinew) · [Microsoft argument quoting](https://learn.microsoft.com/en-us/cpp/c-language/parsing-c-command-line-arguments)
 
@@ -75,6 +76,80 @@ On Windows x86-64 the OS starts the executable without a command-line parameter.
 | `tool --help` | 0 | One user argument equals `--help`. |
 | `tool "--help me"` | 1 | One argument contains a space. |
 | `tool "" --help` | 0 | The first argument is empty and the second matches. |
+
+### How Linux supplies the editor's pathname
+
+For `./editor notes.txt`, the shell supplies two arguments and the kernel starts the static x86-64 ELF executable. The Linux target package describes the entry stack. The native compiler emits the stub at the ELF entry address. Build selects the application's startup machine. The proposed `system` interface lends that machine an opaque view of **this launch's arguments**. The count is an ordinary `u64`. [Linux x86-64 process ABI](https://gitlab.com/x86-psABIs/x86-64-ABI/-/blob/master/x86-64-ABI/low-level-sys-info.tex) · [Current Linux entry and calling policy](../../../source/library/std/targets/linux_x86_64/entry.omg)
+
+```omega
+// Proposed Linux argument interface in system
+use {omega}/language/core/byte_observation/byte_observation.omg as bytes;
+
+public boundary data Arguments;
+
+public boundary trait ProcessArguments {
+    machine count(args: @Arguments) -> u64;
+
+    machine argument<'a>(args: @'a Arguments, index: u64) -> @'a [u8]
+        requires index < ProcessArguments::count(args)
+        ensures |bytes|::no_nul(result);
+}
+```
+
+| What the installed contract binds | What the implementation does |
+| --- | --- |
+| Static Linux x86-64 process entry | Capture the original `rsp` before the first push. Read the count at `[rsp]`. The first pointer slot is at `rsp + 8`. |
+| One argument view for this invocation | Retain the count and table base privately. The admitted loader contract supplies shared, stable access to those slots and to each argument through its first NUL for the startup call. The stub lends the view to the selected startup machine. |
+| Slot `i` of that same view | For a proved in-range index, the Linux implementation reads the pointer at `table_base + 8*i` and scans the referenced bytes to the first zero. It returns a shared slice excluding the terminator, tied to the borrow of `args`. An empty argument produces a zero-length slice. |
+| Completion of this proposed CLI profile | Pass the startup machine's returned `i32` to `exit_group`. Linux enters a process without a caller to return to. |
+
+The trusted pieces are the installed entry and the selected implementation of `argument`. The foreign contract vouches for the actual pointees. The checker enforces the index precondition, shared access and returned lifetime. Ordinary code has no constructor from a count and table address, and the projection takes no address from its caller. The implementation scans only the requested argument and allocates no table of slice descriptors. [Foreign storage and returned borrows](../../spec/build/foreign_storage.md#provider-owned-views-and-completion)
+
+```omega
+// editor/build.omg
+use startup.omg as startup;
+
+machine build(plan: @mutable Build) {
+    Build::application(plan, "editor");
+    Build::bind(plan, linux_cli::ProgramEntry, |startup|::start);
+}
+
+// editor/startup.omg
+// linux_args, paths and filesystem denote the system modules used below.
+use editor.omg as app;
+
+public machine start(args: @|linux_args|::Arguments) -> i32 blocks {
+    transition |linux_args|::ProcessArguments::count(args) {
+        2 -> block open_argument(|linux_args|::ProcessArguments::argument(args, 1)),
+        _ -> 64
+    }
+    machine open_argument(path: @[u8] in |paths|::Path) -> i32 blocks {
+        transition path.length {
+            0 -> 64,
+            _ -> block |app|::main(|app|::OpenDocument { path: path })
+        }
+    }
+}
+
+// editor/editor.omg
+public data OpenDocument<'a> { path: @'a [u8] in |paths|::Path; }
+
+public machine main(document: OpenDocument) -> i32 blocks {
+    let opened = block |filesystem|::FilesystemService::open(document.path);
+    transition opened {
+        |filesystem|::OpenResult::Ok { file } -> block finish(file),
+        _ -> 66
+    }
+    machine finish(file: |filesystem|::File) -> i32 blocks {
+        let closed = block |filesystem|::FilesystemService::close(file);
+        transition closed { |filesystem|::UnitResult::Ok -> 0, _ -> 74 }
+    }
+}
+```
+
+With two arguments, slot 1 is at `[initial_rsp + 16]`. Its bytes before the NUL are the nine bytes of `notes.txt`. They meet the existing `Path` predicate. The application uses its separately admitted filesystem provider to open and close the file. It returns 0 on success, 66 on open failure, 74 on close failure, and 64 for a missing, empty or extra operand. The proposed Omega entry still requires compiler support. [Path predicate](../../../source/library/std/filesystem_host.omg) · [Filesystem service](../../../source/library/std/filesystem.omg)
+
+Two counterexamples distinguish this contract. Given genuine `args`, a proven in-range index and an unrelated address, the caller can select only the kernel's pointer in that index's slot. A fabricated copy of the count and table base cannot satisfy the opaque parameter. An out-of-range index must fail the precondition before the provider reads a slot, and a returned slice cannot outlive the view or be used for a write.
 
 ### A Cathedral entry that receives a live firmware table
 
@@ -162,4 +237,4 @@ Review the [recast](../../spec/layouts/recasts.md#shared-and-mutable-views), [ac
 
 ## Feedback requested
 
-Show one hosted entry with a caller that supplies every parameter. Where are bounds, lifetimes and mutable handback established? Show how the same project rejects a missing capability before app code executes. For the [Console example](component_hot_swap_authorship.md), identify whether the launcher owns a slot to delegate or whether the app bootstraps a fresh one. Only the former needs a slot authority argument. A new entry name or a reflected field alone answers neither question.
+Review the Linux view against a caller with genuine arguments, an in-range index and an unrelated address. Can any operation use that address or retain the slice past startup? For an entry that also grants mutable access, identify the caller's exclusive backing and the handback. Show how the same project rejects a missing capability before app code executes. For the [Console example](component_hot_swap_authorship.md), identify whether the launcher owns a slot to delegate or whether the app bootstraps a fresh one. Only the former needs a slot authority argument. A new entry name or a reflected field alone answers neither question.

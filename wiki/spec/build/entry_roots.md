@@ -108,6 +108,13 @@ adapter that presents sized arguments must establish each length. Reading
 terminators, splitting a command line or copying text belongs in explicit
 adapter or library code when the application needs that representation.
 
+When an installed entry lends a foreign table, its contract must establish the
+backing, access and lifetime of any pointees it exposes. An indexed projection
+uses the original view and an in-range index. Its returned borrow retains that
+view's provenance and cannot outlive it. A count can prove an index fits. It
+cannot authorize a caller-supplied address or reconstruct an installed view.
+[Foreign storage and lifetime](foreign_storage.md#inert-addresses-and-marshaling)
+
 A shared slice permits reads. An exclusive mutable byte slice permits writes
 within the caller's authorized loan. For a live protected struct, the caller
 must establish the domain qualification, permitted operations, backing and
