@@ -600,11 +600,10 @@ fn build_reports_each_unbound_import_at_its_authored_span_before_typing() {
     }
 }
 
-fn publish_build(
+fn typed_build(
     files: SourceMap,
     entry: SourceSpan,
-    package: PackageKeyIdentity,
-) -> Result<(), Vec<diagnostics::Diagnostic>> {
+) -> Result<Arc<typed_trees::TypedTrees>, Vec<diagnostics::Diagnostic>> {
     let stage = source_compiler::BuildStageSource {
         parsed: source_compiler::ParsedStageSources::parse(
             Arc::new(files),
@@ -615,9 +614,51 @@ fn publish_build(
         pending_imports: vec![],
         entry,
     };
-    let typed = stage
+    Ok(stage
         .prepare(&Default::default(), "linux_x86_64", None)?
-        .program;
+        .program)
+}
+
+#[test]
+fn a_projected_snapshot_cannot_supply_a_complete_build_invocation() {
+    let text = "machine build() {}";
+    let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
+    let mut files = SourceMap::default();
+    let build = files
+        .add_checked_instance(
+            "project/build.omg".into(),
+            text,
+            "project".into(),
+            Some(package),
+            SourceOrigin::User,
+            SourceResolutionStratum::Base,
+            DependencyScope::Build,
+        )
+        .source_id;
+    let start = text.find("build").unwrap();
+    let entry = SourceSpan::new(build, Span::new(start, start + "build".len()));
+    let mut program = Arc::unwrap_or_clone(typed_build(files, entry).unwrap());
+    let machine = program.machines().at(0).symbol;
+    program.roots.partial_build_entry = Some(entry);
+    let Err(failure) =
+        source_compiler::CheckedBuildInvocation::judge(&program, machine, &[Some(package)], None)
+    else {
+        panic!("a partial snapshot supplied a complete Build invocation");
+    };
+    assert_eq!(failure.diagnostics.len(), 1);
+    assert!(
+        failure.diagnostics[0]
+            .message
+            .contains("older Build snapshot")
+    );
+}
+
+fn publish_build(
+    files: SourceMap,
+    entry: SourceSpan,
+    package: PackageKeyIdentity,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let typed = typed_build(files, entry)?;
     let machine = typed
         .machines()
         .iter()
@@ -630,7 +671,11 @@ fn publish_build(
         None,
     )
     .map_err(|failure| failure.diagnostics)?;
-    judged.invocation.prepare_publication()?.publish().map(|_| ())
+    judged
+        .invocation
+        .prepare_publication()?
+        .publish()
+        .map(|_| ())
 }
 
 #[test]

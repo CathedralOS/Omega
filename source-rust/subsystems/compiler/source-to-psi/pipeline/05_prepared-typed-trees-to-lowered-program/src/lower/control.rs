@@ -365,9 +365,6 @@ impl Lowering<'_> {
                 *self.slot_mut(*slot)? = bound;
                 Ok(Reached::Value(()))
             }
-            Statement::ParkedBuildLocals(..) => {
-                Err(self.internal("a Build prefix lost its selected call"))
-            }
             Statement::Decompose { subject } => self.decompose(subject),
             Statement::Witness { slot, term } => {
                 let witness = self.witness(term)?;

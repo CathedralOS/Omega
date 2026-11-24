@@ -91,7 +91,7 @@ impl BuildStageSource {
         })
     }
 
-/// Rejoin the selected Build entry in the assembled Product sources so the
+    /// Rejoin the selected Build entry in the assembled Product sources so the
     /// Build evaluator can check the constants demanded by that entry.
     pub fn rejoin_build_entry(
         self,

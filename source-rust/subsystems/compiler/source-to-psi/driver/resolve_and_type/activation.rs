@@ -131,9 +131,7 @@ pub(super) fn select_retained_source(
         let source_context = &source.context;
         // Earlier compilers could save a checked prefix under the complete
         // source's identity. Check that source afresh instead of reusing it.
-        if typing.typed().roots.partial_build_entry.is_some()
-            || !typing.typed().parked_build_locals.is_empty()
-        {
+        if typing.typed().is_legacy_build_prefix() {
             continue;
         }
         let Some(previous) = typing.typed().symbols.source_map() else {
