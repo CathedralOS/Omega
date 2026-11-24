@@ -13,6 +13,7 @@ macro_rules! bundled_library_files {
             CoreByteObservation => "core/byte_observation/byte_observation.omg",
             CoreCodeLayout => "core/code_layout.omg",
             CoreCodeSegment => "core/code_segment.omg",
+            CoreContent => "core/content.omg",
             CoreDataSegment => "core/data_segment.omg",
             CoreEquality => "core/equality.omg",
             CoreExtent => "core/extent.omg",
