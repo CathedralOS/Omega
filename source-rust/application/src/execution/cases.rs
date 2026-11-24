@@ -51,9 +51,21 @@ impl InputCase {
         std::fs::File::open(&self.path).map_err(RunError::StandardInput)
     }
 
-    fn write(&self, directory: &Path, suffix: &str, bytes: &[u8]) -> Result<(), RunError> {
-        std::fs::write(directory.join(format!("{}.{suffix}", self.name)), bytes)
-            .map_err(RunError::ReferenceOutput)
+    fn output_path(&self, directory: &Path, suffix: &str) -> PathBuf {
+        directory.join(format!("{}.{suffix}", self.name))
+    }
+
+    fn write_observation(&self, directory: &Path, suffix: &str, bytes: &[u8]) -> Result<(), RunError> {
+        use std::io::Write;
+        let path = self.output_path(directory, suffix);
+        // Distinct stems can refer to the same file on a case-insensitive volume.
+        // Preserve the first case's evidence and withhold the batch result if so.
+        std::fs::File::create_new(&path)
+            .and_then(|mut file| file.write_all(bytes))
+            .map_err(|error| RunError::ReferenceOutput(std::io::Error::new(
+                error.kind(),
+                format!("{}: {error}", path.display()),
+            )))
     }
 }
 
@@ -162,15 +174,15 @@ fn psi_cases(
             budget,
         ));
         if let TerminalOutcome::Completed(observation) = &outcome {
-            input.write(directory, "stdout", &observation.stdout)?;
-            input.write(directory, "stderr", &observation.stderr)?;
-            input.write(
+            input.write_observation(directory, "stdout", &observation.stdout)?;
+            input.write_observation(directory, "stderr", &observation.stderr)?;
+            input.write_observation(
                 directory,
                 "psi.work.tsv",
                 format_work_tsv(observation, budget).as_bytes(),
             )?;
             for (position, contents) in &observation.private_entry_ram {
-                input.write(directory, &format!("entry-ram.{position}.bin"), contents)?;
+                input.write_observation(directory, &format!("entry-ram.{position}.bin"), contents)?;
             }
         }
         let termination = PsiTermination::of(&outcome);
@@ -219,7 +231,9 @@ fn native_cases(
                     error,
                 }
             })?;
-        let write = |suffix: &str, bytes: &[u8]| input.write(directory, suffix, bytes);
+        let write = |suffix: &str, bytes: &[u8]| {
+            std::fs::write(input.output_path(directory, suffix), bytes).map_err(RunError::ReferenceOutput)
+        };
         write("stdout", &output.stdout)?;
         write("stderr", &output.stderr)?;
         if !private_frames.is_empty() {
