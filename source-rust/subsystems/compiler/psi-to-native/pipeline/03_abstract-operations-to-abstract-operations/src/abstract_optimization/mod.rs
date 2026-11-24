@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
 /*
-We execute the post-Terminal abstract-operation optimization stage (Omega 01),
+We optimize abstract operations in native stage 03,
 transforming a `VerifiedPsiOptimizationInput` lowered from Terminal Psi into a
 `ValidatedOptimizedAbstractPlan` ready for target lowering. Starting at
 `optimize_abstract_operations`, we admit the input under the active work
@@ -23,10 +23,9 @@ a second admission gate.
 
 /*
 We consume `VerifiedPsiOptimizationInput` from `target-bound-program-to-abstract-operations`
-(Omega 00) together with `OptimizationSelections` and `OptimizationWorkBudget`
-from `optimization-core`, and we produce `ValidatedOptimizedAbstractPlan` and
-`ValidatedPrePhysicalOptimizationManifest` for `abstract-operations-to-target-operations`
-(Omega 02) and `native-compiler`.
+(native stage 02), together with `OptimizationSelections` and
+`OptimizationWorkBudget`. We produce `ValidatedOptimizedAbstractPlan` and
+`ValidatedPrePhysicalOptimizationManifest` for target lowering in native stage 04.
 */
 
 macro_rules! failed_display {

@@ -1,9 +1,4 @@
-// Shared fixed-width wire-encoding helpers (`push_encoded`, `patch_encoded`,
-// `push_count_u32`, `push_count_u64`, `u32_at`) paired with `cursor.rs`.
-//
-// Wire records frame counted sequence lengths as `u32`, while canonical
-// identity rows frame them as `u64`; sequences exceeding their declared count
-// width fail closed rather than truncating.
+//! Fixed-width encoding, count fields and versioned wire headers.
 
 pub fn push_encoded<const N: usize>(buffer: &mut Vec<u8>, encoded: [u8; N]) {
     buffer.extend_from_slice(&encoded);
@@ -13,6 +8,7 @@ pub fn patch_encoded<const N: usize>(bytes: &mut [u8], offset: usize, encoded: [
     bytes[offset..offset + N].copy_from_slice(&encoded);
 }
 
+/// Writes a 32-bit count and panics if it exceeds the format's field width.
 pub fn push_count_u32(buffer: &mut Vec<u8>, count: usize) {
     let count = u32::try_from(count).expect("counted row fits u32");
     push_encoded(buffer, count.to_le_bytes());

@@ -10,7 +10,7 @@ use representations/tokens/tokens.omg;
 
 // This describes the canonical case syntax; compatibility parsing does not
 // extend the language surface.
-// `[public] data Name [<generic parameters>] [properties] [where facts]
+// `[public] data Name [<generic parameters>] [properties]
 // [requires facts] { members }`, entered at the `data` keyword. Members are
 // fields `[#N] name: Type;` and cases `[#N] case Name [(payload fields)];`,
 // in any order; `case: Type;` is a field named `case`. A case has no

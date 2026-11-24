@@ -22,9 +22,10 @@ use representations/typed_trees/typed_trees.omg;
 // of a type it qualifies, or satisfy the predicates there. A routed domain's
 // provenance is never minted from predicates
 // (wiki/spec/language/domains.md#exact-coercion-and-erasure): only carrying
-// the qualification establishes it. Primitive byte predicates evaluate to
-// no known value yet, so a domain naming one is likewise established only
-// by carrying it.
+// the qualification or returning from an authorized origin establishes it.
+// We evaluate primitive byte predicates from a literal's recorded property
+// bits or from facts declared by an argument's domain. When neither gives
+// an answer, the predicate stays unknown.
 
 // The declared domain qualifying a type, directly or as a reference's
 // referent, plus one; zero for none.
@@ -58,8 +59,9 @@ crashes Trap
     }
 }
 
-// Decide domain `domain`'s predicates of `subject`: assume them, or, when
-// `proving`, whether every one holds. A routed domain is never proved here.
+// We assume the domain's predicates for `subject` or check them when
+// `proving` is set. Proving a routed domain also requires a result from an
+// authorized origin.
 public machine decide_domain(
     checker: @mutable |checker|::Checker,
     syntax: @|syntax_trees|::SyntaxTrees,

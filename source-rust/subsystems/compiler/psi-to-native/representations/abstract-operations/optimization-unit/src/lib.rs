@@ -43,7 +43,7 @@ downstream admission rejects unauthorized seeds immediately.
 `ownership`, and checked by the sibling `optimization-unit-semantics` crate. Once
 abstract optimization completes, we bundle the final unit, its `AbstractOperationPlan`,
 the `PsiTransformationLedger`, and the `PrePhysicalOptimizationManifest` into
-`OptimizedAbstractProgram` for target lowering (Omega 02) and backend emission.
+`OptimizedAbstractProgram` for target lowering in native stage 04.
 */
 
 use std::{collections::BTreeSet, sync::Arc};

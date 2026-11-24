@@ -6,7 +6,7 @@ pub mod import_code;
 pub use companion_code::{EncodedAuxiliaryExport, WindowsInternetProviderCode};
 
 /*
-Target machine-code representations for the Omega native backend (`Omega 07–09 -> Machine Emission`).
+Machine-code records for native instruction encoding, layout and placement.
 
 After register home assignment and post-allocation instruction realization (`PostAllocationMachinePlan`),
 machine code progresses through three distinct resolution levels owned by this crate:

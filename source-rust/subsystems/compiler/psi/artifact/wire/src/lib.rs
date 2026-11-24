@@ -65,16 +65,15 @@ pub(crate) use semantic_module::*;
 
 pub(crate) use ::wire::codec_bytes;
 
-/// The encoding steps `terminal_codec::ClosedTerminalModule` and its artifact
-/// envelope seal. Nothing else should call these: a module closed here is
-/// not sealed until that type holds it.
-/// Encodes a module without validating it, so a test can build deliberately
-/// malformed wire for a receiver to refuse.
+/// Encodes a module without validation so a test can build malformed wire
+/// for a receiver to refuse.
 #[cfg(feature = "test-support")]
 pub mod test_support {
     pub use crate::module_wire::encode_raw as encode_unchecked_module;
 }
 
+/// Encoding and decoding steps used by `terminal_codec::ClosedTerminalModule`
+/// and its artifact envelope. The codec owns the sealed module type.
 #[doc(hidden)]
 pub mod sealing {
     pub use crate::sections::artifact_manifest::manifest_for_semantic;

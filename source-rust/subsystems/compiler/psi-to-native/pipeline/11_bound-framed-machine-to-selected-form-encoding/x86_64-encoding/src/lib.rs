@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
 /*
-We provide dependency-free fixed-width x86-64 machine-code sequences for
+We provide fixed-width x86-64 machine-code sequences for
 immediate port I/O (`encode_immediate_port_write` for `out dx, al` and
 `encode_immediate_port_read_u8` for `in al, dx`). Both encoders materialize the
 16-bit port and 8-bit payload through caller-volatile scratch registers (`r10`
@@ -11,11 +11,9 @@ and `r11`) using zero-extended `movabs` immediates before moving into `edx` and
 */
 
 /*
-We isolate these immediate port-I/O byte encoders in a zero-dependency leaf
-crate so that both the selected-form x86-64 encoder (`isa-x86_64`) and backend
-machine-emission consumers can reference the exact same byte sequences and width
-constants without coupling to higher-level compiler IRs or value-storage
-representations.
+We take the width constants from `target-x86_64`, so the instruction forms
+and the byte encoders agree on the space each operation occupies. These
+encoders take only a port number and, for a write, a byte.
 */
 
 /*
