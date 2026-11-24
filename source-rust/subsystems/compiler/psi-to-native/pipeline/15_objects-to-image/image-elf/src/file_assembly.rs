@@ -2327,6 +2327,9 @@ pub(crate) mod resolved_procedure_linkage {
                 ElfAppliedProcedureLinkageStorage::ProcedureLinkage,
                 ElfAppliedProcedureLinkageStorage::ProcedureGot,
                 ElfAppliedProcedureLinkageStorage::ProcedureRelocation,
+                // `.rela.dyn` reaches the assembled file only through this stage, so its
+                // length and every byte outside an `r_offset` field must match upstream here.
+                ElfAppliedProcedureLinkageStorage::GeneralRelocation,
             ] {
                 validate_unchanged_bytes(
                     upstream_storage_bytes(envelope, &relocated, storage)?,
@@ -3780,6 +3783,40 @@ pub(crate) mod resolved_procedure_linkage {
                     layout.image_memory().data_virtual_address()
                 );
                 assert_eq!(fixup.encoded_field(), r_offset);
+            }
+        }
+
+        #[test]
+        fn general_relocation_bytes_outside_r_offset_or_length_drift_reject_with_custody() {
+            // Only the 8-byte `r_offset` of a `.rela.dyn` row is a fixup field; `r_info`,
+            // `r_addend` and the row length must stay exactly as the upstream row built them.
+            for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
+                let data_slot_candidate = || {
+                    let envelope = envelope(target, [b"alpha_call", b"beta_call"], &[(0, 7)]);
+                    let contents = derive_contents(&envelope).unwrap();
+                    let mut candidate = Candidate {
+                        envelope,
+                        contents,
+                        non_authoritative_resolved_linkage_compatibility_fingerprint: 0,
+                    };
+                    refresh_fingerprint(&mut candidate);
+                    candidate
+                };
+                if let Err(error) = validate_candidate(data_slot_candidate()) {
+                    panic!("exact .rela.dyn must replay: {}", error.diagnostic);
+                }
+
+                for offset in [8, 16] {
+                    let mut drifted = data_slot_candidate();
+                    drifted.contents.general_relocation_bytes[offset] ^= 1;
+                    refresh_fingerprint(&mut drifted);
+                    assert_rejected_with_custody(drifted);
+                }
+
+                let mut appended = data_slot_candidate();
+                appended.contents.general_relocation_bytes.push(0);
+                refresh_fingerprint(&mut appended);
+                assert_rejected_with_custody(appended);
             }
         }
 
