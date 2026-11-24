@@ -40,8 +40,6 @@ mod preparation;
 mod private_root;
 mod process_child;
 
-pub use private_root::{PrivateRootUnavailable, run_in_private_root};
-
 pub use bounded_process::{
     BoundedCaptureBudget, BoundedCaptureLimits, BoundedProcessInput, BoundedProcessOutput,
     BoundedProcessRunError, run_bounded_process,
