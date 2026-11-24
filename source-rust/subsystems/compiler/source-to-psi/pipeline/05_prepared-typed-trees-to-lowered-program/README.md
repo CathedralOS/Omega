@@ -3,7 +3,7 @@
 This stage accepts the `PreparedTypedTrees` issued by [stage 04](../04_typed-trees-to-prepared-typed-trees/prepare.rs). It lowers those trees and fills the [check tables](../../representations/lowered-program/README.md) that stage 06 reads. It covers scalar code and plain data:
 records (literals, field reads, stores, whole copies) and sums (case literals,
 case tests, dispatch and `match` with payload bindings). It is the second
-piece of [check on the lowered form](../../../../../wiki/drafts/designs/check_on_lowered_form.md):
+piece of [check on the lowered form](../../../../../../wiki/drafts/designs/check_on_lowered_form.md):
 it proves nothing and reads no checker fact. It records every proof
 obligation the lowered form implies and leaves all of them for stage 06 to
 discharge. The product driver runs this stage before stage 06; source outside
@@ -71,7 +71,7 @@ is no second typing pass and no classification of diagnostics by their text.
 
 Data declarations do not own machines or provide code namespaces. The
 reader rejects retained data-attachment metadata, even with explicit
-arguments, under [static declarations and explicit state](../../../../../wiki/spec/language/machines.md#static-declarations-and-explicit-state).
+arguments, under [static declarations and explicit state](../../../../../../wiki/spec/language/machines.md#static-declarations-and-explicit-state).
 Module and trait qualification still identify ordinary static declarations;
 they supply no implicit arguments.
 
@@ -152,7 +152,7 @@ and callable rows. The authored-versus-inferred distinction also remains in the
 neutral checking input. Stage 06 checks that calls fit the caller's ceiling;
 source preparation does not prove that judgment. Open static bounds remain
 explicit in static schema questions and never become an empty runtime promise.
-See [effects](../../../../../wiki/spec/language/effects.md).
+See [effects](../../../../../../wiki/spec/language/effects.md).
 
 ### Template requirements
 
@@ -169,7 +169,7 @@ is `None`) and carries only its uses, which are requirement instances at
 their actual arguments and regions; a published module never holds an open
 size. The template's clauses are read, and their operators captured, only by
 its own form; a program's source capture leaves them to it. See
-[generics](../../../../../wiki/spec/language/generics.md#publication-and-assumptions).
+[generics](../../../../../../wiki/spec/language/generics.md#publication-and-assumptions).
 
 ### What one compilation elaborates
 
@@ -177,7 +177,7 @@ Every machine the check covers is lowered, not only those the entry calls. A
 machine nothing calls can still overflow, break its own `ensures` or call
 another machine without its `requires`; if it were left out, it would be
 accepted unchecked.
-[Validation subjects](../../../../../wiki/spec/build/validation_subjects.md)
+[Validation subjects](../../../../../../wiki/spec/build/validation_subjects.md)
 sets the scope: "every declaration of the subject packages is valid, and
 every declaration they depend on is valid", and the closure "starts from
 every declaration of every subject, including unused ones".
@@ -349,7 +349,7 @@ requires T == u32 || T == u64 { transition T == u32 { true -> (37u32), _ ->
 (73u64) } }` for `u32` still holds `requires u32 == u32 || u32 == u64`, a
 local bound to `u32 == u32`, both arms, and an arm that returns a `u64`
 from a machine whose result is `u32`. Such an equation is static
-([generics.md](../../../../../wiki/spec/language/generics.md#static-type-equality):
+([generics.md](../../../../../../wiki/spec/language/generics.md#static-type-equality):
 "a branch with established `T == u32` may use that equality to check its
 operations and values as u32. On leaving the branch, only facts common to
 its surviving predecessors remain"), so the reader decides it
@@ -395,7 +395,7 @@ A contract clause that is the literal `true` adds no clause: like an absent
 
 `operand as T` is read when both the operand's type and `T` are builtin
 integers and neither carries a domain
-([domains](../../../../../wiki/spec/language/domains.md#carrier-casts): "The
+([domains](../../../../../../wiki/spec/language/domains.md#carrier-casts): "The
 operand of a carrier cast must carry no domain."). Lowering emits the one
 exact conversion the two carriers determine: `IntegerWiden` when every
 operand value is representable in `T` (a wider carrier of the same sign, or
@@ -410,7 +410,7 @@ into `Trapping`, a cast that changes the carrier of a policy-qualified
 integer ([Arithmetic policies](#arithmetic-policies) serves the one that
 keeps it), and an operand with no carrier of its own (an anonymous
 literal or rational expression, which the
-[numeric landing rules](../../../../../wiki/spec/language/numeric_values.md#fractional-intermediate-diagnostics)
+[numeric landing rules](../../../../../../wiki/spec/language/numeric_values.md#fractional-intermediate-diagnostics)
 land) are each refused as `Unsupported`.
 
 ### Arithmetic policies
@@ -418,18 +418,18 @@ land) are each refused as `Unsupported`.
 An integer formal, local, result or field may be of type `T in Wrapping` or
 `T in Saturating`, for a builtin integer `T`. Such a type is a different
 type from `T` (`ValueType::Qualified`), stored and compared as `T`
-([numeric values](../../../../../wiki/spec/language/numeric_values.md#overflow-policies):
+([numeric values](../../../../../../wiki/spec/language/numeric_values.md#overflow-policies):
 "Adding and removing a policy domain ... change future operations, not
 existing payloads"). Every typing rule compares the whole type, so a
 destination takes only a value whose type carries exactly its policy
-([domains](../../../../../wiki/spec/language/domains.md#literals-and-expected-types):
+([domains](../../../../../../wiki/spec/language/domains.md#literals-and-expected-types):
 "the supplied expression's static type must carry exactly the domains the
 destination declares").
 
 - **Operators.** `+`, `-`, `*`, `/`, `%`, `<<` and `>>` over two operands of
   one policy, or over one such operand and a literal, are that policy's
   operation and their result carries the policy
-  ([policy domains](../../../../../wiki/spec/language/numeric_values.md#policy-domains)).
+  ([policy domains](../../../../../../wiki/spec/language/numeric_values.md#policy-domains)).
   Lowering names the operation, `WrappingIntegerAdd`, `SaturatingIntegerAdd`
   and so on. A Wrapping or Saturating add, subtract and multiply is total
   and owes nothing; a divide and a remainder owe their divisor under either
@@ -444,7 +444,7 @@ destination declares").
   first by the one exact conversion of [Casts](#casts), with its
   `OperationSafety` obligation when it narrows: a policy never makes `as`
   truncate or clamp
-  ([domains](../../../../../wiki/spec/language/domains.md#domain-casts):
+  ([domains](../../../../../../wiki/spec/language/domains.md#domain-casts):
   "`as` never calls user code, rounds, saturates, traps"). A literal operand
   lands in the carrier the cast names, so `5 as u32 in Wrapping` is the
   Wrapping constant.
@@ -488,11 +488,11 @@ Refused by name:
 A machine's `requires`, `ensures` or crash guard may compare mathematical integers:
 `requires embed(rest) + embed(count) * 10 <= 99`. `embed` takes a runtime
 integer into the unbounded integers
-([proof contracts](../../../../../wiki/spec/proofs/contracts.md#mathematical-values-and-quantification):
+([proof contracts](../../../../../../wiki/spec/proofs/contracts.md#mathematical-values-and-quantification):
 "Runtime integer/address values enter mathematical integer arithmetic through
 the total `embed` projection, retaining exact carrier range"), where `+`, `-`
 and `*` cannot overflow
-([mathematical values](../../../../../wiki/spec/terminal-psi/mathematical_values.md#integer-terms):
+([mathematical values](../../../../../../wiki/spec/terminal-psi/mathematical_values.md#integer-terms):
 "These terms denote unbounded mathematical integers and cannot overflow"). So
 such a clause computes nothing in a carrier and owes no formation condition
 (a proof that the term can be computed at all). Carrier arithmetic in a
@@ -550,18 +550,18 @@ admitted.
 ### Erased scalar bindings
 
 A scalar formal or local may be `[erased]`
-([proof contracts](../../../../../wiki/spec/proofs/contracts.md#explicit-erased-bindings):
+([proof contracts](../../../../../../wiki/spec/proofs/contracts.md#explicit-erased-bindings):
 "The binding remains in checking and semantic identity but contributes no
 runtime field, address, read, or cleanup. It may supply proof computation or
 static authorization; it cannot determine runtime data or control."). This is
 the first slice of the
-[proofs, evidence and quotients lane](../../../../../wiki/drafts/designs/proofs_evidence_lane.md).
+[proofs, evidence and quotients lane](../../../../../../wiki/drafts/designs/proofs_evidence_lane.md).
 
 - **An erased formal** has a value identity, so `requires` and `ensures`
   clauses name it like any formal, and no runtime lane: Terminal Psi declares
   it in `MachineContract::erased_scalar_formals`, not in `parameters` or
   `parameter_order`
-  ([encoding](../../../../../wiki/spec/terminal-psi/encoding.md): "Erased
+  ([encoding](../../../../../../wiki/spec/terminal-psi/encoding.md): "Erased
   formals occupy no tag."). Its identity comes after the result
   pseudo-value; `Signature::formal_values` is the one numbering the reader
   and lowering share.
@@ -592,7 +592,7 @@ scalar machines when every call between its members stands in terminal
 position (an arm's target, or the body's final value): `machine spin(n: u32)
 -> u32 { transition n > 0 { true -> spin(n - 1), false -> 0 } }`, and the
 same through two or more machines.
-[termination](../../../../../wiki/spec/language/termination.md#calls-and-productive-loops):
+[termination](../../../../../../wiki/spec/language/termination.md#calls-and-productive-loops):
 "A productive terminal-transfer cycle without a termination promise may run
 forever and owes no rank". [Call cycles as loops](#call-cycles-as-loops)
 gives the lowered form.
@@ -676,7 +676,7 @@ serves:
   bound field is the ordinary local that follows the pattern's marker, a
   field read of the subject, and the marker itself lowers to nothing. The
   pattern is served when its roster names every field of the subject's
-  record ([patterns](../../../../../wiki/spec/language/patterns.md#irrefutable-data-bindings):
+  record ([patterns](../../../../../../wiki/spec/language/patterns.md#irrefutable-data-bindings):
   "A pattern that can fail rejects; a binding introduces no hidden branch,
   trap, fallback or runtime assertion."). One that omits a field is refused
   as `statement record pattern that omits a field`. The positional pattern
@@ -701,7 +701,7 @@ value which is not `[copy]` moves once is the custody replay's judgment
 (`terminal_semantics::plain_affine`), which works on places, not leaves.
 
 `[copy]` is required, not inferred
-([ownership](../../../../../wiki/spec/language/ownership.md): "A record still
+([ownership](../../../../../../wiki/spec/language/ownership.md): "A record still
 requires an explicit `[copy]` declaration; copyable fields do not change the
 affine default."). Plain data without it moves at most once. The exact
 parts moved out become unavailable, and disjoint sibling fields stay
@@ -717,7 +717,7 @@ arriving paths disagree on what has been moved are refused.
 A declaration may state lifetime parameters, `data Outer<'a>`, and a field
 may apply such data at them, `inner: Inner<'a>`. A lifetime argument selects
 nothing a value is made of
-([lifetimes](../../../../../wiki/spec/language/lifetimes.md#binders-and-source-applications):
+([lifetimes](../../../../../../wiki/spec/language/lifetimes.md#binders-and-source-applications):
 "Lifetime arguments are erased regions, separate from runtime generic arity,
 layout and monomorphization."), so the declaration is one record type
 whatever lifetimes a use applies it at, and a formal, local or result may
@@ -773,7 +773,7 @@ binders.
 
 A `mutable` formal that holds its own value (`mutable x: u32`, `mutable p: R`) is the
 callee's own storage, initialised from the argument, and is written as a
-`mutable` local is ([ownership](../../../../../wiki/spec/language/ownership.md#owned-local-mutability):
+`mutable` local is ([ownership](../../../../../../wiki/spec/language/ownership.md#owned-local-mutability):
 "the recipient may bind its own value mutably"). Nothing a caller sees
 changes: the signature, the contract and the argument are those of the same
 formal without `mutable`.
@@ -782,7 +782,7 @@ formal without `mutable`.
   formal's entry value keeps its identity, so an entry `requires` stays a
   fact about that value and proves nothing about the formal after
   `x = x + 1`
-  ([fact validity](../../../../../wiki/spec/terminal-psi/fact_validity.md#entry-facts-and-crash-coverage):
+  ([fact validity](../../../../../../wiki/spec/terminal-psi/fact_validity.md#entry-facts-and-crash-coverage):
   "Current body values are not entry snapshots").
 - A record is stored into by field in the formal's own parameter place,
   which holds the copy the call passed; the store logs the new content on
@@ -799,7 +799,7 @@ Refused by name:
 
 | Construct | Refusal detail |
 | --- | --- |
-| an `ensures` clause or a crash route guard that names a `mutable` formal: the name denotes the original input under [contract inputs](../../../../../wiki/spec/language/state_contracts.md#contract-inputs-and-working-values); retaining that identity separately from working storage is implementation work (`MUTABLE-PARAMETER-CONTRACT-NAME` in `TASKS.md`) | `contract clause that names a mutable parameter outside requires` |
+| an `ensures` clause or a crash route guard that names a `mutable` formal: the name denotes the original input under [contract inputs](../../../../../../wiki/spec/language/state_contracts.md#contract-inputs-and-working-values); retaining that identity separately from working storage is implementation work (`MUTABLE-PARAMETER-CONTRACT-NAME` in `TASKS.md`) | `contract clause that names a mutable parameter outside requires` |
 | a `mutable` formal of a type parameter, whose replaced value no slice disposes of | `parameter mutable parameter of a type parameter` |
 | a `mutable` formal marked `[erased]` | `parameter mutable erased parameter` |
 
@@ -817,7 +817,7 @@ call forms for it.
   beside it (`Signature::borrowed`). It is a place whatever its referent: a
   root `Parameter` place declared with the reference's access
   (`SharedBorrow`, `MutableBorrow`), holding the caller's storage for the
-  activation ([ownership](../../../../../wiki/spec/language/ownership.md#borrows-and-aliases):
+  activation ([ownership](../../../../../../wiki/spec/language/ownership.md#borrows-and-aliases):
   "Borrowed arguments continue to denote the original storage, not a
   caller-side snapshot chosen because the referent is small."). A scalar
   referent is a place of its primitive type, read with
@@ -837,7 +837,7 @@ call forms for it.
   invocation row names that exact place, and one `Loan` obligation is
   minted at the point before the call: captured place, access, and lender
   (`Lender::Owner` for owned storage, `Lender::Incoming` beneath a borrowed
-  formal). [loans](../../../../../wiki/spec/terminal-psi/loans.md): "Loan
+  formal). [loans](../../../../../../wiki/spec/terminal-psi/loans.md): "Loan
   formation captures a place, not a live selector expression." A scalar
   local that is an SSA value gets a home holding its current value first
   (`EstablishPrimitiveLocal`), and the slot names that home from then on.
@@ -853,7 +853,7 @@ call forms for it.
   logs `Overwritten` on the lent place at the call's normal continuation:
   the callee may have stored anything beneath it, and nothing else changes,
   so a sibling field keeps what it held
-  ([exact projected-path scoping](../../../../../AGENTS.md)). A shared loan
+  ([exact projected-path scoping](../../../../../../AGENTS.md)). A shared loan
   logs nothing.
 
 Whether two loans of one call may both be formed, and whether a reborrow
@@ -960,7 +960,7 @@ retains its target observation.
   pattern head and the right operand of a case test are matched to the
   declaration by the case symbol; a payload field by its field symbol, as a
   field is. A case of another type than its subject's is refused
-  ([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#case-observation):
+  ([structural access](../../../../../../wiki/spec/terminal-psi/structural_access.md#case-observation):
   "Its case identity must belong to the exact selected sum type; matching
   case spellings in another type supply no authority."). A member's
   `case_variant` is a spelling and is never read.
@@ -999,7 +999,7 @@ retains its target observation.
 
 ## Evaluation order and control
 
-From [the evaluation schedule](../../../../../wiki/spec/language/expressions.md#evaluation-schedule):
+From [the evaluation schedule](../../../../../../wiki/spec/language/expressions.md#evaluation-schedule):
 strict binary operands left then right, call arguments left to right, each
 operation emitted after its operands, so block order is evaluation order.
 `a > b` lowers to `IntegerLessThan(b, a)` over already evaluated operands;
@@ -1013,7 +1013,7 @@ is the result there. The join's one Boolean block parameter is the result.
 
 A crash is a `Crash` terminator with its cause and its site guard: the exact
 incoming conjunction of branch decisions on the path to it, each the branch
-value equal to the Boolean its edge took ([crash](../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#crash):
+value equal to the Boolean its edge took ([crash](../../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#crash):
 "The guard retains the exact incoming conjunction"). Canonical consequences
 used as route witnesses are proof information and are not added here. A call
 of a machine with no normal completion is an `InvokeNoNormal` terminator whose
@@ -1027,7 +1027,7 @@ goes on after it, so the crash site is the operation
 subset mints no conserved obligation, and if one existed the edge is refused
 rather than given a guessed fate (a crash abandons; `Fate::Abandoned`).
 
-What a machine publishes ([guarded crashes](../../../../../wiki/spec/language/effects.md#guarded-crashes)):
+What a machine publishes ([guarded crashes](../../../../../../wiki/spec/language/effects.md#guarded-crashes)):
 an authored `crashes` clause is its ceiling; a public body with none publishes
 no route; a private body with none publishes each cause its body may reach,
 from a `crash` statement or a callee's route, as the alternative `Truth`.
@@ -1052,7 +1052,7 @@ local, evaluated once, followed by one `Transition` statement per arm
 a `Conditional`: true enters the arm, which completes the machine; false
 continues with the next statement. An unguarded arm completes the machine and
 must be last. An arm's target is a value, a terminal call (a call whose
-result completes the machine, [state contracts](../../../../../wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms):
+result completes the machine, [state contracts](../../../../../../wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms):
 lowered as a call followed by a return) or Unit.
 
 Stage 01 writes dispatch over a sum the same way: a local holds the
@@ -1070,12 +1070,12 @@ alternative for that case, or the one shared wildcard block. Untested tags
 also reach that block. A tested field does not cover the complete case: a
 case without an unconditional alternative or a wildcard is refused as
 `Unestablished`, rather than gaining an implicit trap or fallthrough
-([patterns](../../../../../wiki/spec/language/patterns.md)).
+([patterns](../../../../../../wiki/spec/language/patterns.md)).
 
 An earlier unconditional case alternative or wildcard shadows later matching
 alternatives. The reader still checks those alternatives for well-formedness,
 and source advisories identify the earlier and later patterns
-([state contracts](../../../../../wiki/spec/language/state_contracts.md#unreachable-branches)).
+([state contracts](../../../../../../wiki/spec/language/state_contracts.md#unreachable-branches)).
 A redundant wildcard with no incoming path is also advisory.
 
 Scalar payload fields arrive as parameters on the tag edge. They can serve
@@ -1103,7 +1103,7 @@ implies none.
 
 [components.rs](src/components.rs) finds the call components of the bodies
 read: the strongly connected sets of the call graph. Nesting plays no part
-([control flow](../../../../../wiki/spec/terminal-psi/control_flow.md):
+([control flow](../../../../../../wiki/spec/terminal-psi/control_flow.md):
 "Source nesting does not bound the component or justify any edge."). Each
 machine still gets its own Terminal machine, and a machine on a cycle holds
 its whole component in its own graph
@@ -1133,7 +1133,7 @@ machine, destination block, scalar predicate, and one obligation for every
 actual incoming edge."). Every edge into the head mints one
 `ArrivalInvariant` obligation at that edge and one arrival in the row: the
 entry's jump, and each jump back. That is
-[state contracts](../../../../../wiki/spec/language/state_contracts.md#bindings-and-arrivals)
+[state contracts](../../../../../../wiki/spec/language/state_contracts.md#bindings-and-arrivals)
 on the lowered form: "Machine `requires` applies at every invocation,
 including terminal and recursive calls." A member with no `requires` has no
 row and its head owes nothing. The predicate is the authored one; nothing
@@ -1157,7 +1157,7 @@ declared completion, which the typed trees own
 (`boundary_completions::boundary_requirement_completion`) and the reader
 records beside the requirement's signature (`Signatures::completions`). The
 canonical process-exit requirement is the one requirement that completes
-externally ([process exit](../../../../../wiki/spec/language/process_exit.md):
+externally ([process exit](../../../../../../wiki/spec/language/process_exit.md):
 "It produces no normal result or continuation and permits no source crash").
 It is the leaf of the same fixed point: a machine whose every path ends in an
 exit never completes, and its callers end in `InvokeNoNormal`.
@@ -1168,14 +1168,14 @@ returns: arguments left to right, the invocation row and its
 `CallRequirement` obligations at the point before, then the terminator, an
 `InvokeNoNormal` for a machine and an `ExternalCompletion` naming the
 requirement and its completion kind for a boundary
-([calls and outcomes](../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#external-process-exit):
+([calls and outcomes](../../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#external-process-exit):
 "a terminal transfer retaining the exact requirement and ordered arguments,
 with no normal successor, return postconditions, or implicit cleanup"). Its
 edge goes to `Destination::NoNormal`. Nothing of the machine runs after it,
 so no home is retired and no cleanup is emitted there. A loan the call
 carries is formed at the point before it like any call's and is handed to
 the transfer: the edge's one kind of disposition is `Fate::Consumed` for each
-such loan ([state contracts](../../../../../wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms):
+such loan ([state contracts](../../../../../../wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms):
 "A caller-local loan carried into a terminal machine call closes at the last
 use of that loan and of every loan derived from it, even when that use is
 inside the callee's terminal chain"). An external completion whose
@@ -1233,7 +1233,7 @@ value at entry, and follows descriptor stores and mutable calls before
 equating any new measurement with it. Saved scalar values keep their
 original meaning. Whole descriptor reads and copies name the same entry
 metadata through the ordinary leaf mechanism; only formal roots get entry
-values. See [byte observations](../../../../../wiki/spec/terminal-psi/byte_views.md#values-and-observations).
+values. See [byte observations](../../../../../../wiki/spec/terminal-psi/byte_views.md#values-and-observations).
 Measuring fixed arrays, lowering ranges and indexes, and call requirements
 that need the length substituted each still need their own operations.
 Loops over source storage are still refused; the storage checker's backedge
@@ -1277,7 +1277,7 @@ the leaf `b`; a plain field has no declared range, so `range_obligation` is
 `None`. `l.from = p` constructs the value first (a literal is its own root, a
 local is copied whole) and replaces the field with one
 `StoreStructuralField`, never with member stores
-([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary):
+([structural access](../../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary):
 "A whole record assignment constructs its operands before replacing the
 destination through the ordinary structural replacement operation ... Root,
 field, and indexed destinations do not change construction semantics or
@@ -1296,7 +1296,7 @@ A data local is zero-established. Its declaration logs one row for the
 root's new contents and, on each scalar leaf of the zero value, a constant
 zero of the leaf's type, emitted just before the establishment. The zero
 value of a sum is its first declared case with a zeroed payload
-([data and literals](../../../../../wiki/spec/language/data_and_literals.md):
+([data and literals](../../../../../../wiki/spec/language/data_and_literals.md):
 "The ordinary zero representation of a sum selects the first declared case
 and a recursively zeroed payload."), so only that case's payload leaves get a
 row. The constants give each leaf's content a value identity inside the
@@ -1311,7 +1311,7 @@ A scalar local is zero-constructed by the same rule
 Lowering logs `Content::Value(zero)` on the scalar
 home at its `EstablishPrimitiveLocal`, naming the zero constant emitted just
 before it
-([dependent values](../../../../../wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization):
+([dependent values](../../../../../../wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization):
 "If zero satisfies the default domain, the value is zero-constructible.
 Otherwise the type is gated: construction or checked qualification must
 establish the domain before observation."). Every scalar type the reader
@@ -1320,14 +1320,14 @@ domain is refused, and a policy-qualified local without an initializer is
 refused, so a scalar home owes no domain
 clause and no gated scalar occurs in this subset. The sentence "An
 unestablished local cannot be read"
-([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md))
+([structural access](../../../../../../wiki/spec/terminal-psi/structural_access.md))
 governs declared shared view locals, which this route does not serve. Such a
 scalar local is a storage home, written by `WriteOnlyPrimitiveStore` and read
 by `PrimitiveScalarRead`; every other scalar local stays an SSA value.
 
 <a id="data-requires"></a>
 **Data `requires`.** A declaration's `requires` is the type's default domain
-([dependent values](../../../../../wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization):
+([dependent values](../../../../../../wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization):
 "A data declaration's field qualifications and `requires` clauses define its
 default domain"). The reader reads each clause with the clause reader the
 machine contracts use (`read/contracts.rs`), with `self`, its fields named
@@ -1345,7 +1345,7 @@ type's identity for the checker, which refuses a table that differs from the
 declarations.
 
 **Domain predicates.** A named domain's `requires`
-([domains](../../../../../wiki/spec/language/domains.md#declaration-and-membership))
+([domains](../../../../../../wiki/spec/language/domains.md#declaration-and-membership))
 is not a kind of fact of its own. `read/predicates.rs` states each clause as
 the contract the place declared in the domain already has, with the domain's
 `self` standing for that place:
@@ -1366,7 +1366,7 @@ array element in a domain with predicates.
 
 Lowering mints one `DataDomain` obligation per owed clause, at the point
 before the operation that owes it
-([data and literals](../../../../../wiki/spec/language/data_and_literals.md):
+([data and literals](../../../../../../wiki/spec/language/data_and_literals.md):
 "Construction and every restoring write prove the owning default-domain
 clauses."):
 
@@ -1506,7 +1506,7 @@ worked around by adding to `terminal-check-tables`.
 8. **Stage 04 leaves some literals unlanded.** An integer literal with no
    landing takes the type its context expects (initializer, assignment,
    argument, return, arm result, or the other operand), per
-    [literals and expected types](../../../../../wiki/spec/language/domains.md#literals-and-expected-types);
+    [literals and expected types](../../../../../../wiki/spec/language/domains.md#literals-and-expected-types);
     with no expected type it is refused.
 9. **Every machine carries a reach row.** A machine with no reach holds
     `ServiceReachRowTable::EMPTY_ROW`, not `NULL`, and the row alone does not
@@ -1515,7 +1515,7 @@ worked around by adding to `terminal-check-tables`.
 10. **A field read is `ScalarStructuralField`, not `PrimitiveScalarRead`.**
     The lane plan's table names `PrimitiveScalarRead`; the specification
     gives a static field path the other form
-    ([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary):
+    ([structural access](../../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary):
     "A carrier with neither a runtime element nor a reference crossing keeps
     the canonical `ScalarStructuralField` or `BooleanStructuralField` read.").
     It is also the form with no text in it: its path is `CanonicalStructuralPathSegment::Field(StructuralFieldId)`.
@@ -1546,7 +1546,7 @@ worked around by adding to `terminal-check-tables`.
 16. **A transition's payload bindings are block parameters, not reads.** The
     lane plan's table gives "payload reads on the selected edge". The
     specification gives a root sum's payload the other form
-    ([control flow](../../../../../wiki/spec/terminal-psi/control_flow.md):
+    ([control flow](../../../../../../wiki/spec/terminal-psi/control_flow.md):
     "Selected payload fields become scalar parameters on that case's edge
     before cleanup."; structural access: "producers read a root sum's
     payload as parameters of its dispatch block").
@@ -1580,7 +1580,7 @@ worked around by adding to `terminal-check-tables`.
     field, bound or waived) that typed preparation resolves against the subject's declared
     record (`pattern_subject`), and this reader decides coverage from those
     symbols.
-    [Patterns](../../../../../wiki/spec/language/patterns.md#irrefutable-data-bindings)
+    [Patterns](../../../../../../wiki/spec/language/patterns.md#irrefutable-data-bindings)
     requires the pattern to name every field, so a roster that omits one is
     refused.
 21. **A crash inside a case arm has no exact site guard.** The guard is the
@@ -1605,7 +1605,7 @@ worked around by adding to `terminal-check-tables`.
     produces. A plain integer field under a data `requires`, one-sided or
     two-sided, lowers with `range_obligation: None`, so this slice mints no `OperationSafety` for a field.
 26. **Invariant windows mint nothing new here.**
-    [Dependent values](../../../../../wiki/spec/language/dependent_values.md#invariant-windows):
+    [Dependent values](../../../../../../wiki/spec/language/dependent_values.md#invariant-windows):
     "A write known to preserve the default domain keeps it established.
     Otherwise the write opens a window on the place ... The domain must be
     proved again at the next consumption point". The store's or zero
@@ -1643,7 +1643,7 @@ worked around by adding to `terminal-check-tables`.
     leaves no contract row on either; stages 01 to 03 record it as
     `StateSignature::declares_no_crash_route`, as they do on `Machine`, and
     the reader takes it as `DeclaredNone`.
-    [Generics](../../../../../wiki/spec/language/generics.md#requirements-and-conformance-evidence)
+    [Generics](../../../../../../wiki/spec/language/generics.md#requirements-and-conformance-evidence)
     gives the two spellings different meanings ("omitted `crashes` defers to
     its published routes"; "`crashes none` admitting only crash-free
     members"). Both publish no route in the generic form, so the generic

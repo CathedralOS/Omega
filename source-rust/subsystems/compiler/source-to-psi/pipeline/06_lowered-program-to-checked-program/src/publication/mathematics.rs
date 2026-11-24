@@ -4,9 +4,12 @@
 //!
 //! Only the carrier table is written. Each data declaration gets one row that
 //! names its kernel type under the data's source type identity. The laws'
-//! certificates are not published: an indexed theorem root row names an
-//! evidence formal and an Id formation row names captured source subjects,
-//! and a law over plain data has neither (`TASKS.md`, PROOF-KERNEL-CORE).
+//! certificates are not published, by the owner's decision of 2026-11-23: a
+//! receiver trusts the producer and does not replay carried certificates
+//! (`wiki/spec/terminal-psi/product.md`, "Publication and separate
+//! consumption"). Neither existing table fits one either: an indexed theorem
+//! root row names an evidence formal and an Id formation row names captured
+//! source subjects, and a law over plain data has neither.
 
 use terminal_psi::{TerminalMathematicalCarrier, TerminalModule};
 

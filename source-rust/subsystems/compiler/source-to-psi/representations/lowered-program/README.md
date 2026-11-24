@@ -78,9 +78,13 @@ Stage 06 checks every declaration once with the kernel and judges each law
 ([`laws.rs`](../../pipeline/06_lowered-program-to-checked-program/src/laws.rs)).
 Once the compilation is accepted, stage 06 writes each data declaration into
 the root module's Psi mathematical carrier table, under the type identity text
-stage 05 records on the data's entry. The laws' certificates are not yet
-published: the Psi theorem root and Id formation rows have no field for a law
-over plain data (`TASKS.md`, **PROOF-KERNEL-CORE**). Other names and source
+stage 05 records on the data's entry. The laws' certificates are not
+published, by the owner's decision of 2026-11-23. A receiver of a Psi program
+trusts its producer and does not replay carried certificates
+([publication and separate consumption](../../../../../../wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)),
+so a published law certificate would be data nothing checks. The Psi theorem
+root and Id formation rows also have no field for a law over plain data; add a
+row for laws when a consumer needs to read one. Other names and source
 positions in the table are for diagnostics only.
 
 ## Rules every lane relies on
@@ -113,7 +117,7 @@ borrowed byte descriptor. It uses the existing place interning and reaching-writ
 walk; replacing the descriptor or an overlapping mutable call invalidates its
 prior contents. A count already read is an immutable
 scalar snapshot.
-[Byte views](../../../../../../../../wiki/spec/terminal-psi/byte_views.md#values-and-observations)
+[Byte views](../../../../../../../../../wiki/spec/terminal-psi/byte_views.md#values-and-observations)
 requires an observation of that exact descriptor, and input requirements name
 its `ViewExtent`. An observed formal's extent uses `EntryContent` like a scalar
 field. A fresh read equals that entry snapshot only while the actual write
@@ -153,7 +157,7 @@ checker. `Unproved` means an obligation's evidence did not check.
 where nothing established it. A local declared without an initializer is
 zero-constructed (`local-without-initializer`), so for plain storage this means
 the zeroed storage of a gated type
-([dependent values](../../../../../../../../wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization):
+([dependent values](../../../../../../../../../wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization):
 "Otherwise the type is gated: construction or checked qualification must
 establish the domain before observation."). It is a structural judgment over the
 write log and the graph, with no obligation row and no certificate; the places
@@ -163,7 +167,7 @@ is not established on every path
 (structural_access.md: "Each `Case` step requires source admission to
 establish the selected case for the same root and prefix at the read's
 observation epoch"), and a dispatch with no edge for a declared case
-([patterns](../../../../../../../../wiki/spec/language/patterns.md): "Missing
+([patterns](../../../../../../../../../wiki/spec/language/patterns.md): "Missing
 runtime coverage is a compile error, not an implicit trap or fallthrough").
 `Conflict` means two live loans cannot both exist (overlapping places with an
 exclusive access, or an exclusive reborrow of storage held shared): a resource
@@ -206,7 +210,7 @@ A lane met each, reported it, and read the fact from the lowered form instead.
 - **What a call supplies for an erased formal.** `Actual` is a value or a
   place. The argument for an `[erased]` scalar formal is a term that is never
   evaluated
-  ([proof contracts](../../../../../../../../wiki/spec/proofs/contracts.md#explicit-erased-bindings):
+  ([proof contracts](../../../../../../../../../wiki/spec/proofs/contracts.md#explicit-erased-bindings):
   "Construction supplies the erased term"), so `InvocationRow::actuals` lists
   only the runtime actuals, and the checker reads the erased terms from the
   call's `erased_arguments`, by position against the callee's
@@ -216,20 +220,20 @@ A lane met each, reported it, and read the fact from the lowered form instead.
 
 | Kind | Family | Created by |
 | --- | --- | --- |
-| `Claim` | conserved | [ownership](../../../../../../../../wiki/spec/terminal-psi/ownership.md): "Structural ownership is an exact live set of roots, projected claims, and remaining subtrees" |
-| `Loan` | conserved | [loans](../../../../../../../../wiki/spec/terminal-psi/loans.md): "Loan resource \| Exact occurrence, owner lineage, captured place, access, parent lifetime, and restoration obligation." The lender is the owner, a parent loan of the machine, or the loan the invocation passed in at a borrowed formal (`Lender::Incoming`: "A direct reborrow names its immediate parent resource"). |
-| `RestorationWindow` | conserved | [language ownership](../../../../../../../../wiki/spec/language/ownership.md#borrowed-storage-invariant-windows): "records a restoration obligation on the original place and loan" |
-| `DomainDebt` | conserved | [dependent values](../../../../../../../../wiki/spec/language/dependent_values.md#invariant-windows): "The domain must be proved again at the next consumption point" |
-| `EstablishmentDebt` | conserved | [dependent values](../../../../../../../../wiki/spec/language/dependent_values.md#invariant-windows): "may open initial target-establishment debt before a valid target value exists" |
-| `TheoremRequirement` | question | [logical hypotheses](../../../../../../../../wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use): "application supplies their proof at the exact substitution." One per aliased premise on the application's ordinary edge, before its unique successor may use the conclusion. |
-| `CallRequirement` | question | [fact validity](../../../../../../../../wiki/spec/terminal-psi/fact_validity.md): "one exact obligation for every callee `requires` clause" |
-| `IntegerWidthPositive` | question | [width-indexed integers](../../../../../../../../wiki/spec/language/numeric_values.md#width-indexed-integers): "Generic formation proves positivity under the declaration's static requirements." One per actual static width input used by the owning machine's declared carriers, at its entry, including unread borrowed storage and zero-length array element types. |
-| `OperationSafety` | question | [control flow](../../../../../../../../wiki/spec/terminal-psi/control_flow.md): "Each partial operation still proves its own safety" |
-| `DataDomain` | question | [data and literals](../../../../../../../../wiki/spec/language/data_and_literals.md): "Construction and every restoring write prove the owning default-domain clauses." One per (operation, clause of a data type's `requires`), at a construction, a zero establishment and a store into a field of that type or of a type containing it; [structural access](../../../../../../../../wiki/spec/terminal-psi/structural_access.md#complete-record-construction): "The obligation binds the initializer or replacement SSA value, never the old field contents." |
+| `Claim` | conserved | [ownership](../../../../../../../../../wiki/spec/terminal-psi/ownership.md): "Structural ownership is an exact live set of roots, projected claims, and remaining subtrees" |
+| `Loan` | conserved | [loans](../../../../../../../../../wiki/spec/terminal-psi/loans.md): "Loan resource \| Exact occurrence, owner lineage, captured place, access, parent lifetime, and restoration obligation." The lender is the owner, a parent loan of the machine, or the loan the invocation passed in at a borrowed formal (`Lender::Incoming`: "A direct reborrow names its immediate parent resource"). |
+| `RestorationWindow` | conserved | [language ownership](../../../../../../../../../wiki/spec/language/ownership.md#borrowed-storage-invariant-windows): "records a restoration obligation on the original place and loan" |
+| `DomainDebt` | conserved | [dependent values](../../../../../../../../../wiki/spec/language/dependent_values.md#invariant-windows): "The domain must be proved again at the next consumption point" |
+| `EstablishmentDebt` | conserved | [dependent values](../../../../../../../../../wiki/spec/language/dependent_values.md#invariant-windows): "may open initial target-establishment debt before a valid target value exists" |
+| `TheoremRequirement` | question | [logical hypotheses](../../../../../../../../../wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use): "application supplies their proof at the exact substitution." One per aliased premise on the application's ordinary edge, before its unique successor may use the conclusion. |
+| `CallRequirement` | question | [fact validity](../../../../../../../../../wiki/spec/terminal-psi/fact_validity.md): "one exact obligation for every callee `requires` clause" |
+| `IntegerWidthPositive` | question | [width-indexed integers](../../../../../../../../../wiki/spec/language/numeric_values.md#width-indexed-integers): "Generic formation proves positivity under the declaration's static requirements." One per actual static width input used by the owning machine's declared carriers, at its entry, including unread borrowed storage and zero-length array element types. |
+| `OperationSafety` | question | [control flow](../../../../../../../../../wiki/spec/terminal-psi/control_flow.md): "Each partial operation still proves its own safety" |
+| `DataDomain` | question | [data and literals](../../../../../../../../../wiki/spec/language/data_and_literals.md): "Construction and every restoring write prove the owning default-domain clauses." One per (operation, clause of a data type's `requires`), at a construction, a zero establishment and a store into a field of that type or of a type containing it; [structural access](../../../../../../../../../wiki/spec/terminal-psi/structural_access.md#complete-record-construction): "The obligation binds the initializer or replacement SSA value, never the old field contents." |
 | `ArrivalInvariant` | question | control flow: "one obligation for every actual incoming edge" |
 | `NormalGuarantee` | question | control flow: "All normal returns ... must establish the published guarantees." One per (normal return edge, clause); names its `PublishedGuarantee`. |
 | `PublishedGuarantee` | question | the same sentence: the per-clause identity in `ContractClause`, holding when every return edge's `NormalGuarantee` for the clause holds (vacuously with no return). |
-| `CrashCoverage` | question | [calls and outcomes](../../../../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#crash): "proves every site guard ... and checks same-cause coverage". Its `CrashSite` is a block with a no-successor terminator ("closed causes on distinct no-successor terminators") or a call operation whose callee may return and crash ("Surviving crash routes are derived from the pinned callee contract using exact actuals") |
+| `CrashCoverage` | question | [calls and outcomes](../../../../../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#crash): "proves every site guard ... and checks same-cause coverage". Its `CrashSite` is a block with a no-successor terminator ("closed causes on distinct no-successor terminators") or a call operation whose callee may return and crash ("Surviving crash routes are derived from the pinned callee contract using exact actuals") |
 | `WellFoundedness` | question | control flow: "a shared well-foundedness question" |
 | `RankComparison` | question | control flow: "comparison obligations for every internal edge" |
 

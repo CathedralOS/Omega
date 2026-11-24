@@ -968,7 +968,12 @@ none`, which a clause application now requires. What step 2 did not build:
   an erased formal of the theorem's indexed type, and an Id formation is the
   Identity type of an erased formal over captured source expressions. A law
   over plain data has no erased formal, and its `ensures` Identity is a
-  clause with no type identity. See open question 3.
+  clause with no type identity. The owner decided on 2026-11-23 not to
+  publish law certificates: under
+  [publication and separate consumption](../../spec/terminal-psi/product.md#publication-and-separate-consumption)
+  a receiver trusts the producer and does not replay carried certificates,
+  so nothing would check a published one. A row for laws waits for a
+  consumer that reads it.
 - **One table for step 1's goals.** A generic machine's Identity goal still
   gets its own table per obligation in `equality::discharge`. Only the
   declarations over data that contains itself are in the shared signature.
@@ -1086,12 +1091,10 @@ Recorded, not answered:
    requires publishing "the full level telescope and constraints"; no level
    constraint encoding was found. L3 proposes one table in the lowered
    program for every declaration kind and leaves the wire tables as the
-   spec has them. Two things remain open: the level constraint encoding,
-   and which row a judged law over plain data publishes. The theorem root
-   row needs an evidence position, which for such a law could only be the
-   formal its induction dispatches on. That formal is its ranking subject,
-   which [termination](../../spec/language/termination.md) keeps private,
-   and a law that does not dispatch has no such formal.
+   spec has them. The level constraint encoding remains open. Which row a
+   judged law over plain data publishes is no longer open: the owner decided
+   on 2026-11-23 that such laws are not published (step 2's publication
+   bullet above says why).
 4. **Floor scope.** Does "the tightest literal bounds order reasoning gives
    it" ([contracts.md#required-automatic-discharge](../../spec/proofs/contracts.md#required-automatic-discharge))
    require landing an operand on bounds proved equal (`(prefix - 360) + last`,
