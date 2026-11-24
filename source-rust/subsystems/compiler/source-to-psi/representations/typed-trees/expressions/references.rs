@@ -1367,6 +1367,11 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     fn derived_declaration_references(&self) -> bool {
         true
     }
+    /// A semantic data declaration publishes every selected storage layout.
+    /// Reading the declaration does not itself use all its representations.
+    fn published_data_layouts(&self) -> bool {
+        self.derived_declaration_references()
+    }
     /// A carried type belongs to the typed program. Inferring it never names
     /// its declaration in the receiver's source.
     fn inferred_type_references(&self) -> bool {
@@ -1500,6 +1505,9 @@ impl<References: TypedReferences> TypedReferences for CodeSelectionReferences<'_
     fn derived_declaration_references(&self) -> bool {
         self.0.derived_declaration_references()
     }
+    fn published_data_layouts(&self) -> bool {
+        self.0.published_data_layouts()
+    }
     fn inferred_type_references(&self) -> bool {
         self.0.inferred_type_references()
     }
@@ -1582,6 +1590,7 @@ struct ReferenceCollector {
     descriptor_symbols: HashSet<SymbolHandle>,
     classify_static_arguments: Option<StaticArgumentClassifier>,
     skip_universe_levels: bool,
+    skip_published_data_layouts: bool,
     statements: HashSet<StatementHandle>,
     expressions: HashSet<ExpressionHandle>,
     track_new_expressions: bool,
@@ -1601,6 +1610,9 @@ impl Extend<SymbolHandle> for ReferenceCollector {
     }
 }
 impl TypedReferences for ReferenceCollector {
+    fn published_data_layouts(&self) -> bool {
+        !self.skip_published_data_layouts
+    }
     fn visit_universe_levels(&self) -> bool {
         !self.skip_universe_levels
     }
@@ -1616,6 +1628,7 @@ impl TypedReferences for ReferenceCollector {
         let mut description = ReferenceCollector {
             describing_alias_arguments: true,
             skip_universe_levels: self.skip_universe_levels,
+            skip_published_data_layouts: self.skip_published_data_layouts,
             ..ReferenceCollector::default()
         };
         description.declaration_description_dependency(application.supplied_operand_owner);
@@ -2149,6 +2162,23 @@ pub fn collect_selected_program_references(
     selection: &DeclarationSelection,
 ) -> ProgramReferences {
     collect_program_references_with_roles(program, selection, None)
+}
+
+/// Source and inferred types used by these declarations, before publication
+/// also associates every selected representation with its semantic data.
+pub fn selected_storage_type_references(
+    program: &TypedTrees,
+    selection: &DeclarationSelection,
+) -> Vec<TypeReferenceHandle> {
+    collect_program_references_from(
+        program,
+        ReferenceCollector {
+            selection: selection.clone(),
+            skip_published_data_layouts: true,
+            ..Default::default()
+        },
+    )
+    .type_references
 }
 
 #[derive(Default)]
@@ -3181,7 +3211,7 @@ fn visit_data(
 ) {
     visit_declaration_dependencies(program, retained, data.symbol);
     visit_symbol(retained, data.symbol);
-    if retained.derived_declaration_references() && !program.plan_laid_layouts.is_empty() {
+    if retained.published_data_layouts() && !program.plan_laid_layouts.is_empty() {
         for plan in program
             .plan_laid_layouts
             .iter()
