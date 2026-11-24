@@ -89,12 +89,13 @@ impl Program<'_> {
     }
 
     /// The trait a machine satisfies a requirement of, with the data each of
-    /// the trait's type arguments names: which conformance the machine is a
-    /// part of. Read from the declaration as written, before the machine.
+    /// the trait's type arguments names and the name after `as`, if any:
+    /// which conformance the machine is a part of. Read from the declaration
+    /// as written, before the machine.
     pub(crate) fn conformance(
         &self,
         machine: &Machine,
-    ) -> Option<(SymbolHandle, Vec<Option<SymbolHandle>>)> {
+    ) -> Option<(SymbolHandle, Vec<Option<SymbolHandle>>, Option<String>)> {
         let typed = self.typed;
         let mut edges = typed.machine_trait_conformances(machine).into_iter();
         let (Some(edge), None) = (edges.next(), edges.next()) else {
@@ -116,6 +117,7 @@ impl Program<'_> {
                 .iter()
                 .map(|(_, argument)| self.names_data(*argument))
                 .collect(),
+            edge.alias.as_ref().map(|alias| alias.as_str().to_owned()),
         ))
     }
 

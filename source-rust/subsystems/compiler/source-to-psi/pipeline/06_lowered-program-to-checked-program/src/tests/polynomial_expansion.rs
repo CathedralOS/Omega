@@ -433,32 +433,48 @@ fn expansion_is_counted_before_it_is_built_and_each_mutual_law_still_applies() {
 }
 
 #[test]
-fn the_recovered_unlicensed_program_is_refused_before_any_law_is_judged() {
-    // The recovered program claims three things: laws merely in scope
-    // license nothing (`needs_rearrange`), one trait application cannot
-    // borrow another's law (`mixed_application_associativity`), and one
-    // satisfier group cannot borrow another's (`mixed_family_associativity`).
-    // The last two need satisfier groups, `satisfies ... as Name`, which the
-    // mathematical signature does not read yet. So today the whole program
-    // is refused at its eight `satisfies` clauses before any law is judged:
-    // refused, but not yet for the reason it was written to test.
+fn the_recovered_unlicensed_program_is_refused_for_its_three_reasons() {
+    // The recovered program claims three things, and each is one law left
+    // unproved while every other law in it is judged. Laws merely in scope
+    // license nothing: `needs_rearrange` has `plus`'s associativity beside
+    // it and no conformance. One trait application cannot borrow another's
+    // law: `mixed_application_associativity` is about the operation of
+    // `ApplicationJoin<Peano, FirstTag>`, whose associativity only
+    // `ApplicationJoin<Peano, SecondTag>` proves. And one satisfier group
+    // cannot borrow another's: `mixed_family_associativity` is about
+    // `combine as CommutativeNand`, and the associativity proved for
+    // `FamilyJoin<Peano>` is of `combine as AssociativeAnd`.
     let verdicts = compile(&without_entry(UNLICENSED), &[]);
-    let mut refusals = 0;
-    for verdict in &verdicts {
-        match verdict {
-            RouteVerdict::Accepted(_) => {}
-            RouteVerdict::FallBack(refusal) => {
-                assert_eq!(refusal.reason, RefusalReason::Unsupported, "{refusal:?}");
-                assert_eq!(
-                    refusal.detail,
-                    "machine `satisfies` clause with a binding, an alias or lifetimes"
-                );
-                refusals += 1;
-            }
-            other => panic!("no law may be judged: {other:?}"),
-        }
-    }
-    assert_eq!(refusals, 8);
+    let mut laws = verdicts.iter().filter_map(|verdict| match verdict {
+        RouteVerdict::UnprovedLaws(laws) => Some(laws),
+        RouteVerdict::Laws(judgment) => panic!("the program must not be accepted: {judgment:?}"),
+        RouteVerdict::Accepted(_) => None,
+        other => panic!("every part must be read: {other:?}"),
+    });
+    let (Some(laws), None) = (laws.next(), laws.next()) else {
+        panic!("one list of unproved laws")
+    };
+    let left: Vec<_> = laws
+        .iter()
+        .map(|law| (law.machine.as_str(), law.cause))
+        .collect();
+    assert_eq!(
+        left,
+        [
+            ("needs_rearrange", UnprovedCause::NoDerivation),
+            (
+                "mixed_application_associativity",
+                UnprovedCause::NoDerivation
+            ),
+            ("mixed_family_associativity", UnprovedCause::NoDerivation),
+        ]
+    );
+    assert_eq!(
+        laws[2].statement,
+        "cannot prove ensures contract for `mixed_family_associativity`: \
+         core\\Identity::<Peano>(family_nand(family_nand(a, b), c), \
+         family_nand(a, family_nand(b, c)))"
+    );
 
     // The program's first part, everything before its entry state, needs
     // no satisfier group. Nothing there declares a conformance, so nothing

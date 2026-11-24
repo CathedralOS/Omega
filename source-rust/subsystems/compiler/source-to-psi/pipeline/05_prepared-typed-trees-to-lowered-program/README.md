@@ -24,7 +24,10 @@ the proofs of the laws after it. A machine that satisfies a requirement of a
 trait brings in every other machine over such data that satisfies a
 requirement of the same trait at the same data, so a program that calls the
 library's `add` on `Nat` gets `core/nat.omg`'s whole `CommutativeSemiring`
-conformance. A machine that returns a value and states an equality is read
+conformance. A `satisfies` clause may name its conformance
+(`satisfies Join<T>::combine as Nand`): machines under different names are
+different conformances of the same trait, and a law proved in one licenses
+nothing in another. A machine that returns a value and states an equality is read
 as a definition and as a law. Data with a field of mathematical data is
 mathematical too: a record of such fields is read as the product of their
 types, with field access and record literals as projections and tuples.

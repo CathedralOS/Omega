@@ -62,6 +62,11 @@ pub(crate) struct Satisfaction {
     declaring_trait: SymbolHandle,
     requirement: SymbolHandle,
     scope: Vec<ValueType>,
+    /// The name after `as`, when the clause has one. Machines that satisfy
+    /// one trait at the same type arguments under different names are
+    /// different conformances: `combine as Nand` and `combine as And` are
+    /// two operations, and a law proved for one says nothing of the other.
+    group: Option<String>,
     ensures: Vec<Proposition>,
 }
 
@@ -88,12 +93,9 @@ impl Program<'_> {
         }
         if edge.external_binding.is_some()
             || edge.via_expression.is_valid()
-            || edge.alias.is_some()
             || !edge.trait_lifetime_arguments.is_empty()
         {
-            return Err(unserved(
-                "`satisfies` clause with a binding, an alias or lifetimes",
-            ));
+            return Err(unserved("`satisfies` clause with a binding or lifetimes"));
         }
         let Some(crate::source_state::machine::SatisfiedDeclaration::Trait {
             definition,
@@ -145,6 +147,7 @@ impl Program<'_> {
             declaring_trait: definition.symbol,
             requirement: self.requirement_template(requirement.symbol),
             scope: scope.into_iter().map(|(_, value)| value).collect(),
+            group: edge.alias.as_ref().map(|alias| alias.as_str().to_owned()),
             ensures: required.ensures,
         }))
     }
@@ -339,6 +342,7 @@ impl Program<'_> {
                     satisfactions.iter().any(|other| {
                         other.declaring_trait == satisfaction.declaring_trait
                             && other.scope == satisfaction.scope
+                            && other.group == satisfaction.group
                             && matches!(
                                 converter.functions.get(other.machine),
                                 Some(Read::Function(entry)) if *entry == operation
@@ -2489,6 +2493,7 @@ impl<'p> Converter<'p, '_> {
                 .find(|other| {
                     other.declaring_trait == law.declaring_trait
                         && other.scope == law.scope
+                        && other.group == law.group
                         && other.requirement == member
                 })
                 .ok_or_else(|| {
