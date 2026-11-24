@@ -7,10 +7,7 @@ Compile-scope probe. No standard-library dependency.
   `Trait::member = machine` impl roster, `as Q` cast.
 - discreteness_calls: `x <= 7` recovers `x < 8` — kernel
   discreteness discharges a strict-order callee requires.
-- layout_access_plan: core::layout — `AccessPlan::inaccessible`
-  seed + `AccessPlan::with` functional replace +
-  `FieldAccess::Stable{read,write,exposure:Exposure::Exported}`
-  + `satisfies Access::plan`.
+- [layout_access_plan](../layout_access_plan/) checks a field policy and the byte offsets selected by a separate fixed layout.
 - transitive_effect: callee-declared `reaches Console` propagates
   through an undeclared caller. Binding-field needs a Fused
   provider even at --check (filed gap); effect inference checked
