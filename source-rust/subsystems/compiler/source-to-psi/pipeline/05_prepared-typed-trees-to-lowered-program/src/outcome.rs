@@ -583,6 +583,7 @@ impl<'b> Walk<'b> {
     /// call in it has no normal completion, so evaluation never finishes.
     fn expression(&mut self, machine: MachineId, expression: &Expression) -> Checked<bool> {
         match &expression.kind {
+            ExpressionKind::TheoremApplication { .. } => Ok(true),
             ExpressionKind::Atomic(operation) => {
                 for operand in operation.inputs() {
                     if !self.expression(machine, operand)? {
@@ -594,6 +595,7 @@ impl<'b> Walk<'b> {
             ExpressionKind::SavedSubject(_)
             | ExpressionKind::Integer(_)
             | ExpressionKind::Float(_)
+            | ExpressionKind::ErasedApplication(_)
             | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::MachineValue { .. }

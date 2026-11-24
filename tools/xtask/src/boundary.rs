@@ -936,11 +936,9 @@ pub fn single_form_entry_violations(root: &Path) -> Vec<String> {
     violations
 }
 
-/// Ordinary compilation does not re-verify its own stage output
-/// (omega-rust/pipeline.md, "Verification placement"). Stage 02's validator
-/// derives the execution plan a second time, so a call to it from the default
-/// path would both hide a preparation bug and double the stage's work. Only
-/// the explicit validator request and tests may call it.
+/// Keep the target-operation plan validator on explicit validation and test
+/// paths. It derives the execution plan again, so calling it during ordinary
+/// compilation would repeat the preparation work.
 pub fn plan_validator_call_violations(root: &Path) -> Vec<String> {
     call_violations(
         root,

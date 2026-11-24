@@ -19,6 +19,9 @@ pub struct SavedProgramTarget<'a> {
 pub struct SourceNativeTarget<'a> {
     pub profile: target::TargetProfile,
     pub settings: NativeApplicationSettings<'a>,
+    /// Receiving execution in an isolated domain supplies only these physical classes
+    /// and has no ambient foreign-call adapter.
+    pub isolated_execution_grant: Option<semantic_vocabulary::TerminalAuthorityDisposition>,
     pub package_permissions: Option<declaration_scope::ProductDeclarationScope>,
     pub semantic_bindings: Arc<[provider_acceptance::AcceptedSemanticBinding]>,
     pub installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
@@ -54,6 +57,7 @@ pub fn prepare_source_program(
         target.settings,
         exclusions,
         target.installation_assumptions,
+        target.isolated_execution_grant,
     )?;
     receive(&program)?;
     Ok(program)
@@ -146,6 +150,7 @@ pub fn prepare_saved_program(
         },
         target.behavior_exclusions,
         Vec::new(),
+        None,
     )
 }
 
@@ -158,6 +163,7 @@ fn prepare_issued_program<Publisher>(
     settings: NativeApplicationSettings<'_>,
     behavior_exclusions: &[behavior_exclusion_requests::AuthoredBehaviorExclusion],
     installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
+    isolated_execution_grant: Option<semantic_vocabulary::TerminalAuthorityDisposition>,
 ) -> Result<crate::NativeProgram, Vec<Diagnostic>> {
     let admitted = native_inputs::admit(authorization, issued)
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
@@ -171,6 +177,7 @@ fn prepare_issued_program<Publisher>(
         terminal,
         suppliers: components,
         permissions,
+        isolated_execution_grant,
         installation_assumptions,
     })
 }

@@ -32,16 +32,19 @@ pub enum ProcessExitObservation {
     Terminated,    // Neither a numeric exit status nor a Unix signal was reported.
 }
 
+impl From<bounded_process::BoundedProcessExitStatus> for ProcessExitObservation {
+    fn from(status: bounded_process::BoundedProcessExitStatus) -> Self {
+        match (status.code(), status.unix_signal()) {
+            (Some(code), _) => Self::Exited(code),
+            (_, Some(signal)) => Self::Signaled(signal),
+            _ => Self::Terminated,
+        }
+    }
+}
+
 impl ProcessExitObservation {
     pub fn observe(status: &std::process::ExitStatus) -> Self {
-        if let Some(code) = status.code() {
-            return Self::Exited(code);
-        }
-        #[cfg(unix)]
-        if let Some(signal) = std::os::unix::process::ExitStatusExt::signal(status) {
-            return Self::Signaled(signal);
-        }
-        Self::Terminated
+        bounded_process::BoundedProcessExitStatus::from(*status).into()
     }
 
     pub const fn code(self) -> Option<i32> {
@@ -54,7 +57,7 @@ impl ProcessExitObservation {
     /// `Some(true)` when the host shows the whole semantic status and it
     /// matches, `Some(false)` when what the host shows differs, and `None`
     /// when the host truncated the status and the visible bits match.
-    pub(super) fn matches_host_presentation(self, semantic_status: i32) -> Option<bool> {
+    pub fn matches_host_presentation(self, semantic_status: i32) -> Option<bool> {
         let presented_status = if cfg!(unix) {
             semantic_status & 255
         } else {
@@ -66,7 +69,7 @@ impl ProcessExitObservation {
         (presented_status == semantic_status).then_some(true)
     }
 
-    pub(super) fn matches_crash_presentation(self, cause: CrashCause) -> Option<bool> {
+    pub fn matches_crash_presentation(self, cause: CrashCause) -> Option<bool> {
         if cause != CrashCause::Trap {
             return None;
         }

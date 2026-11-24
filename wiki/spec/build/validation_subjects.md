@@ -62,8 +62,9 @@ unchecked declaration.
 `Build::validate(builder: @mutable Build, dependency: @DependencyRegistration)`
 borrows an exact dependency registration and records a full-package validation
 request. It performs no alias-string lookup and adds no dependency identifier
-syntax. Both Product and Build dependencies registered directly by the supplied
-root Build are eligible, in their corresponding checking contexts.
+syntax. Both directly selected product libraries and the Build libraries supplied to
+this invocation remain eligible in their own checking contexts. Validation uses
+the exact registration available to the builder. It cannot add an import.
 
 ```omega
 machine build(builder: @mutable Build) {
@@ -81,17 +82,10 @@ its owning Build activation, including its Build/Product purpose scope. It must
 carry real registration identity through the existing opaque Build-handle
 mechanism, not depend on variable names, equal empty records or an independently
 constructed `{}`. Aliases may coincide across purpose scopes without identifying
-the registrations. This is the same registration identity used by
-[dependency preparation](scoped_execution.md#dependency-declarations-and-binding),
-not a second registry for validation.
-
-Registration values are copyable immutable handles within their owning
-activation. Copies and borrows retain the same identity; preparation's by-value
-argument does not consume the caller's registration. Validation can therefore
-be requested before or after preparation, without retargeting the registration
-or replaying Build statements. A handle from a different or expired activation
-is not valid for the supplied root builder, and it is not a persistent portable
-identity. Possessing or constructing a same-shaped value supplies no authority.
+the registrations. The [dependency registration](scoped_execution.md#dependency-declarations-and-binding)
+also identifies the validation subject. Copies retain its identity. A handle
+from a different or expired activation is invalid for this builder. Possessing
+a handle grants no host authority.
 
 A root helper may use the root's actual `Build` and registration to add the
 request; a dependency's separate activation cannot enlarge its consumer's set.

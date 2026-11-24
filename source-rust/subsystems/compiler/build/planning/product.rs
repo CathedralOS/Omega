@@ -132,6 +132,26 @@ impl ProductStage<'_> {
         &self.deployments
     }
 
+    pub fn check(
+        &self,
+        profile: TargetProfile,
+        timings: &mut source_compiler::CompileTimings,
+    ) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
+        let application = matches!(
+            self.product.evaluated().configuration.project_declaration,
+            Some(BuildDeclaration::Application(_))
+        );
+        let contract = profile.program_entry_slot().source_contract();
+        let bound_entry = self.entries.iter().any(|entry| {
+            entry.slot.rsplit_once("::") == Some((contract.owner, contract.slot_name))
+        });
+        if application || bound_entry {
+            self.program(profile, Vec::new())?.check_target(timings)
+        } else {
+            compiler::check(self.source(), timings)
+        }
+    }
+
     pub fn source(&self) -> StageSource<'_> {
         let source = self.product.source();
         let build = &self.product.evaluated().configuration;
@@ -239,6 +259,7 @@ impl ProductStage<'_> {
                     .admit_for(Some(profile))
                     .map_err(|reason| vec![Diagnostic::error(reason)])?,
             },
+            isolated_execution_grant: None,
             package_permissions: self.scope.as_deref().cloned(),
             semantic_bindings: self
                 .product

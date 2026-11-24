@@ -199,7 +199,7 @@ pub fn compile(
                 |_| "runtime admission stops before target lowering",
             )?;
             let admitted = program
-                .prepare(options.advisories)?
+                .prepare(options.advisories, &mut Default::default())?
                 .admit_runtime(entry_memory, &mut Vec::new())?;
             Ok(CompileOutput {
                 artifact: Artifact::Runtime(product_publication::CompletedProduct::from_runtime(
@@ -214,7 +214,7 @@ pub fn compile(
         } => {
             let application = program.application().clone();
             let emitted = program
-                .prepare(options.advisories)?
+                .prepare(options.advisories, &mut Default::default())?
                 .emit(entry_memory, validators)?;
             Ok(CompileOutput {
                 artifact: Artifact::Native(product_publication::CompletedProduct::from_native(
@@ -229,6 +229,17 @@ pub fn compile(
 }
 
 impl Program<'_> {
+    /// Check the providers and scalar obligations demanded by this target's entry.
+    pub fn check_target(
+        self,
+        timings: &mut source_compiler::CompileTimings,
+    ) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
+        let mut advisories = Vec::new();
+        self.prepare(Some(&mut advisories), timings)?
+            .check_target()?;
+        Ok(advisories)
+    }
+
     fn profile(&self) -> target::TargetProfile {
         match self {
             Self::Psi { target, .. } => target.profile,
@@ -248,6 +259,7 @@ impl Program<'_> {
     fn prepare(
         self,
         advisories: Option<&mut Vec<Diagnostic>>,
+        timings: &mut source_compiler::CompileTimings,
     ) -> Result<native_compiler::NativeProgram, Vec<Diagnostic>> {
         match self {
             Self::Psi { program, target } => {
@@ -259,10 +271,11 @@ impl Program<'_> {
                 runtime_consent,
                 suppliers,
             } => {
-                let publication = source_to_psi::compile_for_target(
+                let publication = source_to_psi::compile_for_target_with_timings(
                     source,
                     target.profile.target_name(),
                     advisories,
+                    timings,
                 )?;
                 Self::CheckedSource {
                     publication,
@@ -270,7 +283,7 @@ impl Program<'_> {
                     runtime_consent,
                     suppliers,
                 }
-                .prepare(None)
+                .prepare(None, timings)
             }
             Self::CheckedSource {
                 publication,

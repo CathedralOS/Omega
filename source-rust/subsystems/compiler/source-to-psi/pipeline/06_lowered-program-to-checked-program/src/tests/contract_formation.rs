@@ -125,10 +125,13 @@ fn predicate_definitions_form_without_assuming_their_bodies() {
                 scalar_type: ScalarType::Integer(integer_type(IntegerSign::Unsigned)),
                 qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
             }],
-            body: Proposition::Conjunction(vec![
-                Proposition::LessOrEqual(number(1), input.clone()),
-                nonnegative(subtract(input.clone(), number(1))),
-            ]),
+            type_parameters: vec![],
+            body: terminal_psi::MathematicalPredicateBody::Proposition(Proposition::Conjunction(
+                vec![
+                    Proposition::LessOrEqual(number(1), input.clone()),
+                    nonnegative(subtract(input.clone(), number(1))),
+                ],
+            )),
         });
     let mut activity = crate::checking::ProofSearchActivity::default();
     let error = crate::checking::formation::module(&module, &[], &mut activity).unwrap_err();
@@ -139,7 +142,10 @@ fn predicate_definitions_form_without_assuming_their_bodies() {
             .contains("mathematical definition: contract arithmetic is not proved total")
     );
     module.scalars.scalar_predicate_definitions[0].body =
-        nonnegative(subtract(number(u32::MAX.into()), input));
+        terminal_psi::MathematicalPredicateBody::Proposition(nonnegative(subtract(
+            number(u32::MAX.into()),
+            input,
+        )));
     crate::checking::formation::module(&module, &[], &mut activity).unwrap();
 }
 

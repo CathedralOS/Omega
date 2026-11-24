@@ -82,6 +82,16 @@ owned source/data inputs. The gate forwards it to checking, package preparation,
 and execution with `--build-input`; a resumed package review retains its recorded
 selection. Standalone `omega` and `omega run` accept the same flags.
 
+For a runnable sample with observable file outputs, `output_files` maps a
+guest-working-directory-relative name to a sample-relative fixture with the
+expected bytes. A null fixture expects the file to be absent. For example,
+`{"output_files":{"disk.img":"expected/disk.img","temporary.lock":null}}`
+checks both engines' images against the fixture and each other, and checks
+that both removed the lock. An empty image and a missing image differ.
+Names use relative path components with forward slashes. The gate reads
+regular files, rejects symbolic links, and leaves runtime filesystem grants
+to the application's normal provider selection.
+
 `entry` names one local Omega source. `rejection_contains` is a list of literal
 stderr diagnostic fragments, all required. Optional `rejection_any_contains`
 requires at least one listed literal as well; `rejection_casefold: true`

@@ -10,11 +10,9 @@ run on the Psi interpreter and natively, and passes only by returning. A test
 that crashes refuses the build. These twins differ only in one test's expected
 sum.
 
-The Build's own refusals come before any test runs: registering a group twice,
-configuring a service for an unregistered group, and naming a service slot.
-The runner backs only std's `FilesystemService`, and nothing yet identifies
-that slot without trusting a package name, so every named slot is refused,
-including a same-spelled `FilesystemService` declared by the project itself.
+A duplicate registration fails before any tests run. The retired
+`tests.service` spelling follows ordinary name resolution even when a visible
+group and service match its arguments.
 
 */
 
@@ -61,18 +59,29 @@ public boundary trait FilesystemService {
     machine sync() reaches none crashes none;
 }
 
-machine main() { }
+// Executing the application in place of a registered test would fail every passing case.
+machine main() crashes Trap { crash Trap; }
 ";
 
 // Compile a project whose Build registers tests with `registration`, and
 // return whether it compiled and its combined output.
 fn build(name: &str, expected_sum: &str, registration: &str) -> (bool, String) {
-    let root = std::env::temp_dir().join(format!(
-        "omega-build-test-groups-{}-{name}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(&root).expect("staging directory");
+    build_with(name, expected_sum, registration, "linux_x86_64", &[])
+}
+
+fn build_with(
+    name: &str,
+    expected_sum: &str,
+    registration: &str,
+    target: &str,
+    flags: &[&str],
+) -> (bool, String) {
+    let scratch = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "build-test-group",
+        false,
+    )
+    .expect("private staging directory");
+    let root = scratch.path();
     std::fs::write(
         root.join("main.omg"),
         TESTS.replace("EXPECTED", expected_sum),
@@ -83,7 +92,7 @@ fn build(name: &str, expected_sum: &str, registration: &str) -> (bool, String) {
         format!(
             "machine build(builder: @mutable Build) {{
     Build::application(builder, \"{name}\");
-    Build::bind(builder, linux_x86_64\\ProgramEntry, main);
+    Build::bind(builder, {target}\\ProgramEntry, main);
 {registration}
 }}
 "
@@ -91,12 +100,23 @@ fn build(name: &str, expected_sum: &str, registration: &str) -> (bool, String) {
     )
     .expect("staged Build");
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["--target", "linux_x86_64", "build.omg"])
-        .current_dir(&root)
+        .arg("build")
+        .args(flags)
+        .args(["--target", target, "build.omg"])
+        .current_dir(root)
         .stdin(std::process::Stdio::null())
         .output()
         .expect("omega runs");
-    let _ = std::fs::remove_dir_all(&root);
+    if flags.contains(&"--report-file") && output.status.success() {
+        let report = std::fs::read_to_string(root.join("report.txt")).expect("build report");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        for test in stderr.lines().filter(|line| line.starts_with("test `")) {
+            assert!(
+                report.lines().any(|row| row == test),
+                "{test} missing from {report}"
+            );
+        }
+    }
     (
         output.status.success(),
         format!(
@@ -144,19 +164,189 @@ fn the_build_refuses_malformed_group_requests_before_any_test_runs() {
             "test group registration repeats the same requirement",
         ),
         (
-            "unregistered",
-            "    _ = builder.tests.service::<Tests::arithmetic, FilesystemService>();",
-            "test group service names a group this Build has not registered",
-        ),
-        (
-            "slot",
+            "retired_service",
             "    _ = builder.tests.group::<Tests::arithmetic>();\n    _ = builder.tests.service::<Tests::arithmetic, FilesystemService>();",
-            "the test runner cannot back `FilesystemService`",
+            "this call has no visible declaration in its source scope",
         ),
     ] {
         let (compiled, output) = build(name, "5u32", registration);
         assert!(!compiled, "{name}: {output}");
         assert!(output.contains(refusal), "{name}: {output}");
         assert!(!output.contains("passed on"), "{name}: {output}");
+    }
+}
+
+#[test]
+fn comparing_registered_tests_reports_each_pair_and_keeps_failed_expectations() {
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        return;
+    };
+    let (ok, output) = build_with(
+        "comparison",
+        "5u32",
+        GROUP,
+        host.target_name(),
+        &["--compare-tests", "--report-file", "report.txt"],
+    );
+    assert!(ok, "{output}");
+    assert_eq!(
+        output.matches("native/Psi comparison agrees").count(),
+        2,
+        "{output}"
+    );
+
+    let (ok, output) = build_with(
+        "failed_expectation",
+        "6u32",
+        GROUP,
+        host.target_name(),
+        &["--compare-tests"],
+    );
+    assert!(!ok, "{output}");
+    let failed = output
+        .lines()
+        .find(|row| row.contains("test `addition_is_correct`"))
+        .unwrap_or_else(|| panic!("missing failed test: {output}"));
+    assert!(failed.contains("crashed with Trap"), "{output}");
+    assert!(failed.contains("native/Psi comparison agrees"), "{output}");
+}
+
+#[test]
+fn a_build_with_no_groups_has_zero_comparisons() {
+    let (ok, output) = build_with(
+        "no_comparisons",
+        "5u32",
+        "",
+        "linux_x86_64",
+        &["--compare-tests"],
+    );
+    assert!(ok, "{output}");
+    assert!(output.contains("0 registered test comparisons"), "{output}");
+}
+
+#[test]
+fn an_artifact_only_build_runs_its_groups_before_publishing_files() {
+    use platform_custody::temporary_directory::TemporaryDirectory;
+    const BUILD: &str = include_str!("fixtures/build/run/artifact_only_group/build.omg");
+    for (sum, should_publish) in [("5u32", true), ("6u32", false)] {
+        let scratch = TemporaryDirectory::create("artifact-group", false).unwrap();
+        let root = scratch.path();
+        std::fs::write(root.join("build.omg"), BUILD).unwrap();
+        std::fs::write(root.join("main.omg"), TESTS.replace("EXPECTED", sum)).unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+            .args(["build", "--target", "linux_arm64", "build.omg"])
+            .current_dir(root)
+            .stdin(std::process::Stdio::null())
+            .output()
+            .unwrap();
+        let report = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(output.status.success(), should_publish, "{report}");
+        let completed = root.join("build/completed");
+        if should_publish {
+            assert!(report.contains("passed on Psi interpreter"), "{report}");
+            let publication = std::fs::read_dir(completed)
+                .unwrap()
+                .next()
+                .unwrap()
+                .unwrap();
+            assert_eq!(
+                std::fs::read(publication.path().join("files/blob.bin")).unwrap(),
+                b"blobdata\n"
+            );
+        } else {
+            assert!(
+                report.contains("test `addition_is_correct`")
+                    && report.contains("crashed with Trap"),
+                "{report}"
+            );
+            assert!(!completed.exists(), "a failing test published its artifact");
+        }
+    }
+}
+
+#[test]
+fn a_required_native_engine_on_another_target_leaves_the_build_incomplete() {
+    let target =
+        if target::TargetProfile::host_if_supported() == Some(target::TargetProfile::LinuxArm64) {
+            "linux_x86_64"
+        } else {
+            "linux_arm64"
+        };
+    let (ok, output) = build_with(
+        "foreign_comparison",
+        "5u32",
+        GROUP,
+        target,
+        &["--compare-tests"],
+    );
+    assert!(!ok, "{output}");
+    assert_eq!(
+        output.matches("passed on Psi interpreter").count(),
+        2,
+        "{output}"
+    );
+    assert!(
+        output.contains("its target does not execute on this host"),
+        "{output}"
+    );
+    assert!(
+        output.contains("native/Psi comparison unavailable"),
+        "{output}"
+    );
+}
+
+#[test]
+fn explicit_process_exit_is_observed_on_both_engines_and_never_passes_the_test() {
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        return;
+    };
+    let scratch =
+        platform_custody::temporary_directory::TemporaryDirectory::create("exit-test", false)
+            .unwrap();
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/build/run/registered_process_exit/build.omg");
+    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .args([
+            "build",
+            "--compare-tests",
+            "--target",
+            host.target_name(),
+            "--build-dir",
+        ])
+        .arg(scratch.path())
+        .arg(fixture)
+        .current_dir(scratch.path())
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let report = String::from_utf8_lossy(&output.stderr);
+    for (name, code, agreed) in [
+        ("exits_with_23", 23, cfg!(windows)),
+        ("exits_with_zero", 0, false),
+        ("exits_with_256", 256, cfg!(windows)),
+    ] {
+        let row = report
+            .lines()
+            .find(|row| row.contains(&format!("test `{name}`")))
+            .unwrap_or_else(|| panic!("{report}"));
+        assert!(
+            row.contains(&format!("exited the process with status {code}")),
+            "{row}"
+        );
+        if code == 0 || (cfg!(unix) && (code & 255) == 0) {
+            assert!(row.contains("exit 0 cannot distinguish"), "{row}");
+        } else {
+            assert!(
+                row.contains(&format!("terminated with status {code}")),
+                "{row}"
+            );
+        }
+        let expected = if agreed {
+            "native/Psi comparison agrees"
+        } else {
+            "native/Psi comparison unavailable because the host"
+        };
+        assert!(row.contains(expected), "{row}");
     }
 }

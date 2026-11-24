@@ -118,7 +118,7 @@ impl<'a> RegisteredTests<'a> {
         let mut notes = Vec::new();
         for group in &checked.declarations.test_groups {
             let path = typed.symbols.display_path(group.requirement, "::");
-            if disabled {
+            if disabled || group.configuration.disabled {
                 notes.push(format!(
                     "group `{path}` (target `{target}`): disabled; its tests were not run"
                 ));
@@ -160,12 +160,6 @@ impl<'a> RegisteredTests<'a> {
                     declaration: retain(machine.symbol)?,
                 });
             }
-            if let Some(service) = group.services.first() {
-                return Err(vec![Diagnostic::error(format!(
-                    "the test runner cannot back `{}`: it backs only std's `FilesystemService`, and no accepted binding identifies that slot without trusting a package name",
-                    typed.symbols.display_path(service.slot, "::"),
-                )).with_source_span(service.source_span)]);
-            }
             if tests.is_empty() {
                 notes.push(format!(
                     "group `{path}` (target `{target}`): registered with no tests; nothing ran"
@@ -193,7 +187,7 @@ impl<'a> RegisteredTests<'a> {
             &mut Default::default(),
             &mut Default::default(),
         )?;
-        let psi = self.source.publish(&checked)?;
+        let psi = self.source.publish(&checked, &mut Default::default())?;
         published_target(psi, checked, target, self.source.subject)
     }
 }

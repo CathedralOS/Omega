@@ -1,0 +1,33 @@
+// The passing program's law about an addition this program defines itself.
+// `plus_local` computes exactly as the library's `add` does, but no
+// conformance declares laws for it, so nothing licenses reordering its
+// operands. `mul` is still the library's.
+use omega\language\core\ProcessExit;
+use omega\language\core\Nat;
+use omega\language\core\add;
+use omega\language\core\mul;
+
+machine plus_local(a: Nat, b: Nat) -> Nat
+terminates by a
+{
+    transition a {
+        Nat::Zero -> (b),
+        Nat::Succ { prev } -> Nat::Succ { prev: plus_local(prev, b) }
+    }
+}
+
+machine relies_on_nothing(a: Nat, b: Nat, c: Nat)
+ensures core\Identity::<Nat>(plus_local(mul(a, b), plus_local(c, a)), plus_local(a, plus_local(c, mul(b, a))))
+{
+}
+
+data Main { }
+machine exit_with_status(main: @mutable Main) reaches ProcessExit {
+    ProcessExit::exit_process(0);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit {
+    let mutable entry_storage: Main;
+    block exit_with_status(@mutable entry_storage);
+}

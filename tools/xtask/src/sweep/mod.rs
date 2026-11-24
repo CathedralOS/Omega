@@ -1026,7 +1026,7 @@ fn sweep(
     // fails in the first second rather than after the last program.
     let (journal, earlier) = match &options.out {
         Some(out) => {
-            let (journal, earlier) = Journal::open(root, out, header)?;
+            let (journal, earlier) = Journal::open(root, out, header, programs)?;
             (Some(journal), earlier)
         }
         None => (None, Vec::new()),
@@ -1289,6 +1289,7 @@ mod tests {
                 entry: Some(PathBuf::from("main.omg")),
                 role: "intended-invalid".to_owned(),
                 source_inputs: Vec::new(),
+                output_files: Default::default(),
                 rejection: fragments.iter().map(|text| (*text).to_owned()).collect(),
                 rejection_any: Vec::new(),
                 rejection_casefold: false,

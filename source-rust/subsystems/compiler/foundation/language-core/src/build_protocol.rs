@@ -13,7 +13,7 @@ pub const SELECTION_PROTOCOL: &str = "BuildBindingOperations";
 pub enum SelectionProtocolOperation {
     /// Lends the Build value to the activation and returns its ticket.
     Prepare,
-    /// Lends the Build's `tests` facet for test-group registration.
+    /// Authenticates the Build's `tests` facet before a group selection.
     PrepareTests,
     AwaitProvider,
     /// `Build::bind(builder, slot, entry)` with an authored entry path.
@@ -24,6 +24,8 @@ pub enum SelectionProtocolOperation {
     Select,
     SelectProvider,
     SelectProviderOption,
+    /// Registers a requirement and lends its activation-owned configuration.
+    RegisterTestGroup,
     Exclude,
     DescribeParameter,
     DescribeField,
@@ -35,6 +37,7 @@ impl SelectionProtocolOperation {
         match self {
             Self::Prepare => "prepare",
             Self::PrepareTests => "prepare_tests",
+            Self::RegisterTestGroup => "register_test_group",
             Self::AwaitProvider => "await_provider",
             Self::Bind => "bind",
             Self::BindDescription => "bind_description",

@@ -37,6 +37,7 @@ public boundary trait BuildBindingOperations {
     machine bind(activation: u64) reaches none crashes none;
     machine bind_description(activation: u64, description: ProductEntryRef) reaches none crashes none;
     machine bind_native<Locator>(activation: u64, target: u64, locator: Locator) reaches none crashes none;
+    machine register_test_group(activation: u64) -> @mutable TestGroupSettings reaches none crashes none;
     machine select(activation: u64) reaches none crashes none;
     machine select_provider(activation: u64, target: u64, independent: bool) reaches none crashes none;
     machine select_provider_option<Value>(activation: u64, option: Value) reaches none crashes none;

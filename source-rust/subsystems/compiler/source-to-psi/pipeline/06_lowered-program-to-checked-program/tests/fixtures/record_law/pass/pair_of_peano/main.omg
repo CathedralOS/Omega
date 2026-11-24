@@ -1,0 +1,90 @@
+// Laws about a record of two Peano numbers: field access, a record written
+// from its fields, and equality of whole records proved field by field.
+use omega\language\core\ProcessExit;
+
+data Peano {
+    case Zero;
+    case Succ(pred: Peano);
+}
+
+// A record whose fields are mathematical values is mathematical too.
+data Pair {
+    left: Peano;
+    right: Peano;
+}
+
+machine plus(a: Peano, b: Peano) -> Peano
+terminates by a
+{
+    transition a {
+        Peano::Zero -> (b),
+        Peano::Succ { pred } -> Peano::Succ { pred: plus(pred, b) }
+    }
+}
+
+machine plus_zero_right(a: Peano)
+terminates by a
+ensures
+    core\Identity::<Peano>(plus(a, Peano::Zero), a)
+{
+    transition a {
+        Peano::Zero -> base(),
+        Peano::Succ { pred } -> step(pred)
+    }
+    machine base() {
+    }
+    machine step(pred: Peano) {
+        plus_zero_right(pred);
+    }
+}
+
+machine swap(p: Pair) -> Pair {
+    transition { _ -> (Pair { left: p.right, right: p.left }) }
+}
+
+// Swapping twice rebuilds each field of `p` from `p`: a record of every
+// field of one value is that value.
+machine swap_twice(p: Pair)
+ensures
+    core\Identity::<Pair>(swap(swap(p)), p)
+{
+}
+
+machine zero_pair() -> Pair {
+    transition { _ -> (Pair { left: Peano::Zero, right: Peano::Zero }) }
+}
+
+machine add_pair(p: Pair, q: Pair) -> Pair {
+    transition { _ -> (Pair { left: plus(p.left, q.left), right: plus(p.right, q.right) }) }
+}
+
+// Field by field: each citation rewrites inside one field of the record.
+machine add_pair_zero(p: Pair)
+ensures
+    core\Identity::<Pair>(add_pair(p, zero_pair()), p)
+{
+    plus_zero_right(p.left);
+    plus_zero_right(p.right);
+}
+
+// A premise about fields, and a local the body names before its value.
+machine swap_left(p: Pair, q: Pair) -> Pair
+requires
+    core\Identity::<Peano>(p.left, q.right)
+ensures
+    core\Identity::<Peano>(q.right, p.left)
+{
+    let swapped: Pair = swap(q);
+    transition { _ -> (swapped) }
+}
+
+data Main { }
+machine exit_with_status(main: @mutable Main) reaches ProcessExit {
+    ProcessExit::exit_process(0);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit {
+    let mutable entry_storage: Main;
+    block exit_with_status(@mutable entry_storage);
+}

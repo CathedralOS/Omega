@@ -4335,6 +4335,35 @@ pub(crate) mod trait_and_machine_tables {
             })
         }
 
+        /// A proof's declared contract does not select executable code. Keep
+        /// this lookup separate from `retained_static_machine_contract` so a
+        /// logical argument cannot satisfy a callback request.
+        pub fn proof_parameter_contract(
+            &self,
+            symbol: SymbolHandle,
+        ) -> Option<&signature::StateSignature> {
+            if !symbol.is_valid() || !self.symbols.symbols().nodes().is_valid(symbol) {
+                return None;
+            }
+            self.with_type_parameter_declarations(symbol, |rows| {
+                let mut found = None;
+                for handle in rows {
+                    if !self.data_type_parameters.is_valid(*handle) {
+                        return None;
+                    }
+                    let parameter = self.data_type_parameters.get(*handle);
+                    let data::TypeParameterKind::Proof { contract } = &parameter.kind else {
+                        return None;
+                    };
+                    if found.is_some_and(|previous| previous != contract) {
+                        return None;
+                    }
+                    found = Some(contract);
+                }
+                found
+            })
+        }
+
         /*
             A machine's `crashes` clause is a ceiling its body and calls are
             checked against, instead of a request to infer the routes, when
@@ -5279,6 +5308,11 @@ pub(crate) mod type_reference_queries {
             use crate::source_state::data::TypeParameterKind;
             use crate::source_state::static_applications::StaticMachineBindingValue;
             match (kind, value) {
+                (TypeParameterKind::Proof { .. }, StaticMachineBindingValue::Proof(actual)) => {
+                    // This compares the retained citation, not logical proof
+                    // identity and not a selected executable declaration.
+                    argument == actual
+                }
                 (TypeParameterKind::Type, StaticMachineBindingValue::Type(actual)) => {
                     use crate::source_state::type_identity::{
                         IndexIdentityArgument, applied_index_identity,

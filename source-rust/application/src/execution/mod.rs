@@ -80,15 +80,13 @@ Why `--both` captures `stdin` lazily and distinguishes preflight unavailability:
 */
 
 mod compilation;
-mod output_comparison;
 mod private_observation;
-mod process_exit;
 mod retained_artifacts;
 mod standard_input;
 
-pub use process_exit::ProcessExitObservation;
+pub use project_build::observations::ProcessExitObservation;
 
-use output_comparison::{OutputDivergence, ProgramStreams};
+use project_build::observations::{OutputDivergence, ProgramStreams, first_output_difference};
 
 use diagnostics::Diagnostic;
 use package_compilation::build_execution::BuildSnapshotRequest;
@@ -127,6 +125,7 @@ pub enum ExecutionOutcome {
         target_name: String,
     },
     Host {
+        can_end_the_process: Option<bool>,
         output: Output,
         exit: ProcessExitObservation,
         comparison: InterpreterComparison,
@@ -280,6 +279,10 @@ pub fn run_project(
     if request.keep_artifacts {
         retained_artifacts::retain(&report, &build_dir)?;
     }
+    // Publication consumes the retained Psi when it installs the executable.
+    let can_end_the_process = report
+        .artifact()
+        .map(|published| published.artifact.semantic_module().can_end_the_process());
     let (report, executable) = report.publish(&build_dir).map_err(RunError::Publication)?;
     let execution = match request.target_name {
         Some(target_name) => ExecutionOutcome::TargetOnly { target_name },
@@ -334,6 +337,7 @@ pub fn run_project(
                 interpretation,
             );
             ExecutionOutcome::Host {
+                can_end_the_process,
                 private_entry_ram,
                 output,
                 exit,
@@ -644,7 +648,7 @@ fn compare_finished_runs(
         InterpreterComparison::AgreesCrash { cause } => AgreedTermination::Crash(cause),
         unresolved => return unresolved,
     };
-    match output_comparison::first_output_difference(native_streams, psi_streams) {
+    match first_output_difference(native_streams, psi_streams) {
         None => termination.agreement(),
         Some(divergence) => InterpreterComparison::OutputDisagrees {
             termination,

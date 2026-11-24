@@ -489,8 +489,7 @@ public machine is_finite(x: f64) -> bool {
     // No IEEE bit-classification enters the grammar -- the arithmetic IS the
     // spelling on both engines. The hoisted let keeps the guard subject a
     // slotted place (the guard encoder compares places, not computed
-    // expressions), same as sin's ladder locals above. Exercised natively by
-    // tests/omega/pass/float/runtime_std_is_finite_exit (finite/inf/NaN legs).
+    // expressions), as with sin's named intermediates above.
     let d: f64 = x - x;
     transition d == 0.0 { true -> yes(), _ -> no() }
     machine yes() -> bool { true }

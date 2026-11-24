@@ -125,7 +125,6 @@ mod product {
                         | BuildOperation::AssumedBindingContract
                         | BuildOperation::WireCompatibilityRequest
                         | BuildOperation::TestGroupRegistration
-                        | BuildOperation::TestGroupService
                 ),
                 Self::Entry(_) | Self::ProviderReadiness(_) => false,
             }
@@ -317,8 +316,15 @@ mod product {
         Native(ExecutedNativeBinding),
     }
 
+    /// Configuration frozen when the Build that registered the group returns.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct TestGroupConfiguration {
+        pub disabled: bool,
+    }
+
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ExecutedProductSelection {
+        pub test_group: Option<TestGroupConfiguration>,
         pub static_environment:
             Option<std::sync::Arc<super::product_operands::ProductStaticEnvironment>>,
         pub target: Option<super::ProductTarget>,
@@ -858,6 +864,7 @@ pub use product::{
     ExecutedNativeBinding, ExecutedProductSelection, ProductEntryBinding,
     ProductDeclarationOperand, ProductDeclarationRequest,
     ProviderReadinessRequest, RootBindingOperand, RootBindingRequest, RootBindingSelection,
+    TestGroupConfiguration,
 };
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, record_storage::Record)]
@@ -1015,7 +1022,6 @@ impl From<BuildOperation> for AuthoredDeclarationSelectionIntrinsic {
             BuildOperation::TestGroupRegistration => {
                 Self::BuildTestGroupRegistration
             }
-            BuildOperation::TestGroupService => Self::BuildTestGroupService,
         }
     }
 }
@@ -1040,7 +1046,6 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     BuildServiceExclusion,
     BuildServiceAudit,
     BuildTestGroupRegistration,
-    BuildTestGroupService,
     BuildOptimizationSelection,
     BuildOptimizationReportRequest,
     BuildBoundaryAcceptance,

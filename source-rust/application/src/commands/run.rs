@@ -10,7 +10,7 @@ We run a program in one of two shapes:
   artifact emission when using the native default, `--engine native`, or
   `--both` (`ExecutionOutcome::TargetOnly`). `--engine psi` uses the
   selected target environment for execution.
-- Case batch (`run_cases`, selected when `--outputs` is present): compiles the
+- Case batch (`run_cases`, selected by `--inputs` or `--input`): compiles the
   program once on the host and runs every `*.stdin` file in `--inputs` (sorted
   lexicographically) or each explicit `--input` file in argument order. Per-case
   streams and `results.tsv` are written to `--outputs`.
@@ -56,6 +56,8 @@ exit or failure message identifies which outcome occurred.
 
 */
 
+mod observation;
+
 use crate::arguments::RunArguments;
 use crate::execution::{
     AgreedTermination, CaseRunRequest, ExecutionOutcome, ExecutionSelection, InterpreterComparison,
@@ -88,7 +90,9 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
     } else {
         None
     };
-    if let Some(outputs) = arguments.outputs.clone() {
+    if let Some(outputs) = arguments.outputs.clone()
+        && (arguments.inputs.is_some() || !arguments.input_files.is_empty())
+    {
         run_cases(arguments, outputs, artifact);
     }
     let selection = arguments.selection;
@@ -123,6 +127,22 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
     for entry in &outcome.test_roster {
         eprintln!("{entry}");
     }
+    if let Some(directory) = arguments.outputs {
+        if arguments.keep {
+            eprintln!("build dir kept: {}", outcome.build_dir.display());
+        }
+        match observation::write(&directory, &outcome.execution) {
+            Ok(true) => std::process::exit(0),
+            Ok(false) => std::process::exit(200),
+            Err(error) => {
+                eprintln!(
+                    "cannot write execution observation in {}: {error}",
+                    directory.display()
+                );
+                std::process::exit(200);
+            }
+        }
+    }
     let status = match outcome.execution {
         ExecutionOutcome::Terminal(terminal) => present_terminal(terminal),
         ExecutionOutcome::TargetOnly { target_name } => {
@@ -137,6 +157,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
             exit,
             comparison,
             private_entry_ram,
+            ..
         } => {
             forward_output_or_exit(&output.stdout, &output.stderr);
             print_private_entry_ram(&private_entry_ram);

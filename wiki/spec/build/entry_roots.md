@@ -91,6 +91,40 @@ A native test harness instead binds an ordinary executable entry normally.
 
 ## Entry shape and arrival bridge
 
+The compiler checks the selected source machine against the installed entry
+contract's declared parameters and result. The platform adapter or embedding
+caller supplies each argument under that contract. Use ordinary Omega values,
+borrows, ownership and domain qualifications at this crossing. A platform can
+expose a checked byte slice for serialized inputs or preserve separate shell
+arguments. An application that needs typed options can parse those bytes. An
+Omega host can instead call an agreed typed entry with the actual values.
+
+Each target uses the same `Build::bind` operation. Targets may bind one
+parameterless machine or bind separate startup machines that call common
+application code. The selected [calling policy](calling_plans.md#authorship-and-evaluation)
+describes how control and physical values arrive. The installed contract
+identifies the backing and authority supplied on that invocation. A target
+adapter that presents sized arguments must establish each length. Reading
+terminators, splitting a command line or copying text belongs in explicit
+adapter or library code when the application needs that representation.
+
+When an installed entry lends a foreign table, its contract must establish the
+backing, access and lifetime of any pointees it exposes. An indexed projection
+uses the original view and an in-range index. Its returned borrow retains that
+view's provenance and cannot outlive it. A count can prove an index fits. It
+cannot authorize a caller-supplied address or reconstruct an installed view.
+[Foreign storage and lifetime](foreign_storage.md#inert-addresses-and-marshaling)
+
+A shared slice permits reads. An exclusive mutable byte slice permits writes
+within the caller's authorized loan. For a live protected struct, the caller
+must establish the domain qualification, permitted operations, backing and
+lifetime for this occurrence. A cast or byte projection cannot grant access
+to a restricted field. A filename or an encoded handle number cannot establish
+file authority. Missing backing or an unestablished precondition prevents entry.
+A permitted issuer receiving a byte-for-byte copy of a firmware table still
+needs evidence that the platform delegated operations on that particular table.
+[Access plans](../resources/access.md#access-rule-subjects) · [Mutable recasts](../layouts/recasts.md#shared-and-mutable-views) · [UEFI handoff](uefi_entry.md#firmware-api-authority-and-storage-grants)
+
 An entry shape names distinct physical and semantic arrival requirements, the
 boundary schema and physical contract package that own its generated arrival
 bridge and physical result map, visible parameters and semantic result. Named
@@ -170,8 +204,9 @@ Knowing an argument's size never creates a new physical root.
 
 Each demanded static provider slot retains the exact source call occurrence,
 closed requirement application, schema, target, and selected plan digest.
-Missing, incompatible, ambiguous, or unauthorized supply rejects compilation;
-no erased-field fallback or late source lookup is permitted. For selected Fused
+Missing, incompatible, ambiguous or unauthorized build-bound supply rejects
+compilation. An explicitly [runtime-bound slot](component_publication.md#first-binding-of-a-runtime-bound-slot)
+records its requirement and readiness obligation until first binding. For selected Fused
 slots, Terminal replay independently joins the call demand and plan before
 erasing dispatch. Independent slots retain internal era identity without adding
 a source context field.

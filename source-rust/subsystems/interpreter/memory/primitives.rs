@@ -5495,7 +5495,106 @@ pub(crate) mod scalar_storage {
     }
     pub(crate) use component_loans::ScalarLoanScope;
 
-    pub trait TerminalScalarBacking: std::fmt::Debug {
+    // The declaration owns validity on every observation of foreign storage;
+    // neither the initial snapshot nor the host's decoder can replace that check.
+    pub(crate) struct CheckedReferenceScalar {
+        pub(crate) access: terminal_psi::StructuralAccess,
+        pub(crate) backing: std::rc::Rc<dyn crate::TerminalScalarBacking>,
+        pub(crate) scalar: ScalarType,
+        pub(crate) stored_scalar: ScalarType,
+        pub(crate) restriction: Option<terminal_psi::StructuralFieldType>,
+    }
+    impl std::fmt::Debug for CheckedReferenceScalar {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct("CheckedReferenceScalar")
+                .field("scalar", &self.scalar)
+                .finish_non_exhaustive()
+        }
+    }
+    impl crate::TerminalScalarBacking for CheckedReferenceScalar {
+        fn read(&self) -> Result<TerminalScalarValue, crate::TerminalEffectRejection> {
+            let value = self.backing.read()?;
+            self.validate(value)?;
+            Ok(value)
+        }
+        fn write(&self, value: TerminalScalarValue) -> Result<(), crate::TerminalEffectRejection> {
+            if self.access != terminal_psi::StructuralAccess::MutableBorrow {
+                return Err(crate::TerminalEffectRejection::new(
+                    "shared provider reference cannot be written",
+                ));
+            }
+            self.validate(value)?;
+            self.backing.write(value)
+        }
+    }
+    impl CheckedReferenceScalar {
+        pub(crate) fn is_invocation_literal(&self) -> bool {
+            let backing: &dyn std::any::Any = self.backing.as_ref();
+            backing.is::<crate::TerminalInvocationScalar>()
+                && matches!(
+                    self.restriction,
+                    None | Some(terminal_psi::StructuralFieldType::Scalar(_))
+                )
+        }
+
+        fn validate(
+            &self,
+            value: TerminalScalarValue,
+        ) -> Result<(), crate::TerminalEffectRejection> {
+            crate::storage::structural_storage::contents::validate_scalar_contents(
+                self.scalar,
+                self.restriction.as_ref(),
+                self.stored_scalar,
+                value,
+                self.stored_scalar,
+            )
+            .map_err(crate::TerminalEffectRejection::new)
+        }
+    }
+
+    /// An embedding can retain a scalar it lends for an invocation. Its contents
+    /// carry no program coordinates, so a checked continuation can keep the cell.
+    #[derive(Debug, Clone)]
+    pub struct TerminalInvocationScalar(std::sync::Arc<std::sync::Mutex<TerminalScalarValue>>);
+
+    impl TerminalInvocationScalar {
+        pub fn new(value: TerminalScalarValue) -> Result<Self, TerminalEffectRejection> {
+            if value.literal().is_none() || !terminal_scalar_belongs_to_type(value) {
+                return Err(TerminalEffectRejection::new(
+                    "invocation scalar requires a literal value",
+                ));
+            }
+            Ok(Self(std::sync::Arc::new(std::sync::Mutex::new(value))))
+        }
+    }
+
+    impl TerminalScalarBacking for TerminalInvocationScalar {
+        fn read(&self) -> Result<TerminalScalarValue, TerminalEffectRejection> {
+            self.0
+                .lock()
+                .map(|value| *value)
+                .map_err(|_| TerminalEffectRejection::new("invocation scalar lock was poisoned"))
+        }
+
+        fn write(&self, value: TerminalScalarValue) -> Result<(), TerminalEffectRejection> {
+            let mut cell = self
+                .0
+                .lock()
+                .map_err(|_| TerminalEffectRejection::new("invocation scalar lock was poisoned"))?;
+            if value.scalar_type() != cell.scalar_type()
+                || value.literal().is_none()
+                || !terminal_scalar_belongs_to_type(value)
+            {
+                return Err(TerminalEffectRejection::new(
+                    "invocation scalar write changed its literal carrier",
+                ));
+            }
+            *cell = value;
+            Ok(())
+        }
+    }
+
+    pub trait TerminalScalarBacking: std::fmt::Debug + std::any::Any {
         fn read(&self) -> Result<TerminalScalarValue, TerminalEffectRejection>;
         fn write(&self, value: TerminalScalarValue) -> Result<(), TerminalEffectRejection>;
     }
@@ -5532,7 +5631,15 @@ pub(crate) mod scalar_storage {
 
     impl ScalarCell {
         pub(crate) fn is_local_literal(&self) -> bool {
-            matches!(self, Self::Local(value) if value.literal().is_some())
+            match self {
+                Self::Local(value) => value.literal().is_some(),
+                Self::Resident { backing, .. } => {
+                    let backing: &dyn std::any::Any = backing.as_ref();
+                    backing
+                        .downcast_ref::<CheckedReferenceScalar>()
+                        .is_some_and(|checked| checked.is_invocation_literal())
+                }
+            }
         }
         pub(crate) fn resident(
             original: TerminalScalarValue,

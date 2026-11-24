@@ -191,8 +191,9 @@ Terminal Psi already has the slots these rules fill: `mathematical_carriers`
 and `identity_formations` (`psi/types/mod.rs:27-28`) and `indexed_theorems`
 (`psi/proofs/declarations.rs:5`). The wire decoder reads all three
 (`psi/artifact/wire/src/identity_formations.rs:51`,
-`mathematical_proof_actual.rs:845-863`); nothing in `source-to-psi` writes
-them.
+`mathematical_proof_actual.rs:845-863`). Only the carrier table has writers
+in `source-to-psi`: theorem parameters in stage 05 and data declarations in
+stage 06 (step 2 below).
 
 ## The deleted checker against stages 05 and 06
 
@@ -951,6 +952,280 @@ the old elaborator needed budget tests for its indexed-vector terms
 (`mathematical_declarations.rs:9847-10330`). Measure the kernel's cost on the
 Peano fixture before taking on all of `nat.omg`.
 
+**Step 2 as built (2026-11-23).** The recovered `ring_law_conformance` program
+is judged by the kernel: `Peano` is a W type, `plus` an `indW` definition and
+`plus_assoc` an induction whose certificate rests on no assumption. Both
+recovered programs live beside the stage 06 test, with only their spelling
+moved to today's syntax; the trait's `add` also gained `reaches none crashes
+none`, which a clause application now requires. What step 2 did not build:
+
+- **Publication of laws.** Stage 06 writes one Psi carrier row per data
+  declaration into the root module: the data's source type identity and its
+  W type under the declarations up to its own. It writes no theorem root and
+  no Id formation row. Both row shapes come from the deleted elaborator's
+  erased evidence (`f4c7a70beb^`, `05_typed-trees-to-checked-trees/src/checking.rs:1339-1395`
+  and `published_facts.rs:4888-5006`): a theorem root's evidence position is
+  an erased formal of the theorem's indexed type, and an Id formation is the
+  Identity type of an erased formal over captured source expressions. A law
+  over plain data has no erased formal, and its `ensures` Identity is a
+  clause with no type identity. The owner decided on 2026-11-23 not to
+  publish law certificates: under
+  [publication and separate consumption](../../spec/terminal-psi/product.md#publication-and-separate-consumption)
+  a receiver trusts the producer and does not replay carried certificates,
+  so nothing would check a published one. A row for laws waits for a
+  consumer that reads it.
+- **One table for step 1's goals.** A generic machine's Identity goal still
+  gets its own table per obligation in `equality::discharge`. Only the
+  declarations over data that contains itself are in the shared signature.
+- **Projection, and fields of another type.** A field of a case is read only
+  through the dispatch that binds it. Data whose case has a field of another
+  type is refused, because that type has no carrier in the signature yet.
+- **Cost.** The hand-built proof of the same law checks in 439 conversion
+  steps. The producer's proof takes 23,113 of a 65,536 budget, nearly all in
+  normalizing and searching, and its scratch terms fill 271,116 arena slots.
+  Step 3a should bound the search before `nat.omg` multiplies it.
+- **Unit eta.** A W type has no function extensionality, so a branch is
+  stated over an arbitrary child function `k` and a field is `k` at its
+  canonical position. That is enough when the tree is consumed only by
+  recursion, as here. A law that returns the tree itself, such as
+  `add(a, Zero) = a`, also needs `Succ(k position) = sup(succ, k)`, which
+  this kernel does not convert. Step 3a met it at commutativity and replaced
+  the encoding (below).
+
+**Step 3a as built (2026-11-23).** A proof may now
+regroup and reorder the operands of one operation without citing the laws
+that allow it. The license is the program's declared conformance: a law that
+satisfies a requirement of a trait application and states associativity or
+commutativity of an operation satisfying a requirement of the same
+application (`OperandLicense` in the
+[signature](../../../source-rust/subsystems/compiler/source-to-psi/representations/lowered-program/README.md#the-mathematical-signature)).
+Stage 05 reads such laws before the other machines, so a law may lean on
+them wherever the source declares it, and a proof still rests only on
+statements that come before its own. The search brings both sides of a goal
+to one arrangement and puts every law it used into the proof term, so the
+certificate names it.
+
+- **Customers.** `peano_right_distributivity` proves
+  `times(plus(a, b), c) = plus(times(a, c), times(b, c))` by induction,
+  calling only the law itself at `pred`. The kernel judges it resting on one
+  assumption, the associativity statement. Its twin drops the call on `pred`
+  and is refused at the successor arm: the equality left over is the law
+  being proved. `peano_left_distributivity` proves `plus(a, Zero) = a`,
+  `plus(a, Succ(b)) = Succ(plus(a, b))`, commutativity from those two,
+  associativity, and `times(a, plus(b, c)) = plus(times(a, b), times(a, c))`,
+  again calling only the law itself at `pred`. The kernel judges that last law
+  resting on exactly two assumptions, commutativity and associativity of
+  `plus`. Its twin proves commutativity but does not declare it as the
+  trait's `add_comm`, and is refused at the successor arm. This is the shape
+  of `mul_distributes` and `mul_distributes_right` in `core/nat.omg`.
+- **The encoding of data changed.** Under step 2's raw trees no program could
+  prove `plus(a, Zero) = a` (the unit-eta bullet above), so none could prove
+  commutativity. The data is now the canonical trees of the same W type:
+  `Data = Σ (t : W). Canonical(t)`, where `Canonical(sup(case, k))` holds one
+  raw tree per field, an identity between the constructor's child function
+  over those trees and `k`, and `Canonical` of each field. `J` on that
+  identity replaces `k` by the constructor's own function, so the induction
+  principle is stated over constructor applications (`P(m) -> P(Succ(m))`)
+  and computes on them, for any fields, by `indW`, `J` on `refl`, beta and
+  pair eta. It adds no kernel rule and no assumption, and the kernel checks
+  every declaration (`PlainData::declarations`). The
+  [inductive profile](../../spec/proofs/inductive_profile.md#derived-indexed-families)
+  builds indexed families the same way, as a tree paired with a recursively
+  defined condition.
+- **Cost.** The kernel checks a two-case data's declarations in 964
+  conversion steps, a three-case one with two and three fields in 42,317 and
+  four unary cases in 59,242 (`a_declaration_checks_within_one_default_budget`).
+  Declaring the label and position types once as constants, where they were
+  inlined at each use, is what brought the last two under one default
+  budget; they were 236,839 and 702,069. A law's proof is checked by the
+  kernel once, as its certificate. Before that change each was checked four
+  times (per case, whole, against the trait's statement, as the
+  certificate). The producer keeps a defined function folded until the
+  argument it dispatches on is a case, so the search itself spends almost no
+  conversion steps. Per law, of a 65,536 budget: associativity 11,817,
+  right distributivity 7,317, left distributivity 7,324, commutativity
+  3,529, `plus(a, Zero) = a` 3,512. Under raw trees associativity took 1,148
+  and right distributivity 3,136; the canonical evidence is what the
+  difference pays for. Each proof leaves 50,000 to 420,000 scratch terms in
+  the arena.
+- **Not done: a law written as a machine with a result.** `core/nat.omg`
+  states `mul_distributes_right` and its lemmas as `-> Nat` machines, with
+  `Nat::Succ { prev: mul_distributes_right(prev, b, c) }` in the successor
+  arm. The signature reads a machine with a result as a function and refuses
+  a guarantee on one. Step 3 needs a reading of that shape; the Peano
+  fixtures state each law as a machine with no result.
+
+**Step 3 as built (2026-11-24): the semiring conformance, not yet the whole
+file.** A program that uses the library's `Nat` now gets
+`core/nat.omg`'s `CommutativeSemiring<Nat>` conformance judged by the
+kernel, from the library file as it stands.
+
+- **Customer.** `nat_semiring/pass/library_conformance` calls only `add` and
+  `mul` and states `add(mul(a, b), add(c, a)) = add(a, add(c, mul(b, a)))`
+  with an empty body. The kernel judges the seven laws `nat.omg` binds to the
+  trait (`add_zero_right`, `add_comm`, `add_assoc`, `mul_comm`, `mul_assoc`,
+  `mul_identity`, `mul_distributes`) and the lemmas they cite, and the
+  program's law rests only on commutativity and associativity laws of `add`
+  and `mul`. Its twin states the same law of an addition the program defines
+  itself, which no conformance covers, and is refused.
+- **The whole conformance is read.** Three of the seven laws are private to
+  the library, so no program can cite them. When a machine that satisfies a
+  requirement of a trait is read, stage 05 reads every other machine over
+  such data that satisfies a requirement of the same trait at the same data
+  (`mathematics.rs`). This is the spec's "consume the complete selected
+  conformance's law slots".
+- **A machine that returns a value and states a law.** `nat.omg` writes most
+  lemmas this way (`mul_succ_right(a, b) -> Nat`). Such a machine is read as
+  a definition and as a law. Its statement may name its own result, and its
+  citations are the calls, anywhere in the value it returns, of machines
+  that state a law; the call of itself at a field of the case is the
+  induction hypothesis. A nested machine that states nothing is read in
+  place where it is called.
+- **Cost.** The twelve library laws that program pulls in took 1,574 to
+  13,358 kernel conversion steps each when this landed, about 67,000
+  together, every time such a program is compiled, because the library is
+  compiled from source with it. The repair recorded below cut each by five to
+  eight times.
+- **Laws with a premise.** Eleven of `nat.omg`'s lemmas state a `requires`
+  equality (`add_cancel`, `le_of_succ_le`, `sub_lt`). A premise is bound in
+  the law's statement after its formals, is a hypothesis of each case, and is
+  proved at each citation from the case's other evidence in any order. The
+  prover takes two facts from any equality it holds: constructors are
+  injective (`Succ(x) = Succ(y)` gives `x = y`, which `add_cancel`'s
+  successor case needs to cite itself) and distinct (`Succ(r) = Zero` proves
+  the case, which `le_of_succ_le` and `pred_eq_succ` need). It also
+  normalizes again after each rewrite. With that, the kernel judges every
+  law in the file but the three below: 34 laws when the file's declarations
+  are compiled as a program (`every_law_of_nat_but_three_recursions_is_judged`).
+  The largest, `sub_lt_of_le`, took 42,717 kernel conversion steps of the
+  65,536 budget when this landed; the next bullet brought the largest down
+  to 5,628 (`sub_lt`).
+- **Where the kernel's steps went, and the repair (2026-11-24).** Search is
+  not the cost: it spends 5 to 20 conversion steps per law. The kernel's one
+  check of the finished proof is. One computation, `plus(Succ(m), b)` to
+  `Succ(plus(m, b))`, cost 4,512 steps and 56,708 scratch terms, because the
+  induction principle carried its step over raw trees inline, and the kernel
+  checked that whole step again each time unfolding exposed it in a
+  recursion it could not finish. The step, and the step of the
+  canonical-tree condition, are now declarations of their own, so the kernel
+  reads their types from the signature. The same computation costs 546
+  steps. Per law: associativity 11,817 to 2,176, the two distributivity laws
+  about 7,320 to about 1,660, commutativity 3,529 to 1,105, the seven laws of
+  the library conformance 847 to 2,176 each. Declaring a type: two cases 964
+  to 816, four unary cases 59,242 to 10,463. What remains is the price of
+  the encoding itself: under raw trees the associativity law took 1,148, and
+  one computation is still hundreds of steps where a built-in inductive
+  type would take about one. Whether to keep W types on that measurement is
+  [owner question 6](../../../OWNER_QUESTIONS.md#recursive-data-as-w-types).
+  Each law still re-checks the declarations before it, about 1,000 steps a
+  law, which a shared check would remove.
+- **Not done: `mod`, `div` and `gcd`.** Their recursion is on
+  `saturating_sub(a, b)`, not on a field of the dispatched case, so they need
+  recursion justified by a decreasing measure, which the signature does not
+  read.
+- **Not done: the two operator machines.** `<=` and `-` are written as
+  machines the `Nat` declaration owns (`machine <= Nat::less_or_equal`).
+  Compiling the file's declarations as a program was rejected there with "a
+  data declaration cannot own a machine; declare an ordinary static
+  machine", before any proof was tried, so that part of the library needs
+  its source migrated first.
+- **The library is judged only through a program.** A toolchain file is
+  never the subject of a check, and most of these lemmas are private, so no
+  program reaches them directly; the test compiles the file's text as a
+  program. A program that uses the library reaches the conformance and what
+  it cites, nothing more.
+
+**Step 4a as built (2026-11-24): products expand over sums.** A proof may
+now expand a product of sums into a sum of products under a distributivity law
+of the program's conformance, then regroup and reorder both sums and products
+as step 3a does. Both sides of a goal reach one polynomial form, and each
+expansion is an application of the law in the proof term, so the certificate
+names it.
+
+- **Customers.** The recovered `polynomial/pass/ring_full_polynomial_compile`
+  states `mul(add(a, b), add(c, d))` equal to its four-term expansion over the
+  library's `Nat` and cites nothing. It used to be refused with "no available
+  equality proves the stated Identity". The kernel now judges it in 993
+  conversion steps, resting on exactly four laws of `core/nat.omg`'s
+  conformance: `mul_distributes`, `mul_comm`, `add_comm` and `add_assoc`.
+  A Peano twin pair adds a law needing two expansions to the
+  `peano_left_distributivity` program: judged in 847 steps with
+  `times_distributes` declared as the trait's `mul_distributes`, and refused
+  once that `satisfies` line is removed.
+- **One mechanism.** `operand_law` also reads distributivity
+  (`OperandLaw::Distributes`, from the left or the right, either side first).
+  The license needs both operations to satisfy requirements of the law's trait
+  application. Stage 05 reads distributivity laws after the commutativity and
+  associativity laws and before every other machine, so a distributivity law's
+  own proof may still regroup under the first ones, as `mul_distributes`
+  does, whatever the source order. Stage 06's `rearrange` gains one more kind
+  of rewrite: a product whose sum sits on the side the law states expands; one
+  whose sum sits on the other side is first commuted when its operation
+  commutes. Expansion runs only after the search without it finds no proof,
+  so every law proved before this step keeps the same proof and cost.
+- **Bounds.** A product may expand to at most 64 summands, the spec's default,
+  counted from the term before anything is built and under the exact licensed
+  laws (a law that only expands sums on the right counts only those). A larger
+  one stops the proof with `SearchError::Budget`, reported as "ran out of
+  proof budget" with no claim that the program is wrong. Every rewrite is also
+  charged to the existing 65,536-step search budget. A product of 64 summands
+  over Peano is judged in 55,949 conversion steps; one of 128 is refused as
+  out of budget.
+- **Mutual distributivity.** When two operations each distribute over the
+  other, the search tries one direction at a time, so neither law disables
+  the other and expansion cannot undo itself. A longer cycle of three or more
+  operations is not split and runs into the budget.
+- **Not done: satisfier groups.** The recovered
+  `polynomial/fail/ring_rearrange_unlicensed_rejected` labels its satisfiers
+  with `satisfies Trait<...>::requirement as Name`, and the mathematical
+  signature refuses that clause as not supported. The program is refused at its
+  eight `satisfies` clauses before any law is judged, so its claims that one
+  trait application or satisfier group cannot borrow another's law are not
+  yet tested. Its first part, which needs no group, is refused at
+  `needs_rearrange`'s successor arm.
+- **Not done: configuration and reporting of the limit.** The 64-summand limit
+  is a constant. Root Build cannot configure it through the
+  [proof-work policy](../../spec/build/configuration.md#proof-work-policy) yet,
+  and the diagnostic does not say which limit stopped the proof.
+
+**Step 4 as built so far (2026-11-24): records, not yet propositions.**
+`core/int.omg` builds the integers as a record of two naturals, so step 4
+starts with records.
+
+- **Records of mathematical data.** Data with a field of mathematical data
+  has no layout either, so it and the machines over it now go to the
+  mathematical signature. A record with no cases whose fields are all such
+  data is the product of their types: a record literal is a tuple, `a.neg` a
+  projection, in bodies and in clauses, and a `let` in a body is the term of
+  its value. The prover rewrites inside a tuple's components and treats a
+  tuple of every field of one value as that value, which the kernel
+  converts by pair eta.
+- **Order between conformances.** `IntPair`'s laws are polynomial identities
+  over `Nat`, proved with no citation under `Nat`'s conformance. Stage 05
+  reads conformances in the order of the data they are about, so those laws
+  come after `Nat`'s.
+- **The search.** It rewrites both sides of a goal, smallest term first, and
+  never uses an equality in the direction that nests its own left side.
+  Before that, a law with one missing citation ran out of budget where it
+  should have reported no proof, and `mul_int_identity`, whose six citations
+  read backwards grow terms, did not finish.
+- **Customers.** `record_law/pass/pair_of_peano` and its twin without one
+  field's citation. Ten laws of `int.omg` are judged when the two library
+  files' declarations are compiled as a program, among them
+  `mul_int_assoc` (7,533 conversion steps) and `mul_int_distributes`
+  (4,105), both with empty bodies.
+- **Not done: the named proposition.** `int.omg` declares
+  `proposition int_pair_equivalent(left, right) = core\Identity::<Nat>(..)`
+  and states one law with it. The clause reader refuses a named proposition
+  in a clause, and its arguments there are whole expressions
+  (`add_int(a, b)`), so its fields are projections of an application, which
+  a clause operand cannot yet state.
+- **Not done: a hypothesis used inside a larger sum.** `neg_int_respects_eq`,
+  `mul_int_respects_eq` and `int_eq_transitive` hold an equation between two
+  sums and need it applied to some of the addends of a longer sum, the
+  second after scaling by a factor. The search matches a whole subterm only.
+- **Not done:** `rat.omg`, `cauchy.omg` and `extent.omg`, not yet tried.
+
 The first version of this plan started with level binders and value-indexed
 type arguments because they move 66 samples. They move those samples to
 their next failure, the library needs neither, and level binders wait on
@@ -980,12 +1255,17 @@ Recorded, not answered:
    [the proofs lane](proofs_evidence_lane.md) changes with it in the same
    pull request, so the two notes do not disagree.
 3. **Where the signature lives.** Terminal Psi has `mathematical_carriers`,
-   `identity_formations` and `indexed_theorems` slots with readers and no
-   writer. Is R1's signature table those slots, or a new table? The spec
+   `identity_formations` and `indexed_theorems` slots. Stage 05 writes
+   carriers for theorem parameters (`read/theorems.rs`) and stage 06 writes
+   one for each data declaration; nothing writes the other two. Is R1's
+   signature table those slots, or a new table? The spec
    requires publishing "the full level telescope and constraints"; no level
    constraint encoding was found. L3 proposes one table in the lowered
    program for every declaration kind and leaves the wire tables as the
-   spec has them, so what remains open is the level constraint encoding.
+   spec has them. The level constraint encoding remains open. Which row a
+   judged law over plain data publishes is no longer open: the owner decided
+   on 2026-11-23 that such laws are not published (step 2's publication
+   bullet above says why).
 4. **Floor scope.** Does "the tightest literal bounds order reasoning gives
    it" ([contracts.md#required-automatic-discharge](../../spec/proofs/contracts.md#required-automatic-discharge))
    require landing an operand on bounds proved equal (`(prefix - 360) + last`,

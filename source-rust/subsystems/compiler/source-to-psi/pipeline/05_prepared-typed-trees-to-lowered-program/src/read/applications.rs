@@ -18,6 +18,7 @@ pub(super) struct ApplicationArguments<'source> {
         crate::source_state::types::TypeReferenceHandle,
     )>,
     pub(super) values: Vec<ScalarTerm>,
+    pub(super) proofs: Vec<terminal_psi::TheoremSource>,
     pub(super) const_sources: Vec<(
         SymbolHandle,
         crate::source_state::types::TypeReferenceHandle,
@@ -223,7 +224,41 @@ impl<'source> Program<'source> {
         let mut values = Vec::new();
         let mut const_sources = Vec::new();
         let mut callables = Vec::new();
+        let mut proofs = Vec::new();
         for parameter in parameters {
+            if matches!(
+                parameter.kind,
+                crate::source_state::data::TypeParameterKind::Proof { .. }
+            ) {
+                if inherited {
+                    let formal = self
+                        .theorem_parameters
+                        .iter()
+                        .zip(&self.theorem_parameter_sources)
+                        .find(|(formal, source)| {
+                            formal.machine == id && source.binder == parameter.symbol
+                        })
+                        .map(|(formal, _)| formal.proof_position)
+                        .ok_or_else(|| {
+                            unavailable("forwarded theorem has no exact caller formal")
+                        })?;
+                    proofs.push(terminal_psi::TheoremSource::Formal(formal));
+                } else {
+                    let binding = retained.get(&parameter.symbol).ok_or_else(|| {
+                        unavailable("proof parameter has no unique explicit actual")
+                    })?;
+                    let crate::source_state::static_applications::StaticMachineBindingValue::Proof(
+                        argument,
+                    ) = &binding.value
+                    else {
+                        return Err(unavailable(
+                            "proof parameter was supplied with an executable or type binding",
+                        ));
+                    };
+                    proofs.push(self.theorem_argument(id, argument)?);
+                }
+                continue;
+            }
             if let crate::source_state::data::TypeParameterKind::Machine { contract } =
                 &parameter.kind
             {
@@ -368,6 +403,7 @@ impl<'source> Program<'source> {
             types,
             type_sources,
             values,
+            proofs,
             const_sources,
             callables,
         })

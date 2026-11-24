@@ -455,9 +455,6 @@ impl Program<'_> {
                     Proposition::Falsehood
                 });
             }
-            ExpressionNode::Call(call) if self.is_mathematical_term(expression) => {
-                return self.mathematical_clause(id, scope, call);
-            }
             ExpressionNode::Call(call) => {
                 if let Some(predicate) = self.numeric_comparison_clause(id, scope, call)? {
                     return Ok(predicate);
@@ -466,7 +463,11 @@ impl Program<'_> {
                 // for the arguments (`clause_calls`).
                 return match self.clause_term(id, scope, expression, ClauseUse::Proposition)? {
                     ClauseTerm::Proposition(proposition) => Ok(proposition),
-                    ClauseTerm::Scalar(..) | ClauseTerm::Operand(_) => unserved("value application used as a proposition"),
+                    ClauseTerm::Scalar(..)
+                    | ClauseTerm::Operand(_)
+                    | ClauseTerm::TypeParameter(_) => {
+                        unserved("value application used as a proposition")
+                    }
                 };
             }
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
@@ -972,6 +973,7 @@ impl Program<'_> {
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
         call: &TableCallExpression,
+        preserve_type: bool,
     ) -> Checked<Proposition> {
         let (subject_type, [left, right], _) = self.identity_inputs(id, scope, expression, call)?;
         if self.typed.core_vocabulary(subject_type)
@@ -989,7 +991,7 @@ impl Program<'_> {
             .operand(id)?;
         // Keep the arithmetic prover's integer relation when both operands
         // already have scalar denotations. An abstract operation stays applied.
-        if matches!(carrier.scalar(), Some(ScalarType::Integer(_)))
+        if !preserve_type && matches!(carrier.scalar(), Some(ScalarType::Integer(_)))
             && let (
                 semantic_vocabulary::ClauseOperand::Scalar(a),
                 semantic_vocabulary::ClauseOperand::Scalar(b),
@@ -1792,10 +1794,14 @@ impl Program<'_> {
                 }
                 unserved("layout query has no scalar application")
             }
-            ExpressionNode::Call(_) => match self.clause_term(id, scope, expression, ClauseUse::Value)? {
-                ClauseTerm::Scalar(value, ty) => Ok((value, ty)),
-                ClauseTerm::Proposition(_) | ClauseTerm::Operand(_) => unserved("expected a scalar operand"),
-            },
+            ExpressionNode::Call(_) => {
+                match self.clause_term(id, scope, expression, ClauseUse::Value)? {
+                    ClauseTerm::Scalar(value, ty) => Ok((value, ty)),
+                    ClauseTerm::Proposition(_)
+                    | ClauseTerm::Operand(_)
+                    | ClauseTerm::TypeParameter(_) => unserved("expected a scalar operand"),
+                }
+            }
             _ => unserved("term other than a formal, a literal or an embedded integer"),
         }
     }

@@ -36,8 +36,20 @@ bytes. A mismatch names the stream and its first differing line, and exits 201.
 A Psi run that exhausts its work budget declines the comparison.
 
 A single run also compares the observed bytes of any requested entry RAM.
-**BUILD-TEST-COMPARISON** in [TASKS.md](../../TASKS.md#requirement-based-tests)
-tracks its replacement by [Build test comparison](../../wiki/spec/build/testing.md#comparing-native-and-psi-tests).
+
+`omega build --compare-tests build.omg` runs each enabled, registered test
+on native and Psi. The build reports whether each invocation returned and
+whether the two executions agreed on termination, stdout and stderr. Two
+matching traps still fail the test. A project with no selected tests reports
+zero comparisons. The current runner accepts parameterless tests with no
+configured services. The remaining work includes declared file and field
+observations. [Build test comparison](../../wiki/spec/build/testing.md#comparing-native-and-psi-tests)
+
+A registered test that calls `ProcessExit::exit_process` fails its requirement
+to return. On Unix the native wait status exposes only the low eight bits. A
+different visible byte proves disagreement. A matching byte leaves the exact
+exit comparison unavailable. A zero status can also come from a normal return
+when the test has both paths.
 
 Comparisons accept `--both --psi-work-budget <positive-u64>`. Each interpreter
 invocation, including each input case and stdin replay, gets the full budget

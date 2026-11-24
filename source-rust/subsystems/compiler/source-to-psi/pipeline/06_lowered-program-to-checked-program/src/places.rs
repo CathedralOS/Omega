@@ -1142,7 +1142,7 @@ impl<'a> Storage<'a> {
                     )
                 })?;
                 let required = defaults
-                    .operation(operation, (block.id, before), references)
+                    .operation(module, operation, (block.id, before), references)
                     .map_err(|error| {
                         refusal(
                             RefusalReason::ForeignIdentity,
@@ -1218,8 +1218,11 @@ impl<'a> Storage<'a> {
             crate::checking::owned_cleanup::writes(module, lowered, references)?;
         storage.log_is_stated(tables)?;
         storage.cleanup_log_is_stated(tables)?;
-        // Compare the authored log first. Then every write uses the same
-        // captured backing relation as reads and loan compatibility.
+        // All writes have been authenticated against their operations. Keep the
+        // writes to original guest addresses for reaching-value queries. A scalar
+        // write through a mutable provider reference has no captured guest address;
+        // loan checking still checks the operation and provider reads observe a
+        // fresh value on every access.
         let relocated = storage
             .log
             .iter()
@@ -1229,19 +1232,32 @@ impl<'a> Storage<'a> {
                     .position
                     .checked_sub(1)
                     .ok_or_else(|| storage.foreign(concerns, "a write has no formation point"))?;
-                let destination =
+                if matches!(row.stored, Stored::Value(_))
+                    && let Some(at) = storage.descriptor_position((row.block, before))
+                    && matches!(
+                        storage.provider_referent(references, &row.destination, at, concerns)?,
+                        Some((_, StructuralAccess::MutableBorrow))
+                    )
+                    && storage.provider_record_leaf(&row.destination, concerns)?
+                {
+                    return Ok(None);
+                }
+                let backing =
                     storage.backing(references, &row.destination, row.block, before, concerns)?;
                 if let Stored::Moved(source) = &row.stored {
-                    // Validate at evaluation, then retain the original source
-                    // coordinate. Reaching reads it at this same prestate.
                     storage.backing(references, source, row.block, before, concerns)?;
                 }
-                Ok(destination)
+                Ok(Some(backing))
             })
             .collect::<Checked<Vec<_>>>()?;
-        for (row, destination) in storage.log.iter_mut().zip(relocated) {
-            row.backing = destination;
-        }
+        storage.log = std::mem::take(&mut storage.log)
+            .into_iter()
+            .zip(relocated)
+            .filter_map(|(mut row, backing)| {
+                row.backing = backing?;
+                Some(row)
+            })
+            .collect();
         storage.byte_payload_writes(references, tables)?;
         storage.index_reaching_writes();
         for block in &lowered.blocks {
@@ -1250,7 +1266,7 @@ impl<'a> Storage<'a> {
                     continue;
                 };
                 let concerns = Construct::Operation(operation.id);
-                // A read through a provider's shared reference yields a fresh scalar.
+                // A read through a provider reference yields a fresh scalar.
                 // Its public permission identifies no address for a later read to observe.
                 if let Some(at) = storage.descriptor_position((block.id, before))
                     && storage.provider_referent(references, &leaf, at, concerns)?.is_some()
@@ -3826,7 +3842,8 @@ impl<'a> Storage<'a> {
             )
             && (up_to != usize::MAX || budget.used.is_some())
             && let Some(at) = self.descriptor_position((block, up_to))
-            && let Some(referent) = self.provider_referent(references, original, at, concerns)?
+            && let Some((referent, _)) =
+                self.provider_referent(references, original, at, concerns)?
         {
             let declaration = self.declaration(referent, concerns)?;
             let depth = if original.segments.last() == Some(&Segment::Referent)
@@ -4897,6 +4914,18 @@ impl<'a> Storage<'a> {
                 }
             })
             .collect();
+        // A provider field has no original guest address in the reaching-write
+        // log. The store still touches its declared destination for loan checking.
+        if changes.is_empty()
+            && matches!(
+                operation.kind,
+                OperationKind::StructuralScalarFieldStore { .. }
+                    | OperationKind::WriteOnlyPrimitiveStore { .. }
+            )
+            && let Some(destination) = self.field_destination(operation)?
+        {
+            changes.push(StorageEffect::Storage(destination));
+        }
         if let OperationKind::ByteSequenceWrite { destination, .. } = &operation.kind {
             // The payload changes even though the descriptor has no store
             // row. Retained loans protect that backing against this write.
@@ -8602,6 +8631,48 @@ mod observation_tests {
         prepared
             .closure
             .unwrap_or_else(|refusal| panic!("{}", refusal.detail))
+    }
+
+    #[test]
+    fn borrowed_block_places_must_belong_to_their_parameter_position() {
+        let original = storage_fixture(
+            "data Point { x: u32; }
+             machine entry(point: @Point, again: bool) -> u32 {
+                 transition again { true -> entry(point, false), false -> point.x }
+             }",
+        );
+        assert!(matches!(
+            crate::checking::judge(Ok(original.clone())).unwrap(),
+            crate::checking::RouteVerdict::Accepted(_)
+        ));
+        for change_block in [false, true] {
+            let mut input = original.clone();
+            let machine = &mut input.module.machines[0];
+            let place = machine
+                .structural_places
+                .iter_mut()
+                .find(|row| matches!(row.kind, StructuralPlaceKind::BlockParameter { .. }))
+                .expect("loop entry has a borrowed structural block argument");
+            let StructuralPlaceKind::BlockParameter { block, position } = &mut place.kind else {
+                unreachable!()
+            };
+            if change_block {
+                *block = BlockId::new(u64::from(u32::MAX)).unwrap();
+            } else {
+                *position = u32::MAX;
+            }
+            let crate::checking::RouteVerdict::FallBack(refusal) =
+                crate::checking::judge(Ok(input)).unwrap()
+            else {
+                panic!("a borrowed place outside its block header must refuse");
+            };
+            assert!(
+                refusal
+                    .detail
+                    .contains("descriptor storage flow cannot be reconstructed"),
+                "{refusal:?}"
+            );
+        }
     }
 
     #[test]

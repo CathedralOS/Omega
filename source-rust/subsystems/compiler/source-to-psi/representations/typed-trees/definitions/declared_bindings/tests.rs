@@ -142,6 +142,65 @@ fn binding_owner_controls(extra: usize) {
     matches_scan(&program, &state, &binders);
 }
 
+/// A local declared only inside a block value is found there, but a binder
+/// the body declares twice has no single type. That holds when both copies
+/// are in blocks and when the state's own roster already repeats it.
+#[test]
+fn block_value_bindings_require_one_declaration() {
+    let (mut program, mut state, binders, reference) = graph(0);
+    let other = program.type_reference_table.insert(TypeReferenceNode::Unit);
+    let local = |symbol, type_reference| {
+        StatementNode::LocalData(TableLocalData {
+            symbol,
+            type_reference,
+            ..Default::default()
+        })
+    };
+    let block_statements = program.statement_table.insert_statements([
+        local(binders[2], reference),
+        local(binders[2], other),
+        local(binders[3], other),
+        local(binders[0], other),
+    ]);
+    let tail = program
+        .expression_table
+        .insert(ExpressionNode::Boolean(true));
+    let block = program.expression_table.insert(ExpressionNode::Block(
+        crate::source_state::expression::TableBlockExpression {
+            statements: block_statements,
+            tail,
+        },
+    ));
+    program
+        .statement_table
+        .push_statement(&mut state.statement_nodes, StatementNode::Expression(block));
+    assert_eq!(
+        program.declared_binding_type_by_symbol(&state, binders[3]),
+        Some(other)
+    );
+    assert_eq!(
+        program.declared_binding_type_by_symbol(&state, binders[1]),
+        Some(reference)
+    );
+    assert_eq!(
+        program.declared_binding_type_by_symbol(&state, binders[2]),
+        None
+    );
+    // The parameter alone types `binders[0]`; repeating it in the state's
+    // roster refuses, and the block's copy cannot answer instead.
+    assert_eq!(
+        program.declared_binding_type_by_symbol(&state, binders[0]),
+        Some(reference)
+    );
+    program
+        .statement_table
+        .push_statement(&mut state.statement_nodes, local(binders[0], reference));
+    assert_eq!(
+        program.declared_binding_type_by_symbol(&state, binders[0]),
+        None
+    );
+}
+
 #[test]
 fn binding_lookup_refreshes_same_shape_replacement_and_retained_snapshots() {
     for extra in [0, 64] {

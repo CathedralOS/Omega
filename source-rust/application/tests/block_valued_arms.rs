@@ -73,13 +73,17 @@ fn refused(case: &str, from: &str, to: &str, expected: &[&str]) {
     }
 }
 
-#[test]
-fn block_arms_run_natively_and_in_psi() {
-    let (output, report) = invoke(&fixture("run", "block_arms"), &["run", "--both"]);
+fn runs_both(source: &str) {
+    let (output, report) = invoke(source, &["run", "--both"]);
     assert_eq!(output.status.code(), Some(0), "{report}");
     for receipt in ["native exit 0", "interp exit: 0"] {
         assert!(report.lines().any(|line| line == receipt), "{report}");
     }
+}
+
+#[test]
+fn block_arms_run_natively_and_in_psi() {
+    runs_both(&fixture("run", "block_arms"));
 }
 
 #[test]
@@ -118,5 +122,59 @@ fn a_write_while_a_block_locals_loan_is_live_is_refused() {
             "storage is changed while a conflicting reference remains live (conflicting loans)",
             "main.omg:34:80",
         ],
+    );
+}
+
+#[test]
+fn selected_block_writes_survive_the_join() {
+    let source = fixture("run", "block_assignment");
+    runs_both(&source);
+
+    let immutable = source.replacen("let mutable other:", "let other:", 1);
+    let (output, report) = invoke(&immutable, &["--check"]);
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("writing to an immutable owned binding requires `mutable`")
+            && report.contains("main.omg:6:27"),
+        "{report}"
+    );
+}
+
+#[test]
+fn a_read_after_distinct_bounded_writes_preserves_their_common_range() {
+    let source = fixture("run", "block_storage_bounds");
+    runs_both(&source);
+    for (old, new, at) in [
+        (
+            "total: u32 = 4;",
+            "total: u32 = 4294967295;",
+            "main.omg:6:11",
+        ),
+        (
+            "    total + 1",
+            "    total = 4294967295; total + 1",
+            "main.omg:6:31",
+        ),
+        (
+            "stock.value = 7;",
+            "stock.value = 4294967295;",
+            "main.omg:12:7",
+        ),
+    ] {
+        let (output, report) = invoke(&source.replace(old, new), &["--check"]);
+        assert!(!output.status.success(), "{report}");
+        assert!(
+            report.contains("may overflow `u32`") && report.contains(at),
+            "{report}"
+        );
+    }
+
+    let moved = source.replace("}, copied)", "}, ticket.slot)");
+    let (output, report) = invoke(&moved, &["--check"]);
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("owned storage is used after its value was transferred or consumed")
+            && report.contains("main.omg:23:15"),
+        "{report}"
     );
 }

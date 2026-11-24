@@ -174,6 +174,7 @@ impl<'a> MathematicalAddressContext<'a> {
 }
 
 pub(super) struct MathematicalInputs {
+    type_arguments: Vec<(SymbolHandle, terminal_psi::MathematicalPredicateBody)>,
     inputs: Inputs,
     members: Arena<SymbolHandle>,
 }
@@ -187,6 +188,7 @@ impl MathematicalInputs {
     ) -> Checked<Self> {
         let mut inputs = Inputs::default();
         let member_arena = Arena::new();
+        let mut type_arguments = Vec::new();
         for (ordinal, parameter) in parameters.iter().enumerate() {
             if !typed.symbols.symbols().nodes().is_valid(parameter.symbol)
                 || !typed.mathematical_types.is_valid(parameter.ty)
@@ -195,6 +197,18 @@ impl MathematicalInputs {
                     machine,
                     "mathematical formal has no exact declaration/type",
                 ));
+            }
+            if parameter.relevance == language_core::BindingRelevance::Erased
+                && super::mathematics::mathematical_sort(typed, parameter.ty)
+                    == Some(symbols::FixedCoreDeclaration::Type)
+            {
+                let slot = u32::try_from(ordinal)
+                    .map_err(|_| identity(machine, "mathematical formal ordinal overflow"))?;
+                type_arguments.push((
+                    parameter.symbol,
+                    terminal_psi::MathematicalPredicateBody::TypeParameter(slot),
+                ));
+                continue;
             }
             if parameter.relevance != language_core::BindingRelevance::Relevant {
                 return Err(refuse(
@@ -232,7 +246,16 @@ impl MathematicalInputs {
                 inputs.leaves[*right].path,
             )
         });
-        if inputs.lookup.windows(2).any(|pair| {
+        if type_arguments
+            .iter()
+            .enumerate()
+            .any(|(index, (symbol, _))| {
+                type_arguments[..index]
+                    .iter()
+                    .any(|(other, _)| other == symbol)
+                    || inputs.leaves.iter().any(|leaf| leaf.path.root == *symbol)
+            })
+            || inputs.lookup.windows(2).any(|pair| {
             path_order(
                 &member_arena,
                 inputs.leaves[pair[0]].path,
@@ -246,13 +269,33 @@ impl MathematicalInputs {
             ));
         }
         Ok(Self {
+            type_arguments,
             inputs,
             members: member_arena,
         })
     }
 
+    pub(super) fn bind_type(
+        &mut self,
+        symbol: SymbolHandle,
+        body: terminal_psi::MathematicalPredicateBody,
+    ) {
+        self.type_arguments.push((symbol, body));
+    }
+
+    pub(super) fn type_parameter_ordinals(&self) -> Vec<u32> {
+        self.type_arguments
+            .iter()
+            .filter_map(|(_, body)| match body {
+                terminal_psi::MathematicalPredicateBody::TypeParameter(slot) => Some(*slot),
+                _ => None,
+            })
+            .collect()
+    }
+
     pub(super) fn empty() -> Self {
         Self {
+            type_arguments: Vec::new(),
             inputs: Inputs::default(),
             members: Arena::new(),
         }
@@ -265,6 +308,7 @@ impl MathematicalInputs {
         expanding: &'a [SymbolHandle],
     ) -> LogicalScope<'a> {
         LogicalScope {
+            type_arguments: &self.type_arguments,
             inputs: &self.inputs,
             members: &self.members,
             subject: None,
@@ -276,10 +320,10 @@ impl MathematicalInputs {
         }
     }
 
-    pub(super) fn validate(
+    pub(super) fn validate_body(
         &self,
         machine: MachineId,
-        proposition: &Proposition,
+        body: &terminal_psi::MathematicalPredicateBody,
     ) -> Checked<Vec<terminal_psi::ValueDeclaration>> {
         let parameters = self
             .inputs
@@ -298,18 +342,30 @@ impl MathematicalInputs {
                 .map(|parameter| (parameter.id, parameter.scalar_type)),
         )
         .map_err(|error| identity(machine, &format!("mathematical formal context: {error:?}")))?;
-        context.validate(proposition).map_err(|error| {
-            identity(
-                machine,
-                &format!("mathematical predicate formation: {error:?}"),
-            )
-        })?;
+        match body {
+            terminal_psi::MathematicalPredicateBody::Proposition(body) => {
+                context.validate(body).map_err(|error| {
+                    identity(
+                        machine,
+                        &format!("mathematical predicate formation: {error:?}"),
+                    )
+                })?
+            }
+            terminal_psi::MathematicalPredicateBody::TypeParameter(slot) => {
+                if !self.type_arguments.iter().any(|(_, body)| {
+                    *body == terminal_psi::MathematicalPredicateBody::TypeParameter(*slot)
+                }) {
+                    return Err(identity(machine, "unknown mathematical type formal"));
+                }
+            }
+        }
         Ok(parameters)
     }
 }
 
 #[derive(Clone, Copy)]
 pub(super) struct LogicalScope<'a> {
+    type_arguments: &'a [(SymbolHandle, terminal_psi::MathematicalPredicateBody)],
     inputs: &'a Inputs,
     members: &'a Arena<SymbolHandle>,
     subject: Option<(SymbolHandle, &'a SymbolPath)>,
@@ -346,7 +402,17 @@ fn source_fields(
     }
 }
 
-impl LogicalScope<'_> {
+impl<'a> LogicalScope<'a> {
+    pub(super) fn type_argument(
+        self,
+        symbol: SymbolHandle,
+    ) -> Option<&'a terminal_psi::MathematicalPredicateBody> {
+        self.type_arguments
+            .iter()
+            .find(|(formal, _)| *formal == symbol)
+            .map(|(_, body)| body)
+    }
+
     pub(super) fn normal_return(self) -> Self {
         Self {
             observation: ContentPlaceVersion::Current,
@@ -1391,6 +1457,7 @@ pub(crate) fn projected_arrival(
     }
     let required_contracts: Vec<_> = typed.state_signature_contracts(required).iter().collect();
     let (entry_signature, mut entry_names) = LogicalScope {
+        type_arguments: &[],
         inputs: &required_inputs,
         members: &member_arena,
         subject: None,
@@ -1402,6 +1469,7 @@ pub(crate) fn projected_arrival(
     }
     .signature(&mut program, required.symbol, &required_contracts)?;
     let (callee_signature, mut callee_names) = LogicalScope {
+        type_arguments: &[],
         inputs: &supplied_inputs,
         members: &member_arena,
         subject: None,
@@ -1466,6 +1534,7 @@ pub(crate) fn projected_arrival(
                 required_contract: None,
                 static_reach_binding: None,
                 static_reach_arguments: Vec::new(),
+                proof_arguments: Vec::new(),
                 arguments,
                 designated: None,
             },

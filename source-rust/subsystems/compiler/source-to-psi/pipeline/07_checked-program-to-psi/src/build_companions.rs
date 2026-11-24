@@ -499,6 +499,7 @@ fn protocol_action(
         Protocol::Bind | Protocol::BindDescription => Action::Bind,
         Protocol::BindNative => Action::BindNative,
         Protocol::Select => Action::Select,
+        Protocol::RegisterTestGroup => Action::RegisterTestGroup,
         Protocol::SelectProvider => Action::SelectProvider,
         Protocol::SelectProviderOption => Action::SelectProviderOption,
         Protocol::Exclude => Action::Exclude,

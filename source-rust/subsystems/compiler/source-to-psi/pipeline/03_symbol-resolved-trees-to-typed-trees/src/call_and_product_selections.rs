@@ -1439,12 +1439,18 @@ pub(crate) mod construction_destinations {
                         .iter()
                         .any(|definition| definition.symbol == call.target_symbol)
                     {
-                        // A mathematical parameter has a mathematical type,
-                        // not a receiving type a value is built at, and no
-                        // pass lands one there yet.
-                        if let Some(argument) = arguments
-                            .iter()
-                            .find(|argument| needs_destination(program, **argument))
+                        // Identity and transparent mathematical calls already declare
+                        // their result. Stage 05 checks that result against the
+                        // mathematical formal. Constructors still need a destination.
+                        if let Some(argument) = arguments.iter().find(|&&argument| {
+                            needs_destination(program, argument)
+                                && !matches!(program.expression_table.expression(argument),
+                                    ExpressionNode::Call(actual)
+                                    if program.symbols.fixed_core_declaration_for_symbol(actual.target_symbol)
+                                        == Some(symbols::FixedCoreDeclaration::Identity)
+                                        || (program.symbols.symbols().nodes().is_valid(actual.target_symbol)
+                                            && program.symbols.get(actual.target_symbol).kind == symbols::SymbolKind::MathematicalDefinition))
+                        })
                         {
                             deferred
                                 .push((*argument, DeferredRequest::MathematicalCallDestination));
@@ -3714,9 +3720,9 @@ pub(crate) mod product_selections {
         prelude module the namespace, so typing, checking, execution and admission
         never see a second receiver-shaped route. A resolved user method keeps
         ordinary resolution; only the unresolved toolchain spelling with no
-        ordinary arguments takes this route. Its preparation (`prepare_tests`)
-        is typed against `BuildTests` and authenticated by the evaluator as the
-        activation's original Build facet, never a copied or authored value.
+        ordinary arguments takes this route. The evaluator authenticates the
+        activation's original tests facet when the registration executes and
+        returns the checked mutable reference to that group's configuration.
     */
     pub(crate) fn test_group_facet(
         source: &crate::source_resolved::SymbolResolvedTrees,
@@ -3867,8 +3873,6 @@ pub(crate) mod product_selections {
                 | BuildOperation::ServiceAudit
                 | BuildOperation::BoundaryAcceptance => "one bare declaration operand",
                 BuildOperation::TestGroupRegistration => "one exact trait machine requirement operand",
-                BuildOperation::TestGroupService =>
-                    "a registered group's trait machine requirement and one boundary service slot operand",
                 BuildOperation::WireCompatibilityRequest =>
                     "four schema declaration operands and compatibility facts",
                 _ => "two bare declaration operands",

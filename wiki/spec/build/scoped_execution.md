@@ -12,7 +12,7 @@ API role names and schematic examples below do not establish wire compatibility.
 | Question | Required behavior |
 | --- | --- |
 | One builder or two? | One `Build`; scope and authority are enforced at individual operations. |
-| Build-only code? | Atomic `Build::build_dependency` registration and explicit preparation, then checked dependent continuations; ordinary logical `use` and separate host/product scopes. |
+| Build-only code? | The caller supplies Build libraries before entry. The running Build selects libraries for its product. |
 | Reference target code from a host build? | Existing designated product operands plus qualified, non-callable product descriptions; no general host import of target code. |
 | Filesystem? | Ordinary filesystem contracts with explicitly supplied backing; parents may delegate read-only, subtree, snapshot or copy-on-write views. |
 | Extra host access? | Actual invocation grants and independently accepted authority, never a build-only input registry or an import side effect. |
@@ -38,7 +38,7 @@ snapshot; transitional implementations must distinguish those modes.
 
 Use one ordinary Build activation with:
 
-1. Explicit interpreted build-only dependency requests and separate selection contexts.
+1. Separate library inputs for the Build program and dependency requests for its product.
 2. Explicit filesystem/provider arguments under ordinary generic or dynamic
   selection. Being a root grants no authority; the invocation supplies backing.
 3. Explicit product-description selection without executing target code.
@@ -57,7 +57,7 @@ Extend these contracts rather than introduce parallel acquisition, evaluation,
 or evidence systems:
 
 - [Build declarations](declarations.md): root description, package identity,
-  interpreted dependency requests, and static provider-slot readiness.
+  product dependency requests and supplied Build libraries.
 - [Build execution](execution.md): admission before effects,
   frozen Product source views, dependency build outputs, and observation custody.
 - [Modules](../language/modules.md) and
@@ -73,129 +73,63 @@ or evidence systems:
 
 ## Dependency declarations and binding
 
-`Build::dependency` registers a product dependency; `Build::build_dependency`
-registers a dependency for interpreted Build code. Both consume a configured
-dependency description and return its exact registration. Before registration,
-the parent can set an alias and [supply a filesystem to the child's Build](#supplying-a-filesystem-to-a-child-build).
-Registration fixes the source, purpose, alias and delegated execution context
-before the coordinator may schedule work. There is no mutable
-half-registered edge, post-registration alias setter or spelling-based retarget.
-Descriptions and registration receipts grant no host or package authority by
-construction alone. The readable dependency names replace `depend`, `depend_as`,
-`build_depend` and `build_depend_as`; separate alias-registration variants are
-unnecessary when the unregistered description is configurable.
-
-`DependencyRegistration` is a copyable immutable opaque Build handle to that
-exact coordinator registration, retaining its owning activation and Product or
-Build purpose scope. A fieldless value, variable name or separately constructed
-`{}` cannot stand for a distinct registration. Copies and borrows retain one
-identity within the activation; a handle from another or expired Build is not
-valid for the current builder. The handle records a registration within that
-activation. It carries no package validation result, persistent package
-identity or authority to acquire, execute or trust the package. Ordinary helper delegation uses the root's actual builder and handle.
-
-Aliases are unique in their requesting package and purpose scope. A duplicate
-or conflicting registration rejects rather than choosing an order-dependent
-winner. The same spelling may name different packages in Build and Product
-scopes without cross-context fallback. A conditional registration becomes
-available only along paths on which it executed and was prepared.
-
-`use {topology}/api.omg as topology;` binds a logical dependency file; it never acquires source,
-executes a dependency, mounts a directory or grants visibility beyond the exact
-authorized dependency. Build imports may remain unresolved until the checked
-continuation that needs them. Unused imports normally produce a warning, with
-no acquisition or execution; types, contracts and proof uses count as uses.
-An explicitly executed dependency registration still has its ordinary scheduling
-effects even if no imported declaration is ultimately referenced.
-
-`Build::prepare_dependency` is the readiness boundary for an exact registered
-dependency. It admits and prepares that dependency for the requested execution
-profile under its delegated context. It may suspend; it does not rerun earlier
-Build statements. It is not a request for arbitrary native plugin execution.
-After preparation, the compiler resolves and checks the dependent continuation
-before it executes. Exact trait/provider installation still obeys
-[provider readiness](provider_selection.md#build-provider-readiness); a newly
-admitted dependency can supply ordinary shared non-core interfaces, without
-copying declarations or structurally identifying same-spelled traits.
-
-Preparation's by-value registration argument copies the immutable handle;
-it does not consume or retarget the caller's registration. A subsequent
-`Build::validate(builder, @registered)` can therefore identify the same dependency,
-and the validation request may also be recorded before preparation. Validation
-does not itself request immediate preparation or execute a dependency. Both
-operations use this one registration mechanism; their distinct requirements
-remain under [validation subjects](validation_subjects.md#buildvalidate).
-
-The following helper receives a registration for the build dependency
-`topology`. The authorized acquisition route and filesystem backing supply
-its source. Preparation makes its file available to the continuation.
+The invoker supplies the external package bindings for the root Build. A parent
+supplies the bindings for each child Build when configuring the child's request.
+Each child gets its own scope. Supplying a library grants no host access and
+adds no library to the child's product. Local files use ordinary package-relative
+imports. External files use the package alias supplied for that Build. Given the
+binding `topology`, a helper can call that library on its first line:
 
 ```omega
 use {topology}/api.omg as topology;
 
-// Called with the registration returned by Build::build_dependency.
-machine configure(builder: @mutable Build, registered: DependencyRegistration)
-suspends
-{
-  suspend Build::prepare_dependency(builder, registered);
-  |topology|::configure_products(builder);
+machine configure(builder: @mutable Build) {
+    |topology|::configure_products(builder);
 }
 ```
 
-Ordinary generator calls should instead receive the particular bytes, filesystem
-or output writer they need. Giving a helper the root builder is deliberate
-delegation of its operations, not a consequence of importing that helper.
-Filesystem backing is explicit data, with an ordinary selected implementation;
-no parameter named State or implicit receiver supplies hidden authority.
+Passing the builder to this helper delegates access to its plan. A generator
+that only reads a template and writes a file can receive those inputs and its
+output writer instead.
+
+`Build::dependency` registers a configured library for the product. The
+running Build may choose it conditionally. Registration fixes the source,
+alias and delegated context before the coordinator may schedule work. Its
+`DependencyRegistration` is a copyable immutable handle to that exact request
+in the current activation. A helper may borrow the handle for
+[validation](validation_subjects.md#buildvalidate). A copy identifies the same
+request and expires with the activation. Creating a description or copying its
+receipt grants no acquisition, host access or execution authority. Duplicate
+aliases within one purpose scope reject.
 
 ## Checked Build stages
 
-Parse syntax and establish local lexical structure before execution. Execute
-only a completely checked and admitted prefix. A dependency's unresolved public
-types, contracts or implementation identities stop checking of the dependent
-continuation at an explicit preparation boundary; they do not justify executing
-an unresolved call. The continuation's operands, types and saved storage must
-already have valid checked representations when they cross that boundary.
+Under the `fixed-build-imports` decision (2026-11-23), the compiler resolves
+the Build program's imports and checks its code before the interpreter enters
+`build`. An unresolved import rejects before the first statement, even if its
+only use is in a branch that would not run. Both local and external imports
+follow this rule. Ordinary [layout demand](../layouts/plans.md#layout-demand-and-validation)
+still determines which concrete layouts must be computed.
 
-Preparation extends the authorized environment of the subsequent continuation,
-not the meaning of earlier code. Capture exact declarations, substitutions,
-source scope, aliases, facts, loans and resource custody across the suspension.
-No later discovery may reinterpret an earlier value, prove an earlier unsafe
-operation retroactively, replace an alias used by checked code, or execute a
-previously unchecked initializer. Cycles that require the missing dependency to
-decide how to acquire or prepare itself reject with their phase dependency.
+For example, stage A can write `parser.omg` through its filesystem. At handoff
+the driver freezes the selected source view. Stage B can import that file when
+the compiler checks it. Stage A cannot import its own future output. The stages
+may be a Build and its Product or separately requested compilations coordinated
+by a [release program](declarations.md#releases-with-independent-products).
 
-All syntax and already-resolvable obligations remain checked independently of
-whether execution selects a branch. A deferred branch can remain unresolved if
-not selected, but no claim of complete checking or readiness is made for it.
-On selection, resolve and check its complete executable continuation before any
-effect in that continuation. Unknown imports and invalid remote obligations
-cannot be silently treated as valid or optimized away. Once a dependency is
-admitted, its supplied ordinary declarations retain their normal source checking
-requirements, including unselected target implementations.
+A checked Build can suspend for ordinary work. Resuming preserves its program,
+live values, storage, borrows and pending obligations and runs each initializer
+once. A wake-up cannot add imports or trigger compilation of the remainder of
+the Build body. At return the driver joins outstanding product requests. A
+failure prevents successful publication. Earlier authorized external effects
+have no automatic rollback.
 
-Those ordinary source checks do not force concrete layouts for unused bodies.
-[Layout demand](../layouts/plans.md#layout-demand-and-validation) arises from
-actual consumers and selected row/entry closures. Deferring a layout does not
-authorize any operation that needs it: evaluation or execution consuming its
-geometry must first validate the exact application and target facts.
-
-At a join, dependency availability must hold on every incoming path where it is
-used; otherwise an explicit checked preparation is required before that use.
-Branch decisions, staged source and context identities remain part of replay
-and result applicability. Later-stage failure cannot publish a successful
-Build result, and real effects performed by earlier admitted stages have no
-automatic rollback. This is checked staged execution, not a fully checked whole
-Build body before its first effect or a transactional host process.
-
-Only ordinary Build continuations are staged this way. Generated product bytes
-join later product checking; they cannot redefine the currently executing Build
-or introduce new helpers into an already checked prefix. The mandatory final
-join covers all requests actually executed and the admitted executable closure,
-without asserting that unexecuted unresolved continuations were checked.
+Live replacement, where authorized, routes calls through an already declared
+[component requirement](component_publication.md#provider-slots-and-era-entry).
+It does not introduce an import or extend a Build's execution authority.
 
 The build can be split across ordinary imported source files. Only the selected
-root declares its role and dependency sets; imported helpers do not become build
+root declares its role and product dependencies; imported helpers do not become build
 roots or acquire declaration authority. Importing another package's build entry
 remains forbidden. Share ordinary public library code, not another activation's
 root or builder state.
@@ -204,7 +138,7 @@ root or builder state.
 
 | Occurrence | Selectable dependency code | Execution context |
 | --- | --- | --- |
-| Build entry and transitive helpers | Its package-local build sources, core, and exact static provider slots installed through `Build::await_provider<R, Backing>` | Admitted build evaluator on the host |
+| Build entry and transitive helpers | Its package-local Build sources, core, and libraries supplied for this invocation | Admitted build evaluator on the host |
 | Product source and its generated source | Its package-local product sources, core, and its ordinary dependencies | Selected product target |
 
 Core's exact toolchain vocabulary is directly available. Std is an ordinary
@@ -267,7 +201,7 @@ ordinary product dependency. If generated bytes depend on a build library,
 their origin remains recorded even when the resulting program has no runtime
 dependency on that library.
 
-Authors declare a dependency in each scope that uses it. A lock without
+The invoker supplies Build libraries and the Build declares product libraries. A lock without
 dependency purposes must be regenerated from the current declarations. Separate
 build and product edges may use the same alias. Acquisitions can be reused
 after exact identity validation. A missing edge identifies the requesting
@@ -322,10 +256,9 @@ examples is not a recommendation: ordinary programs should reject assumed
 bindings, and helpers must not add one to make a rejected product compile.
 
 [Test-group registration](testing.md#registration-and-discovery) selects one exact
-product requirement; its group-scoped `service` operands select ordinary
-product service/provider declarations under the same rules. Build execution
-does not invoke the selected tests. The later runner discovers checked local
-satisfiers, admits their separate execution authority, and invokes them.
+product requirement. A test product selects providers for its requirements through
+ordinary `Build::select_provider`. The runner discovers checked local satisfiers,
+admits their separate execution authority, and invokes them.
 This adds no general private-symbol enumeration API to build helpers.
 
 For reusable build helpers, expose owned typed descriptions through the existing
@@ -560,7 +493,7 @@ the selected filesystem's checked result; no fallback grants a broader root.
 
 To give one child a filesystem, the parent configures its dependency
 description with `|dependency|::with_filesystem`, then passes the description
-to `Build::dependency` or `Build::build_dependency`. That registration
+to `Build::dependency`. That registration
 retains the selected implementation and its backing. The driver binds them
 to the child's [filesystem parameter](declarations.md#project-role) before
 execution. If a required binding is missing or incompatible, the driver
@@ -620,8 +553,7 @@ reuse when applicability cannot be established. Resource or host failures
 cannot be relabeled as stable NotFound/EOF observations. No scratch file becomes
 implicitly readable. Different contexts are ordinary supported
 occurrences, not a conflict that must always be detected before the package's
-first-ever activation. Each occurrence and each newly reached continuation is
-admitted before its own effects; earlier authorized execution has no rollback.
+first-ever activation. The driver admits each Build before its first effect. Earlier authorized execution has no rollback.
 
 Additional real-host access is opt-in under independently accepted consumer and
 executor policy. Requests by downloaded code cannot grant themselves authority.
@@ -786,9 +718,8 @@ and mutation tests.
 The exact sequencing is:
 
 ```text
-checked initial Build stage and admission
-  -> one resumable activation with atomic dependency registration
-  -> dependency preparation, then checked/admitted continuations without replay
+resolve Build imports against supplied bindings, check and admit the Build
+  -> one activation registers product libraries and configures their child Builds
   -> final dependency join and frozen product-selection frontier
   -> Product checking from the frozen source view and final target/component checks
   -> required-output completion check and committed result set
@@ -806,13 +737,11 @@ a new manifest as output.
 
 | Case | Required result |
 | --- | --- |
-| Build dependency declared but never used by Build code | Request may complete without suspending; Build return still joins and records it. |
-| Provider readiness requested before dependency work completes | Suspend at `Build::await_provider<R, Backing>`, install only the explicitly named admitted backing into the exact static slot, and resume the same continuation without replay. |
-| Dependency declaration in a local helper or conditional | Execute normally; only the requests actually emitted belong to this Build result. |
-| Deferred import of a newly registered Build dependency | Remains inert until preparation; check the dependent continuation before any use executes. |
-| Unused import without a dependency request | Normally warn; acquire and execute nothing. |
-| Alias mutation, duplicate registration or a later request used to justify earlier code | Reject without retargeting any previously checked declaration. |
-| Branch-local dependency used at a join | Require preparation on every incoming use path or an explicit checked preparation before the use. |
+| A supplied helper is used on the first line of a Build | Resolve it before entry and call it through an ordinary import. |
+| A Build imports a missing helper and would write a file before using it | Refuse before the write, including when the use is conditional. |
+| A Build conditionally registers a product library | Include it in the product when registration executes. The Build's own imports remain fixed. |
+| A Build suspends with a live borrow | Resume the same program and storage. Preserve the borrow and pending obligations under ordinary suspension rules. |
+| A Build tries to supply its own missing import or mutate a registered alias | Reject. The caller supplies Build libraries before entry. |
 | Local multi-file build helper | Checked in the build context with exact Build vocabulary and normal visibility. |
 | Product-only entry/provider selected from a build with no host import of that implementation | Exact designated product operand resolves; no target code executes on the host. |
 | Same alias names different host and product packages | Ordinary calls select only the host package; product operands select only the product package. No fallback. |
@@ -854,16 +783,17 @@ leakage, and test same-package dual-purpose reuse with different targets.
 There is no permanent legacy mode or parallel filesystem API.
 
 The retired surface includes old dependency names and post-registration alias
-mutation, unconditional pre-known-only Build import checking, BuildInputs,
+mutation, self-registration of Build libraries, rechecking the running Build
+after dependency preparation, BuildInputs,
 BuildSource and BuildOutput filesystem operations, named per-dependency input
 maps including with_dependency_inputs, and the
 global incoming-map agreement rule. Compiler-private source capture, exact
 provider installation, linear artifact publication, accounting and authority
 checks remain where required; changing names must not remove those guarantees.
 
-The accepted public journey is ordinary inert imports, configured descriptions,
-atomic registration, explicit preparation, checked continuation execution,
-ordinary filesystem capabilities, frozen source views and published artifacts.
+The invoker supplies Build libraries, the compiler checks imports, and the
+admitted Build registers product libraries. Generators use ordinary filesystem
+capabilities and hand a frozen source view to the next compilation.
 Library helper signatures and protocol encoding must preserve that journey.
 Change retained schema and review identities where context or stage meaning
 changes; reject or explicitly migrate old records rather than reinterpret their bytes.

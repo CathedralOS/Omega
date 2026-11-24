@@ -836,7 +836,7 @@ machine main() reaches ProcessExit crashes none terminates {{ exit_helper(passth
     .unwrap();
     let settlements = providers.program_settlements();
     let policy = provider_admission::current_terminal_authority_policy();
-    let base = providers.admission_request(&settlements, &policy, &None, &[]);
+    let base = providers.admission_request(&settlements, &policy, &None, None, &[]);
     let second = publish("2i32");
     let second_proposal = second.native_realization_proposal();
     let second_execution = prepare_program(second_proposal, second.authorization()).unwrap();

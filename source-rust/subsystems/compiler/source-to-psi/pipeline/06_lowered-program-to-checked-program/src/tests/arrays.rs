@@ -202,6 +202,7 @@ fn array_construction_copy_and_indexed_replacement_preserve_other_elements() {
             bind(0, literal),
             bind(1, place(0, array(2))),
             Statement::Store {
+                slot_home: None,
                 destination: index(place(0, array(2)), unsigned(0), u32_type().into()),
                 value: unsigned(9),
                 source: nowhere(),

@@ -4,8 +4,10 @@ over `TerminalMachine` blocks.
 */
 
 mod dominance;
+mod required_invocation;
 
 pub use dominance::{DominanceInterval, dominance_forest};
+pub use required_invocation::{InvocationOnReturn, invocation_on_return};
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -183,7 +185,6 @@ impl NormalCompletionGraph for ModuleCompletionGraph<'_> {
         machine: MachineId,
         block: BlockId,
     ) -> Result<NormalCompletionDisposition, Self::Error> {
-        use terminal_psi::Terminator;
         let block =
             self.machine(machine)?
                 .block(&block)
@@ -191,25 +192,27 @@ impl NormalCompletionGraph for ModuleCompletionGraph<'_> {
                     machine,
                     error: ControlGraphError::UnknownTarget(block),
                 })?;
-        Ok(match &block.terminator {
-            // The checked suffix may return. An open tail can never prove a
-            // no-normal callee or let its caller omit the result contract.
-            Terminator::PendingNormalCompletion { .. }
-            | Terminator::Return { .. }
-            | Terminator::ReturnUnit { .. }
-            | Terminator::ReturnStructural { .. } => NormalCompletionDisposition::Return,
-            Terminator::InvokeNoNormal { callee, .. } => {
-                NormalCompletionDisposition::Invoke(*callee)
-            }
-            Terminator::Crash { .. }
-            | Terminator::EliminateEmpty { .. }
-            | Terminator::ExternalCompletion { .. } => NormalCompletionDisposition::Stop,
-            Terminator::Jump { .. }
-            | Terminator::Conditional { .. }
-            | Terminator::StructuralCase { .. } => {
-                NormalCompletionDisposition::Successors(block.terminator.successor_targets())
-            }
-        })
+        Ok(completion_disposition(&block.terminator))
+    }
+}
+
+fn completion_disposition(terminator: &Terminator) -> NormalCompletionDisposition {
+    match terminator {
+        // The checked suffix may return. An open tail can never prove a
+        // no-normal callee or let its caller omit the result contract.
+        Terminator::PendingNormalCompletion { .. }
+        | Terminator::Return { .. }
+        | Terminator::ReturnUnit { .. }
+        | Terminator::ReturnStructural { .. } => NormalCompletionDisposition::Return,
+        Terminator::InvokeNoNormal { callee, .. } => NormalCompletionDisposition::Invoke(*callee),
+        Terminator::Crash { .. }
+        | Terminator::EliminateEmpty { .. }
+        | Terminator::ExternalCompletion { .. } => NormalCompletionDisposition::Stop,
+        Terminator::Jump { .. }
+        | Terminator::Conditional { .. }
+        | Terminator::StructuralCase { .. } => {
+            NormalCompletionDisposition::Successors(terminator.successor_targets())
+        }
     }
 }
 

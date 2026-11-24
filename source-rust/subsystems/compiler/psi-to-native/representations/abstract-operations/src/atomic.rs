@@ -324,6 +324,18 @@ impl AbstractAtomicEvent {
         }
     }
 
+    pub fn location_mut(&mut self) -> Option<&mut AbstractAtomicLocation> {
+        match self {
+            Self::Load { location, .. }
+            | Self::Store { location, .. }
+            | Self::ReadModifyWrite { location, .. }
+            | Self::Swap { location, .. }
+            | Self::CompareExchange { location, .. }
+            | Self::CompareExchangeOnce { location, .. } => Some(location),
+            Self::Fence { .. } => None,
+        }
+    }
+
     pub fn place(&self) -> Option<PlaceId> {
         self.location().map(|location| location.root)
     }

@@ -1,9 +1,15 @@
 //! Run the admitted Build entry and retain its original activation through source settlement.
 
+#[path = "planning/native_entry.rs"]
+mod native_entry;
+pub use native_entry::NativeEntryLimits;
+#[path = "planning/observations/mod.rs"]
+pub mod observations;
 #[path = "planning/product.rs"]
 mod product;
 #[path = "planning/registered_tests.rs"]
 mod registered_tests;
+pub use registered_tests::TestExecution;
 pub use product::ProductStage;
 #[path = "planning/package_review/mod.rs"]
 mod package_review;

@@ -45,17 +45,11 @@ requests with stage 02's output retained (`RSV:1-4`).
 
 ## Main build regression found while testing
 
-The focused image-emission test could not build on `main` (`24ad2700` through
-`139787f1`). [#5393](https://github.com/CathedralOS/Omega/pull/5393) added
-`Proposition::DeclarationIdentity` and left two exhaustive matches in the native
-optimization unit without an arm: `encode_proposition`
-(`optimization-unit/src/identity.rs:267`) and the place-root `collect`
-(`optimization-unit-semantics/src/unit_validation.rs:10668`). No open PR or
-branch fixed it. This PR adds both arms in a separate commit. Psi publication
-refuses a declaration identity outside checking-identity mode
-(`psi/artifact/declaration-encoding/src/terms/proposition.rs:266-272`), so the new
-arms keep the native crates compiling and encode the clause faithfully if one
-ever arrives.
+The focused image-emission test initially failed to build at `139787f1`.
+The new `Proposition::DeclarationIdentity` variant lacked arms in the native
+optimization unit’s proposition encoder and place-root collector. Main acquired
+the encoder in #5427 and the collector in #5443. The resolved image replay
+change uses both implementations from main.
 
 ## Unresolved claims
 

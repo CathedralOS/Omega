@@ -2230,11 +2230,11 @@ pub mod inspection {
                         numeric_literals::EvaluatedConstant::Encoded(encoding) => {
                             Self::Encoded(encoding.clone())
                         }
-                        numeric_literals::EvaluatedConstant::UndeterminedNaN(
-                            format,
-                        ) => Self::UndeterminedNaN {
-                            format: format.name().to_owned(),
-                        },
+                        numeric_literals::EvaluatedConstant::UndeterminedNaN(format) => {
+                            Self::UndeterminedNaN {
+                                format: format.name().to_owned(),
+                            }
+                        }
                     }
                 }
             }
@@ -2751,6 +2751,9 @@ pub mod inspection {
                                 crate::source_state::data::TypeParameterKind::Value { .. } => {
                                     "value"
                                 }
+                                crate::source_state::data::TypeParameterKind::Proof { .. } => {
+                                    "proof"
+                                }
                                 crate::source_state::data::TypeParameterKind::Machine {
                                     ..
                                 } => "machine",
@@ -2767,6 +2770,7 @@ pub mod inspection {
                                 } => Some(type_reference_snapshot(program, type_reference)),
                                 crate::source_state::data::TypeParameterKind::Type
                                 | crate::source_state::data::TypeParameterKind::Implementation
+                                | crate::source_state::data::TypeParameterKind::Proof { .. }
                                 | crate::source_state::data::TypeParameterKind::Machine {
                                     ..
                                 }
@@ -3006,6 +3010,7 @@ pub mod inspection {
                             Some(type_reference_snapshot(program, *type_reference)),
                         )
                     }
+                    crate::source_state::data::TypeParameterKind::Proof { .. } => ("proof", None),
                     crate::source_state::data::TypeParameterKind::Machine { .. } => {
                         ("machine", None)
                     }
@@ -3379,6 +3384,9 @@ pub mod inspection {
                 Value {
                     type_reference: TypeReferenceSnapshot,
                 },
+                Proof {
+                    contract: Box<CallableSignatureSnapshot>,
+                },
                 Machine {
                     contract: Box<CallableMachineParameterSnapshot>,
                 },
@@ -3453,6 +3461,13 @@ pub mod inspection {
                                         ),
                                     }
                                 }
+                                TypeParameterKind::Proof { contract } => {
+                                    CallableTypeParameterKindSnapshot::Proof {
+                                        contract: Box::new(callable_signature_snapshot(
+                                            program, contract,
+                                        )),
+                                    }
+                                }
                                 TypeParameterKind::Machine { contract } => {
                                     CallableTypeParameterKindSnapshot::Machine {
                                         contract: Box::new(callable_machine_parameter_snapshot(
@@ -3519,7 +3534,9 @@ pub mod inspection {
                                     "parameter {ordinal}: {}",
                                     program.symbols.display_path(symbol, "::")
                                 ),
-                                AuthoredInvocationTarget::AppliedService(id) => format!("service application: {}", id.0),
+                                AuthoredInvocationTarget::AppliedService(id) => {
+                                    format!("service application: {}", id.0)
+                                }
                                 AuthoredInvocationTarget::Service(symbol) => format!(
                                     "service: {}",
                                     program.symbols.display_path(symbol, "::")
@@ -4131,6 +4148,7 @@ pub mod inspection {
                     expression: Box<ExpressionSnapshot>,
                 },
                 Machine(StaticArgumentSnapshot),
+                Proof(StaticArgumentSnapshot),
                 Conformance(StaticArgumentSnapshot),
             }
 
@@ -4238,6 +4256,11 @@ pub mod inspection {
                                     },
                                     StaticMachineBindingValue::Machine(argument) => {
                                         StaticBindingSnapshot::Machine(snapshot_static_argument(
+                                            program, argument,
+                                        ))
+                                    }
+                                    StaticMachineBindingValue::Proof(argument) => {
+                                        StaticBindingSnapshot::Proof(snapshot_static_argument(
                                             program, argument,
                                         ))
                                     }
@@ -5653,7 +5676,6 @@ pub mod inspection {
                 Intrinsic::BuildServiceExclusion => ("build_service_exclusion", None),
                 Intrinsic::BuildServiceAudit => ("build_service_audit", None),
                 Intrinsic::BuildTestGroupRegistration => ("build_test_group_registration", None),
-                Intrinsic::BuildTestGroupService => ("build_test_group_service", None),
                 Intrinsic::BuildOptimizationSelection => ("build_optimization_selection", None),
                 Intrinsic::BuildOptimizationReportRequest => {
                     ("build_optimization_report_request", None)

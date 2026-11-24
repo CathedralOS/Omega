@@ -1,0 +1,4 @@
+{
+  "source_inputs": ["main.omg", "build.omg"],
+  "output_files": {"two_frames.wav": "expected/two_frames.wav"}
+}

@@ -1,24 +1,63 @@
-/*
-We provide bounded record storage (`Record`, `RecordWriter`,
-`RecordReader`, `RecordLimits`, `RecordError`, `encode`, and `decode`) with
-shared-object DAG identity (`Arc<T>`, `Arc<str>`, `Arc<[T]>`) and per-domain
-storage generation remapping (`remap_generations`, `define_generation`,
-`generation`).
+/*!
+We store compiler graphs between invocations so we can recover them with their
+sharing intact. In a self-contained record, the first visit to an `Arc`
+assigns the next one-based number and writes a definition with its payload.
+Later occurrences carry the same number and a reference tag. The writer uses
+the allocation's address for the local lookup. The reader reserves the numbered
+slot before decoding the payload and fills it once the value is complete. A
+reference must find a filled slot of the expected type, which rules out forward
+references and cycles.
+
+The writer and reader bound record size, element counts, and nesting depth.
+Before reserving a sequence's storage, the reader charges its element count
+times its element size against the allocation budget. Owners of process-local
+generations can register their domain and pair each stored generation with a
+fresh number and its payload. Later references in that domain must use a
+generation the reader has already restored. Without a remapping domain, the
+reader preserves the stored number.
 */
 
-/*
-Persisting and restoring object graphs requires strict budgets on
-encoded byte length, decoded heap allocation, sequence element counts, and
-recursion depth so truncated or adversarial inputs fail closed before exhausting
-host memory. Tracking `Arc` pointer identities per writer/reader preserves DAG
-sharing without leaking raw addresses into bytes or permitting cyclic decoding.
+/*!
+
+The derive writes fields in declaration order and tags enum variants with
+their zero-based position as a `u32`. Reordering fields or variants can change
+the meaning of existing bytes. The source, checking, or realization owner
+matches the producer and input digests and applies current admission rules
+before reusing the decoded candidate. The tests at the end of this file cover
+shared identity, allocation limits, and malformed records.
 */
 
-/*
-Decoding produces structural candidates only; source, checking, and realization
-owners must still bind the exact producer and input digests and rejoin current
-admission before reusing a decoded value. Standard Rust primitive, collection,
-and smart-pointer `Record` implementations live in `values`.
+/*!
+
+We can drop a graph after encoding it and recover two references to the same
+allocation when we need it again.
+
+```
+use record_storage::{Record, RecordError, RecordLimits, decode, encode};
+use std::sync::Arc;
+
+#[derive(Record)]
+struct Graph {
+    declaration: Arc<str>,
+    reference: Arc<str>,
+}
+
+# fn main() -> Result<(), RecordError> {
+let name: Arc<str> = Arc::from("entry");
+let graph = Graph {
+    declaration: Arc::clone(&name),
+    reference: name,
+};
+let limits = RecordLimits::default();
+let bytes = encode(&graph, limits)?;
+drop(graph);
+
+let restored: Graph = decode(&bytes, limits)?;
+assert_eq!(restored.declaration.as_ref(), "entry");
+assert!(Arc::ptr_eq(&restored.declaration, &restored.reference));
+# Ok(())
+# }
+```
 */
 
 #![forbid(unsafe_code)]
@@ -56,8 +95,9 @@ pub fn decode<T: Record>(bytes: &[u8], mut limits: RecordLimits) -> Result<T, Re
     decode_with_budget(bytes, &mut limits)
 }
 
-/// Several nested records can draw from one allocation and element budget.
-/// The byte and depth limits apply to each framed record.
+/// Several framed records can draw from one allocation and element budget.
+/// Each frame gets its own byte and depth limits. We debit the shared budget
+/// after decoding the complete frame, including the check for trailing bytes.
 pub fn decode_with_budget<T: Record>(
     bytes: &[u8],
     limits: &mut RecordLimits,
@@ -73,12 +113,10 @@ pub fn decode_with_budget<T: Record>(
 }
 
 /*
-    Encodes `value` with every reference to `external` written as a reference
-    the reader resolves to a value it supplies, instead of `external`'s bytes.
-    Two compiles that share everything but a large ambient value, such as the
-    invocation's source map, then encode equally. A different value of the
-    same type inside `value` cannot be resolved that way, so it is an error
-    rather than an inline copy that would come back on another compile.
+    We reserve shared object 1 for `external` and write only references to
+    it. An invocation can then supply its own source map without changing
+    the encoded graph. A second allocation of the same shared type is an
+    error because the reader supplies exactly one object of that type.
 */
 pub fn encode_beside<T: Record, External: 'static>(
     value: &T,

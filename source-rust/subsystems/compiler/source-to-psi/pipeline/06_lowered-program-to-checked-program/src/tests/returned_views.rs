@@ -689,6 +689,46 @@ machine entry() reaches Fs invokes Fs {
 }
 "#;
 
+const MUTABLE_PROVIDER_SETTING: &str = r#"
+data Group { disabled: bool; }
+data Facet {}
+boundary trait Registration {
+    machine issue(facet: @Facet) -> @mutable Group reaches none crashes none;
+}
+machine observe(group: @Group) -> bool { group.disabled }
+machine keep<'a>(group: @'a Group) -> @'a Group { group }
+machine entry() -> bool reaches Registration invokes Registration {
+    let facet = Facet {};
+    let setting = Registration::issue(@facet);
+    setting.disabled = true;
+    observe(setting)
+}
+"#;
+
+#[test]
+fn mutable_provider_record_store_requires_its_own_live_permission() {
+    assert_eq!(verdict(MUTABLE_PROVIDER_SETTING), "accepted");
+    let shared = MUTABLE_PROVIDER_SETTING.replace("-> @mutable Group", "-> @Group");
+    let shared_access = verdict(&shared);
+    let borrowed = MUTABLE_PROVIDER_SETTING.replace(
+        "setting.disabled = true;\n    observe(setting)",
+        "let held = keep(setting);\n    setting.disabled = true;\n    observe(held)",
+    );
+    assert_ne!(borrowed, MUTABLE_PROVIDER_SETTING);
+    let retained_access = verdict(&borrowed);
+    let exclusive_input = MUTABLE_PROVIDER_SETTING
+        .replace("facet: @Facet", "facet: @mutable Facet")
+        .replace("let facet =", "let mutable facet =")
+        .replace("issue(@facet)", "issue(@mutable facet)");
+    let exclusive_input = verdict(&exclusive_input);
+    assert!(shared_access.starts_with("rejected:"), "{shared_access}");
+    assert_ne!(retained_access, "accepted");
+    assert!(
+        exclusive_input.contains("a writable provider borrow needs its exact payload region"),
+        "{exclusive_input}"
+    );
+}
+
 const PROVIDER_REFERENCE: &str = r#"
 boundary trait Source { machine slot() -> @i32 reaches none crashes none; }
 machine read(slot: @i32) -> i32 { $slot }

@@ -106,9 +106,11 @@ adapters. Generic loading and execution require neither those optional adapters
 nor source recompilation. Exact SDK packaging remains an engineering choice.
 
 Ordinary entry execution establishes every demanded provider slot in the selected
-executable closure before execution, including possible dynamic calls. A branch merely expected not to
-run cannot excuse missing supply; code outside that closure need not demand
-one. Missing adapter or target-environment support prevents that interpretation
+executable closure, including possible dynamic calls. An explicitly runtime-bound
+slot can remain empty during startup when a checked path establishes its first
+binding before entering any code that requires it. A branch merely expected to
+remain untaken cannot excuse missing supply. The same [first-binding contract](component_publication.md#first-binding-of-a-runtime-bound-slot)
+governs native and Psi execution. Missing adapter or target-environment support prevents that interpretation
 and names the missing requirement and its demand. Do not run native code as an
 implicit fallback, replace selected services, or increase authority. The
 [test runner](testing.md#execution-plan) may explicitly schedule both engines;
@@ -168,10 +170,12 @@ Neither `public` nor `satisfies` alone exports a callable ABI. No `main`, `run`,
 An instance's import roster identifies each exact slot/occurrence, closed
 requirement application, and full contract. Multiple static roles use distinct
 applications or wrapper requirements, not same-typed source fields. Establish
-every demanded import before running guest code, except an explicitly reserved
-component under the readiness lifecycle above; missing, duplicate,
-wrong-instance, incompatible, ambiguous, or unauthorized supply rejects without
-an ambient fallback. Provider supply does not transfer authority; operation
+every demanded import before running guest code, subject to the two startup
+rules above. An explicitly runtime-bound occurrence may start empty on checked
+paths that establish first binding before use. A component reserved under Build
+provider readiness follows its separate suspension and resumption protocol.
+Any other missing supply, or duplicate, wrong-instance, incompatible, ambiguous,
+or unauthorized supply, rejects. Provider supply does not transfer authority; operation
 arguments and admitted receiver policy carry their own obligations.
 
 The library supplies typed import/export adapters and descriptions, rather than

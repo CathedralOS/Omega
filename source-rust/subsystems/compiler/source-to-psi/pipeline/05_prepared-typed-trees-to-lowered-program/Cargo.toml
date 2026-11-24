@@ -14,6 +14,7 @@ test-support = []
 path = "lib.rs"
 
 [dependencies]
+proof-admission = { path = "../../../psi/semantics/proofs/bounded" }
 prepared-source = { path = "../../representations/prepared-source" }
 lowered-source-publication = { path = "../../representations/lowered-source-publication" }
 lowered-source-publication-issuer = { path = "../../representations/lowered-source-publication/issuer" }
@@ -37,6 +38,7 @@ numerics = { path = "../../../foundation/numerics" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 symbols = { path = "../../../foundation/declaration-identity" }
 terminal-check-tables = { path = "../../representations/lowered-program" }
+mathematical-kernel = { path = "../../../psi/semantics/proofs/mathematical" }
 terminal-codec = { path = "../../../psi/artifact/codec" }
 terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi/semantics" }

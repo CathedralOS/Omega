@@ -35,6 +35,9 @@ fn verdict(body: &str) -> Result<Vec<String>, String> {
         RouteVerdict::AcceptedPrefix(_) => Err(String::from("unfinished")),
         RouteVerdict::Incomplete(_) => Err("incomplete".into()),
         RouteVerdict::FallBack(refusal) => Err(format!("not supported: {}", refusal.detail)),
+        RouteVerdict::Laws(_) | RouteVerdict::UnprovedLaws(_) => {
+            Err("a mathematical signature".into())
+        }
     }
 }
 

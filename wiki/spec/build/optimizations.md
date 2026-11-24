@@ -56,7 +56,7 @@ fixed-point passes have explicit convergence and iteration budgets.
 Each applied optimization and its output representation keep an independent
 validator. For the emitted executable, see
 [native backend regression tests](machine_state_evidence.md#final-artifact-validation-placement).
-Under [verification placement](../../../omega-rust/pipeline.md#verification-placement), set by the owner in
+Under [verification placement](../../../source-rust/subsystems/compiler/README.md#verification-placement), set by the owner in
 `b1423f5385d` (2026-10-04), the corpus runner and the tests run those
 validators; the default compile path does not re-validate the input or output
 that the same compile just produced. Explicit
@@ -106,7 +106,7 @@ output the second check rejects is a compiler defect, not a source diagnostic.
 The check does not establish behavior preservation. Per-pass validators and
 Psi-versus-native agreement do that work, in the corpus runner and the tests,
 not on the default compile path
-([verification placement](../../../omega-rust/pipeline.md#verification-placement)).
+([verification placement](../../../source-rust/subsystems/compiler/README.md#verification-placement)).
 
 A producer that cannot execute an exact selected pass refuses the selection before publication. The execution record names every selected pass even when its input contains no eligible rewrite.
 

@@ -74,6 +74,7 @@ pub fn compile(
         ProductEntry::BuildBindings,
         advisories,
         &mut Default::default(),
+        &mut CompileTimings::default(),
     )
     .map(|(artifact, _)| artifact)
 }
@@ -83,12 +84,22 @@ pub fn compile_for_target(
     target: &str,
     advisories: Option<&mut Vec<Diagnostic>>,
 ) -> Result<PublishedTargetProgram, Vec<Diagnostic>> {
+    compile_for_target_with_timings(source, target, advisories, &mut CompileTimings::default())
+}
+
+pub fn compile_for_target_with_timings(
+    source: StageSource<'_>,
+    target: &str,
+    advisories: Option<&mut Vec<Diagnostic>>,
+    timings: &mut CompileTimings,
+) -> Result<PublishedTargetProgram, Vec<Diagnostic>> {
     let (artifact, checked, subject) = publish_deployment(
         source,
         target,
         ProductEntry::BuildBindings,
         advisories,
         &mut Default::default(),
+        timings,
     )?;
     driver::published_target(artifact, checked, target, subject)
 }
@@ -109,6 +120,7 @@ pub fn review_package(
         ProductEntry::PackageReview,
         None,
         accounting,
+        &mut CompileTimings::default(),
     )?;
     checked.retain_package_review_bindings(package, target)?;
     let declarations = CheckedPackageDeclarations {
@@ -130,6 +142,7 @@ fn publish_deployment(
     entry: ProductEntry<'_>,
     advisories: Option<&mut Vec<Diagnostic>>,
     accounting: &mut crate::compile_time_invocations::SourceCompletionAccounting,
+    timings: &mut CompileTimings,
 ) -> Result<
     (
         PublishedPsi,
@@ -144,7 +157,8 @@ fn publish_deployment(
         ))]);
     }
     let subject = source.product.subject;
-    let (artifact, checked) = driver::publish_stage(source, entry, advisories, accounting)?;
+    let (artifact, checked) =
+        driver::publish_stage(source, entry, advisories, accounting, timings)?;
     Ok((artifact, checked, subject))
 }
 
@@ -188,16 +202,28 @@ impl CheckedPackageDeclarations {
 
     pub fn supplied_declarations(
         &self,
-    ) -> Result<
-        impl Iterator<Item = (symbols::SymbolHandle, symbols::SymbolHandle)> + '_,
-        Vec<Diagnostic>,
-    > {
-        Ok(self
-            .publication
-            .roster()?
+        target: &str,
+    ) -> Result<Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>, Vec<Diagnostic>> {
+        let roster = self.publication.roster()?;
+        let source = self.accepted()?.source();
+        let mut declarations: Vec<_> = roster
             .supplies
             .iter()
-            .map(|supply| (supply.slot, supply.provider)))
+            .map(|supply| (supply.slot, supply.provider))
+            .collect();
+        // A provider already realized during normalization needs no additional
+        // body judgment during settlement. Both belong to this accepted roster.
+        for choice in &roster.normalization.providers {
+            if choice.target == target {
+                let schema = choice.schema.scope(source).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "checked provider selection lost its source schema",
+                    )]
+                })?;
+                declarations.push((schema.declaration.symbol, choice.provider));
+            }
+        }
+        Ok(declarations)
     }
 }
 
@@ -207,6 +233,7 @@ pub fn inspect(source: StageSource<'_>, machine: &str) -> Result<PublishedPsi, V
         ProductEntry::Inspection(machine),
         None,
         &mut Default::default(),
+        &mut CompileTimings::default(),
     )
     .map(|(artifact, _)| artifact)
 }

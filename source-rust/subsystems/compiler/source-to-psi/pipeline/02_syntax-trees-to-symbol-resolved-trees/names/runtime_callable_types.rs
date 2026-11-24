@@ -211,8 +211,7 @@ pub(super) fn lexical_parameters(
             .data_type_parameters
             .iter()
             .find(|(_, parameter)| parameter.symbol == owner)
-            && let TypeParameterKind::Machine { contract } = &parameter.kind
-            && let Some(signature) = contract.structural()
+            && let Some(signature) = parameter.kind.contract_signature()
         {
             parameters = declaration_type_scope(
                 &parameters,

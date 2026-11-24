@@ -110,7 +110,7 @@ applied-frame identities while resolving internal calls and section offsets.
 Each stage has an independent checker in its module. The checkers serve
 retained-artifact readers and tests; no stage replays output the same
 compile just produced
-([verification placement](../../../../pipeline.md#verification-placement)).
+([verification placement](../../../README.md#verification-placement)).
 Child manifests are rebound, so changing a rule does not mean copying its
 fields into parallel object, artifact and callable schemas.
 

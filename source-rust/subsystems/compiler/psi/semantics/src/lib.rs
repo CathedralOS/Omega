@@ -44,6 +44,7 @@ pub mod structural;
 pub mod structural_qualifications;
 pub mod substitution;
 pub mod suspension_frontier;
+pub mod theorems;
 
 pub(crate) use ::wire::digest_encoder;
 pub use access::access_lifecycles::{
@@ -202,7 +203,8 @@ pub use references::reference_views::{
     shared_descriptor_copy_matches, shared_direct_byte_descriptor_source, stored_reference_access,
 };
 pub use references::representation_geometry::{
-    reference_view_compatible, reference_view_offset_is_zero, validate_reference_view_source,
+    all_bit_patterns_are_valid, reference_view_compatible, reference_view_offset_is_zero,
+    validate_reference_view_source,
 };
 pub use scalars::proof_bearing_scalar::{
     CanonicalScalarGoal, ProofBearingIntegerPolicyBinding, ProofBearingScalarLeafSchema,

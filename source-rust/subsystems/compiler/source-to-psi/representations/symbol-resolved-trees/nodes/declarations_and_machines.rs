@@ -142,12 +142,29 @@ pub mod declarations {
             Value {
                 type_reference: TypeReference,
             },
+            Proof {
+                contract: crate::source_resolved::signature::StateSignature,
+            },
             Machine {
                 contract: MachineParameterContract,
             },
             Proposition {
                 contract: PropositionParameterSignature,
             },
+        }
+
+        impl TypeParameterKind {
+            /// Both argument kinds own a signature's names and nested types.
+            /// The kind still decides whether a use supplies proof or code.
+            pub fn contract_signature(
+                &self,
+            ) -> Option<&crate::source_resolved::signature::StateSignature> {
+                match self {
+                    Self::Proof { contract } => Some(contract),
+                    Self::Machine { contract } => contract.structural(),
+                    _ => None,
+                }
+            }
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]

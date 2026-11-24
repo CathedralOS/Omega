@@ -1452,6 +1452,9 @@ fn a_shared_array_view_cannot_observe_write_only_backing() {
         RouteVerdict::AcceptedPrefix(_) => String::from("unfinished"),
         RouteVerdict::Incomplete(_) => "incomplete".to_owned(),
         RouteVerdict::FallBack(refusal) => format!("fallback: {}", refusal.detail),
+        RouteVerdict::Laws(_) | RouteVerdict::UnprovedLaws(_) => {
+            "a mathematical signature".to_owned()
+        }
         RouteVerdict::Rejected { conflicts, .. } => format!(
             "loan conflicts: {:?}",
             conflicts.iter().map(|row| row.conflict).collect::<Vec<_>>()

@@ -1,26 +1,9 @@
-use representations\symbol_resolved_trees\NameResolution;
-use representations\symbol_resolved_trees\ValueBinding;
-use representations\symbol_resolved_trees\value_binding;
-use representations\syntax_trees\Expression;
-use representations\syntax_trees\ExpressionKind;
-use representations\syntax_trees\MachineItem;
-use representations\syntax_trees\OperatorKind;
-use representations\syntax_trees\ReferenceAccess;
-use representations\syntax_trees\Statement;
-use representations\syntax_trees\StatementKind;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\machine_item;
-use representations\syntax_trees\syntax_trees_expression;
-use representations\syntax_trees\syntax_trees_statement;
-use representations\typed_trees\Adaptation;
-use representations\typed_trees\Selection;
-use representations\typed_trees\TypeKind;
-use representations\typed_trees\TypeRow;
-use representations\typed_trees\Typing;
-use representations\typed_trees\type_table_row;
-use representations\typed_trees\typing_adaptation;
-use representations\typed_trees\typing_expression_type;
-use representations\typed_trees\typing_selection;
+use pipeline/typed_trees_to_checked_trees/obligations.omg;
+use pipeline/typed_trees_to_checked_trees/checker.omg;
+
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/typed_trees/typed_trees.omg;
 
 // Write frames (wiki/spec/language/dependent_values.md#mutation-frames). A
 // call's exclusive arguments may change only what the callee writes through
@@ -44,59 +27,59 @@ use representations\typed_trees\typing_selection;
 // Writes to a body's own locals and by-value parameters stay out of its
 // frame. Frames settle to a fixed point over the call graph before any body
 // is checked, so a recursive machine's frame includes its own writes.
-public machine derive_frames(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing)
+public machine derive_frames(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing)
 crashes Trap
 {
-    transition { _ -> clear_parameter(checker, syntax, resolution, typing, 0) }
+    transition { _ -> clear_parameter(checker, syntax, resolution, typing, 0 as +Trapping) }
 
-    machine clear_parameter(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping) {
+    machine clear_parameter(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, index: u64 in Trapping) {
         transition index < syntax.parameter_count && index < 32768 {
             true -> parameter_cleared(checker, syntax, resolution, typing, index),
-            _ -> clear_machine(checker, syntax, resolution, typing, 0)
+            _ -> clear_machine(checker, syntax, resolution, typing, 0 as +Trapping)
         }
     }
 
-    machine parameter_cleared(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping)
+    machine parameter_cleared(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, index: u64 in Trapping)
     requires index < 32768
     {
-        checker.whole_writes[index] = false;
+        checker.whole_writes[index as -Trapping] = false;
         transition { _ -> clear_parameter(checker, syntax, resolution, typing, index + 1) }
     }
 
-    machine clear_machine(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping) {
+    machine clear_machine(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, index: u64 in Trapping) {
         transition index < syntax.machine_count && index < 10240 {
             true -> machine_cleared(checker, syntax, resolution, typing, index),
             _ -> round(checker, syntax, resolution, typing)
         }
     }
 
-    machine machine_cleared(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping)
+    machine machine_cleared(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, index: u64 in Trapping)
     requires index < 10240
     {
-        let item: MachineItem = machine_item(syntax, index);
-        checker.unknown_writes[index] = !item.has_body;
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, index);
+        checker.unknown_writes[index as -Trapping] = !item.has_body;
         clear_field_writes(checker, index);
         transition { _ -> clear_machine(checker, syntax, resolution, typing, index + 1) }
     }
 
-    machine round(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing) {
-        transition { _ -> next(checker, syntax, resolution, typing, 0, false) }
+    machine round(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing) {
+        transition { _ -> next(checker, syntax, resolution, typing, 0 as +Trapping, false) }
     }
 
-    machine next(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, changed: bool) {
+    machine next(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, index: u64 in Trapping, changed: bool) {
         transition index < syntax.machine_count {
             true -> machine(checker, syntax, resolution, typing, index, changed),
             _ -> settled(checker, syntax, resolution, typing, changed)
         }
     }
 
-    machine machine(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, changed: bool) {
-        let item: MachineItem = machine_item(syntax, index);
+    machine machine(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, index: u64 in Trapping, changed: bool) {
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, index);
         let grew: bool = frame_machine(checker, syntax, resolution, typing, index, item);
         transition { _ -> next(checker, syntax, resolution, typing, index + 1, changed || grew) }
     }
 
-    machine settled(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, changed: bool) {
+    machine settled(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, changed: bool) {
         transition changed {
             true -> round(checker, syntax, resolution, typing),
             _ -> done()
@@ -108,7 +91,7 @@ crashes Trap
 
 // One pass over a machine's writes: its bodies' stores, then every call and
 // jump in its expressions. Whether its frame grew.
-machine frame_machine(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, machine: u64 in Trapping, item: MachineItem) -> bool
+machine frame_machine(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, machine: u64 in Trapping, item: |syntax_trees|::MachineItem) -> bool
 crashes Trap
 {
     transition item.has_body {
@@ -116,19 +99,19 @@ crashes Trap
         _ -> unchanged()
     }
 
-    machine entry(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, machine: u64 in Trapping, item: MachineItem) -> bool {
+    machine entry(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, machine: u64 in Trapping, item: |syntax_trees|::MachineItem) -> bool {
         let stores: bool = frame_stores(checker, syntax, resolution, typing, machine, item.first_statement, item.statement_count);
-        transition { _ -> expression(checker, syntax, resolution, typing, machine, item, 0, stores) }
+        transition { _ -> expression(checker, syntax, resolution, typing, machine, item, 0 as +Trapping, stores) }
     }
 
-    machine expression(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, machine: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, changed: bool) -> bool {
+    machine expression(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, machine: u64 in Trapping, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, changed: bool) -> bool {
         transition offset < item.expression_count {
             true -> selected(checker, syntax, resolution, typing, machine, item, offset, changed),
             _ -> finished(changed)
         }
     }
 
-    machine selected(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, machine: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, changed: bool) -> bool {
+    machine selected(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, machine: u64 in Trapping, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, changed: bool) -> bool {
         let handle: u64 in Trapping = item.first_expression + offset;
         let grew: bool = frame_call(checker, syntax, resolution, typing, machine, handle);
         transition { _ -> expression(checker, syntax, resolution, typing, machine, item, offset + 1, changed || grew) }
@@ -144,27 +127,27 @@ crashes Trap
 }
 
 // The assignments among a body's statements.
-machine frame_stores(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, machine: u64 in Trapping, first: u64 in Trapping, count: u64 in Trapping) -> bool
+machine frame_stores(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, machine: u64 in Trapping, first: u64 in Trapping, count: u64 in Trapping) -> bool
 crashes Trap
 {
     transition { _ -> next(checker, syntax, resolution, typing, machine, first, first + count, false) }
 
-    machine next(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, machine: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, changed: bool) -> bool {
+    machine next(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, machine: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, changed: bool) -> bool {
         transition index < end {
             true -> statement(checker, syntax, resolution, typing, machine, index, end, changed),
             _ -> finished(changed)
         }
     }
 
-    machine statement(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, machine: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, changed: bool) -> bool {
-        let statement: Statement = syntax_trees_statement(syntax, index);
-        transition statement.kind == StatementKind::Assign {
+    machine statement(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, machine: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, changed: bool) -> bool {
+        let statement: |syntax_trees|::Statement = |syntax_trees|::syntax_trees_statement(syntax, index);
+        transition statement.kind == |syntax_trees|::StatementKind::Assign {
             true -> stored(checker, syntax, resolution, typing, machine, index, end, changed, statement.target),
             _ -> next(checker, syntax, resolution, typing, machine, index + 1, end, changed)
         }
     }
 
-    machine stored(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, machine: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, changed: bool, target: u64 in Trapping) -> bool {
+    machine stored(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, machine: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, changed: bool, target: u64 in Trapping) -> bool {
         let grew: bool = frame_write(checker, syntax, resolution, typing, machine, target);
         transition { _ -> next(checker, syntax, resolution, typing, machine, index + 1, end, changed || grew) }
     }
@@ -177,25 +160,25 @@ crashes Trap
 // A call or jump at `handle`: a machine's frame joins the caller's, and an
 // exclusive argument whose parameter may be replaced whole is written whole
 // in the caller; an exclusive argument to anything else is an unknown write.
-machine frame_call(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, machine: u64 in Trapping, handle: u64 in Trapping) -> bool
+machine frame_call(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, machine: u64 in Trapping, handle: u64 in Trapping) -> bool
 crashes Trap
 {
-    let expression: Expression = syntax_trees_expression(syntax, handle);
-    let selection: Selection = typing_selection(typing, handle);
-    transition expression.kind == ExpressionKind::Call || expression.kind == ExpressionKind::Binary {
+    let expression: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, handle);
+    let selection: |typed_trees|::Selection = |typed_trees|::typing_selection(typing, handle);
+    transition expression.kind == |syntax_trees|::ExpressionKind::Call || expression.kind == |syntax_trees|::ExpressionKind::Binary {
         true -> called(checker, syntax, resolution, typing, machine, expression, selection),
         _ -> unchanged()
     }
 
-    machine called(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, machine: u64 in Trapping, expression: Expression, selection: Selection) -> bool {
+    machine called(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, machine: u64 in Trapping, expression: |syntax_trees|::Expression, selection: |typed_trees|::Selection) -> bool {
         transition selection {
-            Selection::Machine { handle } -> callee(checker, syntax, resolution, typing, machine, expression, handle),
+            |typed_trees|::Selection::Machine { handle } -> callee(checker, syntax, resolution, typing, machine, expression, handle),
             _ -> opaque(checker, syntax, typing, machine, expression)
         }
     }
 
-    machine callee(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, machine: u64 in Trapping, expression: Expression, callee: u64 in Trapping) -> bool {
-        let item: MachineItem = machine_item(syntax, callee);
+    machine callee(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, machine: u64 in Trapping, expression: |syntax_trees|::Expression, callee: u64 in Trapping) -> bool {
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, callee);
         let unknown: bool = writes_unknown(checker, callee);
         let fields: bool = merge_field_writes(checker, machine, callee);
         let spread: bool = mark_unknown(checker, machine, unknown);
@@ -203,7 +186,7 @@ crashes Trap
         fields || spread || passed
     }
 
-    machine opaque(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, machine: u64 in Trapping, expression: Expression) -> bool {
+    machine opaque(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, machine: u64 in Trapping, expression: |syntax_trees|::Expression) -> bool {
         let lends: bool = lends_exclusively(syntax, typing, expression);
         let marked: bool = mark_unknown(checker, machine, lends);
         marked
@@ -218,28 +201,28 @@ crashes Trap
 // replaced whole, or every one when the callee's writes are unknown, is a
 // whole write of what the argument names.
 machine frame_arguments(
-    checker: @mutable Checker,
-    syntax: @SyntaxTrees,
-    resolution: @NameResolution,
-    typing: @Typing,
+    checker: @mutable |checker|::Checker,
+    syntax: @|syntax_trees|::SyntaxTrees,
+    resolution: @|symbol_resolved_trees|::NameResolution,
+    typing: @|typed_trees|::Typing,
     machine: u64 in Trapping,
-    expression: Expression,
+    expression: |syntax_trees|::Expression,
     first_parameter: u64 in Trapping,
     parameter_count: u64 in Trapping,
     unknown: bool
 ) -> bool
 crashes Trap
 {
-    let count: u64 in Trapping = operand_count(expression);
-    transition { _ -> next(checker, syntax, resolution, typing, machine, expression, first_parameter, parameter_count, unknown, count, 0, false) }
+    let count: u64 in Trapping = |obligations|::operand_count(expression);
+    transition { _ -> next(checker, syntax, resolution, typing, machine, expression, first_parameter, parameter_count, unknown, count, 0 as +Trapping, false) }
 
     machine next(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
-        typing: @Typing,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
+        typing: @|typed_trees|::Typing,
         machine: u64 in Trapping,
-        expression: Expression,
+        expression: |syntax_trees|::Expression,
         first_parameter: u64 in Trapping,
         parameter_count: u64 in Trapping,
         unknown: bool,
@@ -254,12 +237,12 @@ crashes Trap
     }
 
     machine argument(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
-        typing: @Typing,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
+        typing: @|typed_trees|::Typing,
         machine: u64 in Trapping,
-        expression: Expression,
+        expression: |syntax_trees|::Expression,
         first_parameter: u64 in Trapping,
         parameter_count: u64 in Trapping,
         unknown: bool,
@@ -267,7 +250,7 @@ crashes Trap
         offset: u64 in Trapping,
         changed: bool
     ) -> bool {
-        let handle: u64 in Trapping = checker_operand(syntax, expression, offset);
+        let handle: u64 in Trapping = |obligations|::checker_operand(syntax, expression, offset);
         let exclusive: bool = exclusive_value(typing, handle);
         let whole: bool = writes_whole(checker, first_parameter + offset);
         transition exclusive && (unknown || whole) {
@@ -277,12 +260,12 @@ crashes Trap
     }
 
     machine written(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
-        typing: @Typing,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
+        typing: @|typed_trees|::Typing,
         machine: u64 in Trapping,
-        expression: Expression,
+        expression: |syntax_trees|::Expression,
         first_parameter: u64 in Trapping,
         parameter_count: u64 in Trapping,
         unknown: bool,
@@ -306,57 +289,57 @@ crashes Trap
 // whole referent of the exclusive parameter at its root. A root local or
 // by-value parameter is the body's own storage; a root reference local or
 // binder, or any other root, is an unknown write.
-machine frame_write(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, machine: u64 in Trapping, handle: u64 in Trapping) -> bool
+machine frame_write(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, machine: u64 in Trapping, handle: u64 in Trapping) -> bool
 crashes Trap
 {
-    transition { _ -> step(checker, syntax, resolution, typing, machine, handle, false, 0) }
+    transition { _ -> step(checker, syntax, resolution, typing, machine, handle, false, 0 as +Trapping) }
 
     // `fielded` once the walk has met a field, `written` that field.
     machine step(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
-        typing: @Typing,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
+        typing: @|typed_trees|::Typing,
         machine: u64 in Trapping,
         current: u64 in Trapping,
         fielded: bool,
         written: u64 in Trapping
     ) -> bool {
-        let expression: Expression = syntax_trees_expression(syntax, current);
+        let expression: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, current);
         transition expression.kind {
-            ExpressionKind::Field -> member(checker, syntax, resolution, typing, machine, current, expression, fielded, written),
-            ExpressionKind::Index -> step(checker, syntax, resolution, typing, machine, expression.left, fielded, written),
-            ExpressionKind::Unary -> borrowed(checker, syntax, resolution, typing, machine, expression, fielded, written),
-            ExpressionKind::Name -> root(checker, resolution, typing, machine, current, fielded, written),
+            |syntax_trees|::ExpressionKind::Field -> member(checker, syntax, resolution, typing, machine, current, expression, fielded, written),
+            |syntax_trees|::ExpressionKind::Index -> step(checker, syntax, resolution, typing, machine, expression.left, fielded, written),
+            |syntax_trees|::ExpressionKind::Unary -> borrowed(checker, syntax, resolution, typing, machine, expression, fielded, written),
+            |syntax_trees|::ExpressionKind::Name -> root(checker, resolution, typing, machine, current, fielded, written),
             _ -> unknown(checker, machine)
         }
     }
 
     machine member(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
-        typing: @Typing,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
+        typing: @|typed_trees|::Typing,
         machine: u64 in Trapping,
         current: u64 in Trapping,
-        expression: Expression,
+        expression: |syntax_trees|::Expression,
         fielded: bool,
         written: u64 in Trapping
     ) -> bool {
-        let selection: Selection = typing_selection(typing, current);
+        let selection: |typed_trees|::Selection = |typed_trees|::typing_selection(typing, current);
         transition selection {
-            Selection::Field { field } -> met(checker, syntax, resolution, typing, machine, expression, fielded, written, field),
+            |typed_trees|::Selection::Field { field } -> met(checker, syntax, resolution, typing, machine, expression, fielded, written, field),
             _ -> unknown(checker, machine)
         }
     }
 
     machine met(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
-        typing: @Typing,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
+        typing: @|typed_trees|::Typing,
         machine: u64 in Trapping,
-        expression: Expression,
+        expression: |syntax_trees|::Expression,
         fielded: bool,
         written: u64 in Trapping,
         field: u64 in Trapping
@@ -368,71 +351,71 @@ crashes Trap
     }
 
     machine borrowed(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
-        typing: @Typing,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
+        typing: @|typed_trees|::Typing,
         machine: u64 in Trapping,
-        expression: Expression,
+        expression: |syntax_trees|::Expression,
         fielded: bool,
         written: u64 in Trapping
     ) -> bool {
-        let borrow: bool = expression.operator == OperatorKind::BorrowMutable || expression.operator == OperatorKind::Borrow
-            || expression.operator == OperatorKind::BorrowWrite;
+        let borrow: bool = expression.operator == |syntax_trees|::OperatorKind::BorrowMutable || expression.operator == |syntax_trees|::OperatorKind::Borrow
+            || expression.operator == |syntax_trees|::OperatorKind::BorrowWrite;
         transition borrow {
             true -> step(checker, syntax, resolution, typing, machine, expression.left, fielded, written),
             _ -> unknown(checker, machine)
         }
     }
 
-    machine root(checker: @mutable Checker, resolution: @NameResolution, typing: @Typing, machine: u64 in Trapping, current: u64 in Trapping, fielded: bool, written: u64 in Trapping) -> bool {
-        let binding: ValueBinding = value_binding(resolution, current);
+    machine root(checker: @mutable |checker|::Checker, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, machine: u64 in Trapping, current: u64 in Trapping, fielded: bool, written: u64 in Trapping) -> bool {
+        let binding: |symbol_resolved_trees|::ValueBinding = |symbol_resolved_trees|::value_binding(resolution, current);
         let exclusive: bool = exclusive_value(typing, current);
         let shared: bool = shared_value(typing, current);
         transition binding {
-            ValueBinding::Parameter { parameter } -> parameter(checker, machine, parameter, fielded, written, exclusive || shared),
-            ValueBinding::Local { statement } -> owned(checker, machine, exclusive || shared),
-            ValueBinding::PatternBinder { field as _ } -> owned(checker, machine, exclusive || shared),
+            |symbol_resolved_trees|::ValueBinding::Parameter { parameter as selected_parameter } -> parameter(checker, machine, selected_parameter, fielded, written, exclusive || shared),
+            |symbol_resolved_trees|::ValueBinding::Local { statement } -> owned(checker, machine, exclusive || shared),
+            |symbol_resolved_trees|::ValueBinding::PatternBinder { field as _ } -> owned(checker, machine, exclusive || shared),
             _ -> unknown(checker, machine)
         }
     }
 
     // Through a parameter holding a reference: a field it reaches, or its
     // whole referent. A by-value parameter is the body's own.
-    machine parameter(checker: @mutable Checker, machine: u64 in Trapping, parameter: u64 in Trapping, fielded: bool, written: u64 in Trapping, referent: bool) -> bool {
+    machine parameter(checker: @mutable |checker|::Checker, machine: u64 in Trapping, parameter: u64 in Trapping, fielded: bool, written: u64 in Trapping, referent: bool) -> bool {
         transition referent {
             true -> through(checker, machine, parameter, fielded, written),
             _ -> unchanged()
         }
     }
 
-    machine through(checker: @mutable Checker, machine: u64 in Trapping, parameter: u64 in Trapping, fielded: bool, written: u64 in Trapping) -> bool {
+    machine through(checker: @mutable |checker|::Checker, machine: u64 in Trapping, parameter: u64 in Trapping, fielded: bool, written: u64 in Trapping) -> bool {
         transition fielded {
             true -> field_written(checker, machine, written),
             _ -> whole(checker, parameter)
         }
     }
 
-    machine field_written(checker: @mutable Checker, machine: u64 in Trapping, field: u64 in Trapping) -> bool {
+    machine field_written(checker: @mutable |checker|::Checker, machine: u64 in Trapping, field: u64 in Trapping) -> bool {
         let grew: bool = add_field_write(checker, machine, field);
         grew
     }
 
-    machine whole(checker: @mutable Checker, parameter: u64 in Trapping) -> bool {
+    machine whole(checker: @mutable |checker|::Checker, parameter: u64 in Trapping) -> bool {
         let grew: bool = mark_whole(checker, parameter);
         grew
     }
 
     // A local or binder holding a reference writes what it borrows, which
     // this pass does not follow; one holding a value is the body's own.
-    machine owned(checker: @mutable Checker, machine: u64 in Trapping, referent: bool) -> bool {
+    machine owned(checker: @mutable |checker|::Checker, machine: u64 in Trapping, referent: bool) -> bool {
         transition referent {
             true -> unknown(checker, machine),
             _ -> unchanged()
         }
     }
 
-    machine unknown(checker: @mutable Checker, machine: u64 in Trapping) -> bool {
+    machine unknown(checker: @mutable |checker|::Checker, machine: u64 in Trapping) -> bool {
         let grew: bool = mark_unknown(checker, machine, true);
         grew
     }
@@ -443,21 +426,21 @@ crashes Trap
 }
 
 // Whether any of a call's operands is lent exclusively.
-machine lends_exclusively(syntax: @SyntaxTrees, typing: @Typing, expression: Expression) -> bool
+machine lends_exclusively(syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression) -> bool
 crashes Trap
 {
-    let count: u64 in Trapping = operand_count(expression);
-    transition { _ -> next(syntax, typing, expression, count, 0) }
+    let count: u64 in Trapping = |obligations|::operand_count(expression);
+    transition { _ -> next(syntax, typing, expression, count, 0 as +Trapping) }
 
-    machine next(syntax: @SyntaxTrees, typing: @Typing, expression: Expression, count: u64 in Trapping, offset: u64 in Trapping) -> bool {
+    machine next(syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, count: u64 in Trapping, offset: u64 in Trapping) -> bool {
         transition offset < count {
             true -> operand(syntax, typing, expression, count, offset),
             _ -> none()
         }
     }
 
-    machine operand(syntax: @SyntaxTrees, typing: @Typing, expression: Expression, count: u64 in Trapping, offset: u64 in Trapping) -> bool {
-        let handle: u64 in Trapping = checker_operand(syntax, expression, offset);
+    machine operand(syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, count: u64 in Trapping, offset: u64 in Trapping) -> bool {
+        let handle: u64 in Trapping = |obligations|::checker_operand(syntax, expression, offset);
         let exclusive: bool = exclusive_value(typing, handle);
         transition exclusive {
             true -> some(),
@@ -476,36 +459,36 @@ crashes Trap
 
 // Whether an expression supplies a live exclusive (`@mutable`) reference.
 // A scalar Read consumes the referent's captured value instead.
-public machine exclusive_value(typing: @Typing, handle: u64 in Trapping) -> bool
+public machine exclusive_value(typing: @|typed_trees|::Typing, handle: u64 in Trapping) -> bool
 crashes Trap
 {
-    let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
-    let row: TypeRow = type_table_row(@typing.types, type_handle);
-    let adaptation: Adaptation = typing_adaptation(typing, handle);
-    row.kind == TypeKind::Reference && row.access != ReferenceAccess::Shared && adaptation != Adaptation::Read
+    let type_handle: u64 in Trapping = |typed_trees|::typing_expression_type(typing, handle);
+    let row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, type_handle);
+    let adaptation: |typed_trees|::Adaptation = |typed_trees|::typing_adaptation(typing, handle);
+    row.kind == |typed_trees|::TypeKind::Reference && row.access != |syntax_trees|::ReferenceAccess::Shared && adaptation != |typed_trees|::Adaptation::Read
 }
 
 // Whether an expression's value is a shared (`@`) reference.
-machine shared_value(typing: @Typing, handle: u64 in Trapping) -> bool
+machine shared_value(typing: @|typed_trees|::Typing, handle: u64 in Trapping) -> bool
 crashes Trap
 {
-    let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
-    let row: TypeRow = type_table_row(@typing.types, type_handle);
-    let adaptation: Adaptation = typing_adaptation(typing, handle);
-    row.kind == TypeKind::Reference && row.access == ReferenceAccess::Shared && adaptation != Adaptation::Read
+    let type_handle: u64 in Trapping = |typed_trees|::typing_expression_type(typing, handle);
+    let row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, type_handle);
+    let adaptation: |typed_trees|::Adaptation = |typed_trees|::typing_adaptation(typing, handle);
+    row.kind == |typed_trees|::TypeKind::Reference && row.access == |syntax_trees|::ReferenceAccess::Shared && adaptation != |typed_trees|::Adaptation::Read
 }
 
 // Frame tables, guarded by their bounds; a write beyond them is unknown.
-public machine writes_unknown(checker: @Checker, machine: u64 in Trapping) -> bool {
+public machine writes_unknown(checker: @|checker|::Checker, machine: u64 in Trapping) -> bool {
     transition machine < 10240 {
         true -> read(checker, machine),
         _ -> unknown()
     }
 
-    machine read(checker: @Checker, callee: u64 in Trapping) -> bool
+    machine read(checker: @|checker|::Checker, callee: u64 in Trapping) -> bool
     requires callee < 10240
     {
-        checker.unknown_writes[callee]
+        checker.unknown_writes[callee as -Trapping]
     }
 
     machine unknown() -> bool {
@@ -514,17 +497,17 @@ public machine writes_unknown(checker: @Checker, machine: u64 in Trapping) -> bo
 }
 
 // Mark a machine's writes unknown when `unknown`; whether that changed.
-machine mark_unknown(checker: @mutable Checker, machine: u64 in Trapping, unknown: bool) -> bool {
+machine mark_unknown(checker: @mutable |checker|::Checker, machine: u64 in Trapping, unknown: bool) -> bool {
     let marked: bool = writes_unknown(checker, machine);
     transition unknown && !marked && machine < 10240 {
         true -> mark(checker, machine),
         _ -> unchanged()
     }
 
-    machine mark(checker: @mutable Checker, callee: u64 in Trapping) -> bool
+    machine mark(checker: @mutable |checker|::Checker, callee: u64 in Trapping) -> bool
     requires callee < 10240
     {
-        checker.unknown_writes[callee] = true;
+        checker.unknown_writes[callee as -Trapping] = true;
         true
     }
 
@@ -533,16 +516,16 @@ machine mark_unknown(checker: @mutable Checker, machine: u64 in Trapping, unknow
     }
 }
 
-public machine writes_whole(checker: @Checker, parameter: u64 in Trapping) -> bool {
+public machine writes_whole(checker: @|checker|::Checker, parameter: u64 in Trapping) -> bool {
     transition parameter < 32768 {
         true -> read(checker, parameter),
         _ -> whole()
     }
 
-    machine read(checker: @Checker, parameter: u64 in Trapping) -> bool
+    machine read(checker: @|checker|::Checker, parameter: u64 in Trapping) -> bool
     requires parameter < 32768
     {
-        checker.whole_writes[parameter]
+        checker.whole_writes[parameter as -Trapping]
     }
 
     machine whole() -> bool {
@@ -550,17 +533,17 @@ public machine writes_whole(checker: @Checker, parameter: u64 in Trapping) -> bo
     }
 }
 
-machine mark_whole(checker: @mutable Checker, parameter: u64 in Trapping) -> bool {
+machine mark_whole(checker: @mutable |checker|::Checker, parameter: u64 in Trapping) -> bool {
     let marked: bool = writes_whole(checker, parameter);
     transition !marked && parameter < 32768 {
         true -> mark(checker, parameter),
         _ -> unchanged()
     }
 
-    machine mark(checker: @mutable Checker, parameter: u64 in Trapping) -> bool
+    machine mark(checker: @mutable |checker|::Checker, parameter: u64 in Trapping) -> bool
     requires parameter < 32768
     {
-        checker.whole_writes[parameter] = true;
+        checker.whole_writes[parameter as -Trapping] = true;
         true
     }
 
@@ -571,7 +554,7 @@ machine mark_whole(checker: @mutable Checker, parameter: u64 in Trapping) -> boo
 
 // Whether a machine may write a data field (`SyntaxTrees::fields`); a field
 // or machine beyond the tables may be written.
-public machine writes_field(checker: @Checker, machine: u64 in Trapping, field: u64 in Trapping) -> bool
+public machine writes_field(checker: @|checker|::Checker, machine: u64 in Trapping, field: u64 in Trapping) -> bool
 crashes Trap
 {
     transition machine < 10240 && field < 1024 {
@@ -579,19 +562,19 @@ crashes Trap
         _ -> written()
     }
 
-    machine read(checker: @Checker, index: u64 in Trapping, shift: u64 in Trapping) -> bool {
+    machine read(checker: @|checker|::Checker, index: u64 in Trapping, shift: u64 in Trapping) -> bool {
         transition index < 163840 && shift < 64 {
             true -> entry(checker, index, shift),
             _ -> written()
         }
     }
 
-    machine entry(checker: @Checker, index: u64 in Trapping, shift: u64 in Trapping) -> bool
+    machine entry(checker: @|checker|::Checker, index: u64 in Trapping, shift: u64 in Trapping) -> bool
     requires index < 163840, shift < 64
     {
         let one: u64 = 1;
         let bit: u64 = one << shift;
-        (checker.field_writes[index] & bit) != 0
+        (checker.field_writes[index as -Trapping] & bit) != 0
     }
 
     machine written() -> bool {
@@ -601,7 +584,7 @@ crashes Trap
 
 // Record a field write; a field beyond the table makes the machine's writes
 // unknown. Whether that changed the frame.
-machine add_field_write(checker: @mutable Checker, machine: u64 in Trapping, field: u64 in Trapping) -> bool
+machine add_field_write(checker: @mutable |checker|::Checker, machine: u64 in Trapping, field: u64 in Trapping) -> bool
 crashes Trap
 {
     transition machine < 10240 && field < 1024 {
@@ -609,43 +592,43 @@ crashes Trap
         _ -> beyond(checker, machine)
     }
 
-    machine slot(checker: @mutable Checker, machine: u64 in Trapping, index: u64 in Trapping, shift: u64 in Trapping) -> bool {
+    machine slot(checker: @mutable |checker|::Checker, machine: u64 in Trapping, index: u64 in Trapping, shift: u64 in Trapping) -> bool {
         transition index < 163840 && shift < 64 {
             true -> entry(checker, index, shift),
             _ -> beyond(checker, machine)
         }
     }
 
-    machine entry(checker: @mutable Checker, index: u64 in Trapping, shift: u64 in Trapping) -> bool
+    machine entry(checker: @mutable |checker|::Checker, index: u64 in Trapping, shift: u64 in Trapping) -> bool
     requires index < 163840, shift < 64
     {
         let one: u64 = 1;
         let bit: u64 = one << shift;
-        let previous: u64 = checker.field_writes[index];
-        checker.field_writes[index] = previous | bit;
+        let previous: u64 = checker.field_writes[index as -Trapping];
+        checker.field_writes[index as -Trapping] = previous | bit;
         (previous & bit) == 0
     }
 
-    machine beyond(checker: @mutable Checker, machine: u64 in Trapping) -> bool {
+    machine beyond(checker: @mutable |checker|::Checker, machine: u64 in Trapping) -> bool {
         let grew: bool = mark_unknown(checker, machine, true);
         grew
     }
 }
 
 // Every field `from` may write, `into` may write too. Whether `into` grew.
-machine merge_field_writes(checker: @mutable Checker, into: u64 in Trapping, from: u64 in Trapping) -> bool
+machine merge_field_writes(checker: @mutable |checker|::Checker, into: u64 in Trapping, from: u64 in Trapping) -> bool
 crashes Trap
 {
-    transition { _ -> next(checker, into, from, 0, false) }
+    transition { _ -> next(checker, into, from, 0 as +Trapping, false) }
 
-    machine next(checker: @mutable Checker, into: u64 in Trapping, from: u64 in Trapping, field: u64 in Trapping, changed: bool) -> bool {
-        transition field < 1024 {
-            true -> field(checker, into, from, field, changed),
+    machine next(checker: @mutable |checker|::Checker, into: u64 in Trapping, from: u64 in Trapping, current_field: u64 in Trapping, changed: bool) -> bool {
+        transition current_field < 1024 {
+            true -> field(checker, into, from, current_field, changed),
             _ -> finished(changed)
         }
     }
 
-    machine field(checker: @mutable Checker, into: u64 in Trapping, from: u64 in Trapping, field: u64 in Trapping, changed: bool) -> bool {
+    machine field(checker: @mutable |checker|::Checker, into: u64 in Trapping, from: u64 in Trapping, field: u64 in Trapping, changed: bool) -> bool {
         let written: bool = writes_field(checker, from, field);
         transition written {
             true -> merged(checker, into, from, field, changed),
@@ -653,7 +636,7 @@ crashes Trap
         }
     }
 
-    machine merged(checker: @mutable Checker, into: u64 in Trapping, from: u64 in Trapping, field: u64 in Trapping, changed: bool) -> bool {
+    machine merged(checker: @mutable |checker|::Checker, into: u64 in Trapping, from: u64 in Trapping, field: u64 in Trapping, changed: bool) -> bool {
         let grew: bool = add_field_write(checker, into, field);
         transition { _ -> next(checker, into, from, field + 1, changed || grew) }
     }
@@ -663,15 +646,15 @@ crashes Trap
     }
 }
 
-machine clear_field_writes(checker: @mutable Checker, machine: u64 in Trapping)
+machine clear_field_writes(checker: @mutable |checker|::Checker, machine: u64 in Trapping)
 crashes Trap
 {
     transition machine < 10240 {
-        true -> next(checker, machine * 16, 0),
+        true -> next(checker, machine * 16, 0 as +Trapping),
         _ -> done()
     }
 
-    machine next(checker: @mutable Checker, base: u64 in Trapping, field: u64 in Trapping) {
+    machine next(checker: @mutable |checker|::Checker, base: u64 in Trapping, field: u64 in Trapping) {
         let index: u64 in Trapping = base + field;
         transition field < 16 && index < 163840 {
             true -> cleared(checker, base, field, index),
@@ -679,10 +662,10 @@ crashes Trap
         }
     }
 
-    machine cleared(checker: @mutable Checker, base: u64 in Trapping, field: u64 in Trapping, index: u64 in Trapping)
+    machine cleared(checker: @mutable |checker|::Checker, base: u64 in Trapping, field: u64 in Trapping, index: u64 in Trapping)
     requires index < 163840
     {
-        checker.field_writes[index] = 0;
+        checker.field_writes[index as -Trapping] = 0;
         transition { _ -> next(checker, base, field + 1) }
     }
 

@@ -17,6 +17,7 @@ use {omega}/language/core/extent.omg as storage;
 // not hosted application arguments. This calling contract supplies no
 // bridge, loader admission, receiver, or numeric stack guarantee.
 // ProviderSelected requires independent backing.
+// See :HostedArgumentAuthority in entry_shapes.omg for the handoff to source.
 boundary trait LinuxArm64PhysicalEntry {
     machine enter(argc: u64) -> i32 reaches none crashes Trap crashes Abort;
 }

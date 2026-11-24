@@ -2942,7 +2942,13 @@ pub(crate) mod results {
             if !self.supports_host_reference_result(result)
                 || !self
                     .reference_contract(result.structural_type)
-                    .is_ok_and(|(_, access)| access == terminal_psi::StructuralAccess::SharedBorrow)
+                    .is_ok_and(|(_, access)| {
+                        matches!(
+                            access,
+                            terminal_psi::StructuralAccess::SharedBorrow
+                                | terminal_psi::StructuralAccess::MutableBorrow
+                        )
+                    })
             {
                 return false;
             }

@@ -1,0 +1,18 @@
+// Expected exit: 0
+use {omega}/language/core/filesystem_authority.omg as authority;
+use {omega_language_std}/filesystem_host.omg as paths;
+use {wav_output}/wav_output/wav_output.omg as output;
+
+machine main() reaches |output|::WavOutput + |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation crashes Trap {
+    // Little-endian RIFF/WAVE, mono unsigned 8-bit PCM at 8000 Hz.
+    let clip: [u8; 46] = [
+        82, 73, 70, 70, 38, 0, 0, 0, 87, 65, 86, 69,
+        102, 109, 116, 32, 16, 0, 0, 0, 1, 0, 1, 0,
+        64, 31, 0, 0, 64, 31, 0, 0, 1, 0, 8, 0,
+        100, 97, 116, 97, 2, 0, 0, 0, 0, 255
+    ];
+    let written: i64 = block |output|::WavOutput::write_wav("two_frames.wav" as + |paths|::Path, @clip[..]);
+    transition written == 46 { true -> done(), _ -> failed() }
+    machine done() {}
+    machine failed() { crash Trap; }
+}

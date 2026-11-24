@@ -1,0 +1,10 @@
+use omega\language\core\Never;
+use omega\language\core\ProcessExit;
+use omega\language\core\ProcessExitPrimitive;
+
+public LocalExit satisfies ProcessExit {
+    machine exit_process(return_code: i32) -> Never
+    reaches ProcessExit crashes none terminates {
+        ProcessExitPrimitive(return_code);
+    }
+}

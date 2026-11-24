@@ -3,13 +3,13 @@
 /*
 The records a target program is made of, without the program.
 
-Stage 02 lowers to target operations, then prepares the execution plan from
+Native stage 04 lowers to target operations, then prepares the execution plan from
 them; instruction selection and every later form carry many of the same
 records (call contracts and argument sources, boundary realizations, call-site
 owners, structural homes, value expressions). They are defined here, apart
 from `TargetOperationPlan` and its control graph in `target-operations`, so a
-form after the plan can name a record without being able to name stage 02's
-working program.
+later form can use the same record types without depending on the working
+target-operation graph.
 
 Prepared, selected and physical forms also share structural contracts, closed
 scalar operands and function calling contracts here. Their canonical encoders

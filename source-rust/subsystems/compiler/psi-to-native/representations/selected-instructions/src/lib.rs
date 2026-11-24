@@ -38,7 +38,7 @@
   `06_selected-instructions-to-selected-instructions` (using independent
   validators in `selected-instruction-analyses`). Consumed by
   `07_selected-instructions-to-register-homes` to assign physical register and
-  spill-slot homes (`AllocatedRegisterHomePlan`). `StagedOptimizedCustodyCore`
+  spill-slot homes (`RegisterHomePlan`). `StagedOptimizedCustodyCore`
   bundles the nine upstream pipeline-custody identities that selection,
   selected optimization, and register allocation carry across stage receipts.
 */

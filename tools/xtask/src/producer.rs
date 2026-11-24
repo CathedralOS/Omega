@@ -15,9 +15,15 @@ pub struct Producer {
 }
 
 pub fn host_target() -> &'static str {
-    match (std::env::consts::OS, std::env::consts::ARCH) {
+    hosted_profile(std::env::consts::OS, std::env::consts::ARCH)
+}
+
+fn hosted_profile(os: &str, arch: &str) -> &'static str {
+    match (os, arch) {
         ("windows", "x86_64") => "windows_x86_64",
+        ("windows", "aarch64") => "windows_arm64",
         ("macos", "aarch64") => "macos_arm64",
+        ("macos", "x86_64") => "macos_x86_64",
         ("linux", "aarch64") => "linux_arm64",
         ("linux", "x86_64") => "linux_x86_64",
         _ => "unsupported",
@@ -449,6 +455,14 @@ impl Producer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn host_architecture_selects_the_matching_profile() {
+        assert_eq!(hosted_profile("windows", "aarch64"), "windows_arm64");
+        assert_eq!(hosted_profile("windows", "x86_64"), "windows_x86_64");
+        assert_eq!(hosted_profile("macos", "x86_64"), "macos_x86_64");
+        assert_eq!(hosted_profile("linux", "riscv64"), "unsupported");
+    }
 
     #[test]
     fn source_identity_distinguishes_edits_with_the_same_porcelain_status() {

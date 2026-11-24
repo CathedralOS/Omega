@@ -19,6 +19,7 @@ pub(super) fn walk<'a, E>(
 ) -> Result<&'a Expression, E> {
     loop {
         match &place.kind {
+            ExpressionKind::TheoremApplication { .. } => return Ok(place),
             ExpressionKind::Field { base, .. }
             | ExpressionKind::Payload { base, .. }
             | ExpressionKind::Index { base, .. }
@@ -37,6 +38,7 @@ pub(super) fn walk<'a, E>(
             | ExpressionKind::Borrow { .. }
             | ExpressionKind::Integer(_)
             | ExpressionKind::Float(_)
+            | ExpressionKind::ErasedApplication(_)
             | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::StorageLocation { .. }

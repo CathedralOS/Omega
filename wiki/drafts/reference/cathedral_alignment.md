@@ -63,7 +63,7 @@ The reference interpreter and Omega lowering consume the same Terminal Psi
 artifact. Psi owns source through this IR; Omega never reconstructs Psi from
 an Omega tree. Receivers check structural, contract and authority relationships
 and rely on Psi's source judgments. The compiler's lowering and optimization
-remain trusted under [verification placement](../../../omega-rust/pipeline.md#verification-placement).
+remain trusted under [verification placement](../../../source-rust/subsystems/compiler/README.md#verification-placement).
 
 Cathedral's executable trust and hard-root accounting depend on accepted
 producer provenance, installation and authority checks, crash contracts, and

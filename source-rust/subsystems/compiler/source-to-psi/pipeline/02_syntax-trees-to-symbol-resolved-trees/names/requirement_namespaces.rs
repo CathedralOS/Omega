@@ -7,31 +7,53 @@
 */
 
 use crate::resolution::tables::resolved_declarations;
-use crate::source_inputs::SourceMap;
 use crate::source_resolved::{
     SymbolResolvedTrees, machine::GenericConformanceBound, name::DiagnosticName,
     signature::StateSignature, trait_definition::TraitDefinition,
 };
+use crate::source_symbols::SymbolTable;
 use symbols::{SymbolHandle, SymbolKind};
 
-pub(crate) fn visible_requirements<'program>(
-    program: &'program SymbolResolvedTrees,
-    bound: &GenericConformanceBound,
-    sources: Option<&SourceMap>,
-) -> Vec<&'program StateSignature> {
-    let Some(declaration) = select_visible_trait(program, &bound.trait_name, sources) else {
-        return Vec::new();
-    };
-    let mut requirements = Vec::new();
-    collect_requirements(
-        program,
-        declaration,
-        &mut |reference| Ok(select_visible_trait(program, &reference.name, sources)),
-        &mut Vec::new(),
-        &mut requirements,
-    )
-    .unwrap_or_else(|never: std::convert::Infallible| match never {});
-    requirements
+// File imports and all trait declarations must be installed before a binder's methods can be selected.
+pub(super) type PendingEvidence = Vec<(SymbolHandle, DiagnosticName)>;
+
+pub(super) fn install_evidence(
+    program: &SymbolResolvedTrees,
+    symbols: &mut SymbolTable,
+    pending: PendingEvidence,
+) {
+    for (binder, trait_name) in pending {
+        let select = |name: &DiagnosticName| {
+            let symbol =
+                super::lookup::top_level_symbol_for_source(symbols, SymbolKind::Trait, name);
+            exact_trait(program, symbol)
+        };
+        let Ok(declaration) = select(&trait_name) else {
+            continue;
+        };
+        let mut requirements = Vec::new();
+        if collect_requirements(
+            program,
+            declaration,
+            &mut |parent| select(&parent.name),
+            &mut Vec::new(),
+            &mut requirements,
+        )
+        .is_err()
+        {
+            continue;
+        }
+        // The local method inherits the binder's provenance. Its signature stays on the trait.
+        symbols.append_children(
+            binder,
+            requirements.iter().map(|requirement| {
+                (
+                    SymbolKind::State,
+                    symbols::SymbolNameRef::Borrowed(requirement.name.as_str()),
+                )
+            }),
+        );
+    }
 }
 
 pub(crate) fn evidence_requirement(
@@ -99,7 +121,7 @@ pub(crate) fn evidence_requirement(
     collect_requirements(
         program,
         declaration,
-        &mut |reference| exact_trait(program, reference.symbol).map(Some),
+        &mut |reference| exact_trait(program, reference.symbol),
         &mut Vec::new(),
         &mut requirements,
     )?;
@@ -111,7 +133,11 @@ pub(crate) fn evidence_requirement(
     if children.len() != requirements.len()
         || children
             .iter()
-            .any(|child| program.symbols.get(*child).kind != SymbolKind::State)
+            .zip(&requirements)
+            .any(|(child, requirement)| {
+                program.symbols.get(*child).kind != SymbolKind::State
+                    || program.symbols.name(*child) != requirement.name.as_str()
+            })
     {
         return Err("constant evidence namespace disagrees with its declared requirements".into());
     }
@@ -172,12 +198,7 @@ fn retained_declaration_conformance_bounds(
                 .data_type_parameters
                 .iter()
                 .filter_map(|(_, parameter)| {
-                    let crate::source_resolved::data::TypeParameterKind::Machine { contract } =
-                        &parameter.kind
-                    else {
-                        return None;
-                    };
-                    contract.structural().map(|signature| {
+                    parameter.kind.contract_signature().map(|signature| {
                         (parameter.symbol, signature.conformance_bounds.as_slice())
                     })
                 }),
@@ -214,7 +235,7 @@ fn collect_requirements<'program, Error>(
     declaration: &'program TraitDefinition,
     resolve_parent: &mut impl FnMut(
         &crate::source_resolved::trait_definition::TraitRequirement,
-    ) -> Result<Option<&'program TraitDefinition>, Error>,
+    ) -> Result<&'program TraitDefinition, Error>,
     visited: &mut Vec<&'program TraitDefinition>,
     output: &mut Vec<&'program StateSignature>,
 ) -> Result<(), Error> {
@@ -231,39 +252,8 @@ fn collect_requirements<'program, Error>(
         .iter()
         .chain(program.trait_requirements(declaration.requires))
     {
-        if let Some(parent) = resolve_parent(reference)? {
-            collect_requirements(program, parent, resolve_parent, visited, output)?;
-        }
+        let parent = resolve_parent(reference)?;
+        collect_requirements(program, parent, resolve_parent, visited, output)?;
     }
     Ok(())
-}
-
-fn select_visible_trait<'program>(
-    program: &'program SymbolResolvedTrees,
-    reference_name: &DiagnosticName,
-    sources: Option<&SourceMap>,
-) -> Option<&'program TraitDefinition> {
-    let reference = reference_name.source_span();
-    let candidates = program
-        .traits
-        .iter()
-        .filter(|candidate| {
-            candidate.name == *reference_name
-                && sources.is_none_or(|sources| {
-                    sources.reference_can_see_declaration(reference, candidate.name.source_span())
-                })
-        })
-        .collect::<Vec<_>>();
-    candidates
-        .iter()
-        .copied()
-        .find(|candidate| candidate.name.source_span().source_id == reference.source_id)
-        .or_else(|| {
-            sources.and_then(|sources| {
-                candidates.iter().copied().find(|candidate| {
-                    !sources.resolution_strata_separate(reference, candidate.name.source_span())
-                })
-            })
-        })
-        .or_else(|| candidates.first().copied())
 }

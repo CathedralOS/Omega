@@ -2114,6 +2114,63 @@ fn callback_supply(
 }
 
 #[test]
+fn product_entry_uses_the_same_closed_callback_application_as_an_ordinary_call() {
+    let mut source = source();
+    let consumer = callback_consumer(&mut source);
+    let selected = applied_callback(
+        &mut source.program,
+        source.forward.state,
+        vec![argument(source.byte, "u8")],
+    );
+    let application = source
+        .program
+        .expression_table
+        .retain_static_machine_application(
+            consumer.machine,
+            Identifier::from("consume"),
+            &[argument(source.byte, "u8"), selected],
+        );
+    source
+        .program
+        .expression_table
+        .static_machine_application_mut(application)
+        .lexical_owner = source.main;
+    let root = crate::EntryApplication::new(&source.program, application);
+    let unrelated = crate::EntryApplication::new(&TypedTrees::default(), application);
+    let before = source.program.clone();
+    let prepared = crate::prepare_typed_trees(
+        source.program,
+        &[],
+        &[crate::SelectedDeclaration::MachineApplication(root)],
+    )
+    .unwrap();
+    let entry = prepared
+        .entry_for_application(root)
+        .expect("the closed selected root");
+    let program = prepared.trees();
+    let receipt = program
+        .machine_specialization(entry)
+        .expect("ordinary executable application");
+    assert_eq!(receipt.template, consumer.machine);
+    assert_eq!(receipt.binding_application, application);
+    let target = calls(program, entry)[0].target_symbol;
+    let (target, _) =
+        super::entered_machine(program, target).expect("an exact ordinary call target");
+    assert_eq!(
+        program.machine_specialization(target).unwrap().template,
+        source.forward.machine
+    );
+    assert_eq!(prepared.entry_for_application(unrelated), None);
+    let refusal = crate::prepare_typed_trees(
+        before,
+        &[],
+        &[crate::SelectedDeclaration::MachineApplication(unrelated)],
+    )
+    .unwrap_err();
+    assert!(refusal[0].message.contains("another typed source"));
+}
+
+#[test]
 fn applied_callbacks_close_type_const_and_nested_applications_through_real_receipts() {
     use super::{GeneratedMachines, close_machine_argument};
     let mut source = source();

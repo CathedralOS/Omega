@@ -42,7 +42,15 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Current marker 291 removes the four policy bytes from suspension plans and live values,
+Current marker 292 retains logical theorem parameters, their applications and
+explicit proof supplies. An erased proof formal starts with a source-kind tag
+(1 for an ordinary value parameter, 2 for a generic parameter), followed by
+its source position and mathematical type identity. Calling-application operand
+tag 6 identifies a proof supply separately from executable machine selection.
+The shared vocabulary marker is 143. Readers reject earlier markers before
+reading the payload.
+
+Marker 291 removes the four policy bytes from suspension plans and live values,
 and removes conditional carry rows (including their count) from generic
 operational contracts. Readers reject earlier markers before reading the payload.
 
@@ -517,7 +525,7 @@ byte limit. Any tag value absent from a closed-sum table rejects.
 | structural multiplicity | `u8`: 1 unrestricted, 2 affine, 3 linear |
 | structural argument | place id + structural access + structural path |
 | value declaration | value id + scalar type + `u64` qualification-set identity |
-| erased proof formal | `u32` source position + type identity string |
+| erased proof formal | `u8` source kind (1 value parameter, 2 generic parameter) + `u32` source position + `u32` type identity-table index |
 | projected qualification | structural path + domain id |
 | structural operation result | place id + structural type id + multiplicity + counted domain ids + counted projected qualifications + counted additional input qualifications + counted qualification establishments (domain id + `u64` route index) + counted claims (claim id + structural path) |
 | structural parameter | place id + `u32` position + structural type id + multiplicity + access + counted domain ids + counted projected qualifications + counted additional input qualifications |
@@ -820,6 +828,33 @@ integer math and content operands are their own encodings inside the row.
 | 20 | FloatIntegerConversion | scalar source + scalar integer result + projection contract + semantic application contract |
 | 21 | IeeeFloatIntegerExact | scalar source + integer type |
 | 22 | IntegerIeeeFloatExact | scalar integer source + IEEE target format |
+
+Tag 23 is not a portable proposition and is absent from the table on purpose:
+a decoder rejects it. A `DeclarationIdentity`, the typed `core\Identity` of a
+source clause, has no portable row until its mathematical signature is
+published with it. The encoder refuses one in a module, and module validation
+refuses one in a portable proposition. Only the source checker writes tag 23,
+into the byte key it uses to put a machine's clauses in canonical order; that
+key never leaves the compiler. Its layout is a counted list of clause values,
+then the `u32` positions of the left and right value. Each value is a carrier
+followed by an operand:
+
+| Carrier tag | Form | Fields |
+| --- | --- | --- |
+| 0 | Parameter | `u32` type binder |
+| 1 | Scalar | scalar type |
+| 2 | Structural | structural type id |
+
+| Operand tag | Form | Fields |
+| --- | --- | --- |
+| 0 | Input | canonical structural field |
+| 1 | Scalar | scalar term |
+| 2 | Formal | `u32` formal position |
+| 3 | Application | Boolean supplier flag, then when set the supplier's `u32` slot and `u32` generation; the applied declaration's `u32` slot and `u32` generation; counted `u32` positions of earlier values |
+
+An application names a declaration and its arguments in order. The declaration
+is a trait operation with its supplying record, a machine with a result, or a
+case of a data declaration applied to its fields.
 
 A `FloatMeaningEqual` clause records structural meaning equality before a
 call supplies its actual arguments and result. Its slots index only its own
@@ -2771,6 +2806,42 @@ Both forms require every exact internal call occurrence and one common rank type
 | 1 | Target |
 | 2 | Continuation |
 
+### Logical theorem parameters
+
+A logical parameter retains the full implication its caller supplies, rather
+than an executable callback. Each table below is counted; its keys are strictly
+increasing. Parameter keys are `(machine, proof position)`, application keys are
+`(machine, edge)`, and supply keys are `(machine, invocation site, proof position)`.
+The proof position indexes the owning machine's erased proof formals.
+
+| Row | Fields |
+| --- | --- |
+| theorem contract | counted scalar formal declarations + counted requires propositions + counted ensures propositions |
+| theorem parameter | owner machine id + `u32` proof position + theorem contract |
+| theorem application | owner machine id + edge id + successor block id + `u32` proof position + counted fixed scalar subjects + counted premise obligation ids |
+| theorem supply | caller machine id + invocation site + `u32` proof position + proof source + counted certificate envelopes |
+| proof source | `u8`: 1 + cited machine id; 2 + `u32` caller proof-formal position |
+
+An application supplies every substituted premise on its edge. Only its unique
+ordinary successor may use the conclusions. The recorded subjects are captured
+scalar values or literals; this metadata grants no storage access or runtime
+call. The [logical-hypothesis rule](../proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use)
+requires the whole implication over arbitrary admitted subjects, even when a
+particular caller supplies a constant.
+
+A named supply retains three checked derivations in order: the cited contract's
+implication, the alias premises implying the cited premises, and the alias
+premises plus cited conclusions implying the alias conclusions. The source checker
+composes these derivations into the complete Strict proof and checks its
+mathematical type. Ordinary decoding checks each recorded judgment’s source,
+role and subjects, its invocation, and the actual certificate’s canonical
+encoding and declared type. Source-bound validation can replay the derivations.
+The receiving host authorizes the exact artifact and its assumption dependencies
+under [publication and separate consumption](product.md#publication-and-separate-consumption). A forwarded supply names the caller's exact
+proof formal, carries no new derivation, and must have the same complete type.
+The selected theorem remains derivation provenance; it does not select runtime
+code or determine Strict proof identity.
+
 ### Closed conformance applications
 
 The legacy `optional subject identity` below is not part of conformance
@@ -3104,14 +3175,14 @@ written inline with no sharing table.
 
 Each codec-emitted envelope opens with an eight-byte magic and a `u16` format
 marker; the semantic module and debug map envelopes then carry the shared `u16`
-vocabulary marker (142). A receiver rejects an unknown magic or stale marker
+vocabulary marker (143). A receiver rejects an unknown magic or stale marker
 before reading any counted table. The installation record `PSIINST\0` is emitted
 outside this codec.
 
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 286 | yes |
+| semantic module | `PSITERM\0` | 292 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

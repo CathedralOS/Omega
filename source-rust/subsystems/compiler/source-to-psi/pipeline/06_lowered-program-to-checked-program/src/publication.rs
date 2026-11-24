@@ -1,6 +1,7 @@
 //! Only a completely accepted compilation can issue its source for publication.
 mod accepted_closure;
 mod advisories;
+mod mathematics;
 mod optimization;
 pub use accepted_closure::AcceptedClosure;
 pub use advisories::AcceptedAdvisories;
@@ -85,6 +86,7 @@ fn accept_compilation(
 ) -> Result<AcceptedCompilation, Vec<Diagnostic>> {
     let mut first = None;
     let mut additional = Vec::new();
+    let mut signature = None;
     let mut diagnostics = Vec::new();
     for (position, verdict) in verdicts.into_iter().enumerate() {
         match verdict {
@@ -136,6 +138,19 @@ fn accept_compilation(
                     diagnostic
                 }));
             }
+            // The signature publishes nothing executable. Its tables are
+            // written into the root module once every part is accepted.
+            Ok(RouteVerdict::Laws(judged)) => {
+                if signature.replace(judged).is_some() {
+                    diagnostics.push(route_defect("a compilation judged two signatures"));
+                }
+            }
+            Ok(RouteVerdict::UnprovedLaws(unproved)) => {
+                if unproved.is_empty() {
+                    diagnostics.push(route_defect("an unproved signature names no law"));
+                }
+                diagnostics.extend(unproved.iter().map(|entry| entry.reject_diagnostic()));
+            }
             Ok(RouteVerdict::FallBack(refused)) => {
                 let mut diagnostic = Diagnostic::error(format!(
                     "not supported yet: {}; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong",
@@ -178,7 +193,11 @@ fn accept_compilation(
         });
         return Err(diagnostics);
     }
-    let closure = first.ok_or_else(|| vec![route_defect("no accepted compilation root")])?;
+    let mut closure = first.ok_or_else(|| vec![route_defect("no accepted compilation root")])?;
+    if let Some(signature) = signature {
+        mathematics::publish(&mut closure.elaboration.module, &signature)
+            .map_err(|detail| vec![route_defect(detail)])?;
+    }
     // Classification requests no warnings. The source owner finishes its
     // correspondence checks before consuming these transient parts.
     Ok(AcceptedCompilation {

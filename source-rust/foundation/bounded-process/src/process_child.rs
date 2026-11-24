@@ -32,7 +32,7 @@ pub(crate) mod limits;
 pub(crate) mod windows;
 
 use crate::BoundedProcessPrepared;
-pub use completion::{BoundedProcessCompletion, BoundedProcessExitStatus};
+pub use completion::{BoundedProcessCompletion, BoundedProcessExitStatus, ProcessLimit};
 use std::io;
 use std::process::{ChildStderr, ChildStdin, ChildStdout, Command, ExitStatus};
 
@@ -134,29 +134,15 @@ impl BoundedProcessChild {
 
     pub fn spawn(prepared: BoundedProcessPrepared) -> io::Result<Self> {
         let observe_resources = prepared.should_observe_resources();
-        #[cfg(unix)]
-        let retained_descriptors = prepared.retained_descriptors().to_vec();
-        let (command, limits) = prepared.into_command()?;
+        let (mut command, limits) = prepared.into_command()?;
         #[cfg(not(windows))]
         let _ = limits;
-        #[cfg(unix)]
-        let mut command = {
-            let mut command = command;
-            descriptors::mark_ambient_close_on_exec(&mut command)?;
-            descriptors::retain_descriptors(&mut command, retained_descriptors)?;
-            command
-        };
-        #[cfg(windows)]
-        let mut command = command;
         #[cfg(windows)]
         let child = windows::WindowsJobChild::spawn(&mut command, limits)?;
         #[cfg(unix)]
         let child = command.group_spawn()?;
         #[cfg(not(any(unix, windows)))]
-        let child = {
-            let mut command = command;
-            command.spawn()?
-        };
+        let child = command.spawn()?;
         Ok(Self {
             child,
             container_closed: false,
@@ -276,9 +262,14 @@ impl BoundedProcessChild {
             )
         })?;
         self.finished = true;
+        #[cfg(windows)]
+        let limits_reached = self.child.take_limit_events();
+        #[cfg(not(windows))]
+        let limits_reached = Vec::new();
         Ok(BoundedProcessCompletion::new(
-            BoundedProcessExitStatus::from_status(status),
+            BoundedProcessExitStatus::from(status),
             self.resource_usage.take(),
+            limits_reached,
         ))
     }
 

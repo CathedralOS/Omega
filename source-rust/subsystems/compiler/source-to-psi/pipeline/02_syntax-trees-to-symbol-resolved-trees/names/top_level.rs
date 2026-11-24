@@ -103,10 +103,7 @@ mod data {
                             .span_or_empty(data_definition.type_parameters)[index];
                         (parameter.symbol, parameter.kind.clone())
                     };
-                    let TypeParameterKind::Machine { mut contract } = kind else {
-                        continue;
-                    };
-                    SignatureSymbolTables {
+                    let mut tables = SignatureSymbolTables {
                         symbols,
                         data_type_parameters,
                         state_parameters,
@@ -114,15 +111,30 @@ mod data {
                         type_constraints,
                         trait_proposition_slots: &trait_proposition_slots,
                         trait_machine_identity_slots: &trait_machine_identity_slots,
-                    }
-                    .assign_parameter_contract_symbols(
-                        &mut contract,
-                        parameter_symbol,
-                        &local_type_parameters,
-                    );
+                    };
+                    let resolved = match kind {
+                        TypeParameterKind::Proof { mut contract } => {
+                            crate::resolution::names::top_level::assign_callable_signature_symbols(
+                                &mut tables,
+                                &mut contract,
+                                parameter_symbol,
+                                &local_type_parameters,
+                            );
+                            TypeParameterKind::Proof { contract }
+                        }
+                        TypeParameterKind::Machine { mut contract } => {
+                            tables.assign_parameter_contract_symbols(
+                                &mut contract,
+                                parameter_symbol,
+                                &local_type_parameters,
+                            );
+                            TypeParameterKind::Machine { contract }
+                        }
+                        _ => continue,
+                    };
                     data_type_parameters.span_mut_or_empty(data_definition.type_parameters)
                         [index]
-                        .kind = TypeParameterKind::Machine { contract };
+                        .kind = resolved;
                 }
 
                 for member in data_members.span_mut_or_empty(data_definition.members) {
@@ -1443,6 +1455,15 @@ impl SignatureSymbolTables<'_> {
                         &mut type_reference,
                     );
                     TypeParameterKind::Value { type_reference }
+                }
+                TypeParameterKind::Proof { mut contract } => {
+                    assign_callable_signature_symbols(
+                        self,
+                        &mut contract,
+                        parameter_symbol,
+                        local_type_parameters,
+                    );
+                    TypeParameterKind::Proof { contract }
                 }
                 TypeParameterKind::Machine { mut contract } => {
                     if matches!(

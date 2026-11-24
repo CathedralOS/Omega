@@ -131,6 +131,9 @@ mod assignment {
                     }),
                     TypeParameterKind::Machine {
                         contract: MachineParameterContract::Structural(signature),
+                    }
+                    | TypeParameterKind::Proof {
+                        contract: signature,
                     } => {
                         collect(
                             program,

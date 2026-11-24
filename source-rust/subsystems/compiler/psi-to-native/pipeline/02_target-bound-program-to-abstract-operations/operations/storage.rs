@@ -1357,14 +1357,29 @@ pub(crate) mod structural_leaf_copy {
             )
             && terminal_semantics::quotients::quotient_copy_adaptation(module, machine, operation)
                 .is_none()
-            && !byte_carrier_leaf_copy(
+        {
+            if !byte_carrier_leaf_copy(
                 structural_types,
                 signature.structural_type,
                 &path,
                 expected_type,
-            )
-        {
-            return Err(invalid("copy result type does not match the selected leaf"));
+            ) {
+                return Err(invalid("copy result type does not match the selected leaf"));
+            }
+            // This operation copies the entire byte window without decoding its fields.
+            if !result.is_unrestricted_plain()
+                || !result.additional_input_qualifications.is_empty()
+                || !terminal_semantics::all_bit_patterns_are_valid(
+                    structural_types,
+                    &module.types.scalar_qualifications,
+                    expected_type,
+                )
+                .map_err(invalid)?
+            {
+                return Err(invalid(
+                    "raw bytes do not establish the record's required values",
+                ));
+            }
         }
         Ok(AbstractOperation::StructuralLeafCopy {
             psi_operation: operation.id,
@@ -1417,9 +1432,7 @@ pub(crate) mod structural_leaf_copy {
         else {
             return false;
         };
-        index
-            .checked_add(layout.size)
-            .is_some_and(|end| end <= *length)
+        layout.fits_at(*index, *length)
     }
 }
 

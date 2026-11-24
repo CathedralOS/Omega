@@ -104,6 +104,29 @@ fn boundary(reach: &str, actual: u32) -> Checked<crate::lowering::Elaboration> {
 }
 
 #[test]
+fn matching_literal_domain_indices_survive_publication() {
+    let round_trip = |input: &str, output: &str| {
+        let text = format!(
+            "const KEY: u8 = 4u8; domain<const N: u8> u32::At<N>; \
+             machine entry(value: u32 in At<{input}>) -> u32 in At<{output}> {{ value }}"
+        );
+        let prepared = crate::preparation::prepare_typed_trees(typed(&text), &[], &[]).unwrap();
+        judge(invocation(prepared.into_inner()))
+    };
+    for (input, output) in [("4", "4u8"), ("KEY", "4"), ("4", "KEY")] {
+        match round_trip(input, output) {
+            Ok(RouteVerdict::Accepted(_)) => {}
+            other => panic!("{input} to {output}: {other:?}"),
+        }
+    }
+    let mismatch = round_trip("4", "5").unwrap();
+    assert!(
+        matches!(mismatch, RouteVerdict::Rejected { .. }),
+        "{mismatch:?}"
+    );
+}
+
+#[test]
 fn a_source_boundary_requires_an_explicit_reach_ceiling() {
     let text = boundary_source("", 7);
     let mut sources = crate::source_inputs::SourceMap::default();

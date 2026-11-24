@@ -1,9 +1,4 @@
-// Shared domain-tagged SHA-256 digest encoder (`DomainDigestEncoder`), unframed
-// content digest (`content_identity`), and lowercase hex renderer (`hex`).
-//
-// `raw` feeds fixed-width or self-delimiting bytes without a length prefix,
-// whereas `bytes` and `string` prefix a `u64` little-endian length so variable-
-// width fields cannot collide across boundaries.
+//! SHA-256 input framing and lowercase hexadecimal output.
 
 use sha2::{Digest, Sha256};
 
@@ -45,10 +40,12 @@ impl DomainDigestEncoder {
         self.0.update(value.to_le_bytes());
     }
 
+    /// Appends a field whose width or boundary is already defined by the format.
     pub fn raw(&mut self, bytes: &[u8]) {
         self.0.update(bytes);
     }
 
+    /// Appends a little-endian `u64` byte length followed by the field.
     pub fn bytes(&mut self, bytes: &[u8]) {
         self.len(bytes.len());
         self.0.update(bytes);

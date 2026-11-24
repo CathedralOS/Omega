@@ -81,6 +81,32 @@ fn a_child_asked_for_private_files_creates_them_whatever_umask_the_parent_has() 
     assert_eq!(output.stdout, b"0077\n");
 }
 
+#[cfg(target_os = "linux")]
+#[test]
+fn a_private_image_that_never_starts_has_no_guest_result() {
+    let scratch =
+        std::env::temp_dir().join(format!("omega-private-unstarted-{}", std::process::id()));
+    std::fs::create_dir(&scratch).unwrap();
+    let image = scratch.join("not-an-executable");
+    std::fs::write(&image, b"").unwrap();
+    let mut prepared =
+        BoundedProcessPrepared::new(Command::new(image), process_limits(), "private test").unwrap();
+    prepared
+        .use_private_filesystem(&scratch, Default::default())
+        .unwrap();
+    let result = run_bounded_process(
+        prepared,
+        BoundedProcessInput::Null,
+        capture_limits(16, 16, Duration::from_secs(5)),
+        BoundedCaptureBudget::new(32),
+    );
+    std::fs::remove_dir_all(scratch).unwrap();
+    assert!(
+        matches!(result, Err(BoundedProcessRunError::Spawn(_))),
+        "{result:?}"
+    );
+}
+
 #[test]
 fn rejects_each_output_ceiling_and_the_shared_budget() {
     for (stream, redirect) in [

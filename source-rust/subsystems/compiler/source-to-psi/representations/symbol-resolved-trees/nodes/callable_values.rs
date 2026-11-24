@@ -193,6 +193,9 @@ impl<'program> ResolvedSignatureInputs<'program> {
                 | TypeParameterKind::Value { type_reference } => {
                     self.types.push((scope, type_reference))
                 }
+                TypeParameterKind::Proof { contract } => {
+                    self.signature(program, contract, Some(scope))
+                }
                 TypeParameterKind::Machine { contract } => match contract {
                     MachineParameterContract::Structural(required) => {
                         self.signature(program, required, Some(scope))

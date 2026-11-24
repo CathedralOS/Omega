@@ -1,0 +1,11 @@
+public boundary trait Reading {
+    machine value() -> u8 reaches none crashes none;
+}
+
+public DefaultReading satisfies Reading {
+    machine value() -> u8 reaches none crashes none { 17u8 }
+}
+
+public ApplicationReading satisfies Reading {
+    machine value() -> u8 reaches none crashes none { 29u8 }
+}

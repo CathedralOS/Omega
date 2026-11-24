@@ -633,7 +633,7 @@ cannot prove its own validity. The canonical certificate is checked before
 execution. Omega's current-IR validation binds the retained obligation to the
 current destination, value and bounds; the corpus runner and the tests run
 it, not the default compile path before native lowering
-([verification placement](../../../omega-rust/pipeline.md#verification-placement), owner commit `b1423f5385d`). Accepting
+([verification placement](../../../source-rust/subsystems/compiler/README.md#verification-placement), owner commit `b1423f5385d`). Accepting
 only the underlying scalar carrier would invalidate later range snapshots.
 Scalar and Boolean field observations
 remain distinct operations and require readable access. A field or primitive
@@ -840,7 +840,7 @@ view fields remain unsupported. The supported predicates are
 valid UTF-8, ASCII-only, no NUL, and nonempty. Receiving validation checks these
 invariants independently of the producing compiler's checker. The rewrite validator repeats
 the check after optimization in the corpus runner and the tests, not on the
-default compile path ([verification placement](../../../omega-rust/pipeline.md#verification-placement)). Zero-initialized attachment storage requires every contained byte
+default compile path ([verification placement](../../../source-rust/subsystems/compiler/README.md#verification-placement)). Zero-initialized attachment storage requires every contained byte
 field predicate to hold for the empty sequence. Every write keeps every declared
 predicate true: Terminal Psi opens no invariant window on a field, so reads and
 calls may rely on the declaration at any point.
@@ -867,7 +867,7 @@ supplies only the declaration, never ASCII contents. The Omega consumer
 requires the accepted obligation to be exactly this goal. Its rewrite
 validator replays the carrier rule on the current graph after every rewrite;
 the corpus runner and the tests run it, not the default compile path
-([verification placement](../../../omega-rust/pipeline.md#verification-placement)).
+([verification placement](../../../source-rust/subsystems/compiler/README.md#verification-placement)).
 
 `ByteSequenceLength` on a whole bounded owner observes current live-length
 metadata through shared, mutable, or write-only access. Metadata access grants

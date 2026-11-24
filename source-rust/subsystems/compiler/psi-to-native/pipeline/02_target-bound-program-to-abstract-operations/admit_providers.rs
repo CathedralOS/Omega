@@ -46,6 +46,9 @@ impl PreparedRetainedNativeProviders<'_> {
         settlements: &'request [NativeProviderSettlement<'request>],
         terminal_authority_policy: &'request TerminalAuthorityPolicy,
         receiving_permissions: &'request Option<TerminalAuthorityPermissionPolicy>,
+        isolated_execution_grant: Option<
+            &'request semantic_vocabulary::TerminalAuthorityDisposition,
+        >,
         installation_assumptions: &'request [installation_conditions::InstallationEnvironmentAssumption],
     ) -> crate::NativeAdmissionRequest<'request, 'request> {
         let proposal = self.proposal;
@@ -56,6 +59,7 @@ impl PreparedRetainedNativeProviders<'_> {
             ),
             boundary_application_coverage: Some(self.execution.boundary_application_coverage()),
             behavior_exclusions: proposal.behavior_exclusions(),
+            isolated_execution_grant,
             providers: ProviderAdmissionRequest {
                 profile: proposal.target_profile(),
                 bootstrap_entry: proposal.scope_source().root().semantic_entry(),
@@ -149,6 +153,8 @@ pub struct NativeAdmissionRequest<'request, 'execution> {
     pub providers: ProviderAdmissionRequest<'request, 'execution>,
     pub boundary_application_coverage: Option<&'request TerminalBoundaryApplicationCoverage>,
     pub behavior_exclusions: &'request native_behavior_exclusions::BehaviorExclusions,
+    pub isolated_execution_grant:
+        Option<&'request semantic_vocabulary::TerminalAuthorityDisposition>,
 }
 
 pub struct AdmittedNativeRealization<'execution> {
@@ -327,6 +333,9 @@ pub fn admit_prepared_native_realization<'execution>(
     request
         .behavior_exclusions
         .validate_physical_authority_closure(providers.terminal_authority_closure_review())?;
+    if let Some(grant) = request.isolated_execution_grant {
+        providers.check_isolated_execution_grant(grant)?;
+    }
     let mut input = input;
     input.retain_admitted_assumed_bindings(
         providers

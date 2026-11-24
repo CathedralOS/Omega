@@ -10,9 +10,7 @@ use crate::declaration_selection::ProductOperandRole;
 use crate::source_state::TypedTrees;
 use crate::source_state::product_operand::{ProductDeclarationLookup, ProductRequestAuthors};
 use diagnostics::Diagnostic;
-use source_declarations::source_selections::{
-    AssumedBindingContract, TestGroupRegistration, TestGroupService,
-};
+use source_declarations::source_selections::{AssumedBindingContract, TestGroupRegistration};
 use std::sync::Arc;
 use symbols::SymbolHandle;
 use crate::WireCompatibilityDemand;
@@ -73,9 +71,7 @@ pub fn admit(
 fn admitted_here(operation: BuildOperation) -> bool {
     matches!(
         operation,
-        BuildOperation::ServiceAudit
-            | BuildOperation::TestGroupRegistration
-            | BuildOperation::TestGroupService
+        BuildOperation::ServiceAudit | BuildOperation::TestGroupRegistration
     )
 }
 
@@ -209,144 +205,75 @@ fn admit_service_audits(
     Ok(services)
 }
 
-/*
-Test groups (wiki/spec/build/testing.md#registration-and-discovery). Each
-executed `builder.tests.group::<Requirement>()` registers one exact non-boundary
-trait requirement once; registering it again rejects. Each executed
-`builder.tests.service::<Requirement, Slot>()` configures a group the same Build
-already registered, naming one exact boundary trait at most once per group.
-Groups keep their execution order, which is the roster order. Which slots the
-runner can back is decided by the runner, not here.
-*/
+/// Resolve every authored group, then retain the exact registrations reached by Build.
 fn admit_test_groups(
     typed: &TypedTrees,
     activation: Option<SymbolHandle>,
     executed: &[ExecutedProductSelection],
     formations: &AuthoredFormations<'_>,
 ) -> Result<Vec<TestGroupRegistration>, Vec<Diagnostic>> {
-    let is_group = |operation| {
-        matches!(
-            operation,
-            BuildOperation::TestGroupRegistration | BuildOperation::TestGroupService
-        )
-    };
+    let operation = BuildOperation::TestGroupRegistration;
     let mut events = executed
         .iter()
-        .filter(|event| is_group(event.request.operation))
+        .filter(|event| event.request.operation == operation)
         .peekable();
-    let mut authored = formations
-        .rows
-        .iter()
-        .filter(|row| is_group(row.request.operation))
-        .peekable();
-    if authored.peek().is_none() && events.peek().is_none() {
+    if formations.of(operation).next().is_none() && events.peek().is_none() {
         return Ok(Vec::new());
     }
-    let declarations = ProductDeclarationLookup::new(
-        typed,
-        &[
-            ProductOperandRole::TestRequirement,
-            ProductOperandRole::BoundarySubject,
-        ],
-    );
-    // Every authored registration names a real requirement and service slot,
-    // whether or not the Build reached it.
-    for formation in authored {
-        test_group_operands(typed, &declarations, formation.request)?;
+    let declarations = ProductDeclarationLookup::new(typed, &[ProductOperandRole::TestRequirement]);
+    for formation in formations.of(operation) {
+        test_group_requirement(&declarations, formation.request)?;
     }
     let authors = ProductRequestAuthors::new(typed);
     let mut groups = Vec::<TestGroupRegistration>::new();
     for event in events {
         let formation = formations.executed(typed, &authors, activation, event, "test group")?;
         let request = formation.request;
-        let (requirement, slot) = test_group_operands(typed, &declarations, request)?;
-        let source_span = typed.symbols.rejoin_product_occurrence(request.source_span);
-        match slot {
-            None => {
-                if groups.iter().any(|group| group.requirement == requirement) {
-                    return Err(refuse(
-                        request,
-                        "test group registration repeats the same requirement",
-                    ));
-                }
-                groups.push(TestGroupRegistration {
-                    requirement,
-                    selecting_machine: formation.author,
-                    source_span,
-                    services: Vec::new(),
-                });
-            }
-            Some(slot) => {
-                let group = groups
-                    .iter_mut()
-                    .find(|group| group.requirement == requirement)
-                    .ok_or_else(|| {
-                        refuse(
-                            request,
-                            "test group service names a group this Build has not registered; register it with `builder.tests.group::<…>()` first",
-                        )
-                    })?;
-                if group.services.iter().any(|service| service.slot == slot) {
-                    return Err(refuse(
-                        request,
-                        "test group service repeats the same slot for one group",
-                    ));
-                }
-                group.services.push(TestGroupService { slot, source_span });
-            }
+        let requirement = test_group_requirement(&declarations, request)?;
+        if groups.iter().any(|group| group.requirement == requirement) {
+            return Err(refuse(
+                request,
+                "test group registration repeats the same requirement",
+            ));
         }
+        groups.push(TestGroupRegistration {
+            configuration: event.test_group.clone().ok_or_else(|| {
+                refuse(request, "test group registration lost its evaluated configuration")
+            })?,
+            requirement,
+            selecting_machine: formation.author,
+            source_span: typed.symbols.rejoin_product_occurrence(request.source_span),
+        });
     }
     Ok(groups)
 }
 
-/// The requirement a test-group request names and, for a service request, the
-/// boundary trait slot it asks the runner to back.
-fn test_group_operands(
-    typed: &TypedTrees,
+fn test_group_requirement(
     declarations: &ProductDeclarationLookup<'_>,
     request: &ProductDeclarationRequest,
-) -> Result<(SymbolHandle, Option<SymbolHandle>), Vec<Diagnostic>> {
-    let resolve = |position: usize, role: ProductOperandRole| {
-        request
-            .operands
-            .get(position)
-            .filter(|operand| operand.application.is_none())
-            .and_then(|operand| declarations.resolve(&operand.path, operand.source_span, role))
-    };
-    let path = |position: usize| {
-        request
-            .operands
-            .get(position)
-            .map_or("", |operand| operand.path.as_str())
-    };
-    let requirement = resolve(0, ProductOperandRole::TestRequirement).ok_or_else(|| {
-        refuse(
+) -> Result<SymbolHandle, Vec<Diagnostic>> {
+    let [operand] = request.operands.as_ref() else {
+        return Err(refuse(
             request,
-            format!(
-                "test group operand `{}` must name one visible requirement of a non-boundary trait",
-                path(0)
-            ),
+            "test group registration requires one requirement operand",
+        ));
+    };
+    if operand.application.is_none()
+        && let Some(requirement) = declarations.resolve(
+            &operand.path,
+            operand.source_span,
+            ProductOperandRole::TestRequirement,
         )
-    })?;
-    if request.operation != BuildOperation::TestGroupService {
-        return Ok((requirement, None));
+    {
+        return Ok(requirement);
     }
-    let slot = resolve(1, ProductOperandRole::BoundarySubject)
-        .filter(|symbol| {
-            typed
-                .trait_definition_by_symbol(*symbol)
-                .is_some_and(|declaration| declaration.is_boundary)
-        })
-        .ok_or_else(|| {
-            refuse(
-                request,
-                format!(
-                    "test group service operand `{}` must name one visible boundary trait declaration",
-                    path(1)
-                ),
-            )
-        })?;
-    Ok((requirement, Some(slot)))
+    Err(refuse(
+        request,
+        format!(
+            "test group operand `{}` must name one visible requirement of a non-boundary trait",
+            operand.path,
+        ),
+    ))
 }
 
 fn audit_service(

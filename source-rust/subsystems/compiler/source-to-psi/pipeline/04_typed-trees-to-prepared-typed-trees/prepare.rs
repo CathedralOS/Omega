@@ -13,7 +13,7 @@ use typed_trees::source_state;
 
 mod passes;
 pub use prepared_source::{
-    PreparedTarget, PreparedTypedTrees, PreparedValue, TargetInputs, ValueInputs,
+    EntryApplication, PreparedTarget, PreparedTypedTrees, PreparedValue, TargetInputs, ValueInputs,
 };
 
 use crate::source_state::TypedTrees;
@@ -29,6 +29,13 @@ pub struct SelectedProvider {
         Option<arena::Handle<source_state::product_operand::ProductOperandApplication>>,
 }
 
+/// Declarations selected by the consuming product for ordinary specialization.
+#[derive(Clone, Copy)]
+pub enum SelectedDeclaration {
+    Provider(SelectedProvider),
+    MachineApplication(EntryApplication),
+}
+
 /// Prepare the typed program that stage 05 will lower.
 ///
 /// Cloning the result retains the same source owner for later judgments.
@@ -42,9 +49,9 @@ pub struct SelectedProvider {
 pub fn prepare_typed_trees(
     mut program: TypedTrees,
     values: &[ValueInputs],
-    selected_providers: &[SelectedProvider],
+    selected: &[SelectedDeclaration],
 ) -> Result<PreparedTypedTrees, Vec<Diagnostic>> {
-    passes::specialization::prepare_with_providers(&mut program, selected_providers)?;
+    let entries = passes::specialization::prepare_selected(&mut program, selected)?;
     program
         .prepare_conformance_requirement_headers()
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
@@ -52,7 +59,7 @@ pub fn prepare_typed_trees(
         .settle_applied_service_lineage()
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     passes::domain_applications::prepare(&mut program);
-    PreparedTypedTrees::new(PREPARATION, program, values)
+    PreparedTypedTrees::new(PREPARATION, program, values, entries)
 }
 
 #[cfg(test)]

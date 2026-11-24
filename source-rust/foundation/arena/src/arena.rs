@@ -1,15 +1,4 @@
-/*
-We implement the contiguous `Arena`, its typed `Handle` and `HandleSpan` coordinates,
-and the `HierarchyArena` and `OrderedRootArena` wrappers that organize parent-child
-ranges and ordered declaration roots over dense storage.
-
-An unretired `Arena` page has one generation and no holes, so we keep that uniform slot
-identity on the arena header and resolve handles and spans by bounds arithmetic alone
-until the first retirement materializes cold per-slot generation and occupancy vectors.
-`HierarchyArena` assigns each parent one contiguous child `HandleSpan` in the shared
-dense `Arena`, and `OrderedRootArena` maintains an ordered span of root handles while
-preserving stable declaration identities in the backing `Arena`.
-*/
+//! Dense row storage, typed handles and spans, and the hierarchy and ordered-root wrappers.
 
 use std::fmt;
 use std::hash::{Hash, Hasher};
@@ -1230,6 +1219,8 @@ impl<T: Default> Arena<T> {
         &mut self.items[index]
     }
 
+    /// Retires a live row and makes its slot available for reuse.
+    /// Returns false if the handle does not resolve to a live row.
     pub fn free(&mut self, handle: Handle<T>) -> bool {
         self.retire_with_replacement(handle, T::default)
     }

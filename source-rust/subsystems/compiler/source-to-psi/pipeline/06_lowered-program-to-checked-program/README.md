@@ -6,10 +6,10 @@ proof obligations hold, and its verdict is the compiler's only verdict.
 (stage 05) writes the obligations into the lowered form (Terminal Psi), and
 this crate accepts one only when the proof kernel accepted a certificate for
 it. It is the third piece of
-[check on the lowered form](../../../../../wiki/drafts/designs/check_on_lowered_form.md):
+[check on the lowered form](../../../../../../wiki/drafts/designs/check_on_lowered_form.md):
 every other outcome is a `Refusal` with reason `Unproved`. There is no
 interval verdict, no admitted route and no assumption, so a discharged
-obligation is one that [stage trust](../../../../../wiki/drafts/designs/stage_trust.md)
+obligation is one that [stage trust](../../../../../../wiki/drafts/designs/stage_trust.md)
 rule 2 lets remove a runtime check. The product driver passes the complete
 Terminal checking input to `judge_compilation`; this stage never elaborates
 typed source or calls stage 05. [The route's verdict](#the-routes-verdict) is
@@ -18,12 +18,93 @@ the compilation verdict, including every demanded generic and conformance form.
 An abstract algebra can cite a law of its supplied record to prove identity of
 two operation results. The checker instantiates the law's signature and records
 the kernel-checked proof of the requested identity. Automatic proof of whole
-record identity from field identities is an [open question](../../../../../OWNER_QUESTIONS.md#deriving-record-identity-from-field-identities).
+record identity from field identities is an [open question](../../../../../../OWNER_QUESTIONS.md#deriving-record-identity-from-field-identities).
+
+A law over data that contains itself is judged apart from every machine.
+Stage 05 hands this crate one
+[mathematical signature](../../representations/lowered-program/README.md#the-mathematical-signature)
+for the compilation. [laws.rs](src/laws.rs) has the kernel check its
+declarations once, then proves each law against the entries before that law's
+own statement. For a law that dispatches on a formal it proves one equality
+per case, over an arbitrary value of that case, and assembles the cases into
+one induction. A case is proved by normalizing both sides with the kernel and
+rewriting with the laws the case cites and with the law itself at a field of
+the case ([equality.rs](src/equality.rs), `prove_under`). The kernel checks
+the assembled term against the law's statement; the judgment is
+`RouteVerdict::Laws`, and a law or case left unproved is one entry of
+`RouteVerdict::UnprovedLaws` that names the equality and the arm.
+
+A law's premises are hypotheses of each of its cases. Where a case cites a
+law that has premises, the checker proves each at the cited arguments from
+the case's other evidence, in whatever order the body wrote its citations; a
+citation whose premise cannot be proved refuses the case. Two facts about
+constructors come with every equality the case holds. An equality of two
+values of one case gives the equality of each pair of fields, so
+`Succ(x) = Succ(y)` gives `x = y`. An equality of two different cases proves
+the case's goal outright, because no value satisfies it. Both are kernel
+terms built from the data's induction principle, checked with the rest of
+the proof.
+
+The search rewrites both sides of the goal with the equalities the case
+holds, smallest term first, until the two sides reach one term. It never
+uses an equality in the direction that puts its own left side inside its
+right side (`x` to `plus(x, Zero)`), which would apply to its own result
+without end; the other direction, applied from the other side of the goal,
+covers what that direction would have. A goal no equality proves therefore
+ends as "no proof", not as an exhausted budget.
+
+A law about a record of mathematical values is proved inside the record's
+fields: the record is a tuple, each citation rewrites inside one component,
+and a tuple of every field of one value is that value.
+
+Normalizing keeps a defined function folded: `plus(a, b)` stays `plus(a, b)`
+until the argument it dispatches on is a constructor, and then unfolds one
+step. A term is normalized again after each rewrite, since the rewrite may
+have put a constructor where a function dispatches. The search also regroups and reorders the operands of an operation
+under the signature's licenses, the associativity and commutativity laws the
+program's conformance declares and that were stated before the law being
+proved. It brings both sides of the goal to one arrangement (nested to the
+right, operands in a fixed order where commutativity allows) and puts each
+law it used into the proof term, so the certificate's assumptions name it.
+Distributivity of Peano multiplication is the customer. From the right, its
+successor case is the cited law at `pred` and one regrouping. From the left
+it is four addends in another order, which needs commutativity too, and
+commutativity needs `plus(a, Zero) = a`, a law that returns its own argument.
+The kernel checks each law's proof once, as its certificate: 2,176
+conversion steps of a 65,536 budget for associativity, 1,660 and 1,659 for the
+two distributivity laws, 1,105 for commutativity. The largest law of
+`core/nat.omg` takes 5,628.
+
+When that finds no proof, the search tries again with products expanded over
+sums under the distributivity laws the conformance declares, so both sides
+reach one polynomial form. A product whose sum is on the side its law states
+expands by the law; one whose sum is on the other side is commuted first when
+its operation commutes. Each expansion is an application of the law in the
+proof term. A product may expand to at most 64 summands (`MAX_SUMMANDS`),
+counted before anything is built; a larger one stops the proof as out of
+budget, never as wrong. The customer is `mul(add(a, b), add(c, d))` equal to
+its four-term expansion over the library's `Nat`, judged in 993 conversion
+steps on `mul_distributes`, `mul_comm`, `add_comm` and `add_assoc`
+([polynomial_expansion.rs](src/tests/polynomial_expansion.rs)).
+
+When every part is accepted, publication writes one Psi mathematical carrier
+row per data declaration into the root module
+([publication/mathematics.rs](src/publication/mathematics.rs)). The row names
+the data by its source type identity, and its key is the data's type (its
+canonical trees) under the declarations up to its own. The laws' certificates
+stay in the judgment and are not published, by the owner's decision of
+2026-11-23: a receiver trusts the producer and does not replay carried
+certificates
+([publication and separate consumption](../../../../../../wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)).
+Neither existing table fits one in any case. An indexed theorem root row names
+an erased evidence formal, and an Id formation row names an erased formal's
+Identity type and the source subjects it captures; a law over plain data has
+neither.
 
 The checker always uses branch conditions, dispatch bindings and value
 relations as premises; no mode compares results with less knowledge. That is
 separate from the specified
-[automatic-discharge floor](../../../../../wiki/spec/build/command_line.md#checker-conformance),
+[automatic-discharge floor](../../../../../../wiki/spec/build/command_line.md#checker-conformance),
 which keeps cited lemmas, branches and contracts, and from explicit stage
 validators, which add checks without changing which sources are accepted.
 
@@ -112,7 +193,7 @@ storage can state on its own value (`OperationSemantics` of the read; see
 [What a read learns from its type](#what-a-read-learns-from-its-type)), per
 callee `ensures` clause (`CalleeGuarantee`, after the call, with the
 callee's `result` replaced by the value the call defines;
-[calls and outcomes](../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#call-contracts):
+[calls and outcomes](../../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#call-contracts):
 "Normal guarantees refer to the actual result and appropriate parameter
 versions."),
 per edge of a conditional (`BranchCondition`: the condition is `true` on the
@@ -138,7 +219,7 @@ the actual's carrier, and a literal actual is the integer it denotes
 value embedded (`returned_for_result`). The arithmetic around the embeddings
 is over unbounded integers and is kept as written, so stating the clause
 adds no obligation of its own
-([mathematical values](../../../../../wiki/spec/terminal-psi/mathematical_values.md#integer-terms):
+([mathematical values](../../../../../../wiki/spec/terminal-psi/mathematical_values.md#integer-terms):
 "These terms denote unbounded mathematical integers and cannot overflow").
 
 What the prover does with the goal is narrower than what a clause can say:
@@ -157,7 +238,7 @@ an equation fixes to a literal read as that literal, the reading
 ## Erased formals at a call
 
 A callee clause may name an `[erased]` scalar formal
-([proof contracts](../../../../../wiki/spec/proofs/contracts.md#explicit-erased-bindings):
+([proof contracts](../../../../../../wiki/spec/proofs/contracts.md#explicit-erased-bindings):
 the binding "remains in checking and semantic identity"). At a call, each
 such formal is replaced by the term the call supplies for it, in the
 callee's `requires` (the `CallRequirement` goal) and in its `ensures` (the
@@ -184,7 +265,7 @@ returns, not only on the `ensures` its author wrote. A helper that widens its
 input under `requires narrow >= 300 && narrow <= 500` and writes no guarantee
 still returns a value in that range, and its caller may pass the result to a
 machine that requires it.
-[Local call summaries](../../../../../wiki/spec/language/state_contracts.md#local-call-summaries):
+[Local call summaries](../../../../../../wiki/spec/language/state_contracts.md#local-call-summaries):
 "An exact checked call inside the same fingerprinted verification unit may
 use the callee's written contract plus checked body-derived result and state
 facts", and "Derive and check a reusable summary against the body; each call
@@ -386,7 +467,7 @@ rows end a path and in what an edge can establish:
   whatever case that write selected. A shared byte view is one leaf too,
   whether it is held whole (a formal, a literal, a copy) or stored in a
   record, where it is a byte field of that record
-  ([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary):
+  ([structural access](../../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary):
   "`StructuralByteViewFieldStore` replaces the descriptor of one shared
   borrowed-view field"). The leaf is the descriptor: a view store supplies
   what its source held, and the zero of a record holds the empty shared view
@@ -404,7 +485,7 @@ the continuation, and a store before the branch reaches both sides.
 
 A read produces a fresh value. It gets the row `read == v` when `v` is the
 one value its place holds on every path to it
-([fact validity](../../../../../wiki/spec/terminal-psi/fact_validity.md):
+([fact validity](../../../../../../wiki/spec/terminal-psi/fact_validity.md):
 "A primitive read may introduce an equality between its copied SSA result
 and an exact reaching stored SSA value. Every actual predecessor must supply
 that same value"). Different values on different arrivals, or contents with
@@ -427,7 +508,7 @@ A local declared without an initializer is zero-constructed
 (`local-without-initializer`), so in an elaborated program every path
 supplies at least the declaration's zeros, which are a value unless the type
 is gated (described next). The sentence "An unestablished local cannot be read"
-([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary))
+([structural access](../../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary))
 governs declared shared view locals, which belong to the references work and
 which this checker refuses; it does not govern a plain scalar or data local.
 
@@ -438,7 +519,7 @@ the zero value with a zero constant the read equation can name, and a sum
 with its first declared case. The declaration owes the `requires` clauses of
 the zero value as `DataDomain` obligations. When one is not proved, the type
 is gated
-([dependent values](../../../../../wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization):
+([dependent values](../../../../../../wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization):
 "If zero satisfies the default domain, the value is zero-constructible.
 Otherwise the type is gated: construction or checked qualification must
 establish the domain before observation."). The refusal then sits at the
@@ -471,7 +552,7 @@ prover.
 ### Data `requires`
 
 <a id="data-requires"></a>
-[Data and literals](../../../../../wiki/spec/language/data_and_literals.md):
+[Data and literals](../../../../../../wiki/spec/language/data_and_literals.md):
 "Construction and every restoring write prove the owning default-domain
 clauses." Elaboration mints one `DataDomain` obligation per clause an
 operation owes; `Storage::owed` recomputes which data-typed places those
@@ -498,7 +579,7 @@ normal continuation:
 
 So the goal names values and literals only, and it is proved from the
 knowledge available before the operation
-([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#complete-record-construction):
+([structural access](../../../../../../wiki/spec/terminal-psi/structural_access.md#complete-record-construction):
 "The obligation binds the initializer or replacement SSA value, never the
 old field contents."). The stored value enters the goal from the store the
 operation makes, not from a knowledge row, so the completed write contributes no fact to
@@ -513,7 +594,7 @@ described next; it is never refused at the store.
 
 ### Invariant windows
 
-[Dependent values](../../../../../wiki/spec/language/dependent_values.md#invariant-windows):
+[Dependent values](../../../../../../wiki/spec/language/dependent_values.md#invariant-windows):
 "A write known to preserve the default domain keeps it established.
 Otherwise the write opens a window on the place, whose actual new contents
 remain available to ordinary flow reasoning. The domain must be proved again
@@ -556,7 +637,7 @@ s.low = 12; s.high = 20; width(s)` is valid: the first store breaks
   | --- | --- |
   | "A read relying on the domain or a dependent coupling." | a whole read of the place or of a place containing it: `StructuralLeafCopy`, a record operand of a literal, a record stored into a field; and a field read or a dispatch's bound payload beneath the place that takes a clause of its storage's type as a premise (`read_premises` or `payload_premises` not empty). A field read or dispatch with no premise, and a case test, rely on nothing and consume nothing. |
   | "Borrow creation or a call consuming the affected domain." | a call's record argument; this route passes records by value, copied first, so it is that copy, and the call itself (next row). |
-  | "Transfer, return, scope expiration or loan handback ..." | a record passed on a `Jump` edge; and every `Return`, `ReturnUnit`, `ReturnStructural` and `InvokeNoNormal`, on its edge, which ends the scope of every place of the machine. A `Crash` consumes nothing: "A crash may abandon an open window". An `ExternalCompletion` consumes nothing either: process exit "may abandon outstanding in-domain obligations, including linear obligations, without cleanup or discharge claims" ([process exit](../../../../../wiki/spec/language/process_exit.md#abandonment-and-survivors)); a record it took as an argument would be read like a `Jump`'s. |
+  | "Transfer, return, scope expiration or loan handback ..." | a record passed on a `Jump` edge; and every `Return`, `ReturnUnit`, `ReturnStructural` and `InvokeNoNormal`, on its edge, which ends the scope of every place of the machine. A `Crash` consumes nothing: "A crash may abandon an open window". An `ExternalCompletion` consumes nothing either: process exit "may abandon outstanding in-domain obligations, including linear obligations, without cleanup or discharge claims" ([process exit](../../../../../../wiki/spec/language/process_exit.md#abandonment-and-survivors)); a record it took as an argument would be read like a `Jump`'s. |
   | "Boundary/capability-carrying calls that may observe or expose the affected storage" | every call operation, for every window open at it. |
 
   "A call need not close an unrelated domain window when its complete
@@ -616,7 +697,7 @@ identity.
 
 ### What a read learns from its type
 
-[Structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#complete-record-construction):
+[Structural access](../../../../../../wiki/spec/terminal-psi/structural_access.md#complete-record-construction):
 "A validated field read or selected-case payload copy instantiates that
 invariant on its fresh scalar snapshot; other fields and unselected cases
 provide no premise. The snapshot survives later writes".
@@ -630,7 +711,7 @@ lies in, stated on the read's fresh value and justified by the read
   leaf of the root a call returned that this machine never stored over. The
   clause must belong to a type inside that value, on the path from its root
   to the leaf; a type this machine built around it lends nothing
-  ([dependent values](../../../../../wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization):
+  ([dependent values](../../../../../../wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization):
   "no consumption sees the value outside its required domain", and a call
   and a return each consume the value they pass). A leaf this machine wrote
   gets no such row: its `DataDomain` obligation proved the clause of the
@@ -654,7 +735,7 @@ parameter ([What a dispatch binds](#what-a-dispatch-binds)).
 
 A case's payload overlays its sum's storage, so naming one is sound only
 where the sum holds that case.
-[Structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary):
+[Structural access](../../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary):
 "Each `Case` step requires source admission to establish the selected case
 for the same root and prefix at the read's observation epoch. A dominating
 membership test or dispatch supplies that fact." and "A write to the sum or
@@ -690,7 +771,7 @@ other cases and is refused here, not guessed. A refusal has reason
 A `StructuralCase` terminator is one more use, named by its block. Its
 subject must be established, and its roster must list every declared case
 of the sum it observes exactly once; a declared case with no edge is
-`Unestablished` ([patterns](../../../../../wiki/spec/language/patterns.md):
+`Unestablished` ([patterns](../../../../../../wiki/spec/language/patterns.md):
 "Every dispatch must cover the admitted subject. Missing runtime coverage is
 a compile error, not an implicit trap or fallthrough."). Any other fault in
 a roster (a case of another sum, a case twice, a payload field that is no
@@ -700,7 +781,7 @@ scalar field of its case) refuses the module.
 
 A dispatch delivers the scalar payload fields of the selected case as the
 parameters of its arm's block
-([control flow](../../../../../wiki/spec/terminal-psi/control_flow.md):
+([control flow](../../../../../../wiki/spec/terminal-psi/control_flow.md):
 "Selected payload fields become scalar parameters on that case's edge before
 cleanup."). Each parameter gets the row a payload read would get: it equals
 the one value its payload leaf holds on every path to the dispatch, when
@@ -788,11 +869,14 @@ edge and no edge disposes of it. A returned view can instead keep the input
 loans alive until that view's last use. Those dependencies restrict access to
 the inputs; they do not make the result's pointer an alias of an input.
 
-An admitted provider contract can establish a stable shared view whose address
-is unknown. That permission can coexist with an independent mutable object of
-the caller. The input loans still prevent mutating an input the view depends
-on, and the provider permission cannot authorize mutable access. The overlap
-check still requires exact known places.
+A boundary may return a shared or mutable reference to provider storage.
+Each scalar field read observes the provider's current value. A mutable
+reference can write an ordinary scalar field when every possible return
+grants that permission and the result has only shared input dependencies.
+Those dependencies keep their original loans alive. The checker requires a
+captured address for a write that may reach an exclusive input. Two provider
+borrows with overlapping lifetimes still need evidence of disjointness when
+either borrows exclusively.
 
 A loan formed for a call with no normal return (an `InvokeNoNormal` or
 `ExternalCompletion` terminator) is carried into that transfer. Its edge must
@@ -806,7 +890,7 @@ keeps what it held, so a read of it still has its read equation; a read of
 the lent field has none. A shared loan stores nothing.
 
 Whether a loan may be formed is a resource judgment, not a proposition
-([loans](../../../../../wiki/spec/terminal-psi/loans.md): "Loan descent,
+([loans](../../../../../../wiki/spec/terminal-psi/loans.md): "Loan descent,
 access attenuation, temporal containment and restoration are resource
 judgments. Logical facts cannot create, amplify, transfer, extend, return,
 consume or duplicate authority."), so it has no certificate. A loan that may
@@ -844,7 +928,7 @@ with a row, and the prover does the rest unchanged.
   own parameters, the head is not the machine's entry, and every edge into
   the head is one of the row's arrivals exactly once with an
   `ArrivalInvariant` obligation of its own
-  ([control flow](../../../../../wiki/spec/terminal-psi/control_flow.md#safety-and-progress):
+  ([control flow](../../../../../../wiki/spec/terminal-psi/control_flow.md#safety-and-progress):
   "Missing or duplicate arrivals, wrong scope or carriers, and stale edge
   coordinates reject."). A row that fails refuses the machine: its predicate
   would otherwise be a hypothesis nobody proved.
@@ -870,7 +954,7 @@ that value does not change.
 The invariant is used before it is proved, as an induction hypothesis must
 be. That is sound only because a closure is accepted whole: `judge` accepts
 when every obligation is discharged, every arrival among them
-([fact validity](../../../../../wiki/spec/terminal-psi/fact_validity.md#premise-availability):
+([fact validity](../../../../../../wiki/spec/terminal-psi/fact_validity.md#premise-availability):
 "Every arrival must check before the destination predicate can justify
 downstream obligations."). A single discharged obligation inside a loop is
 not evidence on its own while an arrival of its head is unproved.
@@ -883,7 +967,7 @@ Elaboration records each loop's private measure in `ranked_scc`, including
 measures computed from borrowed slice lengths and transfers between member
 heads. [rankings.rs](src/rankings.rs) admits the complete claim before any
 proof runs (`prepare` calls `admit`). Following
-[control flow](../../../../../wiki/spec/terminal-psi/control_flow.md#safety-and-progress),
+[control flow](../../../../../../wiki/spec/terminal-psi/control_flow.md#safety-and-progress),
 it reconstructs the actual cyclic components and checks:
 
 - Exact ordered membership, every internal edge, and exactly one shared
@@ -937,7 +1021,7 @@ bitwise and or a bitwise or gets its bound from a one-step endpoint chain
 that is a value, cites the result equation as its only definition and lands
 the other operand on the earlier equation that fixes it to a literal, and the
 kernel replays the step on the root's bound. This is the range propagation
-that [required automatic discharge](../../../../../wiki/spec/proofs/contracts.md#required-automatic-discharge)
+that [required automatic discharge](../../../../../../wiki/spec/proofs/contracts.md#required-automatic-discharge)
 asks of every checker. A cast's result takes its operand's bounds restated
 in the result's carrier (`IntegerCastBound`), and an exact cast's
 representability goal is the operand's bound, restated over its mathematical
@@ -968,7 +1052,7 @@ its machine publishes no route for its cause. When an order fact known at the
 point contradicts the bounds of its own endpoints (`requires count >= 10`
 under the guard `count < 5`), chaining the two gives a closed false relation
 between literals, whose denotation is `Falsehood`, and the goal follows
-([integer certificates](../../../../../wiki/spec/terminal-psi/integer_certificates.md#elementary-certificate-rules):
+([integer certificates](../../../../../../wiki/spec/terminal-psi/integer_certificates.md#elementary-certificate-rules):
 "closes an impossible arrival without pruning that arrival").
 
 Two orders between values with no literal contradict through the guard's own
@@ -990,7 +1074,7 @@ dividend: it lies between zero and the dividend, so `-7 <= value <= 7` gives
 minus one (`remainder_within_dividend`). Like the two rules below, this rests
 on a provisional kernel rule: the kernel trusts the statement
 (`IntegerRemainderWithinDividend` in
-[classicality](../../../../../wiki/spec/proofs/classicality.md)), and its
+[classicality](../../../../../../wiki/spec/proofs/classicality.md)), and its
 mathematical core does not derive it.
 
 An exact quotient is at most its dividend when the dividend is nonnegative and
@@ -1012,7 +1096,7 @@ the kernel refuses remains an unproved obligation.
 ### What the integer rules do not reach
 
 Each of these is true in the programs that need it and has no derivation in
-the rules of [integer certificates](../../../../../wiki/spec/terminal-psi/integer_certificates.md),
+the rules of [integer certificates](../../../../../../wiki/spec/terminal-psi/integer_certificates.md),
 so the obligation is `Unproved`. None is worked around here. The programs
 named below were in the deleted `tests/omega/` corpus.
 
@@ -1214,7 +1298,7 @@ certificate and checks each seal's fingerprint and goal against its module.
 
 An obligation the prover cannot discharge is a compile error for the program,
 never a slower guarded form
-([route one](../../../../../wiki/drafts/designs/check_on_lowered_form.md#route-one-before-anything-else-is-built-on-it)).
+([route one](../../../../../../wiki/drafts/designs/check_on_lowered_form.md#route-one-before-anything-else-is-built-on-it)).
 `judge` ([verdict.rs](src/verdict.rs)) is the one function callers take the
 decision from. It discharges an elaborated closure and returns:
 
@@ -1257,9 +1341,9 @@ decision from. It discharges an elaborated closure and returns:
   at the consumption, with
   `opening_diagnostic()` placed at the write. It says what was not proved and never that the obligation is
   false: "Failure to find a proof is not proof of falsehood"
-  ([compiler_request.md](../../../../../wiki/spec/build/compiler_request.md#outcomes)),
+  ([compiler_request.md](../../../../../../wiki/spec/build/compiler_request.md#outcomes)),
   and "Unproved source contracts reject in Psi checking"
-  ([review.md](../../../../../wiki/spec/packages/review.md)). A published
+  ([review.md](../../../../../../wiki/spec/packages/review.md)). A published
   clause that fails only because a return's guarantee failed is reported
   once, at that return.
 - `Incomplete`: every unproved obligation's goal has a form the prover has no
@@ -1302,7 +1386,7 @@ complete program can produce portable Psi bytes or native code.
 A call with no normal completion is a terminator: `InvokeNoNormal` for a
 machine no path of which returns, `ExternalCompletion` for the boundary
 requirement that ends the process
-([calls and outcomes](../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#external-process-exit)).
+([calls and outcomes](../../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#external-process-exit)).
 Both are read through one view (`Terminator::declared_invocation`, the
 terminator form of `OperationKind::declared_invocation`), so the row checks,
 the `CallRequirement` goals, the loans and the ceilings treat the two
@@ -1325,7 +1409,7 @@ declaration classes alike:
   `NormalGuarantee` is minted for it, and no window is consumed
   ([Invariant windows](#invariant-windows)): exit "creates no return value,
   consumption receipt, cleanup successor, or post-exit frontier"
-  ([ownership](../../../../../wiki/spec/terminal-psi/ownership.md)). An arm
+  ([ownership](../../../../../../wiki/spec/terminal-psi/ownership.md)). An arm
   that returns beside one that exits owes its guarantees as before.
 
 The route mints no claim yet, so `frontier_lower_bound` is empty and there is
@@ -1338,8 +1422,8 @@ A machine's header may bound two things by naming boundary services: the
 services its calls may reach (`reaches`) and the callbacks or inbound entries
 that may run before it returns (`invokes`). Each is a written upper bound
 (ceiling) on what the body's calls contribute, published to callers
-([effects](../../../../../wiki/spec/language/effects.md#declarations),
-[direct synchronous invocation](../../../../../wiki/spec/language/effects.md#direct-synchronous-invocation):
+([effects](../../../../../../wiki/spec/language/effects.md#declarations),
+[direct synchronous invocation](../../../../../../wiki/spec/language/effects.md#direct-synchronous-invocation):
 "the callee's published `invokes` joins the caller's, as its reach does"), so
 one mechanism serves both, with the axis as its only parameter. Three crates
 each do one part, and the fact travels in the module:
@@ -1531,7 +1615,7 @@ Nothing else is new: the `requires` row is `input <= Units` over two values,
 and the guarantee is proved from it like any relation between formals. What
 is known of `Units` is its carrier's range and what the `requires` say, so a
 proof found here holds at every admitted value
-([generics.md](../../../../../wiki/spec/language/generics.md#static-type-equality):
+([generics.md](../../../../../../wiki/spec/language/generics.md#static-type-equality):
 "An unspecialized body checks every admitted alternative; one consumer
 cannot authorize an otherwise invalid generic body").
 
@@ -1626,7 +1710,7 @@ says which type parameter it is of (`ValueRow::rigid`). The lowered form can
 declare a value only with a `ScalarType`, so it is declared there with a
 stand-in, `RigidType::DECLARED_AS`, which is not its type and from which
 nothing may be concluded.
-[lowered type generics](../../../../../wiki/drafts/designs/lowered_type_generics.md#opaque-type-parameters-a-rigid-sort)
+[lowered type generics](../../../../../../wiki/drafts/designs/lowered_type_generics.md#opaque-type-parameters-a-rigid-sort)
 proposes a sort beside `ScalarType`; `ScalarType` is matched at 263 places
 across the compiler and its back ends, so the sort lives in the check
 tables, which only this route reads.
@@ -1643,7 +1727,7 @@ The checker accepts a declared implementation requirement's contract only
 with the corresponding checked conformance.
 
 **No proposition names a rigid value.** Under
-[generics.md](../../../../../wiki/spec/language/generics.md#requirements-and-conformance-evidence)
+[generics.md](../../../../../../wiki/spec/language/generics.md#requirements-and-conformance-evidence)
 a body can move, pass and return a value of an opaque `T`; no operator or
 comparison selects on it, and the reader refuses one applied to it, because
 a rigid type is neither a scalar nor a record. So no goal and no knowledge
@@ -1657,7 +1741,7 @@ added.
 
 **A value of `T` is used at most once.** A type parameter not declared
 `[copy]` is affine
-([ownership.md](../../../../../wiki/spec/language/ownership.md#property-declarations):
+([ownership.md](../../../../../../wiki/spec/language/ownership.md#property-declarations):
 "every use of `T` receives the property fixed by `T`'s declaration"). The
 route has no judgment of moves, so the reader refuses a generic body that
 names such a slot twice, on any paths, and refuses a `[linear]` parameter,

@@ -81,7 +81,7 @@ fn declaration_abi(
         requirement_identity: reader.string()?, declaring_application: reader.string()?,
         operands: reader.sequence(13, |reader| Ok(CallingStaticOperand {
             ordinal: reader.u32()?,
-            kind: super::tag!(reader => { 0 => CallingOperandKind::Type, 1 => CallingOperandKind::Const, 2 => CallingOperandKind::Value, 3 => CallingOperandKind::Machine, 4 => CallingOperandKind::Implementation, 5 => CallingOperandKind::Proposition }),
+            kind: super::tag!(reader => { 0 => CallingOperandKind::Type, 1 => CallingOperandKind::Const, 2 => CallingOperandKind::Value, 3 => CallingOperandKind::Machine, 4 => CallingOperandKind::Implementation, 5 => CallingOperandKind::Proposition, 6 => CallingOperandKind::Proof }),
             identity: reader.string()?,
         }))?,
     };

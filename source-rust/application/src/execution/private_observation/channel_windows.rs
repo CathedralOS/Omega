@@ -193,24 +193,10 @@ pub fn capture_private_observation(
 ) -> io::Result<(Output, Vec<u8>)> {
     let capture = prepare_private_observation(&mut command, expected_bytes)?;
     let started = std::time::Instant::now();
-    let limits = bounded_process::BoundedCaptureLimits::new(
-        4 * 1024 * 1024,
-        4 * 1024 * 1024,
-        Duration::from_secs(60),
-        Duration::from_secs(5),
-        Duration::from_millis(10),
-    );
+    let limits = project_build::NativeEntryLimits::INSTALLED;
     let mut prepared = bounded_process::BoundedProcessPrepared::new(
         command,
-        bounded_process::BoundedProcessLimits::new(
-            60,
-            1024 * 1024 * 1024,
-            8 * 1024 * 1024,
-            64,
-            1,
-            1024 * 1024 * 1024,
-            1024 * 1024 * 1024,
-        ),
+        limits.process,
         "installed entry observation",
     )?;
     prepared.preserve_configured_stdin();
@@ -220,8 +206,8 @@ pub fn capture_private_observation(
         bounded_process::capture_bounded_child(
             child,
             bounded_process::BoundedProcessInput::Null,
-            limits,
-            bounded_process::BoundedCaptureBudget::new(8 * 1024 * 1024),
+            limits.capture,
+            bounded_process::BoundedCaptureBudget::new(limits.combined_output_bytes),
             started,
         )
         .map_err(io::Error::other)

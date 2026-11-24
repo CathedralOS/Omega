@@ -26,7 +26,8 @@ stay the same. Existing locks require a fresh update/review after a declaration
 rename; old acceptance does not authorize the new identity. Hyphenated package
 declarations are not accepted through an implicit spelling conversion.
 
-Product dependencies and build helpers are declared separately. In
+The caller supplies the libraries that Build code imports. The Build selects
+the libraries its product can import. In
 `use {geometry}/math/vector.omg as vec;`, `geometry` identifies the registered
 dependency and `vec` names one file inside the importing source. [Chapter 15](chapter_15_modules_imports_visibility.md#build-helpers)
 shows the two dependency kinds.
@@ -182,6 +183,15 @@ are different operations. A replaceable component is a selected realization's
 closed code/state/resource graph, not intrinsically one package. Calls cross a
 stable requirement; already-entered calls and returned era-dependent handles
 retain their old era until their obligations end.
+
+For example, an editor's Build can leave its Console empty and designate an
+installer. Once startup successfully publishes a terminal provider, every caller
+wired to that slot can use `Console::write_line` directly. If the editor later
+publishes a separately built quiet provider, its next write reaches that
+provider. A read already waiting for input finishes on the terminal that
+started it. A second running editor keeps its own binding. The [worked
+example](../drafts/designs/component_hot_swap_authorship.md) follows both Builds
+and a failed install.
 
 Publication of new routing therefore does not imply reclamation of old code.
 Runtime packages coordinate admission, peak coexistence resources, state transfer,

@@ -205,7 +205,7 @@ invariant failures from invalid authored source and unavailable checks.
 `--verify` keeps its separate meaning: with `--check`, withhold retained package
 trust acceptance and re-verify under retained source pins. It is not a spelling
 for stage validation. Default compilation retains the existing
-[verification placement](../../../omega-rust/pipeline.md#verification-placement).
+[verification placement](../../../source-rust/subsystems/compiler/README.md#verification-placement).
 Full source-to-executable correspondence requires separate justification.
 
 `FixedFrameCorrespondence` compares current fixed-frame output with its original

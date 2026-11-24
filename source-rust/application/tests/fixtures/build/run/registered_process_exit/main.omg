@@ -1,0 +1,19 @@
+use omega\language\core\ProcessExit;
+
+trait Tests {
+    machine exits() reaches ProcessExit;
+}
+
+machine exits_with_23() satisfies Tests::exits reaches ProcessExit {
+    ProcessExit::exit_process(23);
+}
+
+machine exits_with_zero() satisfies Tests::exits reaches ProcessExit {
+    ProcessExit::exit_process(0);
+}
+
+machine exits_with_256() satisfies Tests::exits reaches ProcessExit {
+    ProcessExit::exit_process(256);
+}
+
+machine main() {}

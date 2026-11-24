@@ -1,0 +1,35 @@
+data Stock { value: u32; }
+
+machine scalar(branch: bool) -> u32 {
+    let mutable total: u32 = 4;
+    let seen: u32 = match branch { true -> { total = 8; 0 }, false -> 1 };
+    total + 1
+}
+
+machine field(branch: bool) -> u32 {
+    let mutable stock: Stock = Stock { value: 3 };
+    let seen: u32 = match branch { true -> { stock.value = 7; 1 }, false -> 0 };
+    1 + stock.value
+}
+
+data Ticket [linear] { slot: u32; }
+machine carry(ticket: Ticket, copied: u32) -> Ticket { move ticket }
+
+machine select_ticket(mutable ticket: Ticket, branch: bool) -> Ticket {
+    let copied: u32 = ticket.slot;
+    carry(match branch {
+        true -> { ticket.slot = 7; move ticket },
+        false -> move ticket,
+    }, copied)
+}
+
+machine main() crashes Trap {
+    let selected: Ticket = select_ticket(Ticket { slot: 4 }, true);
+    let { slot } = move selected;
+    transition scalar(true) == 9 && scalar(false) == 5
+        && field(true) == 8 && field(false) == 4 && slot == 7 {
+        true -> success(), false -> failed(),
+    }
+    machine success() {}
+    machine failed() { crash Trap; }
+}

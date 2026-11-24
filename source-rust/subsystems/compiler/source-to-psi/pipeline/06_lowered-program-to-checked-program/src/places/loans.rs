@@ -160,9 +160,9 @@ pub(super) enum BorrowedResource {
 #[derive(Debug)]
 enum LoanRegion {
     Storage(Backing),
-    /// An admitted provider establishes a stable shared permission. Its input
+    /// An admitted provider establishes a stable reference permission. Its input
     /// loans are retained separately; its address remains unavailable.
-    Provider,
+    Provider(StructuralAccess),
 }
 
 struct PayloadCapture {
@@ -178,7 +178,11 @@ impl LoanRegion {
             (Self::Storage(child), Self::Storage(parent)) => parent.contains_reborrow(child),
             // Exact parent identity was already checked through descriptor
             // flow. This adds no assertion about where its bytes reside.
-            (Self::Provider, Self::Provider) => true,
+            (Self::Provider(child), Self::Provider(parent)) => {
+                child == parent
+                    || (*parent == StructuralAccess::MutableBorrow
+                        && *child == StructuralAccess::SharedBorrow)
+            }
             _ => false,
         }
     }
@@ -212,10 +216,27 @@ fn competing_borrows(
     // physical region covering the caller. Conflicts with its inputs are
     // checked through the original loans kept alive by the complete result
     // dependencies. No address or disjointness fact follows from this case.
-    if matches!(left_place, LoanRegion::Provider) && left.is_exclusive()
-        || matches!(right_place, LoanRegion::Provider) && right.is_exclusive()
+    if matches!(
+        left_place,
+        LoanRegion::Provider(StructuralAccess::SharedBorrow)
+    ) && left.is_exclusive()
+        || matches!(
+            right_place,
+            LoanRegion::Provider(StructuralAccess::SharedBorrow)
+        ) && right.is_exclusive()
     {
         return Some(LoanConflict::AccessExceedsParent);
+    }
+    // Two permissions without captured addresses cannot establish disjointness.
+    if matches!(
+        (left_place, right_place),
+        (LoanRegion::Provider(_), LoanRegion::Provider(_))
+    ) {
+        return match (left.is_exclusive(), right.is_exclusive()) {
+            (true, true) => Some(LoanConflict::TwiceExclusive),
+            (true, false) | (false, true) => Some(LoanConflict::ExclusiveAndShared),
+            _ => None,
+        };
     }
     let (LoanRegion::Storage(left_place), LoanRegion::Storage(right_place)) =
         (left_place, right_place)
@@ -463,7 +484,13 @@ impl<'a> Storage<'a> {
                 }
                 DescriptorSourceOrigin::Provider(_) => {
                     return self
-                        .provider_permission(references, at, &location, concerns)
+                        .provider_permission(
+                            references,
+                            at,
+                            &location,
+                            StructuralAccess::SharedBorrow,
+                            concerns,
+                        )
                         .map(|region| PayloadCapture {
                             region,
                             exact: false,
@@ -502,27 +529,27 @@ impl<'a> Storage<'a> {
         at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
         concerns: Construct,
     ) -> Checked<LoanRegion> {
-        // A provider supplies shared referent permission. Keep it in the loan region.
-        if self
-            .provider_referent(references, raw, at, concerns)?
-            .is_some()
-        {
-            return Ok(LoanRegion::Provider);
+        // Keep the access the provider granted when judging conflicts.
+        if let Some((_, access)) = self.provider_referent(references, raw, at, concerns)? {
+            return Ok(LoanRegion::Provider(access));
         }
         self.backing(references, raw, at.0, at.1 as usize, concerns)
             .map(LoanRegion::Storage)
     }
 
-    /// Recover the current shared referent's type through its admitted permission.
+    /// Recover the referent's type and access from the admitted provider permission.
     pub(super) fn provider_referent(
         &self,
         references: &mut super::DescriptorAnalysis<'a>,
         raw: &super::Lineage,
         at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
         concerns: Construct,
-    ) -> Checked<Option<semantic_vocabulary::StructuralTypeId>> {
-        let Ok(Some((StructuralAccess::SharedBorrow, referent, descriptor))) =
-            self.reference_parent(raw, concerns)
+    ) -> Checked<Option<(semantic_vocabulary::StructuralTypeId, StructuralAccess)>> {
+        let Ok(Some((
+            access @ (StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+            referent,
+            descriptor,
+        ))) = self.reference_parent(raw, concerns)
         else {
             return Ok(None);
         };
@@ -532,16 +559,16 @@ impl<'a> Storage<'a> {
                 !origins.is_empty()
                     && origins.iter().all(|origin| {
                         matches!(
-                        origin,
-                        terminal_semantics::descriptor_results::DescriptorSourceOrigin::Provider(_)
-                    )
+                            origin,
+                            terminal_semantics::descriptor_results::DescriptorSourceOrigin::Provider(_)
+                        )
                     })
             })
         {
             return Ok(None);
         }
-        self.provider_permission(references, at, &descriptor, concerns)?;
-        Ok(Some(referent))
+        self.provider_permission(references, at, &descriptor, access, concerns)?;
+        Ok(Some((referent, access)))
     }
 
     fn provider_permission(
@@ -549,6 +576,7 @@ impl<'a> Storage<'a> {
         references: &mut super::DescriptorAnalysis<'a>,
         at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
         descriptor: &DescriptorLocation,
+        access: StructuralAccess,
         concerns: Construct,
     ) -> Checked<LoanRegion> {
         if !matches!(
@@ -565,7 +593,7 @@ impl<'a> Storage<'a> {
         ) {
             return Err(self.unsupported(concerns, "provider payload has no exact permission"));
         }
-        Ok(LoanRegion::Provider)
+        Ok(LoanRegion::Provider(access))
     }
 
     fn reference_parent(

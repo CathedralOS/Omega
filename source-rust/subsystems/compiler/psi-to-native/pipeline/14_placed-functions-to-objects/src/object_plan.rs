@@ -1,7 +1,7 @@
 /*
 We define the mutable arena-backed object plan (`ObjectPlan`, `ObjectFileLayout`)
 and relocation plan (`RelocationPlan`, `RelocationRecord`, `RelocationOrigin`)
-consumed by the image builders, along with the `OMGOBJ` container output shape
+consumed by the image builders, along with the object output record
 (`ObjectContainerOutput`), section vocabulary (`SectionPlan`, `SectionKind`),
 and symbol/import side tables (`SymbolPlan`, `NormalizedImportPlan`,
 `FunctionSymbolPlan`). We keep `RelocationOrigin::SemanticOperation` and

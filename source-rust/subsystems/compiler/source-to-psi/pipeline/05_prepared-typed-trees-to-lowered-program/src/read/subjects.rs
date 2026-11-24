@@ -310,9 +310,7 @@ impl Program<'_> {
                         refuse(
                             entry,
                             Construct::Machine,
-                            Unserved::Declaration(
-                                "supply lost its declaring trait application",
-                            ),
+                            Unserved::Declaration("supply lost its declaring trait application"),
                         )
                     })?,
                 None => AppliedTraitScope::abstract_scope(owner),
@@ -375,6 +373,65 @@ impl Program<'_> {
 
     /// Root the requested declarations for checking. A Build prefix can also
     /// reach a nested declaration through an ordinary call from its entry.
+    /// The subject's machines over data that contains itself and that data,
+    /// each in declaration order: the roots of the compilation's mathematical
+    /// signature. The ordinary reader skips exactly these, so each one is
+    /// either read here or refused here.
+    pub(crate) fn mathematical_subjects(
+        &self,
+        entry: MachineId,
+        subjects: &[Option<PackageKeyIdentity>],
+        purpose: DependencyScope,
+    ) -> Checked<(Vec<SymbolHandle>, Vec<SymbolHandle>)> {
+        let typed = self.typed;
+        let mut machines = Vec::new();
+        for machine in typed.machines() {
+            if machine.purpose.is_active_case_visitor()
+                || !self.proof_machine(machine)
+                || typed
+                    .machine_instantiation(machine.symbol)
+                    .map_err(|reason| refuse(entry, Construct::Machine, Unserved::Machine(reason)))?
+                    .is_some()
+                || self.owner(entry, machine.symbol, subjects, purpose)? != Owner::Subject
+            {
+                continue;
+            }
+            if self.is_generic_template(machine) {
+                return Err(self.read_failure_at(
+                    refuse(
+                        entry,
+                        Construct::Machine,
+                        Unserved::Machine("generic machine over data that contains itself"),
+                    ),
+                    machine.symbol,
+                    "the mathematical declaration",
+                ));
+            }
+            machines.push(machine.symbol);
+        }
+        let mut data = Vec::new();
+        for declared in typed.data_definitions() {
+            if self.owner(entry, declared.symbol, subjects, purpose)? == Owner::Subject
+                && !names_only(declared)
+                && self.is_mathematical_data(declared)
+            {
+                data.push(declared.symbol);
+            }
+        }
+        Ok((machines, data))
+    }
+
+    /// Reads one data declaration that contains itself as a mathematical type.
+    pub(crate) fn mathematical_data(
+        &mut self,
+        entry: MachineId,
+        data: SymbolHandle,
+    ) -> Checked<()> {
+        self.record(entry, data)
+            .map(|_| ())
+            .map_err(|refusal| self.read_failure_at(refusal, data, "the mathematical declaration"))
+    }
+
     pub fn subject_declarations(
         &mut self,
         entry: MachineId,
@@ -437,6 +494,11 @@ impl Program<'_> {
                 if conditional_prefix && typed.deferred_build_subject(machine.symbol) {
                     return Ok(());
                 }
+                // A machine over data that contains itself is a mathematical
+                // declaration, read into the signature and never lowered.
+                if self.proof_machine(machine) {
+                    return Ok(());
+                }
                 if self.select_native_provider(entry, machine.symbol)? {
                     return Ok(());
                 }
@@ -471,6 +533,9 @@ impl Program<'_> {
                 if self.owner(entry, data.symbol, subjects, purpose)? != Owner::Subject
                     || names_only(data)
                 {
+                    return Ok(());
+                }
+                if self.is_mathematical_data(data) {
                     return Ok(());
                 }
                 // A declaration with type or const parameters has no record
@@ -864,7 +929,13 @@ impl Program<'_> {
                 for (formal, argument) in formals.iter().zip(arguments) {
                     match formal.kind {
                         TypeParameterKind::Type => {
-                            self.template_type(entry, declaration, parameters, *argument, depth + 1)?;
+                            self.template_type(
+                                entry,
+                                declaration,
+                                parameters,
+                                *argument,
+                                depth + 1,
+                            )?;
                         }
                         TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
                             // A `const` formal needs a static argument; a
@@ -1029,14 +1100,21 @@ impl Program<'_> {
                 Unserved::Type("stale alias expansion"),
             ));
         }
-        match self.typed.type_reference_table.type_reference(alias.expansion) {
+        match self
+            .typed
+            .type_reference_table
+            .type_reference(alias.expansion)
+        {
             TypeReferenceNode::Callable { contract } => {
                 // A declaration may describe an open callable. Reading that
                 // contract as a stored value would require an extra ceiling.
                 self.callable_alias_declaration(site, *contract)
             }
             _ if !alias.type_parameters.is_empty() => {
-                let parameters = self.typed.data_type_parameters.span_or_empty(alias.type_parameters);
+                let parameters = self
+                    .typed
+                    .data_type_parameters
+                    .span_or_empty(alias.type_parameters);
                 self.template_type(site, alias.symbol, parameters, alias.expansion, 0)
             }
             _ => self.value_type(site, alias.expansion).map(|_| ()),
@@ -1148,7 +1226,11 @@ fn served_trait_parameters(
         }
         match parameter.kind {
             TypeParameterKind::Type => {}
-            TypeParameterKind::Const { type_reference } if crate::source_state::canonical_const_carrier_is_supported(typed, type_reference) => {}
+            TypeParameterKind::Const { type_reference }
+                if crate::source_state::canonical_const_carrier_is_supported(
+                    typed,
+                    type_reference,
+                ) => {}
             TypeParameterKind::Implementation => {
                 implementations += 1;
                 let mut bounds = declared

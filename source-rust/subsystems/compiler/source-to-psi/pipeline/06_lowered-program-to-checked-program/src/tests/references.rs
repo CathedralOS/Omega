@@ -145,6 +145,7 @@ pub(super) fn invoke(callee: u64, arguments: Vec<Expression>) -> Statement {
             required_contract: None,
             static_reach_binding: None,
             static_reach_arguments: Vec::new(),
+            proof_arguments: Vec::new(),
             callee: id::<MachineId>(callee).into(),
             arguments,
             designated: None,
@@ -173,6 +174,7 @@ pub(super) fn store(slot: usize, path: Vec<usize>, value: Expression) -> Stateme
         };
     }
     Statement::Store {
+        slot_home: None,
         destination,
         value,
         source: nowhere(),
@@ -668,6 +670,7 @@ fn a_home_a_loan_gives_a_local_in_an_arm_is_not_the_continuations() {
                             required_contract: None,
                             static_reach_binding: None,
                             static_reach_arguments: Vec::new(),
+                            proof_arguments: Vec::new(),
                             callee: id::<MachineId>(2).into(),
                             arguments: vec![lend(
                                 ReferenceAccess::Mutable,
