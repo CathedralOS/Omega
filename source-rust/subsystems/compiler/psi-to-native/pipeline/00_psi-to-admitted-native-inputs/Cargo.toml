@@ -4,9 +4,6 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
-[lib]
-path = "admit.rs"
-
 [dependencies]
 provider-demand = { path = "provider-demand" }
 psi-authorization = { path = "../../../psi/artifact/authorization" }

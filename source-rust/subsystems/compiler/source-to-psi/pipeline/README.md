@@ -9,10 +9,10 @@ resolution and typing loop for deferred bodies. [Source driver](../source_to_psi
 
 | Operation | Input and output |
 | --- | --- |
-| [Lex and parse one file](../driver/parse_source_batch.rs) | The [lexer](00_source-files-to-tokens/lexer.rs) produces tokens. The [parser](01_tokens-to-syntax-trees/parser.rs) consumes that file's tokens and returns a syntax page before the worker reuses its scratch space. |
-| [Resolve names](02_syntax-trees-to-symbol-resolved-trees/resolver.rs) | Syntax pages become source-owned [resolved trees](../representations/symbol-resolved-trees/symbol_resolved_trees.rs). |
+| [Lex and parse one file](../driver/parse_source_batch.rs) | The [lexer](00_source-files-to-tokens/src/lib.rs) produces tokens. The [parser](01_tokens-to-syntax-trees/src/lib.rs) consumes that file's tokens and returns a syntax page before the worker reuses its scratch space. |
+| [Resolve names](02_syntax-trees-to-symbol-resolved-trees/src/resolver.rs) | Syntax pages become source-owned [resolved trees](../representations/symbol-resolved-trees/symbol_resolved_trees.rs). |
 | [Type declarations and bodies](03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) | The resolved program becomes [typed source](../representations/typed-trees/typed_trees.rs). |
-| [Prepare typed source](04_typed-trees-to-prepared-typed-trees/prepare.rs) | After [compile-time evaluation](../driver/compile_time_invocations.rs), the ordered passes produce the prepared trees that stage 05 accepts. |
+| [Prepare typed source](04_typed-trees-to-prepared-typed-trees/src/lib.rs) | After [compile-time evaluation](../driver/compile_time_invocations.rs), the ordered passes produce the prepared trees that stage 05 accepts. |
 | [Lower to Terminal](05_prepared-typed-trees-to-lowered-program/src/compilation.rs) | Typed source becomes the [complete checker input](../representations/lowered-program/lowered_program.rs), including demanded generic bodies and witnesses. |
 | [Check the program](06_lowered-program-to-checked-program/src/verdict.rs) | The checker issues its verdict and evidence over the lowered input. The [accepted-source factory](07_checked-program-to-psi/src/accepted.rs) binds that judgment to its source. |
 | [Close logical provider demand](07_checked-program-to-psi/src/provider_supply/mod.rs) | The source owner records the reached requirements and selected checked bodies for the requested roots. [The source compiler](../source_to_psi.rs) binds those choices to the published artifact and deployment for [native admission](../../psi-to-native/driver/inputs/published_application.rs). |
@@ -163,7 +163,7 @@ from the former corpus. A floating result does not authorize integer equality on
 a floating subject, and a domain-carried floating subject still needs a
 pattern vocabulary for its constraint surface.
 
-The [lexer](00_source-files-to-tokens/lexer.rs) reads loaded source records
+The [lexer](00_source-files-to-tokens/src/lib.rs) reads loaded source records
 and keeps each token's source identity and byte span. Numeric metadata and
 decoded literal bytes describe spelling only; they are not typed values or
 proof facts. The lexer accepts a fixed set of characters: explicit whitespace,
@@ -173,21 +173,21 @@ escapes; it does not pick a Unicode encoding from the host.
 The Rust lexer has its own behavior tests; the product lexer does not need a
 mirrored serialization format for tokens.
 
-The [parser](01_tokens-to-syntax-trees/parser.rs) builds syntax roots and
-arena tables. Its source loop calls [declarations/items.rs](01_tokens-to-syntax-trees/declarations/items.rs),
+The [parser](01_tokens-to-syntax-trees/src/lib.rs) builds syntax roots and
+arena tables. Its source loop calls [declarations/items.rs](01_tokens-to-syntax-trees/src/declarations/items.rs),
 which dispatches to the grammar domains. It preserves spelling, spans and literal
 structure; later stages choose symbols, types, effects and proof evidence.
 
 Follow [the parser map](01_tokens-to-syntax-trees/README.md) from that entry into
 declarations, expressions, types, parameters, contracts, machine bodies,
 transitions and statements. The expression entry contains its actual frame loop;
-[operators](01_tokens-to-syntax-trees/expressions/operators.rs) owns precedence
+[operators](01_tokens-to-syntax-trees/src/expressions/operators.rs) owns precedence
 and operator policy. Nested expressions, groups, arguments and aggregates use
 explicit frames. Type references and some grammar crossings still call back
 into parsing, so the whole parser is not stackless.
 
-`parser.rs` is the library entry and the coordinator. Domain directories contain
-the implementations; no second grammar facade or `src/lib.rs` hides that flow.
+`src/lib.rs` is the library entry and the coordinator. Domain directories under
+`src/` contain the implementations; no second grammar facade hides that flow.
 Behavior tests live under `tests/` and timing harnesses under `benchmarks/`.
 
 Keep each clause as written, separately from its normalized meaning:
@@ -716,10 +716,10 @@ also inspected with `--machine combat::damage`), `qualified_constant_indices`,
 `comparison_machine_indices`, `boolean_equality_indices` and
 `aggregate_machine_indices`.
 
-[Resolution](02_syntax-trees-to-symbol-resolved-trees/resolver.rs) owns declaration
+[Resolution](02_syntax-trees-to-symbol-resolved-trees/src/resolver.rs) owns declaration
 identity and exact lexical lookup, not type compatibility, borrow legality,
 proof discharge or runtime support. Its private
-[generic-data normalization](02_syntax-trees-to-symbol-resolved-trees/declarations/generic_data/mod.rs)
+[generic-data normalization](02_syntax-trees-to-symbol-resolved-trees/src/declarations/generic_data/mod.rs)
 closes eligible data applications before stamping names. Templates, pending
 substitutions and evaluation scratch are not new public representations.
 Known-builtin anonymous remainder formation is checked before reduction; an
@@ -800,7 +800,7 @@ that separation. Nested evidence applications retain every non-lifetime slot;
 an expected binder supplies a compatibility target, not omitted arguments.
 Erased arrival/bundle subjects do not acquire runtime storage.
 
-[Stage 04](04_typed-trees-to-prepared-typed-trees/prepare.rs) specializes static
+[Stage 04](04_typed-trees-to-prepared-typed-trees/src/lib.rs) specializes static
 calls before preparing domains. Record patterns already carry typing's record
 and field selections; specialization preserves or remaps those exact identities.
 A specialized body keeps the template's lexical owner, its selected conformance

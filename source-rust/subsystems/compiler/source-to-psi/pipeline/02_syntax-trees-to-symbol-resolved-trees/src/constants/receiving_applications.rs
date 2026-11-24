@@ -681,7 +681,7 @@ mod tests {
     #[test]
     fn receiving_scoped_constants_keep_exact_carriers_and_bounded_finalization() {
         let source = include_str!(
-            "../../../../../../../tests/fixtures/constants/pass/receiving_application/main.omg"
+            "../../../../../../../../tests/fixtures/constants/pass/receiving_application/main.omg"
         );
         let resolve = |text: &str| {
             let mut sources = crate::source_inputs::SourceMap::default();
@@ -727,7 +727,7 @@ mod tests {
             "only one-time declaration preparation grows"
         );
         let invalid = include_str!(
-            "../../../../../../../tests/fixtures/constants/fail/receiving_application/main.omg"
+            "../../../../../../../../tests/fixtures/constants/fail/receiving_application/main.omg"
         );
         assert_eq!(
             source

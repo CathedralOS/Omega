@@ -7,9 +7,6 @@ publish = false
 autotests = false
 autobenches = false
 
-[lib]
-path = "lexer.rs"
-
 [dependencies]
 source-files = { path = "../../representations/source-files" }
 arena = { path = "../../../../../foundation/arena" }

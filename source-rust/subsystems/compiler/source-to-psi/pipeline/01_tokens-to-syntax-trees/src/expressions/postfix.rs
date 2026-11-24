@@ -799,5 +799,5 @@ pub(crate) fn call_path_target_and_receiver(
 }
 
 #[cfg(test)]
-#[path = "../tests/unit/postfix_transactions.rs"]
+#[path = "../../tests/unit/postfix_transactions.rs"]
 mod transaction_tests;

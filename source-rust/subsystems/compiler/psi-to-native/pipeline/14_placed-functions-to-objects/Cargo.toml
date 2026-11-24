@@ -6,7 +6,6 @@ version.workspace = true
 
 [lib]
 name = "object_file"
-path = "src/lib.rs"
 
 [dependencies]
 placement = { package = "selected-form-encoding-to-resolved-layout", path = "../12_selected-form-encoding-to-resolved-layout" }

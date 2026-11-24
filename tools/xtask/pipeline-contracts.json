@@ -15583,7 +15583,7 @@
         "target provider selection",
         "saved program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "InstalledPackageProviders::field:bindings#1",
       "kind": "carried_record",
       "meaning": "The completed native Build bindings offered by the host for its target.",
@@ -15595,7 +15595,7 @@
         "target provider selection",
         "saved program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "InstalledPackageProviders::field:package_permissions#1",
       "kind": "carried_record",
       "meaning": "Direct Product dependencies whose declarations each package can select.",
@@ -15607,7 +15607,7 @@
         "target provider selection",
         "saved program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "InstalledPackageProviders::field:profile#1",
       "kind": "carried_record",
       "meaning": "Target profile under which the host reviewed its packages.",
@@ -15619,7 +15619,7 @@
         "target provider selection",
         "saved program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "InstalledPackageProviders::field:semantic_bindings#1",
       "kind": "carried_record",
       "meaning": "The host application’s accepted roles and the terminal permissions on each role.",
@@ -15630,7 +15630,7 @@
       "consumers": [
         "03 native program planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "ProviderExecutionOrigins::field:artifact#1",
       "kind": "carried_record",
       "meaning": "Canonical published program for the selected requirement and its policy evidence.",
@@ -15642,7 +15642,7 @@
         "target provider selection",
         "published program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "ProviderExecutionOrigins::field:installation#1",
       "kind": "carried_record",
       "meaning": "Target-specific receipts and package permissions supplied alongside the portable program.",
@@ -15654,7 +15654,7 @@
         "target provider selection",
         "published program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "ProviderInstallationInputs::field:bindings#1",
       "kind": "carried_record",
       "meaning": "Completed Build invocations identify the callable and its checked service contract so the receiver can find its own boundary.",
@@ -15666,7 +15666,7 @@
         "target provider selection",
         "published program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "ProviderInstallationInputs::field:package_permissions#1",
       "kind": "carried_record",
       "meaning": "Package declaration owners that the host permits this target to select.",
@@ -15678,7 +15678,7 @@
         "target provider selection",
         "published program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "ProviderInstallationInputs::field:semantic_bindings#1",
       "kind": "carried_record",
       "meaning": "Accepted package bindings used for entry calling plans and scoped service permissions.",
@@ -15690,7 +15690,7 @@
         "target provider selection",
         "published program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "TargetProviderInstallation::field:artifact#1",
       "kind": "carried_record",
       "meaning": "Manifest identity of the exact program for which the host issued these bindings and permissions.",
@@ -15702,7 +15702,7 @@
         "target provider selection",
         "published program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "TargetProviderInstallation::field:inputs#1",
       "kind": "carried_record",
       "meaning": "The evaluated bindings and accepted package permissions for this installation.",
@@ -15714,7 +15714,7 @@
         "target provider selection",
         "published program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "TargetProviderInstallation::field:profile#1",
       "kind": "carried_record",
       "meaning": "The deployment for which the host accepted these bindings.",
@@ -15725,7 +15725,7 @@
       "consumers": [
         "select_published_providers"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "alias:NativeBindingMaterializationResult#1",
       "kind": "definition",
       "meaning": "Carry the established native binding or its original diagnostic at the provider entrance.",
@@ -15737,7 +15737,7 @@
         "target provider selection",
         "saved program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "impl:InstalledPackageProviders::implementation#1",
       "kind": "definition",
       "meaning": "Keep the host package installation independent of the program it receives.",
@@ -15749,7 +15749,7 @@
         "target provider selection",
         "saved program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "impl:InstalledPackageProviders::method:for_program#1",
       "kind": "producer",
       "meaning": "Bind the offered target installation to the manifest of a host-authorized portable program.",
@@ -15761,7 +15761,7 @@
         "target provider selection",
         "saved program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "impl:InstalledPackageProviders::method:new#1",
       "kind": "producer",
       "meaning": "Collect reviewed target bindings and separately issued grants before receiving a program.",
@@ -15773,7 +15773,7 @@
         "target provider selection",
         "published program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "impl:ProviderExecutionOrigins::implementation#1",
       "kind": "definition",
       "meaning": "Keep the installation paired with the program that owns its boundary numbers.",
@@ -15785,7 +15785,7 @@
         "target provider selection",
         "published program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "impl:ProviderExecutionOrigins::method:artifact#1",
       "kind": "carried_record",
       "meaning": "Read the exact artifact paired with the installation.",
@@ -15797,7 +15797,7 @@
         "target provider selection",
         "published program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "impl:ProviderExecutionOrigins::method:from_inputs#1",
       "kind": "producer",
       "meaning": "Capture completed Build bindings and package grants for the current artifact and target.",
@@ -15809,7 +15809,7 @@
         "target provider selection",
         "published program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "impl:ProviderExecutionOrigins::method:inputs#1",
       "kind": "carried_record",
       "meaning": "Read the package grants and entry bindings after attaching the installation.",
@@ -15821,7 +15821,7 @@
         "target provider selection",
         "published program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "impl:ProviderExecutionOrigins::method:installation#1",
       "kind": "carried_record",
       "meaning": "Borrow the installation so an embedding host can retain it when it releases the producing session.",
@@ -15833,7 +15833,7 @@
         "target provider selection",
         "published program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "impl:ProviderExecutionOrigins::method:into_inputs#1",
       "kind": "checker",
       "meaning": "Give the provider planner the paired artifact and its inputs only for the installed target.",
@@ -15845,7 +15845,7 @@
         "target provider selection",
         "published program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "impl:TargetProviderInstallation::implementation#1",
       "kind": "producer",
       "meaning": "Tie the receiving hostâ€™s evaluated bindings and package permissions to one program and target.",
@@ -15857,7 +15857,7 @@
         "target provider selection",
         "published program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "impl:TargetProviderInstallation::method:attach#1",
       "kind": "checker",
       "meaning": "Check the manifest and deployment before attaching the installation to the reopened program.",
@@ -15869,7 +15869,7 @@
         "target provider selection",
         "published program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "impl:TargetProviderInstallation::method:new#1",
       "kind": "producer",
       "meaning": "Associate evaluated bindings and grants with the exact artifact and target named by the host.",
@@ -15881,7 +15881,7 @@
         "target provider selection",
         "saved program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "struct:InstalledPackageProviders#1",
       "kind": "carried_record",
       "meaning": "Evaluated target bindings, declaration permissions and role grants that one host can supply to several programs.",
@@ -15892,7 +15892,7 @@
       "consumers": [
         "03 native program planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "struct:ProviderExecutionOrigins#1",
       "kind": "carried_record",
       "meaning": "The published artifact paired with a provider installation for its exact manifest and target.",
@@ -15904,7 +15904,7 @@
         "target provider selection",
         "published program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "struct:ProviderInstallationInputs#1",
       "kind": "carried_record",
       "meaning": "Host-supplied Build results and package grants used to select providers and settle the native entry.",
@@ -15916,7 +15916,7 @@
         "target provider selection",
         "published program entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "struct:TargetProviderInstallation#1",
       "kind": "carried_record",
       "meaning": "An installation for one program and target that survives decoding the original bytes in a new compiler.",
@@ -15927,7 +15927,7 @@
       "consumers": [
         "03 native program planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "use:std :: sync :: Arc#1",
       "kind": "definition",
       "meaning": "Uses std::sync::Arc in this boundary operation.",
@@ -15939,7 +15939,7 @@
         "provider execution origins",
         "saved program admission"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "use:provider_acceptance :: { AcceptedSemanticBinding , AcceptedSemanticBindingRole , ServiceTerminalAuthorityPermission , program_entry_semantic_binding_role , }#1",
       "kind": "definition",
       "meaning": "Read the host’s accepted semantic bindings, entry role and service permissions.",
@@ -15951,7 +15951,7 @@
         "provider execution origins",
         "saved program admission"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "use:semantic_vocabulary :: { PortableFilesystemAuthorityFacet , TerminalAuthorityClass , TerminalAuthorityDisposition , }#1",
       "kind": "definition",
       "meaning": "Read the filesystem facets and terminal authority classes granted by the installation.",
@@ -15963,7 +15963,7 @@
         "provider execution origins",
         "saved program admission"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "use:declaration_scope :: ProductDeclarationScope#1",
       "kind": "definition",
       "meaning": "Keep package declaration permissions with their installation.",
@@ -15975,7 +15975,7 @@
         "provider execution origins",
         "saved program admission"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "module:tests#1",
       "kind": "test_support",
       "meaning": "Confirm that an installation accepts reopened bytes of the original publication and refuses a different manifest or target.",
@@ -15987,7 +15987,7 @@
         "provider execution origins",
         "saved program admission"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "tests::use:super :: *#1",
       "kind": "test_support",
       "meaning": "Exercise the receiving host’s installation and attachment operations.",
@@ -15999,7 +15999,7 @@
         "provider execution origins",
         "saved program admission"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "tests::use:psi_authorization :: { HostProducerTrust , authorize_terminal_artifact }#1",
       "kind": "test_support",
       "meaning": "Authorize the reopened fixture with an explicit host trust decision.",
@@ -16011,7 +16011,7 @@
         "provider execution origins",
         "saved program admission"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "tests::use:terminal_codec :: { CanonicalTerminalArtifact , TerminalDebugMap , build_identity_optimization_execution_record , }#1",
       "kind": "test_support",
       "meaning": "Construct canonical artifacts whose semantic programs match but whose manifests differ.",
@@ -16023,7 +16023,7 @@
         "provider execution origins",
         "saved program admission"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "item": "tests::function:installation_accepts_reopened_bytes_and_requires_the_manifest_and_target#1",
       "kind": "test_support",
       "meaning": "Confirm that an installation accepts reopened bytes of the original publication and refuses a different manifest or target.",
@@ -21104,7 +21104,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "use:diagnostics :: Diagnostic#1",
       "kind": "definition",
       "meaning": "Report failures to match a publication or saved artifact to its requested deployment.",
@@ -21116,7 +21116,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "use:host_provider_inputs :: ProviderExecutionOrigins#1",
       "kind": "definition",
       "meaning": "Bind installation evidence to the artifact and target that requested providers.",
@@ -21128,7 +21128,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "use:source_provider_publication :: SourceProviderDemand#1",
       "kind": "definition",
       "meaning": "Project the source-issued demand onto the requested artifact and deployment.",
@@ -21140,7 +21140,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "use:semantic_vocabulary :: { BoundaryMachineId , MachineId }#1",
       "kind": "definition",
       "meaning": "Identify unscoped machine roots and target boundary labels.",
@@ -21152,7 +21152,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "use:std :: sync :: Arc#1",
       "kind": "definition",
       "meaning": "Share the exact canonical artifact and the publisher’s receipt with selection.",
@@ -21164,7 +21164,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "use:terminal_semantics :: { callable_values :: CallableBoundaryImplementation , logical_providers :: ClosedLogicalProviders , }#1",
       "kind": "definition",
       "meaning": "Carry the closed logical provider choices and their checked bodies into native selection.",
@@ -21176,7 +21176,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "use:source_provider_publication :: { PublishedTargetProviders , SourcePackageReviewRequirements as PackageReviewRequirements , }#1",
       "kind": "definition",
       "meaning": "Expose the published target choices and the source-issued requirements for native package review.",
@@ -21188,7 +21188,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "enum:ProviderDemandInputs#1",
       "kind": "carried_record",
       "meaning": "The ordinary data for either unscoped provider roots or a concrete targetâ€™s closed provider choices and permissions. A publisher issues this value separately.",
@@ -21200,7 +21200,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "ProviderDemandInputs::Unscoped::field:artifact#1",
       "kind": "carried_record",
       "meaning": "Canonical published program for the selected requirement and its policy evidence.",
@@ -21212,7 +21212,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "ProviderDemandInputs::Unscoped::field:roots#1",
       "kind": "carried_record",
       "meaning": "Exact source invocation roots retained by unscoped execution.",
@@ -21224,7 +21224,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "ProviderDemandInputs::Target::field:profile#1",
       "kind": "carried_record",
       "meaning": "Selected deployment profile, including platforms sharing an ISA.",
@@ -21236,7 +21236,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "ProviderDemandInputs::Target::field:logical#1",
       "kind": "carried_record",
       "meaning": "The closed logical provider choices for this published program.",
@@ -21248,7 +21248,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "ProviderDemandInputs::Target::field:has_bound_applications#1",
       "kind": "carried_record",
       "meaning": "Record whether the artifact already carries bound applications so target folding can check its existing commitments.",
@@ -21260,7 +21260,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "ProviderDemandInputs::Target::field:bodies#1",
       "kind": "carried_record",
       "meaning": "Checked implementation bodies of the logical providers reached from the entry.",
@@ -21272,7 +21272,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "ProviderDemandInputs::Target::field:labels#1",
       "kind": "carried_record",
       "meaning": "Original boundary names for target-supply diagnostics.",
@@ -21284,7 +21284,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "ProviderDemandInputs::Target::field:origins#1",
       "kind": "carried_record",
       "meaning": "Published native binding and policy inputs for this target.",
@@ -21296,7 +21296,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "ProviderDemandInputs::Target::field:review#1",
       "kind": "carried_record",
       "meaning": "Optional package-only demand that does not make a declaration executable.",
@@ -21308,7 +21308,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "struct:ProviderDemandAuthority#1",
       "kind": "carried_record",
       "meaning": "The shared receipt owns the publisher value that issued the provider request. Its representation admits only a shared borrow of the publisher.",
@@ -21320,7 +21320,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "ProviderDemandAuthority::field:0#1",
       "kind": "carried_record",
       "meaning": "The original publisher stored privately inside the receipt. The portable publisher identifies the exact checked source.",
@@ -21332,7 +21332,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "impl:ProviderDemandAuthority < Publisher >::implementation#1",
       "kind": "definition",
       "meaning": "Expose shared inspection of the publisher held by an issued receipt.",
@@ -21344,7 +21344,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "impl:ProviderDemandAuthority < Publisher >::method:publisher#1",
       "kind": "carried_record",
       "meaning": "Borrow the publisher retained by the receipt. Reissuing a replacement request would require ownership of the publisher value.",
@@ -21356,7 +21356,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "struct:IssuedProviderDemand#1",
       "kind": "carried_record",
       "meaning": "A complete set of provider facts with an opaque shared receipt issued for those facts.",
@@ -21368,7 +21368,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "IssuedProviderDemand::field:inputs#1",
       "kind": "carried_record",
       "meaning": "Private immutable facts passed to native planning together with the original receipt.",
@@ -21380,7 +21380,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "IssuedProviderDemand::field:publisher#1",
       "kind": "carried_record",
       "meaning": "Shared ownership of the original provider-demand receipt, kept paired with the issued facts.",
@@ -21392,7 +21392,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "impl:IssuedProviderDemand < Publisher >::implementation#1",
       "kind": "definition",
       "meaning": "Issue and read a request or transfer its complete facts and receipt into native planning.",
@@ -21404,7 +21404,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "impl:IssuedProviderDemand < Publisher >::method:issue#1",
       "kind": "producer",
       "meaning": "Consume an owned publisher and all request facts to issue the request and its opaque authority together.",
@@ -21416,7 +21416,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "impl:IssuedProviderDemand < Publisher >::method:from_publication#1",
       "kind": "producer",
       "meaning": "Join source demand with the artifact and deployment, preserving closed bodies, labels, Build bindings and package review. Refuse mismatched scopes or missing target metadata.",
@@ -21428,7 +21428,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "impl:IssuedProviderDemand < Publisher >::method:inputs#1",
       "kind": "carried_record",
       "meaning": "Borrow the exact request facts without replacing them or taking its publisher.",
@@ -21440,7 +21440,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "impl:IssuedProviderDemand < Publisher >::method:into_parts#1",
       "kind": "carried_record",
       "meaning": "Consume the request and transfer its data and shared receipt. Even sole ownership of the receipt exposes only a borrowed publisher.",
@@ -21452,7 +21452,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "impl:IssuedProviderDemand < () >::implementation#1",
       "kind": "definition",
       "meaning": "Issue provider demand for a saved Psi program received with host installation evidence.",
@@ -21464,7 +21464,7 @@
         "native provider admission",
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "item": "impl:IssuedProviderDemand < () >::method:from_saved_program#1",
       "kind": "producer",
       "meaning": "Attach the host installation to the saved artifact and target, then close the published entry and explicitly requested boundaries over that program.",
@@ -21475,7 +21475,7 @@
       "consumers": [
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/admit.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/src/lib.rs",
       "item": "use:provider_demand :: { IssuedProviderDemand , ProviderDemandInputs }#1",
       "kind": "definition",
       "meaning": "Inspect the artifact named by the issued demand before admitting it.",
@@ -21486,7 +21486,7 @@
       "consumers": [
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/admit.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/src/lib.rs",
       "item": "use:psi_authorization :: { ArtifactTrustError , AuthorizedTerminalArtifact }#1",
       "kind": "definition",
       "meaning": "Require the receiving host’s authorization to name the demand’s artifact.",
@@ -21497,7 +21497,7 @@
       "consumers": [
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/admit.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/src/lib.rs",
       "item": "struct:AdmittedProviderDemand#1",
       "kind": "carried_record",
       "meaning": "Keep provider demand with the receiving host authorization for its exact artifact.",
@@ -21508,7 +21508,7 @@
       "consumers": [
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/admit.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/src/lib.rs",
       "item": "AdmittedProviderDemand::field:demand#1",
       "kind": "carried_record",
       "meaning": "Retain the demand issued for this program and its publisher.",
@@ -21519,7 +21519,7 @@
       "consumers": [
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/admit.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/src/lib.rs",
       "item": "AdmittedProviderDemand::field:authorization#1",
       "kind": "carried_record",
       "meaning": "Retain the receiving host authority for exactly the published artifact.",
@@ -21530,7 +21530,7 @@
       "consumers": [
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/admit.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/src/lib.rs",
       "item": "function:admit#1",
       "kind": "checker",
       "meaning": "Compare the artifact named by the issued demand with the receiving host’s authorization before handing both to target selection.",
@@ -21541,7 +21541,7 @@
       "consumers": [
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/admit.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/src/lib.rs",
       "item": "impl:AdmittedProviderDemand < Publisher >::implementation#1",
       "kind": "definition",
       "meaning": "Inspect the admitted inputs or transfer the issued demand together with its matching host authorization.",
@@ -21552,7 +21552,7 @@
       "consumers": [
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/admit.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/src/lib.rs",
       "item": "impl:AdmittedProviderDemand < Publisher >::method:inputs#1",
       "kind": "carried_record",
       "meaning": "Borrow the issued inputs while retaining authorization for the same artifact.",
@@ -21563,7 +21563,7 @@
       "consumers": [
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/admit.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/src/lib.rs",
       "item": "impl:AdmittedProviderDemand < Publisher >::method:into_parts#1",
       "kind": "carried_record",
       "meaning": "Transfer issued demand and its matching receiving-host authorization together.",
@@ -21574,7 +21574,7 @@
       "consumers": [
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/admit.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/src/lib.rs",
       "item": "module:tests#1",
       "kind": "test_support",
       "meaning": "Check that reopened Psi needs receiving-host trust and that the authorization and demand name the exact same manifest.",
@@ -21585,7 +21585,7 @@
       "consumers": [
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/admit.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/src/lib.rs",
       "item": "tests::use:super :: admit#1",
       "kind": "test_support",
       "meaning": "Exercise the admission operation at the host trust boundary.",
@@ -21596,7 +21596,7 @@
       "consumers": [
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/admit.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/src/lib.rs",
       "item": "tests::use:provider_demand :: { IssuedProviderDemand , ProviderDemandInputs }#1",
       "kind": "test_support",
       "meaning": "Issue an unscoped demand for the original canonical artifact.",
@@ -21607,7 +21607,7 @@
       "consumers": [
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/admit.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/src/lib.rs",
       "item": "tests::use:psi_authorization :: { ArtifactTrustError , HostProducerTrust , authorize_terminal_artifact }#1",
       "kind": "test_support",
       "meaning": "Authorize fixture artifacts and assert the precise missing-trust and artifact-mismatch errors.",
@@ -21618,7 +21618,7 @@
       "consumers": [
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/admit.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/src/lib.rs",
       "item": "tests::use:std :: sync :: Arc#1",
       "kind": "test_support",
       "meaning": "Retain separate references to the original and reopened artifacts to verify which one admission keeps.",
@@ -21629,7 +21629,7 @@
       "consumers": [
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/admit.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/src/lib.rs",
       "item": "tests::use:terminal_codec :: { CanonicalTerminalArtifact , TerminalDebugMap , build_identity_optimization_execution_record , }#1",
       "kind": "test_support",
       "meaning": "Build the fixture’s canonical bytes and a second manifest with different debug metadata.",
@@ -21640,7 +21640,7 @@
       "consumers": [
         "target-bound provider selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/admit.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/src/lib.rs",
       "item": "tests::function:provider_admission_binds_host_trust_to_the_exact_published_artifact#1",
       "kind": "test_support",
       "meaning": "Check that reopened Psi needs receiving-host trust and that the authorization and demand name the exact same manifest.",
@@ -23016,7 +23016,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
+      "path": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
       "allowed_kinds": [
         "carried_record",
         "checker",
@@ -23162,7 +23162,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs",
+      "path": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/src/lib.rs",
       "allowed_kinds": [
         "carried_record",
         "definition",
@@ -23170,7 +23170,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/admit.rs",
+      "path": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/src/lib.rs",
       "allowed_kinds": [
         "carried_record",
         "checker",

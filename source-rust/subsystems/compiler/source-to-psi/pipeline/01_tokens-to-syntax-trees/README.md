@@ -1,8 +1,8 @@
 # Parsing
 
-Start at [parser.rs](parser.rs). `parse_into` reads one token stream into a
+Start at [src/lib.rs](src/lib.rs). `parse_into` reads one token stream into a
 syntax page and returns its declaration roots. It dispatches declarations
-through [declarations/items.rs](declarations/items.rs). The
+through [declarations/items.rs](src/declarations/items.rs). The
 [streaming caller](streaming.rs) calls this operation as it lexes each
 file, recycling each token buffer after parsing.
 
@@ -16,25 +16,25 @@ returns an error and leaves the input tokens intact.
 
 | Follow this path | It owns |
 | --- | --- |
-| [declarations/items.rs](declarations/items.rs) | Root dispatch; sibling files parse machines, data, imports and other declarations |
-| [expressions/parse.rs](expressions/parse.rs) | The expression frame loop; siblings handle operators, postfix syntax, primary operands, membership and proof facts |
-| [types/references.rs](types/references.rs) | Named, applied, reference and aggregate types; `properties.rs` handles type properties |
-| [parameters/callable.rs](parameters/callable.rs), [generics.rs](parameters/generics.rs) | Callable and generic binders; requirements and relevance rules are shared here |
-| [contracts/clauses.rs](contracts/clauses.rs) | Machine clauses; siblings parse facts, signatures, conformance and external bindings |
+| [declarations/items.rs](src/declarations/items.rs) | Root dispatch; sibling files parse machines, data, imports and other declarations |
+| [expressions/parse.rs](src/expressions/parse.rs) | The expression frame loop; siblings handle operators, postfix syntax, primary operands, membership and proof facts |
+| [types/references.rs](src/types/references.rs) | Named, applied, reference and aggregate types; `properties.rs` handles type properties |
+| [parameters/callable.rs](src/parameters/callable.rs), [generics.rs](src/parameters/generics.rs) | Callable and generic binders; requirements and relevance rules are shared here |
+| [contracts/clauses.rs](src/contracts/clauses.rs) | Machine clauses; siblings parse facts, signatures, conformance and external bindings |
 | [machine_bodies/states.rs](machine_bodies/states.rs) | Machine entries and states; `defaults.rs` handles trait defaults |
-| [transitions/blocks.rs](transitions/blocks.rs) | One dispatch per transition block, with subjects and ordered arm patterns, guards and targets |
-| [statements/sequence.rs](statements/sequence.rs), [parse.rs](statements/parse.rs) | Statement sequence and dispatch, then binding, destructuring and expression statements |
-| [patterns/fields.rs](patterns/fields.rs) | Destructure field entry and result; `bindings.rs` rewrites captured binding references; [positional.rs](patterns/positional.rs) reads `(first, _, ..)`, recording each component's place and a final `..` as a row of its own |
-| [assembly/parse.rs](assembly/parse.rs) | Authored mnemonics, operands, labels and contracts. [Instruction preparation](../02_syntax-trees-to-symbol-resolved-trees/declarations/assembly/mod.rs) resolves their target behavior |
-| [token_input/cursor.rs](token_input/cursor.rs) | Source spans and lookahead across grammar tokens. The cursor retains trivia for newline-sensitive clauses. [delimiters.rs](token_input/delimiters.rs) handles balanced token ranges. |
-| [literals/numbers.rs](literals/numbers.rs) | Numeric value validation after lexical recognition |
-| [errors/parse_error.rs](errors/parse_error.rs) | The public parse error; `expected.rs` builds expected-token diagnostics |
+| [transitions/blocks.rs](src/transitions/blocks.rs) | One dispatch per transition block, with subjects and ordered arm patterns, guards and targets |
+| [statements/sequence.rs](src/statements/sequence.rs), [parse.rs](src/statements/parse.rs) | Statement sequence and dispatch, then binding, destructuring and expression statements |
+| [patterns/fields.rs](src/patterns/fields.rs) | Destructure field entry and result; `bindings.rs` rewrites captured binding references; [positional.rs](src/patterns/positional.rs) reads `(first, _, ..)`, recording each component's place and a final `..` as a row of its own |
+| [assembly/parse.rs](src/assembly/parse.rs) | Authored mnemonics, operands, labels and contracts. [Instruction preparation](../02_syntax-trees-to-symbol-resolved-trees/src/declarations/assembly/mod.rs) resolves their target behavior |
+| [token_input/cursor.rs](src/token_input/cursor.rs) | Source spans and lookahead across grammar tokens. The cursor retains trivia for newline-sensitive clauses. [delimiters.rs](src/token_input/delimiters.rs) handles balanced token ranges. |
+| [literals/numbers.rs](src/literals/numbers.rs) | Numeric value validation after lexical recognition |
+| [errors/parse_error.rs](src/errors/parse_error.rs) | The public parse error; `expected.rs` builds expected-token diagnostics |
 
-For `(registry.store)(key, value)`, [postfix parsing](expressions/postfix.rs)
+For `(registry.store)(key, value)`, [postfix parsing](src/expressions/postfix.rs)
 records a call on a member and retains both arguments. Follow the receiver into
 [typing](../03_symbol-resolved-trees-to-typed-trees/src/atomic_calls.rs) to see
 why an atomic cell's `store` checks its ordering argument. For a transition,
-[dispatch preparation](../02_syntax-trees-to-symbol-resolved-trees/declarations/dispatches.rs)
+[dispatch preparation](../02_syntax-trees-to-symbol-resolved-trees/src/declarations/dispatches.rs)
 takes the authored arms and arranges to evaluate the subjects once.
 
 The output belongs to [syntax-trees](../../representations/syntax-trees/syntax_trees.rs).
@@ -51,7 +51,7 @@ publishes a second inter-stage product.
 The expression loop uses heap-backed frames for nested expressions, groups,
 arguments and aggregates. Type parsing and some grammar crossings still recurse;
 this is not a claim that the entire parser is stackless. Precedence and operator
-policy live in [expressions/operators.rs](expressions/operators.rs), beside the
+policy live in [expressions/operators.rs](src/expressions/operators.rs), beside the
 loop that applies them.
 
 [tests/unit/](tests/unit/) groups behavior tests by grammar feature. Small private

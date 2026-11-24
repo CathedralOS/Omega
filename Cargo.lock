@@ -3165,7 +3165,6 @@ dependencies = [
  "layout-planning",
  "layout-plans",
  "lowered-program-to-checked-program",
- "mimalloc",
  "numeric-literals",
  "numerics",
  "optimization",
