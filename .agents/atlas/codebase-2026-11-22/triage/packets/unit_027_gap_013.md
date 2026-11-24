@@ -1,6 +1,6 @@
 # Triage packet: unit_027 gap_013 (area 12, `unit_validation.rs` lines 9601-15600)
 
-Status: Packet complete. Twelve receipts: seven intended, one intended for current inputs, four still open (A, B, E, G). No code change was made. No receipt shows a wrong program reaching native code.
+Status: Packet complete. Twelve receipts: eight intended (C, D, F, H, I, J, K, L) and four still open (A, B, E, G). The `:13002` half of E is intended. No code change was made. No receipt shows a wrong program reaching native code.
 
 This packet reviews the correctness observations in
 [record unit_027_gap_013](../../records/unit_027_gap_013.md) and the matching
