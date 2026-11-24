@@ -1575,11 +1575,12 @@ stages 03 and 04. What is built:
   [admitting an arithmetic rule](../../spec/proofs/foundation.md#admitting-an-arithmetic-rule)
   (checked against it 2026-11-24). #5554 and #5587 name the programs that
   need them, none has a side condition to state, and each is tested against
-  computed arithmetic. Two of the rule's conditions were not met and are
-  owed: each law landed with other changes, where the rule asks for one per
-  pull request, and none is recorded in the specification, whose
-  [rule table](../../spec/proofs/classicality.md) lists only the rules a
-  certificate can cite. The rank is also narrower than the specification,
+  computed arithmetic. Each landed with other changes, where the rule asks
+  for one per pull request. All the integer model's assumed laws, these
+  three and the 39 older ones, are now listed with their statements
+  in the [kernel metatheory](../../spec/proofs/kernel_metatheory.md#assumed-laws-of-the-integer-model);
+  the [rule table](../../spec/proofs/classicality.md) lists only the rules a
+  certificate can cite, and none of these is one. The rank is also narrower than the specification,
   which lets a proof "rank on mathematical structure": a theorem ranked on
   its evidence is refused.
 - **A quotient and indexed data in one program.** Both rest on declarations
