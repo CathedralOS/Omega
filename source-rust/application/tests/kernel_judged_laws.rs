@@ -54,13 +54,12 @@ fn the_same_machine_without_the_citation_is_refused_at_its_ensures() {
 }
 
 #[test]
-fn peano_addition_associativity_by_induction_compiles() {
+fn peano_addition_associativity_compiles_and_its_saved_program_names_the_kernel_type() {
+    // One test for this fixture: two `omega` runs in one project directory
+    // at the same time contend for its package lock, and one is refused.
     let (output, report) = check("ring_law/pass/ring_law_conformance");
     assert_eq!(output.status.code(), Some(0), "{report}");
-}
 
-#[test]
-fn the_saved_program_names_the_kernel_type_of_its_law_and_reopens() {
     // Peano has no storage, so the saved program carries it only as a
     // mathematical carrier: its source type identity and its kernel type.
     let directory: PathBuf = support::repository_root()
