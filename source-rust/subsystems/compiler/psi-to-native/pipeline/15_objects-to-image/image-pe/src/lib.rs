@@ -1,8 +1,7 @@
 /*
-We emit 64-bit PE32+ executables (`emit_pe_executable`) for Windows x86-64
-and Windows ARM64, and shared component DLLs (`emit_pe_shared_component`) for
-Windows x86-64, from a
-format-neutral `FinalImage`. PE emission maintains two alignments
+We emit 64-bit PE32+ executables (`emit_pe_executable`) and shared component
+DLLs (`emit_pe_shared_component`) for Windows x86-64 and Windows ARM64 from
+a format-neutral `FinalImage`. PE emission maintains two alignments
 simultaneously (`SECTION_ALIGNMENT = 0x1000` in memory and
 `FILE_ALIGNMENT = 0x200` on disk) over `IMAGE_BASE = 0x1_4000_0000` with `.text`
 anchored at RVA `0x1000` and optional `.rdata`, `.data`, `.reloc`, and `.bss`

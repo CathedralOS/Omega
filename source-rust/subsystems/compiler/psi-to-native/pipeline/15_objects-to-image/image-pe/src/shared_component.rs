@@ -1,5 +1,5 @@
 /*
-We emit Windows x86-64 shared-component DLLs (`IMAGE_FILE_DLL`) by appending a
+We emit Windows shared-component DLLs (`IMAGE_FILE_DLL`) by appending a
 sorted PE export directory (`IMAGE_EXPORT_DIRECTORY`) after the `.rdata` import
 table while retaining the source `FinalImage` and export roster on both success
 and rejection.
@@ -62,11 +62,16 @@ pub fn emit_pe_shared_component(
     image: FinalImage,
     exports: Vec<PeComponentExport>,
 ) -> Result<PeSharedComponentImage, Box<PeSharedComponentEmissionError>> {
-    if image.target != target::NativeTarget::windows_x64() {
+    if ![
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::windows_arm64(),
+    ]
+    .contains(&image.target)
+    {
         return Err(failure(
             image,
             exports,
-            "shared component requires a Windows x86-64 PE container",
+            "shared component requires a Windows x86-64 or ARM64 PE container",
         ));
     }
     match emit_pe(
@@ -222,32 +227,39 @@ mod tests {
 
     #[test]
     fn emitted_component_names_its_export() {
-        let (image, symbol) = answer_image();
-        let exported = emit_pe_shared_component(image, vec![answer_export(symbol)])
-            .expect("windows component emits");
-        let bytes = exported.contents();
-        assert_eq!(&bytes[0..2], b"MZ");
-        assert!(
-            bytes
-                .windows(b"answer\0".len())
-                .any(|window| window == b"answer\0")
-        );
-        assert!(
-            bytes
-                .windows(b"omega-component.dll\0".len())
-                .any(|window| window == b"omega-component.dll\0")
-        );
-        let pe = u32::from_le_bytes(bytes[0x3c..0x40].try_into().unwrap()) as usize;
-        let characteristics = u16::from_le_bytes(bytes[pe + 22..pe + 24].try_into().unwrap());
-        assert_eq!(characteristics & 0x2000, 0x2000);
-        let entry = u32::from_le_bytes(bytes[pe + 24 + 16..pe + 24 + 20].try_into().unwrap());
-        assert_eq!(entry, 0);
+        for (target, machine) in [
+            (target::NativeTarget::windows_x64(), 0x8664),
+            (target::NativeTarget::windows_arm64(), 0xaa64),
+        ] {
+            let (image, symbol) = answer_image(target);
+            let exported = emit_pe_shared_component(image, vec![answer_export(symbol)])
+                .expect("windows component emits");
+            let bytes = exported.contents();
+            assert_eq!(&bytes[0..2], b"MZ");
+            assert!(
+                bytes
+                    .windows(b"answer\0".len())
+                    .any(|window| window == b"answer\0")
+            );
+            assert!(
+                bytes
+                    .windows(b"omega-component.dll\0".len())
+                    .any(|window| window == b"omega-component.dll\0")
+            );
+            let pe = u32::from_le_bytes(bytes[0x3c..0x40].try_into().unwrap()) as usize;
+            let encoded_machine = u16::from_le_bytes(bytes[pe + 4..pe + 6].try_into().unwrap());
+            assert_eq!(encoded_machine, machine);
+            let characteristics = u16::from_le_bytes(bytes[pe + 22..pe + 24].try_into().unwrap());
+            assert_eq!(characteristics & 0x2000, 0x2000);
+            let entry = u32::from_le_bytes(bytes[pe + 24 + 16..pe + 24 + 20].try_into().unwrap());
+            assert_eq!(entry, 0);
+        }
     }
 
     #[cfg(windows)]
     #[test]
     fn loaded_component_returns_its_authored_value() {
-        let (image, symbol) = answer_image();
+        let (image, symbol) = answer_image(target::NativeTarget::host());
         let exported = emit_pe_shared_component(image, vec![answer_export(symbol)])
             .expect("windows component emits");
         let path =
@@ -266,11 +278,18 @@ mod tests {
         }
     }
 
-    fn answer_image() -> (FinalImage, image::FinalImageSymbolHandle) {
+    fn answer_image(target: target::NativeTarget) -> (FinalImage, image::FinalImageSymbolHandle) {
+        let text = match target.architecture {
+            // mov eax, 42 followed by ret
+            target::Architecture::X86_64 => vec![0xb8, 42, 0, 0, 0, 0xc3],
+            // mov w0, #42 followed by ret
+            target::Architecture::Aarch64 => vec![0x40, 0x05, 0x80, 0x52, 0xc0, 0x03, 0x5f, 0xd6],
+        };
+        let size = text.len();
         let mut image = FinalImage::with_capacity(
-            target::NativeTarget::windows_x64(),
+            target,
             image::FinalImageMemory {
-                text: vec![0xb8, 0x2a, 0x00, 0x00, 0x00, 0xc3],
+                text,
                 ..Default::default()
             },
             Handle::invalid(),
@@ -282,7 +301,7 @@ mod tests {
             name: "answer".into(),
             section: FinalImageSection::Text,
             offset: 0,
-            size: 6,
+            size,
             kind: SymbolKind::Function,
         });
         image.symbol_table.entry_symbol = symbol;
