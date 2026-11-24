@@ -6,17 +6,19 @@ allocator acceptance remains owned by **BUMP-ALLOCATOR-CANARY** in `TASKS.md`.
 Fact: **A granted vacant extent retains actual backing through transport,
 initialization, permitted writes, and extraction.**
 
-The complete Granted/Vacant content equations now name
-`core::Identity<IntervalSet<Nat>>`, using the exact projections declared by
-core::extent. This compares canonical sets; it is not fieldwise descriptor
-identity and grants no backing, vacancy, placement or access authority. All
-existing allocation, profile, geometry, qualification, lifecycle, cleanup and
-neighbor-canary checks remain separate.
+The core extent contracts express Granted and Vacant conservation with
+`core\Identity` over `IntervalSet<Nat>`. The vacancy provider in the local example and its
+control compares `|extent|::Granted::content` at entry with that projection on
+the returned extent. Establishing backing, vacancy, placement, and field
+access each requires separate authority. The existing allocation, profile,
+geometry, qualification, lifecycle, cleanup, and neighbor-canary checks remain
+part of the example.
 
-This source checkpoint has preservation audits only. Integrated optimized
-checking, native/interpreter agreement, intended control refusals and clean
-corpus recording remain required. All earlier execution observations below
-retain their original source identity and do not qualify this migrated source.
+The local example and its control parsed after their migration to the public
+owned lifecycle. All nine pairs still need optimized checking, native/Psi
+agreement for the positives, the intended vacancy refusals for the controls,
+and a clean corpus record. The historical results below identify the source
+and compiler used in those runs.
 
 Each place obtains 64 actual zeroed bytes from the admitted host allocator,
 establishes Granted and Vacant independently, partitions into two 32-byte
@@ -81,16 +83,19 @@ reject the attempted annotation, rather than merely denying a field operation.
 - Encoding/runtime: `omega run --both` must return 0 on both engines. The middle
   update and neighbor canaries make incorrect offsets observable.
 
-Run each place with `omega run --both samples/cli/facts/resident_backing/<place>/main.omg`.
-Check each corresponding `invalid/main.omg`; its diagnostic must identify
-missing `Extent::Vacant` establishment. Historical Windows x86-64 corpus
-records retain all nine runtime programs at native/Terminal exit 0 with
-agreement under producer `9f1ea2b3a8e1`. Missing-vacancy rejection records retain
-`b3876048c0a2`, except the field twin at `e7c12b127bc8+wt`. These observations keep
-their original producer identities; they do not establish constant transport or
-current-source acceptance. The programs remain under `facts/resident_backing_*`.
+From a case directory, run `omega run --both build.omg`. From its sibling
+`invalid_<place>/` directory, run `omega run --engine psi build.omg` and check
+that the diagnostic identifies missing `Extent::Vacant` establishment.
 
-The [coexisting-allocation control](coexisting/main.omg) initializes both
+Historical Windows x86-64 corpus records show native/Psi agreement at exit 0
+for all nine programs under producer `9f1ea2b3a8e1`. The missing-vacancy
+refusals used `b3876048c0a2`, except for the field control at
+`e7c12b127bc8+wt`. The constant-initializer case still needs its own execution
+evidence.
+
+The links below open the original sources from before the corpus was reduced.
+
+The [coexisting-allocation control](https://github.com/CathedralOS/Omega/blob/1b22a248cfdb5a6c54b95613e5f82a8cc97a99bb/samples/cli/facts/resident_backing/coexisting/main.omg) initializes both
 residents before extracting either. It writes the first, observes that the
 second remains unchanged, then writes and extracts the second. It recomposes
 the two vacant claims through an ordinary checked machine, initializes the
@@ -102,41 +107,41 @@ retained handle and that unknown or out-of-bounds ranges supply no storage.
 
 Generic Vec element ownership and cleanup remain the parent outcome's acceptance.
 
-The [generic-move production](generic_move/README.md) extracts and reinstalls a
+The [generic-move production](https://github.com/CathedralOS/Omega/blob/1b22a248cfdb5a6c54b95613e5f82a8cc97a99bb/samples/cli/facts/resident_backing/generic_move/README.md) extracts and reinstalls a
 complete element through generic helpers and returns both storage claims in one
 record. Its affine composition observes exactly-once cleanup; its controls reject
 a different placement identity and reuse of the consumed element.
 
-The [library-growth production](library_growth/README.md) runs that lifecycle
+The [library-growth production](https://github.com/CathedralOS/Omega/blob/1b22a248cfdb5a6c54b95613e5f82a8cc97a99bb/samples/cli/facts/resident_backing/library_growth/README.md) runs that lifecycle
 through the alloc package's runtime-sized u32 vector. The application provides
 backing and its selected profile; the library preserves the initialized prefix
 and returns old storage for explicit release. Its twin omits vacancy issuance.
 
-The [runtime-cell production](runtime_cells/README.md) partitions at runtime,
+The [runtime-cell production](https://github.com/CathedralOS/Omega/blob/1b22a248cfdb5a6c54b95613e5f82a8cc97a99bb/samples/cli/facts/resident_backing/runtime_cells/README.md) partitions at runtime,
 updates actual backing through a qualification-erasing view, and rejoins the
 original descriptor. Its bounds twin rejects a cell extending past the end.
 The accompanying ordinary-RAM control preserves an untouched neighbor but
 rejects a stale fact about the written field; content-only writes must not
 accidentally become the rule for every access view.
 
-The [runtime-loop production](runtime_loop/README.md) forwards two distinct
+The [runtime-loop production](https://github.com/CathedralOS/Omega/blob/1b22a248cfdb5a6c54b95613e5f82a8cc97a99bb/samples/cli/facts/resident_backing/runtime_loop/README.md) forwards two distinct
 allocation descriptors through a terminating loop before rejoining and using
 their backing. Its twin swaps the outputs and must reject the identity claims.
 
-The [nested helper-loop production](runtime_helper_loop/README.md) carries both
+The [nested helper-loop production](https://github.com/CathedralOS/Omega/blob/1b22a248cfdb5a6c54b95613e5f82a8cc97a99bb/samples/cli/facts/resident_backing/runtime_helper_loop/README.md) carries both
 backings through helper-call results on a backedge. It checks their distinct
 contents after zero and repeated iterations; its twin repeats a consumed input
 and must reject the duplicate transfer. The reconstruction production below
 also checks recursive descriptor guarantees; the Vec copy/reallocation lifecycle
 remains the parent outcome's acceptance.
 
-The [reconstruction-loop production](runtime_reconstruction_loop/README.md)
+The [reconstruction-loop production](https://github.com/CathedralOS/Omega/blob/1b22a248cfdb5a6c54b95613e5f82a8cc97a99bb/samples/cli/facts/resident_backing/runtime_reconstruction_loop/README.md)
 rebuilds both descriptors through checked content-conserving helpers on the
 backedge. Its direct and recursive exits have different claim origins; each
 completed call must still return its complete owned result. Its twin changes
 the reconstructed length and must reject the unchanged conservation contract.
 
-The [runtime-growth customer](runtime_growth/README.md) uses the Bump package
+The [runtime-growth customer](https://github.com/CathedralOS/Omega/blob/1b22a248cfdb5a6c54b95613e5f82a8cc97a99bb/samples/cli/facts/resident_backing/runtime_growth/README.md) uses the Bump package
 to copy live elements into larger backing and append another element. The
 recursive descriptor guarantees directly establish the grown vector's invariant;
 its twin swaps the recursive backing arguments and must reject. It then releases
@@ -149,7 +154,7 @@ domain consumes the returned length guarantee and the saved entry count. The
 typed projection of an authenticated referent snapshot must agree with ordinary
 owned projection; neither a reference descriptor nor an equal constructor can
 supply missing Granted or Vacant membership. The
-[unrestored control](field/invalid_restoration/main.omg) replaces the saved count
+[unrestored control](https://github.com/CathedralOS/Omega/blob/1b22a248cfdb5a6c54b95613e5f82a8cc97a99bb/samples/cli/facts/resident_backing/field/invalid_restoration/main.omg) replaces the saved count
 with zero and must reject at invariant-window closure. Together these exercise
 the owned-record transfer and borrowed restoration needed by the allocator and
 Vec, using the same real backing and neighbor-canary oracle as the field place.
