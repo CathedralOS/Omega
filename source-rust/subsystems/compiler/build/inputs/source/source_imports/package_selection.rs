@@ -7,8 +7,7 @@
 //   every dependency package's own files resolve through its `Product`-purpose
 //   edges even when loaded into the host `Build` context.
 // - If an import names an alias declared only in the opposite scope (`other_purpose`),
-//   we reject immediately and name the `Build::dependency` / `Build::build_dependency`
-//   registration needed to authorize it rather than falling back to a requester-local path.
+//   report who can supply it for the requesting program.
 // - If an import has no requester-local source and its first segment spells a known
 //   package in the captured closure, we retain `MissingDependencyEdge`
 //   diagnostic metadata so exact-target resolution reports the missing dependency
@@ -53,19 +52,28 @@ pub(crate) struct MissingDependencyEdge {
     purpose: DependencyPurpose,
 }
 
+fn binding_advice(purpose: DependencyPurpose, alias: &str) -> String {
+    match purpose {
+        DependencyPurpose::Build => {
+            format!("The invoker must supply `{alias}` as a Build library before the Build starts.")
+        }
+        DependencyPurpose::Product => format!(
+            "Register the Product dependency with `Build::dependency(builder, description)` in the requesting package's build.omg. If the package name differs from `{alias}`, set the alias with `dependency\\with_alias(@mutable description, \"{alias}\")` before registration."
+        ),
+    }
+}
+
 impl MissingDependencyEdge {
     fn diagnostic(&self, requesting_source: &Path) -> Diagnostic {
         Diagnostic::error(format!(
-            "{}: import `{}` names package {} as `{}`, but package {} declares no {} dependency under that alias -- register it with `Build::{}(builder, description)` in its build.omg, configuring the description with `dependency::with_alias(@mutable description, \"{}\")` when the package's own name differs, to add that dependency edge for the {} scope",
+            "{}: import `{}` names package {} as `{}`, but package {} has no {} dependency under that alias. {}",
             requesting_source.display(),
             self.authored_path,
             self.package,
             self.alias,
             self.requester,
             self.purpose.name(),
-            self.purpose.operation().name(),
-            self.alias,
-            self.purpose.name(),
+            binding_advice(self.purpose, &self.alias),
         ))
     }
 }
@@ -300,9 +308,8 @@ pub(crate) fn reconciled_package_import(
             if let Some(target) =
                 packages.dependency_target_for_purpose(requester, other, first.as_str())
             {
-                let declaration = purpose.operation().name();
                 return Err(vec![Diagnostic::error(format!(
-                    "import `{}` in {} names {} dependency `{}` (package {}); a {} import may only select {} dependencies -- register it with `Build::{}(builder, description)` under alias `{}` in the root build.omg to select that package for the {} scope",
+                    "import `{}` in {} names {} dependency `{}` (package {}), but a {} import may only select {} dependencies. {}",
                     identifier_path_text(members),
                     requesting_source.display(),
                     other.name(),
@@ -310,9 +317,7 @@ pub(crate) fn reconciled_package_import(
                     packages.package_label(target),
                     purpose.name(),
                     purpose.name(),
-                    declaration,
-                    first.as_str(),
-                    purpose.name(),
+                    binding_advice(purpose, first),
                 ))]);
             }
             let requester_root = packages
