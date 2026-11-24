@@ -1019,9 +1019,10 @@ impl Program<'_> {
             {
                 return Err(unavailable("Identity repeats its written type selection"));
             } else if applied && row.kind() == StaticArgument && row.top_level_static_argument_position().is_none() {
-                let selected = row.target().as_resolved()
+                let symbol = row.target().as_resolved()
+                    .map(|selected| selected.selected_symbol())
                     .ok_or_else(|| unavailable("Identity has an unresolved nested type selection"))?;
-                nested_types.push((row.source_span(), selected.selected_symbol()));
+                nested_types.push((row.source_span(), symbol));
             }
         }
         // Name resolution records selections for declarations. A lexical type
