@@ -280,3 +280,80 @@ fn portable_filesystem_rules_hold_on_each_engine() {
         }
     }
 }
+
+#[test]
+fn posix_enumeration_filters_real_names_within_each_returned_batch() {
+    let project = Project::new("posix-directory-names");
+    let library = support::repository_root().join("source/library/std");
+    for file in ["filesystem_host.omg", "posix_directory_records.omg"] {
+        project.write(file, &std::fs::read_to_string(library.join(file)).unwrap());
+    }
+    let filesystem = std::fs::read_to_string(library.join("filesystem.omg")).unwrap();
+    let mut results = String::new();
+    for name in [
+        "ErrorKind ",
+        "IoResult ",
+        "EmptyResult ",
+        "DirEntry [",
+        "DirEntryResult ",
+        "OpenOptions ",
+    ] {
+        results.push_str(&declaration(&filesystem, &format!("public data {name}")));
+        results.push('\n');
+    }
+    project.write("filesystem.omg", &results);
+    project.write(
+        "posix_filesystem_host.omg",
+        include_str!("fixtures/filesystem/run/posix_directory_names/raw.omg"),
+    );
+    project.write(
+        "main.omg",
+        include_str!("fixtures/filesystem/run/posix_directory_names/main.omg"),
+    );
+
+    let source = std::fs::read_to_string(library.join("posix_filesystem_adapter.omg")).unwrap();
+    let mut adapter = source
+        .lines()
+        .take_while(|line| line.starts_with("use "))
+        .collect::<Vec<_>>()
+        .join("\n");
+    adapter.push('\n');
+    for heading in [
+        "data PosixFilesystem\n",
+        "data PosixDirectoryKind ",
+        "data PosixDirectoryItem ",
+        "machine posix_filesystem_directory_record(",
+        "machine posix_filesystem_start_directory(",
+        "machine posix_filesystem_next_child(",
+        "machine posix_filesystem_scan_names(",
+        "machine posix_filesystem_read_dir_count(",
+        "machine posix_filesystem_read_dir_is_empty(",
+        "machine posix_filesystem_read_dir_nth(",
+        "machine posix_filesystem_read_dir_entry_fd(",
+    ] {
+        adapter.push_str(&declaration(&source, heading));
+        adapter.push('\n');
+    }
+    // Both injected host errors are EACCES. Error translation is exercised
+    // separately in the target-provider tests.
+    adapter.push_str(r#"
+machine posix_filesystem_last_error_i32(filesystem: @mutable PosixFilesystem, result: i32) -> |filesystem|::ErrorKind { |filesystem|::ErrorKind::PermissionDenied }
+machine posix_filesystem_last_error_i64(filesystem: @mutable PosixFilesystem, result: i64) -> |filesystem|::ErrorKind { |filesystem|::ErrorKind::PermissionDenied }
+"#);
+    project.write("posix_filesystem_adapter.omg", &adapter);
+    let mut settings = String::from(
+        "machine build(b: @mutable Build) { Build::application(b, \"posix_names\");\n",
+    );
+    for target in [
+        "linux_x86_64",
+        "linux_arm64",
+        "macos_arm64",
+        "windows_x86_64",
+        "windows_arm64",
+    ] {
+        settings.push_str(&format!("Build::select_provider::<PosixFilesystemHost, Stream>(b, {target});\nBuild::select_provider::<PosixFilesystemTarget, Geometry>(b, {target});\nBuild::bind(b, {target}\\ProgramEntry, main);\n"));
+    }
+    settings.push('}');
+    project.write("build.omg", &settings);
+    both_zero(project.observe(&["run", "--both"], "build.omg"));
+}
