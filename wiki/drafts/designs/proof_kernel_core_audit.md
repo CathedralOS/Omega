@@ -1379,7 +1379,12 @@ type), and the clause's `ClauseScope` says what each name denotes there.
     clause tests is not established by structure here"). The work is a way
     to assume a case test: record the case of the formal's place at entry
     and of the result's place after a call, including under `||` and `==`,
-    where one test alone decides nothing.
+    where one test alone decides nothing. The hook is `case` of the
+    `Bindings` trait that clause substitution calls
+    (`psi/semantics/src/substitution/clauses.rs`); it returns a decided
+    Boolean and has about thirty implementations across stage 06 and
+    `psi/semantics`, so the change reaches the Psi-side checker as well as
+    the source compiler.
   - "Identity operand has no term at its written carrier" for a field of a
     record formal outside the mathematical signature: the field arm serves
     data that contains itself only.
@@ -1434,7 +1439,13 @@ same_sign> as SameSign;` is read into the mathematical signature when
   - A lifted operation has no definition, so no clause may apply one. The
     kernel's `lift` would define it when the representative operation
     requires nothing; an operation that requires something needs the
-    dependent eliminator.
+    dependent eliminator. The kernel's `lift` also takes a proof that the
+    result type is a set (`lift_declaration` in
+    `psi/semantics/proofs/mathematical/quotient.rs`). The kernel supplies
+    that for a quotient and for a proposition, not for data, so an
+    operation that returns data cannot be defined this way until identity
+    proofs of that data are shown unique. No program in the library or the
+    samples applies a lifted operation in a clause.
   - `Quotient::lift` with a constant, a computed argument, an omitted formal
     or a formal passed twice, which the specification permits.
   - Anything that needs the kernel's `effective` assumption (equal classes
@@ -1445,7 +1456,15 @@ same_sign> as SameSign;` is read into the mathematical signature when
     The compiler uses soundness only, which holds for any relation.
   - A generic quotient, a quotient of data that has storage, and the
     nineteen runtime quotient programs under
-    `samples/cli/facts/quotient_closed_literal/`.
+    `samples/cli/facts/quotient_closed_literal/`. Checked on 2026-11-24,
+    two of its placements are refused in the ordinary reader for two
+    reasons, neither in the mathematical signature: "type quotient data
+    while reading the signature of `lifted`" (a class has no runtime form:
+    it would be stored as its representative, built by `as`, and read only
+    by `Quotient::lift`), and "machine declared requirement needs its
+    complete trait application" for `RepresentativeEquivalence satisfies
+    Equivalence<Representative, equivalent>`, whose second argument is a
+    proposition. These programs also pass `lift` a constant (`3i32`).
 
 **Step 6 as built (2026-11-24): data indexed by values, theorems over it and
 the machines that run with its evidence.** The three `source_indexed_*`
