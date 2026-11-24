@@ -19,6 +19,7 @@ use terminal_psi::{
 };
 
 use super::places::Bound;
+use super::join_reads::{BeforeArms, JoinReads};
 use super::{Draft, Evaluation, Lowering, Reached, Value, declaration, successor};
 use crate::lowering::body::{
     ArmGuard, CaseSelector, Expression, ExpressionKind, Selector, Statement, Strict, Target,
@@ -676,6 +677,7 @@ impl Lowering<'_> {
         source: SourceOrigin,
         capture: Option<arena::Handle<crate::source_state::expression::CompletedValueCapture>>,
     ) -> Evaluation<Value> {
+        let before = BeforeArms::capture(self);
         let mut arrivals = Arrivals::default();
         if let Reached::Ended(call) = self.dispatch_match(
             subject,
@@ -691,6 +693,7 @@ impl Lowering<'_> {
             arrivals,
             result_type,
             SourceOrigin::Unpositioned(Unpositioned::MatchJoin),
+            before,
         )
     }
 
@@ -1040,18 +1043,16 @@ impl Lowering<'_> {
         Ok(())
     }
 
-    /// The join of a value-position `match`: one block whose one parameter
-    /// is the result, and a jump to it from each arm that arrives. An arm
-    /// whose every path ends at a call that never returns ends there and does
-    /// not arrive. The join is made once the arms are lowered, so a `match`
-    /// none of whose arms arrives has no join: its every path ended, at the
-    /// last arm's call. A Unit match (`result_type` `None`) joins at a block
-    /// with no parameter.
+    /// Each returning match arm passes its result into this block. A Unit
+    /// match has no result parameter. An immediate read of storage written
+    /// in the arms can pass another scalar value into the join. Nonreturning
+    /// arms end at their call, and a match with no returning arm has no join.
     fn join(
         &mut self,
         arrivals: Arrivals,
         result_type: Option<ValueType>,
         source: SourceOrigin,
+        before: BeforeArms,
     ) -> Evaluation<Value> {
         if arrivals.values.is_empty() {
             let call = arrivals
@@ -1123,6 +1124,12 @@ impl Lowering<'_> {
                 return Err(self.internal("a rigid match result has no established join"));
             }
         };
+        let join_reads = JoinReads::new(
+            join,
+            before,
+            self.tables.writes.len(),
+            arrivals.values.iter().map(|&(block, _, _)| block),
+        );
         for (block, point, value) in arrivals.values {
             self.current = Some(block);
             self.point = Some(point);
@@ -1146,6 +1153,7 @@ impl Lowering<'_> {
             self.jump_with_structural(join, scalars, structures, source)?;
         }
         self.enter(join);
+        self.join_reads = join_reads;
         Ok(Reached::Value(result))
     }
 

@@ -139,3 +139,42 @@ fn selected_block_writes_survive_the_join() {
         "{report}"
     );
 }
+
+#[test]
+fn a_read_after_distinct_bounded_writes_preserves_their_common_range() {
+    let source = fixture("run", "block_storage_bounds");
+    runs_both(&source);
+    for (old, new, at) in [
+        (
+            "total: u32 = 4;",
+            "total: u32 = 4294967295;",
+            "main.omg:6:11",
+        ),
+        (
+            "    total + 1",
+            "    total = 4294967295; total + 1",
+            "main.omg:6:31",
+        ),
+        (
+            "stock.value = 7;",
+            "stock.value = 4294967295;",
+            "main.omg:12:7",
+        ),
+    ] {
+        let (output, report) = invoke(&source.replace(old, new), &["--check"]);
+        assert!(!output.status.success(), "{report}");
+        assert!(
+            report.contains("may overflow `u32`") && report.contains(at),
+            "{report}"
+        );
+    }
+
+    let moved = source.replace("}, copied)", "}, ticket.slot)");
+    let (output, report) = invoke(&moved, &["--check"]);
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("owned storage is used after its value was transferred or consumed")
+            && report.contains("main.omg:23:15"),
+        "{report}"
+    );
+}

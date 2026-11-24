@@ -61,6 +61,7 @@ macro_rules! continuing {
 mod calls;
 pub(crate) use calls::publish_write_frames;
 mod control;
+mod join_reads;
 mod operations;
 pub(crate) mod places;
 mod ranking;
@@ -518,6 +519,7 @@ impl<'a> Lowering<'a> {
             scalar_subjects: Vec::new(),
             slot_types,
             slot_homes: &[],
+            join_reads: None,
             qualifications,
             coercions_start,
             value_qualifications: Vec::new(),
@@ -853,6 +855,7 @@ struct Lowering<'a> {
     /// The declared type of each slot, as the body states it.
     slot_types: &'a [ValueType],
     slot_homes: &'a [Option<StructuralTypeId>],
+    join_reads: Option<join_reads::JoinReads>,
     /// The `PublishedGuarantee` of each `ensures` clause, by position: the
     /// identity Terminal Psi's `ContractClause` holds.
     published: Vec<ObligationId>,
