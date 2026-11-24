@@ -323,11 +323,19 @@ mod product {
         /// Ordinary provider choices made with this registration's issued handle.
         pub providers: Vec<ExecutedProductSelection>,
         pub inputs: TestInvocationInputs,
+        pub expected: TestExpectations,
     }
 
     #[derive(Debug, Clone, Default, PartialEq, Eq)]
     pub struct TestInvocationInputs {
         pub private_filesystem: bool,
+        pub stdin: Option<std::sync::Arc<[u8]>>,
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub struct TestExpectations {
+        pub stdout: Option<std::sync::Arc<[u8]>>,
+        pub stderr: Option<std::sync::Arc<[u8]>>,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -869,10 +877,10 @@ pub mod product_operands {
 pub use product::{
     BuildSelectionRequest, DescribedProductEntry, DescribedProductProvider, DescribedProductSchema,
     EnumExclusionRequest, ExclusionVocabulary, ExecutedBuildSelection, ExecutedEnumExclusion,
-    ExecutedNativeBinding, ExecutedProductSelection, ProductEntryBinding,
-    ProductDeclarationOperand, ProductDeclarationRequest,
-    ProviderReadinessRequest, RootBindingOperand, RootBindingRequest, RootBindingSelection,
-    TestGroupConfiguration, TestInvocationInputs,
+    ExecutedNativeBinding, ExecutedProductSelection, ProductDeclarationOperand,
+    ProductDeclarationRequest, ProductEntryBinding, ProviderReadinessRequest, RootBindingOperand,
+    RootBindingRequest, RootBindingSelection, TestExpectations, TestGroupConfiguration,
+    TestInvocationInputs,
 };
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, record_storage::Record)]

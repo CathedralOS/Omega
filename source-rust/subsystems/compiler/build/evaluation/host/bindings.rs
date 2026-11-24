@@ -38,12 +38,14 @@ mod group_providers;
 mod native_bindings;
 mod product_queries;
 mod test_groups;
+mod test_streams;
 pub use product_queries::{BuildProductDescription, BuildProductQuery};
 use test_groups::GroupShape;
 
 pub struct TerminalBuildBindingHost {
     artifact: terminal_codec::TerminalExecutionIdentity,
     calls: Arc<[TerminalBuildBindingCall]>,
+    stream_calls: Vec<source_compiler::publication::BuildCallSite>,
     queries: Arc<[source_compiler::publication::TerminalBuildQueryCall]>,
     product_facet: Option<TerminalStructuralValue>,
     group_shape: Option<GroupShape>,
@@ -121,7 +123,10 @@ fn lock_state(state: &Mutex<BindingState>) -> Result<MutexGuard<'_, BindingState
 }
 
 impl BindingState {
-    fn take_executed(&mut self) -> Result<Vec<ExecutedBuildSelection>, String> {
+    fn take_executed(
+        &mut self,
+        account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+    ) -> Result<Vec<ExecutedBuildSelection>, String> {
         if self.pending.iter().any(Option::is_some) || self.query.is_some() {
             return Err("Build binding activation ended with an uncommitted request".to_owned());
         }
@@ -129,7 +134,7 @@ impl BindingState {
             .drain(..)
             .map(|selection| match selection {
                 ActivationSelection::Final(selection) => Ok(selection),
-                ActivationSelection::TestGroup(group) => group.finish(),
+                ActivationSelection::TestGroup(group) => group.finish(account),
             })
             .collect()
     }
@@ -139,6 +144,7 @@ impl TerminalBuildBindingHost {
     pub fn new(
         artifact: terminal_codec::TerminalExecutionView<'_>,
         bindings: &TerminalBuildBindings,
+        requests: &source_compiler::publication::TerminalBuildRequests,
         original: TerminalStructuralValue,
         account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
     ) -> Result<Arc<Self>, String> {
@@ -173,6 +179,9 @@ impl TerminalBuildBindingHost {
             artifact: artifact.custody_identity(),
             calls: Arc::clone(calls),
             queries: Arc::clone(queries),
+            stream_calls: requests.calls_for(artifact).ok_or("Build requests belong to another Terminal artifact")?
+                .iter().filter(|call| call.action == source_compiler::publication::TerminalBuildRequestOperation::ConfigureTestStream)
+                .map(|call| call.site).collect(),
             product_facet,
             tests_facet,
             group_shape,
@@ -310,7 +319,7 @@ impl TerminalBuildBindingHost {
     }
 
     pub(crate) fn take_executed(&self) -> Result<Vec<ExecutedBuildSelection>, String> {
-        lock_state(&self.state)?.take_executed()
+        lock_state(&self.state)?.take_executed(self.account.as_ref())
     }
 }
 
@@ -339,9 +348,19 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
             .iter()
             .filter(|call| call.site.boundary == boundary)
             .find_map(|call| call.operand.as_ref());
+        let stream = self
+            .host
+            .stream_calls
+            .iter()
+            .any(|call| call.boundary == boundary);
         terminal_interpreter::TerminalCallStorageRequirements {
-            original: matches!(operand, Some(TerminalBuildBindingOperand::TestGroup { .. })),
-            arguments: if operand.is_some() { &[0] } else { &[] },
+            original: stream
+                || matches!(operand, Some(TerminalBuildBindingOperand::TestGroup { .. })),
+            arguments: if operand.is_some() || stream {
+                &[0]
+            } else {
+                &[]
+            },
         }
     }
 
@@ -363,6 +382,19 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
         storage_buffers: &mut [terminal_interpreter::TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         crate::host::require_effect_owner(effect, &self.host.artifact)?;
+        if self
+            .host
+            .stream_calls
+            .iter()
+            .any(|site| crate::host::is_call_at(effect, *site))
+        {
+            if !byte_buffers.is_empty() {
+                return Err(TerminalEffectRejection::new(
+                    "test stream configuration has an unexpected mutable byte view",
+                ));
+            }
+            return self.configure_test_stream(effect, storage_buffers);
+        }
         let operand = self
             .host
             .calls
@@ -377,26 +409,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
             }
             match operand {
                 TerminalBuildBindingOperand::TestGroup { .. } => {
-                    let Some((root, group)) = self.presented_group.take() else {
-                        return Err(TerminalEffectRejection::new(
-                            "provider selection has no issued test group",
-                        ));
-                    };
-                    let [terminal_interpreter::TerminalBoundaryStorageBuffer::Structural(buffer)] =
-                        storage_buffers
-                    else {
-                        return Err(TerminalEffectRejection::new(
-                            "provider selection lost the test group loan",
-                        ));
-                    };
-                    if buffer
-                        .original_storage()
-                        .is_none_or(|loan| loan.root() != root)
-                    {
-                        return Err(TerminalEffectRejection::new(
-                            "provider selection received another test group loan",
-                        ));
-                    }
+                    let group = self.take_presented_group(storage_buffers)?;
                     return self.commit_binding(effect, None, Some(group));
                 }
                 TerminalBuildBindingOperand::NativeLocator(_) => {

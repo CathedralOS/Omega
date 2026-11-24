@@ -65,10 +65,8 @@ impl PlannedTest {
         assumptions: &[InstallationEnvironmentAssumption],
         request: TestExecution,
     ) -> Self {
-        let private_grant = root.inputs.private_filesystem.then(|| {
-            IsolatedExecutionGrant::private_linux_filesystem(target)
-        }).flatten();
-        let psi = if root.inputs.private_filesystem && private_grant.is_none() {
+        let linux = matches!(target, TargetProfile::LinuxX64 | TargetProfile::LinuxArm64);
+        let psi = if root.inputs.private_filesystem && !linux {
             Destination::Unavailable("the target has no private filesystem adapter")
         } else {
             Destination::Scheduled
@@ -81,7 +79,7 @@ impl PlannedTest {
         let prepare = || {
             let mut native_target = stage.native_target(target, assumptions.to_vec())?;
             native_target.isolated_execution_grant = Some(
-                private_grant.unwrap_or_else(IsolatedExecutionGrant::captured_process),
+                IsolatedExecutionGrant::captured_process(target, root.inputs.stdin.is_some(), root.inputs.private_filesystem && linux),
             );
             let program = Program::CheckedSource {
                 publication: suite.compile(&root, target.target_name())?,
@@ -163,7 +161,7 @@ impl PlannedTest {
             }
         };
         vec![
-            match run_test(product.report, &self.engines, &self.root.inputs, self.target, self.request) {
+            match run_test(product.report, &self.engines, &self.root.inputs, &self.root.expected, self.target, self.request) {
                 Ok(status) => Diagnostic::note(format!(
                     "{name} (target `{}`): {status}",
                     self.target.target_name()

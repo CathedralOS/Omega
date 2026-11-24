@@ -266,6 +266,7 @@ impl TerminalBuildHost {
         let bindings = TerminalBuildBindingHost::new(
             artifact,
             produced.build_bindings(),
+            produced.build_requests(),
             original.clone(),
             Some(account),
         )?;
@@ -499,13 +500,15 @@ impl TerminalBuildHost {
                 .iter()
                 .find(|declaration| declaration.id == boundary)
                 .ok_or("Build import has no Terminal declaration")?;
-            if request_calls
+            if let Some(call) = request_calls
                 .iter()
-                .any(|call| call.site.boundary == boundary)
+                .find(|call| call.site.boundary == boundary)
             {
-                instance
-                    .bind_import(boundary, self.requests.adapter(declaration.into()))
-                    .map_err(describe)?;
+                if call.action == source_compiler::publication::TerminalBuildRequestOperation::ConfigureTestStream {
+                    instance.bind_import(boundary, self.bindings.adapter(declaration.into()))
+                } else {
+                    instance.bind_import(boundary, self.requests.adapter(declaration.into()))
+                }.map_err(describe)?;
             } else if binding_calls
                 .iter()
                 .any(|call| call.site.boundary == boundary)

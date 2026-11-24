@@ -30,10 +30,12 @@ impl TerminalBuildBindingHost {
             || request.access() != terminal_psi::StructuralAccess::MutableBorrow
             || !request.argument_path().is_empty()
             || !request.referent().is_empty()
-            || !self.calls.iter().any(|call| {
+            || !(self.stream_calls.iter().any(|call| call.boundary == boundary)
+                && self.group_shape.as_ref().is_some_and(|shape| shape.referent() == request.view_type())
+                || self.calls.iter().any(|call| {
                 call.site.boundary == boundary && matches!(call.operand,
                     Some(TerminalBuildBindingOperand::TestGroup { referent }) if referent == request.view_type())
-            })
+            }))
         {
             return Err(refuse());
         }
@@ -57,6 +59,29 @@ impl TerminalBuildBindingHost {
             matches!(selection, ActivationSelection::TestGroup(group) if group.owns_settings(backings[disabled].as_ref()))
         }).ok_or_else(refuse)?;
         Ok((group, request.root(), vec![backings]))
+    }
+}
+
+impl TerminalBuildBindingAdapter {
+    pub(super) fn take_presented_group(
+        &mut self,
+        storage: &[terminal_interpreter::TerminalBoundaryStorageBuffer],
+    ) -> Result<usize, TerminalEffectRejection> {
+        let (root, group) = self
+            .presented_group
+            .take()
+            .ok_or_else(|| TerminalEffectRejection::new(ISSUED_GROUP))?;
+        let [terminal_interpreter::TerminalBoundaryStorageBuffer::Structural(buffer)] = storage
+        else {
+            return Err(TerminalEffectRejection::new(ISSUED_GROUP));
+        };
+        if buffer
+            .original_storage()
+            .is_none_or(|loan| loan.root() != root)
+        {
+            return Err(TerminalEffectRejection::new(ISSUED_GROUP));
+        }
+        Ok(group)
     }
 }
 
