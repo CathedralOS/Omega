@@ -4511,11 +4511,7 @@ pub(crate) mod primitive_storage {
                     .predicates()
                     .any(|predicate| predicate == terminal_psi::ByteSequencePredicate::AsciiOnly)
             {
-                self.validate_ascii_backing_for_primitive_write(
-                    destination,
-                    root,
-                    &path[..path.len() - 1],
-                )?;
+                self.validate_utf8_primitive_write(destination, root, path, scalar)?;
             }
             if let Some(restriction) = restriction
                 && (!crate::engine::scalar_operations::terminal_scalar_belongs_to_type(scalar)
@@ -4526,12 +4522,17 @@ pub(crate) mod primitive_storage {
             self.store_primitive_place(destination, path, scalar)
         }
 
-        fn validate_ascii_backing_for_primitive_write(
+        fn validate_utf8_primitive_write(
             &self,
             destination: PlaceId,
             root: StructuralTypeId,
-            array_path: &[StructuralPathSegment],
+            path: &[StructuralPathSegment],
+            replacement: TerminalScalarValue,
         ) -> Result<(), TerminalInterpretError> {
+            let Some((StructuralPathSegment::FixedIndex(written_index), array_path)) = path.split_last()
+            else {
+                return Err(malformed());
+            };
             let declaration = terminal_semantics::runtime_structural_path_tip(
                 self.structural_types().values(),
                 root,
@@ -4545,11 +4546,23 @@ pub(crate) mod primitive_storage {
             else {
                 return Err(malformed());
             };
-            let byte_type = semantic_vocabulary::IntegerType::new(
-                semantic_vocabulary::IntegerSign::Unsigned,
-                8,
-            )
-            .map_err(|_| malformed())?;
+            let byte_type =
+                semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
+                    .map_err(|_| malformed())?;
+            let TerminalScalarValue::Integer {
+                scalar_type,
+                value: IntegerValue::Unsigned(value),
+            } = replacement
+            else {
+                return Err(malformed());
+            };
+            if scalar_type != byte_type || *written_index >= length {
+                return Err(malformed());
+            }
+            let replacement = u8::try_from(value).map_err(|_| malformed())?;
+            // Keep only the current UTF-8 scalar while walking the candidate array.
+            let mut encoded = [0u8; 4];
+            let mut pending = 0;
             let mut selected = array_path.to_vec();
             for index in 0..length {
                 selected.push(StructuralPathSegment::FixedIndex(index));
@@ -4563,10 +4576,31 @@ pub(crate) mod primitive_storage {
                     shared_view,
                 )?;
                 selected.pop();
-                if !matches!(byte, TerminalScalarValue::Integer { value: IntegerValue::Unsigned(value), .. } if value <= 127)
-                {
+                let TerminalScalarValue::Integer {
+                    value: IntegerValue::Unsigned(value),
+                    ..
+                } = byte
+                else {
                     return Err(malformed());
+                };
+                let candidate = if index == *written_index {
+                    replacement
+                } else {
+                    u8::try_from(value).map_err(|_| malformed())?
+                };
+                if pending == 0 && candidate.is_ascii() {
+                    continue;
                 }
+                encoded[pending] = candidate;
+                pending += 1;
+                match std::str::from_utf8(&encoded[..pending]) {
+                    Ok(_) => pending = 0,
+                    Err(error) if error.error_len().is_none() && pending < encoded.len() => {}
+                    Err(_) => return Err(malformed()),
+                }
+            }
+            if pending != 0 {
+                return Err(malformed());
             }
             Ok(())
         }
@@ -6540,6 +6574,112 @@ pub(crate) mod storage_addresses {
                 )
                 .unwrap();
             ArrayStorage::from(referent)
+        }
+
+        #[test]
+        fn primitive_utf8_store_validates_the_resulting_bytes_before_writing() {
+            use semantic_vocabulary::{OperationId, PlaceId, StructuralDomainId, ValueId};
+            use terminal_psi::{Operation, OperationKind, OperationResult, StructuralPathSegment};
+
+            let mut execution = execution();
+            let destination = PlaceId::new(1).unwrap();
+            let value = ValueId::new(1).unwrap();
+            let root = StructuralTypeId::new(2).unwrap();
+            let domain = StructuralDomainId::new(1).unwrap();
+            let module = Arc::get_mut(&mut execution.program)
+                .unwrap()
+                .fixture_module_mut();
+            module
+                .types
+                .structural_domains
+                .push(terminal_psi::StructuralDomainDeclaration {
+                    subject_identity: Default::default(),
+                    access_policy: None,
+                    required_memberships: Some(Vec::new()),
+                    complete_predicate_theory: true,
+                    predicate: None,
+                    id: domain,
+                    semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
+                    identity: TerminalIdentityIndex(4),
+                    carrier: root,
+                    content_projection: None,
+                    byte_predicate: Some(terminal_psi::ByteSequencePredicate::ValidUtf8),
+                    establishment_routes: None,
+                });
+            module.machines[0]
+                .structural_parameters
+                .push(terminal_psi::StructuralParameterDeclaration {
+                    place: destination,
+                    position: 0,
+                    structural_type: root,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                    access: StructuralAccess::Owned,
+                    qualifications: vec![domain],
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                });
+            let storage = array(&mut execution, 17);
+            execution
+                .structural_values
+                .insert(
+                    destination,
+                    TerminalStructuralValue::minted(17, root, vec![domain]),
+                )
+                .unwrap();
+            let byte_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+            for (bytes, index, replacement) in [
+                (*b"ABCD", 1, b'x'),
+                (*b"ABCD", 1, 0x80),
+                (*b"ABCD", 3, 0xc3),
+                ([0xc3, 0xa9, b'C', b'D'], 2, b'x'),
+                ([0xc3, 0xa9, b'C', b'D'], 1, 0xa8),
+                ([0xc3, 0xa9, b'C', b'D'], 0, b'x'),
+                ([0xf0, 0x9f, 0x98, 0x80], 3, 0x81),
+                ([0xe0, 0xa0, 0x80, b'A'], 1, 0x80),
+            ] {
+                for (offset, byte) in bytes.iter().copied().enumerate() {
+                    execution
+                        .stored_byte_array_write(&storage, offset, byte)
+                        .unwrap();
+                }
+                execution
+                    .values
+                    .insert(
+                        value,
+                        crate::TerminalScalarValue::Integer {
+                            scalar_type: byte_type,
+                            value: semantic_vocabulary::IntegerValue::Unsigned(replacement.into()),
+                        },
+                    )
+                    .unwrap();
+                let path = [StructuralPathSegment::FixedIndex(index as u64)];
+                let operation = Operation::unsuspended(
+                    OperationId::new(1).unwrap(),
+                    OperationResult::Unit,
+                    OperationKind::WriteOnlyPrimitiveStore {
+                        destination,
+                        value,
+                        path: path.to_vec(),
+                        range_obligation: None,
+                    },
+                );
+                let status = execution.execute_primitive_store(&operation, destination, value, &path);
+                let mut candidate = bytes;
+                candidate[index] = replacement;
+                let valid = std::str::from_utf8(&candidate).is_ok();
+                assert_eq!(
+                    status.is_ok(),
+                    valid,
+                    "{bytes:x?} at {index} with {replacement:x}: {status:?}"
+                );
+                let expected = if valid { candidate } else { bytes };
+                for (offset, byte) in expected.iter().copied().enumerate() {
+                    assert_eq!(
+                        execution.stored_byte_array_read(&storage, offset).unwrap(),
+                        byte
+                    );
+                }
+            }
         }
 
         fn shared(execution: &TerminalExecution<'_>, array: &ArrayStorage) -> ByteSequenceView {
