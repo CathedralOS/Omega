@@ -190,18 +190,6 @@ impl PreparedBuildEvaluation {
             )])
         })?;
         let configuration = Arc::new(execution.complete(returned).map_err(failure)?);
-        let last = configuration.accepted_builds.last().ok_or_else(|| {
-            failure(vec![Diagnostic::error(
-                "the returned Build lost its checked program",
-            )])
-        })?;
-        let subject_validation = if subject_validation == BuildSubjectValidation::Checked
-            && !last.view().pending_normal_completions().is_empty()
-        {
-            BuildSubjectValidation::CheckedAvailableDeclarations
-        } else {
-            subject_validation
-        };
         drop(restricted_build_grants);
         Ok(EvaluatedBuild {
             configuration,
