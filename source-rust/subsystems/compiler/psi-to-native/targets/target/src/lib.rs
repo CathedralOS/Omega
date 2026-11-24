@@ -63,9 +63,9 @@ pub use foreign_locator::{
 };
 pub use target_profile::{
     Architecture, CASE_TAG_BYTE_ALIGNMENT, CASE_TAG_BYTE_SIZE, HostedIntrinsicBundle, NativeTarget,
-    ObjectFormat, ProgramEntryCallingConvention, ProgramEntryPhysicalContractPackage,
-    ProgramEntrySchema, ProgramEntrySlotDeclaration, ProgramEntrySlots,
-    ProgramEntryVisibleParameters, TargetProfile, TargetWireIdentityError,
+    ObjectFormat, ProgramEntryArgument, ProgramEntryCallingConvention,
+    ProgramEntryPhysicalContractPackage, ProgramEntrySchema, ProgramEntrySlotDeclaration,
+    ProgramEntrySlots, ProgramStorageEntryRootRole, TargetProfile, TargetWireIdentityError,
 };
 pub use target_semantics::{
     SymbolicTargetObservationApplication, TargetEntryStackGuarantee, TargetSemantics, UefiX86_64,

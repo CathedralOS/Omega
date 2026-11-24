@@ -36,28 +36,28 @@ pub fn bound_program_entry_shapes(
             let (requirement_owner, requirement) =
                 core_arrival_requirement(typed, slot.semantic_arrival_requirement)
                     .map_err(Diagnostic::error)?;
-            let visible_parameters = match slot.visible_parameters {
-                semantic_vocabulary::ProgramEntryVisibleParameters::None => Vec::new(),
-                semantic_vocabulary::ProgramEntryVisibleParameters::ImageAndInitialStorage => typed
-                    .state_signature_parameters(requirement)
-                    .iter()
-                    .enumerate()
-                    .map(|(ordinal, parameter)| ParameterOccurrence {
-                        ordinal,
-                        symbol: parameter.symbol,
-                    })
-                    .collect(),
-            };
+            let parameters = typed.state_signature_parameters(requirement);
+            let mut visible_parameters = Vec::with_capacity(slot.visible_parameters.len());
+            for argument in slot.visible_parameters {
+                let ordinal = argument.requirement_parameter;
+                let parameter = parameters.get(ordinal).ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "installed entry `{}` names missing parameter {ordinal} on `{}`",
+                        binding.slot, slot.semantic_arrival_requirement
+                    ))
+                })?;
+                visible_parameters.push(ParameterOccurrence {
+                    ordinal,
+                    symbol: parameter.symbol,
+                });
+            }
             let implementation = binding.implementation_symbol;
             Ok(Some(BoundCallableShape {
                 slot: binding.slot.clone(),
-                arrival_description: match slot.visible_parameters {
-                    semantic_vocabulary::ProgramEntryVisibleParameters::None => {
-                        "hosted `ProgramEntry` exposes no arrival parameters"
-                    }
-                    semantic_vocabulary::ProgramEntryVisibleParameters::ImageAndInitialStorage => {
-                        "target schema exposes exactly image and initial-storage roots"
-                    }
+                arrival_description: if slot.visible_parameters.is_empty() {
+                    "hosted `ProgramEntry` exposes no arrival parameters"
+                } else {
+                    "the installed entry supplies its declared arrival parameters"
                 },
                 source_span: binding.source_span,
                 implementation,

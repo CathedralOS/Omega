@@ -14,12 +14,6 @@ pub struct ProgramStorageEntryDiagnostic(pub String);
 
 diagnostics::string_diagnostic!(ProgramStorageEntryDiagnostic);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProgramStorageEntryRootRole {
-    Image,
-    InitialStorage,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProgramStorageEntryPlan {
     target_slot: target::ProgramEntrySlotDeclaration,
@@ -35,17 +29,7 @@ impl SelectedProgramStorageEntryPlan {
         schema: provider_plans::ServiceSchema,
         requirement_identity: String,
     ) -> Result<Self, ProgramStorageEntryDiagnostic> {
-        let declares_exact_continuation = match slot.schema {
-            target::ProgramEntrySchema::ProgramStorageApplication => {
-                slot.visible_parameters
-                    == target::ProgramEntryVisibleParameters::ImageAndInitialStorage
-            }
-            target::ProgramEntrySchema::HostedApplication => {
-                slot.visible_parameters == target::ProgramEntryVisibleParameters::None
-            }
-        };
         if slot != slot.owner.program_entry_slot()
-            || !declares_exact_continuation
             || slot.semantic_arrival_requirement
                 != format!("{PROGRAM_STORAGE_ENTRY_OWNER}::{PROGRAM_STORAGE_ENTRY_METHOD}")
         {
