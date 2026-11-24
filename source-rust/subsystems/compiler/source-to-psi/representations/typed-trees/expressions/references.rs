@@ -3005,7 +3005,11 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
     }
 
     for application in program.applied_domain_applications.iter() {
-        if !retained.derived_declaration_references()
+        // These prepared rows can carry binders from any use of the domain.
+        // Source selection visits the arguments on the actual type, cast or
+        // membership in its lexical scope. Reachability also needs the
+        // instantiated theory, including types introduced by preparation.
+        if !retained.inferred_type_references()
             || !retained.declaration(application.declaration)
         {
             continue;
