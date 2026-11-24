@@ -185,33 +185,44 @@ impl SourceHost<'_, '_> {
         acquired: &AcquiredBuildSource,
         snapshot: Option<BuildSnapshotRequest>,
         dependency: bool,
+        libraries: &[BuildLibraryRequest],
     ) -> Result<ExecutedBuild, PackageCommandError> {
         self.acquisitions
             .admit_build_descent(&self.active, acquired)?;
         self.acquisitions.admit_locked_activation(acquired)?;
-        let execution = self
-            .session
-            .source_build_inputs(self.profile, snapshot, dependency)?;
-        let stage = project_build::prepare(
-            PlanningRequest {
-                root: entry,
-                sources: PlanningSources::Captured(acquired.source_capture()),
-                execution,
-                artifact_only: false,
-            },
-            Default::default(),
-            planning_timings(self.timings),
-        )?;
         self.active.push(acquired.clone());
         let mut requests = BTreeMap::new();
-        let result = project_build::interpret(
-            stage,
-            &mut services::SourceServices {
-                host: self,
-                acquired,
-                requests: &mut requests,
-            },
-        );
+        let result = (|| -> Result<_, PackageCommandError> {
+            let sources = if libraries.is_empty() {
+                PlanningSources::Captured(acquired.source_capture())
+            } else {
+                PlanningSources::CapturedWithLibraries {
+                    source: acquired.source_capture(),
+                    libraries: self.supplied_libraries(acquired, libraries)?,
+                }
+            };
+            let execution = self
+                .session
+                .source_build_inputs(self.profile, snapshot, dependency)?;
+            let stage = project_build::prepare(
+                PlanningRequest {
+                    root: entry,
+                    sources,
+                    execution,
+                    artifact_only: false,
+                },
+                Default::default(),
+                planning_timings(self.timings),
+            )?;
+            Ok(project_build::interpret(
+                stage,
+                &mut services::SourceServices {
+                    host: self,
+                    acquired,
+                    requests: &mut requests,
+                },
+            )?)
+        })();
         self.active.pop();
         let stage = result?;
         self.session
@@ -225,7 +236,7 @@ impl SourceHost<'_, '_> {
         acquired: AcquiredBuildSource,
         snapshot: Option<BuildSnapshotRequest>,
     ) -> Result<ResolvedProject, PackageCommandError> {
-        let root = self.execute(entry, &acquired, snapshot, false)?;
+        let root = self.execute(entry, &acquired, snapshot, false, &[])?;
         self.join(acquired, root.stage)
     }
 
@@ -327,7 +338,7 @@ impl SourceHost<'_, '_> {
             acquired.verify_reused_capture(&source)?;
             Ok(stage)
         } else {
-            self.execute(&acquired.entry_path(), acquired, None, true)
+            self.execute(&acquired.entry_path(), acquired, None, true, &[])
         }
     }
 
@@ -340,6 +351,7 @@ impl SourceHost<'_, '_> {
             workspace.acquired_source(),
             None,
             true,
+            &[],
         )?;
         let declaration = root.stage.settle_workspace_declaration()?;
         let members = self
@@ -400,16 +412,27 @@ fn planning_timings(enabled: bool) -> CompileTimings {
     }
 }
 
+/// The root invoker's selection. The package manager resolves the source before entering the receiving Build.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BuildLibraryRequest {
+    pub alias: build_declarations::ProjectName,
+    pub source: build_declarations::BuildDependencySource,
+}
+
 /// A package check can name its conventional main file to select that existing package.
 pub enum ProjectInput<'a> {
     File(&'a Path),
+    WithBuildLibraries {
+        file: &'a Path,
+        libraries: &'a [BuildLibraryRequest],
+    },
     PackageCheck(&'a Path),
 }
 
 impl ProjectInput<'_> {
     fn path(&self) -> &Path {
         match self {
-            Self::File(path) | Self::PackageCheck(path) => path,
+            Self::File(path) | Self::PackageCheck(path) | Self::WithBuildLibraries { file: path, .. } => path,
         }
     }
 }
@@ -501,7 +524,13 @@ pub fn open_products(
             }
             _ => preparation.entry_path(),
         };
-        let returned = host.execute(&entry, &acquired, snapshot, false)?.stage;
+        let libraries = match input {
+            ProjectInput::WithBuildLibraries { libraries, .. } => libraries,
+            _ => &[],
+        };
+        let returned = host
+            .execute(&entry, &acquired, snapshot, false, libraries)?
+            .stage;
         if returned.returned().declaration().is_none() {
             preparation.require_unlocked_anonymous()?;
             return Ok(ProjectProducts::shared(

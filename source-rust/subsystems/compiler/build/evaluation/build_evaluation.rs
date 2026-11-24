@@ -60,6 +60,8 @@ pub struct BuildEvaluationRequest<'request> {
     pub anonymous_source: Option<&'request package_compilation::AnonymousSourceCapture>,
     pub generated_source_custody:
         &'request [(source_text::SourceId, build_output::PackageGeneratedSource)],
+    pub source_acquisition:
+        Option<&'request package_compilation::source_assembly::BuildStageAcquisition>,
     pub execution: BuildExecutionInputs,
     pub artifact_only: bool,
 }
@@ -113,13 +115,13 @@ impl PreparedBuildEvaluation {
         let typed = interval.program.as_ref();
         let acquisition = self
             .execution
-            .unbound_acquisition
+            .original_sources
             .as_ref()
             .filter(|capture| match source_acquisition {
-                Some(stage) => stage.retains(capture, typed),
+                Some(stage) => stage.retains(&capture.capture, typed),
                 None if package_inputs.is_none() => {
                     anonymous_source.and_then(|owner| owner.acquired_for(typed))
-                        == Some(capture.as_ref())
+                        == Some(&capture.capture)
                 }
                 None => false,
             })
@@ -319,6 +321,7 @@ pub fn prepare_build_evaluation(
         package_inputs,
         anonymous_source,
         generated_source_custody,
+        source_acquisition,
         execution,
         artifact_only,
     } = request;
@@ -439,15 +442,29 @@ pub fn prepare_build_evaluation(
                 accounting: source_completion_accounting.clone(),
             });
         }
-        let unbound_acquisition = anonymous_source
+        let capture = anonymous_source
             .filter(|owner| {
                 package_inputs.is_none() && std::ptr::eq(owner.sources().as_ref(), sources)
             })
-            .and_then(|owner| owner.acquired_for(typed))
-            .cloned()
-            .map(Arc::new);
+            .and_then(|owner| owner.acquired_for(typed));
+        let libraries = match source_acquisition {
+            Some(stage) => capture
+                .and_then(|capture| stage.supplied_libraries_for(capture, typed))
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "the Build library inputs belong to another source activation",
+                    )]
+                })?,
+            None => Arc::default(),
+        };
+        let original_sources = capture.map(|capture| {
+            Arc::new(crate::activation::OriginalBuildSources {
+                capture: capture.clone(),
+                libraries,
+            })
+        });
         let execution =
-            PreparedBuildExecution::prepare(admitted, execution_purpose, unbound_acquisition)?;
+            PreparedBuildExecution::prepare(admitted, execution_purpose, original_sources)?;
         Ok(PreparedBuildEvaluation {
             execution,
             restricted_build_requests,

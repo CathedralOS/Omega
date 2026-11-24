@@ -29,7 +29,7 @@ pub struct PreparedBuildExecution {
         terminal_codec::TerminalExecutionIdentity,
         Arc<source_compiler::publication::AcceptedTerminalSource>,
     )>,
-    pub(crate) unbound_acquisition: Option<Arc<package_compilation::CapturedLocalSource>>,
+    pub(crate) original_sources: Option<Arc<super::OriginalBuildSources>>,
     execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
     produced: Arc<source_compiler::publication::ProducedTerminalProgram>,
     accepted: Arc<source_compiler::publication::AcceptedTerminalSource>,
@@ -51,7 +51,7 @@ impl PreparedBuildExecution {
     pub(crate) fn prepare(
         admitted: AdmittedBuildProgram,
         execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
-        unbound_acquisition: Option<Arc<package_compilation::CapturedLocalSource>>,
+        original_sources: Option<Arc<super::OriginalBuildSources>>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let AdmittedBuildProgram {
             prepared,
@@ -95,7 +95,7 @@ impl PreparedBuildExecution {
         Ok(Self {
             earlier: Vec::new(),
             predecessor: None,
-            unbound_acquisition,
+            original_sources,
             execution_purpose,
             accepted: prepared,
             produced,
@@ -142,7 +142,7 @@ impl PreparedBuildExecution {
     pub(crate) fn continue_with(
         &mut self,
         admitted: AdmittedBuildProgram,
-        unbound_acquisition: Option<Arc<package_compilation::CapturedLocalSource>>,
+        original_sources: Option<Arc<super::OriginalBuildSources>>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let AdmittedBuildProgram {
             prepared,
@@ -168,7 +168,7 @@ impl PreparedBuildExecution {
                 self.produced.view().custody_identity(),
                 Arc::clone(&self.accepted),
             )),
-            unbound_acquisition,
+            original_sources,
             execution_purpose: self.execution_purpose,
             produced,
             providers: Arc::new(providers),
@@ -328,7 +328,7 @@ impl PreparedBuildExecution {
             self.execution_profile,
             self.default_source,
             self.default_sources.clone(),
-            self.unbound_acquisition.clone(),
+            self.original_sources.clone(),
             carried.filesystem.take(),
         )
         .and_then(|host| host.resume(carried, &predecessor))
@@ -365,7 +365,7 @@ impl PreparedBuildExecution {
             self.execution_profile,
             self.default_source,
             self.default_sources.clone(),
-            self.unbound_acquisition.clone(),
+            self.original_sources.clone(),
             None,
         )
         .map_err(|reason| self.refuse(&reason))
