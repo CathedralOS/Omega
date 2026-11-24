@@ -549,6 +549,57 @@ fn a_description_for_the_same_name_and_span_in_another_package_is_refused() {
     );
 }
 
+#[test]
+fn build_reports_each_unbound_import_at_its_authored_span_before_typing() {
+    let text = "use first;\nuse second;\nmachine build() -> u8 { true }";
+    let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
+    let mut files = SourceMap::default();
+    let root = files
+        .add_checked_instance(
+            "project/build.omg".into(),
+            text,
+            "project".into(),
+            Some(package),
+            SourceOrigin::User,
+            SourceResolutionStratum::Base,
+            DependencyScope::Build,
+        )
+        .source_id;
+    let span = |part: &str| {
+        let start = text.find(part).unwrap();
+        Span::new(start, start + part.len())
+    };
+    let missing = [
+        ("first", span("use first;")),
+        ("second", span("use second;")),
+    ];
+    let stage = source_compiler::BuildStageSource {
+        parsed: source_compiler::ParsedStageSources::parse(Arc::new(files), vec![root], vec![])
+            .unwrap(),
+        build_sources: [root].into(),
+        pending_imports: missing
+            .iter()
+            .map(|(name, span)| source_compiler::PendingBuildImport {
+                source: root,
+                span: *span,
+                target: source_compiler::SourceImportTarget::Namespace(vec![(*name).into()]),
+            })
+            .collect(),
+        entry: SourceSpan::new(root, span("build")),
+    };
+    let Err(errors) = stage.prepare(&Default::default(), "linux_x86_64", None) else {
+        panic!("a Build with unbound imports was prepared");
+    };
+    assert_eq!(errors.len(), missing.len());
+    for (error, (name, span)) in errors.iter().zip(missing) {
+        assert_eq!(
+            error.message,
+            format!("Build import `{name}` has no supplied source")
+        );
+        assert_eq!(error.source_span, Some(SourceSpan::new(root, span)));
+    }
+}
+
 fn publish_build(
     files: SourceMap,
     entry: SourceSpan,
@@ -565,7 +616,7 @@ fn publish_build(
         entry,
     };
     let typed = stage
-        .prepare(None, &Default::default(), "linux_x86_64", None)?
+        .prepare(&Default::default(), "linux_x86_64", None)?
         .program;
     let machine = typed
         .machines()

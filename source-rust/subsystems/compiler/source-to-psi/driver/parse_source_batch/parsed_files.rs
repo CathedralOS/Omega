@@ -10,9 +10,6 @@ use syntax_trees::{SyntaxTrees, item::Item};
 #[derive(Debug, Clone, PartialEq, Eq, Default, record_storage::Record)]
 pub struct SourceSyntax {
     pub(crate) trees: SyntaxTrees,
-    /// Present when the selected Build entry has been projected onto a prefix.
-    pub(crate) partial_build_entry: Option<SourceSpan>,
-    pub(crate) partial_build_can_return: bool,
     files: Vec<ParsedFile>,
 }
 
@@ -40,8 +37,6 @@ impl SourceSyntax {
     pub fn new(source: SourceId) -> Self {
         Self {
             trees: SyntaxTrees::new(source),
-            partial_build_entry: None,
-            partial_build_can_return: false,
             files: Vec::new(),
         }
     }
