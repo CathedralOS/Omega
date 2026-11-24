@@ -29,6 +29,7 @@ impl NormalizedComponentLocator {
                 | TargetProfile::MacosX64
                 | TargetProfile::MacosArm64
                 | TargetProfile::WindowsX64
+                | TargetProfile::WindowsArm64
         ) {
             return Err("component linkage requires an admitted ELF, Mach-O, or Windows PE target");
         }
@@ -81,11 +82,10 @@ impl NormalizedComponentLocator {
     }
 
     pub fn image_filename(&self) -> String {
-        let suffix = match self.target {
-            TargetProfile::LinuxX64 | TargetProfile::LinuxArm64 => "so",
-            TargetProfile::MacosX64 | TargetProfile::MacosArm64 => "dylib",
-            TargetProfile::WindowsX64 => "dll",
-            _ => unreachable!("component locator construction admits only supported containers"),
+        let suffix = match self.target.native_target().object_format {
+            crate::ObjectFormat::Elf => "so",
+            crate::ObjectFormat::MachO => "dylib",
+            crate::ObjectFormat::Coff => "dll",
         };
         format!(
             "libomega-component-{}.{suffix}",
@@ -214,15 +214,18 @@ mod tests {
 
     #[test]
     fn windows_component_locator_names_a_pe_sibling() {
-        let locator = NormalizedComponentLocator::for_image(
-            TargetProfile::WindowsX64,
-            b"component bytes",
-            [7; 32],
-        )
-        .expect("windows x86-64 is an admitted component target");
-        let name = locator.image_filename();
-        assert!(name.starts_with("libomega-component-"));
-        assert!(name.ends_with(".dll"));
-        assert!(locator.export_symbol().starts_with("__omega_slot_"));
+        let locators = [TargetProfile::WindowsX64, TargetProfile::WindowsArm64].map(|target| {
+            let locator = NormalizedComponentLocator::for_image(target, b"component bytes", [7; 32])
+                .expect("both Windows targets admit component DLLs");
+            assert!(locator.image_filename().starts_with("libomega-component-"));
+            assert!(locator.image_filename().ends_with(".dll"));
+            assert!(locator.export_symbol().starts_with("__omega_slot_"));
+            locator
+        });
+        assert_ne!(locators[0].identity_digest(), locators[1].identity_digest());
+        assert!(
+            NormalizedComponentLocator::for_image(TargetProfile::UefiX64, b"component bytes", [7; 32])
+                .is_err()
+        );
     }
 }

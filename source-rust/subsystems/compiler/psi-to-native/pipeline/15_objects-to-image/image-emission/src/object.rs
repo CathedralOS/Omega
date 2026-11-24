@@ -321,27 +321,19 @@ pub(crate) mod component_shared_image {
                 let (image, _, diagnostic) = error.into_parts();
                 (image, diagnostic)
             }),
-            target::ObjectFormat::Coff if image.target == target::NativeTarget::windows_x64() => {
-                image_pe::emit_pe_shared_component(
-                    image,
-                    vec![image_pe::PeComponentExport {
-                        symbol: export_symbol,
-                        name,
-                        slot_commitment,
-                    }],
-                )
-                .map(ComponentSharedContainer::Pe)
-                .map_err(|error| {
-                    let (image, _, diagnostic) = error.into_parts();
-                    (image, diagnostic)
-                })
-            }
-            _ => Err((
+            target::ObjectFormat::Coff => image_pe::emit_pe_shared_component(
                 image,
-                Diagnostic::error(
-                    "shared component requires an admitted ELF, Mach-O, or Windows PE container",
-                ),
-            )),
+                vec![image_pe::PeComponentExport {
+                    symbol: export_symbol,
+                    name,
+                    slot_commitment,
+                }],
+            )
+            .map(ComponentSharedContainer::Pe)
+            .map_err(|error| {
+                let (image, _, diagnostic) = error.into_parts();
+                (image, diagnostic)
+            }),
         }
     }
 
