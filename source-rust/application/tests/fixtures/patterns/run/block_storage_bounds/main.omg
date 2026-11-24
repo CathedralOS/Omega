@@ -44,13 +44,42 @@ machine nested_field(first: bool, second: bool) -> u32 {
     1 + cell.value
 }
 
+// Reading the projected flag leaves the whole temporary to retire on its
+// selected arm. The markers record which subjects were constructed.
+data Flag { case On; case Off; }
+data Marker { retired: bool; }
+data MarkedFlag<'m> dropped by retire_flag { flag: Flag; marker: @'m mutable Marker; }
+
+machine retire_flag<'m>(subject: MarkedFlag<'m>) {
+    let { flag as _, marker } = move subject;
+    marker.retired = true;
+}
+machine marked_flag<'m>(marker: @'m mutable Marker, first: bool) -> MarkedFlag<'m> {
+    let flag: Flag = match first { true -> Flag::On, false -> Flag::Off };
+    MarkedFlag { flag: flag, marker: move marker }
+}
+machine nested_subjects(first: bool, second: bool) -> u32 {
+    let mutable outer: Marker = Marker { retired: false };
+    let mutable inner: Marker = Marker { retired: false };
+    let mutable stored: u32 = 6;
+    let selected: u32 = match marked_flag(@mutable outer, first).flag {
+        Flag::On -> match marked_flag(@mutable inner, second).flag {
+            Flag::On -> { stored = 10; 0 },
+            Flag::Off -> 1,
+        },
+        Flag::Off -> 2,
+    };
+    let next: u32 = stored + 1;
+    transition outer.retired && inner.retired == first { true -> next, false -> 0 }
+}
 machine main() crashes Trap {
     let selected: Ticket = select_ticket(Ticket { slot: 4 }, true);
     let { slot } = move selected;
     transition scalar(true) == 9 && scalar(false) == 5
         && field(true) == 8 && field(false) == 4 && slot == 7
         && nested(true, true) == 9 && nested(true, false) == 5 && nested(false, true) == 5
-        && nested_field(true, true) == 8 && nested_field(true, false) == 6 && nested_field(false, true) == 4 {
+        && nested_field(true, true) == 8 && nested_field(true, false) == 6 && nested_field(false, true) == 4
+        && nested_subjects(true, true) == 11 && nested_subjects(true, false) == 7 && nested_subjects(false, true) == 7 {
         true -> success(), false -> failed(),
     }
     machine success() {}
