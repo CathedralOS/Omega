@@ -871,6 +871,35 @@ mod tests {
         assert_eq!(result.unwrap().actions().len(), 1);
     }
 
+    // The first candidate already writes the flags, so its declared form adds
+    // no units; the second adds the flags, which a later instruction reads.
+    // Each candidate must be judged by liveness of its own added units.
+    #[test]
+    fn each_candidate_is_judged_by_the_units_its_own_form_adds() {
+        let (function, rows) = roster(vec![(
+            vec![
+                instruction(1, &[], &[FLAGS]),
+                instruction(2, &[], &[]),
+                instruction(3, &[FLAGS], &[]),
+            ],
+            vec![
+                effects(1, zero(), true),
+                effects(2, zero(), true),
+                effects(3, seven(), true),
+            ],
+        )]);
+        let (result, function, usage) = run(function, rows, vec![vec![]]);
+        let execution = result.unwrap();
+        assert_eq!(execution.candidates(), 2);
+        assert_eq!(execution.actions().len(), 1);
+        assert_eq!(execution.actions()[0].instruction, SelectedInstructionId(1));
+        assert_eq!(
+            function.blocks[0].instructions[1].alternative.key.variant,
+            0
+        );
+        assert_eq!(usage.commits, 1);
+    }
+
     #[test]
     fn a_candidate_without_a_declared_form_rejects_by_rule_and_site() {
         let (function, rows) = roster(vec![(
