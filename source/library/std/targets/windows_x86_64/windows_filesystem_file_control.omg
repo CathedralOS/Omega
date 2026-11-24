@@ -52,11 +52,11 @@ reaches FilesystemMetadataQuery + FilesystemMetadataMutation {
 
 machine windows_filesystem_native_set_path_readonly(path: @[u8] in |paths|::Path, readonly: bool) -> i32
 reaches FilesystemMetadataQuery + FilesystemMetadataMutation {
-    let mutable wide: [u16; 4096];
+    let mutable wide: [u16; 32768];
     let count: i64 = |windows_filesystem_paths|::windows_wide_path(path as - |paths|::Path, @mutable wide);
-    wide[4095] = 0;
+    wide[32767] = 0;
     transition count > 0 { true -> block acquire(wide as +WindowsNativePath, readonly), false -> (-87) }
-    machine acquire(wide: [u16; 4096] in WindowsNativePath, readonly: bool) -> i32 {
+    machine acquire(wide: [u16; 32768] in WindowsNativePath, readonly: bool) -> i32 {
         let raw: i64 = block |control_io|::WindowsFilesystemFileControlIo::open_attributes(@wide, 384, 7, 0, 3, 34603008, 0);
         let handle: u64 = |control|::windows_filesystem_native_normalize_handle(raw);
         transition handle != 0 { true -> block update(handle, readonly), false -> failed() }

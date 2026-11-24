@@ -36,20 +36,20 @@ reaches FilesystemMetadataQuery {
 
 machine windows_filesystem_native_read_metadata(path: @[u8] in |paths|::Path, no_follow: bool) -> |win_fs|::WindowsMetadataResult
 reaches FilesystemMetadataQuery {
-    let mutable wide: [u16; 4096];
+    let mutable wide: [u16; 32768];
     let count: i64 = |windows_filesystem_paths|::windows_wide_path(path as - |paths|::Path, @mutable wide);
-    wide[4095] = 0;
+    wide[32767] = 0;
     transition count > 0 {
         true -> block select(wide as +WindowsNativePath, no_follow),
         false -> (|win_fs|::WindowsMetadataResult::Error { code: 87 })
     }
-    machine select(wide: [u16; 4096] in WindowsNativePath, no_follow: bool) -> |win_fs|::WindowsMetadataResult {
+    machine select(wide: [u16; 32768] in WindowsNativePath, no_follow: bool) -> |win_fs|::WindowsMetadataResult {
         transition no_follow {
             true -> block open(wide, 36700160),
             false -> block open(wide, 34603008)
         }
     }
-    machine open(wide: [u16; 4096] in WindowsNativePath, flags: u32) -> |win_fs|::WindowsMetadataResult
+    machine open(wide: [u16; 32768] in WindowsNativePath, flags: u32) -> |win_fs|::WindowsMetadataResult
     requires flags == 34603008 || flags == 36700160 {
         let raw: i64 = block |metadata_io|::WindowsFilesystemMetadataIo::open_attributes(@wide, 128, 7, 0, 3, flags, 0);
         let handle: u64 = |control|::windows_filesystem_native_normalize_handle(raw);

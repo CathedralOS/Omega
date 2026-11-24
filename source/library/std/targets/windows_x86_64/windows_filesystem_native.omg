@@ -9,7 +9,9 @@ use omega\language\core\FilesystemNamespaceMutation;
 // The exact fixed buffer is classified before foreign scanning can observe it.
 // Boundary contracts carry this structural identity, not an array read disguised
 // as a declaration-local scalar precondition. The last WCHAR bounds the scan.
-domain [u16; 4096]::WindowsNativePath requires self[4095] == 0;
+// Extended Win32 input paths may hold 32,767 UTF-16 units before their NUL.
+// https://learn.microsoft.com/windows/win32/fileio/maximum-file-path-limitation
+domain [u16; 32768]::WindowsNativePath requires self[32767] == 0;
 
 data WindowsFilesystemIoStatus { status: i64; information: u64; }
 
@@ -17,7 +19,7 @@ data WindowsFilesystemIoStatus { status: i64; information: u64; }
 // not a generic metadata escape: its only admitted class is the four-byte
 // FileModeInformation record describing this open file object's I/O mode.
 boundary trait WindowsFilesystemIo {
-    machine c_create_file(path: @[u16; 4096] in WindowsNativePath, desired_access: u32, share_mode: u32, security_attributes: u64, creation_disposition: u32, flags_and_attributes: u32, template: u64) -> i64
+    machine c_create_file(path: @[u16; 32768] in WindowsNativePath, desired_access: u32, share_mode: u32, security_attributes: u64, creation_disposition: u32, flags_and_attributes: u32, template: u64) -> i64
     requires security_attributes == 0 && template == 0
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation blocks
     crashes none;
@@ -27,33 +29,33 @@ boundary trait WindowsFilesystemIo {
     machine c_set_file_pointer(handle: i64, distance: i64, position: @mutable i64, method: u32) -> i32 reaches none blocks crashes none;
     machine c_get_current_process() -> i64 reaches none crashes none;
     machine c_duplicate_handle(source_process: i64, source: i64, target_process: i64, target: @mutable i64, desired_access: u32, inherit: i32, options: u32) -> i32 reaches none crashes none;
-    machine c_set_file_attributes(path: @[u16; 4096] in WindowsNativePath, attributes: u32) -> i32
+    machine c_set_file_attributes(path: @[u16; 32768] in WindowsNativePath, attributes: u32) -> i32
 
     reaches FilesystemMetadataMutation blocks
     crashes none;
-    machine c_move_file(from: @[u16; 4096] in WindowsNativePath, to: @[u16; 4096] in WindowsNativePath, flags: u32) -> i32
+    machine c_move_file(from: @[u16; 32768] in WindowsNativePath, to: @[u16; 32768] in WindowsNativePath, flags: u32) -> i32
 
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation blocks
     crashes none;
     // MOVEFILE_REPLACE_EXISTING alone excludes cross-volume copying and
     // delayed-until-reboot mutation. The constraint is part of this contract.
-    machine c_rename_file(from: @[u16; 4096] in WindowsNativePath, to: @[u16; 4096] in WindowsNativePath, flags: u32) -> i32
+    machine c_rename_file(from: @[u16; 32768] in WindowsNativePath, to: @[u16; 32768] in WindowsNativePath, flags: u32) -> i32
     requires flags == 1
     reaches FilesystemNamespaceMutation blocks
     crashes none;
-    machine c_hard_link(link: @[u16; 4096] in WindowsNativePath, original: @[u16; 4096] in WindowsNativePath, security_attributes: u64) -> i32
+    machine c_hard_link(link: @[u16; 32768] in WindowsNativePath, original: @[u16; 32768] in WindowsNativePath, security_attributes: u64) -> i32
     requires security_attributes == 0
     reaches FilesystemNamespaceMutation blocks
     crashes none;
-    machine c_create_directory(path: @[u16; 4096] in WindowsNativePath, security_attributes: u64) -> i32
+    machine c_create_directory(path: @[u16; 32768] in WindowsNativePath, security_attributes: u64) -> i32
     requires security_attributes == 0
     reaches FilesystemMetadataMutation + FilesystemNamespaceMutation blocks
     crashes none;
-    machine c_remove_directory(path: @[u16; 4096] in WindowsNativePath) -> i32
+    machine c_remove_directory(path: @[u16; 32768] in WindowsNativePath) -> i32
 
     reaches FilesystemNamespaceMutation blocks
     crashes none;
-    machine c_delete_file(path: @[u16; 4096] in WindowsNativePath) -> i32
+    machine c_delete_file(path: @[u16; 32768] in WindowsNativePath) -> i32
 
     reaches FilesystemNamespaceMutation blocks
     crashes none;

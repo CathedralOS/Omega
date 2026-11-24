@@ -28,14 +28,14 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 machine windows_removal_acquire_root(path: @[u8] in |paths|::Path) -> i64
 ensures result != -1
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
-    let mutable wide: [u16; 4096];
+    let mutable wide: [u16; 32768];
     let units: i64 = |windows_filesystem_paths|::windows_wide_path(path as - |paths|::Path, @mutable wide);
-    wide[4095] = 0;
+    wide[32767] = 0;
     transition units > 0 { true -> block open(wide as +WindowsNativePath), false -> invalid() }
     machine invalid() -> i64
     ensures result != -1
     { |win_io|::WindowsFilesystemIo::c_set_last_error(87); 0 }
-    machine open(path: [u16; 4096] in WindowsNativePath) -> i64
+    machine open(path: [u16; 32768] in WindowsNativePath) -> i64
     ensures result != -1
     {
         // SYNCHRONIZE|DELETE|READ_ATTRIBUTES|LIST_DIRECTORY; shared delete;
@@ -110,9 +110,9 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
     requires (parent as -WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && length < 4096
         && (access == 1114240 || access == 1114241) {
         entry.characters[4095] = 0;
-        // The terminated copy carries `WindowsNativePath`; a domain cannot be
+        // The terminated copy carries `WindowsNativeComponent`; a domain cannot be
         // added through the borrow of `entry.characters` itself.
-        let native: [u16; 4096] in WindowsNativePath = entry.characters as +WindowsNativePath;
+        let native: [u16; 4096] in |removal_io|::WindowsNativeComponent = entry.characters as + |removal_io|::WindowsNativeComponent;
         let name: |removal_io|::WindowsNativeUnicodeString = |removal_io|::WindowsNativeUnicodeString {
             // length < 4096 makes this explicit narrowing exact; retain the
             // arithmetic expression so the record proves its even byte count.
