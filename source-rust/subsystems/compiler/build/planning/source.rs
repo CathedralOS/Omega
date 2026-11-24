@@ -56,7 +56,6 @@ pub(super) struct PlanningSource {
 
 /// The opened Product and the exact Build and package graph that admitted it.
 pub struct PlannedProduct {
-    build_advisories: Vec<Diagnostic>,
     pub(crate) evaluated: EvaluatedBuild,
     pub(crate) build_profile: TargetProfile,
     pub(super) runtime_consents: Option<Vec<TerminalPermissionAcceptance>>,
@@ -148,10 +147,6 @@ impl PlannedProduct {
                 build.config.native_binding_evaluation.clone(),
             )
             .map_err(refusal)
-    }
-
-    pub fn build_advisories(&self) -> &[Diagnostic] {
-        &self.build_advisories
     }
 
     pub fn attribute_diagnostics(&self, rows: &mut [Diagnostic]) {
@@ -502,16 +497,7 @@ impl PlanningSource {
             )?;
             Some(extension.prepare_source_request(&source.parsed.files, inputs, &mut self.timings)?)
         };
-        let mut build_advisories = self.stage.unused_import_advisories().to_vec();
-        if !build_advisories.is_empty() {
-            let sources = self
-                .query_authors
-                .as_deref()
-                .ok_or_else(|| refusal("Build diagnostic lost its source map".into()))?;
-            package_compilation::attribute_diagnostics(&mut build_advisories, sources, inputs);
-        }
         Ok(PlannedProduct {
-            build_advisories,
             generated,
             evaluated,
             build_profile: self.profile,

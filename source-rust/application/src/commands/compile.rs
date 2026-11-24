@@ -544,7 +544,6 @@ fn compile_target(
         eprintln!("{} validator rows", rows.len());
     }
     planned.attribute_diagnostics(&mut advisories);
-    advisories.extend_from_slice(planned.build_advisories());
     if !advisories.is_empty() {
         let mut text = String::new();
         diagnostics::write_diagnostics(&mut text, &advisories).unwrap();
