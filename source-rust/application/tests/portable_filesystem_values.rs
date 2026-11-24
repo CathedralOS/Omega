@@ -191,6 +191,33 @@ fn windows_adapter_values_preserve_counts_timestamps_and_whole_names() {
 }
 
 #[test]
+fn windows_directory_emptiness_stops_before_a_later_enumeration_error() {
+    let project = Project::new("windows-directory-names");
+    let library = support::repository_root().join("source/library/std/targets/windows_x86_64");
+    let records =
+        std::fs::read_to_string(library.join("windows_filesystem_directory_native.omg")).unwrap();
+    project.write(
+        "native_record.omg",
+        &declaration(&records, "data WindowsNativeDirectoryNameInfo "),
+    );
+    let scan = std::fs::read_to_string(library.join("windows_filesystem_directory.omg")).unwrap();
+    let mut program =
+        include_str!("fixtures/filesystem/run/windows_directory_names/main.omg").to_owned();
+    for heading in [
+        "data WindowsDirectoryStep ",
+        "machine windows_directory_error(",
+        "machine windows_directory_dot(",
+        "machine windows_directory_scan_names(",
+    ] {
+        program.push_str(&declaration(&scan, heading));
+        program.push('\n');
+    }
+    project.write("main.omg", &program);
+    project.write("build.omg", &build());
+    both_zero(project.observe(&["run", "--both"], "build.omg"));
+}
+
+#[test]
 fn portable_filesystem_public_calls_preserve_neighboring_bytes() {
     // The fixture's own Build declares its standard-library edge. The program
     // runs in a scratch directory, where it creates and removes its files.

@@ -103,6 +103,10 @@ public boundary trait WindowsFilesystemHost {
     machine directory_count(path: @[u8] in |paths|::Path) -> i64
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration blocks
     crashes none;
+    // Returns one after the first non-dot name, or zero at the native end.
+    machine directory_has_entry(path: @[u8] in |paths|::Path) -> i64
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration blocks
+    crashes none;
     // Reopen an independent synchronous file object without increasing the
     // pinned original's granted data rights. The original cursor is untouched.
     machine read_at(handle: u64, buffer: @mutable [u8], count: u64, offset: i64) -> i64

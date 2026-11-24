@@ -105,7 +105,6 @@ FilesystemService.read_dir_count | limit > 2 | linux_x86_64,linux_arm64,macos_ar
 FilesystemService.read_dir_is_empty | clamp narrow_i64_to_i32_wrapping | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX dirent and timespec decoders narrow fields of fixed width
 FilesystemService.read_dir_is_empty | clamp narrow_i64_to_u64_wrapping | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX dirent and timespec decoders narrow fields of fixed width
 FilesystemService.read_dir_is_empty | const read_dir(..512..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.read_dir_is_empty | const windows_filesystem_transferred(..9223372036854775807..) | windows_x86_64,windows_arm64 | noise | Windows passes i64 maximum as the requested count of an enumeration read
 FilesystemService.read_dir_is_empty | limit < 255 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
 FilesystemService.read_dir_is_empty | limit < 256 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
 FilesystemService.read_dir_is_empty | limit < 489 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries

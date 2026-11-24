@@ -1,0 +1,69 @@
+use native_record.omg as directory_io;
+use omega\language\core\DirectoryEnumeration;
+use omega\language\core\widen_u32_to_i64;
+
+// The handles select deterministic native name streams. The production scan,
+// dot filter, status conversion and native record declaration are supplied
+// by portable_filesystem_values.rs.
+domain i64::WindowsPrivateNonalertFileOrAbsent requires self != -1;
+
+machine windows_directory_next(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: @mutable |directory_io|::WindowsNativeDirectoryNameInfo) -> WindowsDirectoryStep
+reaches DirectoryEnumeration {
+    transition output.control {
+        0 -> dot(output),
+        1 -> parent(output),
+        2 -> first(handle, output),
+        _ -> following(handle)
+    }
+    machine dot(output: @mutable |directory_io|::WindowsNativeDirectoryNameInfo) -> WindowsDirectoryStep {
+        output.control = 1;
+        output.characters[0] = 46;
+        WindowsDirectoryStep::Name { length: 1 }
+    }
+    machine parent(output: @mutable |directory_io|::WindowsNativeDirectoryNameInfo) -> WindowsDirectoryStep {
+        output.control = 2;
+        output.characters[1] = 46;
+        WindowsDirectoryStep::Name { length: 2 }
+    }
+    machine first(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: @mutable |directory_io|::WindowsNativeDirectoryNameInfo) -> WindowsDirectoryStep {
+        transition (handle as -WindowsPrivateNonalertFileOrAbsent) == 1 {
+            true -> WindowsDirectoryStep::End,
+            false -> ordinary(output)
+        }
+    }
+    machine ordinary(output: @mutable |directory_io|::WindowsNativeDirectoryNameInfo) -> WindowsDirectoryStep {
+        output.control = 3;
+        // Counting names does not decode an unmatched UTF-16 surrogate.
+        output.characters[0] = 55296;
+        WindowsDirectoryStep::Name { length: 1 }
+    }
+    machine following(handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> WindowsDirectoryStep {
+        transition (handle as -WindowsPrivateNonalertFileOrAbsent) == 2 {
+            true -> WindowsDirectoryStep::Error { code: 5 },
+            false -> WindowsDirectoryStep::End
+        }
+    }
+}
+
+machine scan(handle: i64 in WindowsPrivateNonalertFileOrAbsent, count: i64, first_only: bool) -> i64
+requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0
+reaches DirectoryEnumeration {
+    let mutable record: |directory_io|::WindowsNativeDirectoryNameInfo;
+    block windows_directory_scan_names(handle, @mutable record, count, first_only)
+}
+
+machine main() crashes Trap {
+    let empty: i64 = block scan(1 as +WindowsPrivateNonalertFileOrAbsent, 0, true);
+    let first: i64 = block scan(2 as +WindowsPrivateNonalertFileOrAbsent, 0, true);
+    let late_error: i64 = block scan(2 as +WindowsPrivateNonalertFileOrAbsent, 0, false);
+    let counted: i64 = block scan(3 as +WindowsPrivateNonalertFileOrAbsent, 0, false);
+    let full: i64 = block scan(1 as +WindowsPrivateNonalertFileOrAbsent, 9223372036854775807, false);
+    let overflow: i64 = block scan(3 as +WindowsPrivateNonalertFileOrAbsent, 9223372036854775807, false);
+    transition empty == 0 && first == 1 && late_error == -5 && counted == 1
+        && full == 9223372036854775807 && overflow == -534 {
+        true -> done(),
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
