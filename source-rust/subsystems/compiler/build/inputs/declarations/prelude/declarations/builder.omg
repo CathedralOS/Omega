@@ -16,6 +16,11 @@ public data ElfInterpreterSelection<'storage> {
 public data BuildTests {
     disabled: bool;
 }
+// Each registration lends its own configuration until its Build returns.
+public data TestGroup = @mutable TestGroupSettings;
+public data TestGroupSettings {
+    disabled: bool;
+}
 // What makes `Build` a value only the toolchain issues. The seal holds no
 // settings; it is here for its type. `BuildSeal` is not `[copy]`, and
 // `Issued` is governed by an access policy that names no source issuer
