@@ -16,6 +16,10 @@ fn closed_data_equations_recover_an_omitted_static_argument() {
     ] {
         resolve(source_request(&source)).unwrap_or_else(|errors| panic!("{errors:?}"));
     }
+    for name in ["IntervalSet", "CountedQuantity"] {
+        let renamed = source.replace("Box", name);
+        resolve(source_request(&renamed)).unwrap_or_else(|errors| panic!("{name}: {errors:?}"));
+    }
     let conflicting = source.replace("Box<Mode<4> >", "Box<Mode<4>, 5>");
     let errors = resolve(source_request(&conflicting)).expect_err("conflicting value accepted");
     assert!(
@@ -80,6 +84,46 @@ fn integer_operands_do_not_prove_a_generic_case_impossible() {
             case.requires_facts.is_empty(),
             can_keep,
             "{operand}: the resolver may mark Keep impossible only from a Boolean predicate"
+        );
+    }
+}
+
+#[test]
+fn content_algebra_source_requires_the_core_owner_and_bundled_file() {
+    use language_core::bundled_files::BundledFile;
+    use language_core::core_vocabulary::CoreSource;
+    use source_admission::SourceOrigin;
+
+    let core = std::str::from_utf8(bundled_declarations::bytes(BundledFile::CoreContent)).unwrap();
+    let edited = format!("{core}\n// changed\n");
+    let mut sources = crate::source_inputs::SourceMap::default();
+    for (path, origin, source, expected) in [
+        (
+            "library/content.omg",
+            SourceOrigin::Toolchain,
+            core,
+            Some(CoreSource::Content),
+        ),
+        ("library/content.omg", SourceOrigin::User, core, None),
+        ("library/other.omg", SourceOrigin::Toolchain, core, None),
+        (
+            "library/content.omg",
+            SourceOrigin::Toolchain,
+            edited.as_str(),
+            None,
+        ),
+    ] {
+        let file = sources.add_with_metadata(
+            path.into(),
+            source.to_owned(),
+            "library".into(),
+            None,
+            origin,
+        );
+        assert_eq!(
+            crate::source_symbols::core_source_at(file),
+            expected,
+            "{path} {origin:?}"
         );
     }
 }
