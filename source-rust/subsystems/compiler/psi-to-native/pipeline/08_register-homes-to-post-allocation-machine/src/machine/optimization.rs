@@ -332,16 +332,21 @@ fn rewrite_declared_forms(
                     continue;
                 }
                 let extra = extra_units(instruction, form);
-                let (live, scanned) = {
-                    let (units, table) = table.get_or_insert_with(|| {
-                        (
-                            extra.clone(),
-                            UnitLivenessTable::compute(function, successors, &extra),
-                        )
-                    });
-                    debug_assert_eq!(*units, extra);
-                    table.live_after(function, successors, block_index, index, &extra)
-                };
+                // The added units depend on what the instruction already
+                // writes, so a table built for another candidate's units
+                // cannot answer for this one.
+                if table.as_ref().is_none_or(|(units, _)| *units != extra) {
+                    table = Some((
+                        extra.clone(),
+                        UnitLivenessTable::compute(function, successors, &extra),
+                    ));
+                }
+                let (live, scanned) = table
+                    .as_ref()
+                    .map(|(_, table)| {
+                        table.live_after(function, successors, block_index, index, &extra)
+                    })
+                    .expect("the table was built for these units above");
                 usage.validation_steps = usage.validation_steps.saturating_add(scanned);
                 if live {
                     continue;
