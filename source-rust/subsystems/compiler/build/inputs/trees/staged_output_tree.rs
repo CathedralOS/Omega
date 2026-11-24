@@ -15,7 +15,7 @@ Commitment rules (`OMEGA-BUILD-STAGED-OUTPUT-TREE\0`, schema v2):
 */
 
 use crate::capture::{StagedOutputEntry, StagedOutputEntryKind};
-use crate::materialization::materialize_retained_tree;
+use crate::materialization::{checked_retained_commitment, materialize_retained_tree};
 use diagnostics::Diagnostic;
 
 use std::collections::BTreeSet;
@@ -88,8 +88,8 @@ pub struct PackageGeneratedSource {
 
 impl PackageGeneratedSource {
     pub fn validate_publication(logical_name: &[u8], bytes: &[u8]) -> Result<(), String> {
-        let valid_name = std::str::from_utf8(logical_name)
-            .is_ok_and(language_core::logical_filename::is_valid);
+        let valid_name =
+            std::str::from_utf8(logical_name).is_ok_and(language_core::logical_filename::is_valid);
         if !valid_name
             || !filesystem_authority::canonical_filesystem_metadata_path_is_canonical(
                 logical_name,
@@ -148,6 +148,11 @@ impl BuildStagedOutputTree {
     ) -> Result<Self, Vec<Diagnostic>> {
         let mut retained = Vec::new();
         for (relative_path, kind) in entries {
+            if retained.len() == MAX_STAGED_OUTPUT_ENTRIES {
+                return Err(diagnostics(format!(
+                    "retained staged-output tree exceeds its {MAX_STAGED_OUTPUT_ENTRIES}-entry ceiling"
+                )));
+            }
             if relative_path.is_empty()
                 || !filesystem_authority::canonical_filesystem_metadata_path_is_canonical(
                     &relative_path,
@@ -173,17 +178,8 @@ impl BuildStagedOutputTree {
             });
         }
         retained.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
-        if retained
-            .windows(2)
-            .any(|pair| pair[0].relative_path == pair[1].relative_path)
-        {
-            return Err(diagnostics(
-                "retained staged-output entries repeat a relative path",
-            ));
-        }
-        let commitment = commitment_for_retained_entries(&retained).ok_or_else(|| {
-            diagnostics("retained staged-output tree exceeds its unique-bytes ceiling")
-        })?;
+        let commitment = checked_retained_commitment(&retained)
+            .map_err(|error| diagnostics(error.to_string()))?;
         if &commitment != expected_commitment {
             return Err(diagnostics(
                 "retained staged-output entries do not reproduce the recorded commitment",
