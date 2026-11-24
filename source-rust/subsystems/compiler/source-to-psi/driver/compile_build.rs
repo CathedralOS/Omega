@@ -73,6 +73,19 @@ impl BuildStageSource {
         host: &'static str,
         authority: Option<Arc<PackageDeclarationScope>>,
     ) -> Result<TypedBuildInterval, Vec<Diagnostic>> {
+        if !self.pending_imports.is_empty() {
+            return Err(self
+                .pending_imports
+                .into_iter()
+                .map(|import| {
+                    Diagnostic::error(format!(
+                        "Build import `{}` has no supplied source",
+                        import.target
+                    ))
+                    .with_source_span(source_text::SourceSpan::new(import.source, import.span))
+                })
+                .collect());
+        }
         let entry = self.entry;
         let mut selected = self;
         let imports = std::mem::take(&mut selected.pending_imports);
