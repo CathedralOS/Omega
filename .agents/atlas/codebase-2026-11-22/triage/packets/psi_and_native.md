@@ -1,6 +1,6 @@
 # Psi and native boundary packet
 
-This packet gives every claim in [the Psi/native boundary note](../../boundaries/psi_and_native.md) a disposition. It found one latent miscompile in native stage 08, repaired in this PR. It also found that `main` did not compile two native crates after #5393; this PR repairs those too. Every other lead is intended behavior, a duplicate of an earlier ledger row, a tracked feature gap, or one of four items listed under "Still open" below.
+This packet gives every claim in [the Psi/native boundary note](../../boundaries/psi_and_native.md) a disposition. It found one latent miscompile in native stage 08, repaired in this PR. It also found that `main` did not compile `optimization-unit-semantics` after #5393; this PR adds the missing match arm. Every other lead is intended behavior, a duplicate of an earlier ledger row, a tracked feature gap, or one of four items listed under "Still open" below.
 
 The note was written at `4f3c255d`. Every code check below was made at the common baseline `24ad2700685e6cc6062026c87ed5fd24ed415265` unless a row names another revision. This packet joins the rows already in the [Psi and native ledger](../07-13-psi-and-native.md) rather than repeating them.
 
@@ -22,12 +22,12 @@ Stage 08's declared-form rule could rewrite an instruction into a form that clob
 - **Repair:** the cached table now records the units it was built for. A candidate that adds different units rebuilds the table. The xor-zero rule normally adds only the flags, so the common case still builds one table per function.
 - **Reach:** the only in-tree rule, `X86SelectXorZeroI64MaterializationV1`, adds `{flags}` unless the instruction already writes them. No shipped selection was shown to produce the first instruction's shape. The repair removes the dependence on that accident.
 
-### `main` did not compile two native crates after #5393
+### `main` did not compile `optimization-unit-semantics` after #5393
 
-#5393 added `Proposition::DeclarationIdentity` without extending two exhaustive matches. While building the stage 08 fixture, `mbx test` stopped with E0004 in `optimization-unit` (`src/identity.rs`, `encode_proposition`) and then in `optimization-unit-semantics` (`src/unit_validation.rs`, `collect` in the claim-root walk). Every crate that depends on them, including native stages 03 to 15, failed to build on `main` at `a0152d26`.
+#5393 added `Proposition::DeclarationIdentity` without extending two exhaustive matches. While building the stage 08 fixture at `a0152d26`, `mbx test` stopped with E0004 in `optimization-unit` (`src/identity.rs`, `encode_proposition`) and then in `optimization-unit-semantics` (`src/unit_validation.rs`, `collect` in the claim-root walk). Every crate that depends on them, including native stage 08, failed to build.
 
-- The unit identity encoder now gives the new proposition its own tag (23) and encodes every clause value, carrier, operand and side index. Portable Psi refuses this proposition (`declaration-encoding/src/terms/proposition.rs`: "unpublished declaration Identity in a portable proposition"). A distinct encoding still keeps the identity total and stops it colliding with another proposition.
-- The claim-root walk now collects the roots of the clause's scalar and input operands, as `semantic-records` does when it validates the same clause.
+- #5427 and #5434 landed an identity-encoder arm while this packet was in review, so this PR takes `main`'s `identity.rs` unchanged.
+- The claim-root walk was still missing its arm on `main` at `3d153621`. This PR adds it: the walk collects the roots of the clause's scalar and input operands, as `semantic-records` does when it validates the same clause.
 
 ## Dispositions
 
@@ -84,8 +84,8 @@ Every claim in the 17 handoffs and the closing summary of the boundary note has 
 
 All commands ran in this cloud checkout on linux/x86_64 with the pinned toolchain (`mbx 1.29.2-omega.3`). No global compiler build was run.
 
-- Red, at commit `2440bf43` (the fixture without the repair, with the #5393 repair): `mbx test -p register-homes-to-post-allocation-machine --lib machine::optimization` → 9 passed, 1 failed. `each_candidate_is_judged_by_the_units_its_own_form_adds` panicked at `optimization.rs:342` with `left: []`, `right: [RegisterUnitId(99)]`.
-- Before the #5393 repair, the same command failed to compile: E0004 for `Proposition::DeclarationIdentity` in `optimization-unit/src/identity.rs:267` and then in `optimization-unit-semantics/src/unit_validation.rs:10668`.
+- Red, at the pre-rebase commit `2440bf43` on `a0152d26` (the fixture without the stage 08 repair, with the #5393 arms; after rebasing onto `3d153621` it is `5c6218af`): `mbx test -p register-homes-to-post-allocation-machine --lib machine::optimization` → 9 passed, 1 failed. `each_candidate_is_judged_by_the_units_its_own_form_adds` panicked at `optimization.rs:342` with `left: []`, `right: [RegisterUnitId(99)]`.
+- At `a0152d26`, before any #5393 repair, the same command failed to compile: E0004 for `Proposition::DeclarationIdentity` in `optimization-unit/src/identity.rs:267` and then in `optimization-unit-semantics/src/unit_validation.rs:10668`.
 - Green, after the repair: the same command → 10 passed.
 - Area: `mbx test -p register-homes-to-post-allocation-machine -p optimization-unit -p optimization-unit-semantics --lib` → 13, 14 and 24 passed.
 - `mbx clippy -p register-homes-to-post-allocation-machine -p optimization-unit -p optimization-unit-semantics --all-targets -- -D warnings` → clean.
