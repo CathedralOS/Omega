@@ -75,13 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### POSIX directory counting assumes that two entries are dot names
+### Windows directory counting uses a signed 64-bit result
 
-- Category: One idea, several implementations
-- Where: [POSIX directory counting and indexed lookup](source/library/std/posix_filesystem_adapter.omg) and [Windows directory emptiness](source/library/std/targets/windows_x86_64/filesystem/directory.omg).
-- Saw: POSIX counts native records in a wrapping `i32`, then subtracts two. Its indexed lookup checks the actual names. Windows counts ordinary names and stops on the first ordinary name when checking emptiness.
-- Cost: POSIX can miscount directories whose records omit a dot entry. Its emptiness query also requests metadata for a child whose name already proves the directory is nonempty. Exercise a stream with missing or interleaved dot entries, a checked count and a failure after the first child.
-- Reported: 2026-11-24 while comparing the selected directory providers.
+- Category: Knowledge crossing a boundary
+- Where: [Windows names walker](source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg) and [raw filesystem service](source/library/std/windows_filesystem_host.omg).
+- Saw: The portable count is a `u64`. Windows uses the negative half of its raw `i64` result for errors, so its names walker refuses the first ordinary entry after `i64::MAX`. POSIX counts up to the portable limit.
+- Cost: Windows cannot express the upper half of the portable count through that raw result. A typed count-or-error result would keep the native failure separate. Exercise the boundary by starting the shared count at its maximum and supplying one more ordinary name.
+- Reported: 2026-11-24 while exercising directory enumeration on both engines.
 
 ### A resumed Build refuses itself whenever it is typed again, because region owners print as symbol slots
 

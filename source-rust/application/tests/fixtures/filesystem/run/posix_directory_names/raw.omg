@@ -1,0 +1,72 @@
+use filesystem_host.omg as paths;
+use posix_filesystem_adapter.omg as adapter;
+use {omega}/language/core/filesystem_authority.omg as authority;
+// Fixture descriptors select a stream by the length of its path. The cursor
+// records the batch number, so each read exposes only the returned prefix.
+public boundary trait PosixFilesystemHost {
+    machine open(path: @[u8] in |paths|::Path, flags: i32) -> i32 reaches none crashes none;
+    machine seek(fd: i32, offset: i64, whence: i32) -> i64 reaches none crashes none;
+    machine close(fd: i32) -> i32 reaches none crashes none;
+    machine read_dir(fd: i32, buffer: @mutable [u8], count: u64, position: @mutable i64) -> i64 reaches |authority|::DirectoryEnumeration crashes none;
+    machine read_metadata_at(fd: i32, name: @[u8], buffer: @mutable [u8; 144], flags: i32) -> i32 reaches |authority|::FilesystemMetadataQuery crashes none;
+}
+public boundary trait PosixFilesystemTarget {
+    machine directory_type_offset() -> u64 reaches none crashes none;
+    machine directory_name_offset() -> u64 reaches none crashes none;
+    machine metadata_no_follow_flag() -> i32 reaches none crashes none;
+    machine decode_directory_kind(filesystem: @mutable |adapter|::PosixFilesystem) -> |adapter|::PosixDirectoryKind reaches none crashes none;
+}
+Geometry satisfies PosixFilesystemTarget {
+    machine directory_type_offset() -> u64 {18}
+    machine directory_name_offset() -> u64 {19}
+    machine metadata_no_follow_flag() -> i32 {0}
+    machine decode_directory_kind(filesystem: @mutable |adapter|::PosixFilesystem) -> |adapter|::PosixDirectoryKind { |adapter|::PosixDirectoryKind::Other }
+}
+Stream satisfies PosixFilesystemHost {
+    machine open(path: @[u8] in |paths|::Path, flags: i32) -> i32 {
+        transition path.length <= 7 { true -> (path.length as i32), false -> (-1) }
+    }
+    machine seek(fd: i32, offset: i64, whence: i32) -> i64 { 0 }
+    machine close(fd: i32) -> i32 { 0 }
+    machine read_metadata_at(fd: i32, name: @[u8], buffer: @mutable [u8; 144], flags: i32) -> i32 { -13 }
+    machine read_dir(fd: i32, buffer: @mutable [u8], count: u64, position: @mutable i64) -> i64 {
+        transition buffer.length >= 72 { true -> batch(fd, buffer, position), false -> (-5) }
+    }
+}
+machine batch(fd: i32, buffer: @mutable [u8], position: @mutable i64) -> i64
+requires buffer.length >= 72 {
+    let n: i64 = $position;
+    transition n { 0 -> initial(fd, buffer, position), 1 -> later(fd, buffer, position), _ -> 0 }
+    machine initial(fd: i32, buffer: @mutable [u8], position: @mutable i64) -> i64 requires buffer.length >= 72 {
+        $position = 1;
+        // A Linux record for the regular file x.
+        buffer[16] = 24; buffer[18] = 8; buffer[19] = 120; buffer[20] = 0;
+        transition fd { 3 -> dots(buffer), 4 -> malformed(buffer), 5 -> unknown(buffer), 6 -> 513, _ -> ordinary(buffer) }
+    }
+    machine ordinary(buffer: @mutable [u8]) -> i64 requires buffer.length >= 72 {
+        buffer[40] = 24; buffer[42] = 8; buffer[43] = 46; buffer[44] = 104; buffer[45] = 0;
+        48
+    }
+    machine dots(buffer: @mutable [u8]) -> i64 requires buffer.length >= 72 {
+        buffer[19] = 46; buffer[20] = 46; buffer[21] = 0;
+        24
+    }
+    machine malformed(buffer: @mutable [u8]) -> i64 requires buffer.length >= 72 {
+        // The first NUL falls just outside the claimed record.
+        buffer[16] = 20; buffer[20] = 0;
+        24
+    }
+    machine unknown(buffer: @mutable [u8]) -> i64 requires buffer.length >= 72 {
+        buffer[18] = 0;
+        24
+    }
+    machine later(fd: i32, buffer: @mutable [u8], position: @mutable i64) -> i64 requires buffer.length >= 72 {
+        $position = 2;
+        transition fd { 2 -> (-13), 7 -> mixed(buffer), _ -> 0 }
+    }
+    machine mixed(buffer: @mutable [u8]) -> i64 requires buffer.length >= 72 {
+        buffer[16] = 24; buffer[19] = 46; buffer[20] = 0;
+        buffer[40] = 24; buffer[42] = 8; buffer[43] = 122; buffer[44] = 0;
+        48
+    }
+}

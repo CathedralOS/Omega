@@ -1,0 +1,68 @@
+// Linux getdents64 and Darwin getdirentries64 both store d_reclen in bytes 16–17.
+// The selected target supplies the offsets of d_type and the first name byte.
+public data DirectoryRecord [copy] {
+    case Malformed;
+    case Dot(next: u64);
+    case Child(next: u64, name_start: u64, name_length: u64, dtype: u8);
+}
+
+public machine directory_record(bytes: @[u8], offset: u64, type_offset: u64, name_offset: u64) -> DirectoryRecord {
+    transition offset < bytes.length && bytes.length <= 512 && offset < 495
+        && type_offset >= 18 && type_offset < name_offset && name_offset <= 21 {
+        true -> header(bytes, offset, type_offset, name_offset),
+        false -> DirectoryRecord::Malformed
+    }
+    machine header(bytes: @[u8], offset: u64, type_offset: u64, name_offset: u64) -> DirectoryRecord
+    requires offset < 495
+    {
+        let hi: u64 = offset + 17;
+        transition hi < bytes.length { true -> length(bytes, offset, type_offset, name_offset, hi), false -> DirectoryRecord::Malformed }
+    }
+    machine length(bytes: @[u8], offset: u64, type_offset: u64, name_offset: u64, hi: u64) -> DirectoryRecord
+    requires hi > 0 && hi < bytes.length
+    {
+        let size: u64 = ((bytes[hi] as u64) << 8) | (bytes[hi - 1] as u64);
+        transition size > name_offset && offset <= 512 && size <= 512 && type_offset < name_offset {
+            true -> bounds(bytes, offset, type_offset, name_offset, size),
+            false -> DirectoryRecord::Malformed
+        }
+    }
+    machine bounds(bytes: @[u8], offset: u64, type_offset: u64, name_offset: u64, size: u64) -> DirectoryRecord
+    requires offset <= 512 && size <= 512 && type_offset < name_offset && name_offset < size
+    {
+        let next: u64 = offset + size;
+        let start: u64 = offset + name_offset;
+        let kind: u64 = offset + type_offset;
+        transition next <= bytes.length && kind < bytes.length {
+            true -> scan(bytes, next, start, start, bytes[kind], true),
+            false -> DirectoryRecord::Malformed
+        }
+    }
+    machine scan(bytes: @[u8], next: u64, start: u64, at: u64, dtype: u8, dots: bool) -> DirectoryRecord {
+        transition at < next && at < bytes.length && at < 512 {
+            true -> inspect(bytes, next, start, at, dtype, dots),
+            false -> DirectoryRecord::Malformed
+        }
+    }
+    machine inspect(bytes: @[u8], next: u64, start: u64, at: u64, dtype: u8, dots: bool) -> DirectoryRecord
+    requires at < bytes.length && at < 512
+    {
+        let byte: u8 = bytes[at];
+        transition byte == 0 {
+            true -> finish(next, start, at, dtype, dots),
+            false -> scan(bytes, next, start, at + 1, dtype, dots && byte == 46)
+        }
+    }
+    machine finish(next: u64, start: u64, at: u64, dtype: u8, dots: bool) -> DirectoryRecord {
+        transition at > start { true -> classify(next, start, at, dtype, dots), false -> DirectoryRecord::Malformed }
+    }
+    machine classify(next: u64, start: u64, at: u64, dtype: u8, dots: bool) -> DirectoryRecord
+    requires at > start
+    {
+        let length: u64 = at - start;
+        transition dots && length <= 2 {
+            true -> (DirectoryRecord::Dot { next: next }),
+            false -> (DirectoryRecord::Child { next: next, name_start: start, name_length: length, dtype: dtype })
+        }
+    }
+}
