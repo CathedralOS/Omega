@@ -467,4 +467,19 @@ mod tag_tests {
         });
         assert_ne!(actual, under_eliminate_empty_tag);
     }
+
+    // An absent image-address fixup must still write something, and a present
+    // one must write something else, so the next field cannot be misread.
+    #[test]
+    fn image_address_fixup_presence_is_part_of_the_identity() {
+        let fixup = crate::FunctionFragmentImageAddressFixup {
+            reference: selected_instructions::SelectedImageAddressReference::RetainedEntryStorageStart,
+            fields: crate::ImageAddressFields::X86_64Relative32 { patch_offset: 3 },
+        };
+        let nothing = digest(|_| {});
+        let absent = digest(|hasher| encode_optional_image_address_fixup(hasher, None));
+        let present = digest(|hasher| encode_optional_image_address_fixup(hasher, Some(fixup)));
+        assert_ne!(absent, nothing);
+        assert_ne!(absent, present);
+    }
 }
