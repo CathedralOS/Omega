@@ -832,6 +832,34 @@ mod tests {
     }
 
     #[test]
+    fn each_candidate_checks_liveness_of_its_own_extra_units() {
+        // The first candidate already defines the flags, so the declared form
+        // adds nothing it must check. The second does not, and the flags it
+        // would clobber are read by the next instruction.
+        let (function, rows) = roster(vec![(
+            vec![
+                instruction(1, &[], &[FLAGS]),
+                instruction(2, &[], &[]),
+                instruction(3, &[FLAGS], &[]),
+            ],
+            vec![
+                effects(1, zero(), true),
+                effects(2, zero(), true),
+                effects(3, seven(), true),
+            ],
+        )]);
+        let (result, function, _) = run(function, rows, vec![vec![]]);
+        let execution = result.unwrap();
+        assert_eq!(execution.candidates(), 2);
+        assert_eq!(execution.actions().len(), 1);
+        assert_eq!(execution.actions()[0].instruction, SelectedInstructionId(1));
+        assert_eq!(
+            function.blocks[0].instructions[1].alternative.key.variant,
+            0
+        );
+    }
+
+    #[test]
     fn flags_live_into_a_successor_block_keep_the_baseline() {
         let (function, rows) = roster(vec![
             (
