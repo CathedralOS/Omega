@@ -127,7 +127,10 @@ records per case what the data requires, what the step requires, and which
 children the step cites. A clause over indexed data is read as equalities and
 orders of integers: an index or payload value is the integer it holds, and
 arithmetic is written on `embed`. A theorem that cites itself is ranked on
-one of its indices (`terminates by Length`), of an unsigned type. For each
+its evidence (`terminates by evidence`) or on one of its indices
+(`terminates by Length`), of an unsigned type. Ranked on the evidence, it
+owes nothing more: a step cites the theorem only at a child of its case,
+which is a part of the evidence. Ranked on an index, for each
 child a case's step cites the theorem at, the signature records that the
 child's value of that index plus one is at most the theorem's own, and, as
 hypotheses for that alone, that each unsigned index and payload value is not
