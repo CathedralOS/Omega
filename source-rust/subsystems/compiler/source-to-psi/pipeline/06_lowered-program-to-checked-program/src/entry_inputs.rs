@@ -1687,7 +1687,15 @@ pub(super) fn require(
                         &clause, &places,
                     )
                 })
-                .collect(),
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|detail| {
+                    refusal(
+                        RefusalReason::Unsupported,
+                        head.caller,
+                        Construct::Block(head.block),
+                        detail,
+                    )
+                })?,
             true,
         );
         let predicate = canonical(predicate, callee)?;

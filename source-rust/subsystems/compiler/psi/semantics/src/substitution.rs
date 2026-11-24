@@ -160,7 +160,7 @@ pub fn substitute_proposition_values_with<'input>(
 pub fn substitute_proposition_structural_places(
     proposition: &Proposition,
     substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
-) -> Proposition {
+) -> Result<Proposition, &'static str> {
     substitute_proposition_structural_places_with(proposition, &|identity| {
         substitutions.get(&identity)
     })
@@ -171,8 +171,88 @@ pub fn substitute_proposition_structural_places_with<'input>(
     substitutions: &dyn Fn(
         PlaceId,
     ) -> Option<&'input (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
-) -> Proposition {
-    match proposition {
+) -> Result<Proposition, &'static str> {
+    substitute_structural_places(proposition, substitutions, &|path| {
+        path.iter()
+            .map(|step| match step {
+                CanonicalStructuralPathSegment::FixedIndex(index) => {
+                    Some(semantic_vocabulary::ContentPlaceSegment::FixedIndex(*index))
+                }
+                _ => None,
+            })
+            .collect()
+    })
+}
+
+/// A result membership has its actual carrier and declarations, so field and case
+/// IDs can be resolved to the identities retained in a content proposition.
+pub(crate) fn substitute_result_place(
+    module: &terminal_psi::TerminalModule,
+    carrier: semantic_vocabulary::StructuralTypeId,
+    proposition: &Proposition,
+    formal: PlaceId,
+    actual: &(PlaceId, Vec<CanonicalStructuralPathSegment>),
+) -> Result<Proposition, &'static str> {
+    substitute_structural_places(
+        proposition,
+        &|id| (id == formal).then_some(actual),
+        &|path| {
+            use semantic_vocabulary::ContentPlaceSegment;
+            use terminal_psi::StructuralPathSegment;
+            let types = &module.types.structural_types;
+            let storage = crate::canonical_structural_storage_path(types.iter(), carrier, path)?;
+            storage
+                .iter()
+                .enumerate()
+                .map(|(ordinal, step)| {
+                    Some(match step {
+                        StructuralPathSegment::Field(field) => ContentPlaceSegment::Field(
+                            module
+                                .identities
+                                .text(*field)
+                                .filter(|name| !name.is_empty())?
+                                .to_owned(),
+                        ),
+                        StructuralPathSegment::FixedIndex(index) => {
+                            ContentPlaceSegment::FixedIndex(*index)
+                        }
+                        StructuralPathSegment::Case(case) => {
+                            let tip = crate::canonical_structural_path_tip(
+                                types.iter(),
+                                carrier,
+                                &path[..ordinal],
+                            )?;
+                            let case = crate::exactly_one::exactly_one(
+                                tip.shape.sum_cases()?.iter(),
+                                |row| row.id == *case,
+                            )?;
+                            ContentPlaceSegment::Case(
+                                module
+                                    .identities
+                                    .text(case.identity)
+                                    .filter(|name| !name.is_empty())?
+                                    .to_owned(),
+                            )
+                        }
+                        _ => return None,
+                    })
+                })
+                .collect()
+        },
+    )
+}
+
+type ContentPrefix<'a> = dyn Fn(&[CanonicalStructuralPathSegment]) -> Option<Vec<semantic_vocabulary::ContentPlaceSegment>>
+    + 'a;
+
+fn substitute_structural_places<'input>(
+    proposition: &Proposition,
+    substitutions: &dyn Fn(
+        PlaceId,
+    ) -> Option<&'input (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+    content_prefix: &ContentPrefix<'_>,
+) -> Result<Proposition, &'static str> {
+    Ok(match proposition {
         Proposition::FloatMeaningEqual(clause) => {
             Proposition::FloatMeaningEqual(clause.map_sources_or_invalid(|source| {
                 substitute_scalar_term_places(source, substitutions)
@@ -312,39 +392,45 @@ pub fn substitute_proposition_structural_places_with<'input>(
             conjuncts
                 .iter()
                 .map(|conjunct| {
-                    substitute_proposition_structural_places_with(conjunct, substitutions)
+                    substitute_structural_places(conjunct, substitutions, content_prefix)
                 })
-                .collect(),
+                .collect::<Result<_, _>>()?,
         ),
         Proposition::Disjunction(disjuncts) => Proposition::Disjunction(
             disjuncts
                 .iter()
                 .map(|disjunct| {
-                    substitute_proposition_structural_places_with(disjunct, substitutions)
+                    substitute_structural_places(disjunct, substitutions, content_prefix)
                 })
-                .collect(),
+                .collect::<Result<_, _>>()?,
         ),
         Proposition::Implication {
             premise,
             conclusion,
         } => Proposition::Implication {
-            premise: Box::new(substitute_proposition_structural_places_with(
+            premise: Box::new(substitute_structural_places(
                 premise,
                 substitutions,
-            )),
-            conclusion: Box::new(substitute_proposition_structural_places_with(
+                content_prefix,
+            )?),
+            conclusion: Box::new(substitute_structural_places(
                 conclusion,
                 substitutions,
-            )),
+                content_prefix,
+            )?),
         },
         Proposition::ContentConservation(conservation) => {
             Proposition::ContentConservation(ContentConservation::new(
                 conservation.algebra().clone(),
-                substitute_content_term_places(conservation.left(), substitutions),
-                substitute_content_term_places(conservation.right(), substitutions),
+                substitute_content_term_places(conservation.left(), substitutions, content_prefix)?,
+                substitute_content_term_places(
+                    conservation.right(),
+                    substitutions,
+                    content_prefix,
+                )?,
             ))
         }
-    }
+    })
 }
 
 fn substitute_integer_math_term_values<'input>(
@@ -472,27 +558,40 @@ fn substitute_content_term_places<'input>(
     substitutions: &dyn Fn(
         PlaceId,
     ) -> Option<&'input (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
-) -> ContentTerm {
+    content_prefix: &ContentPrefix<'_>,
+) -> Result<ContentTerm, &'static str> {
     match term {
         ContentTerm::Projection {
             projection,
             subject,
-        } => ContentTerm::Projection {
-            projection: *projection,
-            subject: ContentStructuralPlace {
-                version: subject.version,
-                root: substitutions(subject.root)
-                    .map(|(root, _)| *root)
-                    .unwrap_or(subject.root),
-                segments: subject.segments.clone(),
-            },
-        },
-        ContentTerm::Separate(terms) => ContentTerm::Separate(
-            terms
+        } => {
+            let Some((root, prefix)) = substitutions(subject.root) else {
+                return Ok(term.clone());
+            };
+            let mut segments = if prefix.is_empty() {
+                Vec::new()
+            } else {
+                content_prefix(prefix)
+                    .ok_or("content substitution cannot resolve the actual structural path")?
+            };
+            segments.extend_from_slice(&subject.segments);
+            Ok(ContentTerm::Projection {
+                projection: *projection,
+                subject: ContentStructuralPlace {
+                    version: subject.version,
+                    root: *root,
+                    segments,
+                },
+            })
+        }
+        ContentTerm::Separate(terms) => {
+            let terms = terms
                 .iter()
-                .map(|term| substitute_content_term_places(term, substitutions))
-                .collect(),
-        ),
+                .map(|term| substitute_content_term_places(term, substitutions, content_prefix))
+                .collect::<Result<Vec<_>, _>>()?;
+            ContentTerm::separate(terms)
+                .map_err(|_| "content substitution repeats a separated projection")
+        }
     }
 }
 
@@ -819,3 +918,6 @@ pub fn substitute_crash_routes(
         })
         .collect()
 }
+
+#[cfg(test)]
+mod content_tests;

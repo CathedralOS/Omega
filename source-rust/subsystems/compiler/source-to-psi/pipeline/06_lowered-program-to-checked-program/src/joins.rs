@@ -982,7 +982,8 @@ pub(crate) fn arrival_goal<'a>(
                 terminal_semantics::substitution::substitute_proposition_structural_places(
                     &rename(&original.predicate, &renaming),
                     &roots,
-                );
+                )
+                .map_err(|detail| refusal(RefusalReason::Unsupported, id, concerns, detail))?;
             lowered
                 .contract
                 .requires

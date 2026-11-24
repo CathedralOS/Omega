@@ -36,18 +36,15 @@ pub(crate) fn close(
             ) else {
                 continue;
             };
-            let goal = crate::substitution::substitute_proposition_structural_places(
+            let Ok(goal) = crate::substitution::substitute_proposition_structural_places(
                 &predicate.proposition,
                 &BTreeMap::from([(predicate.subject, (root, path.clone()))]),
-            );
-            let Ok(checked) =
-                proof_admission::check_predicate_denotations_with_value_equalities(
-                    context,
-                    &goal,
-                    requirements,
-                    &[],
-                )
-            else {
+            ) else {
+                continue;
+            };
+            let Ok(checked) = proof_admission::check_predicate_denotations_with_value_equalities(
+                context, &goal, requirements, &[],
+            ) else {
                 continue;
             };
             let Some(proof) = prove(context, checked.goal(), checked.requirements(), 0)
