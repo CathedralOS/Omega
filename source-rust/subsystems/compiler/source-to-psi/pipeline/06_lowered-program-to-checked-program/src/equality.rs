@@ -2,9 +2,9 @@
 //! Each visited expression carries a proof from the original left endpoint.
 
 use proof_admission::{
-    Budget, Context, CoreError, Term, TermArena, TermHandle, check_type, infer_type, shift,
-    weak_head_normalize,
+    Budget, Context, CoreError, Term, TermArena, TermHandle, infer_type, shift, weak_head_normalize,
 };
+use terminal_check_tables::mathematics::{FunctionCases, SignatureEntry, SignatureEntryKind};
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum SearchError {
@@ -115,29 +115,23 @@ fn charge(remaining: &mut usize) -> Result<(), SearchError> {
 }
 
 /// How a constant of the signature takes part in normalization.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum Definition {
-    /// No body, or a type: the constant stays as written and is not a value
-    /// a recursion can compute on.
+    /// No body, a type, or a part of a data's encoding: the constant stays
+    /// as written.
     Opaque,
-    /// `lambda^arity. sup(..)`: a case of a data declaration. It stays as
-    /// written, and a recursion computes on it once it has all its fields.
-    Constructor,
-    /// `lambda^arity. indW(motive, step, x_subject) x_others..`: a function
-    /// defined by cases on one argument. It computes only when that argument
-    /// is a constructor, so everywhere else its application stays folded.
+    /// A case of the data at entry `data`. It stays as written, and a
+    /// function by cases computes on it once it has all `arity` fields.
+    Constructor { data: u32, case: u32, arity: u32 },
+    /// A function defined by cases on one argument. It computes only when
+    /// that argument is a case, so everywhere else its application stays
+    /// folded. `induction` is the entry of the data's induction principle.
     Recursion {
-        arity: usize,
-        subject: usize,
-        motive: TermHandle,
-        step: TermHandle,
+        cases: FunctionCases,
+        induction: u32,
     },
     /// Any other body: an abbreviation, unfolded where it is met.
     Abbreviation,
-}
-
-fn closed_under(arena: &TermArena, term: TermHandle, binders: usize) -> bool {
-    (0..binders as u32).all(|index| !arena.contains_free_variable(term, index))
 }
 
 fn spine(arena: &TermArena, term: TermHandle) -> (TermHandle, Vec<TermHandle>) {
@@ -151,104 +145,139 @@ fn spine(arena: &TermArena, term: TermHandle) -> (TermHandle, Vec<TermHandle>) {
     (head, arguments)
 }
 
-fn classify(arena: &TermArena, body: Option<TermHandle>) -> (Definition, usize) {
-    let Some(mut body) = body else {
-        return (Definition::Opaque, 0);
-    };
-    let mut arity = 0;
-    while let Term::Lambda { body: inner, .. } = arena.get(body) {
-        arity += 1;
-        body = inner;
-    }
-    let (head, arguments) = spine(arena, body);
-    let definition = match arena.get(head) {
-        Term::Sup { .. } if arguments.is_empty() => Definition::Constructor,
-        Term::W { .. } if arguments.is_empty() => Definition::Opaque,
-        Term::IndW { motive, step, tree } => {
-            let subject = match arena.get(tree) {
-                Term::Variable(index) if (index as usize) < arity => {
-                    Some(arity - 1 - index as usize)
-                }
-                _ => None,
-            };
-            // The recursion is applied to the remaining formals in order, so
-            // an application of the constant and a stuck recursion with the
-            // same motive and step are two spellings of one term.
-            let others = subject.is_some_and(|subject| {
-                let mut expected = (0..arity).filter(|formal| *formal != subject);
-                arguments.iter().all(|&argument| {
-                    matches!((arena.get(argument), expected.next()),
-                        (Term::Variable(index), Some(formal))
-                            if index as usize == arity - 1 - formal)
-                }) && expected.next().is_none()
-            });
-            match subject {
-                Some(subject)
-                    if others
-                        && closed_under(arena, motive, arity)
-                        && closed_under(arena, step, arity) =>
-                {
-                    Definition::Recursion {
-                        arity,
-                        subject,
-                        motive,
-                        step,
-                    }
-                }
-                _ => Definition::Abbreviation,
-            }
-        }
-        _ => Definition::Abbreviation,
-    };
-    (definition, arity)
-}
-
-/// The definitions of the context's signature, and each one's binder count.
-struct Definitions(Vec<(Definition, usize)>);
+/// What each declaration of a signature is to the normalizer.
+pub(crate) struct Definitions(Vec<Definition>);
 
 impl Definitions {
-    fn of(arena: &TermArena, context: &Context) -> Self {
+    /// A signature with no data: every body is an abbreviation.
+    pub(crate) fn plain(context: &Context) -> Self {
         Self(
             context
                 .signature()
                 .declarations()
                 .iter()
-                .map(|declaration| classify(arena, declaration.body))
+                .map(|declaration| match declaration.body {
+                    Some(_) => Definition::Abbreviation,
+                    None => Definition::Opaque,
+                })
                 .collect(),
         )
     }
 
-    fn get(&self, declaration: u32) -> Definition {
-        self.0
-            .get(declaration as usize)
-            .map_or(Definition::Opaque, |(definition, _)| *definition)
+    /// The compilation's mathematical signature, as stage 05 described each
+    /// entry. Nothing is read off the shape of a term.
+    pub(crate) fn of_signature(entries: &[SignatureEntry]) -> Self {
+        let shape = |data: u32| match entries.get(data as usize).map(|entry| &entry.kind) {
+            Some(SignatureEntryKind::Data { shape, .. }) => Some(shape),
+            _ => None,
+        };
+        Self(
+            entries
+                .iter()
+                .map(|entry| match &entry.kind {
+                    SignatureEntryKind::Data { .. }
+                    | SignatureEntryKind::Encoding { .. }
+                    | SignatureEntryKind::Statement { .. } => Definition::Opaque,
+                    SignatureEntryKind::Constructor { data, case } => match shape(*data) {
+                        Some(shape) => Definition::Constructor {
+                            data: *data,
+                            case: *case,
+                            arity: shape.arity(*case as usize),
+                        },
+                        None => Definition::Opaque,
+                    },
+                    SignatureEntryKind::Function {
+                        cases: Some(cases), ..
+                    } => match shape(cases.data) {
+                        Some(shape) => Definition::Recursion {
+                            cases: cases.clone(),
+                            induction: shape.induction_entry(cases.data),
+                        },
+                        None => Definition::Opaque,
+                    },
+                    SignatureEntryKind::Function { cases: None, .. } => Definition::Abbreviation,
+                })
+                .collect(),
+        )
     }
 
-    /// Whether the term is a case applied to all of its fields, or a node
-    /// the kernel's recursion computes on directly.
-    fn is_constructed(&self, arena: &TermArena, term: TermHandle) -> bool {
+    fn get(&self, declaration: u32) -> &Definition {
+        self.0
+            .get(declaration as usize)
+            .unwrap_or(&Definition::Opaque)
+    }
+
+    /// The case and fields of a term that is a case of `data` applied to
+    /// all of its fields.
+    fn constructed(
+        &self,
+        arena: &TermArena,
+        data: u32,
+        term: TermHandle,
+    ) -> Option<(usize, Vec<TermHandle>)> {
         let (head, arguments) = spine(arena, term);
-        match arena.get(head) {
-            Term::Sup { .. } => arguments.is_empty(),
-            Term::Constant { declaration, .. } => {
-                self.0
-                    .get(declaration as usize)
-                    .is_some_and(|(definition, arity)| {
-                        matches!(definition, Definition::Constructor) && *arity == arguments.len()
-                    })
+        let Term::Constant { declaration, .. } = arena.get(head) else {
+            return None;
+        };
+        match self.get(declaration) {
+            Definition::Constructor {
+                data: of,
+                case,
+                arity,
+            } if *of == data && *arity as usize == arguments.len() => {
+                Some((*case as usize, arguments))
             }
-            _ => false,
+            _ => None,
         }
+    }
+
+    /// An induction applied to a motive, its branches and a subject is the
+    /// function stage 05 built from exactly those: its entry, and the
+    /// function's arguments with the subject back in its place.
+    fn folded(
+        &self,
+        arena: &TermArena,
+        induction: u32,
+        arguments: &[TermHandle],
+    ) -> Option<(u32, Vec<TermHandle>)> {
+        self.0.iter().enumerate().find_map(|(index, definition)| {
+            let Definition::Recursion {
+                cases,
+                induction: of,
+            } = definition
+            else {
+                return None;
+            };
+            let count = cases.branches.len();
+            if *of != induction || arguments.len() < count + 2 {
+                return None;
+            }
+            let rest = &arguments[count + 2..];
+            (rest.len() + 1 >= cases.arity as usize
+                && arena.structurally_equal(arguments[0], cases.motive)
+                && cases
+                    .branches
+                    .iter()
+                    .zip(&arguments[1..=count])
+                    .all(|(&known, &given)| arena.structurally_equal(known, given)))
+            .then(|| {
+                let mut restored = rest.to_vec();
+                restored.insert(cases.subject as usize, arguments[count + 1]);
+                (index as u32, restored)
+            })
+        })
     }
 }
 
 /// The term after every computation the kernel can carry out, with each
 /// function defined by cases left as an application wherever its argument is
-/// not a constructor. A recursion over a constructor computes; the recursive
-/// result it leaves is folded back into an application of the function. Two
-/// terms the kernel converts by computation alone get one normal form, and
-/// that form still shows which operations are applied to what, which the
-/// search and the reordering below read.
+/// not a case. Over a case the function computes one step: the case's branch
+/// over its fields, the function itself at each field, and the other
+/// arguments. Two terms the kernel converts by computation alone get one
+/// normal form, and that form still shows which operations are applied to
+/// what, which the search and the reordering below read. The kernel checks
+/// the proof built from these forms against the original goal, so a step the
+/// kernel would not take cannot make a goal provable.
 fn normal(
     arena: &mut TermArena,
     context: &Context,
@@ -265,30 +294,12 @@ fn normal(
         &|declaration| !matches!(definitions.get(declaration), Definition::Abbreviation),
     )?;
     let (function, arguments) = spine(arena, head);
-    // A stuck recursion is the function it came from, applied to the tree.
     let (function, arguments) = match arena.get(function) {
-        Term::IndW { motive, step, tree } => {
-            let folded = definitions.0.iter().enumerate().find_map(|(index, entry)| {
-                let Definition::Recursion {
-                    arity,
-                    subject,
-                    motive: known_motive,
-                    step: known_step,
-                } = entry.0
-                else {
-                    return None;
-                };
-                (arguments.len() + 1 >= arity
-                    && arena.structurally_equal(motive, known_motive)
-                    && arena.structurally_equal(step, known_step))
-                .then_some((index as u32, subject))
-            });
-            match folded {
-                Some((declaration, subject)) => {
-                    let mut restored = arguments.clone();
-                    restored.insert(subject, tree);
+        Term::Constant { declaration, .. } => {
+            match definitions.folded(arena, declaration, &arguments) {
+                Some((folded, restored)) => {
                     let constant = arena.insert(Term::Constant {
-                        declaration,
+                        declaration: folded,
                         levels: Vec::new(),
                     });
                     (constant, restored)
@@ -299,26 +310,45 @@ fn normal(
         _ => (function, arguments),
     };
     if let Term::Constant { declaration, .. } = arena.get(function)
-        && let Definition::Recursion { arity, subject, .. } = definitions.get(declaration)
-        && arguments.len() >= arity
+        && let Definition::Recursion { cases, induction } = definitions.get(declaration)
+        && arguments.len() >= cases.arity as usize
     {
         let mut operands = Vec::with_capacity(arguments.len());
         for &argument in &arguments {
             operands.push(normal(arena, context, definitions, argument, conversion)?);
         }
-        if !definitions.is_constructed(arena, operands[subject]) {
+        let subject = cases.subject as usize;
+        let Some((case, fields)) = definitions.constructed(arena, cases.data, operands[subject])
+        else {
             return Ok(arena.apply_arguments(function, &operands));
+        };
+        let recursor = arena.insert(Term::Constant {
+            declaration: *induction,
+            levels: Vec::new(),
+        });
+        let mut recursor = arena.insert(Term::Apply {
+            function: recursor,
+            argument: cases.motive,
+        });
+        for &branch in &cases.branches {
+            recursor = arena.insert(Term::Apply {
+                function: recursor,
+                argument: branch,
+            });
         }
-        // Expose the constructor's node, then let the recursion take exactly
-        // one step with every constant kept as written.
-        let node = weak_head_normalize(arena, signature, operands[subject], conversion)?;
-        let body = signature
-            .get(declaration)
-            .and_then(|declared| declared.body)
-            .ok_or(SearchError::NoProof)?;
-        let mut unfolded = operands.clone();
-        unfolded[subject] = node;
-        let applied = arena.apply_arguments(body, &unfolded);
+        let mut applied = arena.apply_arguments(cases.branches[case], &fields);
+        for &field in &fields {
+            let at_field = arena.insert(Term::Apply {
+                function: recursor,
+                argument: field,
+            });
+            applied = arena.insert(Term::Apply {
+                function: applied,
+                argument: at_field,
+            });
+        }
+        operands.remove(subject);
+        let applied = arena.apply_arguments(applied, &operands);
         let stepped = proof_admission::weak_head_normalize_retaining(
             arena,
             signature,
@@ -645,9 +675,11 @@ pub(crate) fn prove(
     search_steps: usize,
     conversion: &mut Budget,
 ) -> Result<TermHandle, SearchError> {
+    let definitions = Definitions::plain(context);
     prove_under(
         arena,
         context,
+        &definitions,
         goal,
         citations,
         &[],
@@ -662,10 +694,13 @@ pub(crate) fn prove(
 /// when it and the other side have one canonical form under the licensed
 /// operations' laws. Every rewrite, a citation's or a law's, is an identity
 /// elimination, so the result is one kernel term from the left side to the
-/// right.
+/// right. The term is a candidate: the caller has the kernel check it, once,
+/// with everything else it is part of.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn prove_under(
     arena: &mut TermArena,
     context: &Context,
+    definitions: &Definitions,
     goal: TermHandle,
     citations: &[TermHandle],
     licenses: &[License],
@@ -675,12 +710,10 @@ pub(crate) fn prove_under(
     let Term::Id { ty, left, right } = arena.get(goal) else {
         return Err(SearchError::NoProof);
     };
-    let definitions = Definitions::of(arena, context);
-    let left = normal(arena, context, &definitions, left, conversion)?;
-    let right = normal(arena, context, &definitions, right, conversion)?;
+    let left = normal(arena, context, definitions, left, conversion)?;
+    let right = normal(arena, context, definitions, right, conversion)?;
     let reflexivity = arena.insert(Term::Refl { ty, value: left });
     if arena.structurally_equal(left, right) {
-        check_type(arena, context, reflexivity, goal, conversion)?;
         return Ok(reflexivity);
     }
     let (canonical, from_right) = rearrange(arena, licenses, right, &mut search_steps)?;
@@ -689,11 +722,9 @@ pub(crate) fn prove_under(
     let close = |arena: &mut TermArena,
                  term: TermHandle,
                  base: TermHandle,
-                 search_steps: &mut usize,
-                 conversion: &mut Budget|
+                 search_steps: &mut usize|
      -> Result<Option<TermHandle>, SearchError> {
         if arena.structurally_equal(term, right) {
-            check_type(arena, context, base, goal, conversion)?;
             return Ok(Some(base));
         }
         if licenses.is_empty() {
@@ -711,10 +742,9 @@ pub(crate) fn prove_under(
             let back = step.rule.reversed(arena);
             (term, proof) = rewrite(arena, ty, left, term, proof, &step.slots, back)?;
         }
-        check_type(arena, context, proof, goal, conversion)?;
         Ok(Some(proof))
     };
-    if let Some(proof) = close(arena, left, reflexivity, &mut search_steps, conversion)? {
+    if let Some(proof) = close(arena, left, reflexivity, &mut search_steps)? {
         return Ok(proof);
     }
     let mut rules = Vec::new();
@@ -730,8 +760,8 @@ pub(crate) fn prove_under(
         {
             let equality = Equality {
                 carrier,
-                from: normal(arena, context, &definitions, from, conversion)?,
-                to: normal(arena, context, &definitions, to, conversion)?,
+                from: normal(arena, context, definitions, from, conversion)?,
+                to: normal(arena, context, definitions, to, conversion)?,
                 proof,
             };
             rules.extend([equality, equality.reversed(arena)]);
@@ -775,8 +805,7 @@ pub(crate) fn prove_under(
                     right: under_binders,
                 });
                 let proof = rule.eliminate(arena, conclusion, base);
-                if let Some(proof) = close(arena, rewritten, proof, &mut search_steps, conversion)?
-                {
+                if let Some(proof) = close(arena, rewritten, proof, &mut search_steps)? {
                     return Ok(proof);
                 }
                 reached.push((rewritten, proof));

@@ -135,6 +135,26 @@ fn right_distributivity_without_its_recursive_call_is_refused_at_the_successor_a
 }
 
 #[test]
+fn peano_left_distributivity_reorders_under_its_commutativity_law_and_compiles() {
+    let (output, report) = check("ring_law/pass/peano_left_distributivity");
+    assert_eq!(output.status.code(), Some(0), "{report}");
+}
+
+#[test]
+fn left_distributivity_is_refused_when_commutativity_is_outside_the_conformance() {
+    let (output, report) = check("ring_law/fail/peano_left_distributivity_unlicensed");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains(
+            "cannot prove ensures contract for `times_distributes` in the case \
+             `Peano::Succ`: core\\\\Identity::<Peano>(times(Peano::Succ(pred), plus(b, c)), \
+             plus(times(Peano::Succ(pred), b), times(Peano::Succ(pred), c)))"
+        ) && report.contains(UNPROVED),
+        "{report}"
+    );
+}
+
+#[test]
 fn a_satisfier_that_proves_nothing_is_refused_for_the_law_it_inherits() {
     let (output, report) = check("ring_law/fail/ring_law_unproven_rejected");
     assert_eq!(output.status.code(), Some(1), "{report}");

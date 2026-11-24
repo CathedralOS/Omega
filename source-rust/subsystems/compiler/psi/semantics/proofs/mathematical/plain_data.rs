@@ -1,16 +1,27 @@
-//! A plain, unindexed `data` declaration as a W type.
+//! A plain, unindexed `data` declaration as canonical trees of a W type.
 //!
 //! Each case contributes one label and one child position per field that
 //! holds the data itself. The labels and the positions of one case are finite
-//! types built from `Two`, `Box` and `Empty`, so the encoding adds no
-//! assumption: constructors are `sup` terms and a definition by cases is an
-//! `indW` term whose step selects a branch by eliminating the label.
+//! types built from `Two`, `Box` and `Empty`. A raw tree `sup(label, k)`
+//! exists for every child function `k`, and the kernel does not convert `k`
+//! to the function a constructor builds from `k`'s values: W types have no
+//! function extensionality and the position types no eta rule. So the raw
+//! trees are not the data. A law such as `plus(a, Zero) = a` would be false
+//! of them up to conversion.
 //!
-//! W types have no function extensionality. A branch is therefore stated for
-//! an arbitrary child function `k`, and a field of the case is `k` applied to
-//! that field's canonical position. Functions defined by `indW` compute on
-//! `sup(label, k)` for every `k`, which is what a proof by cases needs.
+//! The data is a raw tree paired with evidence that it is canonical:
+//! `canonical(sup(case, k))` holds one raw tree per field, an identity
+//! between the constructor's child function over those trees and `k`, and
+//! `canonical` of each field. Eliminating that identity replaces `k` by the
+//! constructor's own function, so the induction principle is stated over
+//! constructor applications and computes on them, for any fields, by `indW`,
+//! identity elimination on `refl`, beta and pair eta. This adds no rule and
+//! no assumption; the
+//! [inductive profile](../../../../../../wiki/spec/proofs/inductive_profile.md#derived-indexed-families)
+//! builds indexed families the same way, as a tree paired with a
+//! recursively defined condition.
 
+use crate::signature::Declaration;
 use crate::substitution::shift;
 use crate::term::{Level, Sort, Term, TermArena, TermHandle};
 
@@ -211,6 +222,99 @@ fn eliminate(
     }
 }
 
+/// Builds a term with each binder named by the depth it was opened at, so a
+/// subterm written under more binders still names the same variable. Depth
+/// counts from where the build started; a term of the caller's context is
+/// shifted by the current depth before it is used.
+struct Scope<'a> {
+    arena: &'a mut TermArena,
+    depth: u32,
+}
+
+#[derive(Clone, Copy)]
+struct Name(u32);
+
+type Bound<'f> = &'f dyn Fn(&mut Scope<'_>) -> TermHandle;
+type Indexed<'f> = &'f dyn Fn(&mut Scope<'_>, u32) -> TermHandle;
+
+impl Scope<'_> {
+    fn var(&mut self, name: Name) -> TermHandle {
+        variable(self.arena, self.depth - 1 - name.0)
+    }
+
+    fn bind(&mut self, body: impl FnOnce(&mut Self, Name) -> TermHandle) -> TermHandle {
+        let name = Name(self.depth);
+        self.depth += 1;
+        let body = body(self, name);
+        self.depth -= 1;
+        body
+    }
+
+    fn lambda(
+        &mut self,
+        domain: TermHandle,
+        body: impl FnOnce(&mut Self, Name) -> TermHandle,
+    ) -> TermHandle {
+        let body = self.bind(body);
+        lambda(self.arena, domain, body)
+    }
+
+    fn pi(
+        &mut self,
+        domain: TermHandle,
+        codomain: impl FnOnce(&mut Self, Name) -> TermHandle,
+    ) -> TermHandle {
+        let codomain = self.bind(codomain);
+        pi(self.arena, domain, codomain)
+    }
+
+    fn sigma(
+        &mut self,
+        domain: TermHandle,
+        codomain: impl FnOnce(&mut Self, Name) -> TermHandle,
+    ) -> TermHandle {
+        let codomain = self.bind(codomain);
+        self.arena.insert(Term::Sigma { domain, codomain })
+    }
+
+    fn constant(&mut self, declaration: u32) -> TermHandle {
+        self.arena.insert(Term::Constant {
+            declaration,
+            levels: Vec::new(),
+        })
+    }
+
+    fn apply(&mut self, function: TermHandle, argument: TermHandle) -> TermHandle {
+        apply(self.arena, function, argument)
+    }
+
+    fn pair(&mut self, first: TermHandle, second: TermHandle) -> TermHandle {
+        self.arena.insert(Term::Pair { first, second })
+    }
+
+    /// `term` after `skip` second projections, then the first projection
+    /// when `first` is set: one component of a right-nested tuple.
+    fn component(&mut self, mut term: TermHandle, skip: u32, first: bool) -> TermHandle {
+        for _ in 0..skip {
+            term = self.arena.insert(Term::Snd { pair: term });
+        }
+        if first {
+            term = self.arena.insert(Term::Fst { pair: term });
+        }
+        term
+    }
+}
+
+/// The declarations of one `data`, by their indices in the signature.
+#[derive(Clone, Copy)]
+struct Entries {
+    labels: u32,
+    children: u32,
+    tree: u32,
+    canonical: u32,
+    data: u32,
+}
+
 impl PlainData {
     /// A declaration needs at least one case to have a label type.
     pub fn new(arities: Vec<u32>) -> Option<Self> {
@@ -229,13 +333,41 @@ impl PlainData {
         self.arities.len() as u32
     }
 
-    /// The closed type of case labels.
-    pub fn carrier(&self, arena: &mut TermArena) -> TermHandle {
+    /// The index of the data's own entry when its declarations start at
+    /// `first`: the case labels, their child positions, the raw trees and
+    /// the canonical-tree condition come before it.
+    pub fn data_entry(first: u32) -> u32 {
+        first + 4
+    }
+
+    /// The index of a case's constructor, given the data's own entry.
+    pub fn constructor_entry(data: u32, case: usize) -> u32 {
+        data + 1 + case as u32
+    }
+
+    /// The index of the induction principle, given the data's own entry.
+    pub fn induction_entry(&self, data: u32) -> u32 {
+        data + 1 + self.size()
+    }
+
+    fn entries(data: u32) -> Entries {
+        Entries {
+            labels: data - 4,
+            children: data - 3,
+            tree: data - 2,
+            canonical: data - 1,
+            data,
+        }
+    }
+
+    /// The closed type of case labels: the body of the labels' declaration.
+    fn carrier(&self, arena: &mut TermArena) -> TermHandle {
         finite(arena, self.size())
     }
 
-    /// The closed family giving each label its child positions.
-    pub fn children(&self, arena: &mut TermArena) -> TermHandle {
+    /// The closed family giving each label its child positions: the body of
+    /// the positions' declaration.
+    fn children(&self, arena: &mut TermArena) -> TermHandle {
         let carrier = self.carrier(arena);
         let motive_domain = self.carrier(arena);
         let universe = type_zero(arena);
@@ -250,77 +382,47 @@ impl PlainData {
         lambda(arena, carrier, body)
     }
 
-    /// The closed W type of the declaration.
-    pub fn ty(&self, arena: &mut TermArena) -> TermHandle {
-        let carrier = self.carrier(arena);
-        let children = self.children(arena);
-        arena.insert(Term::W { carrier, children })
+    /// The type of a child function of a case: its positions to raw trees.
+    fn child_type(&self, scope: &mut Scope<'_>, entries: Entries, case: usize) -> TermHandle {
+        let positions = finite(scope.arena, self.arities[case]);
+        let tree = scope.constant(entries.tree);
+        pi(scope.arena, positions, tree)
     }
 
-    pub fn label(&self, arena: &mut TermArena, case: usize) -> TermHandle {
-        element(arena, self.size(), case as u32)
-    }
-
-    /// The canonical child position of one field of a case.
-    pub fn position(&self, arena: &mut TermArena, case: usize, field: u32) -> TermHandle {
-        element(arena, self.arities[case], field)
-    }
-
-    /// The closed constructor of a case: a function of its fields in order.
-    /// `ty` names the declaration in the binders, for example by its constant.
-    pub fn constructor(&self, arena: &mut TermArena, case: usize, ty: TermHandle) -> TermHandle {
-        let arity = self.arities[case];
-        let carrier = self.carrier(arena);
-        let children = self.children(arena);
-        let label = self.label(arena, case);
-        let positions = finite(arena, arity);
-        // Under the field binders and the position binder.
-        let fields: Vec<_> = (0..arity)
-            .map(|field| variable(arena, arity - field))
-            .collect();
-        let selected = match arity {
-            1 => fields[0],
-            _ => {
-                let domain = finite(arena, arity);
-                let motive = lambda(arena, domain, ty);
-                let position = variable(arena, 0);
-                eliminate(arena, arity, motive, &fields, position)
-            }
-        };
-        let function = lambda(arena, positions, selected);
-        let mut term = arena.insert(Term::Sup {
-            carrier,
-            children,
-            label,
-            function,
-        });
-        for _ in 0..arity {
-            term = lambda(arena, ty, term);
-        }
-        term
-    }
-
-    pub fn constructor_type(
+    /// The child function a constructor builds from one raw tree per field.
+    fn child_function(
         &self,
-        arena: &mut TermArena,
+        scope: &mut Scope<'_>,
+        entries: Entries,
         case: usize,
-        ty: TermHandle,
+        field: Indexed<'_>,
     ) -> TermHandle {
-        let mut term = ty;
-        for _ in 0..self.arities[case] {
-            term = pi(arena, ty, term);
-        }
-        term
+        let arity = self.arities[case];
+        let positions = finite(scope.arena, arity);
+        scope.lambda(positions, |scope, position| {
+            let fields: Vec<_> = (0..arity).map(|index| field(scope, index)).collect();
+            if arity == 1 {
+                return fields[0];
+            }
+            let domain = finite(scope.arena, arity);
+            let tree = scope.constant(entries.tree);
+            let motive = lambda(scope.arena, domain, tree);
+            let position = scope.var(position);
+            eliminate(scope.arena, arity, motive, &fields, position)
+        })
     }
 
-    /// The value of a case whose child function is the outer of the two
-    /// branch binders, seen past `inner` further binders.
-    pub fn node(&self, arena: &mut TermArena, case: usize, inner: u32) -> TermHandle {
-        let carrier = self.carrier(arena);
-        let children = self.children(arena);
-        let label = self.label(arena, case);
-        let function = variable(arena, inner + 1);
-        arena.insert(Term::Sup {
+    fn node(
+        &self,
+        scope: &mut Scope<'_>,
+        entries: Entries,
+        case: usize,
+        function: TermHandle,
+    ) -> TermHandle {
+        let carrier = scope.constant(entries.labels);
+        let children = scope.constant(entries.children);
+        let label = element(scope.arena, self.size(), case as u32);
+        scope.arena.insert(Term::Sup {
             carrier,
             children,
             label,
@@ -328,58 +430,632 @@ impl PlainData {
         })
     }
 
-    /// The types of the two binders a branch of `step` lives under: the child
-    /// function of the case, then, under that binder, its induction
-    /// hypothesis. `motive` is in the caller's context.
+    /// The right-nested product of one type per field of a case.
+    fn product(scope: &mut Scope<'_>, arity: u32, index: u32, factor: Indexed<'_>) -> TermHandle {
+        let domain = factor(scope, index);
+        if index + 1 == arity {
+            return domain;
+        }
+        scope.sigma(domain, |scope, _| {
+            Self::product(scope, arity, index + 1, factor)
+        })
+    }
+
+    /// The evidence that `sup(case, child)` is canonical. For a case with no
+    /// field it is the identity of the constructor's child function with
+    /// `child`. Otherwise it is one raw tree per field, that identity for the
+    /// child function over those trees, and `condition(field)` for each field.
+    fn evidence_type(
+        &self,
+        scope: &mut Scope<'_>,
+        entries: Entries,
+        case: usize,
+        child: Bound<'_>,
+        condition: Indexed<'_>,
+        fields: &mut Vec<Name>,
+    ) -> TermHandle {
+        let arity = self.arities[case];
+        if (fields.len() as u32) < arity {
+            let tree = scope.constant(entries.tree);
+            return scope.sigma(tree, |scope, field| {
+                fields.push(field);
+                self.evidence_type(scope, entries, case, child, condition, fields)
+            });
+        }
+        let ty = self.child_type(scope, entries, case);
+        let names = fields.clone();
+        let left = self.child_function(scope, entries, case, &|scope, index| {
+            scope.var(names[index as usize])
+        });
+        let right = child(scope);
+        let identity = scope.arena.insert(Term::Id { ty, left, right });
+        if arity == 0 {
+            return identity;
+        }
+        scope.sigma(identity, |scope, _| {
+            Self::product(scope, arity, 0, condition)
+        })
+    }
+
+    /// `canonical : tree -> Type`, by recursion on the tree.
+    fn canonical(&self, scope: &mut Scope<'_>, entries: Entries) -> TermHandle {
+        let tree = scope.constant(entries.tree);
+        let universe = type_zero(scope.arena);
+        let motive = lambda(scope.arena, tree, universe);
+        scope.lambda(tree, |scope, subject| {
+            let labels = scope.constant(entries.labels);
+            let step = scope.lambda(labels, |scope, label| {
+                let labels = scope.constant(entries.labels);
+                let step_motive = scope.lambda(labels, |scope, label| {
+                    let children = scope.constant(entries.children);
+                    let label_term = scope.var(label);
+                    let positions = scope.apply(children, label_term);
+                    let tree = scope.constant(entries.tree);
+                    let child = pi(scope.arena, positions, tree);
+                    scope.pi(child, |scope, _| {
+                        let children = scope.constant(entries.children);
+                        let label_term = scope.var(label);
+                        let positions = scope.apply(children, label_term);
+                        let conditions = pi(scope.arena, positions, universe);
+                        scope.pi(conditions, |_, _| universe)
+                    })
+                });
+                let branches: Vec<_> = (0..self.cases())
+                    .map(|case| {
+                        let child = self.child_type(scope, entries, case);
+                        scope.lambda(child, |scope, child| {
+                            let positions = finite(scope.arena, self.arities[case]);
+                            let conditions = pi(scope.arena, positions, universe);
+                            scope.lambda(conditions, |scope, conditions| {
+                                self.evidence_type(
+                                    scope,
+                                    entries,
+                                    case,
+                                    &|scope| scope.var(child),
+                                    &|scope, field| {
+                                        let conditions = scope.var(conditions);
+                                        let position =
+                                            element(scope.arena, self.arities[case], field);
+                                        scope.apply(conditions, position)
+                                    },
+                                    &mut Vec::new(),
+                                )
+                            })
+                        })
+                    })
+                    .collect();
+                let label = scope.var(label);
+                eliminate(scope.arena, self.size(), step_motive, &branches, label)
+            });
+            let tree = scope.var(subject);
+            scope.arena.insert(Term::IndW { motive, step, tree })
+        })
+    }
+
+    /// The value of a case over one value of the data per field.
+    fn constructed(
+        &self,
+        scope: &mut Scope<'_>,
+        entries: Entries,
+        case: usize,
+        field: Indexed<'_>,
+    ) -> TermHandle {
+        let arity = self.arities[case];
+        let raw: Indexed<'_> = &|scope, index| {
+            let field = field(scope, index);
+            scope.component(field, 0, true)
+        };
+        let function = self.child_function(scope, entries, case, raw);
+        let tree = self.node(scope, entries, case, function);
+        let ty = self.child_type(scope, entries, case);
+        let value = self.child_function(scope, entries, case, raw);
+        let mut evidence = scope.arena.insert(Term::Refl { ty, value });
+        if arity > 0 {
+            let last = field(scope, arity - 1);
+            let mut conditions = scope.component(last, 1, false);
+            for index in (0..arity - 1).rev() {
+                let field = field(scope, index);
+                let condition = scope.component(field, 1, false);
+                conditions = scope.pair(condition, conditions);
+            }
+            evidence = scope.pair(evidence, conditions);
+            for index in (0..arity).rev() {
+                let tree = raw(scope, index);
+                evidence = scope.pair(tree, evidence);
+            }
+        }
+        scope.pair(tree, evidence)
+    }
+
+    fn constructor(&self, scope: &mut Scope<'_>, entries: Entries, case: usize) -> TermHandle {
+        fn fields(
+            data: &PlainData,
+            scope: &mut Scope<'_>,
+            entries: Entries,
+            case: usize,
+            names: &mut Vec<Name>,
+        ) -> TermHandle {
+            if (names.len() as u32) < data.arities[case] {
+                let domain = scope.constant(entries.data);
+                return scope.lambda(domain, |scope, field| {
+                    names.push(field);
+                    fields(data, scope, entries, case, names)
+                });
+            }
+            let names = names.clone();
+            data.constructed(scope, entries, case, &|scope, index| {
+                scope.var(names[index as usize])
+            })
+        }
+        fields(self, scope, entries, case, &mut Vec::new())
+    }
+
+    /// What one case of an induction with this motive must supply: for every
+    /// value of each field and the motive at each of them, the motive at the
+    /// case over those fields.
+    fn branch_type_in(
+        &self,
+        scope: &mut Scope<'_>,
+        entries: Entries,
+        case: usize,
+        motive: Bound<'_>,
+        fields: &mut Vec<Name>,
+        hypotheses: u32,
+    ) -> TermHandle {
+        let arity = self.arities[case];
+        if (fields.len() as u32) < arity {
+            let domain = scope.constant(entries.data);
+            return scope.pi(domain, |scope, field| {
+                fields.push(field);
+                self.branch_type_in(scope, entries, case, motive, fields, hypotheses)
+            });
+        }
+        if hypotheses < arity {
+            let motive_term = motive(scope);
+            let field = scope.var(fields[hypotheses as usize]);
+            let domain = scope.apply(motive_term, field);
+            return scope.pi(domain, |scope, _| {
+                self.branch_type_in(scope, entries, case, motive, fields, hypotheses + 1)
+            });
+        }
+        let motive = motive(scope);
+        let arguments: Vec<_> = fields.iter().map(|&field| scope.var(field)).collect();
+        let constructor = scope.constant(Self::constructor_entry(entries.data, case));
+        let value = scope.arena.apply_arguments(constructor, &arguments);
+        scope.apply(motive, value)
+    }
+
+    /// For every position of a child function and every proof that the child
+    /// there is canonical, the motive at that child.
+    fn hypothesis_type(
+        &self,
+        scope: &mut Scope<'_>,
+        entries: Entries,
+        positions: TermHandle,
+        child: Bound<'_>,
+        motive: Bound<'_>,
+    ) -> TermHandle {
+        scope.pi(positions, |scope, position| {
+            let function = child(scope);
+            let position_term = scope.var(position);
+            let subtree = scope.apply(function, position_term);
+            let canonical = scope.constant(entries.canonical);
+            let condition = scope.apply(canonical, subtree);
+            scope.pi(condition, |scope, evidence| {
+                let function = child(scope);
+                let position_term = scope.var(position);
+                let subtree = scope.apply(function, position_term);
+                let evidence = scope.var(evidence);
+                let value = scope.pair(subtree, evidence);
+                let motive = motive(scope);
+                scope.apply(motive, value)
+            })
+        })
+    }
+
+    /// The canonical-tree condition of each field's child, as one product.
+    fn conditions_type(
+        &self,
+        scope: &mut Scope<'_>,
+        entries: Entries,
+        case: usize,
+        child: Bound<'_>,
+    ) -> TermHandle {
+        let arity = self.arities[case];
+        Self::product(scope, arity, 0, &|scope, field| {
+            let function = child(scope);
+            let position = element(scope.arena, arity, field);
+            let subtree = scope.apply(function, position);
+            let canonical = scope.constant(entries.canonical);
+            scope.apply(canonical, subtree)
+        })
+    }
+
+    /// One case of the induction's step over raw trees. The evidence says the
+    /// child function is the constructor's own over some fields; eliminating
+    /// that identity leaves exactly the case over those fields, which the
+    /// caller's branch answers.
+    fn step_branch(
+        &self,
+        scope: &mut Scope<'_>,
+        entries: Entries,
+        case: usize,
+        motive: Bound<'_>,
+        branch: Name,
+    ) -> TermHandle {
+        let arity = self.arities[case];
+        let child_type = self.child_type(scope, entries, case);
+        scope.lambda(child_type, |scope, child| {
+            let positions = finite(scope.arena, arity);
+            let hypothesis =
+                self.hypothesis_type(scope, entries, positions, &|scope| scope.var(child), motive);
+            scope.lambda(hypothesis, |scope, hypothesis| {
+                let function = scope.var(child);
+                let tree = self.node(scope, entries, case, function);
+                let canonical = scope.constant(entries.canonical);
+                let evidence_type = scope.apply(canonical, tree);
+                scope.lambda(evidence_type, |scope, evidence| {
+                    // The raw tree of each field, read out of the evidence.
+                    let raw: Indexed<'_> = &|scope, index| {
+                        let evidence = scope.var(evidence);
+                        scope.component(evidence, index, true)
+                    };
+                    let own: Bound<'_> = &|scope| self.child_function(scope, entries, case, raw);
+                    let eliminator_motive = scope.lambda(child_type, |scope, other| {
+                        let left = own(scope);
+                        let right = scope.var(other);
+                        let identity = scope.arena.insert(Term::Id {
+                            ty: child_type,
+                            left,
+                            right,
+                        });
+                        scope.lambda(identity, |scope, proof| {
+                            let conclusion = |scope: &mut Scope<'_>, tail: TermHandle| {
+                                let mut evidence = tail;
+                                for index in (0..arity).rev() {
+                                    let tree = raw(scope, index);
+                                    evidence = scope.pair(tree, evidence);
+                                }
+                                let function = scope.var(other);
+                                let tree = self.node(scope, entries, case, function);
+                                let value = scope.pair(tree, evidence);
+                                let motive = motive(scope);
+                                scope.apply(motive, value)
+                            };
+                            if arity == 0 {
+                                let proof = scope.var(proof);
+                                return conclusion(scope, proof);
+                            }
+                            let positions = finite(scope.arena, arity);
+                            let hypothesis = self.hypothesis_type(
+                                scope,
+                                entries,
+                                positions,
+                                &|scope| scope.var(other),
+                                motive,
+                            );
+                            scope.pi(hypothesis, |scope, _| {
+                                let conditions =
+                                    self.conditions_type(scope, entries, case, &|scope| {
+                                        scope.var(other)
+                                    });
+                                scope.pi(conditions, |scope, conditions| {
+                                    let proof = scope.var(proof);
+                                    let conditions = scope.var(conditions);
+                                    let tail = scope.pair(proof, conditions);
+                                    conclusion(scope, tail)
+                                })
+                            })
+                        })
+                    });
+                    let endpoint = scope.var(child);
+                    if arity == 0 {
+                        let base = scope.var(branch);
+                        let proof = scope.var(evidence);
+                        return scope.arena.insert(Term::IdElim {
+                            motive: eliminator_motive,
+                            base,
+                            endpoint,
+                            proof,
+                        });
+                    }
+                    let positions = finite(scope.arena, arity);
+                    let own_hypothesis =
+                        self.hypothesis_type(scope, entries, positions, own, motive);
+                    let base = scope.lambda(own_hypothesis, |scope, hypothesis| {
+                        let conditions = self.conditions_type(scope, entries, case, own);
+                        scope.lambda(conditions, |scope, conditions| {
+                            let condition = |scope: &mut Scope<'_>, index: u32| {
+                                let conditions = scope.var(conditions);
+                                scope.component(conditions, index, index + 1 < arity)
+                            };
+                            let mut term = scope.var(branch);
+                            for index in 0..arity {
+                                let tree = raw(scope, index);
+                                let evidence = condition(scope, index);
+                                let field = scope.pair(tree, evidence);
+                                term = scope.apply(term, field);
+                            }
+                            for index in 0..arity {
+                                let hypothesis = scope.var(hypothesis);
+                                let position = element(scope.arena, arity, index);
+                                let at_position = scope.apply(hypothesis, position);
+                                let evidence = condition(scope, index);
+                                let result = scope.apply(at_position, evidence);
+                                term = scope.apply(term, result);
+                            }
+                            term
+                        })
+                    });
+                    let evidence_term = scope.var(evidence);
+                    let proof = scope.component(evidence_term, arity, true);
+                    let eliminated = scope.arena.insert(Term::IdElim {
+                        motive: eliminator_motive,
+                        base,
+                        endpoint,
+                        proof,
+                    });
+                    let hypothesis = scope.var(hypothesis);
+                    let with_hypothesis = scope.apply(eliminated, hypothesis);
+                    let evidence_term = scope.var(evidence);
+                    let conditions = scope.component(evidence_term, arity + 1, false);
+                    scope.apply(with_hypothesis, conditions)
+                })
+            })
+        })
+    }
+
+    /// The induction principle and its type:
+    /// `(P : data -> Type) -> branch_0 -> .. -> (d : data) -> P d`.
+    fn induction(&self, scope: &mut Scope<'_>, entries: Entries) -> (TermHandle, TermHandle) {
+        let data = scope.constant(entries.data);
+        let universe = type_zero(scope.arena);
+        let motive_type = pi(scope.arena, data, universe);
+
+        fn statement(
+            this: &PlainData,
+            scope: &mut Scope<'_>,
+            entries: Entries,
+            motive: Name,
+            case: usize,
+        ) -> TermHandle {
+            if case < this.cases() {
+                let branch = this.branch_type_in(
+                    scope,
+                    entries,
+                    case,
+                    &|scope| scope.var(motive),
+                    &mut Vec::new(),
+                    0,
+                );
+                return scope.pi(branch, |scope, _| {
+                    statement(this, scope, entries, motive, case + 1)
+                });
+            }
+            let data = scope.constant(entries.data);
+            scope.pi(data, |scope, subject| {
+                let motive = scope.var(motive);
+                let subject = scope.var(subject);
+                scope.apply(motive, subject)
+            })
+        }
+        let ty = scope.pi(motive_type, |scope, motive| {
+            statement(self, scope, entries, motive, 0)
+        });
+
+        fn proof(
+            this: &PlainData,
+            scope: &mut Scope<'_>,
+            entries: Entries,
+            motive: Name,
+            branches: &mut Vec<Name>,
+        ) -> TermHandle {
+            let case = branches.len();
+            if case < this.cases() {
+                let branch = this.branch_type_in(
+                    scope,
+                    entries,
+                    case,
+                    &|scope| scope.var(motive),
+                    &mut Vec::new(),
+                    0,
+                );
+                return scope.lambda(branch, |scope, branch| {
+                    branches.push(branch);
+                    proof(this, scope, entries, motive, branches)
+                });
+            }
+            let branches = branches.clone();
+            let data = scope.constant(entries.data);
+            scope.lambda(data, |scope, subject| {
+                let tree = scope.constant(entries.tree);
+                // Over raw trees: for every proof the tree is canonical, the
+                // caller's motive at the tree with that proof.
+                let tree_motive = scope.lambda(tree, |scope, tree| {
+                    let canonical = scope.constant(entries.canonical);
+                    let tree_term = scope.var(tree);
+                    let condition = scope.apply(canonical, tree_term);
+                    scope.pi(condition, |scope, evidence| {
+                        let tree = scope.var(tree);
+                        let evidence = scope.var(evidence);
+                        let value = scope.pair(tree, evidence);
+                        let motive = scope.var(motive);
+                        scope.apply(motive, value)
+                    })
+                });
+                let labels = scope.constant(entries.labels);
+                let step = scope.lambda(labels, |scope, label| {
+                    let labels = scope.constant(entries.labels);
+                    let step_motive = scope.lambda(labels, |scope, label| {
+                        let children = scope.constant(entries.children);
+                        let label_term = scope.var(label);
+                        let positions = scope.apply(children, label_term);
+                        let tree = scope.constant(entries.tree);
+                        let child_type = pi(scope.arena, positions, tree);
+                        scope.pi(child_type, |scope, child| {
+                            let children = scope.constant(entries.children);
+                            let label_term = scope.var(label);
+                            let positions = scope.apply(children, label_term);
+                            let hypothesis = this.hypothesis_type(
+                                scope,
+                                entries,
+                                positions,
+                                &|scope| scope.var(child),
+                                &|scope| scope.var(motive),
+                            );
+                            scope.pi(hypothesis, |scope, _| {
+                                let node = |scope: &mut Scope<'_>| {
+                                    let carrier = scope.constant(entries.labels);
+                                    let children = scope.constant(entries.children);
+                                    let label = scope.var(label);
+                                    let function = scope.var(child);
+                                    scope.arena.insert(Term::Sup {
+                                        carrier,
+                                        children,
+                                        label,
+                                        function,
+                                    })
+                                };
+                                let tree = node(scope);
+                                let canonical = scope.constant(entries.canonical);
+                                let condition = scope.apply(canonical, tree);
+                                scope.pi(condition, |scope, evidence| {
+                                    let tree = node(scope);
+                                    let evidence = scope.var(evidence);
+                                    let value = scope.pair(tree, evidence);
+                                    let motive = scope.var(motive);
+                                    scope.apply(motive, value)
+                                })
+                            })
+                        })
+                    });
+                    let cases: Vec<_> = (0..this.cases())
+                        .map(|case| {
+                            this.step_branch(
+                                scope,
+                                entries,
+                                case,
+                                &|scope| scope.var(motive),
+                                branches[case],
+                            )
+                        })
+                        .collect();
+                    let label = scope.var(label);
+                    eliminate(scope.arena, this.size(), step_motive, &cases, label)
+                });
+                let subject_term = scope.var(subject);
+                let tree = scope.component(subject_term, 0, true);
+                let recursion = scope.arena.insert(Term::IndW {
+                    motive: tree_motive,
+                    step,
+                    tree,
+                });
+                let subject_term = scope.var(subject);
+                let evidence = scope.component(subject_term, 1, false);
+                scope.apply(recursion, evidence)
+            })
+        }
+        let body = scope.lambda(motive_type, |scope, motive| {
+            proof(self, scope, entries, motive, &mut Vec::new())
+        });
+        (ty, body)
+    }
+
+    /// Every declaration of the data, in order, for a signature in which the
+    /// first of them has index `first`: the case labels, their child
+    /// positions, the raw trees, the canonical-tree condition, the data
+    /// itself, one constructor per case and the induction principle.
+    pub fn declarations(&self, arena: &mut TermArena, first: u32) -> Vec<Declaration> {
+        let entries = Self::entries(Self::data_entry(first));
+        let universe = type_zero(arena);
+        let labels = self.carrier(arena);
+        let positions = self.children(arena);
+        let mut scope = Scope { arena, depth: 0 };
+        let carrier = scope.constant(entries.labels);
+        let family = pi(scope.arena, carrier, universe);
+        let children = scope.constant(entries.children);
+        let trees = scope.arena.insert(Term::W { carrier, children });
+        let mut declarations = vec![
+            Declaration::definition(0, universe, labels),
+            Declaration::definition(0, family, positions),
+            Declaration::definition(0, universe, trees),
+        ];
+        let tree = scope.constant(entries.tree);
+        let canonical_type = pi(scope.arena, tree, universe);
+        let canonical = self.canonical(&mut scope, entries);
+        declarations.push(Declaration::definition(0, canonical_type, canonical));
+        let data = scope.sigma(tree, |scope, tree| {
+            let canonical = scope.constant(entries.canonical);
+            let tree = scope.var(tree);
+            scope.apply(canonical, tree)
+        });
+        declarations.push(Declaration::definition(0, universe, data));
+        let data = scope.constant(entries.data);
+        for case in 0..self.cases() {
+            let mut ty = data;
+            for _ in 0..self.arities[case] {
+                ty = pi(scope.arena, data, ty);
+            }
+            let constructor = self.constructor(&mut scope, entries, case);
+            declarations.push(Declaration::definition(0, ty, constructor));
+        }
+        let (ty, induction) = self.induction(&mut scope, entries);
+        declarations.push(Declaration::definition(0, ty, induction));
+        declarations
+    }
+
+    /// The type of branch `case` of an induction over the data at entry
+    /// `data` whose motive is `motive`, a function from the data to a type in
+    /// the caller's context. The branch takes the case's fields in order,
+    /// then the motive at each field, and lands at the motive of the case.
+    pub fn branch_type(
+        &self,
+        arena: &mut TermArena,
+        data: u32,
+        motive: TermHandle,
+        case: usize,
+    ) -> TermHandle {
+        let mut scope = Scope { arena, depth: 0 };
+        self.branch_type_in(
+            &mut scope,
+            Self::entries(data),
+            case,
+            &|scope| shift(scope.arena, motive, 0, scope.depth),
+            &mut Vec::new(),
+            0,
+        )
+    }
+
+    /// The types of the binders a branch body lives under, each under the
+    /// ones before it: the case's fields, then the motive at each field.
     pub fn case_binders(
         &self,
         arena: &mut TermArena,
+        data: u32,
         motive: TermHandle,
         case: usize,
-    ) -> (TermHandle, TermHandle) {
-        let ty = self.ty(arena);
-        let children = self.children(arena);
-        let label = self.label(arena, case);
-        let positions = apply(arena, children, label);
-        let function = pi(arena, positions, ty);
-        let motive_under = shift(arena, motive, 0, 2);
-        let function_bound = variable(arena, 1);
-        let position = variable(arena, 0);
-        let child = apply(arena, function_bound, position);
-        let landing = apply(arena, motive_under, child);
-        let children = self.children(arena);
-        let label = self.label(arena, case);
-        let positions = apply(arena, children, label);
-        let hypothesis = pi(arena, positions, landing);
-        (function, hypothesis)
-    }
-
-    /// What a branch of `step` must prove, under the binders for the child
-    /// function and the induction hypothesis.
-    pub fn case_goal(&self, arena: &mut TermArena, motive: TermHandle, case: usize) -> TermHandle {
-        let carrier = self.carrier(arena);
-        let children = self.children(arena);
-        let label = self.label(arena, case);
-        let function = variable(arena, 1);
-        let node = arena.insert(Term::Sup {
-            carrier,
-            children,
-            label,
-            function,
+    ) -> Vec<TermHandle> {
+        let arity = self.arities[case];
+        let ty = arena.insert(Term::Constant {
+            declaration: data,
+            levels: Vec::new(),
         });
-        let motive = shift(arena, motive, 0, 2);
-        apply(arena, motive, node)
+        let mut binders = vec![ty; arity as usize];
+        for field in 0..arity {
+            let motive = shift(arena, motive, 0, arity + field);
+            let value = variable(arena, arity - 1);
+            binders.push(apply(arena, motive, value));
+        }
+        binders
     }
 
-    /// A field of the case under the same two binders, shifted past `inner`
-    /// further binders.
+    /// A field of the case, seen from a branch body past `inner` further
+    /// binders.
     pub fn field(&self, arena: &mut TermArena, case: usize, field: u32, inner: u32) -> TermHandle {
-        let function = variable(arena, inner + 1);
-        let position = self.position(arena, case, field);
-        apply(arena, function, position)
+        variable(arena, inner + 2 * self.arities[case] - 1 - field)
     }
 
-    /// The induction hypothesis for that field.
+    /// The induction hypothesis for that field, seen from the same place.
     pub fn hypothesis(
         &self,
         arena: &mut TermArena,
@@ -387,75 +1063,64 @@ impl PlainData {
         field: u32,
         inner: u32,
     ) -> TermHandle {
-        let hypothesis = variable(arena, inner);
-        let position = self.position(arena, case, field);
-        apply(arena, hypothesis, position)
+        variable(arena, inner + self.arities[case] - 1 - field)
     }
 
-    /// The step of an `indW` over this declaration. `motive` is a function
-    /// from the declaration in the caller's context. Branch `i` lives under
-    /// two more binders, the child function and the induction hypothesis of
-    /// case `i`, and proves `case_goal(motive, i)`.
-    pub fn step(
+    /// The value of the case over its fields, seen from the same place.
+    pub fn case_value(
         &self,
         arena: &mut TermArena,
+        data: u32,
+        case: usize,
+        inner: u32,
+    ) -> TermHandle {
+        let constructor = arena.insert(Term::Constant {
+            declaration: Self::constructor_entry(data, case),
+            levels: Vec::new(),
+        });
+        let fields: Vec<_> = (0..self.arities[case])
+            .map(|field| self.field(arena, case, field, inner))
+            .collect();
+        arena.apply_arguments(constructor, &fields)
+    }
+
+    /// Wraps a branch body in its binders. `motive` is in the caller's
+    /// context; `body` lives under the binders of `case_binders`.
+    pub fn branch(
+        &self,
+        arena: &mut TermArena,
+        data: u32,
+        motive: TermHandle,
+        case: usize,
+        body: TermHandle,
+    ) -> TermHandle {
+        let binders = self.case_binders(arena, data, motive, case);
+        binders
+            .into_iter()
+            .rev()
+            .fold(body, |body, domain| lambda(arena, domain, body))
+    }
+
+    /// The induction over `subject` with one closed-over branch per case,
+    /// each built by `branch`. Its type is `motive(subject)`.
+    pub fn induct(
+        &self,
+        arena: &mut TermArena,
+        data: u32,
         motive: TermHandle,
         branches: &[TermHandle],
+        subject: TermHandle,
     ) -> TermHandle {
-        debug_assert_eq!(branches.len(), self.arities.len());
-        let ty = self.ty(arena);
-        let children = self.children(arena);
-        let carrier = self.carrier(arena);
-        // The type of a branch as a function of the label.
-        let step_motive = {
-            let label = variable(arena, 0);
-            let positions = apply(arena, children, label);
-            let function = pi(arena, positions, ty);
-            let label = variable(arena, 1);
-            let positions = apply(arena, children, label);
-            let motive_under = shift(arena, motive, 0, 4);
-            let function_bound = variable(arena, 1);
-            let position = variable(arena, 0);
-            let child = apply(arena, function_bound, position);
-            let landing = apply(arena, motive_under, child);
-            let hypothesis = pi(arena, positions, landing);
-            let label = variable(arena, 2);
-            let function_bound = variable(arena, 1);
-            let node = arena.insert(Term::Sup {
-                carrier,
-                children,
-                label,
-                function: function_bound,
-            });
-            let motive_under = shift(arena, motive, 0, 4);
-            let result = apply(arena, motive_under, node);
-            let inner = pi(arena, hypothesis, result);
-            let outer = pi(arena, function, inner);
-            let domain = self.carrier(arena);
-            lambda(arena, domain, outer)
-        };
-        let cases: Vec<_> = branches
-            .iter()
-            .enumerate()
-            .map(|(case, &branch)| {
-                let label = self.label(arena, case);
-                let positions = apply(arena, children, label);
-                let function = pi(arena, positions, ty);
-                let motive_under = shift(arena, motive, 0, 3);
-                let function_bound = variable(arena, 1);
-                let position = variable(arena, 0);
-                let child = apply(arena, function_bound, position);
-                let landing = apply(arena, motive_under, child);
-                let hypothesis = pi(arena, positions, landing);
-                let branch = shift(arena, branch, 2, 1);
-                let inner = lambda(arena, hypothesis, branch);
-                lambda(arena, function, inner)
-            })
-            .collect();
-        let label = variable(arena, 0);
-        let selected = eliminate(arena, self.size(), step_motive, &cases, label);
-        let domain = self.carrier(arena);
-        lambda(arena, domain, selected)
+        debug_assert_eq!(branches.len(), self.cases());
+        let induction = arena.insert(Term::Constant {
+            declaration: self.induction_entry(data),
+            levels: Vec::new(),
+        });
+        let mut term = apply(arena, induction, motive);
+        for &branch in branches {
+            term = apply(arena, term, branch);
+        }
+        apply(arena, term, subject)
     }
 }
 
@@ -463,7 +1128,7 @@ impl PlainData {
 mod tests {
     use super::*;
     use crate::conversion::{Budget, convertible};
-    use crate::signature::{Declaration, check_signature, judgment_assumption_closure};
+    use crate::signature::{check_signature, judgment_assumption_closure};
     use crate::typing::{Context, check_type};
 
     fn constant(arena: &mut TermArena, declaration: u32) -> TermHandle {
@@ -478,24 +1143,20 @@ mod tests {
         arena.apply_arguments(function, arguments)
     }
 
-    const PEANO: u32 = 0;
-    const ZERO: u32 = 1;
-    const SUCC: u32 = 2;
-    const PLUS: u32 = 3;
+    const PEANO: u32 = 4;
+    const ZERO: u32 = 5;
+    const SUCC: u32 = 6;
+    const PLUS: u32 = 8;
 
-    /// `Peano`, its constructors and `plus` defined by cases on its first
-    /// parameter, with the other parameter quantified in the motive.
+    /// `Peano`'s declarations and `plus`, defined by cases on its first
+    /// parameter with the other parameter quantified in the motive.
     fn peano(arena: &mut TermArena) -> (PlainData, Vec<Declaration>) {
         let data = PlainData::new(vec![0, 1]).unwrap();
-        let universe = type_zero(arena);
-        let body = data.ty(arena);
-        let mut declarations = vec![Declaration::definition(0, universe, body)];
+        let mut declarations = data.declarations(arena, 0);
+        assert_eq!(PlainData::data_entry(0), PEANO);
+        assert_eq!(PlainData::constructor_entry(PEANO, 1), SUCC);
+        assert_eq!(declarations.len() as u32, PLUS);
         let ty = constant(arena, PEANO);
-        for case in 0..2 {
-            let constructor_type = data.constructor_type(arena, case, ty);
-            let constructor = data.constructor(arena, case, ty);
-            declarations.push(Declaration::definition(0, constructor_type, constructor));
-        }
         let plus_type = {
             let inner = pi(arena, ty, ty);
             pi(arena, ty, inner)
@@ -509,10 +1170,10 @@ mod tests {
             let other = variable(arena, 0);
             let smaller = apply(arena, hypothesis, other);
             let next = call(arena, SUCC, &[smaller]);
-            let successor = lambda(arena, ty, next);
-            let step = data.step(arena, motive, &[zero, successor]);
-            let tree = variable(arena, 1);
-            let recursion = arena.insert(Term::IndW { motive, step, tree });
+            let body = lambda(arena, ty, next);
+            let successor = data.branch(arena, PEANO, motive, 1, body);
+            let subject = variable(arena, 1);
+            let recursion = data.induct(arena, PEANO, motive, &[zero, successor], subject);
             let other = variable(arena, 0);
             let body = apply(arena, recursion, other);
             let inner = lambda(arena, ty, body);
@@ -520,6 +1181,129 @@ mod tests {
         };
         declarations.push(Declaration::definition(0, plus_type, plus));
         (data, declarations)
+    }
+
+    fn checked(
+        arena: &mut TermArena,
+        declarations: &[Declaration],
+        budget: &mut Budget,
+    ) -> Context {
+        let signature = check_signature(arena, declarations, budget)
+            .unwrap_or_else(|error| panic!("{error:?}"));
+        Context::empty().with_signature(signature)
+    }
+
+    #[test]
+    fn a_function_by_cases_computes_on_a_constructor_over_any_fields() {
+        let mut arena = TermArena::new();
+        let mut budget = Budget::default();
+        let (_, declarations) = peano(&mut arena);
+        let ty = constant(&mut arena, PEANO);
+        // Under two arbitrary values `m` and `b`.
+        let context = checked(&mut arena, &declarations, &mut budget)
+            .extend(ty)
+            .extend(ty);
+        let (m, b) = (variable(&mut arena, 1), variable(&mut arena, 0));
+        let successor = call(&mut arena, SUCC, &[m]);
+        let unfolded = call(&mut arena, PLUS, &[successor, b]);
+        let smaller = call(&mut arena, PLUS, &[m, b]);
+        let expected = call(&mut arena, SUCC, &[smaller]);
+        assert!(convertible(&mut arena, &context, unfolded, expected, ty, &mut budget).unwrap());
+        let zero = constant(&mut arena, ZERO);
+        let from_zero = call(&mut arena, PLUS, &[zero, b]);
+        assert!(convertible(&mut arena, &context, from_zero, b, ty, &mut budget).unwrap());
+        assert!(!convertible(&mut arena, &context, from_zero, m, ty, &mut budget).unwrap());
+        // It does not compute on a value that is no constructor.
+        let stuck = call(&mut arena, PLUS, &[m, zero]);
+        assert!(!convertible(&mut arena, &context, stuck, m, ty, &mut budget).unwrap());
+    }
+
+    /// `Succ(from) = Succ(to)` from a proof of `from = to`, in the proof's
+    /// own context.
+    fn under_successor(
+        arena: &mut TermArena,
+        from: TermHandle,
+        to: TermHandle,
+        equality: TermHandle,
+    ) -> TermHandle {
+        let ty = constant(arena, PEANO);
+        let from_one = shift(arena, from, 0, 1);
+        let from_two = shift(arena, from, 0, 2);
+        let bound = variable(arena, 0);
+        let domain = arena.insert(Term::Id {
+            ty,
+            left: from_one,
+            right: bound,
+        });
+        let left = call(arena, SUCC, &[from_two]);
+        let bound = variable(arena, 1);
+        let right = call(arena, SUCC, &[bound]);
+        let conclusion = arena.insert(Term::Id { ty, left, right });
+        let inner = lambda(arena, domain, conclusion);
+        let motive = lambda(arena, ty, inner);
+        let value = call(arena, SUCC, &[from]);
+        let base = arena.insert(Term::Refl { ty, value });
+        arena.insert(Term::IdElim {
+            motive,
+            base,
+            endpoint: to,
+            proof: equality,
+        })
+    }
+
+    #[test]
+    fn a_law_that_returns_its_own_argument_is_proved_by_induction() {
+        // `plus(a, Zero) = a`. The successor case needs
+        // `Succ(plus(m, Zero)) = Succ(m)`, where `Succ(m)` is the very value
+        // the case is about. Raw trees cannot state that: a tree of the
+        // successor case is `sup(succ, k)` for any child function `k`, which
+        // the kernel does not convert to `Succ(k(position))`. Here a value
+        // also carries the evidence that `k` is the constructor's own.
+        let mut arena = TermArena::new();
+        let mut budget = Budget::default();
+        let (data, mut declarations) = peano(&mut arena);
+        let ty = constant(&mut arena, PEANO);
+        let law = |arena: &mut TermArena, subject: u32| {
+            let subject = variable(arena, subject);
+            let zero = constant(arena, ZERO);
+            let left = call(arena, PLUS, &[subject, zero]);
+            arena.insert(Term::Id {
+                ty,
+                left,
+                right: subject,
+            })
+        };
+        let statement = {
+            let body = law(&mut arena, 0);
+            pi(&mut arena, ty, body)
+        };
+        let proof = {
+            let body = law(&mut arena, 0);
+            let motive = lambda(&mut arena, ty, body);
+            let zero = constant(&mut arena, ZERO);
+            let base = arena.insert(Term::Refl { ty, value: zero });
+            let successor = {
+                let smaller = data.field(&mut arena, 1, 0, 0);
+                let zero = constant(&mut arena, ZERO);
+                let from = call(&mut arena, PLUS, &[smaller, zero]);
+                let hypothesis = data.hypothesis(&mut arena, 1, 0, 0);
+                let body = under_successor(&mut arena, from, smaller, hypothesis);
+                data.branch(&mut arena, PEANO, motive, 1, body)
+            };
+            let subject = variable(&mut arena, 0);
+            let body = data.induct(&mut arena, PEANO, motive, &[base, successor], subject);
+            lambda(&mut arena, ty, body)
+        };
+        declarations.push(Declaration::definition(0, statement, proof));
+        let before = budget.remaining();
+        let signature = check_signature(&mut arena, &declarations, &mut budget)
+            .unwrap_or_else(|error| panic!("{error:?}"));
+        assert!(judgment_assumption_closure(&arena, &signature, &[statement, proof]).is_empty());
+        eprintln!(
+            "peano declarations and right identity: {} conversion steps, {} terms",
+            before - budget.remaining(),
+            arena.len()
+        );
     }
 
     fn associativity(arena: &mut TermArena, tree: u32, left: u32, right: u32) -> TermHandle {
@@ -573,34 +1357,13 @@ mod tests {
                 let to = call(&mut arena, PLUS, &[smaller, inner]);
                 let hypothesis = data.hypothesis(&mut arena, 1, 0, 2);
                 let equality = arena.apply_arguments(hypothesis, &[b, c]);
-                let from_one = shift(&mut arena, from, 0, 1);
-                let from_two = shift(&mut arena, from, 0, 2);
-                let bound = variable(&mut arena, 0);
-                let domain = arena.insert(Term::Id {
-                    ty,
-                    left: from_one,
-                    right: bound,
-                });
-                let left = call(&mut arena, SUCC, &[from_two]);
-                let bound = variable(&mut arena, 1);
-                let right = call(&mut arena, SUCC, &[bound]);
-                let conclusion = arena.insert(Term::Id { ty, left, right });
-                let inner = lambda(&mut arena, domain, conclusion);
-                let congruence = lambda(&mut arena, ty, inner);
-                let value = call(&mut arena, SUCC, &[from]);
-                let base = arena.insert(Term::Refl { ty, value });
-                let step = arena.insert(Term::IdElim {
-                    motive: congruence,
-                    base,
-                    endpoint: to,
-                    proof: equality,
-                });
+                let step = under_successor(&mut arena, from, to, equality);
                 let c = lambda(&mut arena, ty, step);
-                lambda(&mut arena, ty, c)
+                let body = lambda(&mut arena, ty, c);
+                data.branch(&mut arena, PEANO, motive, 1, body)
             };
-            let step = data.step(&mut arena, motive, &[base, successor]);
             let tree = variable(&mut arena, 2);
-            let induction = arena.insert(Term::IndW { motive, step, tree });
+            let induction = data.induct(&mut arena, PEANO, motive, &[base, successor], tree);
             let (b, c) = (variable(&mut arena, 1), variable(&mut arena, 0));
             let body = arena.apply_arguments(induction, &[b, c]);
             let c = lambda(&mut arena, ty, body);
@@ -608,12 +1371,13 @@ mod tests {
             lambda(&mut arena, ty, b)
         };
         declarations.push(Declaration::definition(0, statement, proof));
+        let before = budget.remaining();
         let signature = check_signature(&mut arena, &declarations, &mut budget)
             .unwrap_or_else(|error| panic!("{error:?}"));
         assert!(judgment_assumption_closure(&arena, &signature, &[statement, proof]).is_empty());
         eprintln!(
             "peano associativity: {} conversion steps, {} terms",
-            crate::conversion::DEFAULT_CONVERSION_STEPS - budget.remaining(),
+            before - budget.remaining(),
             arena.len()
         );
 
@@ -636,94 +1400,95 @@ mod tests {
     }
 
     #[test]
-    fn a_tree_of_a_case_is_not_its_constructor_by_computation() {
-        // A value of the successor case is `sup(succ, k)` for some child
-        // function `k`. The constructor applied to the field `k(position)`
-        // is `sup(succ, _ => k(position))`. The two differ only in the child
-        // function, and the kernel has neither function extensionality nor an
-        // eta rule for the position type, so it does not convert them. A law
-        // that returns its own argument, such as `plus(a, Zero) = a`, meets
-        // exactly this pair in its successor case, so this encoding cannot
-        // prove it. The repair is to keep only the trees whose child
-        // function is the constructor's own (a dependent pair of a tree and
-        // that evidence), which needs no new kernel rule.
+    fn wider_declarations_form_and_select_each_field() {
+        // Three cases with no, two and three fields: more than two labels,
+        // and child positions of both wider kinds.
         let mut arena = TermArena::new();
         let mut budget = Budget::default();
-        let (data, declarations) = peano(&mut arena);
-        let signature = check_signature(&mut arena, &declarations, &mut budget).unwrap();
-        let ty = constant(&mut arena, PEANO);
-        for case in 0..2 {
+        let data = PlainData::new(vec![0, 2, 3]).unwrap();
+        let mut declarations = data.declarations(&mut arena, 0);
+        let tree = PlainData::data_entry(0);
+        let ty = constant(&mut arena, tree);
+        let (leaf, two, three) = (tree + 1, tree + 2, tree + 3);
+        // `pick`: a leaf for a leaf, the first field of the two-field case,
+        // the recursion's result for the last field of the three-field case.
+        let pick = declarations.len() as u32;
+        let pick_type = pi(&mut arena, ty, ty);
+        let body = {
             let motive = lambda(&mut arena, ty, ty);
-            let (function, _) = data.case_binders(&mut arena, motive, case);
-            let context = Context::empty()
-                .with_signature(signature.clone())
-                .extend(function);
-            // The node of the case over the bound child function.
-            let carrier = data.carrier(&mut arena);
-            let children = data.children(&mut arena);
-            let label = data.label(&mut arena, case);
-            let child = variable(&mut arena, 0);
-            let node = arena.insert(Term::Sup {
-                carrier,
-                children,
-                label,
-                function: child,
-            });
-            let fields: Vec<_> = (0..data.arity(case))
-                .map(|field| {
-                    let position = data.position(&mut arena, case, field);
-                    let child = variable(&mut arena, 0);
-                    apply(&mut arena, child, position)
-                })
-                .collect();
-            let rebuilt = call(&mut arena, ZERO + case as u32, &fields);
-            check_type(&mut arena, &context, node, ty, &mut budget).unwrap();
-            check_type(&mut arena, &context, rebuilt, ty, &mut budget).unwrap();
-            assert!(
-                !convertible(&mut arena, &context, node, rebuilt, ty, &mut budget).unwrap(),
-                "case {case}"
+            let leaf_branch = constant(&mut arena, leaf);
+            let first = data.field(&mut arena, 1, 0, 0);
+            let first = data.branch(&mut arena, tree, motive, 1, first);
+            let last = data.hypothesis(&mut arena, 2, 2, 0);
+            let last = data.branch(&mut arena, tree, motive, 2, last);
+            let subject = variable(&mut arena, 0);
+            let recursion = data.induct(
+                &mut arena,
+                tree,
+                motive,
+                &[leaf_branch, first, last],
+                subject,
             );
+            lambda(&mut arena, ty, recursion)
+        };
+        declarations.push(Declaration::definition(0, pick_type, body));
+        let context = checked(&mut arena, &declarations, &mut budget)
+            .extend(ty)
+            .extend(ty);
+        let (x, y) = (variable(&mut arena, 1), variable(&mut arena, 0));
+        let pair = call(&mut arena, two, &[x, y]);
+        let picked = call(&mut arena, pick, &[pair]);
+        assert!(convertible(&mut arena, &context, picked, x, ty, &mut budget).unwrap());
+        assert!(!convertible(&mut arena, &context, picked, y, ty, &mut budget).unwrap());
+        let triple = call(&mut arena, three, &[x, y, pair]);
+        let picked = call(&mut arena, pick, &[triple]);
+        // The last field is the pair, whose own pick is `x`.
+        assert!(convertible(&mut arena, &context, picked, x, ty, &mut budget).unwrap());
+        let leaf_value = constant(&mut arena, leaf);
+        let picked = call(&mut arena, pick, &[leaf_value]);
+        assert!(convertible(&mut arena, &context, picked, leaf_value, ty, &mut budget).unwrap());
+    }
+
+    #[test]
+    fn a_declaration_checks_within_one_default_budget() {
+        // What the kernel spends on a data's own declarations, mostly on its
+        // induction principle. The cost grows with the number of cases and
+        // fields; each shape below must stay under its ceiling, and the
+        // largest under the default budget of one check.
+        for (arities, ceiling) in [
+            (vec![0, 1], 2_000),
+            (vec![0, 2], 5_000),
+            (vec![0, 1, 1], 16_000),
+            (vec![0, 2, 3], crate::conversion::DEFAULT_CONVERSION_STEPS),
+            (
+                vec![1, 1, 1, 1],
+                crate::conversion::DEFAULT_CONVERSION_STEPS,
+            ),
+        ] {
+            let mut arena = TermArena::new();
+            let data = PlainData::new(arities.clone()).unwrap();
+            let declarations = data.declarations(&mut arena, 0);
+            let mut budget = Budget::default();
+            let before = budget.remaining();
+            check_signature(&mut arena, &declarations, &mut budget)
+                .unwrap_or_else(|error| panic!("{arities:?}: {error:?}"));
+            let spent = before - budget.remaining();
+            eprintln!(
+                "{arities:?}: {spent} conversion steps, {} terms",
+                arena.len()
+            );
+            assert!(spent <= ceiling, "{arities:?}: {spent} > {ceiling}");
         }
     }
 
     #[test]
-    fn wider_declarations_form_and_select_each_field() {
-        // Three cases with zero, one and two fields: labels use the nested
-        // sum and the two-field case selects a child by its position.
-        let mut arena = TermArena::new();
-        let mut budget = Budget::default();
-        let data = PlainData::new(vec![0, 1, 2]).unwrap();
-        let universe = type_zero(&mut arena);
-        let body = data.ty(&mut arena);
-        let mut declarations = vec![Declaration::definition(0, universe, body)];
-        let ty = constant(&mut arena, 0);
-        for case in 0..3 {
-            let constructor_type = data.constructor_type(&mut arena, case, ty);
-            let constructor = data.constructor(&mut arena, case, ty);
-            declarations.push(Declaration::definition(0, constructor_type, constructor));
+    fn a_declaration_with_one_case_forms() {
+        for arities in [vec![0], vec![1], vec![2]] {
+            let mut arena = TermArena::new();
+            let data = PlainData::new(arities.clone()).unwrap();
+            let declarations = data.declarations(&mut arena, 0);
+            check_signature(&mut arena, &declarations, &mut Budget::default())
+                .unwrap_or_else(|error| panic!("{arities:?}: {error:?}"));
         }
-        // `leftmost` returns the first field of the widest case, or itself.
-        let leftmost_type = pi(&mut arena, ty, ty);
-        let leftmost = {
-            let motive = lambda(&mut arena, ty, ty);
-            let leaf = constant(&mut arena, 1);
-            let unary = data.field(&mut arena, 1, 0, 0);
-            let binary = data.hypothesis(&mut arena, 2, 0, 0);
-            let step = data.step(&mut arena, motive, &[leaf, unary, binary]);
-            let tree = variable(&mut arena, 0);
-            let recursion = arena.insert(Term::IndW { motive, step, tree });
-            lambda(&mut arena, ty, recursion)
-        };
-        declarations.push(Declaration::definition(0, leftmost_type, leftmost));
-        let signature = check_signature(&mut arena, &declarations, &mut budget)
-            .unwrap_or_else(|error| panic!("{error:?}"));
-        let context = Context::empty().with_signature(signature);
-        let leaf = constant(&mut arena, 1);
-        let wrapped = call(&mut arena, 2, &[leaf]);
-        let pair = call(&mut arena, 3, &[wrapped, leaf]);
-        let outer = call(&mut arena, 3, &[pair, wrapped]);
-        let found = call(&mut arena, 4, &[outer]);
-        assert!(convertible(&mut arena, &context, found, leaf, ty, &mut budget).unwrap());
-        assert!(!convertible(&mut arena, &context, found, wrapped, ty, &mut budget).unwrap());
     }
 }
