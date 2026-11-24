@@ -552,7 +552,7 @@ pub(super) fn encode(
                     indices,
                     pointer_slots,
                 } => {
-                    bytes.push(24);
+                    bytes.push(TAG_STRUCTURAL_CASE_MEMBERSHIP);
                     crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
                     super::structural_types::encode_structural_path(bytes, path);
                     crate::codec_bytes::push_encoded(bytes, case.get().to_le_bytes());
@@ -1752,6 +1752,7 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
     }
 }
 
+const TAG_STRUCTURAL_CASE_MEMBERSHIP: u8 = 238;
 const TAG_CASE_PAYLOAD_FIELD_READ: u8 = 168;
 const TAG_NEAREST_IEEE_FLOAT_ARITHMETIC: u8 = 169;
 
@@ -1840,5 +1841,40 @@ fn encode_byte_operand(
             crate::codec_bytes::push_encoded(bytes, field.get().to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{LegalizedScalarInstructionKind, encode};
+    use crate::tests::{id, scalar_call_unit_plan};
+
+    #[test]
+    fn case_membership_and_bitwise_operations_have_distinct_tags() {
+        let encoded = |kind| {
+            let mut plan = scalar_call_unit_plan();
+            let function = &mut plan.scalar_functions[0];
+            function.blocks[0].instructions[0].kind = kind;
+            let mut bytes = Vec::new();
+            encode(&mut bytes, function, &mut None);
+            bytes
+        };
+        let left = id(1);
+        let right = id(2);
+        let and = encoded(LegalizedScalarInstructionKind::BitwiseAnd { left, right });
+        let or = encoded(LegalizedScalarInstructionKind::BitwiseOr { left, right });
+        // Those instructions have identical operands and differ only in their tag.
+        let tag = and.iter().zip(&or).position(|(a, b)| a != b).unwrap();
+        assert_eq!((and[tag], or[tag]), (24, 71));
+        let membership = encoded(LegalizedScalarInstructionKind::StructuralCaseMembership {
+            source: id(3),
+            path: Vec::new(),
+            case: id(4),
+            case_tag: 0,
+            tag_byte_offset: 0,
+            indices: Vec::new(),
+            pointer_slots: Vec::new(),
+        });
+        assert_eq!(membership[tag], 238);
     }
 }
