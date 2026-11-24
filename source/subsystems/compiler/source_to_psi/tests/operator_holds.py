@@ -4,8 +4,9 @@ import argparse
 from pathlib import Path
 import re
 import shutil
-import subprocess
 import tempfile
+
+from execution import check_silent_execution
 
 
 PACKAGE = Path(__file__).resolve().parents[1]
@@ -43,9 +44,7 @@ def main():
         (root / "main.omg").write_text(
             "\n\n".join([imports, *declarations, (fixture / "main.omg").read_text()])
         )
-        subprocess.run(
-            [cli, "run", "--both", "build.omg"], cwd=root, stdin=subprocess.DEVNULL, check=True
-        )
+        check_silent_execution(cli, root)
 
 
 if __name__ == "__main__":

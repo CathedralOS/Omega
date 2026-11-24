@@ -2,9 +2,10 @@
 
 import argparse
 import shutil
-import subprocess
 import tempfile
 from pathlib import Path
+
+from execution import check_silent_execution
 
 
 PACKAGE = Path(__file__).resolve().parents[1]
@@ -29,13 +30,7 @@ def main():
             shutil.copyfile(PACKAGE / name, target)
         for name in ("build.omg", "main.omg"):
             shutil.copyfile(FIXTURE / name, root / name)
-        result = subprocess.run(
-            [args.omega.resolve(), "run", "--both", "build.omg"], cwd=root,
-            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        )
-        print(result.stdout, end="")
-        if result.returncode or not {"native exit 0", "interp exit: 0"}.issubset(result.stdout.splitlines()):
-            raise SystemExit(1)
+        check_silent_execution(args.omega.resolve(), root)
 
 
 if __name__ == "__main__":
