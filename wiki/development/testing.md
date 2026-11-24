@@ -357,8 +357,8 @@ per-sample evidence directory. Each receives the same captured stdin bytes.
 The gate compares their termination, stdout and stderr, and checks each
 against the sample's expected result. `native-outputs/` and `psi-outputs/`
 retain raw guest stdout and stderr separately from the CLI diagnostics.
-Their `termination.tsv` records the observed native wait status and trap
-presentation or the Psi return, exact exit status, crash or incomplete result.
+Their `termination.tsv` records the observed native wait status, trap
+presentation and whether the retained program permits process exit, or the Psi return, exact exit status, crash or incomplete result.
 A Unix wait status exposes only the low byte. A matching byte leaves an explicit Psi process exit unverified, including exits in the range 0 through 255. For a unit return, the gate requires native wait status zero and a retained program whose instructions exclude process exit. A
 failure caused by this checkout's stale package state (an accepted lock or
 review left by an interrupted run or another compiler build) is measured once

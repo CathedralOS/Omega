@@ -1339,7 +1339,7 @@ case "$1" in
     cat > "$5/stdout"
     printf 'spoofed status -- native exit 9\377' > "$5/stderr"
     case "$3" in
-      native) printf 'native\treturn\t0\tother\n' > "$5/termination.tsv";;
+      native) printf 'native\texit\t0\tother\tprocess-exit-excluded\n' > "$5/termination.tsv";;
       psi) printf 'psi\treturn\n' > "$5/termination.tsv";;
       *) exit 96;;
     esac

@@ -128,13 +128,21 @@ impl Observation {
         if source != engine {
             return Err(format!("expected {engine} observation, found {source}"));
         }
-        let fields: Vec<_> = termination.split('\t').collect();
+        let mut fields: Vec<_> = termination.split('\t').collect();
+        let process_exit_excluded = if engine == "native" {
+            match fields.pop() {
+                Some("process-exit-excluded") => true,
+                Some("process-exit-possible" | "process-exit-unknown") => false,
+                _ => return Err("missing native process-exit admission".into()),
+            }
+        } else {
+            false
+        };
         let number = |text: &str| {
             text.parse::<i32>()
                 .map_err(|_| format!("invalid process status {text:?}"))
         };
         let (exit, trap) = match (engine, fields.as_slice()) {
-            ("native", ["return", "0", _]) => (Some(0), native_trap(&fields)?),
             ("native", ["exit", code, _]) => (Some(number(code)?), native_trap(&fields)?),
             ("native", ["signal", signal, _]) => {
                 number(signal)?;
@@ -152,7 +160,8 @@ impl Observation {
         };
         Ok(Self {
             termination: termination.replace('\t', " "),
-            returned_unit: fields.first() == Some(&"return"),
+            returned_unit: fields.first() == Some(&"return")
+                || (exit == Some(0) && process_exit_excluded),
             exit,
             trap,
             stdout: execution::read_bounded(&directory.join("stdout"))?,
@@ -308,18 +317,24 @@ mod tests {
             fs::write(dir.join("termination.tsv"), record).unwrap();
             Observation::read(&dir, engine)
         };
-        let native_zero = read("native", "native\texit\t0\tother\n").unwrap();
+        let native_zero =
+            read("native", "native\texit\t0\tother\tprocess-exit-possible\n").unwrap();
         let psi_return = read("psi", "psi\treturn\n").unwrap();
         assert!(
             agreement(&native_zero, &psi_return)
                 .unwrap_err()
                 .contains("cannot establish")
         );
-        let known_return = read("native", "native\treturn\t0\tother\n").unwrap();
+        let known_return =
+            read("native", "native\texit\t0\tother\tprocess-exit-excluded\n").unwrap();
         agreement(&known_return, &psi_return).unwrap();
         for code in [0, 23, 279, -1] {
             let host = if cfg!(unix) { code & 255 } else { code };
-            let native = read("native", &format!("native\texit\t{host}\tother\n")).unwrap();
+            let native = read(
+                "native",
+                &format!("native\texit\t{host}\tother\tprocess-exit-possible\n"),
+            )
+            .unwrap();
             let explicit = read("psi", &format!("psi\texit\t{code}\n")).unwrap();
             let comparison = agreement(&native, &explicit);
             if cfg!(unix) {
@@ -330,7 +345,8 @@ mod tests {
                 comparison.unwrap();
             }
         }
-        let native_trap = read("native", "native\tsignal\t4\ttrap\n").unwrap();
+        let native_trap =
+            read("native", "native\tsignal\t4\ttrap\tprocess-exit-excluded\n").unwrap();
         let psi_trap = read("psi", "psi\tcrash\tTrap\n").unwrap();
         assert!(agreement(&native_trap, &psi_trap).is_ok());
         assert!(agreement(&native_zero, &psi_trap).is_err());

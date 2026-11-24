@@ -14,7 +14,7 @@ pub(super) fn write(directory: &Path, execution: &ExecutionOutcome) -> io::Resul
         ExecutionOutcome::Host {
             output,
             exit,
-            returned_unit,
+            can_end_the_process,
             private_entry_ram,
             ..
         } => {
@@ -25,12 +25,16 @@ pub(super) fn write(directory: &Path, execution: &ExecutionOutcome) -> io::Resul
                 None => "unknown",
             };
             let status = match exit {
-                ProcessExitObservation::Exited(0) if *returned_unit => "return\t0".into(),
                 ProcessExitObservation::Exited(code) => format!("exit\t{code}"),
                 ProcessExitObservation::Signaled(signal) => format!("signal\t{signal}"),
                 ProcessExitObservation::Terminated => "terminated".into(),
             };
-            (format!("native\t{status}\t{trap}"), true)
+            let process_exit = match can_end_the_process {
+                Some(true) => "process-exit-possible",
+                Some(false) => "process-exit-excluded",
+                None => "process-exit-unknown",
+            };
+            (format!("native\t{status}\t{trap}\t{process_exit}"), true)
         }
         ExecutionOutcome::Terminal(TerminalOutcome::Completed(observation)) => {
             write_outputs(
