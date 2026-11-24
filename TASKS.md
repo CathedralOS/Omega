@@ -318,6 +318,8 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 ## Embedding and interpreted components
 
 - **EMBEDDING-SOURCE-TO-HOST.** (covers **INTERPRETED-CATHEDRAL**) Finish [embedding](wiki/spec/build/embedding.md), evidence-bearing qualified host inputs, and interpreted Cathedral.
+  - Derive visible source parameters from the [installed entry contract](wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge) across source checking and native entry validation. Retire the fixed zero-or-two parameter switch. Reject missing arguments, forged backing and a mutable byte view of a protected field.
+  - Admit an explicitly [runtime-bound slot](wiki/spec/build/component_publication.md#first-binding-of-a-runtime-bound-slot). Refuse a transitive use before successful bind, exercise a failed first bind followed by a permitted fallback, and retain V1 on failed replacement. Show a guest-owned update during a blocked V1 call and a new V2 call in the same running instance.
 
 ## Parallel language and compiler lanes
 
@@ -326,6 +328,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 - **COMPONENT-SUBSTRATE.** (covers **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW**, **RUNTIME-SIZED-ACTIVATION-CONTRACT**, **FILESYSTEM-PLATFORM-SERVICES**, **TR3-TR8**, **CHECKED-REPRESENTATION-REUSE**) Complete [authority review](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission), [bounded activation](wiki/spec/resources/activation_storage.md), [filesystem services](wiki/spec/build/platform_services.md), [component installation](wiki/spec/build/component_publication.md), [task runtime](wiki/spec/build/task_runtime.md) (`blocking-executor`), and [checked reuse](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse).
   - Implement the core [network reach identities](wiki/spec/build/platform_services.md#network-reach) and highlight their `Network` parent in package review. Check a fixed-peer send against a caller-addressed UDP send. A helper that only transfers the sender adds no reach.
   - Carry [host network use and off-machine transmission](wiki/spec/build/permissions.md#physical-network-authority) through provider classification, package review, and physical exclusions. Version the affected catalogs and records. Distinguish recording-only, loopback, remote socket, and device-backed providers.
+  - Implement and report [native image loading and foreign execution](wiki/spec/language/effects.md#native-images-and-foreign-calls). Audit every existing `NativeCodeExecution` declaration and caller against its actual operations, including load-time initializers. Migrate evidence and affected consumers before retiring the old identity.
 
 ## P5 - Cathedral over general Omega primitives
 

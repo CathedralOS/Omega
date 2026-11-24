@@ -106,9 +106,11 @@ adapters. Generic loading and execution require neither those optional adapters
 nor source recompilation. Exact SDK packaging remains an engineering choice.
 
 Ordinary entry execution establishes every demanded provider slot in the selected
-executable closure before execution, including possible dynamic calls. A branch merely expected not to
-run cannot excuse missing supply; code outside that closure need not demand
-one. Missing adapter or target-environment support prevents that interpretation
+executable closure, including possible dynamic calls. An explicitly runtime-bound
+slot can remain empty during startup when a checked path establishes its first
+binding before entering any code that requires it. A branch merely expected to
+remain untaken cannot excuse missing supply. The same [first-binding contract](component_publication.md#first-binding-of-a-runtime-bound-slot)
+governs native and Psi execution. Missing adapter or target-environment support prevents that interpretation
 and names the missing requirement and its demand. Do not run native code as an
 implicit fallback, replace selected services, or increase authority. The
 [test runner](testing.md#execution-plan) may explicitly schedule both engines;

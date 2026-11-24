@@ -107,6 +107,12 @@ compose checked target-specific leaves.
 An exact call to a realization machine delegates directly; spelling its operator
 inside the provider redispatches and can recurse.
 
+Build can instead describe an explicitly runtime-bound independent product
+slot and leave the first compatible provider to the application or installer.
+An initial provider supplied by Build can also be independently replaceable.
+The [first-binding rules](component_publication.md#first-binding-of-a-runtime-bound-slot)
+govern when calls become legal and who may publish a replacement.
+
 ### Build-owned target selection
 
 Target-prefixed machine declarations are retired. Different operating-system

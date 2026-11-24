@@ -134,6 +134,12 @@ service was declared. `StandardInput` and `StandardOutput` name the designated
 streams in the source contract. `ProcessInput` and `ProcessOutput` classify
 physical mechanisms in the target. `ProcessExit` corresponds to process termination.
 
+Review distinguishes an operation that can load a native image from one that
+can enter foreign code. Report both when the operation can do both, retaining
+the package, call path and selected provider. Reading a file, trusting an
+artifact's producer and authorizing an update are separate findings.
+[Native images and foreign calls](../language/effects.md#native-images-and-foreign-calls)
+
 The consuming root can add an exact custom boundary-trait identity:
 
 ```omega

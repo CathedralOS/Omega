@@ -267,10 +267,10 @@ legacy core carrier, compiler paths, authored fields/parameters, and fixtures.
 An exact closed boundary-trait application is a static provider slot. Source
 calls its requirements directly, for example `Console::write(bytes)`. Checked
 source retains the exact requirement application and call occurrence; provider
-planning must select one admitted realization for every demanded slot. Missing,
-ambiguous, wrong-target, incompatible, or unauthorized supply rejects before
-execution. Build/provider configuration chooses the realization, never the
-meaning of the source call.
+planning records each demanded slot and whether composition selects its first
+provider or explicitly leaves it runtime-bound. Every call must enter one
+admitted realization. Missing, ambiguous, wrong-target, incompatible or
+unauthorized supply prevents entry into code that requires the slot.
 
 Source-visible `Binding<R>` values are retired. A boundary trait is not a data
 carrier, provider object, capability, or source-visible vtable, and no hidden
@@ -305,6 +305,29 @@ slot; changing its ceiling does. Interrupt/bounded-context admissibility derives
 from complete entry/leave work, stack, suspension, blocking, reach/authority,
 and calling/state contracts, not an `isr_safe` switch. RCU, epochs, counters, or
 hazards are runtime choices.
+
+### First binding of a runtime-bound slot
+
+A Build may describe an independent slot without selecting its first provider.
+Composition fixes its exact requirement and permitted envelope. Runtime binding
+must be explicit. Omitting a required build-time selection still rejects.
+An authorized application or installer supplies the first compatible provider
+for that installation. Loading a candidate makes it available for installation.
+Binding publishes its admitted export to this particular slot.
+
+Startup can run while the slot is empty. Every path into code that requires
+the slot, including through a helper or callback, must establish successful
+binding before entry. The checker rejects a path that could enter the consumer
+unbound. The installer checks the actual candidate at runtime. Failed first
+binding leaves the slot empty and preserves the caller's authority to retry,
+bind a separately admitted built-in provider, or exit. An empty slot performs
+no implicit no-op. A successful bind lets ordinary callers use the declared
+requirement directly.
+
+Replacing a bound provider keeps the slot bound throughout cutover. On failure
+the previous provider continues serving. New calls enter a successfully
+published replacement. Outstanding calls and sessions retain their existing
+version under the custody rules below.
 
 ### Returned values and custody
 
@@ -391,9 +414,11 @@ migrated, or admitted for indefinite retention. Routing and reclamation are
 separate completion states. Independently reclaimable mappings cannot share a
 page that one owner expects to unmap.
 
-The initial build supplies the stable slot/first era and any protocol-specific
-instance data, and grants one designated supervisor linear update authority. Candidates cannot
-publish themselves. The installer checks the frozen envelope and returns
+Initial composition defines the stable slot and its envelope. A build-bound
+selection supplies the first provider. An explicitly runtime-bound slot follows
+the first-binding rules above. The installation supplies required instance data
+and gives one designated supervisor linear update authority for that occurrence.
+Candidates cannot publish themselves. The installer checks the frozen envelope and returns
 staged lifecycle custody; publication, entry freeze, roots, retirement, and
 release are operational Type-side tokens, never erased theorem conclusions.
 
