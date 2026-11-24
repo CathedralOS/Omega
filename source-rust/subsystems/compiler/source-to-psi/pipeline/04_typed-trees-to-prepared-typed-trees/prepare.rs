@@ -52,8 +52,13 @@ pub fn prepare_typed_trees(
     selected: &[SelectedDeclaration],
 ) -> Result<PreparedTypedTrees, Vec<Diagnostic>> {
     let entries = passes::specialization::prepare_selected(&mut program, selected)?;
+    let first_requirement_type = program.type_reference_table.type_reference_count();
     program
         .prepare_conformance_requirement_headers()
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    // Substituting a provider's receiver creates fresh type occurrences in its
+    // parameters and result. Lowering needs the data declaration at each one.
+    typed_trees::data_applications::prepare_from(&mut program, first_requirement_type)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     program
         .settle_applied_service_lineage()

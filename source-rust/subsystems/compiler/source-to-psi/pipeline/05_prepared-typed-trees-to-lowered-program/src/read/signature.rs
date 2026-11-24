@@ -151,7 +151,7 @@ impl Program<'_> {
             machine: id,
             declaring_trait: definition.symbol,
             requirement: self.requirement_template(requirement.symbol),
-            scope: scope.into_iter().map(|(_, value)| value).collect(),
+            scope: scope.values.into_iter().map(|(_, value)| value).collect(),
             group: edge.alias.as_ref().map(|alias| alias.as_str().to_owned()),
             ensures: required.ensures,
         }))
