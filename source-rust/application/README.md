@@ -45,6 +45,12 @@ zero comparisons. The current runner accepts parameterless tests with no
 configured services. The remaining work includes declared file and field
 observations. [Build test comparison](../../wiki/spec/build/testing.md#comparing-native-and-psi-tests)
 
+A registered test that calls `ProcessExit::exit_process` fails its requirement
+to return. On Unix the native wait status exposes only the low eight bits. A
+different visible byte proves disagreement. A matching byte leaves the exact
+exit comparison unavailable. A zero status can also come from a normal return
+when the test has both paths.
+
 Comparisons accept `--both --psi-work-budget <positive-u64>`. Each interpreter
 invocation, including each input case and stdin replay, gets the full budget
 (default 10,000,000 logical work units). The flag needs

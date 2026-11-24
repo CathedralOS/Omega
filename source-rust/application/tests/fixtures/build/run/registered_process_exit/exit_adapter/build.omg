@@ -1,0 +1,4 @@
+machine build(builder: @mutable Build) {
+    Build::package(builder, "exit_adapter");
+    Build::select_provider::<ProcessExit, LocalExit>(builder);
+}
