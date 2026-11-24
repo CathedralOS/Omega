@@ -1549,6 +1549,9 @@ fn an_unused_unbound_import_is_refused_at_the_authored_name() {
 
 #[test]
 fn a_wait_cannot_add_a_library_to_the_checked_build() {
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        return;
+    };
     let build = r#"use {kit}/main.omg as chosen;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "fixed_imports");
@@ -1558,7 +1561,7 @@ machine build(builder: @mutable Build) suspends {
     suspend Build::prepare_dependency(builder, registered);
     let value: i32 = |chosen|::v();
     Build::bind(builder, HOST\ProgramEntry, main);
-}"#.replace("HOST", target::TargetProfile::host_if_supported().unwrap().target_name());
+}"#.replace("HOST", host.target_name());
     let call = |name, source: &str| {
         check_project_with_support(
             name,
@@ -1567,7 +1570,8 @@ machine build(builder: @mutable Build) suspends {
             "",
             Some("public machine v() -> i32 { 7 }"),
             &["--check", "main.omg"],
-        );
+        )
+    };
     let (ok, report) = call(
         "local-helper",
         &build.replace("{kit}/main.omg", "support/support.omg"),
