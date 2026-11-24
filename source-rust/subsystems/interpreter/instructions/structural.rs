@@ -2318,6 +2318,10 @@ impl TerminalExecution<'_> {
         self.scalar_array_values.publish(result.place, copied)?;
         Ok(OperationFlow::Advance)
     }
+    /// Reads a scalar record out of raw bytes. Raw bytes establish no domain
+    /// and no field range (wiki/spec/layouts/recasts.md), so a qualified
+    /// result is refused rather than published without its qualifications,
+    /// and every decoded leaf must satisfy its declared field type.
     fn byte_carrier_leaf_copy(
         &mut self,
         leaf: &TerminalStructuralValue,
@@ -2327,6 +2331,15 @@ impl TerminalExecution<'_> {
         else {
             return Err(malformed());
         };
+        if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty() {
+            return Err(malformed());
+        }
+        let fields = self
+            .structural_types()
+            .get(&result.structural_type)
+            .and_then(|declaration| declaration.shape.record_fields())
+            .ok_or(malformed())?
+            .to_vec();
         let array = StructuralRuntimePlace {
             opaque_identity: leaf.opaque_identity,
             path: parent_path.to_vec(),
@@ -2373,6 +2386,13 @@ impl TerminalExecution<'_> {
                 }
                 _ => return Err(malformed()),
             };
+            let declared = fields
+                .iter()
+                .find(|field| field.id == member.field)
+                .ok_or(malformed())?;
+            if !scalar.satisfies_field(&declared.field_type) {
+                return Err(malformed());
+            }
             leaves.push((member.field, scalar));
         }
         let copied = TerminalStructuralValue::minted(
@@ -2642,3 +2662,7 @@ impl TerminalExecution<'_> {
         Ok(OperationFlow::Advance)
     }
 }
+
+#[cfg(test)]
+#[path = "byte_carrier_leaf_copy_tests.rs"]
+mod byte_carrier_leaf_copy_tests;

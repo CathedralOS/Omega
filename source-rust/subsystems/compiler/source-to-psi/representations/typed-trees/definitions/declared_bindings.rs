@@ -391,15 +391,33 @@ impl TypedTrees {
             .checked_statements(state.statement_nodes)?;
         let Some(position) = self.binding_position(state, parameters, statements, symbol) else {
             // A block value's local is declared in the block's statements.
-            return self
-                .body_statement_spans(state.statement_nodes)
-                .into_iter()
+            // The state's own roster refuses a repeated binder, so the body
+            // as a whole must also declare this one exactly once.
+            if parameters
+                .iter()
+                .any(|parameter| parameter.symbol == symbol)
+                || statements
+                    .iter()
+                    .filter_map(StatementNode::as_local_data)
+                    .any(|local| local.symbol == symbol)
+            {
+                return None;
+            }
+            let spans = self.body_statement_spans(state.statement_nodes);
+            let mut locals = spans
+                .iter()
                 .skip(1)
-                .flat_map(|span| self.statement_table.statements(span))
+                .flat_map(|span| self.statement_table.statements(*span))
                 .filter_map(|statement| statement.as_local_data())
-                .find(|local| local.symbol == symbol)
-                .map(|local| local.type_reference)
-                .filter(|declared| self.type_reference_table.contains_type_reference(*declared));
+                .filter(|local| local.symbol == symbol);
+            let local = locals.next()?;
+            if locals.next().is_some() {
+                return None;
+            }
+            return self
+                .type_reference_table
+                .contains_type_reference(local.type_reference)
+                .then_some(local.type_reference);
         };
         let declared = match position {
             BindingPosition::Parameter(ordinal) => parameters.get(ordinal as usize)?.type_reference,
