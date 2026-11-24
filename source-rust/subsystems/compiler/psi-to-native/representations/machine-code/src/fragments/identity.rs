@@ -420,3 +420,38 @@ mod width_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod tag_tests {
+    use super::*;
+    use semantic_vocabulary::{EdgeId, MachineId};
+
+    fn digest(write: impl FnOnce(&mut crate::digest_encoder::DomainDigestEncoder)) -> [u8; 32] {
+        let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(b"fragment-control-test");
+        write(&mut hasher);
+        hasher.finish()
+    }
+
+    // `EliminateEmpty` writes tag 10 before its edge. An internal call must
+    // start with its own tag, or the two variants share a discriminator and
+    // only the payload bytes keep them apart.
+    #[test]
+    fn internal_call_control_does_not_reuse_the_eliminate_empty_tag() {
+        let target = selected_instructions::SelectedCallTarget::Machine(MachineId::new(3).unwrap());
+        let owner = target_vocabulary::CallSiteOwner::InvokeNoNormal(EdgeId::new(4).unwrap());
+        let actual = digest(|hasher| {
+            encode_control(
+                hasher,
+                &FunctionFragmentControlProvenance::InternalCall { target, owner },
+            )
+        });
+        let under_eliminate_empty_tag = digest(|hasher| {
+            hasher.byte(10);
+            let mut target_identity = Vec::new();
+            target.encode_identity(&mut target_identity);
+            hasher.raw(&target_identity);
+            encode_call_owner(hasher, owner);
+        });
+        assert_ne!(actual, under_eliminate_empty_tag);
+    }
+}
