@@ -1,23 +1,16 @@
 use omega\language\core\ProcessExit;
-// RUN CANARY (exit 70, WINDOWS-HOST ONLY) -- the WRAPPER canonicalize
-// contract on windows (windows session slices 4a/4d): msvcrt has no realpath,
-// so the windows_x86_64 impl composes CreateFileA(FILE_FLAG_BACKUP_SEMANTICS),
-// GetFinalPathNameByHandleA (flags 0 = the \\?\-prefixed DOS path, exactly
-// Rust's windows canonicalize spelling), CloseHandle. This supports files AND
-// directories. Dual-engine with
-// per-model first-byte discrimination: NATIVE resolves to "\\?\C:\..."
-// (first byte '\\', 92); the HERMETIC model's canonical path IS the
-// descriptor's stored key (first byte 'o' of the relative probe name,
-// 111) -- the transition accepts exactly these two, so a garbage or
-// unwritten buffer fails BOTH engines. The missing-path leg pins
-// NotFound on both (the open leg fails with native/model ERROR_FILE_NOT_FOUND
-// before path resolution).
+// Canonicalize a file and a directory, then require NotFound for a missing
+// path. Windows opens either kind with CreateFileW(FILE_FLAG_BACKUP_SEMANTICS)
+// and asks GetFinalPathNameByHandleW for the DOS spelling before CloseHandle.
+// A Windows host returns a leading backslash. The Windows Psi receiver retains
+// the relative probe key starting with 'o'. The POSIX entry expects '/'.
 // exits: 70 good; 71 seed write failed; 72 canonicalize refused; 73 the
 // resolved buffer starts with neither model's spelling; 74 the
 // missing-path leg did not refuse; 75 the refusal kind was not NotFound;
 // 76 directory creation failed; 77 directory canonicalize refused; 78 the
 // resolved directory buffer starts with neither model's spelling.
 
+use omega_language_std;
 use omega_language_std\ErrorKind;
 use omega_language_std\UnitResult;
 
@@ -30,8 +23,9 @@ data FailedOpen {
     result: UnitResult;
 }
 
-machine FailedOpen::main(failed_open: @mutable FailedOpen) -> i32 {
-    let outcome: UnitResult = block FilesystemService::canonicalize("omega_wcanon_missing.txt", @mutable failed_open.buffer);
+machine failed_open_result(failed_open: @mutable FailedOpen) -> i32
+reaches FilesystemMetadataQuery blocks {
+    let outcome: UnitResult = block FilesystemService::canonicalize("omega_wcanon_missing.txt" as +Path, @mutable failed_open.buffer[..]);
     transition outcome {
         UnitResult::Error { kind } -> failed(kind),
         _ -> unexpected()
@@ -44,35 +38,38 @@ machine FailedOpen::main(failed_open: @mutable FailedOpen) -> i32 {
 }
 
 data Main {
+    windows: bool;
     unit_result: UnitResult;
     canon: [u8; 1024];
 }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
-    main.unit_result = block FilesystemService::write_all("omega_wcanon_probe.txt", "canon");
+machine run(main: @mutable Main)
+reaches ProcessExit + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation
+blocks {
+    main.unit_result = block FilesystemService::write_all("omega_wcanon_probe.txt" as +Path, "canon");
     transition main.unit_result { UnitResult::Ok -> block resolve(main), _ -> bad(main, 71) }
     machine resolve(main: @mutable Main) {
-        main.unit_result = block FilesystemService::canonicalize("omega_wcanon_probe.txt", @mutable main.canon);
+        main.unit_result = block FilesystemService::canonicalize("omega_wcanon_probe.txt" as +Path, @mutable main.canon[..]);
         transition main.unit_result { UnitResult::Ok -> block spelled(main), _ -> bad(main, 72) }
     }
     machine spelled(main: @mutable Main) {
         // Native: '\\' (92, the \\?\ prefix). Hermetic: 'o' (111, the key
         // verbatim). Anything else = the resolve never wrote the buffer.
-        transition canonical_prefix_is_valid(main.canon[0]) { true -> block make_dir(main), _ -> bad(main, 73) }
+        transition canonical_prefix_is_valid(main.windows, main.canon[0]) { true -> block make_dir(main), _ -> bad(main, 73) }
     }
     machine make_dir(main: @mutable Main) {
-        main.unit_result = block FilesystemService::create_dir("omega_wcanon_dir");
+        main.unit_result = block FilesystemService::create_dir("omega_wcanon_dir" as +Path);
         transition main.unit_result { UnitResult::Ok -> block resolve_dir(main), _ -> bad(main, 76) }
     }
     machine resolve_dir(main: @mutable Main) {
-        main.unit_result = block FilesystemService::canonicalize("omega_wcanon_dir", @mutable main.canon);
+        main.unit_result = block FilesystemService::canonicalize("omega_wcanon_dir" as +Path, @mutable main.canon[..]);
         transition main.unit_result { UnitResult::Ok -> block spelled_dir(main), _ -> bad(main, 77) }
     }
     machine spelled_dir(main: @mutable Main) {
-        transition canonical_prefix_is_valid(main.canon[0]) { true -> block missing(main), _ -> bad(main, 78) }
+        transition canonical_prefix_is_valid(main.windows, main.canon[0]) { true -> block missing(main), _ -> bad(main, 78) }
     }
     machine missing(main: @mutable Main) {
-        let outcome: UnitResult = block FilesystemService::canonicalize("omega_wcanon_missing.txt", @mutable main.canon);
+        let outcome: UnitResult = block FilesystemService::canonicalize("omega_wcanon_missing.txt" as +Path, @mutable main.canon[..]);
         transition outcome { UnitResult::Error { kind } -> block kindcheck(main, kind), _ -> bad(main, 74) }
     }
     machine kindcheck(main: @mutable Main, kind: ErrorKind) {
@@ -80,27 +77,35 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + FilesystemContentR
         transition kind { ErrorKind::NotFound -> block cleanup(main), _ -> bad(main, 75) }
     }
     machine cleanup(main: @mutable Main) {
-        main.unit_result = block FilesystemService::remove("omega_wcanon_probe.txt");
+        main.unit_result = block FilesystemService::remove("omega_wcanon_probe.txt" as +Path);
         transition { _ -> block cleanup_dir(main) }
     }
     machine cleanup_dir(main: @mutable Main) {
-        main.unit_result = block FilesystemService::remove_dir("omega_wcanon_dir");
+        main.unit_result = block FilesystemService::remove_dir("omega_wcanon_dir" as +Path);
         transition { _ -> good(main) }
     }
     machine good(main: @mutable Main) { ProcessExit::exit_process(70); }
     machine bad(main: @mutable Main, code: i32) { ProcessExit::exit_process(code); }
 }
 
-// A hosted native canonical path is absolute in its selected OS spelling.
-// The Windows model's independently authored relative-key oracle is retained.
-linux_x86_64 machine canonical_prefix_is_valid(byte: u8) -> bool { byte == 47 }
-linux_arm64 machine canonical_prefix_is_valid(byte: u8) -> bool { byte == 47 }
-macos_arm64 machine canonical_prefix_is_valid(byte: u8) -> bool { byte == 47 }
-macos_x86_64 machine canonical_prefix_is_valid(byte: u8) -> bool { byte == 47 }
-windows_x86_64 machine canonical_prefix_is_valid(byte: u8) -> bool { byte == 92 || byte == 111 }
+// Native POSIX paths start with '/'. Windows returns a DOS path prefix or the
+// hermetic receiver's stored relative key. The selected entry supplies the OS.
+machine canonical_prefix_is_valid(windows: bool, byte: u8) -> bool {
+    transition windows { true -> (byte == 92 || byte == 111), false -> (byte == 47) }
+}
 
-// The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
-    let mutable entry_storage: Main;
-    block Main::main(@mutable entry_storage);
+machine windows_entry()
+reaches ProcessExit + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation
+blocks {
+    let mutable storage: Main;
+    storage.windows = true;
+    block run(@mutable storage);
+}
+
+machine posix_entry()
+reaches ProcessExit + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation
+blocks {
+    let mutable storage: Main;
+    storage.windows = false;
+    block run(@mutable storage);
 }
