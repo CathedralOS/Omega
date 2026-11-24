@@ -195,16 +195,23 @@ fn a_product_of_two_sums_over_the_library_nat_expands_and_compiles() {
 }
 
 #[test]
-fn the_recovered_unlicensed_rearrangement_is_refused_at_its_satisfier_groups() {
-    // Refused, but not yet for the reason the program was written to test:
-    // the mathematical signature does not read `satisfies ... as Name`.
+fn the_recovered_unlicensed_rearrangement_is_refused_for_its_three_laws() {
+    // Each claim of the program is one law left unproved: a law merely in
+    // scope, another trait application's law and another satisfier group's
+    // law license nothing.
     let (output, report) = check("polynomial/fail/ring_rearrange_unlicensed_rejected");
     assert_eq!(output.status.code(), Some(1), "{report}");
-    assert!(
-        report.contains("`satisfies` clause with a binding, an alias or lifetimes")
-            && report.contains("no claim that it is wrong"),
-        "{report}"
-    );
+    for machine in [
+        "needs_rearrange",
+        "mixed_application_associativity",
+        "mixed_family_associativity",
+    ] {
+        assert!(
+            report.contains(&format!("cannot prove ensures contract for `{machine}`")),
+            "{machine}: {report}"
+        );
+    }
+    assert!(report.contains(UNPROVED), "{report}");
 }
 
 #[test]

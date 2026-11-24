@@ -1174,14 +1174,14 @@ names it.
   other, the search tries one direction at a time, so neither law disables
   the other and expansion cannot undo itself. A longer cycle of three or more
   operations is not split and runs into the budget.
-- **Not done: satisfier groups.** The recovered
+- **Satisfier groups** (added after step 4). The recovered
   `polynomial/fail/ring_rearrange_unlicensed_rejected` labels its satisfiers
-  with `satisfies Trait<...>::requirement as Name`, and the mathematical
-  signature refuses that clause as not supported. The program is refused at its
-  eight `satisfies` clauses before any law is judged, so its claims that one
-  trait application or satisfier group cannot borrow another's law are not
-  yet tested. Its first part, which needs no group, is refused at
-  `needs_rearrange`'s successor arm.
+  with `satisfies Trait<...>::requirement as Name`. The signature now reads
+  the name: machines that satisfy one trait at the same type arguments under
+  different names are different conformances. The program is refused for
+  the three reasons it was written to test, each one law left unproved
+  while every other law in it is judged: a law merely in scope, another
+  trait application's law and another satisfier group's law license nothing.
 - **Not done: configuration and reporting of the limit.** The 64-summand limit
   is a constant. Root Build cannot configure it through the
   [proof-work policy](../../spec/build/configuration.md#proof-work-policy) yet,
