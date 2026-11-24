@@ -36,9 +36,12 @@ use terminal_psi::{
     StructuralTypeShape, find_structural_case, nonlinear_multiplicity_pair_pattern,
 };
 use terminal_semantics::{
-    ZeroedStructuralLeaf, byte_carrier_scalar_layout, is_copyable_carrier,
+    ZeroedStructuralLeaf, is_copyable_carrier,
     observed_field_declaration, record_field_carrier, scalar_array_leaf_shape,
 };
+
+#[path = "byte_record.rs"]
+mod byte_record;
 
 // The declaration owns validity on every observation of foreign storage;
 // neither the initial snapshot nor the host's decoder can replace that check.
@@ -2318,99 +2321,6 @@ impl TerminalExecution<'_> {
         self.scalar_array_values.publish(result.place, copied)?;
         Ok(OperationFlow::Advance)
     }
-    /// Reads a scalar record out of raw bytes. Raw bytes establish no domain
-    /// and no field range (wiki/spec/layouts/recasts.md), so a qualified
-    /// result is refused rather than published without its qualifications,
-    /// and every decoded leaf must satisfy its declared field type.
-    fn byte_carrier_leaf_copy(
-        &mut self,
-        leaf: &TerminalStructuralValue,
-        result: &terminal_psi::StructuralOperationResult,
-    ) -> Result<OperationFlow, TerminalInterpretError> {
-        let Some((StructuralPathSegment::FixedIndex(index), parent_path)) = leaf.path.split_last()
-        else {
-            return Err(malformed());
-        };
-        if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty() {
-            return Err(malformed());
-        }
-        let fields = self
-            .structural_types()
-            .get(&result.structural_type)
-            .and_then(|declaration| declaration.shape.record_fields())
-            .ok_or(malformed())?
-            .to_vec();
-        let array = StructuralRuntimePlace {
-            opaque_identity: leaf.opaque_identity,
-            path: parent_path.to_vec(),
-        };
-        let bytes = self.structural_byte_storage.require(&array)?;
-        let layout =
-            byte_carrier_scalar_layout(self.structural_types().values(), result.structural_type)
-                .ok_or(malformed())?;
-        let index = usize::try_from(*index).map_err(|_| malformed())?;
-        let mut leaves = Vec::with_capacity(layout.leaves.len());
-        for member in &layout.leaves {
-            let offset = index
-                .checked_add(usize::try_from(member.offset).map_err(|_| malformed())?)
-                .ok_or(malformed())?;
-            let size = usize::from(match member.scalar_type {
-                ScalarType::Boolean => 1u16,
-                ScalarType::Integer(integer) => self.closed_integer(integer)?.bits() / 8,
-                _ => return Err(malformed()),
-            });
-            let end = offset.checked_add(size).ok_or(malformed())?;
-            let window = bytes.read_window(offset, end)?;
-            let mut value = 0u128;
-            for position in 0..size {
-                value |= u128::from(window.read(position)?) << (8 * position);
-            }
-            let scalar = match member.scalar_type {
-                ScalarType::Boolean => {
-                    crate::storage::primitive_storage::encoding::boolean_bits(value)?
-                }
-                ScalarType::Integer(scalar_type) => {
-                    let value = match scalar_type.sign() {
-                        IntegerSign::Signed => {
-                            let bits = u32::from(self.closed_integer(scalar_type)?.bits());
-                            let signed = if bits < 128 && (value >> (bits - 1)) & 1 == 1 {
-                                (value | (!0u128 << bits)) as i128
-                            } else {
-                                value as i128
-                            };
-                            IntegerValue::Signed(signed)
-                        }
-                        IntegerSign::Unsigned => IntegerValue::Unsigned(value),
-                    };
-                    TerminalScalarValue::Integer { scalar_type, value }
-                }
-                _ => return Err(malformed()),
-            };
-            let declared = fields
-                .iter()
-                .find(|field| field.id == member.field)
-                .ok_or(malformed())?;
-            if !scalar.satisfies_field(&declared.field_type) {
-                return Err(malformed());
-            }
-            leaves.push((member.field, scalar));
-        }
-        let copied = TerminalStructuralValue::minted(
-            self.local_structural_identities.allocate()?,
-            result.structural_type,
-            Vec::new(),
-        );
-        let parent = StructuralRuntimePlace::from(&copied);
-        for (field, scalar) in leaves {
-            self.structural_scalar_fields.insert(
-                StructuralScalarRuntimeField::member(parent.clone(), field),
-                scalar,
-            )?;
-        }
-        self.structural_values.insert(result.place, copied)?;
-        Ok(OperationFlow::Advance)
-    }
-
     pub(crate) fn execute_structural_case_membership(
         &mut self,
         operation: &terminal_psi::Operation,
