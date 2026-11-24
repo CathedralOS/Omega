@@ -20,6 +20,16 @@ pub(crate) mod checked {
             .ok_or_else(|| Diagnostic::error(message))
     }
 
+    pub(crate) fn require_count(
+        actual: usize,
+        expected: usize,
+        context: &'static str,
+    ) -> Result<(), Diagnostic> {
+        (actual == expected).then_some(()).ok_or_else(|| {
+            Diagnostic::error(format!("{context}: expected {expected}, found {actual}"))
+        })
+    }
+
     pub(crate) fn checked_sum(
         left: usize,
         right: usize,

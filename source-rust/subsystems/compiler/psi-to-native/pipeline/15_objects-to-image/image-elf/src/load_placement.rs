@@ -1853,7 +1853,7 @@ pub(crate) mod placed_section_headers {
     use crate::constants::{ELF64_SECTION_HEADER_SIZE, SECTION_COUNT};
     use crate::dynamic_executable::checked::{
         DecodedElf64SectionHeader, checked_product, checked_sum, decode_section_header_rows,
-        field_mut, read_u64, require,
+        field_mut, read_u64, require, require_count,
     };
     use crate::dynamic_executable::load_placement::load_layout::{
         ElfResolvedSectionHeaderPlacement, ElfSectionPlacementResolutionKind,
@@ -1952,9 +1952,10 @@ pub(crate) mod placed_section_headers {
             .payloads()
             .section_headers()
             .contents();
-        require(
-            template.bytes.len() == SECTION_COUNT * ELF64_SECTION_HEADER_SIZE,
-            "placed ELF section-header input is not the exact 832-byte template",
+        require_count(
+            template.bytes.len(),
+            SECTION_COUNT * ELF64_SECTION_HEADER_SIZE,
+            "placed ELF section-header template bytes",
         )?;
         require(
             template.placement_fixups.len() == PLACEMENT_COUNT
@@ -2095,27 +2096,27 @@ pub(crate) mod placed_section_headers {
                 "applied ELF section-header bytes do not contain their resolved value",
             )?;
         }
-        require(
+        require_count(
             contents
                 .applications
                 .iter()
                 .filter(|application| {
                     application.kind == ElfSectionPlacementResolutionKind::FileOffset
                 })
-                .count()
-                == FILE_OFFSET_PLACEMENT_COUNT,
-            "placed ELF section-header ledger does not contain exactly twelve file offsets",
+                .count(),
+            FILE_OFFSET_PLACEMENT_COUNT,
+            "placed ELF section-header file offsets",
         )?;
-        require(
+        require_count(
             contents
                 .applications
                 .iter()
                 .filter(|application| {
                     application.kind == ElfSectionPlacementResolutionKind::VirtualAddress
                 })
-                .count()
-                == VIRTUAL_ADDRESS_PLACEMENT_COUNT,
-            "placed ELF section-header ledger does not contain exactly eleven virtual addresses",
+                .count(),
+            VIRTUAL_ADDRESS_PLACEMENT_COUNT,
+            "placed ELF section-header virtual addresses",
         )?;
         validate_application_coverage(contents.bytes.len(), &contents.applications)?;
 

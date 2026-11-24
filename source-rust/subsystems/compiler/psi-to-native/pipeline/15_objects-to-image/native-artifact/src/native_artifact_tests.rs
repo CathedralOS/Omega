@@ -26,6 +26,76 @@ use target::TargetProfile;
 use target_vocabulary::CallSiteOwner;
 use target_vocabulary::NormalizedForeignCallMechanism;
 
+#[test]
+fn nearest_fma_is_unsupported_only_in_the_selected_execution_scope() {
+    use native_execution_reach::ExecutionReach;
+    use semantic_vocabulary::{
+        BlockId, ContractId, EdgeId, IeeeFloatFormat, MachineId, ScalarQualificationSetId,
+        ScalarType, ValueId,
+    };
+    use terminal_psi::{
+        Block, BoundaryParameterKind, MachineContract, Operation, OperationKind, OperationResult,
+        RegisterTargetApplicability, TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
+    };
+
+    let entry = MachineId::new(1).unwrap();
+    let helper = MachineId::new(2).unwrap();
+    let block = BlockId::new(1).unwrap();
+    let value = |index| ValueDeclaration {
+        id: ValueId::new(index).unwrap(),
+        scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+        qualifications: ScalarQualificationSetId::ZERO,
+    };
+    let fma = Operation::unsuspended(
+        OperationId::new(1).unwrap(),
+        OperationResult::Scalar(value(2)),
+        OperationKind::NearestIeeeFloatFusedMultiplyAdd {
+            left: value(1).id,
+            right: value(1).id,
+            addend: value(1).id,
+        },
+    );
+    let machine = |id, operations| {
+        let mut contract = MachineContract::empty(ContractId::new(1).unwrap());
+        contract.parameters.push(value(1));
+        contract.parameter_order.push(BoundaryParameterKind::Scalar);
+        let mut body = Block::plain(
+            block,
+            Vec::new(),
+            Terminator::ReturnUnit {
+                edge: EdgeId::new(1).unwrap(),
+                cleanup_actions: Vec::new(),
+            },
+        );
+        body.operations = operations;
+        TerminalMachine {
+            id,
+            entry: block,
+            contract,
+            blocks: vec![body],
+            assembly_target_requirement: RegisterTargetApplicability::Any,
+            attachment: None,
+            ranked_scc: None,
+            structural_places: Vec::new(),
+            call_formations: Vec::new(),
+            block_entry_claims: Vec::new(),
+            loan_completions: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+        }
+    };
+    let mut module = TerminalModule::for_entry(entry);
+    module.machines = vec![machine(entry, Vec::new()), machine(helper, vec![fma])];
+    let reach = |id| ExecutionReach::new(vec![id], Vec::new(), Vec::new());
+    let validate = |scope| super::validate_ieee_float_fma_occurrences(&module, scope);
+    let entry_scope = reach(entry);
+    let helper_scope = reach(helper);
+    assert_eq!(validate(Some(&entry_scope)), Ok(()));
+    let unsupported = Err("native target lowering does not support nearest IEEE floating-point fused multiply-add");
+    assert_eq!(validate(Some(&helper_scope)), unsupported);
+    assert_eq!(validate(None), unsupported);
+}
+
 fn kernel_call(profile: TargetProfile) -> image_emission::ObjectForeignCall {
     let native = profile.native_target();
     let signature = calling_conventions::CallSignature {
