@@ -152,6 +152,7 @@ impl BuildOperation {
     ) -> Option<(crate::build_protocol::SelectionProtocolOperation, usize)> {
         use crate::build_protocol::SelectionProtocolOperation as Protocol;
         match self {
+            Self::TestGroupRegistration => Some((Protocol::RegisterTestGroup, 1)),
             Self::NativeBinding => Some((Protocol::BindNative, 3)),
             Self::ParameterDescription => Some((Protocol::DescribeParameter, 0)),
             Self::FieldDescription => Some((Protocol::DescribeField, 0)),

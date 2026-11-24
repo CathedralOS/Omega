@@ -74,12 +74,13 @@ pub type TerminalBuildSelectionRequest = BuildSelectionRequest<TerminalBuildProv
 pub enum TerminalBuildBindingOperation {
     AwaitProvider,
     Prepare,
-    PrepareTests, // Test-group registration, prepared on the Build's `tests` facet.
+    PrepareTests, // A group selection prepared on the original tests facet.
     Bind,
     BindNative,
     Select,
     SelectProvider,
     SelectProviderOption,
+    RegisterTestGroup,
     Exclude,
 }
 
