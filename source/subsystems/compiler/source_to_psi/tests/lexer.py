@@ -2,9 +2,10 @@
 
 import argparse
 import shutil
-import subprocess
 import tempfile
 from pathlib import Path
+
+from execution import check_silent_return
 
 
 PACKAGE = Path(__file__).resolve().parents[1]
@@ -30,7 +31,7 @@ def main():
             shutil.copyfile(PACKAGE / name, destination)
         for name in ("main.omg", "build.omg"):
             shutil.copyfile(fixture / name, project / name)
-        subprocess.run([cli, "run", "--both", "build.omg"], cwd=project, check=True)
+        check_silent_return(cli, project)
 
 
 if __name__ == "__main__":
