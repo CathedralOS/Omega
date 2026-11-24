@@ -11,7 +11,7 @@ Packet complete. Every claim in the record has a row below. Four remain open and
 | Change | Evidence |
 | --- | --- |
 | Fact-index rebuild (record §9 item 6) | Reproduced and fixed. The fixture `fact_index::tests::primitive_store_range_obligations_stay_in_the_rebuilt_fact_index` in `unit_validation.rs` builds a function containing an `EstablishPrimitiveLocal` and a `WriteOnlyPrimitiveStore`, each with a range obligation, through `reconstruct_psi_optimization_function_seed`. Before the fix the validator's rebuilt index held only the integer constant fact. The constructed index also held `OperationObligationReference` facts for obligations 1 and 2, so `assert_eq!` failed. After the fix the indexes are equal and `validate_fact_index` returns `Ok`. |
-| `DeclarationIdentity` roots | Repaired while running the fixture. `optimization-unit-semantics` did not compile on `origin/main` at `08a667b1`. [#5393](https://github.com/CathedralOS/Omega/pull/5393) added `Proposition::DeclarationIdentity`, and `structural_roots::collect` (`unit_validation.rs` near baseline line 10773) matched every proposition except that one (Rust E0004). [#5427](https://github.com/CathedralOS/Omega/pull/5427) repaired the same break in `optimization-unit`'s identity encoder only. The new arm collects the place roots of `ClauseOperand::Scalar` and `ClauseOperand::Input` operands. Formals and declaration applications name no place. |
+| `DeclarationIdentity` roots | Found while running the fixture, already repaired on `main`. `optimization-unit-semantics` did not compile at `08a667b1`: `structural_roots::collect` had no arm for `Proposition::DeclarationIdentity` (added by [#5393](https://github.com/CathedralOS/Omega/pull/5393); Rust E0004). [#5449](https://github.com/CathedralOS/Omega/pull/5449) added the same arm before this change landed, so this branch carries no separate repair. |
 
 ## Claim ledger
 
@@ -55,7 +55,7 @@ Packet complete. Every claim in the record has a row below. Four remain open and
 
 ## Validation
 
-Run from this branch, rebased on `origin/main` at `08a667b1`:
+Run from this branch; the before/after fixture run used `origin/main` at `08a667b1`, and the suites were rerun after rebasing on `e98b8a59`:
 
 - `mbx test -p optimization-unit-semantics --lib fact_index`: failed before the fix (`left: [IntegerConstant ...]`, `right: [IntegerConstant ..., OperationObligationReference { obligation: ObligationId(1), support: OperationId(2) }, OperationObligationReference { obligation: ObligationId(2), support: OperationId(3) }]`). It passed after the fix.
 - `mbx test -p optimization-unit-semantics -p optimization-unit --lib`: 25 and 15 tests passed.
