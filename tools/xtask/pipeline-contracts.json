@@ -5028,6 +5028,86 @@
     },
     {
       "consumers": [
+        "native provider planning"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/target_supply.rs",
+      "item": "module:plan_realization#1",
+      "kind": "definition",
+      "meaning": "Plan native execution for the provider values selected in the checked Psi program.",
+      "producer": "target supply",
+      "signature": "de2a3699343d2d0c78397dea3f3eca26886f00b4c69a8d8f76f2205249719086"
+    },
+    {
+      "consumers": [
+        "native provider planning",
+        "provider proposal construction"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/target_supply.rs",
+      "item": "module:realized_supply#1",
+      "kind": "definition",
+      "meaning": "Keep the checked provider plan and its selected executions at the receiving target.",
+      "producer": "target supply",
+      "signature": "131d5e8fabd5d63549b4475119683e5686691939b192870a0936d9972e73e32f"
+    },
+    {
+      "consumers": [
+        "native driver"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/target_supply.rs",
+      "item": "use:plan_realization :: { PublishedComponentSuppliers , TargetSupplyExecutionInputs , TargetSupplyRealizationError , TargetSupplyRealizationRequest , realize_target_supply , }#1",
+      "kind": "definition",
+      "meaning": "Expose the request and result of realizing a target’s provider supply.",
+      "producer": "target provider planning",
+      "signature": "b65198649f5aba8a7a9c3882cb2d5a82c0793cde00960138cc4e264a40bbdc31"
+    },
+    {
+      "consumers": [
+        "native driver",
+        "checked provider trust admission"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/target_supply.rs",
+      "item": "use:realized_supply :: { ProviderPlanRealizationInput , RealizedTargetSupply , SelectedProviderRealization , TargetSupplyRealizationInput , }#1",
+      "kind": "definition",
+      "meaning": "Expose the inputs and checked result that identify the selected provider executions.",
+      "producer": "target supply realization",
+      "signature": "2636b6fc780355e98329ac2f0bcdbf76f85c93d92e53d6cd449dceaa93a7e33d"
+    },
+    {
+      "consumers": [
+        "native provider planning"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/target_supply.rs",
+      "item": "module:installation_reach#1",
+      "kind": "definition",
+      "meaning": "Keep installation reach and normalized native bindings with the selected target supply.",
+      "producer": "target supply",
+      "signature": "9e4caab99450ffbbefe9bc96145329e8028b08fe15e36cba621f5bc7356bdef9"
+    },
+    {
+      "consumers": [
+        "native provider planning"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/target_supply.rs",
+      "item": "use:installation_reach :: { NormalizedNativeSupplies , NormalizedNativeSupply }#1",
+      "kind": "definition",
+      "meaning": "Expose the normalized native binding rows and their identity table to the stage.",
+      "producer": "installation reach",
+      "signature": "42ab045b9f63a8d6432d11bf354e0bf41e3e258f7afba5041d4eeb31dfd06b5c"
+    },
+    {
+      "consumers": [
+        "realize_target_supply",
+        "RealizedTargetSupply::from_checked"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/target_supply.rs",
+      "item": "function:matches_direct_leaf#1",
+      "kind": "checker",
+      "meaning": "Match both the direct leaf’s declaration and its callable. Trait requirements and non-provider calls use the semantic declaration. Other provider calls use the declared machine.",
+      "producer": "target supply",
+      "signature": "784e827363d4ba02e7976a8cc4ac8cfc0d477831de40330ef8ae18d2c15be14a"
+    },
+    {
+      "consumers": [
         "SelectedExecution",
         "provider proposal construction",
         "checked native calling-policy review"
@@ -5414,7 +5494,7 @@
       "kind": "producer",
       "meaning": "Admit native supply, bind installation requirements and verify the exact target fold against selected plans.",
       "producer": "target supply realization",
-      "signature": "fbba04c0585f94534e627a3d2ad97f3481c209cdead0c7424aad3f9ea0f8283f"
+      "signature": "6d5a3ca872323d17e9fc8c0d2f3f97547c3148766d6503b20c40cd09e87ca87c"
     },
     {
       "consumers": [
@@ -5438,9 +5518,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/target_supply/realized_supply.rs",
       "item": "impl:RealizedTargetSupply::method:from_checked#1",
       "kind": "producer",
-      "meaning": "Admit native requirement plans, candidate and calling receipts, installed permissions and row execution evidence against the exact source and target.",
+      "meaning": "Admit provider plans and row execution against the exact source and target. Require exactly one checked boundary for each direct declaration and callable pair.",
       "producer": "target supply realization",
-      "signature": "88695dca27fb9a5718330b18c2a0b9431a6ad1d1056d31a7de188863d54b1d34"
+      "signature": "f7e515d8d8802112cd9a1a1300b6bc16d0043d5f6d65b6367420157abd4efc87"
     },
     {
       "consumers": [
@@ -22634,6 +22714,13 @@
         "checker",
         "definition",
         "producer"
+      ]
+    },
+    {
+      "path": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/target_supply.rs",
+      "allowed_kinds": [
+        "checker",
+        "definition"
       ]
     },
     {
