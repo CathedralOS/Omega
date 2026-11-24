@@ -1,0 +1,4 @@
+// A comparison is a Boolean value as an operand of `==`, not only as a
+// whole clause. The caller states the same relation it must establish.
+machine ordered(flag: bool, a: u32, b: u32) requires flag == (a < b) { }
+machine build_entry(flag: bool, a: u32, b: u32) requires flag == (a < b) { ordered(flag, a, b); }

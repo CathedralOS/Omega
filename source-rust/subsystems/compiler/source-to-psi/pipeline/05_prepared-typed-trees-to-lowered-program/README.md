@@ -213,7 +213,11 @@ and the clause's `ClauseScope` says what each name denotes where the clause
 stands: a formal's input value, a logical input (`LogicalScope::input`), a
 value parameter bound to its argument, `result`, or a field of the value a
 data clause is about. So a term form read once is read in every clause; `!b`,
-for example, is a Boolean operand (`a == !b`) as well as a whole clause.
+for example, is a Boolean operand (`a == !b`) as well as a whole clause, and
+so is a comparison (`flag == (a < b)`): it is the Boolean value it computes,
+with `>` and `>=` read as `<` and `<=` of the exchanged operands and `!=` as
+the negation of `==`. A comparison under an arithmetic policy is refused as
+an operand by name.
 `tools/ratchets/clause_term_readers.txt` counts the functions in `read/` that
 return a clause term, so the number can only fall.
 

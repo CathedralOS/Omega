@@ -1361,9 +1361,12 @@ type), and the clause's `ClauseScope` says what each name denotes there.
   - "Identity operand has no term at its written carrier" for a field of a
     record formal outside the mathematical signature: the field arm serves
     data that contains itself only.
+- **A comparison as an operand (added after step 5).** `flag == (a < b)` was
+  refused with "arithmetic contract term has no selected integer carrier".
+  `clause_term` now reads a comparison as the Boolean value it computes
+  wherever a clause writes one. Propositions are still read by `read_clause`,
+  a separate function.
 - **Not done:**
-  - Propositions are still read by `read_clause`, a separate function, and
-    a comparison is not a Boolean operand: `flag == (a < b)` is refused.
   - `extent.omg`'s `core\Identity::<IntervalSet<Nat>>` contract
     (`extent.omg:219`) needs Identity over a domain's content projection of
     `old(@storage)`. Step 5 did not change how it is read.
@@ -1495,12 +1498,21 @@ stages 03 and 04. What is built:
   (`indexed_scheme_at`, `IndexedFamily::base`).
 - **Not done, each waiting on something outside the proof layer:**
   - A computed index (`Vector<Length + 1, ..>`). The compiler refuses any
-    operator in a static argument of a generic machine once the machine is
-    copied for closed values (`inner::<Count + 1>()` gives "admitted source
-    selection Operator remains unresolved as CheckedOperator"), with or
-    without indexed data. When that works, the evidence reader must read a
-    sum as an index and prove two indices equal where it now compares them
-    as written.
+    operator in a static argument of a generic machine, with or without
+    indexed data, in two places. Typed preparation defers the open machine
+    itself (`outer<Count>` holding `inner::<Count + 1>()`: "using a type
+    written as an expression, which no pass evaluates yet"), because nothing
+    evaluates a static value that names an open parameter. And in the copy
+    made for a closed value, lowering leaves the `+` of `1 + 1` unanswered
+    ("admitted source selection Operator remains unresolved as
+    CheckedOperator"), because the folded value is read through the typed
+    trees and the written calculation is never read as an expression. A
+    trial that completes those operators where the call reads its static
+    application (`static_machine_application_arguments` beside the folded
+    bindings) made the closed copy check and refused a value past the
+    callee's requirement; the open machine's deferral then refuses the
+    program. When both work, the evidence reader must read a sum as an index
+    and prove two indices equal where it now compares them as written.
   - Evidence held in a field of other data: the ordinary reader refuses any
     data with an erased field.
   - Evidence is not a machine's result. A result is a value that runs, and
