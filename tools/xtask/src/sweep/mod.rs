@@ -631,63 +631,65 @@ fn messages_in(diff: &str) -> Vec<String> {
     messages
 }
 
-/// Collapse `a/b/../c` without touching the filesystem.
-fn normal(path: &str) -> String {
-    let mut parts: Vec<&str> = Vec::new();
-    for part in path.split('/') {
-        match part {
-            "" | "." => {}
-            ".." if parts.last().is_some_and(|last| *last != "..") => {
-                parts.pop();
-            }
-            other => parts.push(other),
+/// All callers resolve against an absolute package or checkout directory.
+fn normalized(path: &Path) -> PathBuf {
+    let mut result = PathBuf::new();
+    for component in path.components() {
+        if component == std::path::Component::ParentDir {
+            result.pop();
+        } else {
+            result.push(component);
         }
     }
-    parts.join("/")
+    result
 }
 
-/// The repository paths a program's `build.omg` names as path dependencies
-/// (`location: "<relative path>"`), resolved against the program's folder.
-fn direct_dependencies(root: &Path, folder: &str) -> Vec<String> {
-    let Ok(build) = fs::read_to_string(root.join(folder).join("build.omg")) else {
-        return Vec::new();
+/// Resolve path requests the way the local source owner does: absolute
+/// locations stand alone, and relative locations start at their requester.
+fn direct_dependencies(folder: &Path) -> Result<Vec<PathBuf>, String> {
+    let path = folder.join("build.omg");
+    let build = match fs::read_to_string(&path) {
+        Ok(build) => build,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(format!("{}: {error}", path.display())),
     };
-    build
-        .split("location:")
-        .skip(1)
-        .filter_map(|rest| rest.split('"').nth(1))
-        .filter(|location| {
-            matches!(
-                Path::new(location).components().next(),
-                Some(
-                    std::path::Component::CurDir
-                        | std::path::Component::ParentDir
-                        | std::path::Component::Normal(_)
-                )
-            )
+    Ok(build
+        .match_indices("location")
+        .filter_map(|(offset, field)| {
+            let rest = &build[offset + field.len()..];
+            rest.trim_start()
+                .strip_prefix(':')?
+                .trim_start()
+                .strip_prefix('"')?
+                .split('"')
+                .next()
         })
-        .map(|location| normal(&format!("{folder}/{location}")))
-        .collect()
+        .filter(|location| !location.is_empty())
+        .map(|location| normalized(&folder.join(location)))
+        .collect())
 }
 
-/// The package folders a program's check reads besides its own: its path
-/// dependencies, and theirs, to the end. With the program's own folder (every
-/// `.omg` beneath a package root is its source, `LogicalSourceInventory` in
-/// `package-compilation`) and the toolchain's `core` and `std`, these are the
-/// source closure `omega --check` compiles.
-fn dependency_roots(root: &Path, program: &str) -> Vec<String> {
-    let folder = program.trim_end_matches("main.omg").trim_end_matches('/');
-    let mut found: Vec<String> = Vec::new();
-    let mut pending = direct_dependencies(root, folder);
+/// Traverse external packages too: one may refer back to source in this checkout.
+fn dependency_roots(root: &Path, program: &str) -> Result<Vec<String>, String> {
+    let entry = root.join(program);
+    let folder = entry
+        .parent()
+        .ok_or_else(|| format!("no package for {program}"))?;
+    let mut found = std::collections::BTreeSet::new();
+    let mut pending = direct_dependencies(folder)?;
     while let Some(dependency) = pending.pop() {
-        if found.contains(&dependency) {
-            continue;
+        if found.insert(dependency.clone()) {
+            pending.extend(direct_dependencies(&dependency)?);
         }
-        pending.extend(direct_dependencies(root, &dependency));
-        found.push(dependency);
     }
-    found.sort();
-    found
+    Ok(found
+        .iter()
+        .filter_map(|path| path.strip_prefix(root).ok())
+        .map(|path| {
+            path.to_string_lossy()
+                .replace(std::path::MAIN_SEPARATOR, "/")
+        })
+        .collect())
 }
 
 /// Whether a changed library file is in a library every check reads: the
@@ -742,10 +744,10 @@ fn blast_zone(
                 add(program, Reason::OwnSource);
                 continue;
             }
-            let roots = dependency_roots(root, program);
+            let roots = dependency_roots(root, program)?;
             if sources
                 .iter()
-                .any(|path| roots.iter().any(|dep| path.starts_with(&format!("{dep}/"))))
+                .any(|path| roots.iter().any(|dep| Path::new(path).starts_with(dep)))
             {
                 add(program, Reason::Dependency);
             }
@@ -980,7 +982,7 @@ fn run_wide_refusal(row: &Row) -> Option<String> {
 
 fn head_commit(root: &Path) -> Result<String, String> {
     let output = Command::new("git")
-        .args(["rev-parse", "--short=10", "HEAD"])
+        .args(["rev-parse", "--verify", "HEAD^{commit}"])
         .current_dir(root)
         .output()
         .map_err(|error| format!("git rev-parse: {error}"))?;
@@ -989,6 +991,26 @@ fn head_commit(root: &Path) -> Result<String, String> {
         return Err("git rev-parse HEAD failed".to_owned());
     }
     Ok(commit)
+}
+
+/// Old producers recorded Git's unique abbreviation (at least ten digits).
+fn matches_commit(root: &Path, pinned: &str, recorded: &str) -> bool {
+    if !matches!(pinned.len(), 40 | 64) || !pinned.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return false;
+    }
+    if pinned == recorded {
+        return true;
+    }
+    if recorded.len() < 10 || !pinned.starts_with(recorded) {
+        return false;
+    }
+    Command::new("git")
+        .current_dir(root)
+        .args(["rev-parse", &format!("--disambiguate={recorded}")])
+        .output()
+        .is_ok_and(|output| {
+            output.status.success() && String::from_utf8_lossy(&output.stdout).trim() == pinned
+        })
 }
 
 /// Checks `programs`, journalling each row when there is an `--out`, and
@@ -1004,7 +1026,7 @@ fn sweep(
     // fails in the first second rather than after the last program.
     let (journal, earlier) = match &options.out {
         Some(out) => {
-            let (journal, earlier) = Journal::open(out, header)?;
+            let (journal, earlier) = Journal::open(root, out, header)?;
             (Some(journal), earlier)
         }
         None => (None, Vec::new()),
@@ -1343,11 +1365,14 @@ mod tests {
 
     #[test]
     fn a_path_dependency_resolves_from_its_program() {
+        let root = std::env::temp_dir();
         assert_eq!(
-            normal("samples/cli/facts/f/invalid_local/../../../../../tests/support/x"),
-            "tests/support/x"
+            normalized(
+                &root.join("samples/cli/facts/f/invalid_local/../../../../../tests/support/x")
+            ),
+            root.join("tests/support/x")
         );
-        assert_eq!(normal("a/./b//c/../d"), "a/b/d");
+        assert_eq!(normalized(&root.join("a/./b//c/../d")), root.join("a/b/d"));
     }
 
     #[test]
@@ -1366,14 +1391,27 @@ mod tests {
         build("samples/app", "../../packages/lib");
         build("packages/lib/vendor", "../../base");
         build("packages/base", "../lib");
-        for location in ["./vendor", "vendor"] {
+        let absolute = root
+            .join("packages/lib/vendor")
+            .to_string_lossy()
+            .replace('\\', "/");
+        for location in ["./vendor", "vendor", &absolute] {
             build("packages/lib", location);
             assert_eq!(
-                dependency_roots(&root, "samples/app/main.omg"),
+                dependency_roots(&root, "samples/app/main.omg").unwrap(),
                 ["packages/base", "packages/lib", "packages/lib/vendor"],
                 "transitive dependencies through {location}"
             );
         }
+        let bad = root.join("packages/lib/vendor/build.omg");
+        fs::write(&bad, [0xff]).unwrap();
+        let error = dependency_roots(&root, "samples/app/main.omg").unwrap_err();
+        assert!(
+            error
+                .replace('\\', "/")
+                .contains("packages/lib/vendor/build.omg"),
+            "{error}"
+        );
         let _ = fs::remove_dir_all(&root);
     }
 
