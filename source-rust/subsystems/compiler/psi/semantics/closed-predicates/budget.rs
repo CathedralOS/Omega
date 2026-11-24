@@ -9,9 +9,13 @@ pub struct PredicateBudget {
     remaining: usize,
 }
 
+const NODE_LIMIT: usize = 4096;
+
 impl Default for PredicateBudget {
     fn default() -> Self {
-        Self { remaining: 4096 }
+        Self {
+            remaining: NODE_LIMIT,
+        }
     }
 }
 
@@ -21,6 +25,11 @@ impl PredicateBudget {
             return Err(PredicateSizeLimit);
         }
         self.count(1)
+    }
+
+    /// Charge the same work as a previously checked group of predicates.
+    pub fn include(&mut self, checked: &Self) -> Result<(), PredicateSizeLimit> {
+        self.count(NODE_LIMIT - checked.remaining)
     }
 
     fn count(&mut self, count: usize) -> Result<(), PredicateSizeLimit> {

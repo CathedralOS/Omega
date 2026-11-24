@@ -53,11 +53,12 @@ bound by `DispatchBinding` rows, and lowering mints no arrival for them.
 Nothing here reads a name or text: values are compared by identity.
 */
 
-use proof_admission::{check_value_equality_denotation, check_value_equality_substitution};
+use proof_admission::CheckedValueEquations;
 use semantic_vocabulary::{
     BlockId, EdgeId, MachineId, ObligationId, PlaceId, Proposition, PropositionContext, ScalarTerm,
     ScalarType, StructuralPlaceKind, ValueId,
 };
+use std::cell::LazyCell;
 use terminal_check_tables::edges::Destination;
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::{Justification, ValueOrigin};
@@ -758,6 +759,21 @@ fn describe(
             _ => {}
         }
     }
+    // Every candidate on this arrival sees the same ordered definitions. A
+    // path fixing a preceding result has its own roster and its own scope.
+    let definitions =
+        LazyCell::new(|| CheckedValueEquations::check(context, equations.iter().copied()).ok());
+    let fixed_definitions = LazyCell::new(|| {
+        CheckedValueEquations::check(
+            context,
+            equations[..operation_equations]
+                .iter()
+                .chain(&fixed)
+                .chain(&equations[operation_equations..])
+                .copied(),
+        )
+        .ok()
+    });
     let names_fixed = |proposition: &Proposition| {
         let mut named = false;
         proposition.visit_value_ids(|value| {
@@ -789,8 +805,8 @@ fn describe(
         // A dominating argument keeps its exact identity even if substituting
         // definitions would expand the arithmetic. Later proofs can cite its
         // operation equation. An out-of-scope identity is filtered below.
-        if let Ok(defined) =
-            check_value_equality_substitution(context, &binding, equations.iter().copied())
+        if let Some(definitions) = definitions.as_ref()
+            && let Ok(defined) = definitions.substitute(&binding)
             && defined != binding
         {
             parts.push(defined);
@@ -822,15 +838,8 @@ fn describe(
             // join's result fixed, is the one alternative that produced it.
             if matches!(justification, Justification::BlockInvariant { .. })
                 && names_fixed(proposition)
-                && let Ok(denotation) = check_value_equality_denotation(
-                    context,
-                    proposition,
-                    equations[..operation_equations]
-                        .iter()
-                        .chain(&fixed)
-                        .chain(&equations[operation_equations..])
-                        .copied(),
-                )
+                && let Some(definitions) = fixed_definitions.as_ref()
+                && let Ok(denotation) = definitions.denotation(proposition)
             {
                 let denotation = rename(&denotation, &renaming);
                 parts.push(project(&denotation, &mut |atom| {
@@ -847,12 +856,10 @@ fn describe(
             parts.push(stated);
             continue;
         }
-        let denotation = if equations.is_empty() {
-            (*proposition).clone()
-        } else {
-            check_value_equality_denotation(context, proposition, equations.iter().copied())
-                .unwrap_or_else(|_| (*proposition).clone())
-        };
+        let denotation = definitions
+            .as_ref()
+            .and_then(|definitions| definitions.denotation(proposition).ok())
+            .unwrap_or_else(|| (*proposition).clone());
         // A preceding join's result becomes this join's formal on this
         // exact edge. Its predicate follows that identity too, rather than
         // being discarded for naming the preceding result.
