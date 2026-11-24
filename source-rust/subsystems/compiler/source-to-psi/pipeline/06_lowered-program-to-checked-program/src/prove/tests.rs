@@ -1467,10 +1467,24 @@ fn case_search_does_not_materialize_exhausted_or_active_cuts() {
     assert!(active.split(&Proposition::Truth).is_none());
     assert_eq!(active.activity.disjunction_materializations, 0);
     assert_eq!(active.activity.started, 1);
+    let unknown = Proposition::Equal(ScalarTerm::value(id, scalar_type), literal(7));
+    assert!(active.prove_under(&Proposition::Truth, &unknown).is_err());
+    assert!(
+        active
+            .prove_under(&Proposition::Truth, &Proposition::Truth)
+            .is_ok()
+    );
+    assert!(matches!(active.active_cuts.as_slice(), [only] if only.proposition == cut));
+    assert_eq!(active.remaining_case_branches, CASE_BRANCH_BUDGET);
+
     let mut activity = ProofSearchActivity::default();
     let mut failed = Prover::new(&context, &assumptions, &[], &values, &mut activity);
-    let unknown = Proposition::Equal(ScalarTerm::value(id, scalar_type), literal(7));
     assert!(failed.split(&unknown).is_none());
+    assert!(failed.active_cuts.is_empty());
+    failed.remaining_case_branches = 1;
+    assert!(failed.split(&unknown).is_none());
+    assert_eq!(failed.remaining_case_branches, 0);
+    assert!(failed.active_cuts.is_empty());
     assert_eq!(failed.activity.disjunction_materializations, 0);
 
     let Proposition::Disjunction(parts) = cut else {
