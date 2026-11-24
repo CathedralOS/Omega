@@ -2603,6 +2603,40 @@ pub mod expression {
             use super::*;
 
             #[test]
+            fn binary_equality_keeps_the_arithmetic_policy_and_prefix_negation() {
+                use crate::source_state::expression::BinaryOperator;
+                use numeric_literals::IntegerLiteral;
+                use numerics::arithmetic::ArithmeticDomain::{Exact, Saturating, Trapping, Wrapping};
+
+                let mut trees = crate::source_state::TypedTrees::default();
+                let table = &mut trees.expression_table;
+                let zero = table.insert(ExpressionNode::Integer(IntegerLiteral::zero()));
+                let one = table.insert(ExpressionNode::Integer(IntegerLiteral::from_value(1)));
+                let mut subtraction = |policy, negation| {
+                    table.insert(ExpressionNode::Binary(TableBinaryExpression {
+                        left: zero,
+                        operator: BinaryOperator::Subtract,
+                        right: one,
+                        policy,
+                        negation,
+                    }))
+                };
+                let exact = subtraction(Exact, false);
+                let same = subtraction(Exact, false);
+                let different = [
+                    subtraction(Wrapping, false),
+                    subtraction(Saturating, false),
+                    subtraction(Trapping, false),
+                    subtraction(Exact, true),
+                ];
+
+                assert!(table.expressions_structurally_equal(exact, same));
+                for other in different {
+                    assert!(!table.expressions_structurally_equal(exact, other));
+                }
+            }
+
+            #[test]
             fn pattern_dependencies_retain_the_combined_condition_once() {
                 use crate::source_state::expression::{
                     BinaryOperator, MatchFieldAction, MatchPattern, TableDestructurePattern,
@@ -4740,6 +4774,8 @@ pub mod expression {
                 }
                 (ExpressionNode::Binary(x), ExpressionNode::Binary(y)) => {
                     x.operator == y.operator
+                        && x.policy == y.policy
+                        && x.negation == y.negation
                         && self.expressions_structurally_equal(x.left, y.left)
                         && self.expressions_structurally_equal(x.right, y.right)
                 }
