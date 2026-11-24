@@ -7,17 +7,18 @@ Fact: **A granted vacant extent retains actual backing through transport,
 initialization, permitted writes, and extraction.**
 
 The core extent contracts express Granted and Vacant conservation with
-`core\Identity` over `IntervalSet<Nat>`. The local example and its control use
-`|extent|::Granted::content` to compare the canonical set at entry with the set
-on its returned extent. Establishing backing, vacancy, placement, and field
+`core\Identity` over `IntervalSet<Nat>`. The vacancy provider in the local example and its
+control compares `|extent|::Granted::content` at entry with that projection on
+the returned extent. Establishing backing, vacancy, placement, and field
 access each requires separate authority. The existing allocation, profile,
 geometry, qualification, lifecycle, cleanup, and neighbor-canary checks remain
 part of the example.
 
 The local example and its control parsed after their migration to the public
-owned lifecycle. Current execution on both engines and the intended vacancy
-refusal still need verification. The historical results below identify the
-source and compiler used in those runs.
+owned lifecycle. All nine pairs still need optimized checking, native/Psi
+agreement for the positives, the intended vacancy refusals for the controls,
+and a clean corpus record. The historical results below identify the source
+and compiler used in those runs.
 
 Each place obtains 64 actual zeroed bytes from the admitted host allocator,
 establishes Granted and Vacant independently, partitions into two 32-byte
