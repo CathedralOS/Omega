@@ -1,8 +1,8 @@
 # Packet unit_018_gap_006: x86-64 selected-form encoder, lines 19001-21917
 
-The second-pass record for the tail of the x86-64 selected-form encoder found no wrong result, and this review confirms that: every claim is intended behavior, a duplicate of an earlier disposition, or a test-only duplication with no wrong output. No encoder code changed. Running the owning tests exposed a separate build break on `main` (B1 below), which this packet repairs. The record is [unit_018_gap_006](../../records/unit_018_gap_006.md); it covers lines 19001-21917 of the stage 11 encoder (area 11). About 2,650 of those lines are `#[cfg(test)]` code, and the production code is the `trapping_forms` shim, `canonical_effects_encoding`, the public types and the two public entry points.
+The second-pass record for the tail of the x86-64 selected-form encoder found no wrong result, and this review confirms that: every claim is intended behavior, a duplicate of an earlier disposition, or a test-only duplication with no wrong output. No compiler code changed. Running the owning tests exposed a separate build break on `main` (B1 below); #5427 repaired it in parallel, so this packet carries no code. The record is [unit_018_gap_006](../../records/unit_018_gap_006.md); it covers lines 19001-21917 of the stage 11 encoder (area 11). About 2,650 of those lines are `#[cfg(test)]` code, and the production code is the `trapping_forms` shim, `canonical_effects_encoding`, the public types and the two public entry points.
 
-Baseline: `24ad2700685e6cc6062026c87ed5fd24ed415265`. The file is unchanged between that baseline and `a0152d26`. It has 21,918 lines; the record counted 21,917, so production-tail line numbers below are the record's plus one where they differ.
+Baseline: `24ad2700685e6cc6062026c87ed5fd24ed415265`. The file is unchanged between that baseline and `a0152d26`. It has 21,918 lines there; the record counted 21,917, so production-tail line numbers below are the record's plus one where they differ. All `X64sfe` line numbers below are at `a0152d26`. #5426 later added 44 lines inside `ieee_float_arithmetic` (`a0152d26` lines 6418-7319); citations after that point are 44 lower than on `885c06d0`, and none of the cited code changed.
 
 `X64sfe` = `source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-x86_64/src/selected_form_encoding.rs`.
 
@@ -81,18 +81,13 @@ Merged evidence checked first: [area 07-13 ledger](../07-13-psi-and-native.md) r
 
 ## Build break found while running the owning tests
 
-### B1. `optimization-unit` does not compile on `main`
-- Source: not an atlas claim. The first run of this packet's tests at `a0152d26` (equal to `origin/main` on 2026-11-24) stopped in a dependency: `error[E0004]: non-exhaustive patterns: &semantic_vocabulary::Proposition::DeclarationIdentity(_) not covered` at `optimization-unit/src/identity.rs:267`.
-- Cause: #5393 (`4045f5ea`) added `Proposition::DeclarationIdentity(ClauseIdentity)` and taught the Psi declaration encoder to write it (tag 23), but not the optimizer's canonical identity encoder `proposition_encoding::encode_proposition` in `source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit/src/identity.rs`. Every native crate that depends on `optimization-unit`, including `isa-x86_64`, failed to build. No open PR repaired it.
-- Contract: optimizer identity bytes must keep every input that distinguishes two propositions.
-- Fix: a `DeclarationIdentity` arm writes tag 23 and every carrier, operand, application declaration (supplier slot and generation, member) and argument, then the two side indexes. Fixture: `identity::proposition_encoding::tests::declaration_identity_bytes_keep_every_clause_input`, which changes one input at a time and requires different bytes.
-- Outcome: **fixed** (code and fixture in separate commits).
+### B1. `optimization-unit` did not compile on `main`
+- Source: not an atlas claim. The first run of this packet's tests at `a0152d26` stopped in a dependency: `error[E0004]: non-exhaustive patterns: &semantic_vocabulary::Proposition::DeclarationIdentity(_) not covered` at `optimization-unit/src/identity.rs:267`.
+- Cause: #5393 (`4045f5ea`) added `Proposition::DeclarationIdentity(ClauseIdentity)` and taught the Psi declaration encoder to write it (tag 23), but not the optimizer's identity encoder `proposition_encoding::encode_proposition`. Every native crate that depends on `optimization-unit`, including `isa-x86_64`, failed to build.
+- Outcome: **duplicate**, fixed by #5427 (`3f9707e6`, tag 23 with every clause field, test `declaration_identity_commits_its_cited_declaration`). This session wrote an equivalent arm and fixture before #5427 merged; both were dropped from this branch in favor of the merged fix.
 
 ## Validation
-- Before the fix, at `a0152d26`: `CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx test -p isa-x86_64 --lib -- selected_form_encoding::tests::trapping selected_form_encoding::tests::scalar selected_form_encoding::tests::saturating selected_form_encoding::copy_bytes selected_form_encoding::zero_bytes selected_form_encoding::scan_byte_sequence selected_form_encoding::compare_byte_sequences < /dev/null` failed to build with the E0004 error above.
-- After the fix, the same command: `test result: ok. 34 passed; 0 failed; 0 ignored; 0 measured; 136 filtered out`. These tests pin C2, C3, C6, C8, C10 and C11.
-- `mbx test -p optimization-unit < /dev/null`: 15 passed, 0 failed (lib), plus the new fixture.
-- `mbx clippy -p optimization-unit --all-targets -- -D warnings`: clean.
-- `mbx xtask fmt --check` fails on `main` before and after this change. The changed lines pass `rustfmt --check`; the remaining diff in `identity.rs` (line 5171) predates this change.
+- At `a0152d26`, before #5427: `CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx test -p isa-x86_64 --lib -- selected_form_encoding::tests::trapping selected_form_encoding::tests::scalar selected_form_encoding::tests::saturating selected_form_encoding::copy_bytes selected_form_encoding::zero_bytes selected_form_encoding::scan_byte_sequence selected_form_encoding::compare_byte_sequences < /dev/null` failed to build with the E0004 error above.
+- At `885c06d0` (includes #5427), the same command: `test result: ok. 34 passed; 0 failed; 0 ignored; 0 measured; 137 filtered out`. These tests pin C2, C3, C6, C8, C10 and C11.
 
 Packet complete.
