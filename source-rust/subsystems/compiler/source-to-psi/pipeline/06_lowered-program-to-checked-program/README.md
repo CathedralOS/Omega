@@ -45,6 +45,18 @@ the case's goal outright, because no value satisfies it. Both are kernel
 terms built from the data's induction principle, checked with the rest of
 the proof.
 
+The search rewrites both sides of the goal with the equalities the case
+holds, smallest term first, until the two sides reach one term. It never
+uses an equality in the direction that puts its own left side inside its
+right side (`x` to `plus(x, Zero)`), which would apply to its own result
+without end; the other direction, applied from the other side of the goal,
+covers what that direction would have. A goal no equality proves therefore
+ends as "no proof", not as an exhausted budget.
+
+A law about a record of mathematical values is proved inside the record's
+fields: the record is a tuple, each citation rewrites inside one component,
+and a tuple of every field of one value is that value.
+
 Normalizing keeps a defined function folded: `plus(a, b)` stays `plus(a, b)`
 until the argument it dispatches on is a constructor, and then unfolds one
 step. A term is normalized again after each rewrite, since the rewrite may

@@ -25,7 +25,11 @@ trait brings in every other machine over such data that satisfies a
 requirement of the same trait at the same data, so a program that calls the
 library's `add` on `Nat` gets `core/nat.omg`'s whole `CommutativeSemiring`
 conformance. A machine that returns a value and states an equality is read
-as a definition and as a law. The ordinary reader refuses the same data and machines when a
+as a definition and as a law. Data with a field of mathematical data is
+mathematical too: a record of such fields is read as the product of their
+types, with field access and record literals as projections and tuples.
+Conformances are read in the order of the data they are about, so a record's
+laws come after the laws of its fields' type. The ordinary reader refuses the same data and machines when a
 runtime machine reaches them. A field of any other type in such data, a
 premise on such a machine and a result together with a guarantee are refused
 as not supported yet.

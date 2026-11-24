@@ -202,6 +202,16 @@ pub enum SignatureEntryKind {
         /// compares it while checking.
         type_identity: String,
     },
+    /// A record with no cases whose fields are all mathematical data: the
+    /// product of its fields' types, right-nested in declared order. A value
+    /// is the tuple of its fields, a field is a projection of it, and a
+    /// record of one field is that field. `fields` holds the entry of each
+    /// field's type.
+    Record {
+        declaration: SymbolHandle,
+        fields: Vec<u32>,
+        type_identity: String,
+    },
     /// A case of the data declared at index `data`, as a function of its fields.
     Constructor { data: u32, case: u32 },
     /// A declaration the encoding of the data at index `data` needs besides

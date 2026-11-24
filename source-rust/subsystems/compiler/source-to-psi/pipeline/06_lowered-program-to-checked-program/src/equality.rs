@@ -110,6 +110,23 @@ fn plug(
     value
 }
 
+/// Whether `needle` is a proper subterm of `term`.
+fn occurs(arena: &TermArena, needle: TermHandle, term: TermHandle) -> bool {
+    arena
+        .get(term)
+        .children()
+        .any(|child| arena.structurally_equal(child, needle) || occurs(arena, needle, child))
+}
+
+/// How many term nodes the term has.
+fn size(arena: &TermArena, term: TermHandle) -> usize {
+    1 + arena
+        .get(term)
+        .children()
+        .map(|child| size(arena, child))
+        .sum::<usize>()
+}
+
 fn charge(remaining: &mut usize) -> Result<(), SearchError> {
     *remaining = remaining.checked_sub(1).ok_or(SearchError::Budget)?;
     Ok(())
@@ -179,6 +196,7 @@ impl Definitions {
                 .iter()
                 .map(|entry| match &entry.kind {
                     SignatureEntryKind::Data { .. }
+                    | SignatureEntryKind::Record { .. }
                     | SignatureEntryKind::Encoding { .. }
                     | SignatureEntryKind::Statement { .. } => Definition::Opaque,
                     SignatureEntryKind::Constructor { data, case } => match shape(*data) {
@@ -583,6 +601,15 @@ fn normal_children(
         changed |= normal != child;
         children.push(normal);
     }
+    // A pair of both projections of one value is that value: the kernel
+    // converts the two, and the search compares terms by their spelling.
+    if let (Term::Pair { .. }, [first, second]) = (&node, children.as_slice())
+        && let (Term::Fst { pair: left }, Term::Snd { pair: right }) =
+            (arena.get(*first), arena.get(*second))
+        && arena.structurally_equal(left, right)
+    {
+        return Ok(left);
+    }
     Ok(if changed {
         arena.insert(node.rebuilt(&children))
     } else {
@@ -864,7 +891,20 @@ fn order(arena: &TermArena, left: TermHandle, right: TermHandle) -> std::cmp::Or
         Term::Lambda { .. } => 4,
         Term::Pi { .. } => 5,
         Term::IndW { .. } => 6,
-        _ => 7,
+        Term::Pair { .. } => 7,
+        Term::Fst { .. } => 8,
+        Term::Snd { .. } => 9,
+        Term::Sigma { .. } => 10,
+        Term::Id { .. } => 11,
+        Term::Refl { .. } => 12,
+        Term::IdElim { .. } => 13,
+        Term::W { .. } => 14,
+        Term::Two => 15,
+        Term::TwoZero => 16,
+        Term::TwoOne => 17,
+        Term::CaseTwo { .. } => 18,
+        Term::Sort(_) => 19,
+        _ => 20,
     };
     let (a, b) = (arena.get(left), arena.get(right));
     let by_shape = rank(&a).cmp(&rank(&b)).then_with(|| match (&a, &b) {
@@ -1006,10 +1046,15 @@ fn next_rearrangement(
             }
         }
     }
-    // Operands are rearranged wherever they sit beneath applications. A
-    // binder is not entered: a law is stated outside it.
-    if let Term::Apply { function, argument } = arena.get(term) {
-        for (slot, child) in [function, argument].into_iter().enumerate() {
+    // Operands are rearranged wherever they sit beneath a term former that
+    // binds nothing: an application, a pair or a projection. A binder is not
+    // entered: a law is stated outside it.
+    let node = arena.get(term);
+    if matches!(
+        node,
+        Term::Apply { .. } | Term::Pair { .. } | Term::Fst { .. } | Term::Snd { .. }
+    ) {
+        for (slot, child) in node.children().enumerate() {
             slots.push(slot);
             let found = next_rearrangement(arena, licenses, distributions, child, slots);
             slots.pop();
@@ -1367,13 +1412,32 @@ fn search(
         Some(rules) if !rules.is_empty() => rules,
         _ => return Err(SearchError::NoProof),
     };
-    let mut reached = vec![(left, reflexivity)];
-    let mut next = 0;
-    while let Some(&(current, base)) = reached.get(next) {
-        next += 1;
+    // A rule is never used in the direction that puts its own left side
+    // inside its right side: `x` to `plus(x, Zero)` applies again to its own
+    // result, without end. Its other direction stays, and because both sides
+    // of the goal are rewritten toward each other, a goal that needs the
+    // larger term on one side still meets it from that side.
+    let usable: Vec<Equality> = rules
+        .iter()
+        .copied()
+        .filter(|rule| !occurs(arena, rule.from, rule.to))
+        .collect();
+    // The terms reached from the left side and from the right side, each
+    // with the proof that its side equals it. The smallest term reached so
+    // far, from either side, is rewritten next.
+    let right_reflexivity = arena.insert(Term::Refl { ty, value: right });
+    let mut reached = [vec![(left, reflexivity)], vec![(right, right_reflexivity)]];
+    let mut waiting = vec![
+        (size(arena, left), 0usize, 0usize),
+        (size(arena, right), 1, 0),
+    ];
+    while let Some(at) = (0..waiting.len()).min_by_key(|&at| waiting[at]) {
+        let (_, side, index) = waiting.swap_remove(at);
+        let (current, base) = reached[side][index];
+        let origin = if side == 0 { left } else { right };
         let mut pending = vec![(current, Vec::new(), 0u32)];
         while let Some((focus, path, depth)) = pending.pop() {
-            for &rule in rules.iter() {
+            for &rule in &usable {
                 charge(search_steps)?;
                 // A citation is stated outside every binder the focus is under.
                 if !arena.structurally_equal_shifted(rule.from, focus, depth) {
@@ -1386,7 +1450,7 @@ fn search(
                 // rewritten term is a proof of it too.
                 let rewritten = normal(arena, context, definitions, rewritten, conversion)?;
                 let mut seen = false;
-                for &(known, _) in &reached {
+                for &(known, _) in &reached[side] {
                     charge(search_steps)?;
                     if arena.structurally_equal(known, rewritten) {
                         seen = true;
@@ -1399,17 +1463,54 @@ fn search(
                 let destination = arena.insert(Term::Variable(depth + 1));
                 let under_binders = plug(arena, &path, destination, 2);
                 let carrier = shift(arena, ty, 0, 2);
-                let start = shift(arena, left, 0, 2);
+                let start = shift(arena, origin, 0, 2);
                 let conclusion = arena.insert(Term::Id {
                     ty: carrier,
                     left: start,
                     right: under_binders,
                 });
                 let proof = rule.eliminate(arena, conclusion, base);
-                if let Some(proof) = close(arena, rewritten, proof, search_steps)? {
+                if side == 0
+                    && let Some(proof) = close(arena, rewritten, proof, search_steps)?
+                {
                     return Ok(proof);
                 }
-                reached.push((rewritten, proof));
+                // The two sides meet at a term both have reached.
+                let mut met = None;
+                for &(known, known_proof) in &reached[1 - side] {
+                    charge(search_steps)?;
+                    if arena.structurally_equal(known, rewritten) {
+                        met = Some(known_proof);
+                        break;
+                    }
+                }
+                if let Some(met) = met {
+                    let (from_left, from_right) = if side == 0 {
+                        (proof, met)
+                    } else {
+                        (met, proof)
+                    };
+                    // `right = term` read backwards, then `left = term`
+                    // carried along it to `left = right`.
+                    let back = Equality {
+                        carrier: ty,
+                        from: right,
+                        to: rewritten,
+                        proof: from_right,
+                    }
+                    .reversed(arena);
+                    let carrier = shift(arena, ty, 0, 2);
+                    let start = shift(arena, left, 0, 2);
+                    let end = arena.insert(Term::Variable(1));
+                    let conclusion = arena.insert(Term::Id {
+                        ty: carrier,
+                        left: start,
+                        right: end,
+                    });
+                    return Ok(back.eliminate(arena, conclusion, from_left));
+                }
+                waiting.push((size(arena, rewritten), side, reached[side].len()));
+                reached[side].push((rewritten, proof));
             }
             let node = arena.get(focus);
             for (slot, (child, bound)) in node.bound_children().enumerate() {

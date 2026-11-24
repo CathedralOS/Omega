@@ -3,11 +3,13 @@ Which declarations are mathematical only. Data that contains itself by value
 has no layout, so no value of it is stored and no machine over it runs: such a
 machine is a definition or a law, read into the compilation's mathematical
 signature (`crate::lowering::mathematics`) and never lowered to operations.
+Data with a field of such a type has no layout either, so it is mathematical
+too, however many declarations lie between.
 
 The test reads the declaration as written. A field or payload field that
-names its own declaration makes the data proof-only; a machine with a formal
-or a result of such a type is a proof machine, and so is a machine declared
-inside one.
+names its own declaration, or a mathematical one, makes the data proof-only;
+a machine with a formal or a result of such a type is a proof machine, and so
+is a machine declared inside one.
 */
 
 use crate::source_state::data::{DataDefinition, DataMember};
@@ -47,10 +49,43 @@ impl Program<'_> {
         })
     }
 
+    /// Whether the data contains itself, or has a field or payload field of
+    /// data that is mathematical.
+    pub(crate) fn is_mathematical_data(&self, data: &DataDefinition) -> bool {
+        self.mathematical_within(data, &mut Vec::new())
+    }
+
+    fn mathematical_within(&self, data: &DataDefinition, visiting: &mut Vec<SymbolHandle>) -> bool {
+        if self.contains_itself(data) {
+            return true;
+        }
+        // A declaration reached again through other declarations is being
+        // decided further up; it adds nothing here.
+        if visiting.contains(&data.symbol) {
+            return false;
+        }
+        visiting.push(data.symbol);
+        let typed = self.typed;
+        let mathematical = |reference: TypeReferenceHandle, visiting: &mut Vec<SymbolHandle>| {
+            self.names_data(reference)
+                .and_then(|symbol| typed.unique_data_definition_by_symbol(symbol))
+                .is_some_and(|field| self.mathematical_within(field, visiting))
+        };
+        let found = typed.data_members(data).iter().any(|member| match member {
+            DataMember::Field(field) => mathematical(field.type_reference, visiting),
+            DataMember::Variant(variant) => typed
+                .data_payload_fields(variant)
+                .iter()
+                .any(|field| mathematical(field.type_reference, visiting)),
+        });
+        visiting.pop();
+        found
+    }
+
     fn proof_only_type(&self, reference: TypeReferenceHandle) -> bool {
         self.names_data(reference)
             .and_then(|symbol| self.typed.unique_data_definition_by_symbol(symbol))
-            .is_some_and(|data| self.contains_itself(data))
+            .is_some_and(|data| self.is_mathematical_data(data))
     }
 
     /// The trait a machine satisfies a requirement of, with the data each of
