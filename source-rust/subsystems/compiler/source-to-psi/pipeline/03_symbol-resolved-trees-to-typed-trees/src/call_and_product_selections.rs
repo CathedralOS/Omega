@@ -3873,8 +3873,6 @@ pub(crate) mod product_selections {
                 | BuildOperation::ServiceAudit
                 | BuildOperation::BoundaryAcceptance => "one bare declaration operand",
                 BuildOperation::TestGroupRegistration => "one exact trait machine requirement operand",
-                BuildOperation::TestGroupService =>
-                    "a registered group's trait machine requirement and one boundary service slot operand",
                 BuildOperation::WireCompatibilityRequest =>
                     "four schema declaration operands and compatibility facts",
                 _ => "two bare declaration operands",

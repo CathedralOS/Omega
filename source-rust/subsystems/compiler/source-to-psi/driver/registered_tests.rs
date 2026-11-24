@@ -160,12 +160,6 @@ impl<'a> RegisteredTests<'a> {
                     declaration: retain(machine.symbol)?,
                 });
             }
-            if let Some(service) = group.services.first() {
-                return Err(vec![Diagnostic::error(format!(
-                    "the test runner cannot back `{}`: it backs only std's `FilesystemService`, and no accepted binding identifies that slot without trusting a package name",
-                    typed.symbols.display_path(service.slot, "::"),
-                )).with_source_span(service.source_span)]);
-            }
             if tests.is_empty() {
                 notes.push(format!(
                     "group `{path}` (target `{target}`): registered with no tests; nothing ran"

@@ -53,14 +53,6 @@ pub struct TestGroupRegistration {
     pub requirement: SymbolHandle,
     pub selecting_machine: SymbolHandle,
     pub source_span: SourceSpan,
-    /// Selected service slots in the order the group runner binds them.
-    pub services: Vec<TestGroupService>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TestGroupService {
-    pub slot: SymbolHandle,
-    pub source_span: SourceSpan,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
