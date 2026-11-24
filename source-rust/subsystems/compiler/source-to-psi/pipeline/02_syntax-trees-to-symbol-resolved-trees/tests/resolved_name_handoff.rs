@@ -313,3 +313,37 @@ fn evidence_binder_children_belong_to_the_imported_trait() {
         }
     }
 }
+
+#[test]
+fn machine_identity_arguments_require_callable_declarations() {
+    let source = |argument: &str| {
+        format!(
+            "trait Callback {{ machine read() -> u32; }}
+         trait Holds<machine Requirement> {{}}
+         data Wrapper<T> {{ item: T; }}
+         machine free() -> u32 {{ 1u32 }}
+         Binding satisfies Holds<{argument}> {{}}"
+        )
+    };
+    for argument in ["Callback::read", "free"] {
+        let trees = resolve(super::source_request(&source(argument))).unwrap();
+        let binding = trees.conformances.iter().next().unwrap();
+        let [crate::source_resolved::types::TypeReference::Named { symbol, .. }] =
+            trees.child_type_references(binding.arguments)
+        else {
+            panic!("named callable")
+        };
+        assert!(symbol.is_valid(), "{argument}");
+    }
+    for argument in ["[u8; 4]", "@u8", "()", "Wrapper<u32> ", "4u32", "true"] {
+        let Err(errors) = resolve(super::source_request(&source(argument))) else {
+            panic!("resolved a non-callable declaration identity: {argument}");
+        };
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains("callable declaration")),
+            "{argument}: {errors:?}"
+        );
+    }
+}

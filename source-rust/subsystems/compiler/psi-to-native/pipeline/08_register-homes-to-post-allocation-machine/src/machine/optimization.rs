@@ -17,10 +17,9 @@ none of those units is read before the whole set is overwritten along any
 control-flow path.
 
 Because rewriting an instruction onto an optimizer form only adds clobbers, it
-can only shorten unit liveness; a `UnitLivenessTable` computed for one function
-and unit set remains conservatively sound for every later candidate in that
-function with the same extra units. A candidate with a different set gets a
-table computed for that set. After all selected rules finish and work usage is checked
+can only shorten unit liveness; a single `UnitLivenessTable` computed per
+function and unit set remains conservatively sound across all candidates in
+that function. After all selected rules finish and work usage is checked
 against the phase budget, we recompute the plan's canonical digest so rewritten
 plans bind their new contents while identity runs preserve the source digest.
 */
@@ -333,19 +332,21 @@ fn rewrite_declared_forms(
                     continue;
                 }
                 let extra = extra_units(instruction, form);
-                // A table answers only for the unit set it was computed for. Two
-                // candidates' extra sets differ when one baseline already defines
-                // some of the form's units, so a different set gets a fresh table.
-                let (units, unit_table) = match table.take() {
-                    Some((units, unit_table)) if units == extra => (units, unit_table),
-                    _ => {
-                        let unit_table = UnitLivenessTable::compute(function, successors, &extra);
-                        (extra, unit_table)
-                    }
-                };
-                let (live, scanned) =
-                    unit_table.live_after(function, successors, block_index, index, &units);
-                table = Some((units, unit_table));
+                // The added units depend on what the instruction already
+                // writes, so a table built for another candidate's units
+                // cannot answer for this one.
+                if table.as_ref().is_none_or(|(units, _)| *units != extra) {
+                    table = Some((
+                        extra.clone(),
+                        UnitLivenessTable::compute(function, successors, &extra),
+                    ));
+                }
+                let (live, scanned) = table
+                    .as_ref()
+                    .map(|(_, table)| {
+                        table.live_after(function, successors, block_index, index, &extra)
+                    })
+                    .expect("the table was built for these units above");
                 usage.validation_steps = usage.validation_steps.saturating_add(scanned);
                 if live {
                     continue;
@@ -832,34 +833,6 @@ mod tests {
     }
 
     #[test]
-    fn each_candidate_checks_liveness_of_its_own_extra_units() {
-        // The first candidate already defines the flags, so the declared form
-        // adds nothing it must check. The second does not, and the flags it
-        // would clobber are read by the next instruction.
-        let (function, rows) = roster(vec![(
-            vec![
-                instruction(1, &[], &[FLAGS]),
-                instruction(2, &[], &[]),
-                instruction(3, &[FLAGS], &[]),
-            ],
-            vec![
-                effects(1, zero(), true),
-                effects(2, zero(), true),
-                effects(3, seven(), true),
-            ],
-        )]);
-        let (result, function, _) = run(function, rows, vec![vec![]]);
-        let execution = result.unwrap();
-        assert_eq!(execution.candidates(), 2);
-        assert_eq!(execution.actions().len(), 1);
-        assert_eq!(execution.actions()[0].instruction, SelectedInstructionId(1));
-        assert_eq!(
-            function.blocks[0].instructions[1].alternative.key.variant,
-            0
-        );
-    }
-
-    #[test]
     fn flags_live_into_a_successor_block_keep_the_baseline() {
         let (function, rows) = roster(vec![
             (
@@ -901,6 +874,35 @@ mod tests {
         ]);
         let (result, _, _) = run(function, rows, vec![vec![1], vec![0, 2], vec![]]);
         assert_eq!(result.unwrap().actions().len(), 1);
+    }
+
+    // The first candidate already writes the flags, so its declared form adds
+    // no units; the second adds the flags, which a later instruction reads.
+    // Each candidate must be judged by liveness of its own added units.
+    #[test]
+    fn each_candidate_is_judged_by_the_units_its_own_form_adds() {
+        let (function, rows) = roster(vec![(
+            vec![
+                instruction(1, &[], &[FLAGS]),
+                instruction(2, &[], &[]),
+                instruction(3, &[FLAGS], &[]),
+            ],
+            vec![
+                effects(1, zero(), true),
+                effects(2, zero(), true),
+                effects(3, seven(), true),
+            ],
+        )]);
+        let (result, function, usage) = run(function, rows, vec![vec![]]);
+        let execution = result.unwrap();
+        assert_eq!(execution.candidates(), 2);
+        assert_eq!(execution.actions().len(), 1);
+        assert_eq!(execution.actions()[0].instruction, SelectedInstructionId(1));
+        assert_eq!(
+            function.blocks[0].instructions[1].alternative.key.variant,
+            0
+        );
+        assert_eq!(usage.commits, 1);
     }
 
     #[test]

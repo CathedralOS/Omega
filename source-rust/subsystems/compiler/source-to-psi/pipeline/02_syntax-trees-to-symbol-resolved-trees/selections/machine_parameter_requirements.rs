@@ -82,7 +82,8 @@ pub(crate) fn normalize_nominal_machine_parameter_requirements(
     Bind trait-level requirement-identity arguments after the complete trait
     catalog exists. The generic argument carrier is shared with type arguments,
     but this slot accepts only one exact signature-free `Trait::requirement`
-    declaration; concrete machines and ordinary types fail closed.
+    declaration or a selected free-machine entry. Ordinary types and scalar
+    literals cannot supply callable identities.
 */
 pub(crate) fn normalize_trait_machine_requirement_arguments(
     program: &mut SymbolResolvedTrees,
@@ -105,6 +106,13 @@ pub(crate) fn normalize_trait_machine_requirement_arguments(
                 continue;
             }
             let TypeReference::Named { symbol, name, .. } = argument else {
+                if is_non_callable_argument(program, argument) {
+                    return Err(Diagnostic::error(format!(
+                        "trait machine requirement argument for `{}` must identify a callable declaration",
+                        parameter.name
+                    ))
+                    .with_source_span(conformance.trait_name.source_span()));
+                }
                 continue;
             };
             let rendered = name.as_str();
@@ -160,6 +168,35 @@ pub(crate) fn normalize_trait_machine_requirement_arguments(
         *symbol = requirement;
     }
     Ok(())
+}
+
+// An application or static expression can still select a declaration during evaluation.
+// Source type constructors and plain scalar literals already have a different kind.
+fn is_non_callable_argument(program: &SymbolResolvedTrees, argument: &TypeReference) -> bool {
+    use crate::source_resolved::expression::ExpressionNode;
+
+    match argument {
+        TypeReference::Reference(_)
+        | TypeReference::Slice(_)
+        | TypeReference::FixedArray(_)
+        | TypeReference::Unit
+        | TypeReference::Callable { .. } => true,
+        TypeReference::Generic(application) => {
+            application.base_symbol.is_valid()
+                && program.symbols.get(application.base_symbol).kind == symbols::SymbolKind::Data
+        }
+        TypeReference::ConstExpression(value) => matches!(
+            crate::resolution::tables::body_expressions(program).expression(value.expression),
+            ExpressionNode::Boolean(_)
+                | ExpressionNode::Float(_)
+                | ExpressionNode::UndeterminedNaN(_)
+                | ExpressionNode::Integer(_)
+                | ExpressionNode::String(_)
+                | ExpressionNode::ArrayLiteral(_)
+        ),
+        TypeReference::AliasUse { expansion, .. } => is_non_callable_argument(program, expansion),
+        TypeReference::Named { .. } | TypeReference::Constrained(_) => false,
+    }
 }
 
 /* The diagnostic sentences for the shared resolution law's error variants. */

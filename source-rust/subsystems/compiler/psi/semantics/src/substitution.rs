@@ -456,6 +456,11 @@ fn substitute_scalar_term_places<'input>(
             | ScalarTerm::Integer { .. }
             | ScalarTerm::IeeeFloatLiteral(_)
             | ScalarTerm::Application { .. } => {}
+            ScalarTerm::DeclarationApplication { arguments, .. } => {
+                for argument in arguments {
+                    substitute(argument, substitutions);
+                }
+            }
         }
     }
     substitute(&mut term, substitutions);
@@ -606,6 +611,13 @@ pub(crate) fn substitute_scalar_term_values_with<'input>(
         | ScalarTerm::Integer { .. }
         | ScalarTerm::IeeeFloatLiteral(_)
         | ScalarTerm::Application { .. } => term.clone(),
+        ScalarTerm::DeclarationApplication { declaration, arguments, scalar_type } => {
+            ScalarTerm::DeclarationApplication {
+                declaration: *declaration,
+                arguments: arguments.iter().map(recurse).collect(),
+                scalar_type: *scalar_type,
+            }
+        }
         ScalarTerm::BooleanNot { operand } => ScalarTerm::BooleanNot {
             operand: Box::new(recurse(operand)),
         },

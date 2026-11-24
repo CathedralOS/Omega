@@ -14,7 +14,7 @@ use numeric_literals::IntegerLiteral;
 use semantic_vocabulary::{
     IntegerMathLiteral, IntegerMathTerm, IntegerValue, MachineId, Proposition, ScalarType,
 };
-use symbols::{BuiltinFunction, BuiltinTypeMember, SymbolHandle};
+use symbols::{BuiltinFunction, BuiltinTypeMember, FixedCoreDeclaration, SymbolHandle};
 use terminal_check_tables::{Checked, Construct};
 
 use super::{
@@ -242,7 +242,34 @@ impl<'t> Program<'t> {
             formal_fields: true,
             logical: Some(actual_inputs.scope(id, address, &expanding)),
         };
-        self.clause(id, &scope, expression)
+        self.definition_body(id, &scope, definition, expression)
+    }
+
+    fn definition_body(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        definition: &MathematicalDefinition,
+        expression: ExpressionHandle,
+    ) -> Checked<Proposition> {
+        use super::clause_calls::{ClauseTerm, ClauseUse};
+        if self.predicate_result(definition) != Some(FixedCoreDeclaration::Type) {
+            return self.clause(id, scope, expression);
+        }
+        match self.clause_term(id, scope, expression, ClauseUse::ProofRelevantType)? {
+            ClauseTerm::Proposition(proposition) => Ok(proposition),
+            _ => Err(refuse(id, Construct::Machine, Unserved::Contract(
+                "mathematical type definition without a type body",
+            ))),
+        }
+    }
+
+    pub(super) fn mathematical_definition_sort(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<FixedCoreDeclaration> {
+        self.mathematical_definition(symbol)
+            .and_then(|(_, definition)| self.predicate_result(definition))
     }
 
     /// Retain a transparent predicate under its own formals before unfolding
@@ -279,9 +306,9 @@ impl<'t> Program<'t> {
         if parameters.len() != definition.parameters.len() {
             return Err(unserved("mathematical predicate formal correspondence"));
         }
-        if !self.predicate_result(definition) {
+        if self.predicate_result(definition).is_none() {
             return Err(unserved(
-                "mathematical premise requires a formed Core Strict<0> result",
+                "mathematical premise needs a formed Core Strict<0> or Type<0> result",
             ));
         }
         let MathematicalBody::Definition(expression) = definition.body else {
@@ -305,7 +332,7 @@ impl<'t> Program<'t> {
             formal_fields: true,
             logical: Some(formal_inputs.scope(id, address, &expanding)),
         };
-        let formed = self.clause(id, &declaration_scope, expression)?;
+        let formed = self.definition_body(id, &declaration_scope, definition, expression)?;
         let parameters = formal_inputs.validate(id, &formed)?;
         let output = self
             .predicate_definitions
@@ -331,20 +358,20 @@ impl<'t> Program<'t> {
         Ok(expression)
     }
 
-    fn predicate_result(&self, definition: &MathematicalDefinition) -> bool {
+    fn predicate_result(&self, definition: &MathematicalDefinition) -> Option<FixedCoreDeclaration> {
         if !self.typed.mathematical_types.is_valid(definition.result) {
-            return false;
+            return None;
         }
         let MathematicalType::Ordinary(reference) = self.typed.mathematical_type(definition.result)
         else {
-            return false;
+            return None;
         };
         if !self
             .typed
             .type_reference_table
             .contains_type_reference(*reference)
         {
-            return false;
+            return None;
         }
         let TypeReferenceNode::Generic {
             base_symbol,
@@ -353,37 +380,34 @@ impl<'t> Program<'t> {
             ..
         } = self.typed.type_reference_table.type_reference(*reference)
         else {
-            return false;
+            return None;
         };
-        if self
-            .typed
-            .symbols
-            .fixed_core_declaration_symbol(symbols::FixedCoreDeclaration::Strict)
-            != Some(*base_symbol)
+        let sort = self.typed.symbols.fixed_core_declaration_for_symbol(*base_symbol)?;
+        if !matches!(sort, FixedCoreDeclaration::Strict | FixedCoreDeclaration::Type)
             || !lifetime_arguments.is_empty()
             || arguments.len() != 1
         {
-            return false;
+            return None;
         }
         let arguments = self
             .typed
             .type_reference_table
             .type_reference_handles(*arguments);
-        let [argument] = arguments else { return false };
+        let [argument] = arguments else { return None };
         if !self
             .typed
             .type_reference_table
             .contains_type_reference(*argument)
         {
-            return false;
+            return None;
         }
         let TypeReferenceNode::ConstExpression(expression) =
             self.typed.type_reference_table.type_reference(*argument)
         else {
-            return false;
+            return None;
         };
-        self.typed.expression_table.expression_is_valid(*expression)
-            && matches!(self.typed.expression_table.expression(*expression), ExpressionNode::Integer(literal) if literal.value_u64() == Some(0))
+        (self.typed.expression_table.expression_is_valid(*expression)
+            && matches!(self.typed.expression_table.expression(*expression), ExpressionNode::Integer(literal) if literal.value_u64() == Some(0))).then_some(sort)
     }
 
     pub(super) fn logical_mathematical_term(

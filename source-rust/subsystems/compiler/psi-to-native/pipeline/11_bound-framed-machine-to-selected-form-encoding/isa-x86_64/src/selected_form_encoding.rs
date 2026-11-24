@@ -14809,7 +14809,9 @@ mod memory {
             kind,
             SelectedInstructionKind::Load8 { .. } | SelectedInstructionKind::Load16 { .. }
         );
-        if matches!(kind, selected_instructions::load_width_triple_pattern!(byte_offset, ..) | SelectedInstructionKind::Store { byte_offset, .. } | SelectedInstructionKind::AddressOffset { byte_offset } if i64::from(byte_offset) != displacement)
+        // Stage 15 reads the access offset from the kind, so every pointer
+        // form's kind must name the displacement its bytes encode.
+        if matches!(kind, selected_instructions::load_width_triple_pattern!(byte_offset, ..) | SelectedInstructionKind::Load64 { byte_offset } | SelectedInstructionKind::Store { byte_offset, .. } | SelectedInstructionKind::AddressOffset { byte_offset } if i64::from(byte_offset) != displacement)
         {
             return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
         }
@@ -15221,6 +15223,50 @@ mod memory {
         }
 
         #[test]
+        fn pointer_load64_refuses_a_displacement_its_kind_does_not_name() {
+            // Stage 15 reads a pointer load's access offset from the kind, so a
+            // `Load64` whose bytes encode another displacement must be refused,
+            // exactly as `Load8`, `Load16` and `Load32` already are.
+            let physical =
+                validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
+            let operands = ["rax", "r11"].map(|name| physical.model().view_named(name).unwrap().id);
+            let alternative = MachineAlternativeKey {
+                family: MachineAlternativeFamily::Load64,
+                variant: 0,
+            };
+            let kind = SelectedInstructionKind::Load64 { byte_offset: 8 };
+            let encoded =
+                encode_x86_64_selected_memory_form(&physical, kind, alternative, &operands, 8)
+                    .unwrap();
+            assert_eq!(encoded.bytes, [0x4c, 0x8b, 0x98, 8, 0, 0, 0]);
+            assert_eq!(
+                encode_x86_64_selected_memory_form(&physical, kind, alternative, &operands, 56)
+                    .unwrap_err(),
+                X86_64SelectedFormEncodingError::EncodedFormMismatch
+            );
+            let moved = encode_x86_64_selected_memory_form(
+                &physical,
+                SelectedInstructionKind::Load64 { byte_offset: 56 },
+                alternative,
+                &operands,
+                56,
+            )
+            .unwrap();
+            assert_eq!(
+                validate_x86_64_selected_memory_form(
+                    &physical,
+                    kind,
+                    alternative,
+                    &operands,
+                    56,
+                    &moved.bytes
+                )
+                .unwrap_err(),
+                X86_64SelectedFormEncodingError::EncodedFormMismatch
+            );
+        }
+
+        #[test]
         fn ordinary_memory_forms_replay_registers_displacements_and_every_encoded_byte() {
             let physical =
                 validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
@@ -15235,7 +15281,7 @@ mod memory {
                 let value = physical.model().view_named("r11").unwrap().id;
                 for (kind, family, operands) in [
                     (
-                        SelectedInstructionKind::Load64 { byte_offset: 8 },
+                        SelectedInstructionKind::Load64 { byte_offset: 56 },
                         MachineAlternativeFamily::Load64,
                         vec![pointer, value],
                     ),
