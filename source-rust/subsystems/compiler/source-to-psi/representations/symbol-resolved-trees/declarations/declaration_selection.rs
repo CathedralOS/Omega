@@ -891,6 +891,9 @@ pub enum AuthoredDeclarationSelectionKind {
     StaticArgument,
     Operator,
     Conformance,
+    /// A checked product request supplies a concrete callable. Its source
+    /// coordinate is the request that selected it.
+    InstalledStaticArgument,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]

@@ -71,6 +71,10 @@ impl TestRoot {
                 )]);
             }
         };
+        use crate::declaration_selection::{
+            AuthoredDeclarationSelectionExposure as Exposure,
+            AuthoredDeclarationSelectionKind as Kind,
+        };
         use crate::source_state::data::{TypeParameter, TypeParameterKind};
         use crate::source_state::expression::StaticMachineArgument;
         use crate::source_state::name::Identifier;
@@ -94,9 +98,27 @@ impl TestRoot {
                 );
                 vec![Diagnostic::error(reason).with_source_span(registration.source_span)]
             })?;
+        // The executed registration and the package-local satisfaction above
+        // select this exact machine. Visibility follows the supplying request.
+        let occurrence = typed
+            .record_resolved_authored_declaration_selection_once(
+                registration.source_span,
+                Exposure::PrivateImplementation,
+                Kind::InstalledStaticArgument,
+                implementation,
+            )
+            .map_err(|reason| {
+                vec![
+                    Diagnostic::error(format!(
+                        "cannot retain the test adapter's callable argument: {reason:?}"
+                    ))
+                    .with_source_span(registration.source_span),
+                ]
+            })?;
         let argument = StaticMachineArgument {
             symbol: implementation,
             path: vec![Identifier::from(typed.symbols.name(implementation))].into_boxed_slice(),
+            authored_selection: Some(occurrence),
             ..Default::default()
         };
         let application = typed.expression_table.retain_static_machine_application(

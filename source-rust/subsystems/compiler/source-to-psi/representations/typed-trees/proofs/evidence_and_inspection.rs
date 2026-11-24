@@ -5619,6 +5619,7 @@ pub mod inspection {
                 Kind::DomainCleanupSelection => "domain_cleanup_selection",
                 Kind::Call => "call",
                 Kind::StaticArgument => "static_argument",
+                Kind::InstalledStaticArgument => "installed_static_argument",
                 Kind::Operator => "operator",
                 Kind::Conformance => "conformance",
             }
