@@ -9,7 +9,7 @@ pub mod observations;
 mod product;
 #[path = "planning/registered_tests.rs"]
 mod registered_tests;
-pub use registered_tests::TestExecution;
+pub use registered_tests::{RegisteredTestPlan, TestExecution};
 pub use product::ProductStage;
 #[path = "planning/package_review/mod.rs"]
 mod package_review;

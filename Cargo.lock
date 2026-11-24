@@ -2324,6 +2324,7 @@ dependencies = [
  "target",
  "target-bound-program-to-abstract-operations",
  "target-provider-admission",
+ "target-vocabulary",
  "terminal-codec",
  "terminal-interpreter",
  "terminal-psi",

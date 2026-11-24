@@ -170,8 +170,12 @@ pub(super) fn compile(
                 )]);
             }
         };
-        let test_roster =
-            stage.execute_registered_tests(profile, &[], project_build::TestExecution::Available)?;
+        let plan =
+            stage.plan_registered_tests(profile, &[], project_build::TestExecution::Available)?;
+        for row in plan.rows() {
+            eprintln!("{row}");
+        }
+        let test_roster = plan.execute()?;
         (
             RunProduct {
                 root: root_path,
