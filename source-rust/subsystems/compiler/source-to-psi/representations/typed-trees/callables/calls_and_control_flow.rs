@@ -620,6 +620,8 @@ pub mod control_flow {
             pub name: Identifier,
             pub attached_data: Option<Identifier>,
             pub attached_data_symbol: SymbolHandle,
+            /// The domain resolved in the machine declaration’s source scope.
+            pub attached_domain_symbol: SymbolHandle,
             pub attached_data_application: TypeReferenceHandle,
             pub generic_data_template: SymbolHandle,
             pub spelling: Option<OperatorSpelling>,
@@ -727,6 +729,7 @@ pub mod control_flow {
                     name: Identifier::default(),
                     attached_data: None,
                     attached_data_symbol: SymbolHandle::invalid(),
+                    attached_domain_symbol: SymbolHandle::invalid(),
                     attached_data_application: TypeReferenceHandle::invalid(),
                     generic_data_template: SymbolHandle::invalid(),
                     spelling: None,

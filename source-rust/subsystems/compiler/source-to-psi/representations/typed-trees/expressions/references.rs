@@ -4262,6 +4262,9 @@ fn visit_machine_with_sidecars(
         visit_type_reference(program, retained, equation.parameter);
         visit_type_reference(program, retained, equation.definition);
     }
+    if machine.attached_domain_symbol.is_valid() {
+        visit_symbol(retained, machine.attached_domain_symbol);
+    }
     visit_type_reference(program, retained, machine.attached_data_application);
     for contract in program
         .tables

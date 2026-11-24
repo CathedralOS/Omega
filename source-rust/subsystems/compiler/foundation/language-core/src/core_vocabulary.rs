@@ -22,6 +22,8 @@ use std::path::Path;
 /// A core declaration that typed rules recognize by identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CoreVocabulary {
+    /// The owner-defined resource projection trait in core `content.omg`.
+    Content,
     /// The ordinary `Never` data declaration in core `never.omg`.
     /// This identifies a nominal ABI result; it proves no inhabitedness.
     Never,
@@ -240,6 +242,12 @@ const fn selector(
 }
 
 const ROWS: &[CoreVocabularyRow] = &[
+    row(
+        "content.omg",
+        "Content",
+        BundledFile::CoreContent,
+        CoreVocabulary::Content,
+    ),
     row(
         "filesystem_authority.omg",
         "FilesystemContentRead",

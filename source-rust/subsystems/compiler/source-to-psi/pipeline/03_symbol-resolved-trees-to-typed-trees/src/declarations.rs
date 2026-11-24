@@ -708,7 +708,7 @@ pub(crate) mod machine {
             contracts: typed_machine.contracts,
             spelling: Some(spelling),
             token_count: 0,
-            home_domain: machine.operator_home_domain,
+            home_domain: machine.attached_domain_symbol,
         };
         let leaf = machine
             .name
@@ -774,6 +774,7 @@ pub(crate) mod machine {
             name: lower_name(&machine.name),
             attached_data: machine.attached_data.as_ref().map(lower_name),
             attached_data_symbol: machine.attached_data_symbol,
+            attached_domain_symbol: machine.attached_domain_symbol,
             attached_data_application: typed::types::TypeReferenceHandle::invalid(),
             generic_data_template: machine.generic_data_origin.template,
             spelling: machine.spelling,

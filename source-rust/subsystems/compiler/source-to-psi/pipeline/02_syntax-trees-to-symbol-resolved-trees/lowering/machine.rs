@@ -520,7 +520,7 @@ fn lower_lexical_machine_parts(
         },
         attached_data,
         attached_data_symbol: SymbolHandle::invalid(),
-        operator_home_domain: SymbolHandle::invalid(),
+        attached_domain_symbol: SymbolHandle::invalid(),
         attached_data_application: None,
         spelling: machine.spelling,
         is_public: machine.is_public,

@@ -23,6 +23,7 @@ use symbol_table::build_symbol_table;
 use type_references::assign_type_reference_symbols;
 
 mod contracts;
+pub(crate) mod domain_attachments;
 mod domain_facts;
 mod expression_paths;
 mod expressions;

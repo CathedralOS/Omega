@@ -99,13 +99,22 @@ fn a_declared_data_or_domain_operand_is_a_home_whatever_the_path() {
     }
 }
 
+type ScopedSource<'a> = (
+    &'a str,
+    &'a str,
+    source_provenance::DependencyScope,
+    source_admission::SourceOrigin,
+);
+
 fn scoped_sources(
-    units: &[(
-        &str,
-        &str,
-        source_provenance::DependencyScope,
-        source_admission::SourceOrigin,
-    )],
+    units: &[ScopedSource<'_>],
+) -> Result<crate::source_resolved::SymbolResolvedTrees, Vec<diagnostics::Diagnostic>> {
+    scoped_sources_with_imports(units, &[])
+}
+
+fn scoped_sources_with_imports(
+    units: &[ScopedSource<'_>],
+    imports: &[(&str, &str, &str)],
 ) -> Result<crate::source_resolved::SymbolResolvedTrees, Vec<diagnostics::Diagnostic>> {
     let mut sources = crate::source_inputs::SourceMap::default();
     let mut syntax = syntax_trees::SyntaxTrees::default();
@@ -128,10 +137,11 @@ fn scoped_sources(
             .unwrap();
         syntax.extend_from(&unit);
     }
+    let top_level_bindings = crate::resolution::fixture_file_bindings(&sources, imports);
     resolve(ResolutionRequest {
         syntax,
         sources: Some(std::sync::Arc::new(sources)),
-        top_level_bindings: Vec::new(),
+        top_level_bindings,
         retained_base: None,
     })
 }
@@ -184,7 +194,7 @@ fn domain_token_homes_keep_distinct_build_and_product_instances() {
             .next()
             .expect("each checked instance declares a binding");
         assert!(bindings.next().is_none());
-        assert_eq!(binding.operator_home_domain, domain.symbol);
+        assert_eq!(binding.attached_domain_symbol, domain.symbol);
         assert_eq!(domain.semantic_roles.denotation_dimension, None);
     }
 }
@@ -234,8 +244,8 @@ fn inactive_retained_token_bindings_do_not_rejoin_a_product_frontier() {
     let product = binding_in(DependencyScope::Product);
     assert!(!program.symbols.symbol_source_is_selected(build.symbol));
     assert!(program.symbols.symbol_source_is_selected(product.symbol));
-    assert_ne!(build.operator_home_domain, product.operator_home_domain);
-    let product_home = product.operator_home_domain;
+    assert_ne!(build.attached_domain_symbol, product.attached_domain_symbol);
+    let product_home = product.attached_domain_symbol;
     crate::resolution::selections::machine_token_bindings::reject_duplicate_direct_token_bindings(
         &mut program,
     )
@@ -283,7 +293,7 @@ fn inactive_retained_token_bindings_do_not_rejoin_a_product_frontier() {
                         .is_some_and(|span| span.source_id == source)
                 })
                 .expect("the new Product binding remains in the resolved extension");
-            assert_eq!(binding.operator_home_domain, product_home);
+            assert_eq!(binding.attached_domain_symbol, product_home);
         } else {
             let errors = result.unwrap_err();
             let [error] = errors.as_slice() else {
@@ -312,6 +322,144 @@ fn an_unimported_same_leaf_domain_does_not_supply_an_operand_home() {
         errors
             .iter()
             .any(|error| error.message.contains(PRIMITIVE_FAMILY)),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn only_the_declaring_domain_owns_a_core_content_projection() {
+    use language_core::bundled_files::BundledFile;
+    use source_admission::SourceOrigin;
+    use source_provenance::DependencyScope;
+
+    let content = std::str::from_utf8(bundled_declarations::bytes(BundledFile::CoreContent))
+        .expect("bundled content.omg is UTF-8");
+    let selected = |source| {
+        scoped_sources_with_imports(
+            &[
+                (
+                    "core/content.omg",
+                    content,
+                    DependencyScope::Product,
+                    SourceOrigin::Toolchain,
+                ),
+                (
+                    "app/main.omg",
+                    source,
+                    DependencyScope::Product,
+                    SourceOrigin::User,
+                ),
+            ],
+            &[("app/main.omg", "core/content.omg", "algebra")],
+        )
+    };
+    let declaration = r#"use {omega}/language/core/content.omg as algebra;
+        data Unit {}
+        data Region { length: u64; }
+        domain Region::Owned;
+        machine Owned::measure(subject: @Region) -> |algebra|::CountedQuantity<Unit>
+        satisfies |algebra|::Content<Region, |algebra|::CountedQuantity<Unit>>::project {
+            |algebra|::CountedQuantity { magnitude: 0 }
+        }"#;
+    let program = selected(declaration).expect("a projection declared on the domain");
+    let owner = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "Region::Owned")
+        .unwrap();
+    let projection = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "Owned::measure")
+        .unwrap();
+    assert_eq!(projection.attached_domain_symbol, owner.symbol);
+
+    let unowned = declaration.replace("machine Owned::measure", "machine measure");
+    let errors = selected(&unowned).expect_err("a free machine has no domain owner");
+    assert!(
+        errors.iter().any(|error| error
+            .message
+            .contains("a core Content projection must name a domain owned by the package")),
+        "{errors:?}"
+    );
+
+    let ordinary = r#"data Region { length: u64; }
+        trait Content<Owner, A> { machine project(subject: @Owner) -> A; }
+        machine measure(subject: @Region) -> u64
+        satisfies Content<Region, u64>::project { subject.length }"#;
+    let ordinary = scoped_sources(&[(
+        "app/ordinary.omg",
+        ordinary,
+        DependencyScope::Product,
+        SourceOrigin::User,
+    )])
+    .expect("a user trait with the same name has its ordinary conformance rules");
+    assert!(ordinary.machines.iter().all(|machine| !machine.attached_domain_symbol.is_valid()));
+}
+
+#[test]
+fn a_file_import_can_name_a_domain_but_only_its_package_can_publish_the_projection() {
+    use language_core::bundled_files::BundledFile;
+    use source_admission::SourceOrigin;
+    use source_provenance::DependencyScope;
+
+    let content = std::str::from_utf8(bundled_declarations::bytes(BundledFile::CoreContent))
+        .expect("bundled content.omg is UTF-8");
+    let owner = "public data Region { length: u64; } public domain Region::Owned;";
+    let projection = r#"
+        data Unit {}
+        machine |storage|::Region::Owned::measure(subject: @|storage|::Region)
+        -> |algebra|::CountedQuantity<Unit>
+        satisfies |algebra|::Content<|storage|::Region, |algebra|::CountedQuantity<Unit>>::project {
+            |algebra|::CountedQuantity { magnitude: 0 }
+        }"#;
+    let check = |path| {
+        scoped_sources_with_imports(
+            &[
+                (
+                    "core/content.omg",
+                    content,
+                    DependencyScope::Product,
+                    SourceOrigin::Toolchain,
+                ),
+                (
+                    "resource/types.omg",
+                    owner,
+                    DependencyScope::Product,
+                    SourceOrigin::User,
+                ),
+                (
+                    path,
+                    projection,
+                    DependencyScope::Product,
+                    SourceOrigin::User,
+                ),
+            ],
+            &[
+                (path, "resource/types.omg", "storage"),
+                (path, "core/content.omg", "algebra"),
+            ],
+        )
+    };
+    let owned = check("resource/projection.omg")
+        .expect("the owner package can define the projection in a sibling file");
+    let domain = owned
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "Region::Owned")
+        .expect("the domain in the imported file");
+    assert!(
+        owned
+            .machines
+            .iter()
+            .any(|machine| machine.attached_domain_symbol == domain.symbol)
+    );
+    let errors = check("consumer/projection.omg")
+        .expect_err("moving the same projection to another package must refuse");
+    assert!(
+        errors.iter().any(|error| error
+            .message
+            .contains("a core Content projection must name a domain owned by the package")),
         "{errors:?}"
     );
 }

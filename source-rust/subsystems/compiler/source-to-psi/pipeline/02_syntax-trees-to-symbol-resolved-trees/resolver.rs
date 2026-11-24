@@ -32,9 +32,8 @@ use lowering::lowerer::{ConstResolutionMode, Lowerer};
 use lowering::mathematical::lower_mathematical_definitions;
 use selections::conformance_blocks::route_conformance_requirement_calls;
 use selections::conformance_blocks::route_named_implementation_calls;
-use selections::machine_token_bindings::{
-    reject_duplicate_direct_token_bindings, resolve_token_bound_domain_homes,
-};
+use names::domain_attachments::resolve_machine_domain_homes;
+use selections::machine_token_bindings::reject_duplicate_direct_token_bindings;
 use std::mem::take;
 use std::sync::Arc;
 use symbols::SymbolHandle;
@@ -297,7 +296,7 @@ fn settle_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), 
     )
     .map_err(|diagnostic| vec![diagnostic])?;
     deferred_bodies::complete_initializer_receipt_dependencies(lowerer, syntax)?;
-    resolve_token_bound_domain_homes(&mut lowerer.symbol_resolved_trees);
+    resolve_machine_domain_homes(&mut lowerer.symbol_resolved_trees)?;
     constants::finalize(lowerer)?;
     selections::finalize_authored_selections(lowerer)?;
     let expressions = lowerer
