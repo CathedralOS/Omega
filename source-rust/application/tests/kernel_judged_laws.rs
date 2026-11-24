@@ -244,6 +244,24 @@ fn a_named_proposition_without_its_hypothesis_is_refused() {
 }
 
 #[test]
+fn a_law_proved_by_cases_inside_cases_compiles() {
+    let (output, report) = check("nested_cases/pass/order_is_transitive");
+    assert_eq!(output.status.code(), Some(0), "{report}");
+}
+
+#[test]
+fn a_law_with_its_innermost_case_uncited_is_refused() {
+    let (output, report) = check("nested_cases/fail/innermost_case_uncited");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains(
+            "cannot prove ensures contract for `order_is_transitive` in the case `Peano::Succ`"
+        ) && report.contains(UNPROVED),
+        "{report}"
+    );
+}
+
+#[test]
 fn a_satisfier_that_proves_nothing_is_refused_for_the_law_it_inherits() {
     let (output, report) = check("ring_law/fail/ring_law_unproven_rejected");
     assert_eq!(output.status.code(), Some(1), "{report}");

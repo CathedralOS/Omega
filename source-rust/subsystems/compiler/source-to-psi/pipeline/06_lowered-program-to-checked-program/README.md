@@ -53,6 +53,16 @@ without end; the other direction, applied from the other side of the goal,
 covers what that direction would have. A goal no equality proves therefore
 ends as "no proof", not as an exhausted budget.
 
+A law's proof follows its body. A body that dispatches on a formal is an
+induction on it; a case that dispatches again, on another formal or on a
+field, is a case split inside that case, to any depth (`Proving::split` in
+`laws.rs`). Each split states what its subject must satisfy as the goal for
+the variables bound after it and binds them again in every case. The
+induction binds the earlier formals again as well, so the law is a
+hypothesis for every value of them. A case whose premises no value
+satisfies needs no argument: the premise that equates two different
+constructors refutes it.
+
 A hypothesis or citation about some operands of a longer sum is used there
 too. `x + y = z` rewrites `x + w + y` to `z + w` when the conformance in
 scope lets addition regroup and reorder, and `x * c + w + y * c` to
