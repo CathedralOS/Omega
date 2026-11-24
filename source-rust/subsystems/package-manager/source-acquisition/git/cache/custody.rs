@@ -3,7 +3,7 @@
 // `verify_git_repository_tree_from_open_root` walks the bare repository tree
 // within `CACHE_CUSTODY_ENTRY_LIMIT` and `CACHE_CUSTODY_DEPTH_LIMIT`, rejecting
 // symlinks, special files, and multiply-linked regular files (`nlink != 1` on
-// Unix). `reject_retained_git_path` proves that forbidden external indirection
+// Unix and Windows). `reject_retained_git_path` proves that forbidden external indirection
 // files (`objects/info/alternates`, `objects/info/http-alternates`,
 // `commondir`) are absent beneath concrete directories.
 
@@ -168,12 +168,12 @@ fn verify_retained_git_regular_file(
     verify_git_regular_file_link_count(path, &opened)
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn verify_git_regular_file_link_count(
     path: &Path,
     metadata: &CapabilityMetadata,
 ) -> Result<(), SourceResolveError> {
-    use cap_fs_ext::OsMetadataExt;
+    use cap_fs_ext::MetadataExt;
 
     if metadata.nlink() != 1 {
         return Err(cache_invalid(
@@ -184,7 +184,7 @@ fn verify_git_regular_file_link_count(
     Ok(())
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 fn verify_git_regular_file_link_count(
     _path: &Path,
     _metadata: &CapabilityMetadata,
