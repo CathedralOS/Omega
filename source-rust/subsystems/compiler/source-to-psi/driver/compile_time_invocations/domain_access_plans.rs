@@ -255,14 +255,6 @@ fn evaluate_domain(
     }
     let normalized =
         returned_plan::normalize_for_schema(&entry, receipt, schema_graph, &schema, &revision)?;
-    // Complete data is retained by the common normalizer. Until operation
-    // consumers enforce an axis, recording it as checked would drop a rule.
-    if normalized.requires_observation_backing() {
-        return Err("no product route yet: a field observation requiring backing supply".into());
-    }
-    if normalized.reach.services().len() != 0 {
-        return Err("no product route yet: an access plan that requires boundary reach".into());
-    }
     let issuance = match &normalized.issuance {
         None => CheckedIssuance::Unrestricted,
         Some(routes) => {

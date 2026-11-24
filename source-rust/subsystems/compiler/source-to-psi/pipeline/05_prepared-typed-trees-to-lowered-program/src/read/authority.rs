@@ -35,6 +35,7 @@ use semantic_vocabulary::{MachineId, StructuralTypeId};
 use terminal_check_tables::{Checked, Construct};
 
 use super::Program;
+use crate::lowering::qualifications::explain_policy_refusal;
 use crate::lowering::body::{Expression, StorageShape, ValueType};
 use crate::lowering::{Unserved, refuse};
 
@@ -82,20 +83,22 @@ impl Program<'_> {
         value_type: ValueType,
         access: Access,
     ) -> Checked<()> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         for domain in value_type.qualification().domains.members() {
             let definition = self.domain_theory(id, domain)?;
             // Only a complete selected plan can reach operation checking.
             // Its canonical field/caller rules remain attached to the value
             // and are checked against actual storage before execution.
-            if definition.access_unjudged() {
-                return unserved(match access {
-                    Access::Read | Access::Borrow => {
-                        "read inside a value governed by an access policy"
-                    }
+            if let crate::source_state::domain::DomainIssuance::Planned(policy) = definition.issuance()
+            {
+                let operation = match access {
+                    Access::Read | Access::Borrow => "read inside a value governed by an access policy",
                     Access::Replace => "replacement of a value governed by an access policy",
                     Access::Write => "write inside a value governed by an access policy",
-                });
+                };
+                return Err(explain_policy_refusal(
+                    policy,
+                    refuse(id, Construct::Machine, Unserved::Expression(operation)),
+                ));
             }
             // Pure predicates restrict validity, independently of access.
             // Canonical default requirements keep their restoration windows

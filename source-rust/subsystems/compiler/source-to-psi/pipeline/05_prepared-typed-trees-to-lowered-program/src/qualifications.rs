@@ -46,6 +46,19 @@ pub(crate) fn domain_identity(
     Ok(identities.intern(&identity))
 }
 
+/// Preserve the evaluator's reason at a use that needs the selected plan.
+pub(crate) fn explain_policy_refusal(
+    policy: &crate::source_state::domain::DomainAccessPolicy,
+    mut refusal: terminal_check_tables::Refusal,
+) -> terminal_check_tables::Refusal {
+    let Err(reason) = policy.plan_without_supply() else {
+        return refusal;
+    };
+    refusal.detail.push_str(": ");
+    refusal.detail.push_str(reason);
+    refusal
+}
+
 /// Publish the complete evaluated rules after callable declarations exist.
 /// Binding here uses the same source records and application commitments as
 /// normal lowering; the snapshot's descriptive bytes alone grant nothing.
@@ -54,7 +67,6 @@ pub(crate) fn publish_access_plans(
     source: &crate::lowering::read::Program<'_>,
     module: &mut terminal_psi::TerminalModule,
 ) -> Checked<()> {
-    use crate::source_state::domain::AccessPlanJudgment;
     let unavailable = |detail| {
         refuse(
             diagnostic,
@@ -92,7 +104,9 @@ pub(crate) fn publish_access_plans(
             let Some(policy) = &definition.access_policy else {
                 continue;
             };
-            let AccessPlanJudgment::Checked(checked) = &policy.plan else {
+            // This route publishes ordinary value operations. A domain with
+            // pending backing still travels opaquely with no issuer routes.
+            let Ok(checked) = policy.plan_without_supply() else {
                 continue;
             };
             let identity =
@@ -235,9 +249,10 @@ fn establishment_routes(
 ) -> Checked<Option<EstablishmentRoutes>> {
     let routes = match definition.issuance() {
         crate::source_state::domain::DomainIssuance::Unrestricted => return Ok(None),
-        crate::source_state::domain::DomainIssuance::Planned(_) => {
-            return Err(unavailable(
-                "domain access plan has no closed issuance declaration",
+        crate::source_state::domain::DomainIssuance::Planned(policy) => {
+            return Err(explain_policy_refusal(
+                policy,
+                unavailable("domain access plan has no closed issuance declaration"),
             ));
         }
         crate::source_state::domain::DomainIssuance::Only(routes) => routes,
@@ -514,8 +529,9 @@ impl Qualifications {
                 .ok_or_else(|| unavailable("scalar domain identity overflow"))?;
             let definition = source.domain_theory(diagnostic, symbol)?;
             if definition.access_policy.as_ref().is_some_and(|policy| {
-                matches!(&policy.plan, crate::source_state::domain::AccessPlanJudgment::Checked(plan)
-                    if plan.normalized.has_operation_rules())
+                policy
+                    .plan_without_supply()
+                    .is_ok_and(|plan| plan.normalized.has_operation_rules())
             }) {
                 return Err(unavailable(
                     "scalar domain access rules need retained operation checking",

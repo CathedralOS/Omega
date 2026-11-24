@@ -5,6 +5,7 @@
 //! Unread theory refuses the witness before proof search, so failure under an
 //! approximation cannot reject source.
 
+use crate::lowering::qualifications::explain_policy_refusal;
 use crate::source_state::data::DataMember;
 use crate::source_state::domain::{ProofFact, ProofMembershipFact};
 use crate::source_state::expression::{ExpressionHandle, ExpressionNode};
@@ -933,14 +934,13 @@ impl Inputs {
                     let nominal = match definition.issuance() {
                         crate::source_state::domain::DomainIssuance::Unrestricted => false,
                         crate::source_state::domain::DomainIssuance::Only(_) => true,
-                        crate::source_state::domain::DomainIssuance::Planned(_) => {
-                            return Err(refuse(
+                        crate::source_state::domain::DomainIssuance::Planned(policy) => {
+                            let refusal = refuse(
                                 machine,
                                 Construct::Machine,
-                                Unserved::Contract(
-                                    "logical premise needs its complete domain access plan",
-                                ),
-                            ));
+                                Unserved::Contract("logical premise needs its complete domain access plan"),
+                            );
+                            return Err(explain_policy_refusal(policy, refusal));
                         }
                     };
                     // Pure predicate domains have no additional nominal fact.

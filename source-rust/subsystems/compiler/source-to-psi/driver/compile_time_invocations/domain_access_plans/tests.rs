@@ -569,6 +569,74 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
     accounting.validate_charges().unwrap();
 }
 
+#[test]
+fn a_selected_external_observation_survives_evaluation_before_supply() {
+    use crate::source_state::domain::AccessPlanJudgment;
+    const ORIGINAL: &str = include_str!("selected_access_plan_family.omg");
+    let constructor =
+        r"access\new_plan(@schema, Issuance::Only { routes: [reflect\callable(stamp)] })";
+    let plan = format!(
+        r#"let mutable plan: AccessPlan = {constructor};
+        access\observe(@mutable plan, reflect\field(Ticket::number),
+            |layout|::FieldAccess::External {{
+                read: |layout|::ExternalRead::Read, write: false, exposure: |layout|::Exposure::Exported
+            }});
+        plan"#
+    );
+    let source = String::from("use {omega}/language/core/layout.omg as layout;\n")
+        + &ORIGINAL.replacen(constructor, &plan, 1);
+    let mut typed = typed_source(&source);
+    let entries = [typed.realized_machine_named("main").unwrap().symbol];
+    let mut accounting = SourceCompletionAccounting::default();
+    evaluate(
+        &mut typed,
+        production::TerminalSourceCompilation {
+            calling: None,
+            providers: None,
+            declaration_metadata: &[],
+            entries: &entries,
+            subjects: &[],
+            purpose: source_provenance::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        &mut accounting,
+    )
+    .expect("evaluate the actual selected policy without installing any memory");
+    let policy = typed
+        .domain_definitions
+        .iter()
+        .find(|(_, domain)| domain.name.as_str() == "Ticket::Stamped")
+        .unwrap()
+        .1
+        .access_policy
+        .as_ref()
+        .unwrap();
+    let AccessPlanJudgment::Checked(checked) = &policy.plan else {
+        panic!("the complete semantic plan was lost: {:?}", policy.plan);
+    };
+    let fields = checked.normalized.schema.governed_fields().unwrap();
+    assert_eq!(fields.len(), 1);
+    assert_eq!(
+        checked.normalized.observations,
+        vec![(
+            fields[0].0,
+            Some((
+                access_vocabulary::ObservationModel::External,
+                access_vocabulary::AccessPermissions {
+                    read: true,
+                    ..Default::default()
+                },
+                access_vocabulary::AccessExposure::Exported,
+            ))
+        )]
+    );
+    assert_eq!(checked.normalized.issuance.as_ref().unwrap().len(), 1);
+    assert!(policy.plan_without_supply().is_err());
+    accounting.validate_charges().unwrap();
+}
+
 // The writer lends its permission only through the actual borrowed subject.
 // The helper is deliberately absent from the policy's writer list; ordinary
 // checked reborrowing must retain the caller's grant and its exact backing.
