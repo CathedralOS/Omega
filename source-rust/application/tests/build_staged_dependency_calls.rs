@@ -630,7 +630,7 @@ machine build(builder: @mutable Build) suspends {
 }
 
 #[test]
-fn a_field_borrow_survives_a_newly_visible_dependency() {
+fn a_field_borrow_survives_preparing_a_product_dependency() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
     let source = include_str!("fixtures/build/run/borrowed_field_after_mount/build.omg").replace(
         "linux_x86_64\\ProgramEntry",
@@ -664,7 +664,7 @@ fn a_field_borrow_survives_a_newly_visible_dependency() {
 }
 
 #[test]
-fn a_parked_helper_returns_the_value_of_the_newly_mounted_package() {
+fn a_suspending_helper_returns_its_local_value_after_preparation() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
     let original = include_str!("fixtures/build/run/borrowed_field_after_mount/build.omg")
         .replace("\r\n", "\n")
@@ -674,15 +674,15 @@ fn a_parked_helper_returns_the_value_of_the_newly_mounted_package() {
         );
     let wait = "suspend Build::prepare_dependency(builder, registration);";
     let mut build = original.replace(
-        &format!("{wait}\n    let seven: i32 = kit\\v();"),
+        &format!("{wait}\n    let seven: i32 = helper_value();"),
         "let seven: i32 = suspend ready(builder, registration);",
     );
     assert_ne!(build, original);
     build.push_str(&format!(
-        "\nmachine ready(builder: @mutable Build, registration: DependencyRegistration) -> i32 suspends {{\n    {wait}\n    kit\\v()\n}}\n"
+        "\nmachine ready(builder: @mutable Build, registration: DependencyRegistration) -> i32 suspends {{\n    {wait}\n    helper_value()\n}}\n"
     ));
     let (ok, report) = check_project(
-        "helper-mounted-result",
+        "suspending-helper-result",
         &build,
         7,
         "",
@@ -692,10 +692,15 @@ fn a_parked_helper_returns_the_value_of_the_newly_mounted_package() {
         ok && report.contains("native exit 0") && report.contains("interp exit: 0"),
         "{report}"
     );
+    let wrong = build.replace(
+        "machine helper_value() -> i32 { 7 }",
+        "machine helper_value() -> i32 { 8 }",
+    );
+    assert_ne!(wrong, build);
     let (ok, report) = check_project(
-        "helper-mounted-result-twin",
-        &build,
-        8,
+        "wrong-suspending-helper-result",
+        &wrong,
+        7,
         "",
         &["--check", "main.omg"],
     );
@@ -757,10 +762,10 @@ fn a_helper_prepares_a_package_with_the_callers_borrow_still_live() {
         &format!("{}\\ProgramEntry", target.target_name()),
     );
     let wait = "suspend Build::prepare_dependency(builder, registration);";
-    for (name, inside) in [("helper-wait", false), ("helper-uses-package", true)] {
+    for (name, inside) in [("helper-wait", false), ("helper-calls-local", true)] {
         let mut source = original.replace(wait, "suspend ready(builder, registration);");
         let body = if inside {
-            "builder.tests.disabled = kit\\v() == 7;"
+            "builder.tests.disabled = helper_value() == 7;"
         } else {
             ""
         };
@@ -1159,7 +1164,7 @@ fn an_issued_output_keeps_its_borrowed_path_and_obligation_across_preparation() 
         &format!("{}\\ProgramEntry", target.target_name()),
     );
     let (ran, report) = check_project(
-        "issued-output-after-mount",
+        "issued-output-after-wait",
         &build,
         7,
         "",
@@ -1172,8 +1177,9 @@ fn an_issued_output_keeps_its_borrowed_path_and_obligation_across_preparation() 
 
     // Settling the same obligation with a fresh, guest-constructed path must fail.
     let forged = build.replace("obligation, checked);", "obligation, BuildPath {});");
+    assert_ne!(forged, build);
     let (ran, report) = check_project(
-        "unissued-output-after-mount",
+        "unissued-output-after-wait",
         &forged,
         7,
         "",

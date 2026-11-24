@@ -1,9 +1,9 @@
-use kit;
+machine helper_value() -> i32 { 7 }
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "promised");
     let mutable request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
     dependency\with_alias(@mutable request, "kit");
-    let registration: DependencyRegistration = Build::build_dependency(builder, request);
+    let registration: DependencyRegistration = Build::dependency(builder, request);
     let obligation: RequiredOutput = BuildOutput::require(@mutable builder.output, "answer.dat");
     let held: @[u8] = RequiredOutput::path(@obligation);
     let file: BuildPath = BuildOutput::resolve(@builder.output, "answer.dat");
@@ -11,7 +11,7 @@ machine build(builder: @mutable Build) suspends {
     _ = BuildOutput::write(@mutable builder.output, writer, "forty-two");
     _ = BuildOutput::close(@mutable builder.output, writer);
     suspend Build::prepare_dependency(builder, registration);
-    let seven: i32 = kit\v();
+    let seven: i32 = helper_value();
     let checked: BuildPath = BuildOutput::resolve(@builder.output, held);
     let passed: bool = seven == 7 && held.length == 10u64;
     let settled: OutputCompletion = BuildOutput::complete(@mutable builder.output, obligation, checked);
