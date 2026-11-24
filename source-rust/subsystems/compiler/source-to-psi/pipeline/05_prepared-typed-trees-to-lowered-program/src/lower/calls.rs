@@ -53,12 +53,16 @@ pub(crate) fn publish_write_frames(
         source_span: None,
         detail,
     };
-    let frames = terminal_semantics::borrowed_storage::inferred_write_frames(module)
-        .map_err(|error| Refusal::at(
-            RefusalReason::ForeignIdentity,
-            error.machine.map_or(terminal_check_tables::RefusalSite::Program, Into::into),
-            error.detail,
-        ))?;
+    let frames =
+        terminal_semantics::borrowed_storage::inferred_write_frames(module).map_err(|error| {
+            Refusal::at(
+                RefusalReason::ForeignIdentity,
+                error
+                    .machine
+                    .map_or(terminal_check_tables::RefusalSite::Program, Into::into),
+                error.detail,
+            )
+        })?;
     for machine in &mut module.machines {
         machine.contract.published_writes = frames
             .get(machine.id)
@@ -1049,10 +1053,11 @@ impl Lowering<'_> {
         arguments: &[Expression],
         designated: Option<crate::lowering::body::DesignatedOperands>,
         result: Option<ValueType>,
-        (source, static_reach_binding, static_reach_arguments): (
+        (source, static_reach_binding, static_reach_arguments, proof_arguments): (
             SourceOrigin,
             Option<u32>,
             &[terminal_psi::static_reach::StaticReachArgument],
+            &[terminal_psi::TheoremSource],
         ),
         acknowledgement: terminal_psi::CallAcknowledgement,
     ) -> Evaluation<Value> {
@@ -1084,6 +1089,15 @@ impl Lowering<'_> {
         let target = continuing!(self.evaluated_target(callee));
         let mut arguments = continuing!(self.arguments(&signature, arguments));
         if !self.completes_normally(callee, required_contract, &arguments)? {
+            if !proof_arguments.is_empty() {
+                return Err(refuse(
+                    self.id,
+                    Construct::Machine,
+                    Unserved::Call(
+                        "logical arguments on a nonreturning invocation need their exact proof site",
+                    ),
+                ));
+            }
             if designated.is_some() {
                 return Err(self.internal("designated operands on a call that never returns"));
             }
@@ -1108,6 +1122,29 @@ impl Lowering<'_> {
         )?;
         let before = self.here()?;
         let operation = self.operation_identity(source);
+        let theorem_count = match callee {
+            CallTarget::Machine(callee) => self
+                .signatures
+                .theorems
+                .iter()
+                .filter(|parameter| parameter.machine == *callee)
+                .count(),
+            _ if proof_arguments.is_empty() => 0,
+            _ => return Err(self.internal("logical arguments require their exact declared callee")),
+        };
+        if theorem_count != proof_arguments.len() {
+            return Err(self.internal("call lost its complete ordered theorem supplies"));
+        }
+        for (position, proof) in proof_arguments.iter().enumerate() {
+            self.theorem_citations.push(terminal_psi::TheoremCitation {
+                machine: self.id,
+                site: InvocationSite::Operation(operation),
+                proof_position: self.position(position)?,
+                source: *proof,
+                derivations: Vec::new(),
+            });
+        }
+
         if let Some(designated) = designated {
             self.designated.push((operation, designated));
         }

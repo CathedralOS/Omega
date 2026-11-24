@@ -103,7 +103,9 @@ pub(super) fn invocations(
                     unavailable(context, "invocation runtime parameter coordinate overflow")
                 })?)
             }
-            AuthoredInvocationTarget::AppliedService(id) => Invocation::Service(service(typed, context, id)?),
+            AuthoredInvocationTarget::AppliedService(id) => {
+                Invocation::Service(service(typed, context, id)?)
+            }
             AuthoredInvocationTarget::Service(symbol) if symbol.is_valid() => {
                 let id = typed.service_reaches.id_for_symbol(symbol).ok_or_else(|| {
                     unavailable(
@@ -1179,6 +1181,7 @@ fn collect_target<'a>(target: &'a Target, calls: &mut CallCollector<'a>) {
 }
 fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<'a>) {
     match &expression.kind {
+        E::TheoremApplication { .. } => {}
         E::Block {
             statements, value, ..
         } => {

@@ -261,6 +261,9 @@ impl SymbolCopy<'_, '_> {
             TypeParameterKind::Value { type_reference } => TypeParameterKind::Value {
                 type_reference: self.type_payload(type_reference),
             },
+            TypeParameterKind::Proof { contract } => TypeParameterKind::Proof {
+                contract: self.signature(&contract),
+            },
             TypeParameterKind::Machine { contract } => TypeParameterKind::Machine {
                 contract: match contract {
                     MachineParameterContract::Structural(signature) => {

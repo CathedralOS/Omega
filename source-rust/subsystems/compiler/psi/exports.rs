@@ -93,6 +93,7 @@ pub use crate::proofs::proof_application_scope::{
     ProofCallableHeader, ProofCheckedRecursiveCall, ProofCheckedRecursiveComponent,
     ProofDeclarationId, ProofScopeDeclaration,
 };
+pub use crate::proofs::theorem_parameters::*;
 pub use crate::proofs::theorems::*;
 pub use crate::scalars::ScalarDeclarations;
 pub use crate::scalars::folded_constants::*;

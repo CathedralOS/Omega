@@ -338,6 +338,7 @@ fn relay(item_type: ValueType, bound: u128) -> Shape {
                     required_contract: None,
                     static_reach_binding: None,
                     static_reach_arguments: Vec::new(),
+                    proof_arguments: Vec::new(),
                     callee: id::<MachineId>(2).into(),
                     arguments: vec![item(item_type), slot(1, u32_type())],
                     designated: None,
@@ -576,6 +577,7 @@ fn rigid_result_transport(
             required_contract: None,
             static_reach_binding: None,
             static_reach_arguments: Vec::new(),
+            proof_arguments: Vec::new(),
             arguments: vec![item(input_type)],
             designated: None,
         },
@@ -904,6 +906,7 @@ fn a_real_helper_cannot_supply_an_unresolved_requirements_service_reach() {
                 required_contract: None,
                 static_reach_binding: None,
                 static_reach_arguments: Vec::new(),
+                proof_arguments: Vec::new(),
                 callee: id::<MachineId>(callee).into(),
                 arguments: Vec::new(),
                 designated: None,
@@ -1101,9 +1104,12 @@ fn specialized_calls_keep_independent_input_and_result_lifetimes() {
             ) -> @'left [u8] {{ choose::<3u64>({arguments}, spare) }}
         "#
         );
-        let typed =
-            crate::preparation::prepare_typed_trees(super::boundary_calls::typed(&source), &[], &[])
-                .unwrap();
+        let typed = crate::preparation::prepare_typed_trees(
+            super::boundary_calls::typed(&source),
+            &[],
+            &[],
+        )
+        .unwrap();
         let entry = super::boundary_calls::entry(typed.trees());
         let prepared = crate::lowering::prepare_compilation(
             &typed,

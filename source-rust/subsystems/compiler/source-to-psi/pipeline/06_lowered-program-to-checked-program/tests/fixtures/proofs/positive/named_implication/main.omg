@@ -1,0 +1,27 @@
+data NonzeroIsPositive = machine(n: u8)
+    requires n != 0u8
+    ensures n > 0u8;
+
+machine nonzero_is_positive(n: u8)
+requires n != 0u8
+ensures n > 0u8
+{
+}
+
+machine only_seven(n: u8)
+requires n == 7u8
+ensures n > 0u8
+{
+}
+
+machine use_step<Step: NonzeroIsPositive>(n: u8)
+requires n != 0u8
+ensures n > 0u8
+{
+    Step(n);
+}
+
+machine entry() -> u8 {
+    use_step::<nonzero_is_positive>(7u8);
+    0u8
+}

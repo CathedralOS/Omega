@@ -75,7 +75,9 @@ impl AppliedTraitScope<'_> {
                         | StaticMachineBindingValue::Conformance(argument) => {
                             argument.type_reference
                         }
-                        StaticMachineBindingValue::RuntimeValue { .. } => return None,
+                        // Logical evidence supplies no runtime type or region.
+                        StaticMachineBindingValue::Proof(_)
+                        | StaticMachineBindingValue::RuntimeValue { .. } => return None,
                     };
                     reference
                         .is_valid()

@@ -198,12 +198,7 @@ fn retained_declaration_conformance_bounds(
                 .data_type_parameters
                 .iter()
                 .filter_map(|(_, parameter)| {
-                    let crate::source_resolved::data::TypeParameterKind::Machine { contract } =
-                        &parameter.kind
-                    else {
-                        return None;
-                    };
-                    contract.structural().map(|signature| {
+                    parameter.kind.contract_signature().map(|signature| {
                         (parameter.symbol, signature.conformance_bounds.as_slice())
                     })
                 }),

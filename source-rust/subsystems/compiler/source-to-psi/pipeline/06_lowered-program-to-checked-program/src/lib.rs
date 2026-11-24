@@ -80,6 +80,7 @@ mod result_summaries;
 mod reuse;
 mod static_contracts;
 mod static_reach;
+mod theorems;
 mod verdict;
 pub use publication::{AcceptedAdvisories, CheckedPublication, judge_publication};
 
@@ -504,11 +505,15 @@ fn discharge_inner(
     // use it. Low-level proof reconstruction still states a conditional
     // judgment; this whole-module route owns admission of those premises.
     terminal_semantics::borrowed_storage::validate_write_frames(&elaboration.module).map_err(
-        |error| Refusal::at(
-            RefusalReason::ForeignIdentity,
-            error.machine.map_or(terminal_check_tables::RefusalSite::Program, Into::into),
-            error.detail,
-        ),
+        |error| {
+            Refusal::at(
+                RefusalReason::ForeignIdentity,
+                error
+                    .machine
+                    .map_or(terminal_check_tables::RefusalSite::Program, Into::into),
+                error.detail,
+            )
+        },
     )?;
     // Results before inputs: what a helper returns is a fact its caller
     // may pass on to the next private helper, whose inferred input
@@ -549,8 +554,9 @@ fn discharge_inner(
     // Observe the same immutable type family used by inference above. The
     // existing module-scoped exclusion graph serves every machine; only this
     // borrowed declaration view is needed beside it for projected paths.
-    let empty_contracts =
-        terminal_semantics::inhabitation::TerminalContracts::new(module.types.structural_types.iter());
+    let empty_contracts = terminal_semantics::inhabitation::TerminalContracts::new(
+        module.types.structural_types.iter(),
+    );
     let machines =
         machine_batch::check(&mut checking.machines, activity, |id, tables, activity| {
             // A requirement has a contract and no body, so nothing about it is
@@ -1175,6 +1181,7 @@ fn fill_knowledge<'a>(
     ),
 ) -> Checked<()> {
     let edge_entries = owned_cleanup::edge_entry_points(lowered, tables)?;
+    theorems::fill(module, id, tables)?;
     for (clause, proposition) in lowered.contract.requires.iter().enumerate() {
         let premises =
             entry_snapshot_conjuncts(proposition, &mut storage.at_entry(references, tables))
@@ -1498,6 +1505,7 @@ fn with_prepared_machine<Outcome>(
     minted::follow_the_lowered_form(id, module, lowered, tables, &types, inhabitation)?;
     minted::domains_are_declared(id, structural_types, domains)?;
     let graph = Graph::new(id, lowered, tables)?;
+    theorems::validate(module, lowered, tables, &graph)?;
     minted::check_pending_operands(lowered, tables, &graph)?;
     let reference_graph =
         places::reference_graph_with_nominal_calls(module, id, formed.nominal_calls())?;
@@ -1938,10 +1946,24 @@ fn erased_actuals(
     invocation: terminal_check_tables::InvocationId,
 ) -> Checked<Vec<(ValueId, ScalarTerm)>> {
     let refuse = |reason, detail| refusal(reason, id, Construct::Invocation(invocation), detail);
-    if !contract.erased_proof_formals.is_empty() || !inputs.erased_proof_arguments.is_empty() {
+    if contract.erased_proof_formals.len() != inputs.erased_proof_arguments.len()
+        || contract.erased_proof_formals.iter().any(|formal| {
+            !matches!(
+                formal.source,
+                terminal_psi::ProofFormalSource::GenericParameter(_)
+            )
+        })
+        || inputs.erased_proof_arguments.iter().any(|actual| {
+            !matches!(
+                actual,
+                semantic_vocabulary::ProofTerm::Mathematical { .. }
+                    | semantic_vocabulary::ProofTerm::InvocationFormal { .. }
+            )
+        })
+    {
         return Err(refuse(
             RefusalReason::Unsupported,
-            "callee with an erased proof formal or actual",
+            "callee lost its exact checked theorem supply",
         ));
     }
     let supplied = inputs.erased_arguments;
@@ -2243,6 +2265,9 @@ fn stated_goal<'a>(
             ))
         }
         ObligationKind::OperationSafety { site } => storage.safety_goal(site, obligation, types),
+        ObligationKind::TheoremRequirement { edge, clause } => {
+            theorems::goal(module, id, edge, clause)
+        }
         ObligationKind::CallRequirement { invocation, clause } => {
             let row = terminal_check_tables::row(
                 &tables.invocations,
@@ -2607,6 +2632,7 @@ pub(crate) fn hypotheses(
             }
             Justification::EntryRequirement { .. }
             | Justification::FormalType
+            | Justification::TheoremGuarantee { .. }
             | Justification::CalleeGuarantee { .. }
             | Justification::BranchCondition { .. }
             | Justification::ExcludedDispatchCase { .. }

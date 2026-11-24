@@ -368,6 +368,10 @@ pub(crate) fn normalize_signature(
                         "value",
                         [typed("type", type_text(program, *type_reference, nested)?)],
                     ),
+                    TypeParameterKind::Proof { contract } => record(
+                        "proof-binder",
+                        [normalize_signature(program, contract, nested)?],
+                    ),
                     TypeParameterKind::Machine { contract } => {
                         machine_contract(program, contract, nested)?
                     }
@@ -1312,7 +1316,8 @@ pub(crate) fn normalize_machine_value(
                             context,
                         ),
                     ),
-                    StaticMachineBindingValue::RuntimeValue { .. } => {
+                    StaticMachineBindingValue::Proof(_)
+                    | StaticMachineBindingValue::RuntimeValue { .. } => {
                         return Err(RuntimeCallableIdentityError::UnresolvedStaticContract);
                     }
                 };

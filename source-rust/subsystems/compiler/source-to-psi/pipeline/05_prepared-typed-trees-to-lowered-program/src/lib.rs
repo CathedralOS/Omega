@@ -920,6 +920,7 @@ fn witness_call(
             required_contract: None,
             static_reach_binding: None,
             static_reach_arguments: Vec::new(),
+            proof_arguments: Vec::new(),
         },
         result: required.result,
         source,
@@ -986,6 +987,7 @@ fn finish_logical_witness<'source>(
         &bodies,
         &components,
         body::Signatures {
+            theorems: &program.theorem_parameters,
             machines: &program.signatures,
             boundaries: &program.boundaries,
             declarations: &program.declaration_signatures,
@@ -1185,6 +1187,7 @@ fn finish_reading_into<'source>(
         &bodies,
         &components,
         body::Signatures {
+            theorems: &program.theorem_parameters,
             machines: &program.signatures,
             boundaries: &program.boundaries,
             declarations: &program.declaration_signatures,
@@ -1275,6 +1278,7 @@ fn finish_reading_into<'source>(
         .sort_unstable_by_key(|row| (row.caller, row.site));
     // Real typed bodies retain their actual declarations in check forms too.
     // A synthetic frame has no such declaration and is recorded as undeclared.
+    program.publish_theorem_parameters(&mut elaboration.module)?;
     let prepared_applications = declare::declare(
         program.typed,
         &program,
@@ -1456,6 +1460,7 @@ pub fn lower_generic(
         Some(entry),
         bodies,
         body::Signatures {
+            theorems: &[],
             declarations: &IdTable::default(),
             declaration_aliases: None,
             machines: signatures,
@@ -1811,13 +1816,24 @@ fn lower_program<'source>(
         module.machines.push(lowered.machine);
         // Machines are lowered in identity order and each machine's heads in
         // block order, which is the order the module's roster requires.
-        module.proofs.scalar_block_invariants.extend(lowered.invariants);
+        module
+            .proofs
+            .scalar_block_invariants
+            .extend(lowered.invariants);
+        module
+            .proofs
+            .theorem_applications
+            .extend(lowered.theorem_applications);
         if component.len() > 1 {
             loop_rows.retain(&mut lowered.tables);
         }
         tables.machines.push(lowered.tables);
         sources.push(lowered.sources);
         source.designated.push(lowered.designated);
+        module
+            .proofs
+            .theorem_citations
+            .extend(lowered.theorem_citations);
         source.calls.extend(lowered.source_calls);
         static_reach_applications.extend(lowered.static_reach_applications);
         source.constructions.extend(lowered.source_constructions);
@@ -2220,6 +2236,7 @@ mod publication_scope_tests {
                 &bodies,
                 &components,
                 body::Signatures {
+                    theorems: &[],
                     declarations: &IdTable::default(),
                     declaration_aliases: None,
                     machines: &signatures,

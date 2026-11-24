@@ -166,6 +166,7 @@ fn an_empty_record_is_a_field_and_an_argument() {
                         required_contract: None,
                         static_reach_binding: None,
                         static_reach_arguments: Vec::new(),
+                        proof_arguments: Vec::new(),
                         callee: id::<MachineId>(2).into(),
                         arguments: vec![minted()],
                         designated: None,

@@ -3,6 +3,8 @@
 #![forbid(unsafe_code)]
 
 mod certificate;
+mod certificate_abstraction;
+mod certificate_strict;
 mod conversion;
 mod indexed;
 mod quotient;
@@ -18,8 +20,14 @@ mod tests;
 
 pub use certificate::{
     MathematicalCertificate, MathematicalCertificateBatchError, certificate_assumption_closure,
-    verify_mathematical_certificate, verify_mathematical_certificates,
+    certificate_type_signature_prefix, verify_mathematical_certificate,
+    verify_mathematical_certificates,
 };
+pub use certificate_abstraction::{
+    AbstractedCertificate, AbstractedType, CertificateAbstractionError, MathematicalJudgmentType,
+    abstract_certificate_assumptions, abstract_judgment_type,
+};
+pub use certificate_strict::{StrictCertificateError, strict_certificate_context};
 pub use conversion::Budget;
 pub use conversion::{
     DEFAULT_CONVERSION_STEPS, convertible, convertible_retaining, weak_head_normalize,

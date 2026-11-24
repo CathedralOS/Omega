@@ -231,11 +231,7 @@ pub(super) fn assign_contract_reference_symbols(
     }
 
     for (_, parameter) in data_type_parameters.iter() {
-        let crate::source_resolved::data::TypeParameterKind::Machine { contract } = &parameter.kind
-        else {
-            continue;
-        };
-        let Some(signature) = contract.structural() else {
+        let Some(signature) = parameter.kind.contract_signature() else {
             continue;
         };
         let scope = scope_context.scope(

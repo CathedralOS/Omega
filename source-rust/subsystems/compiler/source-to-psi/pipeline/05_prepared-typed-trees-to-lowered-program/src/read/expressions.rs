@@ -2162,6 +2162,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
     let both = |a: &Expression, b: &Expression| same_computation(a, b);
     left.result == right.result
         && match (&left.kind, &right.kind) {
+            (ExpressionKind::TheoremApplication { .. }, _) => false,
             (ExpressionKind::Block { .. }, _) => false,
             (ExpressionKind::Integer(a), ExpressionKind::Integer(b)) => a == b,
             (ExpressionKind::Float(a), ExpressionKind::Float(b)) => a == b,

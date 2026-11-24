@@ -4,9 +4,9 @@
 #![forbid(unsafe_code)]
 
 mod bounded_denotation;
-mod integer_affine;
 #[cfg(test)]
 mod bounded_observations;
+mod integer_affine;
 pub(crate) mod admission {
     pub(crate) mod evidence {
         use std::collections::BTreeSet;
@@ -394,6 +394,11 @@ pub use admission::evidence::{
     CertificateEnvelope, EvidenceError, EvidenceRoute, Obligation, ObligationClass,
     ProofSystemMarker, verify_obligation, verify_obligation_with_machine_parameters,
 };
+pub use bounded_denotation::{
+    BoundedDenotation, BoundedDenotationError, BoundedImplicationType, BoundedTheorem,
+    BoundedTheoremError, SourceContentTheory, denote_bounded_certificate,
+    denote_bounded_implication_type, verify_bounded_certificate, verify_bounded_theorem,
+};
 pub use classicality::ProofRuleFoundation;
 pub use closed_predicates::{closed_guard, closed_guard_with};
 pub use float_meaning::{FloatMeaningNormalizationError, check_float_meaning_normalization};
@@ -424,26 +429,20 @@ pub use integer_rules::integer_shift::{
     check_integer_shift_chain_witness,
 };
 pub use kernel::{KernelError, PrimitiveJudgment, decide_primitive};
-pub use bounded_denotation::{
-    BoundedDenotation, BoundedDenotationError, SourceContentTheory, denote_bounded_certificate,
-    verify_bounded_certificate,
-};
 pub use mathematical_kernel::{
-    argument_error_pair_pattern, Budget, Context, CoreError,
-    DEFAULT_CONVERSION_STEPS, Declaration, EquivalenceProofs, INDEXED_AT, INDEXED_IND,
-    INDEXED_PACK, INDEXED_SUP, INDEXED_W, IndexedFamily, Level, MathematicalCertificate,
-    MathematicalCertificateBatchError, QUOTIENT, QUOTIENT_BETA, QUOTIENT_BOX_PROP,
-    QUOTIENT_COVERAGE, QUOTIENT_EFFECTIVE, QUOTIENT_ELIM, QUOTIENT_ID_CANCEL, QUOTIENT_ID_SYM,
-    QUOTIENT_ID_TRANS, QUOTIENT_IND_PROP, QUOTIENT_IS_SET, QUOTIENT_LIFT, QUOTIENT_PROJECT,
-    QUOTIENT_PROP_IS_SET, QUOTIENT_SET, QUOTIENT_SOUND, QUOTIENT_TRANSPORT,
+    Budget, Context, CoreError, DEFAULT_CONVERSION_STEPS, Declaration, EquivalenceProofs,
+    INDEXED_AT, INDEXED_IND, INDEXED_PACK, INDEXED_SUP, INDEXED_W, IndexedFamily, Level,
+    MathematicalCertificate, MathematicalCertificateBatchError, QUOTIENT, QUOTIENT_BETA,
+    QUOTIENT_BOX_PROP, QUOTIENT_COVERAGE, QUOTIENT_EFFECTIVE, QUOTIENT_ELIM, QUOTIENT_ID_CANCEL,
+    QUOTIENT_ID_SYM, QUOTIENT_ID_TRANS, QUOTIENT_IND_PROP, QUOTIENT_IS_SET, QUOTIENT_LIFT,
+    QUOTIENT_PROJECT, QUOTIENT_PROP_IS_SET, QUOTIENT_SET, QUOTIENT_SOUND, QUOTIENT_TRANSPORT,
     QUOTIENT_TRANSPORT_CONST, QUOTIENT_UNIQUE, QuotientFamily, Signature, SignatureCheckError,
-    Sort, Term, TermArena, TermHandle, assumption_closure,
+    Sort, Term, TermArena, TermHandle, argument_error_pair_pattern, assumption_closure,
     certificate_assumption_closure, check_signature, check_signature_with_attribution, check_type,
-    convertible, convertible_retaining, identity_substitution,
-    indexed_correctness, indexed_scheme, infer_sort, infer_type, instantiate_levels,
-    judgment_assumption_closure, quotient_scheme, shift, substitute, universe_parameter_arity,
-    verify_mathematical_certificate, verify_mathematical_certificates,
-    weak_head_normalize, weak_head_normalize_retaining,
+    convertible, convertible_retaining, identity_substitution, indexed_correctness, indexed_scheme,
+    infer_sort, infer_type, instantiate_levels, judgment_assumption_closure, quotient_scheme,
+    shift, substitute, universe_parameter_arity, verify_mathematical_certificate,
+    verify_mathematical_certificates, weak_head_normalize, weak_head_normalize_retaining,
 };
 pub use predicate_denotation::{
     CheckedPredicateDenotations, PredicateDenotationError, check_predicate_denotations,

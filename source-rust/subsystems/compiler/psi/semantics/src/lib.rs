@@ -44,6 +44,7 @@ pub mod structural;
 pub mod structural_qualifications;
 pub mod substitution;
 pub mod suspension_frontier;
+pub mod theorems;
 
 pub(crate) use ::wire::digest_encoder;
 pub use access::access_lifecycles::{

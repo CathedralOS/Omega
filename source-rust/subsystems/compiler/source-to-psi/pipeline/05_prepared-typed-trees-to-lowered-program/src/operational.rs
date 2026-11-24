@@ -20,14 +20,12 @@ pub(crate) fn retain(
                 ..CallAcknowledgement::generated()
             }
         }
-        language_core::CallOperationalAcknowledgementOrigin::Source => {
-            CallAcknowledgement {
-                origin: CallOrigin::Authored,
-                acknowledges_suspend: acknowledgement.acknowledges_suspend,
-                acknowledges_block: acknowledgement.acknowledges_block,
-                suspension_position,
-            }
-        }
+        language_core::CallOperationalAcknowledgementOrigin::Source => CallAcknowledgement {
+            origin: CallOrigin::Authored,
+            acknowledges_suspend: acknowledgement.acknowledges_suspend,
+            acknowledges_block: acknowledgement.acknowledges_block,
+            suspension_position,
+        },
     });
 }
 
@@ -154,6 +152,7 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
             "a suspend-marked call must be a complete statement, simple let initializer, transition subject or terminal expression".to_owned()));
     }
     match &value.kind {
+        ExpressionKind::TheoremApplication { .. } => {}
         ExpressionKind::Atomic(operation) => {
             for operand in operation.inputs() {
                 expression(machine, operand)?;

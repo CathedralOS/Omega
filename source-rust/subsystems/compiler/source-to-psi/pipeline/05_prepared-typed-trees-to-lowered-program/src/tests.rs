@@ -29,8 +29,8 @@ mod provider_source_identities {
 
     use crate::source_inputs::SourceMap;
     use crate::source_symbols::SymbolTableBuilder;
-    use source_provenance::DependencyScope;
     use source_admission::SourceOrigin;
+    use source_provenance::DependencyScope;
     use symbols::{SymbolKind, SymbolNameRef};
 
     fn typed_sources(bytes: &str, outside_root: bool) -> crate::source_state::TypedTrees {
@@ -189,6 +189,7 @@ fn call(callee: u64, arguments: Vec<Expression>, result: Option<ScalarType>) -> 
             required_contract: None,
             static_reach_binding: None,
             static_reach_arguments: Vec::new(),
+            proof_arguments: Vec::new(),
         },
         result,
     )
@@ -334,6 +335,7 @@ fn lower_records(
     bodies.push(body);
     let boundary_signatures = crate::lowering::boundaries::BoundaryNamespace::default();
     let signatures = crate::lowering::body::Signatures {
+        theorems: &[],
         declarations: &IdTable::default(),
         declaration_aliases: None,
         machines: signatures,
@@ -1608,6 +1610,7 @@ fn a_never_returning_record_base_stops_its_field_projection() {
                     required_contract: None,
                     static_reach_binding: None,
                     static_reach_arguments: Vec::new(),
+                    proof_arguments: Vec::new(),
                     arguments: Vec::new(),
                     designated: None,
                 },
@@ -1985,6 +1988,7 @@ fn outcomes_follow_the_ceiling_or_the_body() {
         let table = outcomes(
             &bodies,
             crate::lowering::body::Signatures {
+                theorems: &[],
                 declarations: &IdTable::default(),
                 declaration_aliases: None,
                 machines: &signatures,
@@ -2048,6 +2052,7 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
         outcomes(
             &bodies,
             crate::lowering::body::Signatures {
+                theorems: &[],
                 declarations: &IdTable::default(),
                 declaration_aliases: None,
                 machines: &signatures,
@@ -2125,6 +2130,7 @@ fn a_skipped_operand_cannot_end_the_machine() {
     let table = outcomes(
         &bodies,
         crate::lowering::body::Signatures {
+            theorems: &[],
             declarations: &IdTable::default(),
             declaration_aliases: None,
             machines: &signatures,
@@ -2203,6 +2209,7 @@ fn settle_both(
                         required_contract: None,
                         static_reach_binding: None,
                         static_reach_arguments: Vec::new(),
+                        proof_arguments: Vec::new(),
                     },
                     None,
                 )),
@@ -2218,6 +2225,7 @@ fn settle_both(
         });
     }
     let signatures = crate::lowering::body::Signatures {
+        theorems: &[],
         declarations: &IdTable::default(),
         declaration_aliases: None,
         machines: &signatures,
@@ -2800,6 +2808,7 @@ fn a_whole_copy_logs_one_row_on_its_fresh_root_and_names_its_source() {
                         required_contract: None,
                         static_reach_binding: None,
                         static_reach_arguments: Vec::new(),
+                        proof_arguments: Vec::new(),
                     },
                     point(),
                 ),
@@ -3133,9 +3142,11 @@ fn a_moved_owned_field_is_refilled_before_its_whole_owner_is_transferred() {
             ..
         } if !path.is_empty()
     )));
-    let verified =
-        terminal_semantics::plain_affine::verify(machine, &elaboration.module.types.structural_types)
-            .expect("the checker reconstructs the restored field's custody");
+    let verified = terminal_semantics::plain_affine::verify(
+        machine,
+        &elaboration.module.types.structural_types,
+    )
+    .expect("the checker reconstructs the restored field's custody");
     assert!(verified.unavailable.is_empty());
     for actual in [
         terminal_psi::StructuralStoreDisposition::Vacant,
@@ -3237,9 +3248,11 @@ fn a_subrecord_with_all_owned_fields_moved_out_can_be_filled_whole() {
             disposition: terminal_psi::StructuralStoreDisposition::Vacant, path, ..
         } if path.len() == 1
     )));
-    let checked =
-        terminal_semantics::plain_affine::verify(machine, &elaboration.module.types.structural_types)
-            .expect("the containing owner is reconstructed from the complete subtree");
+    let checked = terminal_semantics::plain_affine::verify(
+        machine,
+        &elaboration.module.types.structural_types,
+    )
+    .expect("the containing owner is reconstructed from the complete subtree");
     assert!(checked.unavailable.is_empty());
 }
 
@@ -4587,6 +4600,7 @@ fn logical_claim_publication_preserves_two_siblings_across_an_ordinary_call() {
                 required_contract: None,
                 static_reach_binding: None,
                 static_reach_arguments: Vec::new(),
+                proof_arguments: Vec::new(),
             },
             result: Some(pair),
             source: nowhere(),

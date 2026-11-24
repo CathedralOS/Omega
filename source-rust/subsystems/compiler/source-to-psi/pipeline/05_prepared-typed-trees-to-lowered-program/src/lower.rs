@@ -95,6 +95,8 @@ pub(crate) struct Lowered {
     pub sources: MachineSources,
     pub designated: Vec<(OperationId, crate::lowering::DesignatedOperands)>,
     pub source_calls: Vec<crate::source_state::SourceCallCorrespondence>,
+    pub theorem_applications: Vec<terminal_psi::TheoremApplication>,
+    pub theorem_citations: Vec<terminal_psi::TheoremCitation>,
     pub static_reach_applications: Vec<terminal_psi::static_reach::StaticReachApplication>,
     pub source_constructions: Vec<(
         MachineId,
@@ -270,6 +272,7 @@ fn callable_header(
         context,
         signature,
         Signatures {
+            theorems: &[],
             machines: signatures,
             declarations: &declarations,
             declaration_aliases: None,
@@ -500,6 +503,8 @@ impl<'a> Lowering<'a> {
             static_reach_applications: Vec::new(),
             source_constructions: Vec::new(),
             source_folded_calls: Vec::new(),
+            theorem_applications: Vec::new(),
+            theorem_citations: Vec::new(),
             call_formations: Vec::new(),
             blocks: IdTable::default(),
             operation_locations: IdTable::default(),
@@ -809,6 +814,8 @@ struct Lowering<'a> {
     sources: MachineSources,
     designated: Vec<(OperationId, crate::lowering::DesignatedOperands)>,
     source_calls: Vec<crate::source_state::SourceCallCorrespondence>,
+    theorem_applications: Vec<terminal_psi::TheoremApplication>,
+    theorem_citations: Vec<terminal_psi::TheoremCitation>,
     static_reach_applications: Vec<terminal_psi::static_reach::StaticReachApplication>,
     source_constructions: Vec<(
         MachineId,
@@ -1077,7 +1084,9 @@ impl<'a> Lowering<'a> {
             }
             let lowered = self.statement(statement)?;
             if self.pending_build.take().is_some() {
-                return Err(self.internal("a projected Build statement did not reach its selected suspending call"));
+                return Err(self.internal(
+                    "a projected Build statement did not reach its selected suspending call",
+                ));
             }
             let Reached::Ended(call) = lowered else {
                 continue;
@@ -1524,6 +1533,8 @@ impl<'a> Lowering<'a> {
             sources: self.sources,
             designated: self.designated,
             source_calls: self.source_calls,
+            theorem_applications: self.theorem_applications,
+            theorem_citations: self.theorem_citations,
             static_reach_applications: self.static_reach_applications,
             source_constructions: self.source_constructions,
             source_folded_calls: self.source_folded_calls,

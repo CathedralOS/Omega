@@ -553,6 +553,12 @@ fn collect_use(
             TypeParameterKind::Type => {
                 substitutions.push((formal.symbol, argument_type(program, actual, source)?))
             }
+            TypeParameterKind::Proof { .. } => {
+                return Err(error(
+                    source,
+                    "logical evidence cannot infer an executable callable selection",
+                ));
+            }
             TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
                 return Err(error(
                     source,

@@ -28,7 +28,7 @@ pub struct CallableRefinementGoal {
     pub proposition: Proposition,
 }
 
-fn conjunction(values: impl IntoIterator<Item = Proposition>) -> Proposition {
+pub(crate) fn conjunction(values: impl IntoIterator<Item = Proposition>) -> Proposition {
     let mut values = values.into_iter().collect::<Vec<_>>();
     values.sort();
     values.dedup();

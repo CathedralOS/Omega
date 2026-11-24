@@ -438,7 +438,8 @@ pub(crate) mod callable_identity {
                         };
                         (kind, identity)
                     }
-                    TypeParameterKind::Machine { .. }
+                    TypeParameterKind::Proof { .. }
+                    | TypeParameterKind::Machine { .. }
                     | TypeParameterKind::Implementation
                     | TypeParameterKind::Proposition { .. } => {
                         return Err(
@@ -7818,6 +7819,9 @@ pub(crate) mod static_operand_identity {
                     }
                     StaticMachineBindingValue::Machine(argument)
                     | StaticMachineBindingValue::Conformance(argument) => argument.clone(),
+                    StaticMachineBindingValue::Proof(_) => {
+                        return Err("logical evidence is not a static source application key");
+                    }
                     StaticMachineBindingValue::RuntimeValue { .. } => {
                         return Err("a runtime value is not a static source application key");
                     }

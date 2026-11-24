@@ -55,6 +55,8 @@ pub fn prepare_replay<'source>(
     activity: &mut crate::checking::ProofSearchActivity,
 ) -> Checked<ReplayScope<'source>> {
     crate::checking::nominal_calls::validate(elaboration)?;
+    crate::checking::theorems::validate_parameters(&elaboration.module)?;
+    crate::checking::theorems::finalize_citations(&mut elaboration.module, activity)?;
     let requirements = elaboration
         .requirements
         .iter()
@@ -297,7 +299,8 @@ impl ReplayScope<'_> {
         &mut self,
         activity: &mut crate::checking::ProofSearchActivity,
     ) -> Checked<()> {
-        crate::checking::finalize_callable_refinements(&mut self.elaboration.module, activity)
+        crate::checking::finalize_callable_refinements(&mut self.elaboration.module, activity)?;
+        crate::checking::theorems::finalize_citations(&mut self.elaboration.module, activity)
     }
 
     // Kept private to the replay implementation. No caller can obtain a

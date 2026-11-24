@@ -255,6 +255,7 @@ pub enum CallingOperandKind {
     Machine,
     Implementation,
     Proposition,
+    Proof,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
@@ -325,6 +326,7 @@ impl CallingSignatureId {
                 CallingOperandKind::Machine => 3,
                 CallingOperandKind::Implementation => 4,
                 CallingOperandKind::Proposition => 5,
+                CallingOperandKind::Proof => 6,
             };
             hash.bytes_framed(&[tag]);
             hash.bytes_framed(identity.as_ref().as_bytes());

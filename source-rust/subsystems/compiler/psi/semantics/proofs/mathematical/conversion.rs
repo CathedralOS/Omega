@@ -27,7 +27,7 @@ impl Budget {
         self.remaining_steps
     }
 
-    fn consume(&mut self) -> Result<(), CoreError> {
+    pub(crate) fn consume(&mut self) -> Result<(), CoreError> {
         self.remaining_steps = self
             .remaining_steps
             .checked_sub(1)

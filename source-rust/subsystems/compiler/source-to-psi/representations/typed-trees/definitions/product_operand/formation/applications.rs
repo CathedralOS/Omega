@@ -558,12 +558,13 @@ fn bound(
         ))),
         (
             TypeParameterKind::Value { .. }
+            | TypeParameterKind::Proof { .. }
             | TypeParameterKind::Machine { .. }
             | TypeParameterKind::Implementation
             | TypeParameterKind::Proposition { .. },
             _,
         ) => Err(unserved(
-            "a slot or provider with a runtime-value, machine, implementation or proposition parameter",
+            "a slot or provider with a runtime-value, proof, machine, implementation or proposition parameter",
         )),
     }
 }

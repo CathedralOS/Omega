@@ -1087,6 +1087,7 @@ fn expression_homes<'b>(
     homes: &mut impl FnMut(ValueType, Option<&'b String>, Option<usize>),
 ) {
     match &expression.kind {
+        ExpressionKind::TheoremApplication { .. } => {}
         ExpressionKind::Atomic(operation) => {
             for operand in operation.inputs() {
                 expression_homes(operand, slots, homes);
@@ -2422,6 +2423,9 @@ impl<'a> Lowering<'a> {
             return Err(self.internal("a scalar expression is used as a record"));
         };
         match &expression.kind {
+            ExpressionKind::TheoremApplication { .. } => {
+                Err(self.internal("a logical application is used as storage"))
+            }
             ExpressionKind::Atomic(_) => {
                 Err(self.internal("an atomic scalar event is used as structural storage"))
             }
@@ -2831,6 +2835,7 @@ impl<'a> Lowering<'a> {
                 required_contract,
                 static_reach_binding,
                 static_reach_arguments,
+                proof_arguments,
                 arguments,
                 designated,
             } => {
@@ -2843,7 +2848,8 @@ impl<'a> Lowering<'a> {
                     (
                         expression.source,
                         *static_reach_binding,
-                        static_reach_arguments
+                        static_reach_arguments,
+                        proof_arguments,
                     ),
                     expression.call_context.unwrap_or_default(),
                 )) {
@@ -5606,6 +5612,7 @@ mod tests {
                         required_contract: None,
                         static_reach_binding: None,
                         static_reach_arguments: Vec::new(),
+                        proof_arguments: Vec::new(),
                     },
                     result: Some(plain),
                     source,

@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 291`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 292`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -222,6 +222,30 @@ pub(crate) mod canonical_order {
                 .iter()
                 .map(|invariant| (invariant.machine, invariant.header)),
             "scalar block invariants by machine and header",
+        )?;
+        require_increasing(
+            module
+                .proofs
+                .theorem_parameters
+                .iter()
+                .map(|row| (row.machine, row.proof_position)),
+            "logical parameters by machine and header position",
+        )?;
+        require_increasing(
+            module
+                .proofs
+                .theorem_applications
+                .iter()
+                .map(|row| (row.machine, row.edge)),
+            "logical applications by machine and edge",
+        )?;
+        require_increasing(
+            module
+                .proofs
+                .theorem_citations
+                .iter()
+                .map(|row| (row.machine, row.site, row.proof_position)),
+            "logical supplies by machine, site and header position",
         )?;
         for invariant in &module.proofs.scalar_block_invariants {
             validate_canonical_proposition(&invariant.predicate)?;
@@ -4134,8 +4158,8 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 291 records suspension frontiers and generic contracts without data carry policies.
-pub(crate) const FORMAT_MARKER: u16 = 291;
+// Marker 292 retains theorem parameter contracts, applications and cited derivations.
+pub(crate) const FORMAT_MARKER: u16 = 292;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -4231,6 +4255,8 @@ pub fn decode_closed_parts(
     // Canonical shape only; source-bound `verify_identity_formations` replays
     // the kernel. Decoding does not re-decide a carried judgment.
     crate::identity_formations::validate_identity_formations(&module)?;
+    crate::theorem_citations::validate_received_theorems(&module)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     dynamic_result_admission::validate_dynamic_descriptor_results(&module)?;
     opaque_storage
         .restore(&mut module)

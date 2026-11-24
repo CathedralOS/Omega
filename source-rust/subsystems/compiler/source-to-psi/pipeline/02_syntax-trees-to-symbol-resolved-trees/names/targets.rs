@@ -254,12 +254,15 @@ mod calls {
         } else {
             machine.symbol
         };
-        let machine_parameter = machine
+        let parameter_target = machine
             .type_parameters
             .iter()
             .find(|parameter| {
                 parameter.name.as_str() == target.as_str()
-                    && matches!(parameter.kind, TypeParameterKind::Machine { .. })
+                    && matches!(
+                        parameter.kind,
+                        TypeParameterKind::Machine { .. } | TypeParameterKind::Proof { .. }
+                    )
             })
             .map(|parameter| parameter.symbol)
             .unwrap_or_else(|| {
@@ -270,8 +273,8 @@ mod calls {
                     target.as_str(),
                 )
             });
-        if machine_parameter.is_valid() {
-            return machine_parameter;
+        if parameter_target.is_valid() {
+            return parameter_target;
         }
 
         let proposition_parameter = child_symbol_by_kinds(
@@ -832,8 +835,14 @@ mod calls {
         let mut found = symbols
             .top_level_candidates_from_source(
                 head.as_str(),
-                &[SymbolKind::Data, SymbolKind::Machine, SymbolKind::Trait, SymbolKind::Conformance,
-                  SymbolKind::TypeAlias, SymbolKind::Module],
+                &[
+                    SymbolKind::Data,
+                    SymbolKind::Machine,
+                    SymbolKind::Trait,
+                    SymbolKind::Conformance,
+                    SymbolKind::TypeAlias,
+                    SymbolKind::Module,
+                ],
                 head_reference,
             )
             .into_iter()
