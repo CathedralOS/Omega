@@ -76,6 +76,7 @@ pub fn prepare_requirement_in_scope(
             "a requirement application names a different registration operation",
         ));
     }
+    let first_type = program.type_reference_table.type_reference_count();
     let trait_arguments = program
         .materialize_trait_application_arguments(environment)
         .map_err(unserved)?;
@@ -116,5 +117,8 @@ pub fn prepare_requirement_in_scope(
     let closed = program
         .instantiate_requirement_application(environment, target, &trait_arguments, application)
         .map_err(unserved)?;
+    // Substitution creates new occurrences in the public header. A Build may
+    // supply it after source typing has already prepared the authored types.
+    crate::data_applications::prepare_from(program, first_type).map_err(Stop::Rejected)?;
     Ok(Some(closed))
 }

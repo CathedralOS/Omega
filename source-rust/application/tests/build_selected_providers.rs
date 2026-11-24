@@ -108,9 +108,15 @@ fn a_selected_generic_provider_keeps_its_uncalled_requirement() {
     let program = r#"
 data Tag {}
 data Word {}
-boundary trait Echo<P, T> { machine carry(x: u32) -> u32 reaches none crashes none; }
+data Receipt<T> { value: T; }
+data Outcome<T> { case Ready(value: T); case Empty; }
+boundary trait Echo<P, T> {
+    machine carry(x: u32) -> u32 reaches none crashes none;
+    machine restore(x: Outcome<Receipt<T>>) -> Outcome<Receipt<T>> reaches none crashes none;
+}
 Copy<P, T, R> satisfies Echo<P, T> {
     machine carry(x: u32) -> u32 reaches none crashes none { x }
+    machine restore(x: Outcome<Receipt<T>>) -> Outcome<Receipt<T>> reaches none crashes none { x }
 }
 machine entry() {}
 "#;
