@@ -114,55 +114,608 @@ fn charge(remaining: &mut usize) -> Result<(), SearchError> {
     Ok(())
 }
 
-/// The term with every reduction the kernel has carried out, in every
-/// subterm. A definition unfolds and a recursion over a constructor computes,
-/// so two terms the kernel converts by computation alone have one normal form.
-pub(crate) fn normalize(
+/// How a constant of the signature takes part in normalization.
+#[derive(Clone, Copy)]
+enum Definition {
+    /// No body, or a type: the constant stays as written and is not a value
+    /// a recursion can compute on.
+    Opaque,
+    /// `lambda^arity. sup(..)`: a case of a data declaration. It stays as
+    /// written, and a recursion computes on it once it has all its fields.
+    Constructor,
+    /// `lambda^arity. indW(motive, step, x_subject) x_others..`: a function
+    /// defined by cases on one argument. It computes only when that argument
+    /// is a constructor, so everywhere else its application stays folded.
+    Recursion {
+        arity: usize,
+        subject: usize,
+        motive: TermHandle,
+        step: TermHandle,
+    },
+    /// Any other body: an abbreviation, unfolded where it is met.
+    Abbreviation,
+}
+
+fn closed_under(arena: &TermArena, term: TermHandle, binders: usize) -> bool {
+    (0..binders as u32).all(|index| !arena.contains_free_variable(term, index))
+}
+
+fn spine(arena: &TermArena, term: TermHandle) -> (TermHandle, Vec<TermHandle>) {
+    let mut head = term;
+    let mut arguments = Vec::new();
+    while let Term::Apply { function, argument } = arena.get(head) {
+        arguments.push(argument);
+        head = function;
+    }
+    arguments.reverse();
+    (head, arguments)
+}
+
+fn classify(arena: &TermArena, body: Option<TermHandle>) -> (Definition, usize) {
+    let Some(mut body) = body else {
+        return (Definition::Opaque, 0);
+    };
+    let mut arity = 0;
+    while let Term::Lambda { body: inner, .. } = arena.get(body) {
+        arity += 1;
+        body = inner;
+    }
+    let (head, arguments) = spine(arena, body);
+    let definition = match arena.get(head) {
+        Term::Sup { .. } if arguments.is_empty() => Definition::Constructor,
+        Term::W { .. } if arguments.is_empty() => Definition::Opaque,
+        Term::IndW { motive, step, tree } => {
+            let subject = match arena.get(tree) {
+                Term::Variable(index) if (index as usize) < arity => {
+                    Some(arity - 1 - index as usize)
+                }
+                _ => None,
+            };
+            // The recursion is applied to the remaining formals in order, so
+            // an application of the constant and a stuck recursion with the
+            // same motive and step are two spellings of one term.
+            let others = subject.is_some_and(|subject| {
+                let mut expected = (0..arity).filter(|formal| *formal != subject);
+                arguments.iter().all(|&argument| {
+                    matches!((arena.get(argument), expected.next()),
+                        (Term::Variable(index), Some(formal))
+                            if index as usize == arity - 1 - formal)
+                }) && expected.next().is_none()
+            });
+            match subject {
+                Some(subject)
+                    if others
+                        && closed_under(arena, motive, arity)
+                        && closed_under(arena, step, arity) =>
+                {
+                    Definition::Recursion {
+                        arity,
+                        subject,
+                        motive,
+                        step,
+                    }
+                }
+                _ => Definition::Abbreviation,
+            }
+        }
+        _ => Definition::Abbreviation,
+    };
+    (definition, arity)
+}
+
+/// The definitions of the context's signature, and each one's binder count.
+struct Definitions(Vec<(Definition, usize)>);
+
+impl Definitions {
+    fn of(arena: &TermArena, context: &Context) -> Self {
+        Self(
+            context
+                .signature()
+                .declarations()
+                .iter()
+                .map(|declaration| classify(arena, declaration.body))
+                .collect(),
+        )
+    }
+
+    fn get(&self, declaration: u32) -> Definition {
+        self.0
+            .get(declaration as usize)
+            .map_or(Definition::Opaque, |(definition, _)| *definition)
+    }
+
+    /// Whether the term is a case applied to all of its fields, or a node
+    /// the kernel's recursion computes on directly.
+    fn is_constructed(&self, arena: &TermArena, term: TermHandle) -> bool {
+        let (head, arguments) = spine(arena, term);
+        match arena.get(head) {
+            Term::Sup { .. } => arguments.is_empty(),
+            Term::Constant { declaration, .. } => {
+                self.0
+                    .get(declaration as usize)
+                    .is_some_and(|(definition, arity)| {
+                        matches!(definition, Definition::Constructor) && *arity == arguments.len()
+                    })
+            }
+            _ => false,
+        }
+    }
+}
+
+/// The term after every computation the kernel can carry out, with each
+/// function defined by cases left as an application wherever its argument is
+/// not a constructor. A recursion over a constructor computes; the recursive
+/// result it leaves is folded back into an application of the function. Two
+/// terms the kernel converts by computation alone get one normal form, and
+/// that form still shows which operations are applied to what, which the
+/// search and the reordering below read.
+fn normal(
     arena: &mut TermArena,
     context: &Context,
+    definitions: &Definitions,
     term: TermHandle,
     conversion: &mut Budget,
 ) -> Result<TermHandle, SearchError> {
-    let head = weak_head_normalize(arena, context.signature(), term, conversion)?;
-    let node = arena.get(head);
+    let signature = context.signature();
+    let head = proof_admission::weak_head_normalize_retaining(
+        arena,
+        signature,
+        term,
+        conversion,
+        &|declaration| !matches!(definitions.get(declaration), Definition::Abbreviation),
+    )?;
+    let (function, arguments) = spine(arena, head);
+    // A stuck recursion is the function it came from, applied to the tree.
+    let (function, arguments) = match arena.get(function) {
+        Term::IndW { motive, step, tree } => {
+            let folded = definitions.0.iter().enumerate().find_map(|(index, entry)| {
+                let Definition::Recursion {
+                    arity,
+                    subject,
+                    motive: known_motive,
+                    step: known_step,
+                } = entry.0
+                else {
+                    return None;
+                };
+                (arguments.len() + 1 >= arity
+                    && arena.structurally_equal(motive, known_motive)
+                    && arena.structurally_equal(step, known_step))
+                .then_some((index as u32, subject))
+            });
+            match folded {
+                Some((declaration, subject)) => {
+                    let mut restored = arguments.clone();
+                    restored.insert(subject, tree);
+                    let constant = arena.insert(Term::Constant {
+                        declaration,
+                        levels: Vec::new(),
+                    });
+                    (constant, restored)
+                }
+                None => (function, arguments),
+            }
+        }
+        _ => (function, arguments),
+    };
+    if let Term::Constant { declaration, .. } = arena.get(function)
+        && let Definition::Recursion { arity, subject, .. } = definitions.get(declaration)
+        && arguments.len() >= arity
+    {
+        let mut operands = Vec::with_capacity(arguments.len());
+        for &argument in &arguments {
+            operands.push(normal(arena, context, definitions, argument, conversion)?);
+        }
+        if !definitions.is_constructed(arena, operands[subject]) {
+            return Ok(arena.apply_arguments(function, &operands));
+        }
+        // Expose the constructor's node, then let the recursion take exactly
+        // one step with every constant kept as written.
+        let node = weak_head_normalize(arena, signature, operands[subject], conversion)?;
+        let body = signature
+            .get(declaration)
+            .and_then(|declared| declared.body)
+            .ok_or(SearchError::NoProof)?;
+        let mut unfolded = operands.clone();
+        unfolded[subject] = node;
+        let applied = arena.apply_arguments(body, &unfolded);
+        let stepped = proof_admission::weak_head_normalize_retaining(
+            arena,
+            signature,
+            applied,
+            conversion,
+            &|_| true,
+        )?;
+        return normal(arena, context, definitions, stepped, conversion);
+    }
+    if !arguments.is_empty() {
+        let function = match arena.get(function) {
+            Term::Constant { .. } | Term::Variable(_) => function,
+            _ => normal_children(arena, context, definitions, function, conversion)?,
+        };
+        let mut operands = Vec::with_capacity(arguments.len());
+        for &argument in &arguments {
+            operands.push(normal(arena, context, definitions, argument, conversion)?);
+        }
+        return Ok(arena.apply_arguments(function, &operands));
+    }
+    normal_children(arena, context, definitions, function, conversion)
+}
+
+fn normal_children(
+    arena: &mut TermArena,
+    context: &Context,
+    definitions: &Definitions,
+    term: TermHandle,
+    conversion: &mut Budget,
+) -> Result<TermHandle, SearchError> {
+    let node = arena.get(term);
     let mut children = Vec::with_capacity(4);
     let mut changed = false;
     for child in node.children() {
-        let normal = normalize(arena, context, child, conversion)?;
+        let normal = normal(arena, context, definitions, child, conversion)?;
         changed |= normal != child;
         children.push(normal);
     }
     Ok(if changed {
         arena.insert(node.rebuilt(&children))
     } else {
-        head
+        term
     })
+}
+
+/// A binary operation with the proved laws that let the search regroup and
+/// reorder its operands. Each law is a closed term of the signature; using
+/// it puts it in the proof, so the certificate names what it relied on.
+#[derive(Clone, Copy)]
+pub(crate) struct License {
+    pub operation: TermHandle,
+    pub carrier: TermHandle,
+    /// `op(op(x, y), z) = op(x, op(y, z))` for all operands, or its mirror
+    /// when the flag is false.
+    pub associates: Option<(TermHandle, bool)>,
+    /// `op(x, y) = op(y, x)` for all operands.
+    pub commutes: Option<TermHandle>,
+}
+
+/// One rewrite of the term at the subterm reached by taking these child
+/// slots in turn.
+struct Step {
+    slots: Vec<usize>,
+    rule: Equality,
+}
+
+fn licensed<'l>(
+    arena: &TermArena,
+    licenses: &'l [License],
+    term: TermHandle,
+) -> Option<(&'l License, TermHandle, TermHandle)> {
+    let Term::Apply {
+        function,
+        argument: second,
+    } = arena.get(term)
+    else {
+        return None;
+    };
+    let Term::Apply {
+        function: operation,
+        argument: first,
+    } = arena.get(function)
+    else {
+        return None;
+    };
+    licenses
+        .iter()
+        .find(|license| arena.structurally_equal(license.operation, operation))
+        .map(|license| (license, first, second))
+}
+
+/// A total order on terms that depends only on their structure, never on
+/// where the arena happens to store them.
+fn order(arena: &TermArena, left: TermHandle, right: TermHandle) -> std::cmp::Ordering {
+    use std::cmp::Ordering;
+    let rank = |term: &Term| match term {
+        Term::Variable(_) => 0u8,
+        Term::Constant { .. } => 1,
+        Term::Apply { .. } => 2,
+        Term::Sup { .. } => 3,
+        Term::Lambda { .. } => 4,
+        Term::Pi { .. } => 5,
+        Term::IndW { .. } => 6,
+        _ => 7,
+    };
+    let (a, b) = (arena.get(left), arena.get(right));
+    let by_shape = rank(&a).cmp(&rank(&b)).then_with(|| match (&a, &b) {
+        (Term::Variable(a), Term::Variable(b)) => a.cmp(b),
+        (Term::Constant { declaration: a, .. }, Term::Constant { declaration: b, .. }) => a.cmp(b),
+        _ => Ordering::Equal,
+    });
+    if by_shape != Ordering::Equal {
+        return by_shape;
+    }
+    let mut pairs = a.children().zip(b.children());
+    let by_children = pairs
+        .by_ref()
+        .map(|(a, b)| order(arena, a, b))
+        .find(|ordering| *ordering != Ordering::Equal)
+        .unwrap_or(Ordering::Equal);
+    by_children.then_with(|| a.children().count().cmp(&b.children().count()))
+}
+
+fn associativity(
+    arena: &mut TermArena,
+    license: &License,
+    first: TermHandle,
+    second: TermHandle,
+    third: TermHandle,
+) -> Option<Equality> {
+    let (law, left_nested_first) = license.associates?;
+    let inner = arena.apply_binary(license.operation, first, second);
+    let left_nested = arena.apply_binary(license.operation, inner, third);
+    let inner = arena.apply_binary(license.operation, second, third);
+    let right_nested = arena.apply_binary(license.operation, first, inner);
+    let proof = arena.apply_arguments(law, &[first, second, third]);
+    let stated = Equality {
+        carrier: license.carrier,
+        from: if left_nested_first {
+            left_nested
+        } else {
+            right_nested
+        },
+        to: if left_nested_first {
+            right_nested
+        } else {
+            left_nested
+        },
+        proof,
+    };
+    Some(if left_nested_first {
+        stated
+    } else {
+        stated.reversed(arena)
+    })
+}
+
+fn commutativity(
+    arena: &mut TermArena,
+    license: &License,
+    first: TermHandle,
+    second: TermHandle,
+) -> Option<Equality> {
+    let law = license.commutes?;
+    Some(Equality {
+        carrier: license.carrier,
+        from: arena.apply_binary(license.operation, first, second),
+        to: arena.apply_binary(license.operation, second, first),
+        proof: arena.apply_arguments(law, &[first, second]),
+    })
+}
+
+/// The next rewrites toward the canonical form of a licensed operation's
+/// chains: nested to the right and, where the operation also commutes, with
+/// operands in `order`. One call returns one regrouping, or the three
+/// rewrites that swap two neighbours. `None` means the term is canonical.
+fn next_rearrangement(
+    arena: &mut TermArena,
+    licenses: &[License],
+    term: TermHandle,
+    slots: &mut Vec<usize>,
+) -> Option<Vec<Step>> {
+    use std::cmp::Ordering::Greater;
+    if let Some((license, first, second)) = licensed(arena, licenses, term) {
+        let license = *license;
+        // op(op(x, y), z) regroups to op(x, op(y, z)).
+        if let Some((inner, x, y)) = licensed(arena, licenses, first)
+            && arena.structurally_equal(inner.operation, license.operation)
+            && let Some(rule) = associativity(arena, &license, x, y, second)
+        {
+            return Some(vec![Step {
+                slots: slots.clone(),
+                rule,
+            }]);
+        }
+        if license.commutes.is_some() {
+            let tail = licensed(arena, licenses, second)
+                .filter(|(inner, ..)| arena.structurally_equal(inner.operation, license.operation))
+                .map(|(_, next, rest)| (next, rest));
+            match tail {
+                // op(x, op(y, rest)) with x after y: regroup to the left,
+                // commute the pair, regroup back.
+                Some((next, rest)) => {
+                    if order(arena, first, next) == Greater
+                        && let Some(regroup) = associativity(arena, &license, first, next, rest)
+                        && let Some(swap) = commutativity(arena, &license, first, next)
+                        && let Some(back) = associativity(arena, &license, next, first, rest)
+                    {
+                        let mut pair = slots.clone();
+                        pair.extend([0, 1]);
+                        return Some(vec![
+                            Step {
+                                slots: slots.clone(),
+                                rule: regroup.reversed(arena),
+                            },
+                            Step {
+                                slots: pair,
+                                rule: swap,
+                            },
+                            Step {
+                                slots: slots.clone(),
+                                rule: back,
+                            },
+                        ]);
+                    }
+                }
+                None => {
+                    if order(arena, first, second) == Greater
+                        && let Some(rule) = commutativity(arena, &license, first, second)
+                    {
+                        return Some(vec![Step {
+                            slots: slots.clone(),
+                            rule,
+                        }]);
+                    }
+                }
+            }
+        }
+    }
+    // Operands are rearranged wherever they sit beneath applications. A
+    // binder is not entered: a law is stated outside it.
+    if let Term::Apply { function, argument } = arena.get(term) {
+        for (slot, child) in [function, argument].into_iter().enumerate() {
+            slots.push(slot);
+            let found = next_rearrangement(arena, licenses, child, slots);
+            slots.pop();
+            if found.is_some() {
+                return found;
+            }
+        }
+    }
+    None
+}
+
+/// The path of surrounding terms for a list of child slots.
+fn path_to(arena: &TermArena, term: TermHandle, slots: &[usize]) -> Option<Vec<Surrounding>> {
+    let mut path = Vec::with_capacity(slots.len());
+    let mut focus = term;
+    for &slot in slots {
+        path.push(Surrounding {
+            parent: focus,
+            slot,
+            depth: 0,
+        });
+        focus = arena.get(focus).children().nth(slot)?;
+    }
+    Some(path)
+}
+
+/// The canonical form of the term under the licenses, and the rewrites that
+/// reach it in order.
+fn rearrange(
+    arena: &mut TermArena,
+    licenses: &[License],
+    mut term: TermHandle,
+    search_steps: &mut usize,
+) -> Result<(TermHandle, Vec<Step>), SearchError> {
+    let mut taken = Vec::new();
+    if licenses.is_empty() {
+        return Ok((term, taken));
+    }
+    while let Some(steps) = next_rearrangement(arena, licenses, term, &mut Vec::new()) {
+        for step in steps {
+            charge(search_steps)?;
+            let path = path_to(arena, term, &step.slots).ok_or(SearchError::NoProof)?;
+            term = plug(arena, &path, step.rule.to, 0);
+            taken.push(step);
+        }
+    }
+    Ok((term, taken))
+}
+
+/// Extend a proof that `left` equals `term` by one rewrite of `term`.
+fn rewrite(
+    arena: &mut TermArena,
+    ty: TermHandle,
+    left: TermHandle,
+    term: TermHandle,
+    base: TermHandle,
+    slots: &[usize],
+    rule: Equality,
+) -> Result<(TermHandle, TermHandle), SearchError> {
+    let path = path_to(arena, term, slots).ok_or(SearchError::NoProof)?;
+    let rewritten = plug(arena, &path, rule.to, 0);
+    let destination = arena.insert(Term::Variable(1));
+    let under_binders = plug(arena, &path, destination, 2);
+    let carrier = shift(arena, ty, 0, 2);
+    let start = shift(arena, left, 0, 2);
+    let conclusion = arena.insert(Term::Id {
+        ty: carrier,
+        left: start,
+        right: under_binders,
+    });
+    Ok((rewritten, rule.eliminate(arena, conclusion, base)))
 }
 
 /// Citations are instantiated terms from the checked signature. Inferring
 /// their types keeps both endpoints tied to the actual evidence supplied.
-///
-/// Both sides of the goal and both endpoints of every citation are
-/// normalized first. The search then rewrites one side with the citations,
-/// beneath any term former and any binder, until it reaches the other; each
-/// rewrite is an identity elimination, so the result is a kernel term.
 pub(crate) fn prove(
     arena: &mut TermArena,
     context: &Context,
     goal: TermHandle,
     citations: &[TermHandle],
+    search_steps: usize,
+    conversion: &mut Budget,
+) -> Result<TermHandle, SearchError> {
+    prove_under(
+        arena,
+        context,
+        goal,
+        citations,
+        &[],
+        search_steps,
+        conversion,
+    )
+}
+
+/// Both sides of the goal and both endpoints of every citation are
+/// normalized first. The search then rewrites one side with the citations,
+/// beneath any term former and any binder. A term it reaches proves the goal
+/// when it and the other side have one canonical form under the licensed
+/// operations' laws. Every rewrite, a citation's or a law's, is an identity
+/// elimination, so the result is one kernel term from the left side to the
+/// right.
+pub(crate) fn prove_under(
+    arena: &mut TermArena,
+    context: &Context,
+    goal: TermHandle,
+    citations: &[TermHandle],
+    licenses: &[License],
     mut search_steps: usize,
     conversion: &mut Budget,
 ) -> Result<TermHandle, SearchError> {
     let Term::Id { ty, left, right } = arena.get(goal) else {
         return Err(SearchError::NoProof);
     };
-    let left = normalize(arena, context, left, conversion)?;
-    let right = normalize(arena, context, right, conversion)?;
+    let definitions = Definitions::of(arena, context);
+    let left = normal(arena, context, &definitions, left, conversion)?;
+    let right = normal(arena, context, &definitions, right, conversion)?;
     let reflexivity = arena.insert(Term::Refl { ty, value: left });
     if arena.structurally_equal(left, right) {
         check_type(arena, context, reflexivity, goal, conversion)?;
         return Ok(reflexivity);
+    }
+    let (canonical, from_right) = rearrange(arena, licenses, right, &mut search_steps)?;
+    // Whether the reached term closes the goal: rearrange it, then undo the
+    // right side's rearrangement from the shared canonical form.
+    let close = |arena: &mut TermArena,
+                 term: TermHandle,
+                 base: TermHandle,
+                 search_steps: &mut usize,
+                 conversion: &mut Budget|
+     -> Result<Option<TermHandle>, SearchError> {
+        if arena.structurally_equal(term, right) {
+            check_type(arena, context, base, goal, conversion)?;
+            return Ok(Some(base));
+        }
+        if licenses.is_empty() {
+            return Ok(None);
+        }
+        let (reached, forward) = rearrange(arena, licenses, term, search_steps)?;
+        if !arena.structurally_equal(reached, canonical) {
+            return Ok(None);
+        }
+        let (mut term, mut proof) = (term, base);
+        for step in &forward {
+            (term, proof) = rewrite(arena, ty, left, term, proof, &step.slots, step.rule)?;
+        }
+        for step in from_right.iter().rev() {
+            let back = step.rule.reversed(arena);
+            (term, proof) = rewrite(arena, ty, left, term, proof, &step.slots, back)?;
+        }
+        check_type(arena, context, proof, goal, conversion)?;
+        Ok(Some(proof))
+    };
+    if let Some(proof) = close(arena, left, reflexivity, &mut search_steps, conversion)? {
+        return Ok(proof);
     }
     let mut rules = Vec::new();
     for &proof in citations {
@@ -177,8 +730,8 @@ pub(crate) fn prove(
         {
             let equality = Equality {
                 carrier,
-                from: normalize(arena, context, from, conversion)?,
-                to: normalize(arena, context, to, conversion)?,
+                from: normal(arena, context, &definitions, from, conversion)?,
+                to: normal(arena, context, &definitions, to, conversion)?,
                 proof,
             };
             rules.extend([equality, equality.reversed(arena)]);
@@ -222,8 +775,8 @@ pub(crate) fn prove(
                     right: under_binders,
                 });
                 let proof = rule.eliminate(arena, conclusion, base);
-                if arena.structurally_equal(rewritten, right) {
-                    check_type(arena, context, proof, goal, conversion)?;
+                if let Some(proof) = close(arena, rewritten, proof, &mut search_steps, conversion)?
+                {
                     return Ok(proof);
                 }
                 reached.push((rewritten, proof));
@@ -401,11 +954,16 @@ impl Declarations {
                     }
                 }
                 ClauseOperand::Scalar(term) => self.scalar(term, binders)?,
-                ClauseOperand::Application { declaration, arguments } => {
-                    let domains = arguments.iter()
+                ClauseOperand::Application {
+                    declaration,
+                    arguments,
+                } => {
+                    let domains = arguments
+                        .iter()
                         .map(|&arg| clause.values[arg as usize].carrier)
                         .collect::<Vec<_>>();
-                    let operands = arguments.iter()
+                    let operands = arguments
+                        .iter()
                         .map(|&arg| terms[arg as usize])
                         .collect::<Vec<_>>();
                     self.application(*declaration, ty, &domains, &operands)?

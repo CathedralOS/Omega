@@ -29,13 +29,23 @@ own statement. For a law that dispatches on a formal it proves one equality
 per case, over an arbitrary value of that case, and assembles the cases into
 one induction. A case is proved by normalizing both sides with the kernel and
 rewriting with the laws the case cites and with the law itself at a field of
-the case ([equality.rs](src/equality.rs), `prove`). The kernel checks the
-assembled term against the law's statement; the judgment is
+the case ([equality.rs](src/equality.rs), `prove_under`). The kernel checks
+the assembled term against the law's statement; the judgment is
 `RouteVerdict::Laws`, and a law or case left unproved is one entry of
-`RouteVerdict::UnprovedLaws` that names the equality and the arm. On the
-recovered Peano associativity law the proof takes 23,113 kernel conversion
-steps of a 65,536 budget, so larger laws need a cheaper search before they
-need a larger budget.
+`RouteVerdict::UnprovedLaws` that names the equality and the arm.
+
+Normalizing keeps a defined function folded: `plus(a, b)` stays `plus(a, b)`
+until the argument it dispatches on is a constructor, and then unfolds one
+step. The search also regroups and reorders the operands of an operation
+under the signature's licenses, the associativity and commutativity laws the
+program's conformance declares and that were stated before the law being
+proved. It brings both sides of the goal to one arrangement (nested to the
+right, operands in a fixed order where commutativity allows) and puts each
+law it used into the proof term, so the certificate's assumptions name it.
+Right distributivity of Peano multiplication is the customer: its successor
+case is the cited law at `pred` and one regrouping. The Peano associativity
+law takes 1,148 kernel conversion steps of a 65,536 budget and right
+distributivity 3,136.
 
 When every part is accepted, publication writes one Psi mathematical carrier
 row per data declaration into the root module

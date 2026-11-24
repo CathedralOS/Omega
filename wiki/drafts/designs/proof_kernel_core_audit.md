@@ -986,6 +986,57 @@ none`, which a clause application now requires. What step 2 did not build:
   `add(a, Zero) = a`, also needs `Succ(k position) = sup(succ, k)`, which
   this kernel does not convert. Step 3 meets it at `add_zero_right`.
 
+**Step 3a as built (2026-11-23), and what it still owes.** A proof may now
+regroup and reorder the operands of one operation without citing the laws
+that allow it. The license is the program's declared conformance: a law that
+satisfies a requirement of a trait application and states associativity or
+commutativity of an operation satisfying a requirement of the same
+application (`OperandLicense` in the
+[signature](../../../source-rust/subsystems/compiler/source-to-psi/representations/lowered-program/README.md#the-mathematical-signature)).
+Stage 05 reads such laws before the other machines, so a law may lean on
+them wherever the source declares it, and a proof still rests only on
+statements that come before its own. The search brings both sides of a goal
+to one arrangement and puts every law it used into the proof term, so the
+certificate names it.
+
+- **Customer.** `peano_right_distributivity` proves
+  `times(plus(a, b), c) = plus(times(a, c), times(b, c))` by induction,
+  calling only the law itself at `pred`. The kernel judges it resting on one
+  assumption, the associativity statement. Its twin drops the call on `pred`
+  and is refused at the successor arm: the equality left over is the law
+  being proved. The same program with `plus_assoc` no longer declared as the
+  trait's `add_assoc` is refused too. Reordering is tested on a bare
+  signature with assumed laws, including the four-addend shuffle
+  `mul_distributes` leaves.
+- **Cost.** The producer keeps a defined function folded until the argument
+  it dispatches on is a constructor, where step 2 unfolded every definition
+  to its `indW`. The associativity law went from 23,113 conversion steps and
+  271,116 arena slots to 1,148 and 18,724. Right distributivity takes 3,136
+  and 64,976.
+- **Not done: left `mul_distributes`.** It needs the addends reordered, so it
+  needs `add_comm` proved, and the base case of `add_comm` is
+  `add(b, Zero) = b`, the equality the unit-eta bullet above says this
+  encoding cannot prove
+  (`a_tree_of_a_case_is_not_its_constructor_by_computation`). That is a
+  defect of the encoding, and repairing it needs no ruling and no new kernel
+  rule. Keep only the trees whose child function is the constructor's own:
+  `Data = Σ (t : W). Canonical(t)`, where `Canonical(sup(case, k))` holds the
+  case's fields, a proof that the constructor's child function over those
+  fields is identical to `k`, and `Canonical` of each field. `J` on that
+  identity replaces `k` by the constructor's function, so the induction
+  principle is stated over constructor applications (`P(m) -> P(Succ(m))`)
+  and computes on them by `indW`, `J` on `refl`, beta and pair eta. The
+  [inductive profile](../../spec/proofs/inductive_profile.md#derived-indexed-families)
+  builds indexed families the same way, as a tree paired with a recursively
+  defined condition. `PlainData` then hands out that derived induction, and
+  stages 05 and 06 build functions and laws from it.
+- **Not done: a law written as a machine with a result.** `core/nat.omg`
+  states `mul_distributes_right` as `-> Nat` with
+  `Nat::Succ { prev: mul_distributes_right(prev, b, c) }` in its successor
+  arm. The signature reads a machine with a result as a function and refuses
+  a guarantee on one. Step 3 needs a reading of that shape; the Peano fixture
+  states the law as a machine with no result.
+
 The first version of this plan started with level binders and value-indexed
 type arguments because they move 66 samples. They move those samples to
 their next failure, the library needs neither, and level binders wait on

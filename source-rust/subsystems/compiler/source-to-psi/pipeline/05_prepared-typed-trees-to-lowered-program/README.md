@@ -18,7 +18,9 @@ lowered, and [read/signature.rs](src/read/signature.rs) turns what was read
 into the compilation's
 [mathematical signature](../../representations/lowered-program/README.md#the-mathematical-signature).
 [read/proof_stratum.rs](src/read/proof_stratum.rs) decides which declarations
-those are. The ordinary reader refuses the same data and machines when a
+those are. A law whose requirement states associativity or commutativity of
+an operation is read first, and the signature records it as a license for
+the proofs of the laws after it. The ordinary reader refuses the same data and machines when a
 runtime machine reaches them. A field of any other type in such data, a
 premise on such a machine and a result together with a guarantee are refused
 as not supported yet.

@@ -636,6 +636,57 @@ mod tests {
     }
 
     #[test]
+    fn a_tree_of_a_case_is_not_its_constructor_by_computation() {
+        // A value of the successor case is `sup(succ, k)` for some child
+        // function `k`. The constructor applied to the field `k(position)`
+        // is `sup(succ, _ => k(position))`. The two differ only in the child
+        // function, and the kernel has neither function extensionality nor an
+        // eta rule for the position type, so it does not convert them. A law
+        // that returns its own argument, such as `plus(a, Zero) = a`, meets
+        // exactly this pair in its successor case, so this encoding cannot
+        // prove it. The repair is to keep only the trees whose child
+        // function is the constructor's own (a dependent pair of a tree and
+        // that evidence), which needs no new kernel rule.
+        let mut arena = TermArena::new();
+        let mut budget = Budget::default();
+        let (data, declarations) = peano(&mut arena);
+        let signature = check_signature(&mut arena, &declarations, &mut budget).unwrap();
+        let ty = constant(&mut arena, PEANO);
+        for case in 0..2 {
+            let motive = lambda(&mut arena, ty, ty);
+            let (function, _) = data.case_binders(&mut arena, motive, case);
+            let context = Context::empty()
+                .with_signature(signature.clone())
+                .extend(function);
+            // The node of the case over the bound child function.
+            let carrier = data.carrier(&mut arena);
+            let children = data.children(&mut arena);
+            let label = data.label(&mut arena, case);
+            let child = variable(&mut arena, 0);
+            let node = arena.insert(Term::Sup {
+                carrier,
+                children,
+                label,
+                function: child,
+            });
+            let fields: Vec<_> = (0..data.arity(case))
+                .map(|field| {
+                    let position = data.position(&mut arena, case, field);
+                    let child = variable(&mut arena, 0);
+                    apply(&mut arena, child, position)
+                })
+                .collect();
+            let rebuilt = call(&mut arena, ZERO + case as u32, &fields);
+            check_type(&mut arena, &context, node, ty, &mut budget).unwrap();
+            check_type(&mut arena, &context, rebuilt, ty, &mut budget).unwrap();
+            assert!(
+                !convertible(&mut arena, &context, node, rebuilt, ty, &mut budget).unwrap(),
+                "case {case}"
+            );
+        }
+    }
+
+    #[test]
     fn wider_declarations_form_and_select_each_field() {
         // Three cases with zero, one and two fields: labels use the nested
         // sum and the two-field case selects a child by its position.
