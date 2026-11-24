@@ -1301,8 +1301,8 @@ starts with records.
   - A refused law whose goal names a field inside one case of an induction
     prints `?` for that field.
 
-**Step 7 as built so far (2026-11-24): a quotient of mathematical data, and
-equal classes for related representatives.** `data Sign = Representative %
+**Step 7 as built (2026-11-24): a quotient of mathematical data, equal
+classes for related representatives, and operations on a quotient.** `data Sign = Representative %
 same_sign requires same_sign satisfies Equivalence<Representative,
 same_sign> as SameSign;` is read into the mathematical signature when
 `Representative` is mathematical data.
@@ -1316,15 +1316,35 @@ same_sign> as SameSign;` is read into the mathematical signature when
   conformance must have proved exactly reflexivity, symmetry or transitivity
   of this relation. The twin `quotient/fail/symmetry_of_equal_values_only`
   gives its `symmetric` row one more premise and is refused for that row.
+  The comparison matches premises in any order: a machine's `requires`
+  clauses reach the signature in canonical order, not as written.
 - **Equal classes.** `core\Identity::<Sign>(a as Sign, b as Sign)` is proved
   from a proof of `same_sign(a, b)` by the kernel's soundness assumption.
   The fixture relates two numbers when both are zero or neither is, so the
   law equates the classes of different numbers; its receipt counts three
   assumptions (the quotient type, the class of a value, soundness) and its
   check takes 932 conversion steps.
+- **Operations.** A machine whose body is `Quotient::lift` or
+  `Quotient::define` is an operation on classes given by an operation on
+  representatives. The correspondence judgment is two statements the
+  compiler writes itself and compares with what the selected theorems
+  proved. The congruence: for two representatives of each class and one
+  value of each other argument, related arguments and both calls allowed
+  give related results (equal results when the operation returns no class).
+  The transport: what the public machine requires of the classes gives what
+  the representative operation requires. `lift` with two arguments and
+  `define` select no transport theorem, so that statement is proved by the
+  compiler with no citation, and `define` proves the converse too. The pair
+  recovered from the old corpus is `quotient/pass/lifted_operation` and
+  `quotient/fail/lift_selects_another_theorem`, whose lift names a proved
+  theorem that is not the congruence.
 - **Not done:**
-  - `Quotient::lift` and `Quotient::define`, and the correspondence judgment
-    that checks them.
+  - A lifted operation has no definition, so no clause may apply one. The
+    kernel's `lift` would define it when the representative operation
+    requires nothing; an operation that requires something needs the
+    dependent eliminator.
+  - `Quotient::lift` with a constant, a computed argument, an omitted formal
+    or a formal passed twice, which the specification permits.
   - Anything that needs the kernel's `effective` assumption (equal classes
     give related representatives). The specification allows it only for a
     relation shown to be a mere proposition, and a quotient declaration has

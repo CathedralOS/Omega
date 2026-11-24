@@ -121,7 +121,8 @@ fn a_symmetry_row_that_asks_for_more_is_refused() {
     assert_eq!(law.cause, UnprovedCause::NoDerivation);
     assert_eq!(
         law.detail,
-        "the proved equality is not the law its requirement declares"
+        "the proved equality is not the `symmetric` law that the quotient `Sign` needs of \
+         `same_sign`"
     );
 }
 
@@ -139,5 +140,218 @@ fn unrelated_representatives_are_not_given_one_class() {
         "cannot prove ensures contract for `related_representatives_have_one_class`: \
          core\\Identity::<Sign>(quotient(Representative, same_sign, a), \
          quotient(Representative, same_sign, b))"
+    );
+}
+
+const LIFTED: &str = include_str!("../../tests/fixtures/quotient/pass/lifted_operation/main.omg");
+const SUBSTITUTED: &str =
+    include_str!("../../tests/fixtures/quotient/fail/lift_selects_another_theorem/main.omg");
+const LIFT: &str = "Quotient::lift::<normal, normal_respects, normal_transports>(value)";
+
+/// Each judged law of `machine`, as its conversion steps and the number of
+/// assumptions it rests on.
+fn judged_laws(judgment: &SignatureJudgment, machine: &str) -> Vec<(u32, u32)> {
+    judgment
+        .laws
+        .iter()
+        .filter(|law| law.machine == machine)
+        .map(|law| {
+            let MathematicalCoreDecision::Judged(receipt) = law.decision else {
+                panic!("the kernel must judge the law: {law:?}")
+            };
+            (law.conversion_steps, receipt.assumption_closure)
+        })
+        .collect()
+}
+
+#[test]
+fn an_operation_on_a_quotient_is_judged_by_the_theorems_it_selects() {
+    let verdicts = judged(&proofs(LIFTED));
+    let judgment = signature(&verdicts);
+    // The congruence is about representatives only. The transport states
+    // what `normal_class` requires of a class, so each of its two laws
+    // rests on the quotient type and the class of a value.
+    let congruence = judged_laws(judgment, "normal_respects");
+    let transport = judged_laws(judgment, "normal_transports");
+    eprintln!("normal_respects {congruence:?}, normal_transports {transport:?}");
+    assert!(matches!(congruence.as_slice(), [(_, 0)]), "{congruence:?}");
+    assert!(
+        matches!(transport.as_slice(), [(_, 2), (_, 2)]),
+        "{transport:?}"
+    );
+    // The selected transport is all the operation owes: nothing is stated
+    // in its own name.
+    assert!(judged_laws(judgment, "normal_class").is_empty());
+}
+
+#[test]
+fn a_lift_that_selects_another_theorem_is_refused() {
+    let source = proofs(SUBSTITUTED);
+    assert_eq!(
+        source,
+        proofs(LIFTED).replace(
+            LIFT,
+            "Quotient::lift::<normal, same_sign_symmetric, normal_transports>(value)"
+        )
+    );
+    let verdicts = judged(&source);
+    let law = unproved(&verdicts);
+    assert_eq!(law.machine, "same_sign_symmetric");
+    assert_eq!(law.cause, UnprovedCause::NoDerivation);
+    assert_eq!(
+        law.detail,
+        "the proved equality is not the congruence `normal_class` needs: from related arguments \
+         and what `normal` requires of each, related results of `normal`"
+    );
+}
+
+#[test]
+fn a_lift_with_no_transport_theorem_owes_what_its_operation_requires() {
+    let source = proofs(LIFTED).replace(LIFT, "Quotient::lift::<normal, normal_respects>(value)");
+    assert_ne!(source, proofs(LIFTED));
+    let verdicts = judged(&source);
+    let judgment = signature(&verdicts);
+    // One law in the operation's own name: what it requires of a class
+    // gives what `normal` requires of a representative.
+    let owed = judged_laws(judgment, "normal_class");
+    assert!(matches!(owed.as_slice(), [(_, 2)]), "{owed:?}");
+}
+
+#[test]
+fn a_definition_on_a_quotient_owes_both_directions() {
+    let source = proofs(LIFTED).replace(LIFT, "Quotient::define::<normal, normal_respects>(value)");
+    assert_ne!(source, proofs(LIFTED));
+    let verdicts = judged(&source);
+    let judgment = signature(&verdicts);
+    let owed = judged_laws(judgment, "normal_class");
+    assert!(matches!(owed.as_slice(), [(_, 2), (_, 2)]), "{owed:?}");
+}
+
+#[test]
+fn a_lift_is_refused_when_its_requirement_does_not_give_the_operations() {
+    // `normal` now asks for a number whose sign is zero. Nothing
+    // `normal_class` requires of a class says so.
+    let source = proofs(LIFTED)
+        .replace(LIFT, "Quotient::lift::<normal, normal_respects>(value)")
+        .replace(
+            "machine normal(value: Representative) -> Representative\n\
+             requires core\\Identity::<Representative>(value, value)",
+            "machine normal(value: Representative) -> Representative\n\
+             requires core\\Identity::<Representative>(sign(value), Representative::Zero)",
+        )
+        .replace(
+            "    core\\Identity::<Representative>(left, left),\n    \
+             core\\Identity::<Representative>(right, right)\n\
+             ensures same_sign(normal(left), normal(right))",
+            "    core\\Identity::<Representative>(sign(left), Representative::Zero),\n    \
+             core\\Identity::<Representative>(sign(right), Representative::Zero)\n\
+             ensures same_sign(normal(left), normal(right))",
+        );
+    assert!(
+        source.matches("Representative::Zero)").count() >= 3,
+        "{source}"
+    );
+    let verdicts = judged(&source);
+    let law = unproved(&verdicts);
+    assert_eq!(law.machine, "normal_class");
+    assert_eq!(law.cause, UnprovedCause::NoDerivation);
+    assert_eq!(
+        law.statement,
+        "cannot prove ensures contract for `normal_class`: what `normal` requires of a \
+         representative"
+    );
+}
+
+#[test]
+fn an_operation_lifted_to_a_quotient_is_not_a_term() {
+    let source = format!(
+        "{}\nmachine uses_the_operation(a: Representative)\n\
+         requires core\\Identity::<Sign>(a as Sign, a as Sign)\n\
+         ensures core\\Identity::<Sign>(normal_class(a as Sign), normal_class(a as Sign))\n{{\n}}\n",
+        proofs(LIFTED)
+    );
+    let verdicts = judged(&source);
+    let refused: Vec<_> = verdicts
+        .iter()
+        .filter_map(|verdict| match verdict {
+            RouteVerdict::FallBack(refusal) => Some(refusal.detail.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        matches!(refused.as_slice(), [detail]
+            if detail.contains("term that applies an operation lifted to a quotient")),
+        "{verdicts:?}"
+    );
+}
+
+#[test]
+fn an_argument_that_is_no_class_is_shared_by_both_calls() {
+    // `pick` takes a number and a second number it ignores. Its lift takes
+    // them in the other order, the second as it is, so the congruence has
+    // two representatives of the class and one `other`. `sign_of` returns a
+    // number, not a class, so its congruence ends in an equality.
+    let source = format!(
+        "{}{}",
+        proofs(CLASS),
+        r"
+machine pick(value: Representative, other: Representative) -> Representative {
+    sign(value)
+}
+
+machine pick_respects(left: Representative, right: Representative, other: Representative)
+requires same_sign(left, right)
+ensures same_sign(pick(left, other), pick(right, other))
+{
+}
+
+machine pick_class(other: Representative, value: Sign) -> Sign {
+    Quotient::lift::<pick, pick_respects>(value, other)
+}
+
+machine sign_respects(left: Representative, right: Representative)
+requires same_sign(left, right)
+ensures core\Identity::<Representative>(sign(left), sign(right))
+{
+}
+
+machine sign_of(value: Sign) -> Representative {
+    Quotient::define::<sign, sign_respects>(value)
+}
+"
+    );
+    let verdicts = judged(&source);
+    let judgment = signature(&verdicts);
+    assert!(
+        matches!(judged_laws(judgment, "pick_respects").as_slice(), [(_, 0)]),
+        "{judgment:?}"
+    );
+    assert!(
+        matches!(judged_laws(judgment, "sign_respects").as_slice(), [(_, 0)]),
+        "{judgment:?}"
+    );
+    // Neither operation requires anything, so neither owes a law.
+    assert!(judged_laws(judgment, "pick_class").is_empty());
+    assert!(judged_laws(judgment, "sign_of").is_empty());
+
+    // The same lift with `other` as a second pair of representatives is
+    // refused where the theorem is read: `other` is no class.
+    let paired = source.replace(
+        "machine pick_respects(left: Representative, right: Representative, other: Representative)",
+        "machine pick_respects(left: Representative, right: Representative, other: Representative, again: Representative)",
+    );
+    assert_ne!(paired, source);
+    let verdicts = judged(&paired);
+    let refused: Vec<_> = verdicts
+        .iter()
+        .filter_map(|verdict| match verdict {
+            RouteVerdict::FallBack(refusal) => Some(refusal.detail.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        matches!(refused.as_slice(), [detail]
+            if detail.contains("theorem of a quotient operation over other than two representatives")),
+        "{verdicts:?}"
     );
 }

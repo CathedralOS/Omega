@@ -48,6 +48,7 @@ impl ProductPolicyInputs<'_> {
         &self,
         typed: &mut typed_trees::TypedTrees,
         subject: Option<semantic_vocabulary::PackageKeyIdentity>,
+        test: Option<&crate::registered_tests::TestRoot>,
     ) -> Result<(Option<symbols::SymbolHandle>, AdmittedProductPolicy), Vec<Diagnostic>> {
         let activation = self
             .activation
@@ -60,7 +61,7 @@ impl ProductPolicyInputs<'_> {
                 .map_err(|reason| vec![Diagnostic::error(reason)])
             })
             .transpose()?;
-        let admitted = product_policy::admit_product_policy(typed, activation, self)?;
+        let admitted = product_policy::admit_product_policy(typed, activation, self, test)?;
         Ok((activation, admitted))
     }
 }
@@ -192,7 +193,11 @@ pub(crate) fn prepare_lower_and_check(
 ) -> Result<CompletedProductSource, Vec<Diagnostic>> {
     let mut authored = continuation.complete_authored(timings)?;
     let typed = authored.authored_program_mut();
-    let (activation, admitted) = inputs.policy.admit(typed, inputs.subject)?;
+    let test = match entry {
+        ProductEntry::RegisteredTest { root, .. } => Some(root),
+        _ => None,
+    };
+    let (activation, admitted) = inputs.policy.admit(typed, inputs.subject, test)?;
     let native_supplies = inputs
         .native_bindings
         .resolve(typed, admitted.native_bindings)?;
@@ -217,25 +222,19 @@ pub(crate) fn prepare_lower_and_check(
             machine.purpose == crate::source_state::machine::MachinePurpose::ProviderDefaults
         });
     let unprepared = has_defaults.then(|| typed.clone());
-    // A registered test has its own entry and provider choices. Its harness
-    // currently uses the ordinary target defaults.
-    let (root_bindings, explicit_providers) = match entry {
-        ProductEntry::RegisteredTest { root, target } => (
-            vec![root.bind(&typed, &admitted.declarations.test_groups, target)?],
-            Vec::new(),
-        ),
-        ProductEntry::BuildBindings | ProductEntry::PackageReview | ProductEntry::Inspection(_) => {
-            let bindings = crate::compile_product::declaration_lookup::collect_root_bindings(
-                &typed,
-                inputs.root_binding_requests,
-            )?;
-            (bindings, admitted.providers)
+    let root_bindings = match entry {
+        ProductEntry::RegisteredTest { root, target } => {
+            vec![root.bind(&typed, &admitted.declarations.test_groups, target)?]
         }
+        _ => crate::compile_product::declaration_lookup::collect_root_bindings(
+            &typed,
+            inputs.root_binding_requests,
+        )?,
     };
     let mut pass = ProductSourcePass {
         inputs,
         activation,
-        explicit_providers,
+        explicit_providers: admitted.providers,
         representations: admitted.representations,
         declarations: admitted.declarations,
         native_supplies,

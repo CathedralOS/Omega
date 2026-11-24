@@ -1,0 +1,84 @@
+// An operation on a quotient, given by an operation on its representatives.
+// `normal_class` takes a class to the class of its representative's sign.
+// That is one answer per class only because `normal` takes related numbers
+// to related numbers, which `normal_respects` proves; `Quotient::lift`
+// selects that theorem. `normal` asks something of its argument, so
+// `normal_transports` shows that what `normal_class` asks of a class gives
+// what `normal` asks of each representative.
+use omega\language\core\Equivalence;
+use omega\language\core\ProcessExit;
+
+data Representative {
+    case Zero;
+    case Next(previous: Representative);
+}
+
+// Zero for zero, one for everything else.
+machine sign(a: Representative) -> Representative {
+    transition a {
+        Representative::Zero -> Representative::Zero,
+        Representative::Next { previous } -> Representative::Next { previous: Representative::Zero }
+    }
+}
+
+proposition same_sign(a: Representative, b: Representative) =
+    core\Identity::<Representative>(sign(a), sign(b));
+
+machine same_sign_symmetric(a: Representative, b: Representative)
+requires same_sign(a, b)
+ensures same_sign(b, a)
+{
+}
+
+SameSign satisfies Equivalence<Representative, same_sign> {
+    machine reflexive(value: Representative) ensures same_sign(value, value) { }
+    machine symmetric(left: Representative, right: Representative) requires same_sign(left, right) ensures same_sign(right, left) { }
+    machine transitive(left: Representative, middle: Representative, right: Representative) requires same_sign(left, middle), same_sign(middle, right) ensures same_sign(left, right) { }
+}
+
+data Sign = Representative % same_sign
+requires same_sign satisfies
+    Equivalence<Representative, same_sign>
+    as SameSign;
+
+machine normal(value: Representative) -> Representative
+requires core\Identity::<Representative>(value, value)
+{
+    sign(value)
+}
+
+machine normal_respects(left: Representative, right: Representative)
+requires
+    same_sign(left, right),
+    core\Identity::<Representative>(left, left),
+    core\Identity::<Representative>(right, right)
+ensures same_sign(normal(left), normal(right))
+{
+}
+
+machine normal_transports(left: Representative, right: Representative)
+requires
+    core\Identity::<Sign>(left as Sign, left as Sign),
+    core\Identity::<Sign>(right as Sign, right as Sign)
+ensures
+    core\Identity::<Representative>(left, left),
+    core\Identity::<Representative>(right, right)
+{
+}
+
+machine normal_class(value: Sign) -> Sign
+requires core\Identity::<Sign>(value, value)
+{
+    Quotient::lift::<normal, normal_respects, normal_transports>(value)
+}
+
+data Main { }
+machine exit_with_status(main: @mutable Main) reaches ProcessExit {
+    ProcessExit::exit_process(0);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit {
+    let mutable entry_storage: Main;
+    block exit_with_status(@mutable entry_storage);
+}

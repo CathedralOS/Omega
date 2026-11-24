@@ -66,6 +66,7 @@ pub(super) fn admit_product_policy(
     typed: &mut TypedTrees,
     activation: Option<SymbolHandle>,
     request: &ProductPolicyInputs<'_>,
+    test: Option<&crate::registered_tests::TestRoot>,
 ) -> Result<AdmittedProductPolicy, Vec<Diagnostic>> {
     use crate::declaration_selection::BuildOperation;
     let formations = provider_requests::product_formation_authors(typed, request.declared, |request| {
@@ -84,13 +85,6 @@ pub(super) fn admit_product_policy(
         request.executed,
         |operation| operation == BuildOperation::TestGroupRegistration,
     )?;
-    let providers = provider_requests::admit_product_provider_requests(
-        typed,
-        activation,
-        request.declared,
-        request.executed,
-        &formations,
-    )?;
     let declaration_formations = formations
         .iter()
         .filter(|(request, _)| {
@@ -102,6 +96,29 @@ pub(super) fn admit_product_policy(
         })
         .cloned()
         .collect::<Vec<_>>();
+    let declarations = crate::compile_product::declarations::admit(
+        typed,
+        activation,
+        request.declared,
+        request.executed,
+        &declaration_formations,
+    )?;
+    let provider_events = match test {
+        Some(test) => {
+            &test
+                .registration(typed, &declarations.test_groups)?
+                .configuration
+                .providers[..]
+        }
+        None => request.executed,
+    };
+    let providers = provider_requests::admit_product_provider_requests(
+        typed,
+        activation,
+        request.declared,
+        provider_events,
+        &formations,
+    )?;
     let mut native_formations = formations
         .iter()
         .filter(|(request, _)| request.operation == BuildOperation::NativeBinding)
@@ -144,13 +161,6 @@ pub(super) fn admit_product_policy(
         activation,
         request.declared,
         request.executed,
-    )?;
-    let declarations = crate::compile_product::declarations::admit(
-        typed,
-        activation,
-        request.declared,
-        request.executed,
-        &declaration_formations,
     )?;
     let exclusions = super::behavior_exclusions::admit(
         typed,

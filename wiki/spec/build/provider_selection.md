@@ -97,6 +97,13 @@ Build::select_provider::<Console, CapturedConsole>(builder);
 Build::select_provider::<Console, CapturedConsole>(builder, CompositionMode::Independent);
 ```
 
+A registered test group can select its own provider with
+`Build::select_provider::<Slot, Provider>(builder, target, group)`. The final
+operand must be a group issued by the same Build activation. The selection
+belongs to that group's test product on the named target. A sibling group and
+the application keep their own selections. The executor checks resource grants
+separately under [test group configuration](testing.md#group-configuration-and-authority).
+
 Runtime-variable descriptors are ordinary capability values, not provider
 selectors. An explicit compile-time target-catalog reference keys a Build row;
 it is not a runtime routing descriptor or an observation of the realized target.

@@ -34,6 +34,7 @@ use terminal_interpreter::{
     TerminalImportAdapter, TerminalImportSignature, TerminalScalarValue, TerminalStructuralValue,
 };
 
+mod group_providers;
 mod native_bindings;
 mod product_queries;
 mod test_groups;
@@ -304,6 +305,7 @@ impl TerminalBuildBindingHost {
         TerminalBuildBindingAdapter {
             host: Arc::clone(self),
             signature,
+            presented_group: None,
         }
     }
 
@@ -313,6 +315,8 @@ impl TerminalBuildBindingHost {
 }
 
 pub struct TerminalBuildBindingAdapter {
+    /// The original storage loan authenticated for the current host call.
+    presented_group: Option<(terminal_interpreter::TerminalOriginalStorageRoot, usize)>,
     host: Arc<TerminalBuildBindingHost>,
     signature: TerminalImportSignature,
 }
@@ -329,19 +333,27 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
         boundary: semantic_vocabulary::BoundaryMachineId,
         _arguments: &[terminal_interpreter::TerminalScalarValue],
     ) -> terminal_interpreter::TerminalCallStorageRequirements<'_> {
+        let operand = self
+            .host
+            .calls
+            .iter()
+            .filter(|call| call.site.boundary == boundary)
+            .find_map(|call| call.operand.as_ref());
         terminal_interpreter::TerminalCallStorageRequirements {
-            original: false,
-            arguments: if self
-                .host
-                .calls
-                .iter()
-                .any(|call| call.site.boundary == boundary && call.operand.is_some())
-            {
-                &[0]
-            } else {
-                &[]
-            },
+            original: matches!(operand, Some(TerminalBuildBindingOperand::TestGroup { .. })),
+            arguments: if operand.is_some() { &[0] } else { &[] },
         }
+    }
+
+    fn prepare_original_storage(
+        &mut self,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        requests: &[terminal_interpreter::TerminalOriginalStorageRequest],
+    ) -> Result<terminal_interpreter::TerminalOriginalScalarBackings, TerminalEffectRejection> {
+        self.presented_group = None;
+        let (group, root, backings) = self.host.original_test_group(boundary, requests)?;
+        self.presented_group = Some((root, group));
+        Ok(backings)
     }
 
     fn handle_effect_with_buffers(
@@ -364,6 +376,29 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
                 ));
             }
             match operand {
+                TerminalBuildBindingOperand::TestGroup { .. } => {
+                    let Some((root, group)) = self.presented_group.take() else {
+                        return Err(TerminalEffectRejection::new(
+                            "provider selection has no issued test group",
+                        ));
+                    };
+                    let [terminal_interpreter::TerminalBoundaryStorageBuffer::Structural(buffer)] =
+                        storage_buffers
+                    else {
+                        return Err(TerminalEffectRejection::new(
+                            "provider selection lost the test group loan",
+                        ));
+                    };
+                    if buffer
+                        .original_storage()
+                        .is_none_or(|loan| loan.root() != root)
+                    {
+                        return Err(TerminalEffectRejection::new(
+                            "provider selection received another test group loan",
+                        ));
+                    }
+                    return self.commit_binding(effect, None, Some(group));
+                }
                 TerminalBuildBindingOperand::NativeLocator(_) => {
                     return self.commit_native(effect, storage_buffers);
                 }
@@ -396,7 +431,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
                         .find(|(case, _)| *case == id && value.path.is_empty())
                         .map(|(_, choice)| *choice)
                         .ok_or_else(|| refuse("provider selection has an unknown option case"))?;
-                    return self.commit_binding(effect, Some(choice));
+                    return self.commit_binding(effect, Some(choice), None);
                 }
             }
         }
@@ -496,7 +531,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
         &mut self,
         effect: &TerminalEffect,
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        self.commit_binding(effect, None)
+        self.commit_binding(effect, None, None)
     }
 }
 
@@ -505,6 +540,7 @@ impl TerminalBuildBindingAdapter {
         &self,
         effect: &TerminalEffect,
         provider_option: Option<ProviderSelectionOption>,
+        group: Option<usize>,
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         crate::host::require_effect_owner(effect, &self.host.artifact)?;
         use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
@@ -580,11 +616,12 @@ impl TerminalBuildBindingAdapter {
             }
             _ => None,
         };
-        let structural_operands = if description.is_some() || provider_option.is_some() {
-            &[][..]
-        } else {
-            structural_arguments.as_slice()
-        };
+        let structural_operands =
+            if description.is_some() || provider_option.is_some() || group.is_some() {
+                &[][..]
+            } else {
+                structural_arguments.as_slice()
+            };
         let (ticket, values) =
             activation_ticket(arguments, structural_operands, &state, &call.request)?;
         if call.action == TerminalBuildBindingOperation::RegisterTestGroup && values.is_empty() {
@@ -651,7 +688,7 @@ impl TerminalBuildBindingAdapter {
                                 value: IntegerValue::Unsigned(code),
                                 ..
                             },
-                            TerminalScalarValue::Boolean(independent),
+                            tail @ ..,
                         ],
                     ) => {
                         let target = u64::try_from(*code)
@@ -660,10 +697,21 @@ impl TerminalBuildBindingAdapter {
                             .ok_or_else(|| {
                                 refuse("Product selection names an unknown catalog target")
                             })?;
-                        let mode = if *independent {
-                            CompositionMode::Independent
-                        } else {
-                            CompositionMode::Fused
+                        let mode = match (tail, provider_option, group) {
+                            ([], Some(ProviderSelectionOption::Mode(mode)), None) => mode,
+                            ([], None, Some(_)) => CompositionMode::Fused,
+                            // Earlier Build publications passed the checked enum as a boolean.
+                            ([TerminalScalarValue::Boolean(true)], None, None) => {
+                                CompositionMode::Independent
+                            }
+                            ([TerminalScalarValue::Boolean(false)], None, None) => {
+                                CompositionMode::Fused
+                            }
+                            _ => {
+                                return Err(refuse(
+                                    "targeted provider selection requires a composition mode or an issued test group",
+                                ));
+                            }
                         };
                         (Some(target), Some(mode))
                     }
@@ -721,6 +769,14 @@ impl TerminalBuildBindingAdapter {
                 ));
             }
         };
+        if let Some(group) = group {
+            let ExecutedBuildSelection::Declaration(provider) = selection else {
+                return Err(refuse("test group selection is not a provider"));
+            };
+            state.record_group_provider(group, provider)?;
+            state.pending[ticket] = None;
+            return Ok(TerminalEffectResult::Unit);
+        }
         state
             .executed
             .try_reserve(1)

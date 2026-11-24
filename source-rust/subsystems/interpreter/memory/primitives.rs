@@ -5558,6 +5558,20 @@ pub(crate) mod scalar_storage {
     pub struct TerminalInvocationScalar(std::sync::Arc<std::sync::Mutex<TerminalScalarValue>>);
 
     impl TerminalInvocationScalar {
+        /// Check the original cell lent by this invocation after guest reborrows.
+        pub fn shares_storage(&self, backing: &dyn TerminalScalarBacking) -> bool {
+            let mut current: &dyn std::any::Any = backing;
+            // The interpreter wraps a resident result to enforce the declared
+            // access and representation at every read/write. The checked view
+            // keeps the same identity; callers continue using the view itself.
+            while let Some(view) = current.downcast_ref::<CheckedReferenceScalar>() {
+                current = view.backing.as_ref();
+            }
+            current
+                .downcast_ref::<Self>()
+                .is_some_and(|other| std::sync::Arc::ptr_eq(&self.0, &other.0))
+        }
+
         pub fn new(value: TerminalScalarValue) -> Result<Self, TerminalEffectRejection> {
             if value.literal().is_none() || !terminal_scalar_belongs_to_type(value) {
                 return Err(TerminalEffectRejection::new(
@@ -5931,6 +5945,24 @@ pub(crate) mod scalar_storage {
                 value: RefCell::new(word(37)),
                 faulted: Cell::new(false),
             })
+        }
+
+        #[test]
+        fn checked_reference_preserves_the_invocation_cell_identity_and_access() {
+            let value = word(37);
+            let cell = TerminalInvocationScalar::new(value).unwrap();
+            let other = TerminalInvocationScalar::new(value).unwrap();
+            let view = CheckedReferenceScalar {
+                access: terminal_psi::StructuralAccess::SharedBorrow,
+                backing: Rc::new(cell.clone()),
+                scalar: value.scalar_type(),
+                stored_scalar: value.scalar_type(),
+                restriction: None,
+            };
+            assert!(cell.shares_storage(&view));
+            assert!(!other.shares_storage(&view));
+            assert!(view.write(word(99)).is_err());
+            assert_eq!(cell.read().unwrap(), value);
         }
 
         #[test]

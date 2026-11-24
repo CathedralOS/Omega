@@ -21,12 +21,11 @@ pub struct TestRoot {
 }
 
 impl TestRoot {
-    pub(super) fn bind(
+    pub(super) fn registration<'a>(
         &self,
         typed: &TypedTrees,
-        groups: &[TestGroupRegistration],
-        target: &str,
-    ) -> Result<RootBinding, Vec<Diagnostic>> {
+        groups: &'a [TestGroupRegistration],
+    ) -> Result<&'a TestGroupRegistration, Vec<Diagnostic>> {
         let registration = groups
             .iter()
             .find(|group| group.origin == self.registration)
@@ -41,6 +40,16 @@ impl TestRoot {
             [registration.requirement],
         )
         .map_err(|why| vec![Diagnostic::error(why)])?;
+        Ok(registration)
+    }
+
+    pub(super) fn bind(
+        &self,
+        typed: &TypedTrees,
+        groups: &[TestGroupRegistration],
+        target: &str,
+    ) -> Result<RootBinding, Vec<Diagnostic>> {
+        let registration = self.registration(typed, groups)?;
         let implementation = source_symbols::rejoin_declaration(
             &self.declaration,
             &typed.symbols,

@@ -263,6 +263,9 @@ pub(crate) struct Program<'t> {
     pub(crate) template_bodies: Vec<(MachineId, templates::TemplateBody)>,
     /// Each quotient of mathematical data read so far (`quotients`).
     pub(crate) quotients: Vec<quotients::QuotientRecord>,
+    /// Each machine read so far whose body is one `Quotient::lift` or
+    /// `Quotient::define` (`quotients`).
+    pub(crate) lifted_operations: Vec<(MachineId, quotients::LiftedOperation)>,
     /// Each active clause retains the arguments an unfolded helper evaluates,
     /// even when its result does not use them. Frames keep nested scopes apart.
     clause_arguments: Vec<Vec<semantic_vocabulary::ScalarTerm>>,
@@ -574,6 +577,7 @@ impl<'t> Program<'t> {
             reading_template: None,
             template_bodies: Vec::new(),
             quotients: Vec::new(),
+            lifted_operations: Vec::new(),
             clause_arguments: Vec::new(),
             readiness: Vec::new(),
             names: IdTable::default(),

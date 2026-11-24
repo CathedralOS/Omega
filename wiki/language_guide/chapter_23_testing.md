@@ -55,30 +55,26 @@ crashing.
 
 ## Services and fixtures
 
-Register a filesystem test group the same way as an arithmetic group.
+A harness with a `PrivateFilesystem` provider can select it for a registered
+group that uses `FilesystemService`.
 
 ```omega
 let memory: TestGroup = builder.tests.group::<Tests::memory>();
+memory.inputs.private_filesystem = true;
+Build::select_provider::<FilesystemService, PrivateFilesystem>(builder, linux_x86_64, memory);
 ```
 
-For the test product, select a provider for the same `FilesystemService`
-that the application calls. For example, a harness that defines a conforming
-provider named `PrivateFilesystem` would make this selection in the test
-product's configuration:
+Setting `private_filesystem` gives each invocation in `Tests::memory` an empty
+private filesystem. Passing `memory` after the target selects `PrivateFilesystem`
+for that group. The application and sibling groups keep their own selections.
 
-```omega
-Build::select_provider::<FilesystemService, PrivateFilesystem>(builder, linux_x86_64);
-```
-
-The harness supplies a fresh, empty backing for that provider each time a test
-runs. Inside a test, an ordinary call such as
+Inside a test, an ordinary call such as
 `block FilesystemService::create_new("note.txt")` creates the file in that
 test's filesystem. A helper can open it again. The next test can create
 `note.txt` anew, even when both tests run in parallel.
 
 A dependency given that view can pass it along or narrow it. Asking for a host
-filesystem cannot give it access to the developer's files. The application's
-own provider selection is independent. See
+filesystem cannot give it access to the developer's files. See
 [test configuration and authority](../spec/build/testing.md#test-runner-filesystem-slot).
 
 ## What runs where
