@@ -1,0 +1,32 @@
+use native.omg as path_io;
+use native.omg as control;
+use omega\language\core\FilesystemMetadataQuery;
+use omega\language\core\widen_u32_to_u64;
+use omega\language\core\narrow_u64_to_i32_exact;
+use omega\language\core\narrow_i32_to_u64_exact;
+
+// Run the real canonical query and copy with a 5,000-unit resolved name. The
+// last byte of short buffers distinguishes refusal from a partial write.
+machine main() crashes Trap {
+    let mutable output: [u8; 5002];
+    output[0] = 45;
+    output[4999] = 45;
+    output[5000] = 45;
+    output[5001] = 46;
+    let short: i32 = block windows_canonical_query(1, @mutable output[0..5000]);
+    let needed: i32 = block windows_canonical_query(2, @mutable output[..]);
+    transition short == -122 && needed == -122 && output[0] == 45 && output[4999] == 45 && output[5000] == 45 {
+        true -> block complete(@mutable output),
+        false -> bad()
+    }
+    machine complete(output: @mutable [u8; 5002]) crashes Trap {
+        let result: i32 = block windows_canonical_query(1, @mutable output[0..5001]);
+        transition result == 0 && output[0] == 92 && output[2] == 63 && output[4] == 67
+            && output[4096] == 92 && output[4097] == 97 && output[4999] == 122
+            && output[5000] == 0 && output[5001] == 46 {
+            true -> done(), false -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

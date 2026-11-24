@@ -339,7 +339,11 @@ pub(super) fn select(
             b"GetFinalPathNameByHandleW",
             &[
                 Signed(64),
-                UnsignedArray(4096, 16, MutableBorrow),
+                Formal::UnsignedWindow {
+                    bits: 16,
+                    minimum: 1,
+                    access: MutableBorrow,
+                },
                 Unsigned(32),
                 Unsigned(32),
             ],
@@ -490,6 +494,27 @@ pub(super) fn select(
             continue;
         }
         validate_entry(declaration, binding, parameters, result, symbol)?;
+        let effect = if symbol == b"GetFinalPathNameByHandleW" {
+            let output = declaration
+                .structural_parameters
+                .first()
+                .and_then(|output| {
+                    layouts
+                        .iter()
+                        .find(|layout| layout.structural_type == output.structural_type)
+                })
+                .ok_or_else(|| {
+                    TerminalRuntimeError::missing(
+                        "runtime-filesystem",
+                        "final path query lost its admitted WCHAR output layout",
+                    )
+                })?;
+            Effect::FinalPath {
+                units: output.byte_size / 2,
+            }
+        } else {
+            effect
+        };
         return Ok(Some(Contract { effect, symbol }));
     }
     if let Some((symbol, _)) = candidates.first() {

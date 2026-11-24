@@ -26,6 +26,7 @@ TimeHost.wall_clock_raw | clamp narrow_i64_to_u64_saturating | linux_x86_64,linu
 FilesystemService.append | const create_file(..1048704..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
 FilesystemService.append | const writable(..2147483648..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
 FilesystemService.append | refuse InvalidInput | windows_x86_64,windows_arm64 | noise | open_options_truncate_conflict guard; it cannot fire for these fixed options
+FilesystemService.canonicalize | limit < 4096 | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX realpath buffer and its terminating NUL
 FilesystemService.canonicalize | limit < out.length | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
 FilesystemService.close | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
 FilesystemService.close | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
@@ -206,7 +207,8 @@ FilesystemService.{lock,lock_shared,try_lock,try_lock_shared} | const acquire(..
 FilesystemService.remove_dir_all | const c_create_file(..1114241..) | windows_x86_64,windows_arm64 | noise | open the removal root with the requested directory and remove rights
 FilesystemService.remove_dir_all | const c_create_file(..36700160..) | windows_x86_64,windows_arm64 | noise | open the removal root with Win32 directory and reparse-point flags
 FilesystemService.set_owner_no_follow | const fchownat(..256..) | linux_x86_64,linux_arm64 | noise | Linux AT_REMOVEDIR / AT_SYMLINK_NOFOLLOW flag words; macOS passes its own
-FilesystemService.canonicalize | const final_path(..4096..) | windows_x86_64,windows_arm64 | known | Windows canonicalization rejects paths that exceed its private UTF-16 buffer
+FilesystemService.canonicalize | const final_path(..32768..) | windows_x86_64,windows_arm64 | noise | the Win32 extended-length path buffer holds 32767 UTF-16 units plus its terminator
+FilesystemService.canonicalize | limit < 32768 | windows_x86_64,windows_arm64 | noise | GetFinalPathNameByHandleW returns the required size when its buffer cannot contain the whole name and terminator
 FilesystemService.symlink_metadata | const linux_arm64_posix_query_metadata_at(..256..) | linux_arm64 | noise | Linux AT_SYMLINK_NOFOLLOW is 256; the target-specific metadata helper retains the same no-follow request
 FilesystemService.symlink_metadata | const linux_x86_64_posix_query_metadata_at(..256..) | linux_x86_64 | noise | Linux AT_SYMLINK_NOFOLLOW is 256; the target-specific metadata helper retains the same no-follow request
 FilesystemService.{read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove_dir_all} | const min_u64(..2147483647..) | linux_x86_64,linux_arm64 | allowed | Linux caps one read at 2^31-1 bytes; the bounded-read contract allows the short read
@@ -246,7 +248,7 @@ FilesystemService.{append,copy,create,create_dir,create_dir_all,create_new,exist
 FilesystemService.{set_owner,set_owner_no_follow,symlink} | limit < path.length | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
 FilesystemService.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit <= 1114111 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
 FilesystemService.read_link | limit <= 12 | windows_x86_64,windows_arm64 | noise | the reparse decoder checks the native header and payload extent
-FilesystemService.canonicalize | limit <= 12288 | windows_x86_64,windows_arm64 | noise | the UTF-8 buffer holds the encoding of the 4096-unit canonical path query
+FilesystemService.canonicalize | limit <= source.length | windows_x86_64,windows_arm64 | noise | the complete converted path and terminator must fit their source before copying to the caller
 FilesystemService.read_link | limit <= 16384 | windows_x86_64,windows_arm64 | noise | the reparse header and payload must fit the native 16 KiB query buffer
 FilesystemService.{read_link,remove_dir_all} | limit <= 2 | windows_x86_64,windows_arm64 | noise | validate the Windows reparse header or the relative child name used for removal
 FilesystemService.{canonicalize,close,copy,create_dir,create_dir_all,exists,hard_link,lock,lock_shared,metadata,metadata_path,read,read_all,read_at,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_file_permissions,set_len,set_permissions,set_times,symlink_metadata,sync,sync_data,try_exists,try_lock,try_lock_shared,unlock,write,write_all,write_at} | limit <= 2147483647 | windows_x86_64,windows_arm64 | noise | Win32 error codes must fit the negative i32 raw-error representation

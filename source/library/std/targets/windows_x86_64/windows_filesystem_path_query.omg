@@ -37,58 +37,56 @@ reaches FilesystemMetadataQuery {
 machine windows_canonical_query(handle: i64, output: @mutable [u8]) -> i32
 requires handle != 0 && handle != -1
 reaches FilesystemMetadataQuery {
-    let mutable resolved: [u16; 4096];
-    let characters: u32 = block |path_io|::WindowsFilesystemPathIo::final_path(handle, @mutable resolved, 4096, 0);
+    // An extended-length Win32 path permits up to 32,767 UTF-16 units plus its terminator.
+    let mutable resolved: [u16; 32768];
+    let characters: u32 = block |path_io|::WindowsFilesystemPathIo::final_path(handle, @mutable resolved, 32768, 0);
     transition characters > 0 {
-        true -> extent(resolved, characters, output),
+        true -> extent(@resolved, characters, output),
         false -> (|control|::windows_filesystem_native_failure_i32())
     }
-    machine extent(resolved: [u16; 4096], characters: u32, output: @mutable [u8]) -> i32 {
+    machine extent(resolved: @[u16; 32768], characters: u32, output: @mutable [u8]) -> i32 {
         // A too-small native buffer reports required size INCLUDING the NUL;
         // a successful result excludes it. Only the latter authorizes reading.
-        transition characters < 4096 {
+        transition characters < 32768 {
             true -> encode(resolved, characters, output),
             false -> (-122)
         }
     }
-    machine encode(resolved: [u16; 4096], characters: u32, output: @mutable [u8]) -> i32
-    requires characters < 4096 {
+    machine encode(resolved: @[u16; 32768], characters: u32, output: @mutable [u8]) -> i32
+    requires characters < 32768 {
         let count: u64 = widen_u32_to_u64(characters) + 1;
-        let mutable encoded: [u8; 12288];
+        let mutable encoded: [u8; 98304];
         let native_count: i32 = narrow_u64_to_i32_exact(count);
-        let written: i32 = |path_io|::WindowsFilesystemUtf8Io::utf8::<4096, 12288>(65001, 128, @resolved,
-            native_count, @mutable encoded, 12288, 0, 0);
+        let written: i32 = |path_io|::WindowsFilesystemUtf8Io::utf8::<32768, 98304>(65001, 128, resolved,
+            native_count, @mutable encoded, 98304, 0, 0);
         transition written > 0 {
-            true -> copy(encoded, written, output),
+            true -> copy(@encoded, written, output),
             false -> (|control|::windows_filesystem_native_failure_i32())
         }
     }
-    machine copy(encoded: [u8; 12288], written: i32, output: @mutable [u8]) -> i32 requires written > 0 {
+    machine copy(encoded: @[u8; 98304], written: i32, output: @mutable [u8]) -> i32 requires written > 0 {
         let count: u64 = narrow_i32_to_u64_exact(written);
-        transition count <= 12288 && count <= output.length {
-            true -> (windows_copy_canonical_bytes(@encoded, output, count)),
-            false -> (-122)
-        }
+        windows_copy_canonical_bytes(@encoded[..], output, count)
     }
 }
 
 // Validate the terminator before modifying caller storage. The returned
 // extent includes it, so success never relies on the caller's prior zeroes.
-machine windows_copy_canonical_bytes(source: @[u8; 12288], output: @mutable [u8], count: u64) -> i32 {
-    transition count > 0 && count <= 12288 && count <= output.length {
+machine windows_copy_canonical_bytes(source: @[u8], output: @mutable [u8], count: u64) -> i32 {
+    transition count > 0 && count <= source.length && count <= output.length {
         true -> terminated(source, output, count),
         false -> (-122)
     }
-    machine terminated(source: @[u8; 12288], output: @mutable [u8], count: u64) -> i32
-    requires count > 0 && count <= 12288 && count <= output.length {
+    machine terminated(source: @[u8], output: @mutable [u8], count: u64) -> i32
+    requires count > 0 && count <= source.length && count <= output.length {
         transition source[count - 1] == 0 { true -> copy(source, output, count, 0), false -> (-31) }
     }
-    machine copy(source: @[u8; 12288], output: @mutable [u8], count: u64, position: u64) -> i32
-    requires count <= 12288 && count <= output.length {
+    machine copy(source: @[u8], output: @mutable [u8], count: u64, position: u64) -> i32
+    requires count <= source.length && count <= output.length {
         transition position < count { true -> store(source, output, count, position), false -> 0 }
     }
-    machine store(source: @[u8; 12288], output: @mutable [u8], count: u64, position: u64) -> i32
-    requires count <= 12288 && count <= output.length && position < count {
+    machine store(source: @[u8], output: @mutable [u8], count: u64, position: u64) -> i32
+    requires count <= source.length && count <= output.length && position < count {
         output[position] = source[position];
         transition { _ -> copy(source, output, count, position + 1) }
     }

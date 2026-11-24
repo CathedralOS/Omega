@@ -61,6 +61,7 @@ enum Effect {
     Path { count: usize },
     Pipe,
     Query { class: u32, bytes: u32 },
+    FinalPath { units: u32 },
     Directory { class: u32, bytes: u32 },
     OpenRelative,
     Disposition,
@@ -307,9 +308,13 @@ impl Call {
             b"SetFilePointerEx" => {
                 arguments.len() == 3 && (0..=2).any(|method| scalar(arguments[2], method))
             }
-            b"GetFinalPathNameByHandleW" => {
-                arguments.len() == 3 && scalar(arguments[1], 4096) && scalar(arguments[2], 0)
-            }
+            b"GetFinalPathNameByHandleW" => matches!(
+                (self.effect, arguments),
+                (
+                    Effect::FinalPath { units },
+                    [_, TerminalScalarValue::Integer { value: IntegerValue::Unsigned(capacity), .. }, flags],
+                ) if *capacity > 0 && *capacity <= u128::from(units) && scalar(*flags, 0)
+            ),
             b"CloseHandle" | b"GetFileType" | b"FlushFileBuffers" => arguments.len() == 1,
             b"CreateDirectoryW" => arguments.len() == 1 && scalar(arguments[0], 0),
             b"SetFileAttributesW" => arguments.len() == 1,
@@ -452,6 +457,32 @@ mod tests {
             effect: Effect::Acquire,
             symbol: b"CreateFileW",
             namespace: Ok(()),
+        }
+    }
+
+    #[test]
+    fn final_path_queries_bound_the_native_count_by_the_borrowed_wchars() {
+        use semantic_vocabulary::{IntegerSign, IntegerType};
+
+        let mut call = open_call();
+        call.symbol = b"GetFinalPathNameByHandleW";
+        let guest = call.context.windows.borrow_mut().acquire(17).unwrap();
+        let handle = TerminalScalarValue::Integer {
+            scalar_type: IntegerType::new(IntegerSign::Signed, 64).unwrap(),
+            value: IntegerValue::Signed(i128::from(guest)),
+        };
+        let word = |value: u32| TerminalScalarValue::Integer {
+            scalar_type: IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+            value: IntegerValue::Unsigned(u128::from(value)),
+        };
+
+        for units in [4, 4096, 32768] {
+            call.effect = Effect::FinalPath { units };
+            assert!(call.arguments(&[handle, word(units), word(0)]).is_ok());
+            assert!(call.arguments(&[handle, word(1), word(0)]).is_ok());
+            assert!(call.arguments(&[handle, word(units + 1), word(0)]).is_err());
+            assert!(call.arguments(&[handle, word(0), word(0)]).is_err());
+            assert!(call.arguments(&[handle, word(1), word(1)]).is_err());
         }
     }
 
