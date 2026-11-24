@@ -26,6 +26,7 @@ use crate::storage::primitive_storage::PrimitiveStorageEndpoint;
 use crate::storage::record::storage::{ConstructorStorage, ConstructorValue};
 use crate::storage::reference::{AggregateViewTip, translate_aggregate_view_field};
 use crate::storage::runtime_rows::RuntimeRows;
+use crate::storage::scalar_storage::CheckedReferenceScalar;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, IntegerSign, IntegerType, IntegerValue, ScalarType,
     StructuralDomainId, StructuralTypeId,
@@ -42,41 +43,6 @@ use terminal_semantics::{
 
 #[path = "byte_record.rs"]
 mod byte_record;
-
-// The declaration owns validity on every observation of foreign storage;
-// neither the initial snapshot nor the host's decoder can replace that check.
-struct CheckedReferenceScalar {
-    backing: std::rc::Rc<dyn crate::TerminalScalarBacking>,
-    scalar: ScalarType,
-    stored_scalar: ScalarType,
-    restriction: Option<StructuralFieldType>,
-}
-impl std::fmt::Debug for CheckedReferenceScalar {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CheckedReferenceScalar")
-            .field("scalar", &self.scalar)
-            .finish_non_exhaustive()
-    }
-}
-impl crate::TerminalScalarBacking for CheckedReferenceScalar {
-    fn read(&self) -> Result<TerminalScalarValue, crate::TerminalEffectRejection> {
-        let value = self.backing.read()?;
-        crate::storage::structural_storage::contents::validate_scalar_contents(
-            self.scalar,
-            self.restriction.as_ref(),
-            self.stored_scalar,
-            value,
-            self.stored_scalar,
-        )
-        .map_err(crate::TerminalEffectRejection::new)?;
-        Ok(value)
-    }
-    fn write(&self, _value: TerminalScalarValue) -> Result<(), crate::TerminalEffectRejection> {
-        Err(crate::TerminalEffectRejection::new(
-            "shared provider reference cannot be written",
-        ))
-    }
-}
 
 struct ResolvedStructuralWindow {
     backing: TerminalStructuralValue,
@@ -273,7 +239,10 @@ impl TerminalExecution<'_> {
                 use crate::storage::structural_storage::contents::{self, StorageLeafKind};
                 if !supply.references.is_empty()
                     || scalars.windows(2).any(|pair| pair[0].path >= pair[1].path)
-                    || access != StructuralAccess::SharedBorrow
+                    || !matches!(
+                        access,
+                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                    )
                 {
                     return Err(malformed());
                 }
@@ -281,8 +250,7 @@ impl TerminalExecution<'_> {
                 // backing rows use canonical paths even when field IDs differ.
                 let mut values = aggregate.canonical_contents();
                 values.sort_unstable_by(|left, right| left.path.cmp(&right.path));
-                let description =
-                    contents::describe(self, &view, StructuralAccess::SharedBorrow, Some(&values))?;
+                let description = contents::describe(self, &view, access, Some(&values))?;
                 if description.requires_erased_establishment || description.requires_atomic_storage
                 {
                     return Err(malformed());
@@ -328,6 +296,7 @@ impl TerminalExecution<'_> {
                         return Err(malformed());
                     };
                     let checked = CheckedReferenceScalar {
+                        access,
                         backing: supplied.backing.clone(),
                         scalar,
                         restriction,

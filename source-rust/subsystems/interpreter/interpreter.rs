@@ -173,7 +173,7 @@ pub use storage::provider_storage::{
     TerminalReturnedProviderStorage,
 };
 pub use storage::scalar_array::{TerminalScalarArrayResult, TerminalScalarArrayValue};
-pub use storage::scalar_storage::TerminalScalarBacking;
+pub use storage::scalar_storage::{TerminalInvocationScalar, TerminalScalarBacking};
 pub use storage::structural_storage::contents::{
     TerminalBoundaryStorageValue, TerminalStorageContents,
 };
