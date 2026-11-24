@@ -102,8 +102,9 @@ scheme and an integer vocabulary first, then the family: its indices and
 payload values are integers, each case's label carries a proof of what the
 declaration's `requires` say of that case, and each child sits at the index
 its field's type names. The `requires` must be one clause per case, each
-naming its case with `self in ..`. A program with both a quotient and such
-data is refused, because both kernel schemes are numbered from zero.
+naming its case with `self in ..`. A program with a quotient as well holds
+both kernel schemes: the quotient's declarations come first and the family
+names its five from where they start (`indexed_scheme_at`).
 
 The data may also take types: `data Vector<T [copy], Length: u64, Total: u64>`
 with a field `marker: T`. No clause can say anything of a value of such a
@@ -125,9 +126,17 @@ every value of the family at it (`family_laws` in `read/signature.rs`), and
 records per case what the data requires, what the step requires, and which
 children the step cites. A clause over indexed data is read as equalities and
 orders of integers: an index or payload value is the integer it holds, and
-arithmetic is written on `embed`. The index a theorem is ranked on
-(`terminates by Length`) is not checked to get smaller: the induction is over
-the evidence, which the kernel's eliminator justifies.
+arithmetic is written on `embed`. A theorem that cites itself is ranked on
+one of its indices (`terminates by Length`), of an unsigned type. For each
+child a case's step cites the theorem at, the signature records that the
+child's value of that index plus one is at most the theorem's own, and, as
+hypotheses for that alone, that each unsigned index and payload value is not
+negative: the family's values are integers and do not say so. Stage 06 proves
+each from what the data requires of the case. The induction itself is over
+the evidence and does not rest on the rank; the rank is the source's own
+claim, and it is checked as the
+[citation rule](../../../../../../wiki/spec/proofs/contracts.md#citation-and-induction)
+requires.
 
 A machine that runs may hold such evidence in `[erased]` formals and locals,
 build it, pass it on and use a theorem about it. The evidence has no layout

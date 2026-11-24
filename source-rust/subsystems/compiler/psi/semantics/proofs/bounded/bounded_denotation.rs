@@ -69,6 +69,8 @@ mod addition {
         Monotone,
         CancelSubtract,
         MonotoneBoth,
+        ZeroRight,
+        ZeroLeft,
     }
 
     #[derive(Default)]
@@ -99,6 +101,18 @@ mod addition {
             second: TermHandle,
         ) -> Result<TermHandle, BoundedDenotationError> {
             self.add_law_application(Law::MonotoneBoth, &[a, b, c, d, first, second])
+        }
+
+        /// `a + 0 = a`, or `0 + a = a` when `left`. Trusted, not derived;
+        /// `add_zero_statements_agree_with_computed_arithmetic` checks both
+        /// statements against arithmetic.
+        pub(super) fn add_zero(
+            &mut self,
+            a: TermHandle,
+            left: bool,
+        ) -> Result<TermHandle, BoundedDenotationError> {
+            let law = if left { Law::ZeroLeft } else { Law::ZeroRight };
+            self.add_law_application(law, &[a])
         }
 
         pub(super) fn add_order_translation(
@@ -179,6 +193,15 @@ mod addition {
                                     v("b"),
                                 ),
                             )
+                        }
+                        Law::ZeroRight | Law::ZeroLeft => {
+                            let zero = this.binary_integer(false, 0)?;
+                            let sum = if law == Law::ZeroLeft {
+                                add(constant(zero), v("a"))
+                            } else {
+                                add(v("a"), constant(zero))
+                            };
+                            binders(&["a"], id(carrier(), sum, v("a")))
                         }
                     };
                     Ok(statement)
@@ -13285,23 +13308,81 @@ mod source_integer {
                 else {
                     return Ok(None);
                 };
-                let (Some((left_add, a, c)), Some((right_add, b, d))) =
-                    (self.source_binary(left)?, self.source_binary(right)?)
-                else {
-                    return Ok(None);
-                };
-                if left_add != self.add_operation()? || right_add != self.add_operation()? {
-                    return Ok(None);
+                // `a <= a` for any term, from `a = a`.
+                if self.arena.structurally_equal(left, right) {
+                    let integer = self.integer_constant()?;
+                    let reflexive = self.arena.insert(Term::Refl {
+                        ty: integer,
+                        value: left,
+                    });
+                    return self
+                        .integer_law_application(
+                            IntegerLaw::EqualityToLessOrEqual,
+                            &[left, left, reflexive],
+                        )
+                        .map(Some);
                 }
-                let first_goal = self.order_term_application(false, a, b)?;
-                let second_goal = self.order_term_application(false, c, d)?;
-                let Some(first) = self.source_order_goal(first_goal, premises, depth + 1)? else {
+                let add = self.add_operation()?;
+                let left_sum = self
+                    .source_binary(left)?
+                    .filter(|(operation, ..)| *operation == add);
+                let right_sum = self
+                    .source_binary(right)?
+                    .filter(|(operation, ..)| *operation == add);
+                let Some((_, b, d)) = right_sum else {
                     return Ok(None);
                 };
-                let Some(second) = self.source_order_goal(second_goal, premises, depth + 1)? else {
-                    return Ok(None);
-                };
-                self.add_order_both(a, b, c, d, first, second).map(Some)
+                // `a + c <= b + d` from `a <= b` and `c <= d`.
+                if let Some((_, a, c)) = left_sum {
+                    let first_goal = self.order_term_application(false, a, b)?;
+                    let second_goal = self.order_term_application(false, c, d)?;
+                    if let Some(first) = self.source_order_goal(first_goal, premises, depth + 1)?
+                        && let Some(second) =
+                            self.source_order_goal(second_goal, premises, depth + 1)?
+                    {
+                        return self.add_order_both(a, b, c, d, first, second).map(Some);
+                    }
+                }
+                // `x <= b + d` from `x <= b` and `0 <= d`, or from `0 <= b`
+                // and `x <= d`: a sum is at least either part when the other
+                // is not negative. `x + 0` or `0 + x` is bounded as above
+                // and then read as `x`.
+                let zero = self.math_literal(bignum::BigInt::zero())?;
+                let sum = self.add_terms(b, d)?;
+                for kept_first in [true, false] {
+                    let (kept, widened) = if kept_first { (b, d) } else { (d, b) };
+                    let kept_goal = self.order_term_application(false, left, kept)?;
+                    let Some(kept_proof) =
+                        self.source_order_goal(kept_goal, premises, depth + 1)?
+                    else {
+                        continue;
+                    };
+                    let zero_goal = self.order_term_application(false, zero, widened)?;
+                    let Some(zero_proof) =
+                        self.source_order_goal(zero_goal, premises, depth + 1)?
+                    else {
+                        continue;
+                    };
+                    let (padded, both) = if kept_first {
+                        (
+                            self.add_terms(left, zero)?,
+                            self.add_order_both(left, b, zero, d, kept_proof, zero_proof)?,
+                        )
+                    } else {
+                        (
+                            self.add_terms(zero, left)?,
+                            self.add_order_both(zero, b, left, d, zero_proof, kept_proof)?,
+                        )
+                    };
+                    let identity = self.add_zero(left, !kept_first)?;
+                    return self
+                        .integer_law_application(
+                            IntegerLaw::LessOrEqualSubstituteLeft,
+                            &[padded, left, sum, identity, both],
+                        )
+                        .map(Some);
+                }
+                Ok(None)
             }
 
             fn source_symbolic_goal(
@@ -13708,8 +13789,10 @@ mod source_integer {
         /// false goal, and also for true goals beyond its reach: it rewrites
         /// each unknown `x` with a hypothesis `t = x` or `x = t`, distributes
         /// `*` over `+`, folds closed arithmetic, and then closes `a <= b`
-        /// with a hypothesis of the same normal form, closed arithmetic, or
-        /// by splitting `a + c <= b + d` into `a <= b` and `c <= d`. A
+        /// with a hypothesis of the same normal form, closed arithmetic,
+        /// `a <= a`, by splitting `a + c <= b + d` into `a <= b` and
+        /// `c <= d`, or by `x <= b + d` from `x <= b` and `0 <= d` (or the
+        /// other way round). A
         /// hypothesis that is a non-dependent pair is split into its parts;
         /// a dependent pair is refused with `Unsupported`.
         pub fn predicate_from_assumptions(
@@ -14365,6 +14448,139 @@ mod source_integer {
             let [s, a, b] = control.expect("the wrong law has a counterexample in range");
             eprintln!("control counterexample: s = {s}, a = {a}, b = {b}");
             assert_ne!(s * (a + b), s * a + b);
+        }
+
+        /// `a + 0 = a` and `0 + a = a` are trusted, not derived, so each
+        /// declared statement is checked against computed arithmetic for
+        /// every `a` in -8..=8. The statement is read from the declaration
+        /// `add_zero` cites, not retyped. A control with `0` on the right
+        /// shows the same check finds a counterexample.
+        #[test]
+        fn add_zero_statements_agree_with_computed_arithmetic() {
+            let mut arena = TermArena::new();
+            let mut declarations = indexed_scheme(&mut arena);
+            let mut theory = SourceIntegerTheory::new(&mut arena, &mut declarations).unwrap();
+            theory
+                .with(&mut arena, &mut declarations, |state| {
+                    let integer = state.integer_constant()?;
+                    let zero = state.math_literal(BigInt::zero())?;
+                    for left in [false, true] {
+                        let mut head = state.add_zero(zero, left)?;
+                        while let Term::Apply { function, .. } = state.arena.get(head) {
+                            head = function;
+                        }
+                        let Term::Constant { declaration, .. } = state.arena.get(head) else {
+                            panic!("add_zero applies its law's declaration");
+                        };
+                        let law = &state.declarations[declaration as usize];
+                        assert!(law.body.is_none(), "the law is an assumption");
+                        let Term::Pi { domain, codomain } = state.arena.get(law.ty) else {
+                            panic!("the statement binds one integer");
+                        };
+                        assert!(state.arena.structurally_equal(domain, integer));
+                        let mut refuted = 0;
+                        for a in -8..=8_i64 {
+                            let literal = state.math_literal(BigInt::from_i64(a))?;
+                            let instance = crate::substitute(&mut state.arena, codomain, literal);
+                            let Term::Id { ty, left, right } = state.arena.get(instance) else {
+                                panic!("the instantiated statement is an integer equation");
+                            };
+                            assert!(state.arena.structurally_equal(ty, integer));
+                            let mut evaluate = |side| {
+                                let (value, _, _) = state
+                                    .source_integer_value(side, 0)
+                                    .unwrap()
+                                    .expect("both sides are closed arithmetic over literals");
+                                value
+                            };
+                            let sum = evaluate(left);
+                            assert_eq!(sum, evaluate(right), "a = {a}");
+                            // The control: the same sum against zero.
+                            if sum != evaluate(zero) {
+                                refuted += 1;
+                            }
+                        }
+                        assert_eq!(refuted, 16, "the wrong law fails for every a but zero");
+                    }
+                    Ok(())
+                })
+                .unwrap();
+        }
+
+        /// A sum is at least either part when the other part is not
+        /// negative: the step a rank needs to count down through a node
+        /// with two children. Without `0 <= right` there is no proof.
+        #[test]
+        fn a_part_is_at_most_the_sum_when_the_other_part_is_not_negative() {
+            let mut arena = TermArena::new();
+            let mut declarations = indexed_scheme(&mut arena);
+            let mut theory = SourceIntegerTheory::new(&mut arena, &mut declarations).unwrap();
+            let vocabulary = theory.vocabulary();
+            let integer = constant(&mut arena, vocabulary.carrier);
+            let unknown = |arena: &mut TermArena, declarations: &mut Vec<Declaration>| {
+                declarations.push(Declaration::assumption(0, integer));
+                constant(arena, declarations.len() as u32 - 1)
+            };
+            let left = unknown(&mut arena, &mut declarations);
+            let right = unknown(&mut arena, &mut declarations);
+            let nodes = unknown(&mut arena, &mut declarations);
+            let zero = literal(&mut theory, &mut arena, &mut declarations, 0);
+            let one = literal(&mut theory, &mut arena, &mut declarations, 1);
+            // left + right + 1 = nodes
+            let children = binary(&mut arena, vocabulary.add, left, right);
+            let all = binary(&mut arena, vocabulary.add, children, one);
+            let counted = arena.insert(Term::Id {
+                ty: integer,
+                left: all,
+                right: nodes,
+            });
+            let natural_left = binary(&mut arena, vocabulary.less_or_equal, zero, left);
+            let natural_right = binary(&mut arena, vocabulary.less_or_equal, zero, right);
+            for (child, other) in [(left, natural_right), (right, natural_left)] {
+                let next = binary(&mut arena, vocabulary.add, child, one);
+                let goal = binary(&mut arena, vocabulary.less_or_equal, next, nodes);
+                let assumptions = [counted, other];
+                let proof = theory
+                    .predicate_from_assumptions(
+                        &mut arena,
+                        &mut declarations,
+                        goal,
+                        &assumptions,
+                        0,
+                    )
+                    .unwrap()
+                    .expect("the child's count is smaller");
+                let mut ty = goal;
+                for &assumption in assumptions.iter().rev() {
+                    ty = arena.insert(Term::Pi {
+                        domain: assumption,
+                        codomain: ty,
+                    });
+                }
+                let context = Context::empty()
+                    .with_signature(Signature::from_declarations(declarations.clone()));
+                check_type(
+                    &mut arena,
+                    &context,
+                    proof,
+                    ty,
+                    &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+                )
+                .unwrap();
+                assert_eq!(
+                    theory
+                        .predicate_from_assumptions(
+                            &mut arena,
+                            &mut declarations,
+                            goal,
+                            &[counted],
+                            0
+                        )
+                        .unwrap(),
+                    None,
+                    "the other child may be negative"
+                );
+            }
         }
 
         #[test]

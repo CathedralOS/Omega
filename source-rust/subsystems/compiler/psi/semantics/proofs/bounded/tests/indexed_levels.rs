@@ -228,6 +228,7 @@ fn next_index(arena: &mut TermArena, element: TermHandle, level: &Level) -> Term
 /// at `[0, u, 0]`. `element` must itself be a `Type u` expression.
 fn family_at(arena: &mut TermArena, element: TermHandle, element_level: Level) -> IndexedFamily {
     IndexedFamily {
+        base: 0,
         levels: [
             Level::Constant(0),
             element_level.clone(),

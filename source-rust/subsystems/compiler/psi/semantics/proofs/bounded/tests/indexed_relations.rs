@@ -95,6 +95,7 @@ fn leaf_family(arena: &mut TermArena) -> IndexedFamily {
         lambda(arena, domain, inner)
     };
     IndexedFamily {
+        base: 0,
         levels: [Level::Constant(0), Level::Constant(0), Level::Constant(0)],
         index: two(arena),
         carrier: two(arena),
@@ -816,6 +817,7 @@ fn a_family_description_cannot_name_itself() {
     // at `zero`, then `isup zero g'` for a neutral
     // `g' : Π(_ : dBNeg zero). IW' (dNextNeg zero _)`.
     let embedded = IndexedFamily {
+        base: 0,
         levels: [Level::Constant(0), Level::Constant(0), Level::Constant(0)],
         index: constant(&mut arena, D_INDEX, Vec::new()),
         carrier: constant(&mut arena, D_CARRIER, Vec::new()),

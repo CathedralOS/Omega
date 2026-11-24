@@ -519,3 +519,34 @@ fn a_definition_hands_evidence_on_at_the_index_it_has() {
         "{verdicts:?}"
     );
 }
+
+#[test]
+fn the_rank_must_get_smaller_at_a_cited_child() {
+    // Ranked on `Total`, the theorem would have to show the tail's total is
+    // smaller. An element may be zero, so it is not.
+    let source = proofs(BOUND).replace("terminates by Length", "terminates by Total");
+    assert_ne!(source, proofs(BOUND));
+    let verdicts = judged(&source);
+    let law = unproved(&verdicts);
+    assert_eq!(law.machine, "vector_bound");
+    assert_eq!(law.cause, UnprovedCause::NoDerivation);
+    assert_eq!(
+        law.detail,
+        "the index the theorem is ranked on is not shown to be smaller at a child this case \
+         cites the theorem at"
+    );
+}
+
+#[test]
+fn a_theorem_that_cites_itself_states_its_rank() {
+    let source = proofs(BOUND).replace("terminates by Length\n", "");
+    assert_ne!(source, proofs(BOUND));
+    let verdicts = judged(&source);
+    assert!(
+        refused(&verdicts)
+            .iter()
+            .any(|detail| detail
+                .contains("theorem over indexed data that cites itself without a rank")),
+        "{verdicts:?}"
+    );
+}

@@ -222,6 +222,7 @@ fn next_index(arena: &mut TermArena) -> TermHandle {
 /// the level-coupled description above.
 fn nested_family(arena: &mut TermArena) -> IndexedFamily {
     IndexedFamily {
+        base: 0,
         levels: [Level::Constant(0), Level::Constant(0), Level::Constant(0)],
         index: nat(arena),
         carrier: carrier(arena, payload),

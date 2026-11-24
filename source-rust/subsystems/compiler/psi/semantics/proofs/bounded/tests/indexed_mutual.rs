@@ -211,6 +211,7 @@ fn next_index(arena: &mut TermArena) -> TermHandle {
 /// `zero` names `Tree` and index `one` names `Forest`.
 fn mutual_family(arena: &mut TermArena) -> IndexedFamily {
     IndexedFamily {
+        base: 0,
         levels: [Level::Constant(0), Level::Constant(0), Level::Constant(0)],
         index: two(arena),
         carrier: carrier(arena),

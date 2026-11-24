@@ -37,7 +37,7 @@ pub use conversion::{
 };
 pub use indexed::{
     INDEXED_AT, INDEXED_IND, INDEXED_PACK, INDEXED_SUP, INDEXED_W, IndexedFamily,
-    indexed_correctness, indexed_scheme,
+    indexed_correctness, indexed_scheme, indexed_scheme_at,
 };
 pub use indexed_data::{
     ConstructorArguments, DeclaredIndexedData, IndexedCase, IndexedData, IndexedDataError,
@@ -56,7 +56,8 @@ pub use signature::{
     check_signature_with_attribution, judgment_assumption_closure,
 };
 pub use substitution::{
-    instantiate, instantiate_levels, shift, substitute, universe_parameter_arity,
+    instantiate, instantiate_levels, relocate_constants, shift, substitute,
+    universe_parameter_arity,
 };
 pub use term::{Level, Sort, Term, TermArena, TermHandle, sorts_equal};
 pub use theorems::identity_substitution;

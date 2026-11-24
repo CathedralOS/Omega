@@ -1038,6 +1038,31 @@ fn prove_family(
                 });
             }
         }
+        // The theorem's rank is smaller at each child the body cites. An
+        // index or payload value of an unsigned type is not negative, which
+        // the family's integers do not say; it is a hypothesis here only.
+        let mut counted = constraints.clone();
+        counted.extend(
+            case.natural
+                .iter()
+                .map(|&natural| instantiate(arena, natural, &unknowns)),
+        );
+        for &descent in &case.descent {
+            let goal = instantiate(arena, descent, &unknowns);
+            if theory
+                .predicate_from_assumptions(arena, &mut local, goal, &counted, 0)
+                .map_err(searched)?
+                .is_none()
+            {
+                return Err(Failure {
+                    case: here,
+                    cause: UnprovedCause::NoDerivation,
+                    detail: "the index the theorem is ranked on is not shown to be smaller at a \
+                             child this case cites the theorem at"
+                        .to_owned(),
+                });
+            }
+        }
         // The theorem at each child, and as a hypothesis where it is cited.
         let mut hypotheses = constraints.clone();
         let mut held = Vec::with_capacity(case.children.len());

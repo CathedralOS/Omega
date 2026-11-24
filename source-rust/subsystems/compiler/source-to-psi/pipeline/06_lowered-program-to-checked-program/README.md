@@ -107,6 +107,11 @@ conversion steps. The receipt counts the integer vocabulary and the integer
 laws the cases used; the family, its constructors and the induction are
 definitions and add nothing. A case with no proof is reported by its name:
 "cannot prove ensures contract for `vector_bound` in the case `Vector::Cons`".
+The same search shows, for each child the case's step cites the theorem at,
+that the index the theorem is ranked on is smaller there. A tree's node has
+two children and `left + right + 1` nodes, so `left + 1 <= left + right + 1`
+needs `0 <= right`: the search bounds a sum by one part when the other is not
+negative, and the case supplies that for each unsigned value.
 
 A value of such data that a running machine builds owes what its case
 requires (`prove_integers` in `laws.rs`). Stage 05 states one law per

@@ -386,6 +386,14 @@ pub struct FamilyLawCase {
     /// What the step the case calls requires. Each must follow from
     /// `constraints`.
     pub owed: Vec<TermHandle>,
+    /// That each index and payload value of an unsigned type is not
+    /// negative. The family's values are integers; these say what the
+    /// source's types add, and only `descent` rests on them.
+    pub natural: Vec<TermHandle>,
+    /// For each child the body cites the theorem at: the index the theorem
+    /// is ranked on is smaller at the child. Each must follow from
+    /// `constraints` and `natural`.
+    pub descent: Vec<TermHandle>,
     /// The case as the source names it. For diagnostics only.
     pub name: String,
     pub source: Option<SourceSpan>,
