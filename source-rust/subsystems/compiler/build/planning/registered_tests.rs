@@ -1,15 +1,17 @@
 //! Execute each Build-registered test as a separately published Product.
+#[path = "registered_tests/native.rs"]
+mod native;
+#[path = "registered_tests/plan.rs"]
+mod plan;
 #[path = "registered_tests/result.rs"]
 mod result;
 use self::result::{EngineError, NativeTermination, Observed, PsiTermination, Run, assess};
 use super::ProductStage;
-use crate::observations::ProcessExitObservation;
 use compiler::{Artifact, CompileRequest, Program};
 use diagnostics::Diagnostic;
 use installation_conditions::InstallationEnvironmentAssumption;
 use product_publication::CompletedProduct;
-use semantic_vocabulary::{TerminalAuthorityClass, TerminalAuthorityDisposition};
-use source_compiler::registered_tests::RegisteredTests;
+use source_compiler::registered_tests::{RegisteredTests, TestInvocationInputs};
 use target::TargetProfile;
 use terminal_runtime::{
     TerminalDomainExitDelegation, TerminalExecutionResult, TerminalExecutionStatus,
@@ -26,13 +28,20 @@ pub enum TestExecution {
     Compare,
 }
 
+/// The invocation plan owns the exact compiled products it announced.
+#[derive(Default)]
+pub struct RegisteredTestPlan {
+    tests: Vec<plan::PlannedTest>,
+    notes: Vec<String>,
+}
+
 impl ProductStage<'_> {
-    pub fn execute_registered_tests(
+    pub fn plan_registered_tests(
         &self,
         profile: TargetProfile,
         assumptions: &[InstallationEnvironmentAssumption],
         execution: TestExecution,
-    ) -> Result<Vec<String>, Vec<Diagnostic>> {
+    ) -> Result<RegisteredTestPlan, Vec<Diagnostic>> {
         let target = profile.target_name();
         let disabled = self
             .product
@@ -41,67 +50,55 @@ impl ProductStage<'_> {
             .config
             .settings
             .tests_disabled;
-        let Some(suite) = RegisteredTests::discover(self.source(), target, disabled)? else {
-            return Ok(if execution == TestExecution::Compare {
-                vec![format!("0 registered test comparisons (target `{target}`)")]
-            } else {
-                Vec::new()
-            });
-        };
-        let mut roster = Vec::new();
-        for test in &suite.roots {
-            let prepare = || {
-                let mut native_target = self.native_target(profile, assumptions.to_vec())?;
-                native_target.isolated_execution_grant =
-                    Some(TerminalAuthorityDisposition::from_classes([
-                        TerminalAuthorityClass::ProcessOutput,
-                        TerminalAuthorityClass::ProcessTermination,
-                    ]));
-                let program = Program::CheckedSource {
-                    publication: suite.compile(test, target)?,
-                    suppliers: self.product,
-                    runtime_consent: self.runtime_consent(profile)?,
-                    target: native_target,
-                };
-                let request = if TargetProfile::host_if_supported() == Some(profile) {
-                    CompileRequest::Native {
-                        program,
-                        entry_memory: &[],
-                    }
-                } else {
-                    // A foreign target can run in Psi without emitting a native test image.
-                    CompileRequest::Runtime {
-                        program,
-                        entry_memory: &[],
-                    }
-                };
-                compiler::compile(request, Default::default())
-                    .map(|output| output.artifact)
-                    .map_err(compiler::stage_validators::NativeValidationError::into_diagnostics)
-            };
-            let name = format!("test `{}` in group `{}`", test.name, test.group);
-            let result = prepare()
-                .map_err(|errors| {
-                    format!(
-                        "cannot be produced: {}",
-                        diagnostics::join_messages(&errors)
-                    )
-                })
-                .and_then(|product| run_test(product, profile, execution));
-            roster.push(match result {
-                Ok(status) => Diagnostic::note(format!("{name} (target `{target}`): {status}")),
-                Err(reason) => Diagnostic::error(format!("{name} {reason} (target `{target}`)")),
-            });
+        let mut plan = RegisteredTestPlan::default();
+        if let Some(mut suite) = RegisteredTests::discover(self.source(), target, disabled)? {
+            let assumptions: Vec<_> = assumptions
+                .iter()
+                .filter(|a| a.profile() == profile)
+                .cloned()
+                .collect();
+            for root in std::mem::take(&mut suite.roots) {
+                plan.tests.push(plan::PlannedTest::prepare(
+                    self,
+                    &suite,
+                    root,
+                    profile,
+                    &assumptions,
+                    execution,
+                ));
+            }
+            plan.notes = suite.notes;
         }
-        if execution == TestExecution::Compare && suite.roots.is_empty() {
-            roster.push(Diagnostic::note(format!(
-                "0 registered test comparisons (target `{target}`)"
-            )));
+        if execution == TestExecution::Compare && plan.tests.is_empty() {
+            plan.notes.insert(
+                0,
+                format!("0 registered test comparisons (target `{target}`)"),
+            );
         }
-        roster.extend(suite.notes.into_iter().map(Diagnostic::note));
+        Ok(plan)
+    }
+}
+
+impl RegisteredTestPlan {
+    /// Describe the same admitted products that execution will consume.
+    pub fn rows(&self) -> impl Iterator<Item = String> + '_ {
+        self.tests
+            .iter()
+            .map(plan::PlannedTest::describe)
+            .chain(self.notes.iter().map(|note| format!("test plan: {note}")))
+    }
+
+    pub fn execute(self) -> Result<Vec<String>, Vec<Diagnostic>> {
+        let mut roster: Vec<_> = self
+            .tests
+            .into_iter()
+            .flat_map(plan::PlannedTest::execute)
+            .collect();
+        roster.extend(self.notes.into_iter().map(Diagnostic::note));
         if roster.iter().any(Diagnostic::is_error) {
-            if execution == TestExecution::Available {
-                roster.retain(Diagnostic::is_error);
+            for row in &mut roster {
+                row.build_context =
+                    Some(diagnostics::BuildDiagnosticContext::RunningRegisteredTests);
             }
             Err(roster)
         } else {
@@ -111,35 +108,31 @@ impl ProductStage<'_> {
 }
 
 fn run_test(
-    product: Artifact,
+    report: CompletedProduct,
+    engines: &plan::Engines,
+    inputs: &TestInvocationInputs,
     profile: TargetProfile,
     execution: TestExecution,
 ) -> Result<String, String> {
-    let (interpreted, native) = match product {
-        Artifact::Runtime(report) => (
-            interpret(&report, profile),
-            Err(EngineError::Unavailable(
-                "its target does not execute on this host".into(),
-            )),
-        ),
-        Artifact::Native(report) => {
-            let interpreted = interpret(&report, profile);
-            let program = report
-                .retained_native_program()
-                .ok_or("the native test lost its Psi artifact")?;
-            let can_exit = program
-                .psi_artifact()
-                .semantic_module()
-                .can_end_the_process();
-            let native = execute_native(report, can_exit);
-            (interpreted, native)
-        }
-        Artifact::Psi(_) => return Err("the test lacks an admitted execution product".into()),
-    };
+    let interpreted = engines.psi.run(|| interpret(&report, profile, inputs));
+    let native = engines.native.run(|| {
+        let program = report.retained_native_program().ok_or_else(|| {
+            EngineError::Failed("the scheduled native test lost its retained Psi program".into())
+        })?;
+        let can_exit = program
+            .psi_artifact()
+            .semantic_module()
+            .can_end_the_process();
+        execute_native(report, can_exit, inputs)
+    });
     assess(interpreted, native, execution)
 }
 
-fn interpret(report: &CompletedProduct, target: TargetProfile) -> Run<PsiTermination> {
+fn interpret(
+    report: &CompletedProduct,
+    target: TargetProfile,
+    inputs: &TestInvocationInputs,
+) -> Run<PsiTermination> {
     let Some(artifact) = report
         .retained_native_program()
         .map(|program| program.psi_artifact())
@@ -159,7 +152,11 @@ fn interpret(report: &CompletedProduct, target: TargetProfile) -> Run<PsiTermina
             entry: None,
             native_provider: None,
             native_services: terminal_runtime::TerminalNativeServiceDelegation::Unprovided,
-            filesystem: terminal_runtime::TerminalFilesystemDelegation::Unprovided,
+            filesystem: if inputs.private_filesystem {
+                terminal_runtime::TerminalFilesystemDelegation::Private
+            } else {
+                terminal_runtime::TerminalFilesystemDelegation::Unprovided
+            },
             x86_flags,
             memory_ordering:
                 terminal_runtime::TerminalMemoryOrderingEnvironment::private_sequential(target),
@@ -171,7 +168,9 @@ fn interpret(report: &CompletedProduct, target: TargetProfile) -> Run<PsiTermina
             provider_proposal: None,
             work_budget: TEST_PSI_WORK_ALLOWANCE,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
-            standard_input: None,
+            standard_input: inputs
+                .private_filesystem
+                .then(|| Box::new(std::io::empty()) as Box<dyn std::io::Read + Send>),
             clock: None,
         },
         report.retained_native_artifact(),
@@ -207,7 +206,11 @@ fn interpret(report: &CompletedProduct, target: TargetProfile) -> Run<PsiTermina
     })
 }
 
-fn execute_native(report: CompletedProduct, can_exit: bool) -> Run<NativeTermination> {
+fn execute_native(
+    report: CompletedProduct,
+    can_exit: bool,
+    inputs: &TestInvocationInputs,
+) -> Run<NativeTermination> {
     let directory =
         platform_custody::temporary_directory::TemporaryDirectory::create("test", false).map_err(
             |error| EngineError::Unavailable(format!("cannot create a test directory: {error}")),
@@ -227,19 +230,16 @@ fn execute_native(report: CompletedProduct, can_exit: bool) -> Run<NativeTermina
             "cannot create the test's private working directory: {error}"
         ))
     })?;
-    let child = std::process::Command::new(executable)
-        .current_dir(working)
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|error| EngineError::Unavailable(format!("cannot start the test: {error}")))?;
-    let output = child.wait_with_output().map_err(|error| {
-        EngineError::Failed(format!("cannot collect the running test's result: {error}"))
-    })?;
+    let mut command = std::process::Command::new(executable);
+    command.env_clear().current_dir(&working);
+    let output = native::capture(
+        command,
+        crate::NativeEntryLimits::INSTALLED,
+        inputs.private_filesystem.then_some(working.as_path()),
+    )?;
     Ok(Observed {
         termination: NativeTermination {
-            status: ProcessExitObservation::observe(&output.status),
+            status: output.status.into(),
             can_exit,
         },
         stdout: output.stdout,

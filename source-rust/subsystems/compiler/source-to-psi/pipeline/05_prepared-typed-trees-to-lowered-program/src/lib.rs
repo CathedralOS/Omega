@@ -464,6 +464,21 @@ fn read_bodies(
                 Unserved::Machine("identity overflow"),
             )
         })?;
+        // A generic mathematical machine's body was read as terms with its
+        // contract (`read::templates`); nothing of it is lowered.
+        if program
+            .template_bodies
+            .iter()
+            .any(|(template, _)| *template == next)
+        {
+            if complete {
+                bodies.push(Body {
+                    slots: Vec::new(),
+                    statements: Vec::new(),
+                });
+            }
+            continue;
+        }
         match program.body(next) {
             Ok(body) if complete => {
                 bodies.push(body);

@@ -202,6 +202,16 @@ pub enum SignatureEntryKind {
         /// compares it while checking.
         type_identity: String,
     },
+    /// A record with no cases whose fields are all mathematical data: the
+    /// product of its fields' types, right-nested in declared order. A value
+    /// is the tuple of its fields, a field is a projection of it, and a
+    /// record of one field is that field. `fields` holds the entry of each
+    /// field's type.
+    Record {
+        declaration: SymbolHandle,
+        fields: Vec<u32>,
+        type_identity: String,
+    },
     /// A case of the data declared at index `data`, as a function of its fields.
     Constructor { data: u32, case: u32 },
     /// A declaration the encoding of the data at index `data` needs besides
@@ -277,6 +287,18 @@ pub enum LawProof {
         data: u32,
         cases: Vec<LawCase>,
     },
+    /// The machine is defined by recursion on fuel, over the data at entry
+    /// `data`, and takes its fuel from formal `formal`. Its law is proved
+    /// for every amount of fuel, by induction on it: `goal` is the law's
+    /// equality with the machine's result read as that definition, stated
+    /// under the fuel and then the formals. `script` is the body's
+    /// argument, the same in every case of the fuel.
+    Fuel {
+        data: u32,
+        formal: u32,
+        goal: TermHandle,
+        script: LawCase,
+    },
 }
 
 #[derive(Debug, Clone, Default)]
@@ -285,10 +307,35 @@ pub struct LawCase {
     /// The fields the case binds, for diagnostics only.
     pub field_names: Vec<String>,
     pub source: Option<SourceSpan>,
+    /// The case's own cases, when its argument goes on by splitting another
+    /// value after the citations above.
+    pub split: Option<LawSplit>,
+}
+
+/// A split inside a case of a law: one script per case of the value split,
+/// in declared order. It is a case analysis only. The law as a hypothesis
+/// comes from the induction of [`LawProof::Cases`], never from here.
+#[derive(Debug, Clone)]
+pub struct LawSplit {
+    pub subject: SplitSubject,
+    pub data: u32,
+    pub cases: Vec<LawCase>,
+}
+
+/// What a case of a law splits on.
+#[derive(Debug, Clone, Copy)]
+pub enum SplitSubject {
+    /// A formal of the law by position or, past the formals, a field of an
+    /// enclosing case, in the order the cases bind them.
+    Name(u32),
+    /// A computed value, as a term under those names. Each case then also
+    /// holds the equality of the value and the case.
+    Value(TermHandle),
 }
 
 /// A call the body makes for its conclusion. Each argument is a term under
-/// the law's formals followed by the fields of the enclosing case.
+/// the law's formals followed by the fields of every enclosing case,
+/// outermost first.
 #[derive(Debug, Clone)]
 pub struct Citation {
     pub evidence: Evidence,
@@ -303,4 +350,8 @@ pub enum Evidence {
     /// The law itself at one field of the case: the induction hypothesis.
     /// `arguments` then holds the remaining formals' actuals in order.
     Hypothesis { field: u32 },
+    /// The law itself with one unit of fuel less, in a law proved by
+    /// induction on fuel. `arguments` holds every formal's actual. With no
+    /// fuel left there is no such hypothesis and the citation is nothing.
+    Fuel,
 }

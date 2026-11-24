@@ -18,13 +18,20 @@ use proof_admission::{
 use terminal_check_tables::UnprovedCause;
 use terminal_check_tables::mathematics::{
     Evidence, Law, LawCase, LawProof, MathematicalSignature, OperandLaw, OperandLicense,
-    SignatureEntry, SignatureEntryKind,
+    SignatureEntry, SignatureEntryKind, SplitSubject,
 };
 
-use super::equality::{Definitions, Distribution, License, Licenses, SearchError, prove_licensed};
+use super::equality::{
+    Definitions, Distribution, License, Licenses, SearchError, abstracted, normal, prove_licensed,
+};
 
 /// How many rewrite attempts one case of one law may make.
 const SEARCH_STEPS: usize = 65_536;
+/// What one search for a proof may spend computing with the kernel's
+/// reduction: normalizing the terms it reaches. This bounds the search. It is
+/// no part of what the finished proof costs the kernel to check, which
+/// [`DEFAULT_CONVERSION_STEPS`] bounds.
+const SEARCH_COMPUTING: u32 = 1 << 20;
 
 /// One law the kernel judged.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,7 +69,8 @@ pub struct DataCarrier {
     pub carrier_key: Vec<u8>,
 }
 
-/// The carrier of every data declaration the kernel has checked.
+/// The carrier of every data declaration the kernel has checked, a record
+/// of mathematical data included.
 fn carriers(
     arena: &mut TermArena,
     declarations: &[Declaration],
@@ -70,7 +78,9 @@ fn carriers(
 ) -> Result<Vec<DataCarrier>, terminal_codec::CodecError> {
     let mut carriers = Vec::new();
     for (position, entry) in entries.iter().enumerate() {
-        let SignatureEntryKind::Data { type_identity, .. } = &entry.kind else {
+        let (SignatureEntryKind::Data { type_identity, .. }
+        | SignatureEntryKind::Record { type_identity, .. }) = &entry.kind
+        else {
             continue;
         };
         let ty = constant(arena, position as u32);
@@ -251,7 +261,7 @@ pub(crate) fn judge(
 
 fn script(law: &Law, case: usize) -> Option<&LawCase> {
     match &law.proof {
-        LawProof::Direct(_) => None,
+        LawProof::Direct(_) | LawProof::Fuel { .. } => None,
         LawProof::Cases { cases, .. } => cases.get(case),
     }
 }
@@ -367,11 +377,14 @@ struct Cited<'c> {
     licenses: Licenses<'c>,
     laws: &'c [Law],
     law: &'c Law,
-    /// Each formal of the law and then each field of the case, as the
-    /// context names them: what a citation's arguments are written over.
+    /// Each formal of the law and then each field of the enclosing cases, as
+    /// the context names them: what a citation's arguments are written over.
     names: &'c [TermHandle],
-    /// The induction hypothesis for a field, when the law dispatches.
-    hypothesis: &'c dyn Fn(&mut TermArena, u32) -> TermHandle,
+    /// The proofs the case already has: the law's premises and what the
+    /// enclosing cases cited.
+    held: Vec<TermHandle>,
+    /// The induction hypothesis for a field, when the case has one.
+    hypothesis: &'c dyn Fn(u32) -> Option<TermHandle>,
 }
 
 impl Cited<'_> {
@@ -383,12 +396,8 @@ impl Cited<'_> {
     fn evidence(
         self,
         citations: &[terminal_check_tables::mathematics::Citation],
-        budget: &mut Budget,
     ) -> Result<Vec<TermHandle>, Uncited> {
-        let held = self.law.premises.len();
-        let mut evidence: Vec<_> = (0..held)
-            .map(|premise| variable(self.arena, held - 1 - premise))
-            .collect();
+        let mut evidence = self.held;
         let mut waiting = Vec::new();
         for citation in citations {
             let arguments: Vec<_> = citation
@@ -423,12 +432,19 @@ impl Cited<'_> {
                         })
                         .collect::<Option<_>>()
                         .ok_or(Uncited::Search(SearchError::NoProof))?;
-                    (
-                        (self.hypothesis)(self.arena, field),
-                        self.law.premises.as_slice(),
-                        actuals,
-                    )
+                    let hypothesis =
+                        (self.hypothesis)(field).unwrap_or_else(|| self.arena.insert(Term::Dummy));
+                    (hypothesis, self.law.premises.as_slice(), actuals)
                 }
+                // The law with one unit of fuel less, at any arguments. The
+                // case with no fuel left has no such hypothesis: the goal
+                // there must follow without it.
+                Evidence::Fuel => match (self.hypothesis)(0) {
+                    Some(hypothesis) => {
+                        (hypothesis, self.law.premises.as_slice(), arguments.clone())
+                    }
+                    None => continue,
+                },
             };
             let term = self.arena.apply_arguments(head, &arguments);
             let goals: Vec<_> = premises
@@ -446,9 +462,14 @@ impl Cited<'_> {
         while !waiting.is_empty() {
             let mut refused = Vec::new();
             let before = evidence.len();
+            let mut exhausted = false;
             for (mut term, goals) in waiting {
                 let mut proofs = Vec::with_capacity(goals.len());
                 for &goal in &goals {
+                    // A premise that waits on a later citation may run out
+                    // of budget before it runs out of rewrites. Each search
+                    // has a budget of its own, so that one cannot starve the
+                    // premises after it.
                     match prove_licensed(
                         self.arena,
                         self.context,
@@ -457,10 +478,14 @@ impl Cited<'_> {
                         &evidence,
                         self.licenses,
                         SEARCH_STEPS,
-                        budget,
+                        &mut Budget::new(SEARCH_COMPUTING),
                     ) {
                         Ok(proof) => proofs.push(proof),
                         Err(SearchError::NoProof) => break,
+                        Err(SearchError::Budget) => {
+                            exhausted = true;
+                            break;
+                        }
                         Err(error) => return Err(Uncited::Search(error)),
                     }
                 }
@@ -477,11 +502,350 @@ impl Cited<'_> {
                 evidence.push(term);
             }
             if evidence.len() == before {
-                return Err(Uncited::Premise);
+                return Err(if exhausted {
+                    Uncited::Search(SearchError::Budget)
+                } else {
+                    Uncited::Premise
+                });
             }
             waiting = refused;
         }
         Ok(evidence)
+    }
+}
+
+/// Where one step of a law's proof stands: the variables it is under and what
+/// it has to work with. Every term here is stated under `telescope`.
+struct Frame {
+    /// The type of each variable, outermost first, each stated under the
+    /// ones before it: the law's formals and a proof of each premise, and
+    /// inside a case that case's fields and hypotheses before them.
+    telescope: Vec<TermHandle>,
+    goal: TermHandle,
+    /// What each formal of the law stands for, then each field of the
+    /// enclosing cases.
+    names: Vec<TermHandle>,
+    /// The proofs in hand: the premises and what enclosing cases cited.
+    evidence: Vec<TermHandle>,
+    /// The law at each field of the induction's case; empty outside one.
+    hypotheses: Vec<TermHandle>,
+}
+
+/// What a split is for.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Split {
+    /// A case analysis inside a case.
+    Cases,
+    /// The law's induction on one of its formals.
+    Induction,
+    /// The induction on fuel of a law about a machine defined on fuel. Its
+    /// cases bind units of fuel, which the body's script never names.
+    Fuel,
+}
+
+struct Proving<'p> {
+    arena: &'p mut TermArena,
+    closed: &'p Context,
+    definitions: &'p Definitions,
+    licenses: Licenses<'p>,
+    entries: &'p [SignatureEntry],
+    laws: &'p [Law],
+    law: &'p Law,
+}
+
+impl Proving<'_> {
+    /// The proof of the frame's goal by one script: its citations, then
+    /// either a search with them or the script's own cases. `reported` is
+    /// the case of the law's first split a failure is reported under.
+    fn case(
+        &mut self,
+        frame: Frame,
+        script: &LawCase,
+        reported: Option<usize>,
+    ) -> Result<TermHandle, Failure> {
+        let mut context = self.closed.clone();
+        for &ty in &frame.telescope {
+            context = context.extend(ty);
+        }
+        let hypotheses = &frame.hypotheses;
+        let evidence = Cited {
+            arena: self.arena,
+            context: &context,
+            definitions: self.definitions,
+            licenses: self.licenses,
+            laws: self.laws,
+            law: self.law,
+            names: &frame.names,
+            held: frame.evidence.clone(),
+            hypothesis: &|field| hypotheses.get(field as usize).copied(),
+        }
+        .evidence(&script.citations)
+        .map_err(|error| error.failure(reported))?;
+        match &script.split {
+            None => prove_licensed(
+                self.arena,
+                &context,
+                self.definitions,
+                frame.goal,
+                &evidence,
+                self.licenses,
+                SEARCH_STEPS,
+                &mut Budget::new(SEARCH_COMPUTING),
+            )
+            .map_err(|error| failure(reported, error)),
+            Some(split) => {
+                let frame = Frame { evidence, ..frame };
+                match split.subject {
+                    // A value an enclosing case already took apart is no
+                    // longer a variable and has no cases left.
+                    SplitSubject::Name(name) => {
+                        let count = frame.telescope.len();
+                        let place = match frame
+                            .names
+                            .get(name as usize)
+                            .map(|&name| self.arena.get(name))
+                        {
+                            Some(Term::Variable(index)) => count.checked_sub(index as usize + 1),
+                            _ => None,
+                        }
+                        .ok_or_else(|| failure(reported, SearchError::NoProof))?;
+                        self.split(
+                            frame,
+                            place,
+                            split.data,
+                            &split.cases,
+                            Split::Cases,
+                            reported,
+                        )
+                    }
+                    SplitSubject::Value(value) => {
+                        self.split_value(frame, &context, value, split.data, &split.cases, reported)
+                    }
+                }
+            }
+        }
+    }
+
+    /// The proof of the frame's goal by the cases of a computed value.
+    ///
+    /// The goal is first stated for any value `s` in the computed one's
+    /// place, together with a proof that the computed value equals `s`.
+    /// Splitting on `s` then puts each case where the computed value stood
+    /// in the goal, so a definition that chooses by that value computes,
+    /// and gives the case the equality as evidence for whatever else names
+    /// the computed value. The whole is applied to the computed value and
+    /// the proof that it equals itself.
+    fn split_value(
+        &mut self,
+        frame: Frame,
+        context: &Context,
+        value: TermHandle,
+        data: u32,
+        cases: &[LawCase],
+        reported: Option<usize>,
+    ) -> Result<TermHandle, Failure> {
+        let unproved = |error| failure(reported, error);
+        let mut computing = Budget::new(SEARCH_COMPUTING);
+        let value = instantiate(self.arena, value, &frame.names);
+        let value = normal(self.arena, context, self.definitions, value, &mut computing)
+            .map_err(unproved)?;
+        let Term::Id { ty, left, right } = self.arena.get(frame.goal) else {
+            return Err(unproved(SearchError::NoProof));
+        };
+        let left = normal(self.arena, context, self.definitions, left, &mut computing)
+            .map_err(unproved)?;
+        let right = normal(self.arena, context, self.definitions, right, &mut computing)
+            .map_err(unproved)?;
+        let goal = self.arena.insert(Term::Id { ty, left, right });
+        let subject = constant(self.arena, data);
+        // Under `s`: the goal with `s` for the value, and `value = s`.
+        let stated = abstracted(self.arena, goal, value);
+        let lifted = shift(self.arena, value, 0, 1);
+        let s = variable(self.arena, 0);
+        let equation = self.arena.insert(Term::Id {
+            ty: subject,
+            left: lifted,
+            right: s,
+        });
+        let count = frame.telescope.len();
+        let mut telescope = frame.telescope;
+        telescope.extend([subject, equation]);
+        let under = |arena: &mut TermArena, terms: &[TermHandle]| -> Vec<TermHandle> {
+            terms.iter().map(|&term| shift(arena, term, 0, 2)).collect()
+        };
+        let mut evidence = under(self.arena, &frame.evidence);
+        evidence.push(variable(self.arena, 0));
+        let inner = Frame {
+            goal: shift(self.arena, stated, 0, 1),
+            names: under(self.arena, &frame.names),
+            evidence,
+            hypotheses: under(self.arena, &frame.hypotheses),
+            telescope,
+        };
+        let mut proof = self.split(inner, count, data, cases, Split::Cases, reported)?;
+        proof = self.arena.insert(Term::Lambda {
+            domain: equation,
+            body: proof,
+        });
+        proof = self.arena.insert(Term::Lambda {
+            domain: subject,
+            body: proof,
+        });
+        let reflexivity = self.arena.insert(Term::Refl { ty: subject, value });
+        Ok(self.arena.apply_arguments(proof, &[value, reflexivity]))
+    }
+
+    /// The proof of the frame's goal by the cases of the variable at `place`
+    /// in its telescope.
+    ///
+    /// What the variable must satisfy
+    /// is the goal for the variables bound after it, whose types may name
+    /// it, so the motive binds those again after it, in their order. Each
+    /// case is then proved for arbitrary fields with those variables bound
+    /// anew at the case's value, and the whole is applied to the frame's own
+    /// variables.
+    ///
+    /// An induction (`Split::Induction`, `Split::Fuel`) gives the law at each
+    /// field of the case, which is what a self-citation names. Its motive
+    /// binds the variables before the subject again too, so the hypothesis
+    /// holds for every value of the other formals. A split inside a case
+    /// leaves them bound where they are, which keeps the enclosing case's
+    /// hypotheses out of its motive.
+    fn split(
+        &mut self,
+        frame: Frame,
+        place: usize,
+        data: u32,
+        cases: &[LawCase],
+        how: Split,
+        reported: Option<usize>,
+    ) -> Result<TermHandle, Failure> {
+        let induction = how != Split::Cases;
+        let unproved = || failure(reported, SearchError::NoProof);
+        let Some(SignatureEntryKind::Data { shape, .. }) =
+            self.entries.get(data as usize).map(|entry| &entry.kind)
+        else {
+            return Err(unproved());
+        };
+        let count = frame.telescope.len();
+        let Some(index) = count.checked_sub(place + 1) else {
+            return Err(unproved());
+        };
+        if cases.len() != shape.cases() {
+            return Err(unproved());
+        }
+        let kept = if induction { 0 } else { place };
+        let others: Vec<usize> = (kept..count).filter(|&entry| entry != place).collect();
+        // The first `upto` variables of the frame as the new binders name
+        // them. `between` binders stand between the frame and the variables
+        // bound again: the motive's one, or a case's fields and hypotheses.
+        // The subject is `value`, which is told how many of the variables
+        // bound again are beneath it; each of those is its own new binder;
+        // a variable kept is itself, further out.
+        let renamed = |arena: &mut TermArena,
+                       upto: usize,
+                       between: usize,
+                       value: &dyn Fn(&mut TermArena, u32) -> TermHandle|
+         -> Vec<TermHandle> {
+            let inner = others.iter().filter(|&&other| other < upto).count();
+            (0..upto)
+                .map(
+                    |entry| match others.iter().position(|&other| other == entry) {
+                        Some(position) => variable(arena, inner - 1 - position),
+                        None if entry == place => value(arena, inner as u32),
+                        None => variable(arena, inner + between + count - 1 - entry),
+                    },
+                )
+                .collect()
+        };
+        let bound = |arena: &mut TermArena, inner: u32| variable(arena, inner as usize);
+        let actuals = renamed(self.arena, count, 1, &bound);
+        let mut landing = instantiate(self.arena, frame.goal, &actuals);
+        for &other in others.iter().rev() {
+            let actuals = renamed(self.arena, other, 1, &bound);
+            let domain = instantiate(self.arena, frame.telescope[other], &actuals);
+            landing = self.arena.insert(Term::Pi {
+                domain,
+                codomain: landing,
+            });
+        }
+        // The subject is a formal or a field: its type is a declared
+        // constant, stated under nothing.
+        let motive = self.arena.insert(Term::Lambda {
+            domain: frame.telescope[place],
+            body: landing,
+        });
+        let rest = others.len() as u32;
+        let mut branches = Vec::with_capacity(cases.len());
+        for (case, script) in cases.iter().enumerate() {
+            let value =
+                |arena: &mut TermArena, inner: u32| shape.case_value(arena, data, case, inner);
+            // An induction's branch stands alone; a case split's keeps the
+            // frame it is in.
+            let binders = shape.case_binders(self.arena, data, motive, case);
+            let between = binders.len();
+            let mut telescope = if induction {
+                Vec::new()
+            } else {
+                frame.telescope.clone()
+            };
+            telescope.extend(binders);
+            let fields = telescope.len();
+            for &other in &others {
+                let actuals = renamed(self.arena, other, between, &value);
+                telescope.push(instantiate(self.arena, frame.telescope[other], &actuals));
+            }
+            let actuals = renamed(self.arena, count, between, &value);
+            let mut names: Vec<_> = frame
+                .names
+                .iter()
+                .map(|&name| instantiate(self.arena, name, &actuals))
+                .collect();
+            // A unit of fuel is no name of the script's.
+            if how != Split::Fuel {
+                for field in 0..shape.arity(case) {
+                    names.push(shape.field(self.arena, case, field, rest));
+                }
+            }
+            let hypotheses = if induction {
+                (0..shape.arity(case))
+                    .map(|field| shape.hypothesis(self.arena, case, field, rest))
+                    .collect()
+            } else {
+                frame
+                    .hypotheses
+                    .iter()
+                    .map(|&held| instantiate(self.arena, held, &actuals))
+                    .collect()
+            };
+            let inner = Frame {
+                goal: instantiate(self.arena, frame.goal, &actuals),
+                names,
+                evidence: frame
+                    .evidence
+                    .iter()
+                    .map(|&held| instantiate(self.arena, held, &actuals))
+                    .collect(),
+                hypotheses,
+                telescope,
+            };
+            let bound_again = inner.telescope[fields..].to_vec();
+            let mut branch = self.case(inner, script, reported.or(Some(case)))?;
+            for &domain in bound_again.iter().rev() {
+                branch = self.arena.insert(Term::Lambda {
+                    domain,
+                    body: branch,
+                });
+            }
+            branches.push(shape.branch(self.arena, data, motive, case, branch));
+        }
+        let tree = variable(self.arena, index);
+        let cases = shape.induct(self.arena, data, motive, &branches, tree);
+        let arguments: Vec<_> = others
+            .iter()
+            .map(|&other| variable(self.arena, count - 1 - other))
+            .collect();
+        Ok(self.arena.apply_arguments(cases, &arguments))
     }
 }
 
@@ -505,175 +869,80 @@ fn prove_law(
     let count = law.formals.len();
     // A proof of each premise is bound after the formals, innermost last.
     let held = law.premises.len() as u32;
-    let mut budget = Budget::default();
+    let mut telescope = law.formals.clone();
+    for (position, &premise) in law.premises.iter().enumerate() {
+        telescope.push(shift(arena, premise, 0, position as u32));
+    }
+    let frame = Frame {
+        goal: shift(arena, law.goal, 0, held),
+        names: (0..count)
+            .map(|formal| variable(arena, count - 1 - formal + held as usize))
+            .collect(),
+        evidence: (0..held)
+            .map(|premise| variable(arena, (held - 1 - premise) as usize))
+            .collect(),
+        hypotheses: Vec::new(),
+        telescope,
+    };
+    let mut proving = Proving {
+        arena,
+        closed: &closed,
+        definitions: &definitions,
+        licenses,
+        entries,
+        laws,
+        law,
+    };
     let body = match &law.proof {
-        LawProof::Direct(direct) => {
-            let mut context = closed.clone();
-            for &formal in &law.formals {
-                context = context.extend(formal);
-            }
-            for (position, &premise) in law.premises.iter().enumerate() {
-                context = context.extend(shift(arena, premise, 0, position as u32));
-            }
-            let names: Vec<_> = (0..count)
-                .map(|formal| variable(arena, count - 1 - formal + held as usize))
-                .collect();
-            let goal = shift(arena, law.goal, 0, held);
-            let evidence = Cited {
-                arena,
-                context: &context,
-                definitions: &definitions,
-                licenses,
-                laws,
-                law,
-                names: &names,
-                hypothesis: &|arena, _| arena.insert(Term::Dummy),
-            }
-            .evidence(&direct.citations, &mut budget)
-            .map_err(|error| error.failure(None))?;
-            prove_licensed(
-                arena,
-                &context,
-                &definitions,
-                goal,
-                &evidence,
-                licenses,
-                SEARCH_STEPS,
-                &mut budget,
-            )
-            .map_err(|error| failure(None, error))?
-        }
+        LawProof::Direct(direct) => proving.case(frame, direct, None)?,
         LawProof::Cases {
             formal,
             data,
             cases,
+        } => proving.split(
+            frame,
+            *formal as usize,
+            *data,
+            cases,
+            Split::Induction,
+            None,
+        )?,
+        // The law for every amount of fuel, then at the machine's own: its
+        // ranked formal. The fuel is one more variable, bound first; every
+        // case of it runs the same script.
+        LawProof::Fuel {
+            data,
+            formal,
+            goal,
+            script,
         } => {
-            let subject = *formal as usize;
             let Some(SignatureEntryKind::Data { shape, .. }) =
                 entries.get(*data as usize).map(|entry| &entry.kind)
             else {
                 return Err(failure(None, SearchError::NoProof));
             };
-            let others: Vec<usize> = (0..count).filter(|formal| *formal != subject).collect();
-            let rest = others.len();
-            // Each formal as a branch names it: the subject is replaced, the
-            // others are bound again inside the motive and inside each branch.
-            let outer = |arena: &mut TermArena, subject_term: TermHandle| -> Vec<TermHandle> {
-                (0..count)
-                    .map(
-                        |formal| match others.iter().position(|other| *other == formal) {
-                            Some(position) => variable(arena, rest - 1 - position),
-                            None => subject_term,
-                        },
-                    )
-                    .collect()
+            let ranked = *formal as usize;
+            if ranked >= count {
+                return Err(failure(None, SearchError::NoProof));
+            }
+            let fuel = constant(proving.arena, *data);
+            let mut telescope = vec![fuel];
+            telescope.extend(frame.telescope.iter().copied());
+            let over_fuel = Frame {
+                goal: shift(proving.arena, *goal, 0, held),
+                telescope,
+                ..frame
             };
-            // What a value of the subject must satisfy: for the other
-            // formals and a proof of each premise at that value, the goal.
-            let conclusion = |arena: &mut TermArena, actuals: &[TermHandle]| {
-                let goal = instantiate(arena, law.goal, actuals);
-                let goal = shift(arena, goal, 0, held);
-                let premises: Vec<_> = law
-                    .premises
-                    .iter()
-                    .enumerate()
-                    .map(|(position, &premise)| {
-                        let premise = instantiate(arena, premise, actuals);
-                        shift(arena, premise, 0, position as u32)
-                    })
-                    .collect();
-                (premises, goal)
-            };
-            let tree = variable(arena, rest);
-            let actuals = outer(arena, tree);
-            let (premises, mut landing) = conclusion(arena, &actuals);
-            for &premise in premises.iter().rev() {
-                landing = arena.insert(Term::Pi {
-                    domain: premise,
-                    codomain: landing,
-                });
-            }
-            for &other in others.iter().rev() {
-                landing = arena.insert(Term::Pi {
-                    domain: law.formals[other],
-                    codomain: landing,
-                });
-            }
-            let motive = arena.insert(Term::Lambda {
-                domain: law.formals[subject],
-                body: landing,
-            });
-            let mut branches = Vec::with_capacity(cases.len());
-            for (case, script) in cases.iter().enumerate() {
-                // A case is proved for arbitrary fields, with the law at
-                // each field as a hypothesis.
-                let mut context = closed.clone();
-                for binder in shape.case_binders(arena, *data, motive, case) {
-                    context = context.extend(binder);
-                }
-                for &other in &others {
-                    context = context.extend(law.formals[other]);
-                }
-                let value = shape.case_value(arena, *data, case, rest as u32);
-                let actuals = outer(arena, value);
-                let (premises, goal) = conclusion(arena, &actuals);
-                for &premise in &premises {
-                    context = context.extend(premise);
-                }
-                let inner = rest as u32 + held;
-                let mut names: Vec<_> = actuals
-                    .iter()
-                    .map(|&actual| shift(arena, actual, 0, held))
-                    .collect();
-                for field in 0..shape.arity(case) {
-                    names.push(shape.field(arena, case, field, inner));
-                }
-                let evidence = Cited {
-                    arena,
-                    context: &context,
-                    definitions: &definitions,
-                    licenses,
-                    laws,
-                    law,
-                    names: &names,
-                    hypothesis: &|arena, field| shape.hypothesis(arena, case, field, inner),
-                }
-                .evidence(&script.citations, &mut budget)
-                .map_err(|error| error.failure(Some(case)))?;
-                let mut branch = prove_licensed(
-                    arena,
-                    &context,
-                    &definitions,
-                    goal,
-                    &evidence,
-                    licenses,
-                    SEARCH_STEPS,
-                    &mut budget,
-                )
-                .map_err(|error| failure(Some(case), error))?;
-                for &premise in premises.iter().rev() {
-                    branch = arena.insert(Term::Lambda {
-                        domain: premise,
-                        body: branch,
-                    });
-                }
-                for &other in others.iter().rev() {
-                    branch = arena.insert(Term::Lambda {
-                        domain: law.formals[other],
-                        body: branch,
-                    });
-                }
-                branches.push(shape.branch(arena, *data, motive, case, branch));
-            }
-            let tree = variable(arena, count - 1 - subject + held as usize);
-            let induction = shape.induct(arena, *data, motive, &branches, tree);
-            let mut arguments: Vec<_> = others
-                .iter()
-                .map(|&other| variable(arena, count - 1 - other + held as usize))
-                .collect();
-            arguments
-                .extend((0..held).map(|premise| variable(arena, (held - 1 - premise) as usize)));
-            arena.apply_arguments(induction, &arguments)
+            let scripts = vec![script.clone(); shape.cases()];
+            let general = proving.split(over_fuel, 0, *data, &scripts, Split::Fuel, None)?;
+            // `general` is stated under the fuel, the formals and the
+            // premises. Here the fuel is the ranked formal.
+            let mut actuals = vec![variable(proving.arena, count - 1 - ranked + held as usize)];
+            actuals.extend(
+                (0..count + held as usize)
+                    .map(|entry| variable(proving.arena, count + held as usize - 1 - entry)),
+            );
+            instantiate(proving.arena, general, &actuals)
         }
     };
     let mut proof = body;
@@ -691,9 +960,13 @@ fn prove_law(
         });
     }
     // The kernel checks the proof once, as the certificate it will publish.
+    // That check has the whole of a law's budget. Each search for a proof
+    // or a premise had one of its own, so what a search computed on the way
+    // is no part of what the law costs to check.
+    let mut check = Budget::default();
     let certificate = MathematicalCertificate::with_signature(prefix, Vec::new(), proof, statement);
     let receipt =
-        MathematicalJudgmentReceipt::verify(arena, &certificate, &mut budget).map_err(kernel)?;
+        MathematicalJudgmentReceipt::verify(arena, &certificate, &mut check).map_err(kernel)?;
     if let Some(declared) = law.declared {
         // The machine satisfies a requirement: the statement it proved must
         // be the law that requirement declares, up to the kernel's own
@@ -711,7 +984,7 @@ fn prove_law(
             cause,
             detail: "the proved equality is not the law its requirement declares".to_owned(),
         };
-        match convertible(arena, &closed, statement, required, universe, &mut budget) {
+        match convertible(arena, &closed, statement, required, universe, &mut check) {
             Ok(true) => {}
             Err(CoreError::StepCeiling) => return Err(differs(UnprovedCause::BudgetExhausted)),
             Ok(false) | Err(_) => return Err(differs(UnprovedCause::NoDerivation)),
@@ -730,7 +1003,7 @@ fn prove_law(
         clause: law.clause,
         decision: MathematicalCoreDecision::Judged(receipt),
         certificate: bytes,
-        conversion_steps: DEFAULT_CONVERSION_STEPS - budget.remaining(),
+        conversion_steps: DEFAULT_CONVERSION_STEPS - check.remaining(),
     })
 }
 
@@ -782,7 +1055,12 @@ fn statement(
                 .map_or("?", |entry| entry.name.as_str())
         );
     }
-    let equality = render(arena, entries, goal, &names);
+    let mut equality = render(arena, entries, goal, &names);
+    // A field of a record is a projection of a tuple, which carries no name
+    // to print. The clause as written says it, where there is one to quote.
+    if equality.contains('?') && case.is_none() && !law.text.is_empty() {
+        equality.clone_from(&law.text);
+    }
     if law.text.is_empty() {
         format!(
             "cannot prove the law `{}` inherits from the requirement it satisfies{within}: {equality}",

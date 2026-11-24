@@ -85,8 +85,7 @@ pub(crate) fn bind<'a>(
 /// Physical images and optional replay inputs from all reached exports in this construction.
 pub(crate) struct Emission<'request> {
     pub suppliers: &'request VerifiedSuppliers,
-    pub isolated_execution_grant:
-        Option<&'request semantic_vocabulary::TerminalAuthorityDisposition>,
+    pub isolated_execution_grant: Option<&'request provider_admission::IsolatedExecutionGrant>,
     pub authority: &'request provider_admission::TerminalAuthorityPolicy,
     pub permissions: &'request Option<provider_admission::TerminalAuthorityPermissionPolicy>,
     pub scalar_receipts: &'request mut Vec<native_scalar_inputs::EvaluationReceipt>,

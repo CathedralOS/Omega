@@ -25,7 +25,34 @@ trait brings in every other machine over such data that satisfies a
 requirement of the same trait at the same data, so a program that calls the
 library's `add` on `Nat` gets `core/nat.omg`'s whole `CommutativeSemiring`
 conformance. A machine that returns a value and states an equality is read
-as a definition and as a law. The ordinary reader refuses the same data and machines when a
+as a definition and as a law. Data with a field of mathematical data is
+mathematical too: a record of such fields is read as the product of their
+types, with field access and record literals as projections and tuples.
+Conformances are read in the order of the data they are about, so a record's
+laws come after the laws of its fields' type. A case of a law may call a nested machine that
+dispatches on another of its formals: its cases are read as a split inside
+that case (`LawSplit`), to any depth. A machine that returns a value and
+states a law is read as a definition only where a term applies it or its
+statement names its result. A body read for its value may also dispatch on a
+computed value: the dispatch becomes a definition by cases of its own, over
+its subject and every variable in scope. A machine that calls itself anywhere
+but at a field of the case it dispatches on is defined by recursion on fuel
+taken from the formal it is ranked on (`by_fuel` in `read/signature.rs`), and
+a law about its own result is read as an induction on that fuel. A call of a
+machine that has a `requires` owes it there: a premise of the defining
+machine is in hand, any other becomes a statement of its own, proved from
+what the body has cited. A mathematical machine may be generic over other
+machines (`cauchy_at<machine Sequence, machine Modulus>`). Nothing
+instantiates it: it is read once, each machine parameter becomes one more
+formal of the definition or law, of that machine's function type, and a call
+of the parameter is an application of that formal (`read/templates.rs`). Its
+body is not lowered. A body of `let`s, citations and one value is read with
+the machine's contract, through the clause reader, each `let` standing for
+its value; any other body is refused. A clause that calls a machine with a
+`requires` must have that premise among the stating machine's own. A named proposition declared as
+one formula is read where a clause of such a machine applies it: the formula,
+with each parameter standing for the argument written for it. Its declaration
+adds nothing to the signature. The ordinary reader refuses the same data and machines when a
 runtime machine reaches them. A field of any other type in such data, a
 premise on such a machine and a result together with a guarantee are refused
 as not supported yet.

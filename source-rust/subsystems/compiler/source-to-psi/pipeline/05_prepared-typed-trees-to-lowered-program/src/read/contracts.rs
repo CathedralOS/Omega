@@ -29,6 +29,16 @@ use crate::lowering::body::ValueType;
 use crate::lowering::canonical::{self, Repeated};
 use crate::lowering::{ClauseText, Piece, SourceOrigin, Unserved, refuse, reject};
 
+/// Names a clause is being read through, each standing for an expression.
+/// For a named proposition: its declaration, which owns what its formula
+/// writes, and each parameter with the argument written for it where the
+/// proposition was applied. For the body of a generic mathematical machine:
+/// no declaration, and each `let` with its value.
+pub(super) struct AppliedProposition {
+    pub(super) declaration: Option<SymbolHandle>,
+    pub(super) arguments: Vec<(SymbolHandle, ExpressionHandle)>,
+}
+
 /// What a contract clause may name: the formals, and the result pseudo-value
 /// only in a normal-return guarantee of its owning callable.
 #[derive(Clone, Copy)]
@@ -252,8 +262,96 @@ impl Program<'_> {
         )
     }
 
-    /// A contract fact that is an expression; memberships and named
-    /// propositions are outside the subset.
+    /// A named proposition applied in a clause of a mathematical machine is
+    /// the formula it is declared as, with each parameter standing for the
+    /// argument written for it. Nothing of the name reaches the signature:
+    /// `int_pair_equivalent(a, b)` and the Identity it abbreviates are one
+    /// clause. A proposition declared without a formula, or with a binder,
+    /// has no such reading and is refused.
+    fn named_proposition(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        application: &crate::source_state::proposition::PropositionApplication,
+    ) -> Checked<(Proposition, ClauseText)> {
+        use crate::source_state::proposition::{PropositionBody, PropositionFormula};
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let typed = self.typed;
+        let definition = typed
+            .proposition_definition_by_symbol(application.proposition)
+            .ok_or_else(|| unserved("named proposition without its declaration"))?;
+        let PropositionBody::Transparent { proposition } = &definition.body else {
+            return Err(unserved("named proposition declared without a formula"));
+        };
+        if !definition.binders.is_empty() || !application.binder_arguments.is_empty() {
+            return Err(unserved("named proposition with a binder"));
+        }
+        let parameters = typed
+            .state_parameters
+            .span(definition.parameters)
+            .ok_or_else(|| unserved("named proposition lost its parameters"))?;
+        let arguments = typed
+            .expression_table
+            .expression_handles(application.arguments);
+        if parameters.len() != arguments.len() {
+            return Err(unserved(
+                "named proposition applied to the wrong number of arguments",
+            ));
+        }
+        // A proposition's formula may apply another, never itself.
+        if self
+            .applied_propositions
+            .iter()
+            .any(|applied| applied.declaration == Some(definition.symbol))
+        {
+            return Err(unserved("recursive named proposition"));
+        }
+        self.applied_propositions.push(AppliedProposition {
+            declaration: Some(definition.symbol),
+            arguments: parameters
+                .iter()
+                .zip(arguments)
+                .map(|(parameter, &argument)| (parameter.symbol, argument))
+                .collect(),
+        });
+        let read = match proposition {
+            PropositionFormula::BooleanExpression(formula) => self.clause(id, scope, *formula),
+            PropositionFormula::Application(inner) => self
+                .named_proposition(id, scope, inner)
+                .map(|(clause, _)| clause),
+        };
+        self.applied_propositions.pop();
+        let mut text = ClauseText {
+            source: arguments
+                .first()
+                .map(|&argument| typed.expression_table.source_span(argument)),
+            ..Default::default()
+        };
+        text.push_text(application.name.as_str());
+        text.push_text("(");
+        for (position, &argument) in arguments.iter().enumerate() {
+            if position != 0 {
+                text.push_text(", ");
+            }
+            self.write_clause_text(scope.slots, argument, &mut text);
+        }
+        text.push_text(")");
+        Ok((read?, text))
+    }
+
+    /// The argument a clause being read through a named proposition has for
+    /// one of that proposition's parameters.
+    pub(super) fn proposition_argument(&self, parameter: SymbolHandle) -> Option<ExpressionHandle> {
+        self.applied_propositions
+            .iter()
+            .flat_map(|applied| &applied.arguments)
+            .find(|(bound, _)| *bound == parameter)
+            .map(|(_, argument)| *argument)
+    }
+
+    /// A contract fact that is an expression. Memberships are outside the
+    /// subset, and so is a named proposition outside a mathematical machine
+    /// (`named_proposition` reads it there).
     pub(super) fn fact(&self, id: MachineId, fact: &ProofFact) -> Checked<ExpressionHandle> {
         match fact {
             ProofFact::Expression(expression) => Ok(*expression),
@@ -332,6 +430,11 @@ impl Program<'_> {
                 }
                 None => self.runtime_membership_clause(id, scope, membership),
             };
+        }
+        if let ProofFact::Proposition(application) = fact
+            && self.mathematical
+        {
+            return self.named_proposition(id, scope, application).map(Some);
         }
         let expression = self.fact(id, fact)?;
         if self.states_nothing(id, expression, requirement)? {
@@ -815,6 +918,13 @@ impl Program<'_> {
         // owns its own result and its written applications directly.
         let owner = self.contract_operator_owner(id, scope)?;
         let owner = self.entered_machine(owner).unwrap_or(owner);
+        // An Identity in a named proposition's formula was written there.
+        let owner = self
+            .applied_propositions
+            .iter()
+            .rev()
+            .find_map(|applied| applied.declaration)
+            .unwrap_or(owner);
         if !typed.symbols.symbols().nodes().is_valid(owner) || application.lexical_owner != owner {
             return Err(unavailable(
                 "Identity application has a different lexical declaration",
@@ -991,7 +1101,8 @@ impl Program<'_> {
             .operand(id)?;
         // Keep the arithmetic prover's integer relation when both operands
         // already have scalar denotations. An abstract operation stays applied.
-        if !preserve_type && matches!(carrier.scalar(), Some(ScalarType::Integer(_)))
+        if !preserve_type
+            && matches!(carrier.scalar(), Some(ScalarType::Integer(_)))
             && let (
                 semantic_vocabulary::ClauseOperand::Scalar(a),
                 semantic_vocabulary::ClauseOperand::Scalar(b),
@@ -1240,7 +1351,9 @@ impl Program<'_> {
     /// substitution of the caller's actuals without re-reading source text.
     pub(super) fn clause_text(&self, slots: &[Slot], expression: ExpressionHandle) -> ClauseText {
         let mut text = ClauseText {
-            source: expression.is_valid().then(|| self.typed.expression_table.source_span(expression)),
+            source: expression
+                .is_valid()
+                .then(|| self.typed.expression_table.source_span(expression)),
             ..Default::default()
         };
         self.write_clause_text(slots, expression, &mut text);

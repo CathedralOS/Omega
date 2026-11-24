@@ -310,9 +310,7 @@ impl Program<'_> {
                         refuse(
                             entry,
                             Construct::Machine,
-                            Unserved::Declaration(
-                                "supply lost its declaring trait application",
-                            ),
+                            Unserved::Declaration("supply lost its declaring trait application"),
                         )
                     })?,
                 None => AppliedTraitScope::abstract_scope(owner),
@@ -398,7 +396,7 @@ impl Program<'_> {
             {
                 continue;
             }
-            if self.is_generic_template(machine) {
+            if self.is_generic_template(machine) && !self.mathematical_template(machine) {
                 return Err(self.read_failure_at(
                     refuse(
                         entry,
@@ -415,7 +413,7 @@ impl Program<'_> {
         for declared in typed.data_definitions() {
             if self.owner(entry, declared.symbol, subjects, purpose)? == Owner::Subject
                 && !names_only(declared)
-                && self.contains_itself(declared)
+                && self.is_mathematical_data(declared)
             {
                 data.push(declared.symbol);
             }
@@ -424,7 +422,11 @@ impl Program<'_> {
     }
 
     /// Reads one data declaration that contains itself as a mathematical type.
-    pub(crate) fn mathematical_data(&mut self, entry: MachineId, data: SymbolHandle) -> Checked<()> {
+    pub(crate) fn mathematical_data(
+        &mut self,
+        entry: MachineId,
+        data: SymbolHandle,
+    ) -> Checked<()> {
         self.record(entry, data)
             .map(|_| ())
             .map_err(|refusal| self.read_failure_at(refusal, data, "the mathematical declaration"))
@@ -533,7 +535,7 @@ impl Program<'_> {
                 {
                     return Ok(());
                 }
-                if self.contains_itself(data) {
+                if self.is_mathematical_data(data) {
                     return Ok(());
                 }
                 // A declaration with type or const parameters has no record
@@ -696,8 +698,22 @@ impl Program<'_> {
         let unjudged = [
             (symbols_of(typed.measures(), |row| row.symbol), "measure"),
             (symbols_of(typed.operators(), |row| row.symbol), "operator"),
+            // A proposition declared as one formula is read where a clause
+            // applies it (`contracts::named_proposition`); its declaration
+            // states nothing by itself.
             (
-                symbols_of(typed.propositions(), |row| row.symbol),
+                typed
+                    .propositions()
+                    .iter()
+                    .filter(|row| {
+                        !row.binders.is_empty()
+                            || !matches!(
+                                row.body,
+                                crate::source_state::proposition::PropositionBody::Transparent { .. }
+                            )
+                    })
+                    .map(|row| row.symbol)
+                    .collect(),
                 "proposition",
             ),
             (
@@ -927,7 +943,13 @@ impl Program<'_> {
                 for (formal, argument) in formals.iter().zip(arguments) {
                     match formal.kind {
                         TypeParameterKind::Type => {
-                            self.template_type(entry, declaration, parameters, *argument, depth + 1)?;
+                            self.template_type(
+                                entry,
+                                declaration,
+                                parameters,
+                                *argument,
+                                depth + 1,
+                            )?;
                         }
                         TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
                             // A `const` formal needs a static argument; a
@@ -1092,14 +1114,21 @@ impl Program<'_> {
                 Unserved::Type("stale alias expansion"),
             ));
         }
-        match self.typed.type_reference_table.type_reference(alias.expansion) {
+        match self
+            .typed
+            .type_reference_table
+            .type_reference(alias.expansion)
+        {
             TypeReferenceNode::Callable { contract } => {
                 // A declaration may describe an open callable. Reading that
                 // contract as a stored value would require an extra ceiling.
                 self.callable_alias_declaration(site, *contract)
             }
             _ if !alias.type_parameters.is_empty() => {
-                let parameters = self.typed.data_type_parameters.span_or_empty(alias.type_parameters);
+                let parameters = self
+                    .typed
+                    .data_type_parameters
+                    .span_or_empty(alias.type_parameters);
                 self.template_type(site, alias.symbol, parameters, alias.expansion, 0)
             }
             _ => self.value_type(site, alias.expansion).map(|_| ()),
@@ -1211,7 +1240,11 @@ fn served_trait_parameters(
         }
         match parameter.kind {
             TypeParameterKind::Type => {}
-            TypeParameterKind::Const { type_reference } if crate::source_state::canonical_const_carrier_is_supported(typed, type_reference) => {}
+            TypeParameterKind::Const { type_reference }
+                if crate::source_state::canonical_const_carrier_is_supported(
+                    typed,
+                    type_reference,
+                ) => {}
             TypeParameterKind::Implementation => {
                 implementations += 1;
                 let mut bounds = declared

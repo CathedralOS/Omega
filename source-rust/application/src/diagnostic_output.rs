@@ -31,6 +31,12 @@ fn write_grouped_diagnostics(
     diagnostics: &[Diagnostic],
     every: bool,
 ) -> fmt::Result {
+    // The build returns one verdict per test. Two tests with the same outcome
+    // are separate results, even when the user requests a concise report.
+    if diagnostics.iter().all(|row| row.build_context == Some(diagnostics::BuildDiagnosticContext::RunningRegisteredTests))
+    {
+        return diagnostics.iter().try_for_each(|row| write_one_diagnostic(formatter, row));
+    }
     // Few causes, many diagnostics: a linear search over the causes seen so
     // far keeps one small vector instead of a map.
     let mut causes: Vec<(_, Vec<usize>)> = Vec::new();

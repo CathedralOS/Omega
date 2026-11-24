@@ -8,8 +8,8 @@
 
 use std::time::Duration;
 
-use super::super::lifecycle::JobLimitEvent;
 use super::support::{JOB_LIMIT_TEST_LOCK, MIB, run_worker, test_limits};
+use crate::ProcessLimit;
 
 #[test]
 fn job_active_process_limit_rejects_excess_descendant() {
@@ -19,7 +19,7 @@ fn job_active_process_limit_rejects_excess_descendant() {
     let control = test_limits(4, 512, 1024, Duration::from_secs(30));
     let (status, events) = run_worker("fanout", "2,1", control, Duration::from_secs(10));
     assert!(status.success(), "below-limit fanout should succeed");
-    assert!(!events.contains(&JobLimitEvent::ActiveProcess));
+    assert!(!events.contains(&ProcessLimit::ActiveProcess));
 
     let limited = test_limits(2, 512, 1024, Duration::from_secs(30));
     let (status, events) = run_worker("fanout", "2,0", limited, Duration::from_secs(10));
@@ -27,7 +27,7 @@ fn job_active_process_limit_rejects_excess_descendant() {
         status.success(),
         "worker should observe the rejected excess child"
     );
-    assert!(events.contains(&JobLimitEvent::ActiveProcess));
+    assert!(events.contains(&ProcessLimit::ActiveProcess));
 }
 
 #[test]
@@ -46,7 +46,7 @@ fn job_process_memory_limit_blocks_excess_commit() {
         status.success(),
         "below-limit process memory should succeed"
     );
-    assert!(!events.contains(&JobLimitEvent::ProcessMemory));
+    assert!(!events.contains(&ProcessLimit::ProcessMemory));
 
     let limited = test_limits(4, 128, 512, Duration::from_secs(30));
     let (status, events) = run_worker(
@@ -56,7 +56,7 @@ fn job_process_memory_limit_blocks_excess_commit() {
         Duration::from_secs(10),
     );
     assert!(!status.success(), "over-limit process memory must fail");
-    assert!(events.contains(&JobLimitEvent::ProcessMemory));
+    assert!(events.contains(&ProcessLimit::ProcessMemory));
 }
 
 #[test]
@@ -75,7 +75,7 @@ fn job_aggregate_memory_limit_spans_descendants() {
         status.success(),
         "below-limit aggregate memory should succeed"
     );
-    assert!(!events.contains(&JobLimitEvent::AggregateMemory));
+    assert!(!events.contains(&ProcessLimit::AggregateMemory));
 
     let limited = test_limits(4, 256, 256, Duration::from_secs(30));
     let (status, events) = run_worker(
@@ -88,7 +88,7 @@ fn job_aggregate_memory_limit_spans_descendants() {
         status.success(),
         "worker should observe an aggregate-memory child failure"
     );
-    assert!(events.contains(&JobLimitEvent::AggregateMemory));
+    assert!(events.contains(&ProcessLimit::AggregateMemory));
 }
 
 #[test]
@@ -99,7 +99,7 @@ fn job_aggregate_cpu_limit_terminates_the_job() {
     let control = test_limits(2, 256, 512, Duration::from_secs(5));
     let (status, events) = run_worker("spin", "100", control, Duration::from_secs(10));
     assert!(status.success(), "below-limit aggregate CPU should succeed");
-    assert!(!events.contains(&JobLimitEvent::AggregateCpu));
+    assert!(!events.contains(&ProcessLimit::AggregateCpu));
 
     let limited = test_limits(2, 256, 512, Duration::from_millis(100));
     let (status, events) = run_worker(
@@ -109,5 +109,5 @@ fn job_aggregate_cpu_limit_terminates_the_job() {
         Duration::from_secs(10),
     );
     assert!(!status.success(), "over-limit aggregate CPU must terminate");
-    assert!(events.contains(&JobLimitEvent::AggregateCpu));
+    assert!(events.contains(&ProcessLimit::AggregateCpu));
 }

@@ -48,7 +48,7 @@ pub struct NativeProgram {
     terminal: RetainedTerminalArtifact,
     suppliers: driver::inputs::components::VerifiedSuppliers,
     permissions: provider_admission::TerminalAuthorityPermissionPolicy,
-    isolated_execution_grant: Option<semantic_vocabulary::TerminalAuthorityDisposition>,
+    isolated_execution_grant: Option<provider_admission::IsolatedExecutionGrant>,
     installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
 }
 

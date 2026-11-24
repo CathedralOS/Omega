@@ -25,6 +25,7 @@ mod external_mechanisms;
 mod host_cohorts;
 #[path = "terminal_authority_policy/posix_operations.rs"]
 mod posix_operations;
+pub(crate) use posix_operations::private_linux_syscall_authority;
 #[path = "terminal_authority_policy/windows_imports.rs"]
 mod windows_imports;
 

@@ -123,7 +123,6 @@ impl Program<'_> {
         let typed = self.typed;
         let target = call.target_symbol;
         if call.receiver.is_valid()
-            || !call.machine_arguments.is_empty()
             || !call.evidence_arguments.is_empty()
             || !typed.symbols.symbols().nodes().is_valid(target)
         {
@@ -137,7 +136,9 @@ impl Program<'_> {
         typed
             .machine_by_symbol(machine)
             .filter(|declared| {
-                self.proof_machine(declared)
+                // Machine arguments are for a machine generic over machines.
+                call.machine_arguments.is_empty() != self.mathematical_template(declared)
+                    && self.proof_machine(declared)
                     && typed
                         .machine_states(declared)
                         .first()
@@ -245,6 +246,14 @@ impl Program<'_> {
             _ => None,
         };
         if let Some((mut expected, values)) = operands {
+            // A parameter of a named proposition being read is the argument
+            // written for it where the proposition was applied.
+            if let ExpressionNode::Name(path) = table.expression(expression)
+                && let Some(expected) = expected
+                && let Some(actual) = self.proposition_argument(path.symbol)
+            {
+                return self.clause_term(id, scope, actual, ClauseUse::Operand(expected, values));
+            }
             let operand = match (table.expression(expression), expected) {
                 // A machine defined by cases over data that contains itself is
                 // a function of the signature. The clause applies it by its
@@ -276,6 +285,40 @@ impl Program<'_> {
                         ));
                     }
                     let mut arguments = Vec::with_capacity(actuals.len());
+                    // A machine argument is a function passed whole: the
+                    // machine parameter it names, applied to nothing. It
+                    // comes before the value arguments, as the generic
+                    // machine's definition takes them.
+                    for argument in call.machine_arguments.iter() {
+                        let signature = self.callable_parameter(argument.symbol).ok_or_else(|| {
+                            unavailable(
+                                "generic mathematical machine applied to something other than a machine parameter",
+                            )
+                        })?;
+                        let ValueType::Record(record, ..) =
+                            self.value_type(id, signature.return_type)?
+                        else {
+                            return Err(unavailable(
+                                "machine argument whose result is not mathematical data",
+                            ));
+                        };
+                        let position = u32::try_from(values.len())
+                            .map_err(|_| unavailable("clause term table overflow"))?;
+                        values.push(ClauseValue {
+                            carrier: ClauseCarrier::Structural(record),
+                            operand: ClauseOperand::Application {
+                                declaration: ClauseDeclaration {
+                                    member: (
+                                        argument.symbol.arena_index(),
+                                        argument.symbol.generation(),
+                                    ),
+                                    supplier: None,
+                                },
+                                arguments: Vec::new(),
+                            },
+                        });
+                        arguments.push(position);
+                    }
                     for (formal, &actual) in parameters.iter().zip(actuals) {
                         let ty = self.value_type(id, formal.type_reference)?;
                         arguments.push(
@@ -394,9 +437,10 @@ impl Program<'_> {
                             "clause application has no selected static receiver",
                         ));
                     }
+                    let parameter = self.callable_parameter(target);
                     let supplier = receiver
                         .or(self.clause_supplier)
-                        .filter(|_| bodyless.is_none());
+                        .filter(|_| bodyless.is_none() && parameter.is_none());
                     let member = bodyless
                         .as_ref()
                         .map(|(machine, _)| *machine)
@@ -405,7 +449,9 @@ impl Program<'_> {
                                 .closed_requirement_application(target)
                                 .map_or(target, |row| row.template)
                         });
-                    let signature = if let Some((_, signature)) = &bodyless {
+                    let signature = if let Some(parameter) = parameter {
+                        Some(parameter)
+                    } else if let Some((_, signature)) = &bodyless {
                         Some(signature)
                     } else if let Some(supplier) = supplier {
                         let lexical = typed.symbols.get(supplier).parent;
@@ -443,12 +489,20 @@ impl Program<'_> {
                         unavailable("clause application has no requirement signature")
                     })?;
                     let envelope = self.static_envelope(id, signature, false)?;
-                    if !matches!(envelope.service_reach, crate::lowering::static_contracts::SourceServiceCeiling::Closed(ref row) if row.is_empty())
+                    // A machine parameter of a mathematical machine takes
+                    // and returns data that has no layout, so no machine
+                    // that fits it runs anywhere: it reaches no service and
+                    // has no crash route to declare. What it must promise is
+                    // that it terminates, since a clause gives its call a
+                    // value.
+                    let runs = parameter.is_none();
+                    if (runs
+                        && (!matches!(envelope.service_reach, crate::lowering::static_contracts::SourceServiceCeiling::Closed(ref row) if row.is_empty())
+                            || !envelope.invocations.is_empty()
+                            || !signature.declares_no_crash_route))
                         || !matches!(envelope.termination, terminal_psi::TerminalCallableTermination::Terminates { ref premises } if premises.is_empty())
-                        || !envelope.invocations.is_empty()
                         || envelope.suspends
                         || envelope.blocks
-                        || !signature.declares_no_crash_route
                         || !signature.contracts.is_empty()
                         || !call.machine_arguments.is_empty()
                         || !call.evidence_arguments.is_empty()
@@ -546,6 +600,83 @@ impl Program<'_> {
                             super::contracts::formal_place(id, scope.slots, position)?,
                             Vec::new(),
                         ))
+                    }
+                }
+                // A field of a value is the field's declaration applied to
+                // that value, whatever the value is: a formal, a call or
+                // another field.
+                (ExpressionNode::Member(member), Some(expected)) if self.mathematical => {
+                    let selected = member.selection.field_symbol();
+                    // The field's declaration says whose field it is. A
+                    // field of a call of a machine parameter has no such
+                    // selection: the call's declared result is the record,
+                    // and the field is the one of that name.
+                    let receiver = if selected.is_valid() {
+                        self.record(id, typed.symbols.get(selected).parent)?
+                    } else {
+                        match table.expression(member.receiver) {
+                            ExpressionNode::Call(call) => {
+                                let signature =
+                                    self.callable_parameter(call.target_symbol).ok_or_else(
+                                        || unavailable("clause member without a field symbol"),
+                                    )?;
+                                self.value_type(id, signature.return_type)?
+                            }
+                            _ => return Err(unavailable("clause member without a field symbol")),
+                        }
+                    };
+                    let opened = self
+                        .opened(id, Some(receiver), super::authority::Access::Read)?
+                        .ok_or_else(|| unavailable("member of something that is not data"))?;
+                    let (field, position) = if selected.is_valid() {
+                        let super::places::Member::Field(position) =
+                            self.member_of(id, opened, selected)?
+                        else {
+                            return Err(unavailable("clause member of one case of its data"));
+                        };
+                        (selected, position)
+                    } else {
+                        let position = self
+                            .data_type(id, opened.record())?
+                            .fields()
+                            .iter()
+                            .position(|field| field.identity == member.member.as_str())
+                            .ok_or_else(|| {
+                                unavailable("clause member names no field of its record")
+                            })?;
+                        let field = terminal_check_tables::row(
+                            &self.record_sources,
+                            opened.record(),
+                            id,
+                            Construct::Machine,
+                        )?
+                        .fields
+                        .get(position)
+                        .copied()
+                        .ok_or_else(|| unavailable("clause member names no field of its record"))?;
+                        (field, position)
+                    };
+                    if self.data_type(id, opened.record())?.fields()[position].value_type
+                        != expected
+                    {
+                        return Err(unavailable(
+                            "Identity operand differs from the written carrier",
+                        ));
+                    }
+                    let value = self
+                        .clause_term(
+                            id,
+                            scope,
+                            member.receiver,
+                            ClauseUse::Operand(receiver, values),
+                        )?
+                        .operand(id)?;
+                    ClauseOperand::Application {
+                        declaration: ClauseDeclaration {
+                            member: (field.arena_index(), field.generation()),
+                            supplier: None,
+                        },
+                        arguments: vec![value],
                     }
                 }
                 _ => {

@@ -1119,10 +1119,9 @@ kernel, from the library file as it stands.
   [owner question 6](../../../OWNER_QUESTIONS.md#recursive-data-as-w-types).
   Each law still re-checks the declarations before it, about 1,000 steps a
   law, which a shared check would remove.
-- **Not done: `mod`, `div` and `gcd`.** Their recursion is on
-  `saturating_sub(a, b)`, not on a field of the dispatched case, so they need
-  recursion justified by a decreasing measure, which the signature does not
-  read.
+- **`mod`, `div` and `gcd`** were not read at this step: their recursion is
+  on `saturating_sub(a, b)`, not on a field of the dispatched case. Step 4
+  defines them by recursion on fuel (below).
 - **Not done: the two operator machines.** `<=` and `-` are written as
   machines the `Nat` declaration owns (`machine <= Nat::less_or_equal`).
   Compiling the file's declarations as a program was rejected there with "a
@@ -1187,6 +1186,120 @@ names it.
   is a constant. Root Build cannot configure it through the
   [proof-work policy](../../spec/build/configuration.md#proof-work-policy) yet,
   and the diagnostic does not say which limit stopped the proof.
+
+**Step 4 as built (2026-11-24): records, named propositions, hypotheses inside sums, cases inside cases, the rationals, and machines generic over machines.**
+`core/int.omg` builds the integers as a record of two naturals, so step 4
+starts with records.
+
+- **Records of mathematical data.** Data with a field of mathematical data
+  has no layout either, so it and the machines over it now go to the
+  mathematical signature. A record with no cases whose fields are all such
+  data is the product of their types: a record literal is a tuple, `a.neg` a
+  projection, in bodies and in clauses, and a `let` in a body is the term of
+  its value. The prover rewrites inside a tuple's components and treats a
+  tuple of every field of one value as that value, which the kernel
+  converts by pair eta.
+- **Order between conformances.** `IntPair`'s laws are polynomial identities
+  over `Nat`, proved with no citation under `Nat`'s conformance. Stage 05
+  reads conformances in the order of the data they are about, so those laws
+  come after `Nat`'s.
+- **The search.** It rewrites both sides of a goal, smallest term first, and
+  never uses an equality in the direction that nests its own left side.
+  Before that, a law with one missing citation ran out of budget where it
+  should have reported no proof, and `mul_int_identity`, whose six citations
+  read backwards grow terms, did not finish.
+- **Named propositions.** `int.omg` declares
+  `proposition int_pair_equivalent(left, right) = core\Identity::<Nat>(..)`
+  and states one law with it. A clause of a mathematical machine that applies
+  a proposition declared as one formula is read as that formula, each
+  parameter standing for the argument written for it. The arguments are whole
+  expressions (`add_int(a, b)`), so a clause now states a field as the
+  field's declaration applied to a value, whatever the value is.
+- **A hypothesis used on part of a sum.** Four laws hold an equation between
+  two sums and need it on some addends of a longer sum:
+  `add_int_respects_eq`, `neg_int_respects_eq`, `int_eq_transitive` (in the
+  premise of its `add_cancel` citation) and `mul_int_respects_eq`, where the
+  hypothesis is first multiplied by `b.pos` and by `b.neg`. Under a
+  conformance that lets the operation regroup and reorder, the prover
+  rewrites a chain to hold the rule's left side as one operand, or that side
+  times a common factor where multiplication distributes, and uses the rule
+  there (`exchange` in stage 06's `equality.rs`).
+- **Customers.** `record_law/pass/pair_of_peano` and its twin without one
+  field's citation; `sum_hypothesis/pass/proposition_under_addition` and its
+  twin without the hypothesis. All fourteen laws of `int.omg` are judged when
+  the two library files' declarations are compiled as a program. The largest
+  is `mul_int_assoc` at 7,533 conversion steps; the four that use a
+  hypothesis on part of a sum take 1,021 to 3,637.
+- **Cases inside cases.** `core/nat_metric.omg`, which `rat.omg` builds on,
+  proves `le_trans` by induction on `a` whose successor case splits on `b`,
+  and that case's successor case on `c`. A case of a law may now call a
+  nested machine that dispatches on another formal or on a field; stage 05
+  reads its cases as a split inside the case and stage 06 proves each. All
+  22 laws of `nat_metric.omg` are judged. They are the most expensive so
+  far: `nat_gap_triangle` takes 59,947 of the 65,536 conversion steps a law
+  may use and `le_add_gap` 31,474, so a larger proof of this shape will not
+  fit until the cost per case comes down.
+- **A law with a result is a definition only on demand.** These laws return
+  `Nat` only so they can be called as statements. Reading every one as a
+  definition too refused `le_trans`, whose body is an argument by cases and
+  defines nothing. It is now read as a definition only where a term applies
+  it or its statement names its result.
+- **Recursion that is not on a field.** `mod`, `div` and `gcd` of `nat.omg`
+  call themselves at `saturating_sub(a, b)` or at `mod(a, b)`. The kernel
+  recurses only on the structure of a value, so such a machine is defined
+  over one more argument, the fuel, by recursion on it, and is that
+  definition with its ranked formal as the fuel. Nothing is assumed. The
+  price: a law about such a machine is provable only if it holds for every
+  amount of fuel, as `mod`'s bound does; a law that needs the fuel to be
+  enough, such as `div(a, b) * b + mod(a, b) = a`, is not provable this way
+  and is refused. Whether the ranked argument really gets smaller at each
+  call is not checked for these machines
+  ([owner question 7](../../../OWNER_QUESTIONS.md#decrease-of-a-computed-subject)).
+- **A choice by a computed value** (`rat_eq`, `mod`) is a definition by
+  cases of its own over its subject and the variables in scope, so the
+  prover computes with it as with any other. In a law, a split on a computed
+  value keeps the equation between the value and the case.
+- **A premise on a definition** (`mk_rat`, `div`, `mod`) is owed at each
+  call. `gcd` calls `mod` with a divisor it shows nonzero by citing
+  `le_one_succ`; that obligation is a law of its own.
+- **The proof search** gained two strategies and one accounting change,
+  which together made `rat.omg`'s two largest proofs fit and every earlier
+  proof cheaper. Each proof is first tried with definitions folded. When the
+  search of every order of rewrites exhausts its steps, the cited equalities
+  are completed into rewrite rules and both sides are rewritten to one form;
+  `rat_gap_triangle_scaled` is thirteen rewrites that the search could not
+  order. And the kernel's check of the finished proof has the law's whole
+  budget, with each search on a budget of its own.
+- **Measured** with all of `nat.omg`, `nat_metric.omg`, `int.omg` and
+  `rat.omg` compiled as one program: 92 laws judged. The largest check is
+  `nat_gap_mul_right` at 11,784 of 65,536 conversion steps;
+  `nat_gap_triangle` fell from 59,947 to 6,553, `mul_int_assoc` is 7,495,
+  `rat_close_triangle_split` 9,327 and `mod`'s bound about 4,300.
+- **Machines generic over machines.** `cauchy.omg` states what it is for a
+  sequence of rationals to be Cauchy for any sequence and any modulus:
+  `cauchy_at<machine Sequence, machine Modulus>`. Such a machine is read
+  once, with one more formal per machine parameter, of that machine's
+  function type; a call of the parameter applies the formal, and
+  `cauchy_at::<Left, Right>(..)` in a clause passes functions. The body is
+  read through the clause reader with the machine's contract, each `let`
+  standing for its value, so only a body of `let`s, citations and one value
+  is read. A clause may call a machine that has a premise where that
+  premise is one of the stating machine's own, which is how these laws
+  state `cauchy_at` under the bounds it requires. With `cauchy.omg` added,
+  the five files give 96 judged laws; its four take 1,297 to 4,674
+  conversion steps.
+- **Not done:**
+  - A generic mathematical machine whose body dispatches, a citation of
+    one generic machine from another, and a concrete machine passed for a
+    machine parameter. Nothing in the library does any of these.
+  - `extent.omg`'s contract over `IntervalSet<Nat>` (the plan's
+    `extent.omg:219`) is a clause of a runtime boundary trait over generic
+    data. It is read by the scalar clause readers when a program reaches
+    it, not into this signature; moving it is part of step 5.
+  - The `<=` and `-` machines of `nat.omg` are still left out of every
+    test: the compiler rejects a machine that a data declaration owns.
+  - A refused law whose goal names a field inside one case of an induction
+    prints `?` for that field.
 
 The first version of this plan started with level binders and value-indexed
 type arguments because they move 66 samples. They move those samples to

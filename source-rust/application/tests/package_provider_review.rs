@@ -1,4 +1,4 @@
-//! Package review describes the service actually selected for each target.
+//! Package review retains the checked provider and the public types in its contract.
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::{fs, process::Command};
 
@@ -56,4 +56,50 @@ public MacReading satisfies Reading { machine read() -> u64 { 2 } }",
             "{report}"
         );
     }
+}
+
+#[test]
+fn review_retains_owned_boundary_results_disclosed_by_public_data() {
+    let project = TemporaryDirectory::create("review-owned-result", false).unwrap();
+    fs::write(
+        project.path().join("build.omg"),
+        r#"machine build(builder: @mutable Build) {
+    Build::package(builder, "returned_status");
+    Build::select_provider::<Reader, LocalReader>(builder, linux_x86_64);
+}"#,
+    )
+    .unwrap();
+    let source = r#"public data Status { case Read(count: u64); }
+public data Receipt [linear] { case Read(count: u64); }
+public boundary trait Reader {
+    machine status() -> Status reaches none crashes none;
+    machine receipt() -> Receipt reaches none crashes none;
+}
+public LocalReader satisfies Reader {
+    machine status() -> Status { Status::Read { count: 7 } }
+    machine receipt() -> Receipt { Receipt::Read { count: 7 } }
+}"#;
+    let audit = |source: &str| {
+        fs::write(project.path().join("reader.omg"), source).unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+            .current_dir(project.path())
+            .args(["packages", "audit", "--offline", "--target", "linux_x86_64"])
+            .output()
+            .unwrap();
+        (
+            output.status.code(),
+            String::from_utf8(output.stdout).unwrap(),
+        )
+    };
+    let (status, report) = audit(source);
+    assert_eq!(status, Some(0), "{report}");
+    assert!(report.contains("fresh-analysis complete"), "{report}");
+    assert!(report.contains("public declarations: data 2"), "{report}");
+
+    let (status, report) = audit(&source.replace("public data Status", "data Status"));
+    assert_eq!(status, Some(1), "{report}");
+    assert!(
+        report.contains("result.multiplicity") && report.contains("Reader::status"),
+        "{report}"
+    );
 }

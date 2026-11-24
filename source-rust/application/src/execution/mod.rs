@@ -23,11 +23,10 @@ We support two entry points:
     `private_entry_ram` observations match byte-for-byte, and compares how both
     runs terminated and what each wrote to stdout and stderr
     (`InterpreterComparison`).
-- `run_project_cases`: compiles the project once on the host, replays every case
-  file in `inputs` through the Terminal Psi interpreter (when
-  `compare_interpreter` is true) and the native executable, and writes
-  `<case>.stdout`, `<case>.stderr`, `<case>.terminal.stdout`,
-  `<case>.terminal.stderr`, and `results.tsv` into `output_directory`.
+- `run_project_cases`: compiles once for the selected engine. Each input gets
+  its own invocation and streams. Psi executes the runtime product directly.
+  Native and comparison batches publish the executable once and launch a new
+  guest for each input. The case table records outcomes in input order.
 
 Reference runs are sponsored by the CLI with `DEFAULT_PSI_WORK_ALLOWANCE`
 (10,000,000 work units) unless overridden by `psi_work_budget`. Exhausting
@@ -49,7 +48,7 @@ Why `--both` captures `stdin` lazily and distinguishes preflight unavailability:
    bytes from offset 0. However, snapping caller `stdin` to EOF unconditionally
    before execution would hang any program that does not read `stdin` whenever
    `omega run --both` is invoked from an interactive terminal or an open pipe.
-   Instead, we first call `interpret_product` with `stdin = None`. If the program
+   Instead, we first call `psi::execute` with `stdin = None`. If the program
    does not import `runtime-standard-input`, preflight and execution finish
    without touching caller `stdin`, and we pass `Stdio::null()` to the native
    child. Only when preflight refuses with `MissingProvision { capability:
@@ -79,10 +78,16 @@ Why `--both` captures `stdin` lazily and distinguishes preflight unavailability:
 
 */
 
+mod cases;
 mod compilation;
 mod private_observation;
+mod psi;
 mod retained_artifacts;
 mod standard_input;
+mod termination;
+
+pub use cases::{CaseOutcome, CaseRunRequest, run_project_cases};
+pub(crate) use termination::PsiTermination;
 
 pub use project_build::observations::ProcessExitObservation;
 
@@ -116,7 +121,6 @@ pub struct RunRequest {
 
 pub struct RunOutcome {
     pub build_dir: PathBuf, // Removed on return unless keep_artifacts was requested.
-    pub test_roster: Vec<String>, // Display rows from the registered tests that ran before the program.
     pub execution: ExecutionOutcome,
 }
 
@@ -221,9 +225,36 @@ impl std::fmt::Display for RunError {
 
 impl std::error::Error for RunError {}
 
+/// Admit the selected product, present its registered plan and run its tests
+/// before handing it to the application engine.
+fn prepare_program(
+    artifact: Option<psi_authorization::AuthorizedTerminalArtifact>,
+    input: compilation::ProjectInput,
+    selection: ExecutionSelection,
+    mut present_test: impl FnMut(&str),
+) -> Result<compilation::RunProduct, RunError> {
+    use crate::saved_program::ExecutionProduct;
+    let requested = match selection {
+        ExecutionSelection::Terminal => ExecutionProduct::Runtime,
+        ExecutionSelection::Native | ExecutionSelection::Both => ExecutionProduct::Native,
+    };
+    let prepared =
+        compilation::compile(artifact, input, requested).map_err(RunError::Compilation)?;
+    if let Some(plan) = prepared.tests {
+        for row in plan.rows() {
+            present_test(&row);
+        }
+        for verdict in plan.execute().map_err(RunError::Compilation)? {
+            present_test(&verdict);
+        }
+    }
+    Ok(prepared.product)
+}
+
 pub fn run_project(
     artifact: Option<psi_authorization::AuthorizedTerminalArtifact>,
     request: RunRequest,
+    present_test: impl FnMut(&str),
 ) -> Result<RunOutcome, RunError> {
     let psi_work_budget = request
         .psi_work_budget
@@ -231,14 +262,7 @@ pub fn run_project(
     let output_directory = TemporaryDirectory::create("probe", request.keep_artifacts)
         .map_err(RunError::TemporaryStorage)?;
     let build_dir = output_directory.path().to_path_buf();
-    if request.selection == ExecutionSelection::Terminal {
-        return run_terminal(request, artifact, build_dir, psi_work_budget);
-    }
-    let compilation::ProbeCompilation {
-        report,
-        target_name,
-        ..
-    } = compilation::compile(
+    let report = prepare_program(
         artifact,
         compilation::ProjectInput {
             root_path: request.root_path,
@@ -247,15 +271,15 @@ pub fn run_project(
             build_snapshot: request.build_snapshot,
             target_name: request.target_name.clone(),
         },
-        crate::saved_program::ExecutionProduct::Native,
-        Vec::new(),
-        psi_work_budget,
-    )
-    .map_err(RunError::Compilation)?;
-    let test_roster = report.test_roster();
+        request.selection,
+        present_test,
+    )?;
+    if request.selection == ExecutionSelection::Terminal {
+        return run_terminal(report, request.keep_artifacts, build_dir, psi_work_budget);
+    }
     let (replay_input, interpretation) =
         if request.selection == ExecutionSelection::Both && request.target_name.is_none() {
-            match compilation::interpret_product(&report, None, target_name, psi_work_budget) {
+            match psi::execute(&report, None, psi_work_budget) {
                 Err(terminal_runtime::TerminalRuntimeError::MissingProvision {
                     capability: "runtime-standard-input",
                     ..
@@ -263,12 +287,7 @@ pub fn run_project(
                     let captured = standard_input::ReplayInput::capture(std::io::stdin().lock())
                         .map_err(RunError::StandardInput)?;
                     let input = captured.open_input().map_err(RunError::StandardInput)?;
-                    let retry = compilation::interpret_product(
-                        &report,
-                        Some(Box::new(input)),
-                        target_name,
-                        psi_work_budget,
-                    );
+                    let retry = psi::execute(&report, Some(Box::new(input)), psi_work_budget);
                     (Some(captured), Some(retry))
                 }
                 outcome => (None, Some(outcome)),
@@ -347,59 +366,29 @@ pub fn run_project(
     };
     Ok(RunOutcome {
         build_dir,
-        test_roster,
         execution,
     })
 }
 
 fn run_terminal(
-    request: RunRequest,
-    artifact: Option<psi_authorization::AuthorizedTerminalArtifact>,
+    report: compilation::RunProduct,
+    keep_artifacts: bool,
     build_dir: PathBuf,
     psi_work_budget: u64,
 ) -> Result<RunOutcome, RunError> {
-    let compilation::ProbeCompilation {
-        report,
-        target_name,
-        ..
-    } = compilation::compile(
-        artifact,
-        compilation::ProjectInput {
-            root_path: request.root_path,
-            build_directory: build_dir.clone(),
-            private_entry_ram: request.private_entry_ram,
-            build_snapshot: request.build_snapshot,
-            target_name: request.target_name,
-        },
-        crate::saved_program::ExecutionProduct::Runtime,
-        Vec::new(),
-        psi_work_budget,
-    )
-    .map_err(RunError::Compilation)?;
-    if request.keep_artifacts {
+    if keep_artifacts {
         retained_artifacts::retain(&report, &build_dir)?;
     }
-    let test_roster = report.test_roster();
-    let outcome = match compilation::interpret_product(
+    let outcome = TerminalOutcome::from(psi::execute(
         &report,
         Some(Box::new(std::io::stdin())),
-        target_name,
         psi_work_budget,
-    ) {
-        Ok(observation) => {
-            if request.keep_artifacts {
-                retain_terminal_observation(&build_dir, &observation, psi_work_budget)?;
-            }
-            TerminalOutcome::Completed(observation)
-        }
-        Err(error) if error.unavailable_before_guest_effects() => {
-            TerminalOutcome::Unavailable(error.to_string())
-        }
-        Err(error) => TerminalOutcome::Failed(error.to_string()),
-    };
+    ));
+    if keep_artifacts && let TerminalOutcome::Completed(observation) = &outcome {
+        retain_terminal_observation(&build_dir, observation, psi_work_budget)?;
+    }
     Ok(RunOutcome {
         build_dir,
-        test_roster,
         execution: ExecutionOutcome::Terminal(outcome),
     })
 }
@@ -444,164 +433,6 @@ fn format_work_tsv(
         reference.work_usage.total_units(),
         reference.work_usage.schedule(),
     )
-}
-
-pub struct CaseRunRequest {
-    pub build_snapshot: Option<BuildSnapshotRequest>,
-    pub private_entry_ram: Vec<psi_entry_memory::PrivateEntryRamInitialization>,
-    pub root_path: PathBuf,
-    pub compare_interpreter: bool,
-    pub psi_work_budget: Option<std::num::NonZeroU64>,
-    pub inputs: Vec<PathBuf>, // Run in order; each case is named by its file stem.
-    pub output_directory: PathBuf,
-    pub keep_artifacts: bool,
-}
-
-pub struct CaseOutcome {
-    pub name: String,
-    pub exit: ProcessExitObservation,
-    pub comparison: InterpreterComparison,
-}
-
-pub struct CaseRunOutcome {
-    pub build_dir: PathBuf,
-    pub cases: Vec<CaseOutcome>,
-}
-
-pub fn run_project_cases(
-    artifact: Option<psi_authorization::AuthorizedTerminalArtifact>,
-    request: CaseRunRequest,
-) -> Result<CaseRunOutcome, RunError> {
-    let psi_work_budget = request
-        .psi_work_budget
-        .map_or(DEFAULT_PSI_WORK_ALLOWANCE, std::num::NonZeroU64::get);
-    let output_directory = TemporaryDirectory::create("probe", request.keep_artifacts)
-        .map_err(RunError::TemporaryStorage)?;
-    let build_dir = output_directory.path().to_path_buf();
-    std::fs::create_dir_all(&request.output_directory).map_err(RunError::ReferenceOutput)?;
-    let reference_inputs = if request.compare_interpreter {
-        request
-            .inputs
-            .iter()
-            .map(std::fs::File::open)
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(RunError::StandardInput)?
-    } else {
-        Vec::new()
-    };
-    let compilation::ProbeCompilation {
-        report,
-        interpretations,
-        ..
-    } = compilation::compile(
-        artifact,
-        compilation::ProjectInput {
-            root_path: request.root_path,
-            build_directory: build_dir.clone(),
-            private_entry_ram: request.private_entry_ram,
-            build_snapshot: request.build_snapshot,
-            target_name: None,
-        },
-        crate::saved_program::ExecutionProduct::Native,
-        reference_inputs,
-        psi_work_budget,
-    )
-    .map_err(RunError::Compilation)?;
-    if request.keep_artifacts {
-        retained_artifacts::retain(&report, &build_dir)?;
-    }
-    let (report, executable) = report.publish(&build_dir).map_err(RunError::Publication)?;
-    let mut interpretations = interpretations.into_iter();
-    let mut cases = Vec::new();
-    let mut table = String::from("case\tnative\tinterpreter\tinterpreter_exit\n");
-    for input in &request.inputs {
-        let name = input
-            .file_stem()
-            .map(|stem| stem.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        report
-            .validate_component_process_inputs(&executable)
-            .map_err(RunError::Publication)?;
-        let mut command = Command::new(&executable);
-        command.stdin(Stdio::from(
-            std::fs::File::open(input).map_err(RunError::StandardInput)?,
-        ));
-        let (output, private_entry_ram, private_frames) =
-            private_observation::capture(command, report.private_entry_ram()).map_err(|error| {
-                RunError::Spawn {
-                    executable: executable.clone(),
-                    error,
-                }
-            })?;
-        let directory = &request.output_directory;
-        let write = |suffix: &str, bytes: &[u8]| {
-            std::fs::write(directory.join(format!("{name}.{suffix}")), bytes)
-                .map_err(RunError::ReferenceOutput)
-        };
-        write("stdout", &output.stdout)?;
-        write("stderr", &output.stderr)?;
-        if !private_frames.is_empty() {
-            write("native.entry-ram.frames", &private_frames)?;
-        }
-        for (position, contents) in &private_entry_ram {
-            write(&format!("native.entry-ram.{position}.bin"), contents)?;
-        }
-        let interpretation = interpretations.next();
-        if let Some(Ok(reference)) = interpretation.as_ref() {
-            write("terminal.stdout", &reference.stdout)?;
-            write("terminal.stderr", &reference.stderr)?;
-            write(
-                "psi.work.tsv",
-                format_work_tsv(reference, psi_work_budget).as_bytes(),
-            )?;
-        }
-        let exit = ProcessExitObservation::observe(&output.status);
-        let comparison = compare_interpretation(
-            exit,
-            ProgramStreams {
-                stdout: &output.stdout,
-                stderr: &output.stderr,
-            },
-            interpretation,
-        );
-        let (verdict, interpreter_exit) = comparison_columns(&comparison);
-        table.push_str(&format!(
-            "{name}\t{}\t{verdict}\t{interpreter_exit}\n",
-            exit.code()
-                .map_or_else(|| exit.describe(), |code| code.to_string())
-        ));
-        cases.push(CaseOutcome {
-            name,
-            exit,
-            comparison,
-        });
-    }
-    std::fs::write(request.output_directory.join("results.tsv"), table)
-        .map_err(RunError::ReferenceOutput)?;
-    Ok(CaseRunOutcome { build_dir, cases })
-}
-
-fn comparison_columns(comparison: &InterpreterComparison) -> (&'static str, String) {
-    match comparison {
-        InterpreterComparison::NotRequested => ("not-requested", String::new()),
-        InterpreterComparison::Declined(_) => ("declined", String::new()),
-        InterpreterComparison::Agrees { exit_code } => ("agrees", exit_code.to_string()),
-        InterpreterComparison::Disagrees {
-            interpreter_exit_code,
-        } => ("disagrees", interpreter_exit_code.to_string()),
-        InterpreterComparison::AgreesCrash { cause } => ("agrees-crash", format!("{cause:?}")),
-        InterpreterComparison::DisagreesCrash { cause } => {
-            ("disagrees-crash", format!("{cause:?}"))
-        }
-        InterpreterComparison::OutputDisagrees { termination, .. } => (
-            "disagrees-output",
-            match termination {
-                AgreedTermination::Exit(exit_code) => exit_code.to_string(),
-                AgreedTermination::Crash(cause) => format!("{cause:?}"),
-            },
-        ),
-        InterpreterComparison::Failed(_) => ("failed", String::new()),
-    }
 }
 
 fn compare_interpretation(

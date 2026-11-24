@@ -4,8 +4,9 @@ import argparse
 from pathlib import Path
 import re
 import shutil
-import subprocess
 import tempfile
+
+from execution import check_silent_execution
 
 
 PACKAGE = Path(__file__).resolve().parents[1]
@@ -31,7 +32,7 @@ def main():
         imports = [f"use main.omg as {alias};" for alias in ("checker", "checks", "ownership", "symbol_resolved_trees", "syntax_trees")]
         (root / "loans.omg").write_text("\n".join(imports) + "\n\n" + "\n\n".join(declarations) + "\n")
         shutil.copyfile(fixture / "main.omg", root / "main.omg")
-        subprocess.run([cli, "run", "--both", "build.omg"], cwd=root, check=True)
+        check_silent_execution(cli, root)
 
 
 if __name__ == "__main__":

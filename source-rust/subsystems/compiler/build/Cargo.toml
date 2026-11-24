@@ -8,6 +8,8 @@ version.workspace = true
 path = "project_build.rs"
 
 [dependencies]
+provider-admission = { path = "../psi-to-native/verification/provider-admission" }
+bounded-process = { path = "../../../foundation/bounded-process" }
 psi-authorization = { path = "../psi/artifact/authorization" }
 declaration-scope = { path = "../foundation/declaration-scope" }
 retained-product-selections = { path = "../source-to-psi/representations/retained-product-selections" }
@@ -24,6 +26,7 @@ build-execution = { path = "evaluation" }
 package-compilation = { path = "inputs" }
 terminal-runtime = { path = "../../interpreter/host" }
 target = { path = "../psi-to-native/targets/target" }
+target-vocabulary = { path = "../psi-to-native/representations/target-operations/target-vocabulary" }
 product-publication = { path = "publication" }
 compiler = { path = ".." }
 diagnostics = { path = "../../../foundation/diagnostics" }
@@ -52,7 +55,6 @@ psi-provider-selections = { path = "../psi/execution-inputs/providers" }
 
 [dev-dependencies]
 artifact-lowering = { package = "target-bound-program-to-abstract-operations", path = "../psi-to-native/pipeline/02_target-bound-program-to-abstract-operations", features = ["test-support"] }
-provider-admission = { path = "../psi-to-native/verification/provider-admission" }
 provider-realization = { package = "admitted-native-inputs-to-target-bound-program", path = "../psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program" }
 filesystem-authority = { path = "evaluation/authority/filesystem" }
 terminal-interpreter = { path = "../../interpreter" }
