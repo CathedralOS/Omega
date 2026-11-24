@@ -588,11 +588,11 @@ const ROWS: &[CoreVocabularyRow] = &[
         BundledFile::CoreExtent,
         CoreVocabulary::ExtentDomain(ExtentDomain::Vacant),
     ),
-    // The generic domain `Extent::Resident<P, T>` is declared under its own
-    // namespace, so its symbol's path is the bare member name.
+    // The generic domain `Extent::Resident<P, T>` has the fixed carrier
+    // `Extent`, so its symbol's path keeps the carrier like the others.
     row(
         "extent.omg",
-        "Resident",
+        "Extent::Resident",
         BundledFile::CoreExtent,
         CoreVocabulary::ExtentDomain(ExtentDomain::Resident),
     ),

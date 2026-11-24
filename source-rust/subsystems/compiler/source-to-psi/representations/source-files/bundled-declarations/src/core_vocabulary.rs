@@ -159,10 +159,20 @@ mod tests {
         assert_eq!(
             CoreVocabularyCatalog::classify(site(
                 "extent.omg",
-                "Resident",
+                "Extent::Resident",
                 crate::bytes(BundledFile::CoreExtent)
             )),
             Some(CoreVocabulary::ExtentDomain(ExtentDomain::Resident))
+        );
+        // The parser keeps the fixed carrier in an indexed domain's name,
+        // so the bare member name is no declaration of `extent.omg`.
+        assert_eq!(
+            CoreVocabularyCatalog::classify(site(
+                "extent.omg",
+                "Resident",
+                crate::bytes(BundledFile::CoreExtent)
+            )),
+            None
         );
         // `reflect.omg` declares `module reflect`: rows use the full
         // package path, and the bare name matches nothing.
