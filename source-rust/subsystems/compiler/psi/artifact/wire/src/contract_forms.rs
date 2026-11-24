@@ -127,7 +127,10 @@ pub fn substitute_parameters(
     canonical_clause(substituted)
 }
 
-fn canonical_clause(proposition: Proposition) -> Result<Proposition, String> {
+/// Substitution can reverse equality order or make conjuncts identical, at
+/// any depth. Restore the artifact's canonical form without changing the
+/// clause's meaning; source lowering and call restatement share this one form.
+pub fn canonical_clause(proposition: Proposition) -> Result<Proposition, String> {
     match proposition {
         Proposition::Equal(left, right) => equal(left, right),
         Proposition::IntegerMathEqual(left, right) if left > right => {
@@ -151,6 +154,13 @@ fn canonical_clause(proposition: Proposition) -> Result<Proposition, String> {
                 _ => Proposition::Disjunction(parts),
             })
         }
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => Ok(Proposition::Implication {
+            premise: Box::new(canonical_clause(*premise)?),
+            conclusion: Box::new(canonical_clause(*conclusion)?),
+        }),
         other => Ok(other),
     }
 }

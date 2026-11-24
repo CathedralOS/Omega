@@ -118,42 +118,11 @@ pub(crate) fn substitute_parameters(
     canonical_clause(substituted, id)
 }
 
-/// Substitution can reverse equality order or make conjuncts identical. Restore
-/// the artifact's canonical form without changing the retained clause's meaning.
+/// Substitution can reverse equality order or make conjuncts identical. The
+/// wire owner restores the artifact's canonical form for every producer.
 pub(crate) fn canonical_clause(proposition: Proposition, id: MachineId) -> Checked<Proposition> {
-    match proposition {
-        Proposition::Equal(left, right) => equal(left, right, id),
-        Proposition::IntegerMathEqual(left, right) if left > right => {
-            Ok(Proposition::IntegerMathEqual(right, left))
-        }
-        Proposition::Conjunction(parts) => {
-            let parts = parts
-                .into_iter()
-                .map(|part| canonical_clause(part, id))
-                .collect::<Checked<Vec<_>>>()?;
-            conjunction(parts, id)
-        }
-        Proposition::Disjunction(parts) => {
-            let parts = parts
-                .into_iter()
-                .map(|part| canonical_clause(part, id))
-                .collect::<Checked<Vec<_>>>()?;
-            let mut parts = clauses(parts, Repeated::Merge, id)?;
-            Ok(match parts.len() {
-                0 => Proposition::Falsehood,
-                1 => parts.remove(0),
-                _ => Proposition::Disjunction(parts),
-            })
-        }
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => Ok(Proposition::Implication {
-            premise: Box::new(canonical_clause(*premise, id)?),
-            conclusion: Box::new(canonical_clause(*conclusion, id)?),
-        }),
-        other => Ok(other),
-    }
+    terminal_codec::contract_forms::canonical_clause(proposition)
+        .map_err(|detail| refusal(id, detail))
 }
 
 struct ScalarFormals<'a> {

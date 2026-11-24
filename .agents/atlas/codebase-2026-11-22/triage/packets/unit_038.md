@@ -1,6 +1,12 @@
 # unit_038 triage receipts (area 08, Psi program artifact codecs)
 
-Status: in progress. The contract-substitution claim (C12) is being reproduced.
+Status: Packet complete. All of unit_038's ranges in area 08 were reviewed.
+Twelve claims have receipts, and two earlier dispositions are kept. Outcomes:
+- One fixed: an equality inside an implication kept its operand order after
+  contract substitution (C12).
+- Three code-cleanup duplications left open (C11).
+- Every other claim is intended, with the owning check named.
+- The interpreter's entry-machine resolution under C4 was not traced.
 
 Every receipt checks the current source at `24ad2700685e6cc6062026c87ed5fd24ed415265`
 of `main`. The claims come from [record unit_038](../../records/unit_038.md) and
@@ -179,10 +185,32 @@ contract.
   Stage 05 has a second copy at
   `source-to-psi/pipeline/05_prepared-typed-trees-to-lowered-program/src/canonical.rs`.
 - **Contract:** `declaration-encoding/src/terms/order.rs` refuses a symmetric
-  `IeeeFloatComparison`, a symmetric `ScalarIeeeFloatComparison`, a
-  `ByteSequenceEqual` or a `StructuralIdentity` whose left operand sorts after
-  its right operand.
-- **Outcome:** reproduction in progress.
+  equality whose left operand sorts after its right one, at any depth,
+  including inside an `Implication`.
+- **Trace of the claim as written:** the four forms the digest names cannot
+  reach `canonical_clause` out of order. The shared substitution
+  (`psi/semantics/src/substitution/clauses.rs`, `substitute_clause_with_computation_names`)
+  swaps symmetric `ScalarIeeeFloatComparison` operands itself, and its unit
+  test covers every comparison kind. It refuses `IeeeFloatComparison`,
+  `ByteSequenceEqual` and `StructuralIdentity` ("clause form outside the
+  scalar subset").
+- **Defect found instead:** substitution does not reorder `Equal`; it relies
+  on `canonical_clause`. The wire copy in `contract_forms.rs` did not recurse
+  into `Implication`, while the stage 05 copy did. Source lowering produces
+  implications for `!(a == b)` and Boolean `a != b`
+  (`read/contracts.rs`). The wire copy restates crash-route guards for a call
+  (`06_lowered-program-to-checked-program/src/minted.rs`,
+  `substituted_routes`). Those guards currently come from numeric
+  primitives, so I found no source program that reaches this today.
+- **Reproduction:** `contract_forms::tests::substitution_restores_equality_order_inside_an_implication`
+  restates `x == y -> x == y` over actuals 9 and 3. On the parent it fails
+  with `NonCanonicalOrder("equality operands")` from
+  `validate_canonical_proposition`.
+- **Repair:** `contract_forms::canonical_clause` is now public and handles
+  `Implication`. Stage 05's `canonical::canonical_clause` delegates to it, so
+  one implementation serves both producers.
+- **Outcome:** reproduced and fixed. The four forms the digest names are
+  intended (see trace).
 - The `routes()` widening to `[Truth]` that the same digest line reports is
   intended, as `crash_routes_are_canonical` requires
   (`declaration-encoding/src/crash_routes.rs:36`).
