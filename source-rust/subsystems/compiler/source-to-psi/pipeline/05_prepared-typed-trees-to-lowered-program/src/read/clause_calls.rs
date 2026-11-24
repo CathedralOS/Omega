@@ -548,6 +548,25 @@ impl Program<'_> {
                         ))
                     }
                 }
+                // A field of a formal, or of a field of one: the formal's
+                // place and the path beneath it.
+                (ExpressionNode::Member(_), Some(expected)) if self.mathematical => {
+                    let fields = ClauseScope {
+                        formal_fields: true,
+                        ..*scope
+                    };
+                    let (root, path, ty) = self
+                        .projected(id, &fields, expression)?
+                        .ok_or_else(|| unavailable("Identity operand has no bound formal"))?;
+                    if ty != expected {
+                        return Err(unavailable(
+                            "Identity operand differs from the written carrier",
+                        ));
+                    }
+                    ClauseOperand::Input(semantic_vocabulary::StructuralCaseSubject::new(
+                        root, path,
+                    ))
+                }
                 _ => {
                     return Err(unavailable(
                         "Identity operand has no term at its written carrier",

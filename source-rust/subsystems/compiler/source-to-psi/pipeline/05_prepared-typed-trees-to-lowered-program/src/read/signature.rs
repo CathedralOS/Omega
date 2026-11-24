@@ -19,6 +19,11 @@ law. A machine declared inside another that states nothing is read in place
 where it is called, as a step of its parent's value or of its parent's
 argument.
 
+A record with no cases whose fields are all mathematical data is the product
+of its fields' types. A record written from its fields is a tuple, a field is
+a projection, in a body and in a clause alike, and a `let` in a body is the
+term of its value.
+
 A law's `requires` equalities are its premises. Its statement takes a proof
 of each after its formals, and stage 06 proves each wherever the law is
 cited.
@@ -28,9 +33,10 @@ itself through its citations is refused, so no statement can justify itself.
 */
 
 use arena::IdTable;
-use mathematical_kernel::{Declaration, PlainData, Term, TermHandle, shift};
+use mathematical_kernel::{Declaration, Level, PlainData, Sort, Term, TermHandle, shift};
 use semantic_vocabulary::{
-    ClauseCarrier, ClauseIdentity, ClauseOperand, MachineId, Proposition, StructuralTypeId,
+    CanonicalStructuralPathSegment, ClauseCarrier, ClauseIdentity, ClauseOperand, MachineId,
+    Proposition, StructuralTypeId,
 };
 use symbols::SymbolHandle;
 use terminal_check_tables::mathematics::{
@@ -188,16 +194,61 @@ impl Program<'_> {
         // is what lets any other law regroup, reorder and expand under these
         // wherever the source declares them, and lets a distributivity law
         // regroup and reorder under the first ones.
+        //
+        // One type's laws may lean on another's: a pair of numbers adds by
+        // adding its fields, so its laws need the numbers' laws first. The
+        // conformances are taken in the order of the data they are about,
+        // and data is declared after the data its fields hold.
+        let mut ordered: Vec<(u32, &Satisfaction)> = satisfactions
+            .iter()
+            .map(|satisfaction| {
+                let about = satisfaction
+                    .scope
+                    .iter()
+                    .filter_map(|argument| match argument {
+                        ValueType::Record(record, ..) => {
+                            converter.data(satisfaction.machine, *record).ok()
+                        }
+                        _ => None,
+                    })
+                    .max();
+                // A conformance about no readable data is refused where its
+                // machines are declared; it sorts last here.
+                (about.unwrap_or(u32::MAX), satisfaction)
+            })
+            .collect();
+        ordered.sort_by_key(|(about, _)| *about);
         let mut first = Vec::new();
-        let mut distributive = Vec::new();
-        for satisfaction in satisfactions {
+        let mut distributive: Vec<(u32, MachineId)> = Vec::new();
+        let mut before = None;
+        for (about, satisfaction) in ordered {
+            // The distributivity laws of the conformances before this one.
+            if before.is_some_and(|before| before != about) {
+                for (_, id) in distributive.drain(..) {
+                    let read = converter.declare(id);
+                    first.push(id);
+                    if let Err(refusal) = read {
+                        let symbol = self
+                            .symbols
+                            .get(id)
+                            .copied()
+                            .unwrap_or_else(SymbolHandle::invalid);
+                        refused.push(self.read_failure_at(
+                            refusal,
+                            symbol,
+                            "the mathematical declaration",
+                        ));
+                    }
+                }
+            }
+            before = Some(about);
             let id = satisfaction.machine;
             let read = match converter.requires_operand_law(satisfaction) {
                 Ok(None) => continue,
                 Ok(Some(terminal_check_tables::mathematics::OperandLaw::Distributes {
                     ..
                 })) => {
-                    distributive.push(id);
+                    distributive.push((about, id));
                     continue;
                 }
                 Ok(Some(_)) => converter.declare(id),
@@ -218,7 +269,7 @@ impl Program<'_> {
                 refused.push(self.read_failure_at(refusal, symbol, "the mathematical declaration"));
             }
         }
-        for id in distributive {
+        for (_, id) in distributive {
             let read = converter.declare(id);
             first.push(id);
             if let Err(refusal) = read {
@@ -417,10 +468,7 @@ impl Converter<'_, '_> {
         }
         let program = self.program;
         if program.self_containing.binary_search(&record).is_err() {
-            return Err(unserved(
-                id,
-                "mathematical declaration over a type other than data that contains itself",
-            ));
+            return self.product(id, record);
         }
         let declared = program
             .records
@@ -475,6 +523,96 @@ impl Converter<'_, '_> {
         }
         self.data.push((record, entry));
         Ok(entry)
+    }
+
+    /// A record with no cases whose fields are all mathematical data, as the
+    /// product of their types.
+    fn product(&mut self, id: MachineId, record: StructuralTypeId) -> Checked<u32> {
+        let program = self.program;
+        let declared = program
+            .records
+            .get(record)
+            .ok_or_else(|| unserved(id, "mathematical data lost its record"))?;
+        let source = program
+            .record_sources
+            .get(record)
+            .ok_or_else(|| unserved(id, "mathematical data lost its declaration"))?;
+        if declared.fields().is_empty() || !declared.cases().is_empty() {
+            return Err(unserved(
+                id,
+                "mathematical declaration over a type other than data that contains itself \
+                 or a record of such data",
+            ));
+        }
+        let mut fields = Vec::with_capacity(declared.fields().len());
+        for field in declared.fields() {
+            let ValueType::Record(inner, ..) = field.value_type else {
+                return Err(unserved(
+                    id,
+                    "record of mathematical data with a field of another type",
+                ));
+            };
+            fields.push(self.data(id, inner)?);
+        }
+        let (&last, before) = fields.split_last().expect("checked not empty");
+        let mut ty = self.constant(last);
+        for &field in before.iter().rev() {
+            let domain = self.constant(field);
+            ty = self.signature.arena.insert(Term::Sigma {
+                domain,
+                codomain: ty,
+            });
+        }
+        index(id, self.signature.declarations.len() + 1)?;
+        let universe = self
+            .signature
+            .arena
+            .insert(Term::Sort(Sort::Type(Level::Constant(0))));
+        let name = self.name(source.declaration);
+        let entry = self.push(
+            Declaration::definition(0, universe, ty),
+            SignatureEntryKind::Record {
+                declaration: source.declaration,
+                fields,
+                type_identity: declared.identity.clone(),
+            },
+            name,
+        );
+        self.data.push((record, entry));
+        Ok(entry)
+    }
+
+    /// The field at this position of a value of the record at `entry`.
+    fn component(
+        &mut self,
+        id: MachineId,
+        entry: u32,
+        value: TermHandle,
+        field: usize,
+    ) -> Checked<(TermHandle, u32)> {
+        let SignatureEntryKind::Record { fields, .. } =
+            &self.signature.entries[entry as usize].kind
+        else {
+            return Err(unserved(
+                id,
+                "field of mathematical data that is not a record",
+            ));
+        };
+        let count = fields.len();
+        let ty = *fields
+            .get(field)
+            .ok_or_else(|| unserved(id, "field position outside its record"))?;
+        if count == 1 {
+            return Ok((value, ty));
+        }
+        let mut term = value;
+        for _ in 0..field {
+            term = self.signature.arena.insert(Term::Snd { pair: term });
+        }
+        if field + 1 < count {
+            term = self.signature.arena.insert(Term::Fst { pair: term });
+        }
+        Ok((term, ty))
     }
 
     fn shape(&self, data: u32) -> PlainData {
@@ -684,11 +822,22 @@ impl Converter<'_, '_> {
         let named = |slot: usize| aliases.get(slot).copied().unwrap_or(slot);
         // A machine that also states a law may cite before it returns. The
         // law's script reads those calls; the value does not depend on them.
+        // A body may also name a value before it returns: each `let` is the
+        // term of its value wherever the rest of the body reads it.
         let cited = statements
             .iter()
-            .take_while(|statement| matches!(statement, Statement::Evaluate { .. }))
+            .take_while(|statement| {
+                matches!(
+                    statement,
+                    Statement::Evaluate { .. } | Statement::Bind { .. }
+                )
+            })
             .count();
-        if cited > 0 && !self.states_law(id) {
+        if statements[..cited]
+            .iter()
+            .any(|statement| matches!(statement, Statement::Evaluate { .. }))
+            && !self.states_law(id)
+        {
             return Err(unserved(
                 id,
                 "mathematical function body with a statement before its value",
@@ -702,14 +851,8 @@ impl Converter<'_, '_> {
                     ..
                 },
             ] => {
-                let slots: Vec<_> = (0..count)
-                    .map(|formal| {
-                        Some(Bound {
-                            term: self.variable((count - 1 - formal) as u32),
-                            field: None,
-                        })
-                    })
-                    .collect();
+                let mut slots = self.formal_slots(count, body.slots.len());
+                self.locals(id, &statements[..cited], &mut slots, &aliases)?;
                 let scope = Scope {
                     slots: &slots,
                     aliases: &aliases,
@@ -921,6 +1064,42 @@ impl Converter<'_, '_> {
                     "mathematical term reads a field outside the dispatched case",
                 )),
             },
+            ExpressionKind::Field { base, field } => {
+                let Some(ValueType::Record(record, ..)) = base.result else {
+                    return Err(unserved(
+                        id,
+                        "field of a mathematical value that is no record",
+                    ));
+                };
+                let entry = self.data(id, record)?;
+                let value = self.expression(id, base, scope)?.term;
+                Ok(plain(self.component(id, entry, value, *field)?.0))
+            }
+            ExpressionKind::Record { fields } => {
+                let mut operands = vec![None; fields.len()];
+                for (position, operand) in fields {
+                    let term = self.expression(id, operand, scope)?.term;
+                    *operands
+                        .get_mut(*position)
+                        .ok_or_else(|| unserved(id, "mathematical record field position"))? =
+                        Some(term);
+                }
+                let operands: Vec<TermHandle> = operands
+                    .into_iter()
+                    .collect::<Option<_>>()
+                    .ok_or_else(|| unserved(id, "mathematical record misses a field"))?;
+                let (&last, before) = operands
+                    .split_last()
+                    .ok_or_else(|| unserved(id, "mathematical record with no field"))?;
+                let mut term = last;
+                for &first in before.iter().rev() {
+                    term = self.signature.arena.insert(Term::Pair {
+                        first,
+                        second: term,
+                    });
+                }
+                Ok(plain(term))
+            }
             ExpressionKind::Case { case, fields } => {
                 let Some(ValueType::Record(record, ..)) = expression.result else {
                     return Err(unserved(id, "mathematical constructor lost its data"));
@@ -1217,6 +1396,45 @@ impl Converter<'_, '_> {
                     .and_then(|formal| formals.get(usize::try_from(formal).ok()?))
                     .copied()
                     .ok_or_else(|| unserved(id, "law names storage outside its formals"))?,
+                // A field of a formal, or of a field of one.
+                ClauseOperand::Input(subject) => {
+                    let position = usize::try_from(subject.root().get())
+                        .ok()
+                        .and_then(|place| place.checked_sub(1))
+                        .filter(|position| *position < formals.len())
+                        .ok_or_else(|| unserved(id, "law names storage outside its formals"))?;
+                    let mut term = formals[position];
+                    let mut entry = self.formals(id)?[position].1;
+                    for segment in subject.path() {
+                        let CanonicalStructuralPathSegment::Field(field) = segment else {
+                            return Err(unserved(
+                                id,
+                                "law operand path other than the fields of a record",
+                            ));
+                        };
+                        let record = self
+                            .data
+                            .iter()
+                            .find(|(_, known)| *known == entry)
+                            .map(|(record, _)| *record)
+                            .ok_or_else(|| unserved(id, "law operand lost its record"))?;
+                        let at = self
+                            .program
+                            .records
+                            .get(record)
+                            .and_then(|declared| {
+                                declared
+                                    .fields()
+                                    .iter()
+                                    .position(|known| known.id == *field)
+                            })
+                            .ok_or_else(|| {
+                                unserved(id, "law operand names no field of its record")
+                            })?;
+                        (term, entry) = self.component(id, entry, term, at)?;
+                    }
+                    term
+                }
                 ClauseOperand::Application {
                     declaration,
                     arguments,
@@ -1291,6 +1509,48 @@ impl Converter<'_, '_> {
         ))
     }
 
+    /// What each slot of a body stands for before any `let`: each formal,
+    /// and nothing yet for a local.
+    fn formal_slots(&mut self, formals: usize, slots: usize) -> Vec<Option<Bound>> {
+        (0..slots.max(formals))
+            .map(|slot| {
+                (slot < formals).then(|| Bound {
+                    term: self.variable((formals - 1 - slot) as u32),
+                    field: None,
+                })
+            })
+            .collect()
+    }
+
+    /// Binds each `let` of a body to the term of its value, in order.
+    fn locals(
+        &mut self,
+        id: MachineId,
+        statements: &[&Statement],
+        slots: &mut [Option<Bound>],
+        aliases: &[usize],
+    ) -> Checked<()> {
+        for statement in statements {
+            let Statement::Bind { slot, value } = statement else {
+                continue;
+            };
+            let bound = {
+                let scope = Scope {
+                    slots: &*slots,
+                    aliases,
+                    case: None,
+                    recursion: None,
+                };
+                self.expression(id, value, &scope)?
+            };
+            *slots
+                .get_mut(*slot)
+                .ok_or_else(|| unserved(id, "mathematical local outside its body's slots"))? =
+                Some(bound);
+        }
+        Ok(())
+    }
+
     /// How the body argues: its citations, per case when it dispatches.
     fn script(
         &mut self,
@@ -1313,14 +1573,8 @@ impl Converter<'_, '_> {
             _ => (None, statements.as_slice()),
         };
         let Some((subject, arms, default)) = dispatch else {
-            let slots: Vec<_> = (0..count)
-                .map(|formal| {
-                    Some(Bound {
-                        term: self.variable((count - 1 - formal) as u32),
-                        field: None,
-                    })
-                })
-                .collect();
+            let mut slots = self.formal_slots(count, body.slots.len());
+            self.locals(id, before, &mut slots, &aliases)?;
             let scope = Scope {
                 slots: &slots,
                 aliases: &aliases,
@@ -1437,6 +1691,9 @@ impl Converter<'_, '_> {
                 Statement::Evaluate { expression, .. } => {
                     self.cite_within(law, machine, expression, scope, citations, false)?
                 }
+                Statement::Bind { value, .. } => {
+                    self.cite_within(law, machine, value, scope, citations, true)?
+                }
                 Statement::Arm {
                     guard: ArmGuard::Always,
                     target: Target::Unit,
@@ -1496,6 +1753,15 @@ impl Converter<'_, '_> {
                 )
             }
             ExpressionKind::Case { fields, .. } if nested || returns => {
+                for (_, operand) in fields {
+                    self.cite_within(law, machine, operand, scope, citations, true)?;
+                }
+                Ok(())
+            }
+            ExpressionKind::Field { base, .. } if nested || returns => {
+                self.cite_within(law, machine, base, scope, citations, true)
+            }
+            ExpressionKind::Record { fields } if nested || returns => {
                 for (_, operand) in fields {
                     self.cite_within(law, machine, operand, scope, citations, true)?;
                 }

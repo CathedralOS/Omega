@@ -62,7 +62,8 @@ pub struct DataCarrier {
     pub carrier_key: Vec<u8>,
 }
 
-/// The carrier of every data declaration the kernel has checked.
+/// The carrier of every data declaration the kernel has checked, a record
+/// of mathematical data included.
 fn carriers(
     arena: &mut TermArena,
     declarations: &[Declaration],
@@ -70,7 +71,9 @@ fn carriers(
 ) -> Result<Vec<DataCarrier>, terminal_codec::CodecError> {
     let mut carriers = Vec::new();
     for (position, entry) in entries.iter().enumerate() {
-        let SignatureEntryKind::Data { type_identity, .. } = &entry.kind else {
+        let (SignatureEntryKind::Data { type_identity, .. }
+        | SignatureEntryKind::Record { type_identity, .. }) = &entry.kind
+        else {
             continue;
         };
         let ty = constant(arena, position as u32);

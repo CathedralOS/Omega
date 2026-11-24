@@ -1188,6 +1188,44 @@ names it.
   [proof-work policy](../../spec/build/configuration.md#proof-work-policy) yet,
   and the diagnostic does not say which limit stopped the proof.
 
+**Step 4 as built so far (2026-11-24): records, not yet propositions.**
+`core/int.omg` builds the integers as a record of two naturals, so step 4
+starts with records.
+
+- **Records of mathematical data.** Data with a field of mathematical data
+  has no layout either, so it and the machines over it now go to the
+  mathematical signature. A record with no cases whose fields are all such
+  data is the product of their types: a record literal is a tuple, `a.neg` a
+  projection, in bodies and in clauses, and a `let` in a body is the term of
+  its value. The prover rewrites inside a tuple's components and treats a
+  tuple of every field of one value as that value, which the kernel
+  converts by pair eta.
+- **Order between conformances.** `IntPair`'s laws are polynomial identities
+  over `Nat`, proved with no citation under `Nat`'s conformance. Stage 05
+  reads conformances in the order of the data they are about, so those laws
+  come after `Nat`'s.
+- **The search.** It rewrites both sides of a goal, smallest term first, and
+  never uses an equality in the direction that nests its own left side.
+  Before that, a law with one missing citation ran out of budget where it
+  should have reported no proof, and `mul_int_identity`, whose six citations
+  read backwards grow terms, did not finish.
+- **Customers.** `record_law/pass/pair_of_peano` and its twin without one
+  field's citation. Ten laws of `int.omg` are judged when the two library
+  files' declarations are compiled as a program, among them
+  `mul_int_assoc` (7,533 conversion steps) and `mul_int_distributes`
+  (4,105), both with empty bodies.
+- **Not done: the named proposition.** `int.omg` declares
+  `proposition int_pair_equivalent(left, right) = core\Identity::<Nat>(..)`
+  and states one law with it. The clause reader refuses a named proposition
+  in a clause, and its arguments there are whole expressions
+  (`add_int(a, b)`), so its fields are projections of an application, which
+  a clause operand cannot yet state.
+- **Not done: a hypothesis used inside a larger sum.** `neg_int_respects_eq`,
+  `mul_int_respects_eq` and `int_eq_transitive` hold an equation between two
+  sums and need it applied to some of the addends of a longer sum, the
+  second after scaling by a factor. The search matches a whole subterm only.
+- **Not done:** `rat.omg`, `cauchy.omg` and `extent.omg`, not yet tried.
+
 The first version of this plan started with level binders and value-indexed
 type arguments because they move 66 samples. They move those samples to
 their next failure, the library needs neither, and level binders wait on
