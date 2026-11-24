@@ -366,6 +366,14 @@ fn is_shared_view(shape: &StructuralTypeShape) -> bool {
         )
 }
 
+fn provider_value_scalar(scalar: ScalarType) -> bool {
+    !matches!(scalar, ScalarType::Callable(_))
+        && matches!(
+            terminal_semantics::reference_storage_byte_width(scalar),
+            Some(1..=8)
+        )
+}
+
 fn asked_root(asked: Asked<'_>) -> PlaceId {
     asked.place().root
 }
@@ -1219,10 +1227,9 @@ impl<'a> Storage<'a> {
         storage.log_is_stated(tables)?;
         storage.cleanup_log_is_stated(tables)?;
         // All writes have been authenticated against their operations. Keep the
-        // writes to original guest addresses for reaching-value queries. A scalar
-        // write through a mutable provider reference has no captured guest address;
-        // loan checking still checks the operation and provider reads observe a
-        // fresh value on every access.
+        // writes to original guest addresses for reaching-value queries. Provider
+        // scalar cells have no captured guest address, including when lent to a
+        // call. Their permission is checked and each read observes fresh contents.
         let relocated = storage
             .log
             .iter()
@@ -1232,13 +1239,19 @@ impl<'a> Storage<'a> {
                     .position
                     .checked_sub(1)
                     .ok_or_else(|| storage.foreign(concerns, "a write has no formation point"))?;
-                if matches!(row.stored, Stored::Value(_))
+                let call_write = if matches!(row.stored, Stored::Established) {
+                    let kind = &storage.operation(row.operation, concerns)?.kind;
+                    kind.declared_invocation().is_some() || kind.callable_invocation().is_some()
+                } else {
+                    false
+                };
+                if (call_write || matches!(row.stored, Stored::Value(_)))
                     && let Some(at) = storage.descriptor_position((row.block, before))
                     && matches!(
                         storage.provider_referent(references, &row.destination, at, concerns)?,
                         Some((_, StructuralAccess::MutableBorrow))
                     )
-                    && storage.provider_record_leaf(&row.destination, concerns)?
+                    && storage.provider_scalar_contents(&row.destination, concerns, call_write)?
                 {
                     return Ok(None);
                 }
@@ -3758,23 +3771,15 @@ impl<'a> Storage<'a> {
         })
     }
 
-    // The caller has authenticated the provider reference. Follow ordinary
-    // record fields while retaining each declaration's scalar carrier.
-    fn provider_record_leaf(&self, place: &Lineage, concerns: Construct) -> Checked<bool> {
-        let value_scalar = |scalar| match scalar {
-            ScalarType::Boolean
-            | ScalarType::IeeeFloat(
-                semantic_vocabulary::IeeeFloatFormat::Binary32
-                | semantic_vocabulary::IeeeFloatFormat::Binary64,
-            ) => true,
-            ScalarType::Integer(integer) => {
-                !integer.is_address()
-                    && integer
-                        .bits()
-                        .is_some_and(|bits| bits != 0 && bits <= 64 && bits % 8 == 0)
-            }
-            _ => false,
-        };
+    // The caller has authenticated the provider reference. A scalar write or
+    // read names one leaf. A mutable call argument may cover a whole ordinary
+    // record if every leaf is an independent provider scalar cell.
+    fn provider_scalar_contents(
+        &self,
+        place: &Lineage,
+        concerns: Construct,
+        whole_record: bool,
+    ) -> Checked<bool> {
         let mut in_referent = false;
         let shape = self.shape_with(place.root, &place.segments, concerns, |shape, segment| {
             if *segment == Segment::Referent {
@@ -3784,6 +3789,9 @@ impl<'a> Storage<'a> {
             if !in_referent {
                 return Ok(true);
             }
+            if whole_record && !matches!(segment, Segment::Field(_)) {
+                return Ok(false);
+            }
             let Shape::Typed(owner) = shape else {
                 return Ok(false);
             };
@@ -3791,16 +3799,62 @@ impl<'a> Storage<'a> {
             Ok(declaration.quotient_carrier.is_none()
                 && matches!(declaration.shape, StructuralTypeShape::Record { .. }))
         })?;
-        Ok(match shape {
-            Some(Shape::Scalar(scalar)) => value_scalar(scalar),
+        match shape {
+            Some(Shape::Scalar(scalar)) => Ok(provider_value_scalar(scalar)),
             Some(Shape::Typed(owner)) => {
-                let declaration = self.declaration(owner, concerns)?;
-                declaration.quotient_carrier.is_none()
-                    && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(scalar)
-                        if value_scalar(scalar))
+                self.provider_value_type(owner, concerns, whole_record, &mut Vec::new())
             }
-            _ => false,
-        })
+            _ => Ok(false),
+        }
+    }
+
+    fn provider_value_type(
+        &self,
+        owner: StructuralTypeId,
+        concerns: Construct,
+        whole_record: bool,
+        known: &mut Vec<Option<bool>>,
+    ) -> Checked<bool> {
+        let declaration = self.declaration(owner, concerns)?;
+        if declaration.quotient_carrier.is_some() {
+            return Ok(false);
+        }
+        if let StructuralTypeShape::PrimitiveScalar(scalar) = declaration.shape {
+            return Ok(provider_value_scalar(scalar));
+        }
+        let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+            return Ok(false);
+        };
+        if !whole_record
+            || !declaration.is_copyable()
+            || declaration.owns_linear_claim
+            || declaration.nominal_cleanup.is_some()
+            || !declaration.requires.is_empty()
+        {
+            return Ok(false);
+        }
+        let slot = index(owner.get());
+        if known.len() <= slot {
+            known.resize(slot + 1, None);
+        }
+        if let Some(plain) = known[slot] {
+            return Ok(plain);
+        }
+        // An inline cycle has no finite set of scalar fields.
+        known[slot] = Some(false);
+        for field in fields {
+            if field.relevance.is_erased() {
+                return Ok(false);
+            }
+            match field.field_type {
+                StructuralFieldType::Scalar(scalar) if provider_value_scalar(scalar) => {}
+                StructuralFieldType::Structural(nested)
+                    if self.provider_value_type(nested, concerns, true, known)? => {}
+                _ => return Ok(false),
+            }
+        }
+        known[slot] = Some(true);
+        Ok(true)
     }
 
     fn reaching_supply(
@@ -3853,7 +3907,7 @@ impl<'a> Storage<'a> {
             {
                 Some(1)
             } else if let Some(crossing) = record_crossing
-                && self.provider_record_leaf(original, concerns)?
+                && self.provider_scalar_contents(original, concerns, false)?
             {
                 Some(original.segments.len() - crossing)
             } else {

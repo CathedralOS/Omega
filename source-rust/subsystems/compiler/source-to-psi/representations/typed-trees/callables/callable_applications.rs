@@ -4940,7 +4940,8 @@ pub(crate) mod requirement_instances {
             };
             let first = bound(anonymous, 0).expect("the type parameter binds its input region");
             assert_eq!(bound(anonymous, 0), Some(first));
-            assert_ne!(bound(anonymous, 1), Some(first));
+            let second = bound(anonymous, 1).expect("a second binding has its own region");
+            assert_ne!(first, second);
             assert!(bound(unknown, 0).is_none());
             assert!(
                 type_identity::portable_applied_type_identity(&program, anonymous, owner, &[])

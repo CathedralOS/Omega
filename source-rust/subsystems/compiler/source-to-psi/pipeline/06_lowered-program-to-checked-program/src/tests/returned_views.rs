@@ -729,6 +729,25 @@ fn mutable_provider_record_store_requires_its_own_live_permission() {
     );
 }
 
+#[test]
+fn a_call_can_mutate_provider_scalar_cells_without_a_guest_address() {
+    let source = r#"
+data Fields { value: i32; }
+data Settings { fields: Fields; enabled: bool; }
+boundary trait Source {
+    machine issue() -> @mutable Settings reaches none crashes none;
+    machine configure(settings: @mutable Settings) reaches none crashes none;
+}
+machine entry() -> i32 reaches Source invokes Source {
+    let settings = Source::issue();
+    Source::configure(settings);
+    settings.fields.value
+}
+"#;
+    provider_reference_has_no_captured_address(source);
+    provider_reference_value_is_unknown(source);
+}
+
 const PROVIDER_REFERENCE: &str = r#"
 boundary trait Source { machine slot() -> @i32 reaches none crashes none; }
 machine read(slot: @i32) -> i32 { $slot }
