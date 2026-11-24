@@ -420,3 +420,42 @@ fn invalid_file_paths_and_aliases_are_refused_at_the_import() {
         parse_error(text);
     }
 }
+#[test]
+fn root_operand_file_roles_follow_the_declared_build_record() {
+    use syntax_trees::item::UseItem;
+    for (header, declaration, product_only) in [
+        (
+            "",
+            "Build satisfies Writer { Writer::bind = write; }",
+            false,
+        ),
+        ("<const Build: Writer>", "", false),
+        ("<Build satisfies Writer>", "", false),
+        ("<const Build: u64>", "", true),
+        ("", "", true),
+    ] {
+        let text = format!(
+            r#"
+            use values.omg;
+            machine configure{header}(builder: @mutable Build) {{
+                Build::bind(builder, |values|::slot, |values|::entry);
+            }}
+            trait Writer {{ machine bind(a: u64, b: u64, c: u64); }}
+            {declaration}
+        "#
+        );
+        let parsed = crate::tests::parse_source_verbose(
+            &text,
+            "tokenize file operands",
+            "parse file operands",
+        );
+        let import = parsed.root_items().find_map(|item| match item {
+            Item::Use(UseItem::File {
+                only_product_operands,
+                ..
+            }) => Some(*only_product_operands),
+            _ => None,
+        });
+        assert_eq!(import, Some(product_only), "{text}");
+    }
+}

@@ -70,7 +70,19 @@ pub(crate) fn parse_machine<'tokens, 'source>(
         entry_name,
     } = split_machine_path(syntax_trees, path);
 
+    let body_start = input;
     let (body, input) = parse_body(syntax_trees, input, machine_return_type.is_valid())?;
+    if body.is_some()
+        && (!type_parameters.is_empty() || !conformance_bounds.is_empty())
+        && let Some(uses) = input.file_qualifiers
+    {
+        uses.record_build_binder(
+            syntax_trees,
+            body_start.source_span_until(input).span,
+            type_parameters,
+            &conformance_bounds,
+        );
+    }
     let bodyless = body.is_none();
     let body = body.unwrap_or_default();
     let entry = State {

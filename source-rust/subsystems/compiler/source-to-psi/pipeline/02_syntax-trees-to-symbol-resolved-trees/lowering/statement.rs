@@ -71,6 +71,103 @@ mod statement_nodes {
     use syntax::statement::TransitionTargetNode;
     use syntax_trees::{self as syntax, SyntaxTrees};
 
+    fn has_build_record_owner(lowerer: &Lowerer, at: source_text::SourceSpan) -> bool {
+        use crate::source_resolved::data::TypeParameterKind;
+        use symbols::SymbolKind;
+
+        let program = &lowerer.symbol_resolved_trees;
+        if let Some(scope) = &lowerer.machine_body
+            && scope.ordinal < program.machines.len()
+        {
+            let machine = &program.machines[scope.ordinal];
+            if machine
+                .conformance_bounds
+                .iter()
+                .any(|bound| bound.binder_name.as_str() == "Build")
+            {
+                return true;
+            }
+            if let Some(binder) = program
+                .machine_type_parameters(machine)
+                .iter()
+                .find(|p| p.name.as_str() == "Build")
+            {
+                match &binder.kind {
+                    TypeParameterKind::Implementation => return true,
+                    TypeParameterKind::Const { type_reference }
+                        if is_record_schema(program, type_reference) =>
+                    {
+                        return true;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        !program
+            .symbols
+            .top_level_candidates_from_source(
+                "Build",
+                &[SymbolKind::Conformance, SymbolKind::Trait],
+                at,
+            )
+            .is_empty()
+    }
+
+    fn is_record_schema<'a>(
+        program: &'a crate::source_resolved::SymbolResolvedTrees,
+        mut reference: &'a TypeReference,
+    ) -> bool {
+        let symbol = loop {
+            match reference {
+                TypeReference::AliasUse { expansion, .. } => reference = expansion,
+                TypeReference::Constrained(constraint) => {
+                    reference = program.child_type_reference(constraint.base_type)
+                }
+                TypeReference::Named { symbol, .. } => break *symbol,
+                TypeReference::Generic(application) => break application.base_symbol,
+                _ => return false,
+            }
+        };
+        symbol.is_valid() && program.symbols.get(symbol).kind == symbols::SymbolKind::Trait
+    }
+
+    fn lower_root_binding(
+        lowerer: &mut Lowerer,
+        syntax_trees: &SyntaxTrees,
+        binding: &syntax::statement::RootBinding,
+    ) -> Result<Vec<Statement>, Diagnostic> {
+        Ok(vec![Statement::RootBinding(RootBinding {
+            receiver: lower_statement_expression(lowerer, syntax_trees, binding.receiver)?,
+            slot: lower_names(syntax_trees, &binding.slot).into_boxed_slice(),
+            implementation: lower_names(syntax_trees, &binding.implementation).into_boxed_slice(),
+            implementation_operand: if binding.implementation_operand.is_valid() {
+                if !matches!(
+                    syntax_expressions(syntax_trees).expression(binding.implementation_operand),
+                    syntax::expression::ExpressionNode::Name { .. }
+                ) {
+                    lower_statement_expression(
+                        lowerer,
+                        syntax_trees,
+                        binding.implementation_operand,
+                    )?
+                } else {
+                    let exposure = lowerer.current_authored_expression_exposure.take();
+                    let lowered =
+                        crate::resolution::lowering::expression::lower_expression_into_table(
+                            lowerer,
+                            syntax_trees,
+                            binding.implementation_operand,
+                        );
+                    lowerer.current_authored_expression_exposure = exposure;
+                    lowered?
+                }
+            } else {
+                crate::source_resolved::expression::ExpressionHandle::invalid()
+            },
+            source_span: binding.source_span,
+        })])
+    }
+
     pub(crate) fn lower_statement_node(
         lowerer: &mut Lowerer,
         syntax_trees: &SyntaxTrees,
@@ -92,37 +189,9 @@ mod statement_nodes {
                 lower(lowerer, syntax_trees, *handle, statement_index)
                     .map(|handle| vec![Statement::Assembly(handle)])
             }
-            StatementNode::RootBinding(binding) => Ok(vec![Statement::RootBinding(RootBinding {
-                receiver: lower_statement_expression(lowerer, syntax_trees, binding.receiver)?,
-                slot: lower_names(syntax_trees, &binding.slot).into_boxed_slice(),
-                implementation: lower_names(syntax_trees, &binding.implementation)
-                    .into_boxed_slice(),
-                implementation_operand: if binding.implementation_operand.is_valid() {
-                    if !matches!(
-                        syntax_expressions(syntax_trees).expression(binding.implementation_operand),
-                        syntax::expression::ExpressionNode::Name { .. }
-                    ) {
-                        lower_statement_expression(
-                            lowerer,
-                            syntax_trees,
-                            binding.implementation_operand,
-                        )?
-                    } else {
-                        let exposure = lowerer.current_authored_expression_exposure.take();
-                        let lowered =
-                            crate::resolution::lowering::expression::lower_expression_into_table(
-                                lowerer,
-                                syntax_trees,
-                                binding.implementation_operand,
-                            );
-                        lowerer.current_authored_expression_exposure = exposure;
-                        lowered?
-                    }
-                } else {
-                    crate::source_resolved::expression::ExpressionHandle::invalid()
-                },
-                source_span: binding.source_span,
-            })]),
+            StatementNode::RootBinding(binding) => {
+                lower_root_binding(lowerer, syntax_trees, binding)
+            }
             StatementNode::AssemblyFact(fact) => Ok(vec![Statement::AssemblyFact(AssemblyFact {
                 kind: match fact.kind {
                     syntax::statement::AssemblyFactKind::Requires => AssemblyFactKind::Requires,
@@ -177,6 +246,14 @@ mod statement_nodes {
             }
             StatementNode::Call(statement) => {
                 let call = statement.call(syntax_trees);
+                if !statement.discards_result
+                    && syntax::root_bindings::is_root_binding_candidate(syntax_trees, call)
+                    && !has_build_record_owner(lowerer, call.target.source_span())
+                {
+                    let binding =
+                        syntax::root_bindings::root_binding_declaration(syntax_trees, call)?;
+                    return lower_root_binding(lowerer, syntax_trees, &binding);
+                }
                 let build_declaration = BuildOperation::from_call_target(call.target.as_str(syntax_trees))
                     .is_some_and(|operation| operation.selects_product_declarations()
                         && operation != BuildOperation::NativeBinding);
@@ -720,13 +797,24 @@ pub(crate) fn lower_block_value(
     };
     let mut statements = Vec::new();
     for statement in syntax_trees.statements.block_statements(block.statements) {
-        statements.extend(lower_statement_handle(
-            lowerer,
-            syntax_trees,
-            *statement,
-            statements.len(),
-            false,
-        )?);
+        let lowered =
+            lower_statement_handle(lowerer, syntax_trees, *statement, statements.len(), false)?;
+        if let [Statement::RootBinding(binding)] = lowered.as_slice() {
+            // A block value accepts ordinary calls. Selecting the toolchain operation
+            // here must keep the same block restriction as a dedicated root binding.
+            let span = match syntax_trees.statements.statement(*statement) {
+                syntax::statement::StatementNode::Call(call) => syntax_trees
+                    .expression_identifier_path(call.call(syntax_trees).receiver)
+                    .and_then(|path| path.first().map(|owner| owner.source_span()))
+                    .unwrap_or(binding.source_span),
+                _ => binding.source_span,
+            };
+            return Err(
+                Diagnostic::error(syntax::root_bindings::BLOCK_VALUE_STATEMENT_ERROR)
+                    .with_source_span(span),
+            );
+        }
+        statements.extend(lowered);
     }
     let tail = if block.tail.is_valid() {
         let tail = crate::resolution::lowering::expression::lower_private_expression_into_table(
