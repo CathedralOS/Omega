@@ -10,11 +10,9 @@ run on the Psi interpreter and natively, and passes only by returning. A test
 that crashes refuses the build. These twins differ only in one test's expected
 sum.
 
-The Build's own refusals come before any test runs: registering a group twice,
-configuring a service for an unregistered group, and naming a service slot.
-The runner backs only std's `FilesystemService`, and nothing yet identifies
-that slot without trusting a package name, so every named slot is refused,
-including a same-spelled `FilesystemService` declared by the project itself.
+A duplicate registration fails before any tests run. The retired
+`tests.service` spelling follows ordinary name resolution even when a visible
+group and service match its arguments.
 
 */
 
@@ -166,14 +164,9 @@ fn the_build_refuses_malformed_group_requests_before_any_test_runs() {
             "test group registration repeats the same requirement",
         ),
         (
-            "unregistered",
-            "    _ = builder.tests.service::<Tests::arithmetic, FilesystemService>();",
-            "test group service names a group this Build has not registered",
-        ),
-        (
-            "slot",
+            "retired_service",
             "    _ = builder.tests.group::<Tests::arithmetic>();\n    _ = builder.tests.service::<Tests::arithmetic, FilesystemService>();",
-            "the test runner cannot back `FilesystemService`",
+            "this call has no visible declaration in its source scope",
         ),
     ] {
         let (compiled, output) = build(name, "5u32", registration);
