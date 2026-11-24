@@ -33,9 +33,9 @@ established native failure wording.
 
 Why `omega run` uses exit codes 200..=204 for harness and interpreter outcomes:
 
-A guest program can legitimately exit with small positive statuses (including
-1, 2, or 3). To keep `omega run` statuses unambiguous when a caller inspects
-`$?`, we reserve 200..=204 for outcomes that are not a normal guest exit code:
+The harness uses 200..=204 to keep common guest statuses (including 1, 2 and 3)
+available. A guest can also return 200..=204. In that range the accompanying
+exit or failure message identifies which outcome occurred.
 - `200`: compile rejection, launch failure, output-forwarding failure, empty or
   unreadable `--inputs`, or Terminal Psi execution stopping without a process
   exit (unavailable host capability, sponsor work exhaustion, or pending host

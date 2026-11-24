@@ -19,10 +19,9 @@ returns `Result<Option<T>, String>`:
   subcommand's `USAGE` string so the caller gets both the exact mistake and the
   synopsis.
 
-Shared value readers (`option_value`, `take_value`, `take_text`) refuse tokens
-that start with `-` or `--`. That way, if a user forgets the path after
-`--input` or `--report-file` and writes `--input --both`, we fail immediately
-on `--input` instead of quietly swallowing `--both` as a file name.
+A path read by `option_value` can start with a single dash. `take_value` and
+its UTF-8 adapter `take_text` reject any leading dash. All three reject a
+long option in the value position, so `--input --both` reports the missing path.
 
 */
 
