@@ -368,3 +368,21 @@ fn a_theorem_over_indexed_data_with_a_false_bound_is_refused() {
         "{report}"
     );
 }
+
+#[test]
+fn a_running_machine_with_indexed_evidence_compiles() {
+    let (output, report) = check("indexed_family/pass/evidence_in_a_running_machine");
+    assert_eq!(output.status.code(), Some(0), "{report}");
+}
+
+#[test]
+fn evidence_the_data_does_not_allow_is_refused_where_it_is_built() {
+    let (output, report) = check("indexed_family/fail/evidence_of_an_element_too_large");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains(
+            "cannot prove what `Vector::Cons` requires of the value built here in `room`"
+        ),
+        "{report}"
+    );
+}

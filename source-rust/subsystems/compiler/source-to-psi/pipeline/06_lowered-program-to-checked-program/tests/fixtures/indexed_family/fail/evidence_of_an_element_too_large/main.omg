@@ -1,0 +1,56 @@
+// The twin of `pass/evidence_in_a_running_machine` whose list holds
+// eleven. The data lets an element be at most ten, and a list of one
+// eleven does not sum to seven, so `Vector::Cons` cannot be built at
+// `Vector<1, 7>` and the program is refused where the literal is written.
+use omega\language\core\ProcessExit;
+
+data Vector<Length: u64, Total: u64>
+    requires ((self in Vector::Nil) && (Length == 0 && Total == 0)) || ((self in Vector::Cons) && (self.head <= 10 && embed(self.previous) + 1 == embed(Length)
+              && embed(self.previous_total) + embed(self.head) == embed(Total)))
+{
+    case Nil;
+    case Cons(previous: u64, previous_total: u64, head: u64,
+              tail [erased]: Vector<previous, previous_total>);
+}
+
+machine vector_bound<Length: u64, Total: u64>(evidence [erased]: Vector<Length, Total>)
+terminates by Length
+ensures embed(Total) <= 10 * embed(Length)
+{
+    transition evidence {
+        Vector::Nil { .. } -> done(),
+        Vector::Cons { previous, previous_total, head, tail, .. } -> step(previous, previous_total, head, tail)
+    }
+    machine done() requires Length == 0 && Total == 0 {}
+    machine step(previous: u64, previous_total: u64, head: u64, tail [erased]: Vector<previous, previous_total>)
+    requires head <= 10 && embed(previous) + 1 == embed(Length)
+             && embed(previous_total) + embed(head) == embed(Total)
+    {
+        vector_bound::<previous, previous_total>(tail);
+    }
+}
+
+machine bounded<Length: u64, Total: u64>(evidence [erased]: Vector<Length, Total>) -> u64
+requires Length <= 8
+{
+    vector_bound::<Length, Total>(evidence);
+    80u64 - Total
+}
+
+machine room() -> u64 {
+    let nil [erased]: Vector<0, 0> = Vector::Nil;
+    let one [erased]: Vector<1, 7> = Vector::Cons { previous: 0, previous_total: 0, head: 11, tail: nil };
+    bounded::<1, 7>(one)
+}
+
+data Main { }
+machine exit_with_status(main: @mutable Main) reaches ProcessExit {
+    let left: u64 = room();
+    ProcessExit::exit_process(0);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit {
+    let mutable entry_storage: Main;
+    block exit_with_status(@mutable entry_storage);
+}

@@ -1422,11 +1422,12 @@ same_sign> as SameSign;` is read into the mathematical signature when
     nineteen runtime quotient programs under
     `samples/cli/facts/quotient_closed_literal/`.
 
-**Step 6 as built so far (2026-11-24): data indexed by values and theorems
-over it, not yet the machines that run with its evidence.** The three
-`source_indexed_*` sample families now pass stage 03 and stage 04 and are
-refused in stage 05, so the plan row's "evaluated in stage 03 first" no
-longer holds. What is built:
+**Step 6 as built (2026-11-24): data indexed by values, theorems over it and
+the machines that run with its evidence.** The three `source_indexed_*`
+sample families compile and run: all 27 valid placements are accepted and
+all 27 invalid twins are refused where the wrong value is built. The plan
+row's "evaluated in stage 03 first" did not hold; the samples already passed
+stages 03 and 04. What is built:
 
 - **Two kernel pieces came back.** The indexed-data builder
   (`psi/semantics/proofs/mathematical/indexed_data.rs`, ported from the
@@ -1455,14 +1456,37 @@ longer holds. What is built:
   proof); a step that does not cite the theorem at the tail; a step that
   requires more than the data gives; a citation at another index than the
   child has.
+- **Machines that run with evidence.** Evidence has no layout, so a machine
+  that runs holds an erased Boolean in its place and the mathematical reader
+  checks what the machine does with it. Each case literal owes what the data
+  requires of that case, as a law about integers the kernel judges: a list
+  whose head is eleven, or whose total is not the sum, is refused at the
+  literal. Evidence is passed and held only at the index it has, compared
+  as written. A machine does not enter a theorem it cites. The theorem's
+  guarantee at the citation's values becomes a requirement of the citing
+  machine, and of each machine that passes its own evidence on to it, until
+  a caller that passes numbers proves it by arithmetic. So nothing in a
+  running machine is taken on trust: the theorem is proved once for every
+  index, and each use is a requirement someone proves.
+- **A type parameter beside the indices.** `Vector<T [copy], Length, Total>`
+  with a field `marker: T` is the same kernel family as without `T`: no
+  clause can say anything of a value of type `T` and no index depends on
+  one, so the family leaves `T` and the field out and the theorem holds
+  whatever `T` is. Stage 03 already refuses evidence built or passed at
+  another type ("constructor or call arguments determine conflicting
+  generic arguments"), so stage 05 compares only the indices.
+- **One repair outside the proof layer.** A mathematical definition names
+  its value binders inside its types (`let retain<Length: u64, Total:
+  u64>(value: Vector<Length, Total>)`). Stage 02 read such a name only as a
+  type and left it unresolved, and the package review then refused the whole
+  sample ("a stale declaration in a carried type"). Stage 02 now binds a
+  name written where applied data takes a value to the definition's binder.
 - **Not done:**
-  - The machines that run with evidence: `[erased]` locals and formals of
-    the family's type in a machine that returns a value, building evidence
-    with `Vector::Cons { .. }`, passing it to a call, and using a theorem's
-    `ensures` in the caller. The three sample families are still refused
-    there.
-  - A type parameter beside the value parameters
-    (`source_indexed_type_parameter`).
+  - A running machine names an index or a payload value only as a number or
+    one of its own value parameters. A computed index (`Vector<Length + 1,
+    ..>`), a local or a formal there is refused by name. Evidence is built
+    only in an erased local of the machine's own statements, and evidence
+    returned from a machine or held in a field of other data is not read.
   - The index a theorem is ranked on is not checked to get smaller. The
     induction is over the evidence and does not need it; showing it for the
     tree needs the fact that an unsigned value is not negative, which the

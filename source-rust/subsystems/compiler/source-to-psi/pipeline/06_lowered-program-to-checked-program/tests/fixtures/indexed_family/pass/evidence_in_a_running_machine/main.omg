@@ -1,0 +1,59 @@
+// A running machine that holds evidence of data indexed by values and uses
+// a theorem about it. `room` builds the one-element list of seven as erased
+// evidence, which exists only for the checker: `Vector::Nil` owes that its
+// length and total are zero, and `Vector::Cons` owes what the data requires
+// of a longer list. `bounded` may subtract the total from eighty because
+// `vector_bound` proves the total is at most ten times the length and the
+// length is at most eight.
+use omega\language\core\ProcessExit;
+
+data Vector<Length: u64, Total: u64>
+    requires ((self in Vector::Nil) && (Length == 0 && Total == 0)) || ((self in Vector::Cons) && (self.head <= 10 && embed(self.previous) + 1 == embed(Length)
+              && embed(self.previous_total) + embed(self.head) == embed(Total)))
+{
+    case Nil;
+    case Cons(previous: u64, previous_total: u64, head: u64,
+              tail [erased]: Vector<previous, previous_total>);
+}
+
+machine vector_bound<Length: u64, Total: u64>(evidence [erased]: Vector<Length, Total>)
+terminates by Length
+ensures embed(Total) <= 10 * embed(Length)
+{
+    transition evidence {
+        Vector::Nil { .. } -> done(),
+        Vector::Cons { previous, previous_total, head, tail, .. } -> step(previous, previous_total, head, tail)
+    }
+    machine done() requires Length == 0 && Total == 0 {}
+    machine step(previous: u64, previous_total: u64, head: u64, tail [erased]: Vector<previous, previous_total>)
+    requires head <= 10 && embed(previous) + 1 == embed(Length)
+             && embed(previous_total) + embed(head) == embed(Total)
+    {
+        vector_bound::<previous, previous_total>(tail);
+    }
+}
+
+machine bounded<Length: u64, Total: u64>(evidence [erased]: Vector<Length, Total>) -> u64
+requires Length <= 8
+{
+    vector_bound::<Length, Total>(evidence);
+    80u64 - Total
+}
+
+machine room() -> u64 {
+    let nil [erased]: Vector<0, 0> = Vector::Nil;
+    let one [erased]: Vector<1, 7> = Vector::Cons { previous: 0, previous_total: 0, head: 7, tail: nil };
+    bounded::<1, 7>(one)
+}
+
+data Main { }
+machine exit_with_status(main: @mutable Main) reaches ProcessExit {
+    let left: u64 = room();
+    ProcessExit::exit_process(0);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit {
+    let mutable entry_storage: Main;
+    block exit_with_status(@mutable entry_storage);
+}

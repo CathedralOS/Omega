@@ -1692,6 +1692,40 @@ mod value_expressions {
         }
     }
 
+    /*
+        A mathematical definition names its own value binders inside its
+        types: `let retain<Length: u64, Total: u64>(value: Vector<Length,
+        Total>)`. The type pass reads a bare name as a type, and a value
+        binder never hides one, so each argument the applied declaration takes
+        as a value is bound here to the definition's binder of that name.
+        `declared` gives the applied declaration's own parameters.
+    */
+    pub(in crate::resolution::names) fn bind_binder_value_arguments(
+        declared: &dyn Fn(SymbolHandle) -> Option<Vec<crate::source_resolved::data::TypeParameter>>,
+        child_types: &mut crate::source_resolved::types::TypeReferenceArena,
+        binders: &[crate::source_resolved::data::TypeParameter],
+        type_reference: &TypeReference,
+    ) {
+        let TypeReference::Generic(generic) = type_reference else {
+            return;
+        };
+        if let Some(parameters) = declared(generic.base_symbol) {
+            bind_named_value_arguments(&parameters, child_types, generic.arguments, |name| {
+                binders
+                    .iter()
+                    .find(|binder| {
+                        binder.name.as_str() == name.as_str()
+                            && super::assignment::introduces_value(&binder.kind)
+                    })
+                    .map(|binder| binder.symbol)
+            });
+        }
+        for handle in generic.arguments.handles() {
+            let nested = child_types.get(handle).clone();
+            bind_binder_value_arguments(declared, child_types, binders, &nested);
+        }
+    }
+
     /// The selected declaration determines which operands are values. Resolve a
     /// bare name in one of those positions in the scope that supplied the operand.
     pub(super) fn bind_named_value_arguments(
@@ -1842,7 +1876,9 @@ mod value_expressions {
                         .find(|declaration| declaration.symbol == owner)
                         .map(|declaration| declaration.type_parameters),
                     SymbolKind::TypeAlias => {
-                        let mut aliases = machine.type_aliases.iter()
+                        let mut aliases = machine
+                            .type_aliases
+                            .iter()
                             .filter(|alias| alias.symbol == owner);
                         match (aliases.next(), aliases.next()) {
                             (Some(alias), None) => Some(alias.type_parameters),
@@ -2394,7 +2430,8 @@ mod value_expressions {
 pub(super) use value_expressions::{
     assign_declaration_type_value_expression_symbols, assign_domain_index_values,
     assign_type_argument_value_expression_symbols, assign_type_value_expression_symbols,
-    reassign_type_reference_symbols, reassign_type_reference_symbols_and_values,
+    bind_binder_value_arguments, reassign_type_reference_symbols,
+    reassign_type_reference_symbols_and_values,
 };
 
 pub(super) use assignment::{

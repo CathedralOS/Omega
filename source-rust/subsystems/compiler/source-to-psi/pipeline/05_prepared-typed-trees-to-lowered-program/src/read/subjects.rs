@@ -404,7 +404,10 @@ impl Program<'_> {
             {
                 continue;
             }
-            if self.is_generic_template(machine) && !self.mathematical_template(machine) {
+            if self.is_generic_template(machine)
+                && !self.mathematical_template(machine)
+                && !self.is_family_theorem(machine)
+            {
                 return Err(self.read_failure_at(
                     refuse(
                         entry,
@@ -427,6 +430,17 @@ impl Program<'_> {
             }
         }
         Ok((machines, data))
+    }
+
+    /// Whether the subject owns the declaration.
+    pub(crate) fn owned_by_subject(
+        &self,
+        entry: MachineId,
+        symbol: SymbolHandle,
+        subjects: &[Option<PackageKeyIdentity>],
+        purpose: DependencyScope,
+    ) -> Checked<bool> {
+        Ok(self.owner(entry, symbol, subjects, purpose)? == Owner::Subject)
     }
 
     /// Reads one data declaration that contains itself as a mathematical type.
@@ -650,6 +664,12 @@ impl Program<'_> {
         }
         for (definition_index, definition) in typed.mathematical_definitions().iter().enumerate() {
             let read = (|| -> Checked<()> {
+                // A definition that returns indexed data hands evidence on
+                // and never runs; the mathematical reader checks it
+                // (`families::evidence_definition`).
+                if self.returns_indexed_data(definition) {
+                    return Ok(());
+                }
                 if self.owner(entry, definition.symbol, subjects, purpose)? == Owner::Subject {
                     self.mathematical_predicate_definition(
                         entry,

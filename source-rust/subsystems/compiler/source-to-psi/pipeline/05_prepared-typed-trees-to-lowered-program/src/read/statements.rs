@@ -68,13 +68,27 @@ impl Program<'_> {
     /// A slice formal carries a descriptor for borrowed backing. A whole
     /// assignment needs a stored value to replace. Indexed stores and
     /// assignment to an owned descriptor local have their own destinations.
-    fn require_whole_replacement(&self, id: MachineId, slots: &[Slot], index: usize) -> Checked<()> {
+    fn require_whole_replacement(
+        &self,
+        id: MachineId,
+        slots: &[Slot],
+        index: usize,
+    ) -> Checked<()> {
         if slots[index].borrowed.is_some()
             && !slots[index].homed
-            && !self.signatures.get(id).and_then(|signature| signature.borrowed(index))
-                .is_some_and(|borrowed| borrowed.referent == crate::lowering::body::BorrowedReferent::Value)
+            && !self
+                .signatures
+                .get(id)
+                .and_then(|signature| signature.borrowed(index))
+                .is_some_and(|borrowed| {
+                    borrowed.referent == crate::lowering::body::BorrowedReferent::Value
+                })
         {
-            return Err(refuse(id, Construct::Machine, Unserved::Statement("whole assignment through a reference")));
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Statement("whole assignment through a reference"),
+            ));
         }
         Ok(())
     }
@@ -749,6 +763,36 @@ impl Program<'_> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Statement(what)));
         if !local.initial_value.is_valid() {
             return unserved("erased local without an initializer");
+        }
+        // An erased local of data indexed by values is evidence. Its
+        // initializer is the mathematical signature's to read; here the
+        // local is a witness nothing reads (`families::evidence_witness`).
+        if local.type_reference.is_valid() && self.names_indexed_data(local.type_reference) {
+            let value_type = super::families::evidence_witness();
+            let slot = Slot {
+                symbol: local.symbol,
+                value_type,
+                assignable: false,
+                homed: false,
+                erased: true,
+                borrowed: None,
+                borrowed_regions: crate::lowering::body::Regions::NONE,
+            };
+            let term = crate::lowering::body::Expression {
+                call_context: None,
+                kind: crate::lowering::body::ExpressionKind::Boolean(true),
+                result: Some(value_type),
+                source: SourceOrigin::of(
+                    self.typed.expression_table.source_span(local.initial_value),
+                ),
+            };
+            return Ok((
+                slot,
+                Statement::Witness {
+                    slot: self.next_slot(slots),
+                    term,
+                },
+            ));
         }
         let declared = if local.type_reference.is_valid() {
             Some(self.local_type(id, local.type_reference)?)

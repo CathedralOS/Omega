@@ -52,7 +52,7 @@ use terminal_check_tables::mathematics::{
 use terminal_check_tables::{Checked, Construct, Refusal};
 
 use super::Program;
-use super::families::{FamilyRecord, FamilyTerm, FamilyTheorem};
+use super::families::{EvidenceTerm, EvidenceUse, FamilyRecord, FamilyTerm, FamilyTheorem};
 use super::quotients::LiftedOperation;
 use crate::lowering::body::{
     ArmGuard, Body, CallTarget, CaseSelector, Expression, ExpressionKind, Statement, Target,
@@ -391,6 +391,12 @@ impl Program<'_> {
             });
             if let Err(refusal) = read {
                 refused.push(refusal);
+            }
+        }
+        // What the machines that run build of indexed data.
+        for used in &self.evidence_uses {
+            if let Err(refusal) = converter.evidence_laws(diagnostic, used) {
+                refused.push(self.read_failure_at(refusal, used.machine, "the evidence"));
             }
         }
         // A machine that states no law means something only where a law
@@ -1697,6 +1703,111 @@ impl<'p> Converter<'p, '_> {
             family: position,
             cases,
         });
+        Ok(())
+    }
+
+    /// What each case literal a running machine writes owes: the case's
+    /// constraints at the literal's index and payload, one law per
+    /// constraint, from what the machine requires of its value parameters.
+    fn evidence_laws(&mut self, id: MachineId, used: &EvidenceUse) -> Checked<()> {
+        let vocabulary = self.integer_vocabulary(id)?;
+        let integer = self.constant(vocabulary.carrier);
+        let count = used.parameters.len() as u32;
+        let open: Vec<_> = (0..count)
+            .map(|parameter| self.variable(count - 1 - parameter))
+            .collect();
+        let mut premises = Vec::new();
+        for proposition in &used.requires {
+            // A requirement the integer vocabulary cannot state is no
+            // hypothesis; nothing is assumed in its place.
+            let mut components = Vec::new();
+            let scope = Integers {
+                indices: &open,
+                payload: None,
+            };
+            if self
+                .integer_proposition(id, proposition, &scope, &mut components)
+                .is_ok()
+            {
+                premises.extend(components);
+            }
+        }
+        for construction in &used.constructions {
+            let declared = self
+                .families
+                .iter()
+                .find(|declared| declared.record == construction.record)
+                .ok_or_else(|| unserved(id, "evidence of indexed data that is not declared"))?
+                .clone();
+            let program = self.program;
+            let source = program
+                .families
+                .iter()
+                .find(|family| family.record == construction.record)
+                .ok_or_else(|| unserved(id, "evidence of indexed data that is not declared"))?;
+            let terms = declared
+                .cases
+                .get(construction.case)
+                .ok_or_else(|| unserved(id, "literal of indexed data that names no case"))?;
+            if construction.at.len() != source.indices.len()
+                || construction.payload.len() != terms.payload as usize
+            {
+                return Err(unserved(
+                    id,
+                    "literal of indexed data without each value once",
+                ));
+            }
+            let mut actuals =
+                Vec::with_capacity(construction.at.len() + construction.payload.len());
+            for term in construction.at.iter().chain(&construction.payload) {
+                actuals.push(match *term {
+                    EvidenceTerm::Parameter(parameter) => open[parameter as usize],
+                    EvidenceTerm::Literal(value) => {
+                        self.integer_literal(id, bignum::BigInt::from_i128(value))?
+                    }
+                });
+            }
+            let case = format!(
+                "{}::{}",
+                self.name(source.declaration),
+                source.cases[construction.case].name
+            );
+            for &constraint in &terms.constraints {
+                let goal = instantiate(&mut self.signature.arena, constraint, &actuals);
+                let mut statement = self.implication(&premises, goal);
+                for _ in 0..count {
+                    statement = self.signature.arena.insert(Term::Pi {
+                        domain: integer,
+                        codomain: statement,
+                    });
+                }
+                let law = index(id, self.signature.laws.len())?;
+                index(id, self.signature.declarations.len() + 1)?;
+                let entry = self.push(
+                    Declaration::assumption(0, statement),
+                    SignatureEntryKind::Statement { law },
+                    used.name.clone(),
+                );
+                self.signature.laws.push(Law {
+                    machine: used.machine,
+                    clause: 0,
+                    statement: entry,
+                    formals: vec![integer; count as usize],
+                    premises: premises.clone(),
+                    goal,
+                    declared: None,
+                    proof: LawProof::Integers,
+                    formal_names: used
+                        .parameters
+                        .iter()
+                        .map(|parameter| parameter.name.clone())
+                        .collect(),
+                    machine_name: used.name.clone(),
+                    text: format!("what `{case}` requires of the value built here"),
+                    source: construction.source,
+                });
+            }
+        }
         Ok(())
     }
 

@@ -251,6 +251,7 @@ pub(crate) fn judge(
                 *invariant,
                 cases,
             ),
+            LawProof::Integers => prove_integers(&mut arena, &declarations, &extras, law),
             _ => prove_law(&mut arena, &declarations, &entries, &laws, &licenses, law),
         };
         match proved {
@@ -288,7 +289,10 @@ pub(crate) fn judge(
 
 fn script(law: &Law, case: usize) -> Option<&LawCase> {
     match &law.proof {
-        LawProof::Direct(_) | LawProof::Fuel { .. } | LawProof::Family { .. } => None,
+        LawProof::Direct(_)
+        | LawProof::Fuel { .. }
+        | LawProof::Family { .. }
+        | LawProof::Integers => None,
         LawProof::Cases { cases, .. } => cases.get(case),
     }
 }
@@ -988,20 +992,7 @@ fn prove_family(
             "theorem over indexed data without its declarations".to_owned(),
         ));
     };
-    let positions = proof_admission::SourceIntegerPositions {
-        vocabulary: proof_admission::SourceIntegerVocabulary {
-            carrier: positions.carrier,
-            less_than: positions.less_than,
-            less_or_equal: positions.less_or_equal,
-            add: positions.add,
-            subtract: positions.subtract,
-            multiply: positions.multiply,
-        },
-        numeral_zero: positions.numeral_zero,
-        numeral_double: positions.numeral_double,
-        numeral_odd: positions.numeral_odd,
-        numeral_negate: positions.numeral_negate,
-    };
+    let positions = source_positions(positions);
     let mut local = declarations[..law.statement as usize].to_vec();
     let statement = declarations[law.statement as usize].ty;
     let indices = law.formals.len();
@@ -1163,6 +1154,116 @@ fn prove_family(
     })
 }
 
+/// Proves a goal about integers from the law's premises with the integer
+/// search: what a case of indexed data requires of a value a machine builds,
+/// from what that machine requires of its value parameters.
+fn prove_integers(
+    arena: &mut TermArena,
+    declarations: &[Declaration],
+    extras: &Extras<'_>,
+    law: &Law,
+) -> Result<LawJudgment, Failure> {
+    let refused = |detail: String| Failure {
+        case: None,
+        cause: UnprovedCause::KernelRefused,
+        detail,
+    };
+    let Some(positions) = extras.integers else {
+        return Err(refused(
+            "goal about integers without the integer vocabulary".to_owned(),
+        ));
+    };
+    let positions = source_positions(positions);
+    let mut local = declarations[..law.statement as usize].to_vec();
+    let statement = declarations[law.statement as usize].ty;
+    let searched = |error: proof_admission::BoundedDenotationError| {
+        refused(format!("integer search: {error:?}"))
+    };
+    let mut theory = proof_admission::SourceIntegerTheory::resume(arena, &mut local, positions)
+        .map_err(searched)?;
+    let integer = constant(arena, positions.vocabulary.carrier);
+    let first = local.len() as u32;
+    let total = law.formals.len();
+    let mut unknowns = Vec::with_capacity(total);
+    for unknown in 0..total {
+        local.push(Declaration::assumption(0, integer));
+        unknowns.push(constant(arena, first + unknown as u32));
+    }
+    let hypotheses: Vec<_> = law
+        .premises
+        .iter()
+        .map(|&premise| instantiate(arena, premise, &unknowns))
+        .collect();
+    let goal = instantiate(arena, law.goal, &unknowns);
+    let Some(proof) = theory
+        .predicate_from_assumptions(arena, &mut local, goal, &hypotheses, 0)
+        .map_err(searched)?
+    else {
+        return Err(Failure {
+            case: None,
+            cause: UnprovedCause::NoDerivation,
+            detail: "no proof from what the machine requires of its value parameters".to_owned(),
+        });
+    };
+    let mut proved = goal;
+    for &hypothesis in hypotheses.iter().rev() {
+        proved = arena.insert(Term::Pi {
+            domain: hypothesis,
+            codomain: proved,
+        });
+    }
+    let certificate = MathematicalCertificate::with_signature(local, Vec::new(), proof, proved);
+    let selected: Vec<u32> = (first..first + total as u32).collect();
+    let abstracted = mathematical_kernel::abstract_certificate_assumptions(
+        arena,
+        &certificate,
+        &selected,
+        &mut Budget::default(),
+    )
+    .map_err(|error| refused(format!("integer goal: {error:?}")))?;
+    let mut check = Budget::default();
+    let certificate = MathematicalCertificate::with_signature(
+        abstracted.certificate.signature,
+        Vec::new(),
+        abstracted.certificate.term,
+        statement,
+    );
+    let receipt =
+        MathematicalJudgmentReceipt::verify(arena, &certificate, &mut check).map_err(kernel)?;
+    let bytes =
+        terminal_codec::encode_mathematical_certificate(arena, &certificate).map_err(|_| {
+            Failure {
+                case: None,
+                cause: UnprovedCause::KernelRefused,
+                detail: "could not encode the judged mathematical term".to_owned(),
+            }
+        })?;
+    Ok(LawJudgment {
+        machine: law.machine_name.clone(),
+        clause: law.clause,
+        decision: MathematicalCoreDecision::Judged(receipt),
+        certificate: bytes,
+        conversion_steps: DEFAULT_CONVERSION_STEPS - check.remaining(),
+    })
+}
+
+fn source_positions(positions: IntegerPositions) -> proof_admission::SourceIntegerPositions {
+    proof_admission::SourceIntegerPositions {
+        vocabulary: proof_admission::SourceIntegerVocabulary {
+            carrier: positions.carrier,
+            less_than: positions.less_than,
+            less_or_equal: positions.less_or_equal,
+            add: positions.add,
+            subtract: positions.subtract,
+            multiply: positions.multiply,
+        },
+        numeral_zero: positions.numeral_zero,
+        numeral_double: positions.numeral_double,
+        numeral_odd: positions.numeral_odd,
+        numeral_negate: positions.numeral_negate,
+    }
+}
+
 /// What a law over indexed data needs beside the declarations: where the
 /// integer vocabulary is, and each indexed family as it was declared.
 struct Extras<'s> {
@@ -1215,8 +1316,9 @@ fn prove_law(
         law,
     };
     let body = match &law.proof {
-        // `judge` sends a theorem over indexed data to `prove_family`.
-        LawProof::Family { .. } => {
+        // `judge` sends a theorem over indexed data to `prove_family` and a
+        // goal about integers to `prove_integers`.
+        LawProof::Family { .. } | LawProof::Integers => {
             return Err(Failure {
                 case: None,
                 cause: UnprovedCause::KernelRefused,
@@ -1369,6 +1471,10 @@ fn statement(
     law: &Law,
     case: Option<usize>,
 ) -> String {
+    // What a literal of indexed data owes is named by its case.
+    if matches!(law.proof, LawProof::Integers) {
+        return format!("cannot prove {} in `{}`", law.text, law.machine_name);
+    }
     // A theorem over indexed data states an order of integers, which the
     // clause as written says best.
     if let LawProof::Family { cases, .. } = &law.proof {

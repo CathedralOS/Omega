@@ -355,6 +355,10 @@ pub enum LawProof {
         goal: TermHandle,
         script: LawCase,
     },
+    /// A goal about integers, proved from the law's premises by the integer
+    /// search: what a case of indexed data requires of a value a running
+    /// machine builds.
+    Integers,
     /// A theorem over data indexed by values (`families[family]`): an
     /// induction over the evidence. The law's formals are the indices, and
     /// its goal, as a function of the index, is the declared `invariant`.

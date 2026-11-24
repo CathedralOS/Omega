@@ -75,7 +75,10 @@ closure in `PreparedCompilation::mathematics`:
   (`families`). A theorem over one is a law whose formals are the indices
   and whose proof is `LawProof::Family`: per case of the data, what the
   declaration requires of the case, the index of each child, which children
-  the body cites the theorem at, and what the case's step requires.
+  the body cites the theorem at, and what the case's step requires. A value
+  of such data built by a machine that runs adds one law per requirement of
+  its case, with proof `LawProof::Integers`: a statement about integers
+  alone, quantified over the machine's value parameters.
 - **Laws**: one per `ensures` equality of a machine over such data. A law's
   proof is its body's citations, read per case when the body dispatches on a
   formal (an induction), and per case of a further value where a case splits

@@ -105,6 +105,14 @@ its field's type names. The `requires` must be one clause per case, each
 naming its case with `self in ..`. A program with both a quotient and such
 data is refused, because both kernel schemes are numbered from zero.
 
+The data may also take types: `data Vector<T [copy], Length: u64, Total: u64>`
+with a field `marker: T`. No clause can say anything of a value of such a
+type and no index depends on one, so the signature's family leaves the type
+parameters and those fields out. Forgetting them maps every value of the
+declared data to a value of that family at the same index, so a theorem about
+the indices holds whatever the types are. That the types agree where evidence
+is built or passed is typed preparation's check, as for any generic data.
+
 A theorem over such data returns nothing and takes one erased value of it:
 `machine vector_bound<Length: u64, Total: u64>(evidence [erased]:
 Vector<Length, Total>) ensures embed(Total) <= 10 * embed(Length)`. Its body
@@ -119,9 +127,39 @@ children the step cites. A clause over indexed data is read as equalities and
 orders of integers: an index or payload value is the integer it holds, and
 arithmetic is written on `embed`. The index a theorem is ranked on
 (`terminates by Length`) is not checked to get smaller: the induction is over
-the evidence, which the kernel's eliminator justifies. The machines that run
-with such evidence (`[erased]` locals and formals of the family's type in a
-machine that returns a value) are not read yet. The ordinary reader refuses the same data and machines when a
+the evidence, which the kernel's eliminator justifies.
+
+A machine that runs may hold such evidence in `[erased]` formals and locals,
+build it, pass it on and use a theorem about it. The evidence has no layout
+and nothing reads it, so the two readers split the work:
+
+- The ordinary reader lowers each erased formal or local of the family's type
+  as an erased Boolean nothing reads (`families::evidence_witness`) and does
+  not read its initializer. A citation `vector_bound::<Length, Total>(evidence);`
+  is not lowered as a call, because a machine that runs never enters a
+  theorem. Its `ensures` at the citation's values becomes one more `requires`
+  of the citing machine (`cited_guarantees`), so the body may use it and every
+  caller owes it. A caller that passes numbers proves it by arithmetic. A
+  caller that passes its own value parameters cannot, so what the machines it
+  passes evidence on to require this way is its requirement too, at the
+  values it passes. Nothing is assumed: the root caller always proves the
+  guarantee from numbers.
+- The mathematical reader checks every use of the evidence
+  (`evidence_uses`). A value is built only by a case literal in an erased
+  local, each child of the literal must be evidence the machine holds at the
+  index the case declares for it, and evidence is passed only to a formal
+  that takes it at the same index. The index is compared as
+  written: a number or one of the machine's own value parameters. What each
+  literal's case requires of its values becomes a law of the signature
+  (`evidence_laws`), for every value of the machine's value parameters that
+  meets the machine's own `requires`. A definition that returns its one
+  argument (`let retain<Length: u64, Total: u64>(value: Vector<Length,
+  Total>): Vector<Length, Total> = value;`) hands evidence on unchanged.
+
+Refused by name: evidence in a formal or local that is not erased, a literal
+anywhere but an erased local's initializer, a payload value or an index that
+is neither a number nor a value parameter of the machine, and a citation in
+a machine a caller reaches at values it does not fix. The ordinary reader refuses the same data and machines when a
 runtime machine reaches them. A field of any other type in such data, a
 premise on such a machine and a result together with a guarantee are refused
 as not supported yet.
