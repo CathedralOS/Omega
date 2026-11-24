@@ -281,6 +281,14 @@ pub struct HostContext<'host> {
     allocations: std::sync::Arc<std::sync::Mutex<allocation::AllocationValues>>,
 }
 impl<'host> HostContext<'host> {
+    pub(crate) fn with_output_limits(
+        mut self,
+        limits: Option<super::TerminalOutputLimits>,
+    ) -> Self {
+        self.output.limits = limits;
+        self
+    }
+
     pub fn finish_native_provider(&self) -> Result<(), TerminalRuntimeError> {
         self.native.finish().map_err(|error| {
             TerminalRuntimeError::missing(super::NATIVE_PROVIDER_RETIREMENT, error.reason)
@@ -311,7 +319,7 @@ impl<'host> HostContext<'host> {
                 std::sync::Arc::clone(&allocations),
             ),
             filesystem: filesystem::FilesystemContext::new(filesystem)?,
-            output: buffered_output::BufferedStreams::new(),
+            output: buffered_output::BufferedStreams::new(None),
             input: input.map(|reader| std::sync::Arc::new(std::sync::Mutex::new(reader))),
             clock: clock.map(|snapshot| std::sync::Arc::new(std::sync::Mutex::new(snapshot))),
             addresses: std::sync::Arc::new(std::sync::Mutex::new(
@@ -678,7 +686,7 @@ pub(super) fn bind<'host>(
         }
         instance.bind_import(
             *slot,
-            buffered_output::BufferedOutput::new(signature, kind, output.stdout.clone()),
+            buffered_output::BufferedOutput::new(signature, kind, output.clone()),
         )?;
     }
     Ok(output)

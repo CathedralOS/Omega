@@ -13,69 +13,111 @@ use terminal_interpreter::{
 use super::{OutputKind, TerminalRuntimeError};
 
 #[derive(Clone)]
-pub(crate) struct BufferedBytes(Arc<Mutex<Vec<u8>>>);
-
-#[derive(Clone)]
 pub(crate) struct BufferedStreams {
-    pub(crate) stdout: BufferedBytes,
-    pub(crate) stderr: BufferedBytes,
+    bytes: Arc<Mutex<StreamBytes>>,
+    pub(super) limits: Option<crate::TerminalOutputLimits>,
+}
+
+#[derive(Default)]
+struct StreamBytes {
+    stdout: Vec<u8>,
+    stderr: Vec<u8>,
 }
 
 impl BufferedStreams {
-    pub(super) fn new() -> Self {
+    pub(super) fn new(limits: Option<crate::TerminalOutputLimits>) -> Self {
         Self {
-            stdout: BufferedBytes::new(),
-            stderr: BufferedBytes::new(),
+            bytes: Arc::default(),
+            limits,
         }
     }
 
+    /// Check all bytes of one write before either stream can change.
     pub(super) fn append(
         &self,
         descriptor: i128,
-        bytes: &[u8],
+        parts: &[&[u8]],
     ) -> Result<(), TerminalEffectRejection> {
-        match descriptor {
-            1 => self.stdout.append(bytes),
-            2 => self.stderr.append(bytes),
-            _ => Err(TerminalEffectRejection::new(
-                "output descriptor is not an admitted private stream",
-            )),
-        }
-    }
-}
-
-impl BufferedBytes {
-    pub(super) fn new() -> Self {
-        Self(Arc::new(Mutex::new(Vec::new())))
-    }
-
-    pub(super) fn append(&self, bytes: &[u8]) -> Result<(), TerminalEffectRejection> {
-        self.0
+        let mut bytes = self
+            .bytes
             .lock()
-            .map_err(|_| TerminalEffectRejection::new("output snapshot lock is poisoned"))?
-            .extend_from_slice(bytes);
+            .map_err(|_| TerminalEffectRejection::new("output snapshot lock is poisoned"))?;
+        let retained = bytes.stdout.len().saturating_add(bytes.stderr.len());
+        let (destination, name, limit) = match descriptor {
+            1 => (
+                &mut bytes.stdout,
+                "stdout",
+                self.limits.map(|limits| limits.stdout_bytes),
+            ),
+            2 => (
+                &mut bytes.stderr,
+                "stderr",
+                self.limits.map(|limits| limits.stderr_bytes),
+            ),
+            _ => {
+                return Err(TerminalEffectRejection::new(
+                    "output descriptor is not an admitted private stream",
+                ));
+            }
+        };
+        let count = parts
+            .iter()
+            .try_fold(0usize, |count, part| count.checked_add(part.len()))
+            .ok_or_else(|| {
+                TerminalEffectRejection::sponsor_exhausted("output length exceeds host storage")
+            })?;
+        if let Some(limit) = limit
+            && count > limit.saturating_sub(destination.len())
+        {
+            return Err(TerminalEffectRejection::sponsor_exhausted(format!(
+                "{name} exceeded its {limit}-byte capture allowance"
+            )));
+        }
+        if let Some(limits) = self.limits
+            && count > limits.combined_bytes.saturating_sub(retained)
+        {
+            return Err(TerminalEffectRejection::sponsor_exhausted(format!(
+                "stdout and stderr exceeded their combined {}-byte capture allowance",
+                limits.combined_bytes,
+            )));
+        }
+        destination.try_reserve(count).map_err(|_| {
+            TerminalEffectRejection::sponsor_exhausted(format!(
+                "host cannot reserve {count} more {name} bytes"
+            ))
+        })?;
+        for part in parts {
+            destination.extend_from_slice(part);
+        }
         Ok(())
     }
 
-    pub(crate) fn snapshot(&self) -> Result<Vec<u8>, TerminalRuntimeError> {
-        self.0
-            .lock()
-            .map(|bytes| bytes.clone())
-            .map_err(|_| TerminalRuntimeError::InvalidProvision("output snapshot lock is poisoned"))
+    pub(super) fn snapshot(&self) -> Result<(Vec<u8>, Vec<u8>), TerminalRuntimeError> {
+        let bytes = self.bytes.lock().map_err(|_| {
+            TerminalRuntimeError::InvalidProvision("output snapshot lock is poisoned")
+        })?;
+        Ok((bytes.stdout.clone(), bytes.stderr.clone()))
+    }
+
+    pub(super) fn take(&self) -> Result<(Vec<u8>, Vec<u8>), TerminalRuntimeError> {
+        let bytes = std::mem::take(&mut *self.bytes.lock().map_err(|_| {
+            TerminalRuntimeError::InvalidProvision("output snapshot lock is poisoned")
+        })?);
+        Ok((bytes.stdout, bytes.stderr))
     }
 }
 
 pub(super) struct BufferedOutput {
     signature: TerminalImportSignature,
     kind: OutputKind,
-    output: BufferedBytes,
+    output: BufferedStreams,
 }
 
 impl BufferedOutput {
     pub(super) fn new(
         signature: TerminalImportSignature,
         kind: OutputKind,
-        output: BufferedBytes,
+        output: BufferedStreams,
     ) -> Self {
         Self {
             signature,
@@ -113,8 +155,7 @@ impl TerminalEffectHandler for BufferedOutput {
                         "line output has no exact byte payload",
                     ));
                 };
-                self.output.append(bytes)?;
-                self.output.append(b"\n")
+                self.output.append(1, &[bytes, b"\n"])
             }
             OutputKind::Byte => {
                 let [
@@ -131,7 +172,7 @@ impl TerminalEffectHandler for BufferedOutput {
                 let value = i32::try_from(*value).map_err(|_| {
                     TerminalEffectRejection::new("byte output exceeds its signed 32-bit carrier")
                 })?;
-                self.output.append(&[value as u8])
+                self.output.append(1, &[&[value as u8]])
             }
         }
     }
@@ -148,7 +189,7 @@ mod tests {
     #[test]
     fn byte_output_truncates_i32_without_accepting_malformed_operands() {
         let signed = IntegerType::new(IntegerSign::Signed, 32).unwrap();
-        let output = BufferedBytes::new();
+        let output = BufferedStreams::new(None);
         let mut adapter = BufferedOutput::new(
             TerminalImportSignature {
                 completion: BoundaryCompletion::NormalReturn,
@@ -190,7 +231,7 @@ mod tests {
                 .handle_effect(&effect(signed, IntegerValue::Signed(i128::from(value))))
                 .unwrap();
         }
-        assert_eq!(output.snapshot().unwrap(), [0x41, 0, 0xFF, 0, 0, 0xFF]);
+        assert_eq!(output.snapshot().unwrap().0, [0x41, 0, 0xFF, 0, 0, 0xFF]);
         for value in [i128::from(i32::MIN) - 1, i128::from(i32::MAX) + 1] {
             assert!(
                 adapter
@@ -204,6 +245,54 @@ mod tests {
                 .handle_effect(&effect(unsigned, IntegerValue::Unsigned(0x41)))
                 .is_err()
         );
-        assert_eq!(output.snapshot().unwrap(), [0x41, 0, 0xFF, 0, 0, 0xFF]);
+        assert_eq!(output.snapshot().unwrap().0, [0x41, 0, 0xFF, 0, 0, 0xFF]);
+    }
+
+    #[test]
+    fn cloned_output_adapters_share_the_invocation_ceiling() {
+        let limits = crate::TerminalOutputLimits {
+            stdout_bytes: 5,
+            stderr_bytes: 3,
+            combined_bytes: 6,
+        };
+        let streams = BufferedStreams::new(Some(limits));
+        let child = streams.clone();
+        streams.append(1, &[b"ab"]).unwrap();
+        child.append(2, &[b"err"]).unwrap();
+        let error = streams.append(1, &[b"x", b"\n"]).unwrap_err();
+        assert_eq!(
+            error.exhaustion_reason(),
+            Some("stdout and stderr exceeded their combined 6-byte capture allowance")
+        );
+        let site = terminal_interpreter::TerminalInterpretError::ExecutionSite {
+            machine: semantic_vocabulary::MachineId::new(1).unwrap(),
+            block: semantic_vocabulary::BlockId::new(1).unwrap(),
+            operation: Some(OperationId::new(1).unwrap()),
+            operation_tag: None,
+            cause: Box::new(
+                terminal_interpreter::TerminalInterpretError::EffectRejected {
+                    operation: OperationId::new(1).unwrap(),
+                    rejection: error,
+                },
+            ),
+        };
+        let hosted = TerminalRuntimeError::Execution(
+            terminal_interpreter::TerminalInstanceError::Execution(site),
+        );
+        assert_eq!(
+            hosted.sponsor_exhaustion(),
+            Some("stdout and stderr exceeded their combined 6-byte capture allowance")
+        );
+        let error = child.append(2, &[b"!"]).unwrap_err();
+        assert_eq!(
+            error.exhaustion_reason(),
+            Some("stderr exceeded its 3-byte capture allowance")
+        );
+        streams.append(1, &[b"!"]).unwrap();
+        assert_eq!(streams.take().unwrap(), (b"ab!".to_vec(), b"err".to_vec()));
+        assert_eq!(
+            BufferedStreams::new(Some(limits)).snapshot().unwrap(),
+            (vec![], vec![])
+        );
     }
 }

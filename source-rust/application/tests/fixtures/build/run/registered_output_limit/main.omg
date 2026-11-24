@@ -1,0 +1,26 @@
+use omega\language\core\StandardOutput;
+
+boundary trait Output {
+    machine write(descriptor: i32, bytes: @[u8; 4096], count: u64) -> i64
+    requires descriptor == 1 && count <= 4096
+    reaches StandardOutput crashes none;
+}
+
+trait Tests { machine capture() reaches StandardOutput; }
+
+machine fills_the_capture_buffer() satisfies Tests::capture {
+    many(1025u64);
+}
+
+machine many(remaining: u64) reaches StandardOutput {
+    let mutable payload: [u8; 4096];
+    let observed: i64 = Output::write(1i32, @payload, 4096u64);
+    transition remaining > 1 {
+        true -> many(remaining - 1),
+        _ -> finished()
+    }
+    machine finished() { }
+}
+
+machine returns_normally() satisfies Tests::capture { }
+machine main() { }

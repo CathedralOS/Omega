@@ -87,7 +87,8 @@ pub(super) fn execute_installed(
         request.native_provider,
         request.native_services,
         request.filesystem,
-    )?;
+    )?
+    .with_output_limits(request.output_limits);
     let component_slots = component_products
         .iter()
         .map(|component| component.selection().receiving_boundary())
@@ -151,7 +152,7 @@ pub(super) fn execute_installed(
             TerminalRuntimeError::InvalidProvision("sponsor work replenishment overflows")
         })?;
     };
-    let (stdout, stderr) = host.output()?;
+    let (stdout, stderr) = host.take_output()?;
     let private_entry_ram = instance
         .observe_private_entry_ram()
         .map_err(TerminalRuntimeError::Execution)?;

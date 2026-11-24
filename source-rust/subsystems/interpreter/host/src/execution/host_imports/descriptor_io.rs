@@ -503,7 +503,7 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                     let descriptor = i32::try_from(*descriptor).map_err(|_| invalid_operands())?;
                     return self.result(filesystem.write(descriptor, &bytes[..count])?);
                 }
-                self.output.append(*descriptor, &bytes[..count])?;
+                self.output.append(*descriptor, &[&bytes[..count]])?;
                 Ok(result)
             }
             DescriptorOperation::Read => {

@@ -1664,8 +1664,10 @@ pub(crate) mod component_calls {
             }
             match binding
                 .invoke(caller, operation.id, arguments, structural_arguments, meter)
-                .map_err(&reject)?
-            {
+                .map_err(|rejection| TerminalInterpretError::EffectRejected {
+                    operation: operation.id,
+                    rejection,
+                })? {
                 Some(
                     status @ (TerminalExecutionStatus::SponsorExhausted(_)
                     | TerminalExecutionStatus::HostComputationPending(_)),

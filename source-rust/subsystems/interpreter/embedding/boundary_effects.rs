@@ -4426,6 +4426,7 @@ pub trait TerminalEffectHandler {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalEffectRejection {
     pub reason: String,
+    sponsor_exhausted: bool,
 }
 
 pub use psi_provider_selections::{
@@ -4595,7 +4596,20 @@ impl TerminalEffectRejection {
     pub fn new(reason: impl Into<String>) -> Self {
         Self {
             reason: reason.into(),
+            sponsor_exhausted: false,
         }
+    }
+
+    /// The host could not supply the resources for this effect.
+    pub fn sponsor_exhausted(reason: impl Into<String>) -> Self {
+        Self {
+            reason: reason.into(),
+            sponsor_exhausted: true,
+        }
+    }
+
+    pub fn exhaustion_reason(&self) -> Option<&str> {
+        self.sponsor_exhausted.then_some(self.reason.as_str())
     }
 }
 

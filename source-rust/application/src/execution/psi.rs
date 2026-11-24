@@ -42,6 +42,7 @@ pub(super) fn execute(
             provisions: runtime.map(|provisions| provisions.execution()),
             work_budget: psi_work_budget,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
+            output_limits: None,
             standard_input: input,
             clock: Some(terminal_runtime::TerminalClockEnvironment::Host),
         },
