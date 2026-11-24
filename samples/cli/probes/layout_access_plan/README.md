@@ -1,24 +1,12 @@
-# layout access plan
+# Field policy and fixed layout
 
-Compile-scope probe. No standard-library dependency.
+The entry returns normally when the access policy describes both fields of `Pair` and a separate `FixedLayout<Pair>` places their values at the selected offsets. It writes `17` to `hidden` and `3` to `readable` in an ordinary `LayoutStorage<Pair, PairLayout>` value. Its eight-byte view must contain `17` at byte 0 and `3` at byte 4.
 
-- quotient_data_decl: `data Q = Rep % equiv requires equiv satisfies
-  Equivalence<Rep,equiv> as Impl` — quotient data in user code,
-  `Trait::member = machine` impl roster, `as Q` cast.
-- discreteness_calls: `x <= 7` recovers `x < 8` — kernel
-  discreteness discharges a strict-order callee requires.
-- layout_access_plan: core::layout — `AccessPlan::inaccessible`
-  seed + `AccessPlan::with` functional replace +
-  `FieldAccess::Stable{read,write,exposure:Exposure::Exported}`
-  + `satisfies Access::plan`.
-- transitive_effect: callee-declared `reaches Console` propagates
-  through an undeclared caller. Binding-field needs a Fused
-  provider even at --check (filed gap); effect inference checked
-  without the call.
+To exercise the failure branch in a copy of the sample, change the expected byte at offset 4 from `3u8` to `2u8`. Both engines should trap.
 
-Compile-checked only (no ProcessExit provider):
+Run each engine from the repository root.
 
 ```sh
-mbx run -p omega -- --check samples/cli/probes/layout_access_plan/main.omg
-mbx run -p omega -- packages update --project samples/cli/probes/layout_access_plan
+mbx run -p omega -- run --engine native samples/cli/probes/layout_access_plan/build.omg
+mbx run -p omega -- run --engine psi samples/cli/probes/layout_access_plan/build.omg
 ```

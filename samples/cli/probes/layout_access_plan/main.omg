@@ -1,74 +1,54 @@
-// Layout access plans: `AccessPlan::inaccessible(layout)` seeds a deny-all
-// plan per distinct layout field key; `AccessPlan::with(plan, key,
-// FieldAccess::Stable { read, take, write, swap, exposure })` functionally replaces
-// only the permissions meant to be exposed.
-//
-//   * `use omega\language\core\layout` imports depend-free.
-//   * `satisfies AccessPolicy::plan` binds a plan machine by name.
-//   * the policy composes an ordinary layout helper by calling it.
-//   * `hits` records the reached arm.
-//
-// Compile-checked only: no standard-library dependency, no
-// ProcessExit provider.
+use {omega}/language/core/access/access.omg as access;
+use {omega}/language/core/layout.omg as layout;
+use {omega}/language/core/reflect/reflect.omg as reflect;
 
-use omega\language\core\AccessPlan;
-use omega\language\core\AccessPlan::inaccessible;
-use omega\language\core\AccessPlan::with;
-use omega\language\core\AccessPolicy;
-use omega\language\core\Exposure;
-use omega\language\core\FieldAccess;
-use omega\language\core\FieldEntry;
-use omega\language\core\FieldPlan;
-use omega\language\core\LayoutPlan;
-use omega\language\core\Schema;
-use omega\language\core\read;
-use omega\language\core\write;
-
-data Pair {
+public data Pair {
     readable: u32;
     hidden: u32;
 }
+public domain Pair::Restricted access PairAccess;
 
-data PairAccess {}
-
-machine PairAccess::layout(schema: @Schema) -> LayoutPlan {
-    let mutable entries: [FieldEntry; 64];
-    entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
-    entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 4 } };
-    LayoutPlan { entries: entries, entry_count: 2, size_fixed: 8, size_is_dynamic: false, align: 4 }
-}
-
-machine PairAccess::plan(schema: Schema) -> AccessPlan
-satisfies AccessPolicy::plan
-{
-    let plan: AccessPlan = AccessPlan::inaccessible(PairAccess::layout(@schema));
-    transition { _ -> expose(schema, plan) }
-
-    machine expose(schema: Schema, plan: AccessPlan) -> AccessPlan {
-        AccessPlan::with(
-            plan,
-            schema.fields[0].key,
-            FieldAccess::Stable {
-                read: true,
-                take: false,
-                write: false,
-                swap: false,
-                exposure: Exposure::Exported
-            }
-        )
+PairAccess satisfies |layout|::AccessPolicy {
+    machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan
+    reaches none crashes none terminates {
+        let mutable plan = |access|::new_plan(@schema, |layout|::Issuance::Unrestricted);
+        |access|::observe(@mutable plan, |reflect|::field(Pair::readable),
+            |layout|::FieldAccess::Stable {
+                read: true, take: false, write: false, swap: false,
+                exposure: |layout|::Exposure::Exported
+            });
+        |access|::observe(@mutable plan, |reflect|::field(Pair::hidden), |layout|::FieldAccess::Inaccessible);
+        plan
     }
 }
 
-data Main {
-    hits: i32 in Wrapping;
+data PairStorage = |layout|::LayoutStorage<Pair, PairLayout>;
+
+PairLayout satisfies |layout|::FixedLayout<Pair> {
+    machine plan(schema: |layout|::Schema, target: |layout|::LayoutTarget) -> |layout|::LayoutPlan
+    reaches none crashes none terminates {
+        let mutable entries: [|layout|::FieldEntry; 64];
+        entries[0] = |layout|::FieldEntry { key: schema.fields[0].key, representation: |layout|::FieldPlan::At { offset: 4 } };
+        entries[1] = |layout|::FieldEntry { key: schema.fields[1].key, representation: |layout|::FieldPlan::At { offset: 0 } };
+        |layout|::LayoutPlan { entries: entries, entry_count: 2, size_fixed: 8, size_is_dynamic: false, align: 4 }
+    }
 }
 
-machine Main::main(main: @mutable Main) {
-    main.hits = 1;
+const ObservedFields: u64 = described_fields();
+
+machine described_fields() -> u64 {
+    let policy = PairAccess::plan(|reflect|::schema::<Pair>());
+    policy.field_count
 }
 
-// The entry owns ordinary local state; selection supplies no context.
-machine entry_start() {
-    let mutable entry_storage: Main;
-    Main::main(@mutable entry_storage);
+machine entry_start() crashes Trap {
+    let mutable pair: PairStorage;
+    pair.readable = 3u32;
+    pair.hidden = 17u32;
+    let bytes: @[u8; 8] = @pair as @[u8; 8];
+    transition ObservedFields == 2u64 && bytes[0] == 17u8 && bytes[4] == 3u8 {
+        true -> done(), _ -> fail()
+    }
+    machine done() {}
+    machine fail() { crash Trap; }
 }
