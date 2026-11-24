@@ -329,10 +329,12 @@ mbx xtask sample-gate --filter <sample_path> < /dev/null
 # Run repository rules, formatting, lint, and boundary gates. Nothing lints for
 # you before merge, so lint every crate you touched before you push:
 mbx xtask check-rules --base origin/main --title "<lane>: <subject>"
-mbx xtask fmt --check
+mbx xtask fmt --check --base origin/main
 mbx clippy -p <crate> --all-targets -- -D warnings
 mbx xtask check-boundary
 ```
+
+The pre-push format check covers changed Rust lines in workspace packages, including new files. Run `mbx xtask fmt --check` for the full workspace format check.
 
 <a id="heavy-checks-run-on-the-lan-vms"></a>
 **Heavy checks run on the LAN VMs, never on a GitHub runner.** Run

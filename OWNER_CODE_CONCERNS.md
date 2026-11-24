@@ -75,13 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### The format check fails on `main`, so it tells an agent nothing about its own change
-- Category: 9. The documents disagree.
-- Where: `mbx xtask fmt --check`, named in [AGENTS.md](AGENTS.md#commands) as a check to run before every push
-- Saw: on `6dfb0755ab3a` the check reports differences in 821 Rust files across `source-rust/` and `tools/` and exits 1 ("31 rustfmt invocation(s) failed") before any change is made.
-- Cost: an agent cannot tell from the exit code whether its own files are formatted; each must list the reported files and look for its own, or skip the check.
-- Reported: 2026-11-24, Claude Code, while landing the proof kernel plan's step 6
-
 ### A resumed Build refuses itself whenever it is typed again, because region owners print as symbol slots
 
 - Category: Knowledge crossing a boundary
