@@ -179,14 +179,17 @@ impl Program<'_> {
         };
         let mut returned_parameters = Vec::new();
         for group in groups {
+            // The scoped result type retains the binder on a caller-chosen
+            // borrow, including one carried inside a record or sum. Only a
+            // group tied to an input needs a returned-borrow origin.
+            if group.inputs.is_empty() {
+                continue;
+            }
             if group.results.iter().any(|path| !path.is_empty()) {
                 return Err(
                     "public requirement review needs projected result lifetime paths".to_owned(),
                 );
             }
-            // The scoped result type already carries its lifetime binder. A group
-            // with no inputs promises a caller-chosen lifetime and names no
-            // input as backing for the returned borrow.
             for input in group.inputs {
                 let position = match input {
                     BoundaryLifetimeDependency::Referent { argument_index, .. } => argument_index,

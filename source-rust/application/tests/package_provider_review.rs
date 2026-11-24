@@ -296,6 +296,42 @@ public machine reborrow(value: @u32) -> @u32 { value }"#;
     );
 }
 
+#[test]
+fn review_keeps_a_caller_chosen_borrow_in_a_requirement_result() {
+    let project = TemporaryDirectory::create("review-borrowed-result-payload", false).unwrap();
+    fs::write(
+        project.path().join("build.omg"),
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "review_paths"); }"#,
+    )
+    .unwrap();
+    let source = r#"public data Rejection<'reason> { reason: @'reason [u8]; }
+public data PlanResult<'reason> { case Accepted(code: u32); case Rejected(reason: Rejection<'reason>); }
+public trait CallingPolicy { machine plan(signature: u32) -> PlanResult; }"#;
+    let (status, report) = audit_reader_with_options(&project, source, &["--details"]);
+    assert_eq!(status, Some(0), "{report}");
+    let requirement = report
+        .split_once(r#"string "reader.omg::CallingPolicy::plan""#)
+        .unwrap()
+        .1;
+    let field = |name: &str| {
+        requirement
+            .split_once(name)
+            .unwrap()
+            .1
+            .split_once('}')
+            .unwrap()
+            .0
+            .trim()
+    };
+    assert_eq!(field("field lifetime_parameter_count {"), "u64 1");
+    let result = field("field return_type {");
+    assert!(
+        result.contains("PlanResult") && result.contains("ordinal(0)"),
+        "{result}"
+    );
+    assert!(field("field returned_borrow_origins {").starts_with("sequence 0 {"));
+}
+
 fn audit_reader(project: &TemporaryDirectory, source: &str) -> (Option<i32>, String) {
     audit_reader_with_options(project, source, &[])
 }
