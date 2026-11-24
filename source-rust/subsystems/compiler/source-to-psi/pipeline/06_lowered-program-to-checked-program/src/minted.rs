@@ -791,6 +791,38 @@ pub(crate) fn follow_the_lowered_form(
         invocations,
     };
 
+    // Each logical use owns every premise exactly once, before its successor.
+    for application in module
+        .proofs
+        .theorem_applications
+        .iter()
+        .filter(|row| row.machine == id)
+    {
+        let parameter = terminal_semantics::theorems::application(module, lowered, application)
+            .map_err(|reason| minted.foreign(Construct::Edge(application.edge), reason))?;
+        if application.requirements.len() != parameter.contract.requires.len() {
+            return Err(minted.foreign(
+                Construct::Edge(application.edge),
+                "logical use lost a premise obligation",
+            ));
+        }
+        for (clause, obligation) in application.requirements.iter().enumerate() {
+            minted.claim(
+                *obligation,
+                ObligationKind::TheoremRequirement {
+                    edge: application.edge,
+                    clause: u32::try_from(clause).map_err(|_| {
+                        minted.foreign(
+                            Construct::Edge(application.edge),
+                            "logical premise position overflow",
+                        )
+                    })?,
+                },
+                ProgramPoint::Edge(application.edge),
+            )?;
+        }
+    }
+
     // The whole-module prepass already reconstructed this family's exact
     // subjects and static-binder custody before inference. Claim those rows
     // here so the ordinary per-machine site walk cannot move their point.
@@ -1089,6 +1121,7 @@ pub(crate) fn follow_the_lowered_form(
                 }
             }
             ObligationKind::OperationSafety { .. }
+            | ObligationKind::TheoremRequirement { .. }
             | ObligationKind::CallRequirement { .. }
             | ObligationKind::NormalGuarantee { .. }
             | ObligationKind::PublishedGuarantee { .. }

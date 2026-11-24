@@ -710,17 +710,20 @@ impl<'t> Program<'t> {
         ) || (self.rigid && matches!(reading, Reading::Implementation))
         {
             let (machine, _) = self.declaration(id, symbol)?;
-            let mut binders = self
+            // The signature already retained each logical parameter's contract
+            // and header position. Only unresolved source binders belong here.
+            let callable_parameters = self.typed.machine_callable_parameters(machine);
+            let binders = self
                 .generic_parameters(id, machine)?
-                .iter()
-                .map(|parameter| parameter.symbol)
-                .collect::<Vec<_>>();
-            binders.extend(
-                self.typed
-                    .machine_callable_parameters(machine)
-                    .iter()
-                    .map(|parameter| parameter.symbol),
-            );
+                .into_iter()
+                .chain(callable_parameters.iter())
+                .filter(|parameter| {
+                    !matches!(
+                        parameter.kind,
+                        crate::source_state::data::TypeParameterKind::Proof { .. }
+                    )
+                })
+                .map(|parameter| parameter.symbol);
             let mut known = self
                 .generic_binders
                 .iter()
@@ -1661,9 +1664,16 @@ impl<'t> Program<'t> {
         // declaration: they are different constructs with different work
         // behind them, and one shared text sent a reader to the wrong one.
         let unserved_parameters = |what| Err(refuse_parameters(id, what, machine.name.as_str()));
+        // A logical parameter selects no executable specialization. Retain its
+        // erased formal when reading the body; callers still supply its proof.
         match reading {
             Reading::Closed | Reading::Implementation | Reading::Provider
-                if parameters.is_empty() => {}
+                if parameters.iter().all(|parameter| {
+                    matches!(
+                        parameter.kind,
+                        crate::source_state::data::TypeParameterKind::Proof { .. }
+                    )
+                }) => {}
             Reading::Closed | Reading::Implementation | Reading::Provider => {
                 return unserved_parameters("generic machine read without arguments");
             }
@@ -1674,6 +1684,7 @@ impl<'t> Program<'t> {
                     match parameter.kind {
                         crate::source_state::data::TypeParameterKind::Implementation
                         | crate::source_state::data::TypeParameterKind::Const { .. }
+                        | crate::source_state::data::TypeParameterKind::Proof { .. }
                         | crate::source_state::data::TypeParameterKind::Value { .. }
                         | crate::source_state::data::TypeParameterKind::Machine {
                             contract:
@@ -1703,6 +1714,7 @@ impl<'t> Program<'t> {
                         parameter.kind,
                         crate::source_state::data::TypeParameterKind::Type
                             | crate::source_state::data::TypeParameterKind::Const { .. }
+                            | crate::source_state::data::TypeParameterKind::Proof { .. }
                             | crate::source_state::data::TypeParameterKind::Value { .. }
                             | crate::source_state::data::TypeParameterKind::Machine {
                                 contract: crate::source_state::data::MachineParameterContract::Structural(
@@ -2171,6 +2183,7 @@ impl<'t> Program<'t> {
                 Unserved::Spelling("type parameter without a symbol"),
             ));
         }
+        self.read_theorem_parameters(id, machine)?;
         if matches!(reading, Reading::GenericEntry | Reading::Alternative(_)) {
             // Definition arguments belong to this preceding scope. Keep their
             // const binders here before adding any definition frame; actual
@@ -2388,6 +2401,13 @@ impl<'t> Program<'t> {
         machine: &'t Machine,
     ) -> Checked<Option<(SymbolHandle, &'t StateSignature)>> {
         let typed = self.typed;
+        // A mathematical declaration has no executable entry for a requirement
+        // to replace. The signature reads the requirement at the trait's
+        // actual arguments and states its law beside the machine's own
+        // (`signature::satisfaction`).
+        if self.mathematical {
+            return Ok(None);
+        }
         // Name the conformer: the refusal is raised before its signature is read.
         let unserved = |what| {
             self.read_failure_at(
@@ -4904,6 +4924,11 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         out.push((span, binder.clone()));
     }
     match &expression.kind {
+        ExpressionKind::TheoremApplication { arguments, .. } => {
+            for argument in arguments {
+                spans(argument, binder, out);
+            }
+        }
         ExpressionKind::Atomic(operation) => {
             for operand in operation.inputs() {
                 spans(operand, binder, out);
@@ -4912,6 +4937,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
         | ExpressionKind::Float(_)
+        | ExpressionKind::ErasedApplication(_)
         | ExpressionKind::ScalarApplication { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::MachineValue { .. }

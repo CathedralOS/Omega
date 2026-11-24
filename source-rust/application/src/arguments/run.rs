@@ -23,7 +23,7 @@ pub(crate) struct RunArguments {
 
 macro_rules! run_help {
     (synopsis) => {
-        "omega run [--engine <native|psi> | --both] [--psi-work-budget <positive-u64>] [--keep] [--build-input <path>]... [--optional-build-input <path>]... [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] [--trusted-artifact <manifest-id>] <root.omg|program.psi>"
+        "omega run [--engine <native|psi> | --both] [--psi-work-budget <positive-u64>] [--keep] [--build-input <path>]... [--optional-build-input <path>]... [--entry-ram <position>=<hex-bytes>]... [--target <name> | --inputs <dir> | --input <file>...] [--outputs <dir>] [--trusted-artifact <manifest-id>] <root.omg|program.psi>"
     };
     (host_packages) => {
         "For saved Psi, OMEGA_HOST_PACKAGE_LOCK selects an absolute path to the host's reviewed omega.lock. Set OMEGA_HOST_PACKAGE_LOCK_SHA256 to its approved SHA-256 digest."
@@ -41,7 +41,7 @@ pub(super) const USAGE: &str = concat!(
     run_help!(work_budget),
     "\n",
     run_help!(host_packages),
-    "\nWithout --target, --both runs native code and Psi on this host and compares their exits and output.\nWith --target, the default engine, --engine native, and --both emit artifacts\nwithout running the program, even when the target matches this host.\nWith --engine psi, --target selects the target environment for Psi execution.",
+    "\nFor a single engine, --outputs <new-dir> writes raw stdout, stderr and termination.tsv. The command succeeds when it records a completed execution, including a guest crash or nonzero exit.\nWithout --target, --both runs native code and Psi on this host and compares their exits and output.\nWith --target, the default engine, --engine native, and --both emit artifacts\nwithout running the program, even when the target matches this host.\nWith --engine psi, --target selects the target environment for Psi execution.",
 );
 
 pub(super) fn parse_arguments(
@@ -212,8 +212,11 @@ pub(super) fn parse_arguments(
     if inputs.is_some() && !input_files.is_empty() {
         return Err("use either --inputs <dir> or --input <file>, not both".into());
     }
-    if cases != outputs.is_some() {
+    if cases && outputs.is_none() {
         return Err("--inputs or --input is used together with --outputs".into());
+    }
+    if outputs.is_some() && !cases && (both || (!terminal && target_name.is_some())) {
+        return Err("--outputs requires an executing single engine or an input case list".into());
     }
     if cases && target_name.is_some() {
         return Err("case runs execute on the host; they cannot take --target".into());
@@ -344,7 +347,11 @@ mod tests {
     #[test]
     fn inputs_need_outputs_and_exclude_a_foreign_target() {
         assert!(parse(&["--inputs", "data", "main.omg"]).is_err());
-        assert!(parse(&["--outputs", "out", "main.omg"]).is_err());
+        for engine in ["native", "psi"] {
+            assert!(parse(&["--engine", engine, "--outputs", "out", "main.omg"]).is_ok());
+        }
+        assert!(parse(&["--both", "--outputs", "out", "main.omg"]).is_err());
+        assert!(parse(&["--target", "linux_x86_64", "--outputs", "out", "main.omg"]).is_err());
         assert!(
             parse(&[
                 "--inputs",

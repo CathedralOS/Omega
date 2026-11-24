@@ -118,9 +118,6 @@ mod entry_symbol {
     ) -> Result<u64, Diagnostic> {
         Ok(text_address + image::final_image_entry_symbol(image, "ELF")?.offset as u64)
     }
-
-    #[cfg(test)]
-    mod tests {}
 }
 
 mod imports;

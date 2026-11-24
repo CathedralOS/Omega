@@ -4,17 +4,17 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
 
+use crate::source_state::TypedTrees;
+use crate::source_state::callable_values::RuntimeCallableContractHandle;
+use crate::source_state::references::StaticArgumentRole;
+use application_identity::type_identity::encoding::callable_declaration_path;
+use diagnostics::Diagnostic;
 use lowered_source_publication::selection_questions::{
     RawDependencyKind, RawDesignationInput, RawSelectionQuestion, RawSelectionQuestions,
     RawSelectionRole, RawSelectionTarget,
 };
-use crate::source_state::TypedTrees;
-use application_identity::type_identity::encoding::callable_declaration_path;
-use crate::source_state::callable_values::RuntimeCallableContractHandle;
-use crate::source_state::references::StaticArgumentRole;
-use record_storage::Record;
 use numerics::intrinsics::CoreIntegerOperatorSignature;
-use diagnostics::Diagnostic;
+use record_storage::Record;
 use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 use semantic_vocabulary::source_selections::{
     BuildCallSite, SelectionBindingKind, SelectionDeclaration, SelectionForm, SelectionJoin,
@@ -1419,7 +1419,9 @@ impl SymbolRows<DeclarationIdentity> {
             emitted,
         })?;
         if row.text != identity {
-            return Err(refused("one source declaration has competing checked identities"));
+            return Err(refused(
+                "one source declaration has competing checked identities",
+            ));
         }
         row.emitted |= emitted;
         Ok(())
@@ -1505,7 +1507,9 @@ impl<'source> Declarations<'source> {
         for form in source.selection_forms().flatten() {
             for (symbol, identity) in form.invocation_declarations() {
                 if module.identities.invocation_scope().is_none() {
-                    return Err(refused("portable selection contains an invocation declaration"));
+                    return Err(refused(
+                        "portable selection contains an invocation declaration",
+                    ));
                 }
                 identities.retain_identity(*symbol, identity, false)?;
             }
@@ -1532,10 +1536,7 @@ impl<'source> Declarations<'source> {
                     .symbol_provenance_source_span(*symbol)
             })
             .and_then(|span| source.source().symbols.source_file(span))
-            .filter(|file| {
-                file.dependency_scope
-                    == source_provenance::DependencyScope::Build
-            });
+            .filter(|file| file.dependency_scope == source_provenance::DependencyScope::Build);
         Ok(Self {
             typed: source.source(),
             build_entry_source,
@@ -1602,12 +1603,8 @@ impl<'source> Declarations<'source> {
             .and_then(|span| self.typed.symbols.source_file(span))
             .ok_or_else(|| refused("source declaration has no retained source purpose"))?;
         let purpose = match source.dependency_scope {
-            source_provenance::DependencyScope::Build => {
-                SelectionPurpose::Build
-            }
-            source_provenance::DependencyScope::Product => {
-                SelectionPurpose::Product
-            }
+            source_provenance::DependencyScope::Build => SelectionPurpose::Build,
+            source_provenance::DependencyScope::Product => SelectionPurpose::Product,
         };
         Ok(match (self.build_entry_source, source.package_identity) {
             (Some(entry), Some(owner)) => {
@@ -1830,6 +1827,9 @@ impl<'source> Declarations<'source> {
         }
         let kind = match self.typed.symbols.get(symbol).kind {
             SymbolKind::Parameter | SymbolKind::Local => SelectionBindingKind::Value,
+            SymbolKind::TypeParameter if self.typed.proof_parameter_contract(symbol).is_some() => {
+                SelectionBindingKind::Proof
+            }
             SymbolKind::TypeParameter => SelectionBindingKind::Type,
             SymbolKind::MachineParameter => SelectionBindingKind::Machine,
             SymbolKind::ConformanceParameter => SelectionBindingKind::Conformance,
@@ -2657,9 +2657,7 @@ machine entry() { repeat(0); }
         let module = source.module();
         let prepared = prepare(&source, module, None).unwrap();
         let validate = |questions: &SelectionQuestions| {
-            psi_authorization::selection_questions::validate_selection_questions(
-                module, questions,
-            )
+            psi_authorization::selection_questions::validate_selection_questions(module, questions)
         };
         validate(&prepared.questions).unwrap();
         let (machine, declaration, head) = prepared
@@ -3233,6 +3231,62 @@ machine entry() reaches Input {}
             error.message.contains("outside its actual lexical context"),
             "{error:?}"
         );
+    }
+
+    #[test]
+    fn ordinary_and_theorem_applied_statements_retain_their_exact_source_calls() {
+        use crate::source_state::{SourceNode, statement::StatementNode};
+        use semantic_vocabulary::source_selections::SelectionCallTarget;
+
+        let text = include_str!(
+            "../../06_lowered-program-to-checked-program/tests/fixtures/proofs/positive/named_implication/main.omg"
+        )
+        .replace("    use_step::<", "    only_seven(7u8);\n    use_step::<");
+        let source = accepted_source(&text, &[]);
+        let module = source.module();
+        let [citation] = module.proofs.theorem_citations.as_slice() else {
+            panic!("the entry supplies one named theorem");
+        };
+        let caller = module.machine(citation.machine).unwrap();
+        let calls: Vec<_> = caller.module_invocations().collect();
+        assert_eq!(calls.len(), 2);
+        assert_eq!(calls[1].site, citation.site);
+
+        let trees = source.source();
+        let entry = trees
+            .machines()
+            .iter()
+            .find(|m| m.name.as_str() == "entry")
+            .unwrap();
+        let statements: Vec<_> = trees
+            .machine_states(entry)
+            .iter()
+            .flat_map(|state| state.statement_nodes.handles())
+            .filter(|&statement| {
+                matches!(
+                    trees.statement_table.statement(statement),
+                    StatementNode::Call(_)
+                )
+            })
+            .collect();
+        assert_eq!(statements.len(), 2);
+        let mut questions = Questions::new(&source, module).unwrap();
+        for (call, statement) in calls.iter().zip(statements) {
+            assert!(matches!(call.site, InvocationSite::Operation(_)));
+            let origin = questions.typed_origin(caller.id, call.site).unwrap();
+            assert_eq!(origin.source_member, caller.id);
+            assert_eq!(origin.owner, entry.symbol);
+            assert_eq!(origin.source, SourceNode::Statement(statement));
+            questions
+                .invocation_reference(
+                    origin.owner,
+                    origin.source,
+                    SelectionCallTarget::Declared(TargetMachineCallable::Machine(
+                        call.inputs.callee,
+                    )),
+                )
+                .expect("the emitted callee is selected by that exact statement");
+        }
     }
 
     #[test]

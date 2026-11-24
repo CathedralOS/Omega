@@ -10,7 +10,7 @@
 */
 
 /*
-    Canonical portable execution requires a target-neutral engine in `psi/` that
+    This engine executes portable Psi using target-neutral semantics. It
     depends only on verified Terminal Psi representations and semantic rules,
     never on Omega backend ABIs or source-tree evaluators. Keeping code
     ownership, affine claim custody, paid runtime-row reservations, and host
@@ -173,7 +173,7 @@ pub use storage::provider_storage::{
     TerminalReturnedProviderStorage,
 };
 pub use storage::scalar_array::{TerminalScalarArrayResult, TerminalScalarArrayValue};
-pub use storage::scalar_storage::TerminalScalarBacking;
+pub use storage::scalar_storage::{TerminalInvocationScalar, TerminalScalarBacking};
 pub use storage::structural_storage::contents::{
     TerminalBoundaryStorageValue, TerminalStorageContents,
 };

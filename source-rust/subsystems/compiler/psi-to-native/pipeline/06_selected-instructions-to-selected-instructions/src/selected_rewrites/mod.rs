@@ -1,12 +1,12 @@
 /*
 We optimize selected machine instructions between target instruction selection
-and physical register home assignment (`Omega 04`). Our entry point,
+and physical register home assignment. Our entry point,
 `optimize_selected_instructions` in `selected_optimization.rs`, stages liveness
 and live-range facts over the incoming selected control-flow graph (`CFG`).
 When no executed optimization rule is selected that is the whole result; when
 one is, it stages allocation legality and runs the selected catalog slice from
 `rewrites.rs` (`run_selected_lowering_optimizations` or
-`run_pre_allocation_optimizations`). Either way the stage hands Omega 05 one
+`run_pre_allocation_optimizations`). Either way register allocation receives one
 `SelectedAllocationInput` (the current program, its analyses and its
 `SelectedOptimizationRecord`) inside `SelectedInstructionOptimizationOutput`.
 */
@@ -25,8 +25,8 @@ and explicitly requested validators.
 */
 
 /*
-- Input: `SelectedOptimizationInput` from `Omega 03` (`target-operations-to-selected-instructions`).
-- Output: `SelectedInstructionOptimizationOutput`, whose `SelectedAllocationInput` `Omega 05` (`selected-instructions-to-register-homes`) consumes; the optional `SelectedOptimizationReplay` goes only to validators.
+- Native stage 05 (`target-operations-to-selected-instructions`) supplies `SelectedOptimizationInput`.
+- Native stage 07 (`selected-instructions-to-register-homes`) consumes the allocation input from `SelectedInstructionOptimizationOutput`. Validators can request `SelectedOptimizationReplay`.
 - Flat module layout:
   - `selected_optimization.rs`: stage admission, catalog phase dispatch, restaging the rewritten program for allocation, `SelectedInstructionOptimizationOutput` and the opt-in `SelectedOptimizationReplay` validator.
   - `rewrites.rs`: stage rule catalog, shared condition-state/place-storage/window-hazard helpers, and the pre-allocation fixed-point driver.

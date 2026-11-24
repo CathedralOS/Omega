@@ -1,0 +1,4 @@
+# slice 080: 5003 lines in 3 file range(s)
+omega-rust/psi/compilation/representations/checked-trees/facts/src/lib.rs	1	1932
+omega-rust/psi/compilation/representations/checked-trees/facts/src/predicates.rs	1	890
+omega-rust/psi/compilation/representations/checked-trees/src/admissibility_and_borrow.rs	1	2181

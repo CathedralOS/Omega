@@ -43,7 +43,7 @@ downstream admission rejects unauthorized seeds immediately.
 `ownership`, and checked by the sibling `optimization-unit-semantics` crate. Once
 abstract optimization completes, we bundle the final unit, its `AbstractOperationPlan`,
 the `PsiTransformationLedger`, and the `PrePhysicalOptimizationManifest` into
-`OptimizedAbstractProgram` for target lowering (Omega 02) and backend emission.
+`OptimizedAbstractProgram` for target lowering in native stage 04.
 */
 
 use std::{collections::BTreeSet, sync::Arc};
@@ -76,6 +76,8 @@ mod dominance;
 mod graph;
 mod identity;
 mod ledger;
+#[cfg(test)]
+mod machine_references_tests;
 mod manifest;
 mod observation;
 mod ownership;
@@ -85,8 +87,9 @@ mod rewrite;
 mod structural_places;
 
 pub use construction::{
-    OptimizationUnitBuildError, operation_definition, operation_ownership, operation_uses,
-    reconstruct_psi_optimization_function_seed, reconstruct_psi_optimization_unit_seed,
+    OptimizationUnitBuildError, collect_fact, operation_definition, operation_ownership,
+    operation_uses, reconstruct_psi_optimization_function_seed,
+    reconstruct_psi_optimization_unit_seed,
 };
 pub use dominance::{DominatorSet, DominatorSets};
 pub use graph::{
@@ -180,6 +183,21 @@ pub struct PsiOptimizationUnit {
     pub functions: Vec<PsiOptimizationFunction>,
 }
 
+/// The machine a direct call transfers control to, whether or not the callee
+/// returns normally. Call-graph analysis and the pruning validator both read
+/// callees through this one match, so they cannot disagree about reachability.
+fn direct_call_machine(operation: &AbstractOperation) -> Option<MachineId> {
+    match operation {
+        AbstractOperation::Call { callee, .. }
+        | AbstractOperation::InvokeNoNormal { callee, .. } => Some(*callee),
+        AbstractOperation::CallStructural {
+            callee: abstract_operations::AbstractCallTarget::Machine(machine),
+            ..
+        } => Some(*machine),
+        _ => None,
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CallMachineReference {
     Declaration(MachineId),
@@ -229,26 +247,26 @@ impl PsiOptimizationUnit {
         &'a self,
         operation: &'a AbstractOperation,
     ) -> impl Iterator<Item = CallMachineReference> + 'a {
-        let (machine, dynamic, callable) = match operation {
-            AbstractOperation::Call { callee, .. }
-            | AbstractOperation::InvokeNoNormal { callee, .. } => (Some(*callee), None, None),
-            AbstractOperation::CallStructural { callee, .. } => match callee {
-                abstract_operations::AbstractCallTarget::Machine(machine) => {
-                    (Some(*machine), None, None)
-                }
-                abstract_operations::AbstractCallTarget::Dynamic {
-                    interface, slot, ..
-                } => (None, Some((*interface, *slot)), None),
-                abstract_operations::AbstractCallTarget::Callable { callee, contract } => (
-                    None,
-                    None,
-                    Some(CallMachineReference::Callable {
-                        callee: *callee,
-                        contract: *contract,
-                    }),
-                ),
-            },
-            _ => (None, None, None),
+        let (machine, dynamic, callable) = if let Some(callee) = direct_call_machine(operation) {
+            (Some(callee), None, None)
+        } else {
+            match operation {
+                AbstractOperation::CallStructural { callee, .. } => match callee {
+                    abstract_operations::AbstractCallTarget::Machine(_) => (None, None, None),
+                    abstract_operations::AbstractCallTarget::Dynamic {
+                        interface, slot, ..
+                    } => (None, Some((*interface, *slot)), None),
+                    abstract_operations::AbstractCallTarget::Callable { callee, contract } => (
+                        None,
+                        None,
+                        Some(CallMachineReference::Callable {
+                            callee: *callee,
+                            contract: *contract,
+                        }),
+                    ),
+                },
+                _ => (None, None, None),
+            }
         };
         machine
             .into_iter()
@@ -270,31 +288,32 @@ impl PsiOptimizationUnit {
         &'a self,
         operation: &'a AbstractOperation,
     ) -> impl Iterator<Item = MachineId> + 'a {
-        let (machine, table, interface) = match operation {
-            AbstractOperation::EstablishNativeCodeLayout { machine, .. } => {
-                (Some(*machine), None, None)
-            }
-            AbstractOperation::Call { callee, .. } => (Some(*callee), None, None),
-            AbstractOperation::CallStructural { callee, .. } => match callee {
-                abstract_operations::AbstractCallTarget::Machine(machine) => {
+        let (machine, table, interface) = if let Some(callee) = direct_call_machine(operation) {
+            (Some(callee), None, None)
+        } else {
+            match operation {
+                AbstractOperation::EstablishNativeCodeLayout { machine, .. } => {
                     (Some(*machine), None, None)
                 }
-                abstract_operations::AbstractCallTarget::Dynamic { interface, .. } => {
-                    (None, None, Some(*interface))
-                }
-                // Runtime code has no nominal reference. Its construction
-                // retains the selected body through SelectMachine below.
-                abstract_operations::AbstractCallTarget::Callable { .. } => (None, None, None),
-            },
-            AbstractOperation::SelectMachine { descriptor, .. } => (
-                self.callables
-                    .descriptor(*descriptor)
-                    .map(|row| row.machine),
-                None,
-                None,
-            ),
-            AbstractOperation::SelectImplementation { table, .. } => (None, Some(*table), None),
-            _ => (None, None, None),
+                AbstractOperation::CallStructural { callee, .. } => match callee {
+                    abstract_operations::AbstractCallTarget::Machine(_) => (None, None, None),
+                    abstract_operations::AbstractCallTarget::Dynamic { interface, .. } => {
+                        (None, None, Some(*interface))
+                    }
+                    // Runtime code has no nominal reference. Its construction
+                    // retains the selected body through SelectMachine below.
+                    abstract_operations::AbstractCallTarget::Callable { .. } => (None, None, None),
+                },
+                AbstractOperation::SelectMachine { descriptor, .. } => (
+                    self.callables
+                        .descriptor(*descriptor)
+                        .map(|row| row.machine),
+                    None,
+                    None,
+                ),
+                AbstractOperation::SelectImplementation { table, .. } => (None, Some(*table), None),
+                _ => (None, None, None),
+            }
         };
         machine.into_iter().chain(
             self.dynamic_dispatch

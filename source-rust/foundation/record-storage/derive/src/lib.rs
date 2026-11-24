@@ -11,12 +11,10 @@ own fields, such as installing its own renumbering, and restore it after.
 */
 
 /*
-Compiler-private storage records are compiled and decoded by the exact same
-compiler binary rather than exchanged as an external wire protocol. Using
-declaration-order field framing and positional variant tags inside
-`RecordWriter::record` and `RecordReader::record` scopes eliminates boilerplate
-codecs while enforcing uniform nesting and allocation bounds on every derived
-type.
+The producer identity guards this compiler-private format because field and
+variant order affect the stored bytes. Each generated read and write enters
+the enclosing record's nesting budget. Reading a field delegates to that
+field's `Record` implementation, which charges any decoded allocation.
 */
 
 /*

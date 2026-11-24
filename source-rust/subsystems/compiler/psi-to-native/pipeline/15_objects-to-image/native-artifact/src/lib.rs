@@ -18,12 +18,10 @@ dynamically linked ELF bytes or unverified emission parts from impersonating
 self-contained installable native artifacts.
 */
 /*
-The admitted representations and emission libraries (`verified_optimization_input`,
-`machine_emission`, `object_file`, and `image_emission`) supply runtime custody,
-staged function fragments, object containers, and final image
-bytes that `publish_fragment_object` and
-`RequestedNativeArtifact::emit` assemble and validate before downstream
-compiler drivers install executables or macOS `.app` bundles.
+`publish_fragment_object` takes a `PublishedFunctionObject` from `object_file`
+and prepares it for image composition through `image_emission`.
+`RequestedNativeArtifact::emit` assembles the final image from admitted
+objects and runtime provisions before the driver installs the executable.
 */
 #![forbid(unsafe_code)]
 

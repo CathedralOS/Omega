@@ -144,3 +144,38 @@ machine choose(flag: bool, a: u8 in Mark, b: u8) -> u8 in Mark {
         refusal.message
     );
 }
+
+#[test]
+fn a_cast_reports_the_selected_array_carrier_in_its_domain_predicate() {
+    use terminal_check_tables::program::EstablishedCondition;
+
+    let program = Program::of("
+        public data Wrapper<T> { value: T; }
+        domain [Wrapper<u8>; 2]::Okay requires false;
+        domain [Wrapper<u16>; 3]::Okay requires false;
+        public machine first(value: [Wrapper<u8>; 2]) -> [Wrapper<u8>; 2] in Okay { value as +Okay }
+        public machine second(value: [Wrapper<u16>; 3]) -> [Wrapper<u16>; 3] in Okay { value as +Okay }
+    ");
+    for (machine, carrier) in [
+        ("first", "[Wrapper<u8>; 2]"),
+        ("second", "[Wrapper<u16>; 3]"),
+    ] {
+        let metadata = program
+            .elaboration()
+            .sources
+            .get(program.machine(machine).id)
+            .unwrap();
+        let predicates = metadata
+            .predicate_establishments
+            .iter()
+            .filter_map(|(_, condition)| match condition {
+                EstablishedCondition::DomainMembership(stated) => Some(stated.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            predicates,
+            [format!("domain `{carrier}::Okay` requires `false`")]
+        );
+    }
+}

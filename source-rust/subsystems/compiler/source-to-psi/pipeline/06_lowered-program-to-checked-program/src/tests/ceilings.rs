@@ -61,6 +61,7 @@ fn verdict_kind(verdict: &RouteVerdict) -> String {
         RouteVerdict::AcceptedPrefix(_) => String::from("unfinished"),
         RouteVerdict::Incomplete(_) => "incomplete".into(),
         RouteVerdict::FallBack(refusal) => format!("{refusal:?}"),
+        RouteVerdict::Laws(_) | RouteVerdict::UnprovedLaws(_) => "a mathematical signature".into(),
     }
 }
 

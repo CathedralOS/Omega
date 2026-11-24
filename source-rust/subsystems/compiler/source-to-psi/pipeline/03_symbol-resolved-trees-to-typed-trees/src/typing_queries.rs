@@ -60,6 +60,9 @@ pub(crate) fn call_target_parameters(
     if let Some((_, signature)) = program.machine_parameter_signature(target) {
         return Ok(Some(program.state_signature_parameters(signature)));
     }
+    if let Some(contract) = program.proof_parameter_contract(target) {
+        return Ok(Some(program.state_signature_parameters(contract)));
+    }
     if let Some(operator) = program.operator_definition_by_symbol(target) {
         return Ok(Some(program.operator_parameters(operator)));
     }
@@ -1037,6 +1040,11 @@ impl<'program> DeclaredCallTargets<'program> {
             SymbolKind::MachineParameter => {
                 return receiver.is_none()
                     && program.retained_static_machine_contract(symbol).is_some();
+            }
+            // A logical application keeps its proof binder and full contract;
+            // identifying it grants no executable target or proven conclusion.
+            SymbolKind::TypeParameter => {
+                return receiver.is_none() && program.proof_parameter_contract(symbol).is_some();
             }
             _ => {}
         }
@@ -2887,10 +2895,12 @@ mod tests {
             panic!("call expression")
         };
         node.target = crate::source_state::name::Identifier::generated("size_of");
-        node.layout_query = Some(crate::source_state::expression::DataLayoutQueryRequest::Type {
-            kind: language_core::data_layout_queries::DataLayoutQueryKind::Size,
-            operand: Default::default(),
-        });
+        node.layout_query = Some(
+            crate::source_state::expression::DataLayoutQueryRequest::Type {
+                kind: language_core::data_layout_queries::DataLayoutQueryKind::Size,
+                operand: Default::default(),
+            },
+        );
         assert_eq!(deferred(&program).unwrap(), Vec::new());
         let ExpressionNode::Call(node) = program.expression_table.expression_mut(unbound) else {
             panic!("call expression")

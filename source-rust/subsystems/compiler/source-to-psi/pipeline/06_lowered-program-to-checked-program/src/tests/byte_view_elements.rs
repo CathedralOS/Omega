@@ -761,11 +761,36 @@ fn a_declared_qualified_byte_range_is_not_taken_as_builtin() {
            }}
            {program}"#
     );
+    // The declared operator already returns a view. An extra borrow of
+    // that result cannot initialize a single-layer byte view.
     let actual = verdict(&authored);
-    assert!(
-        actual.contains("range of qualified bytes without its selected operand type"),
-        "{actual}"
+    assert_eq!(
+        actual,
+        "typing borrow without a reference destination while reading the local binding of \
+         `prefix_length::entry::prefix` while reading the body of `prefix_length`"
     );
+
+    let direct = authored.replace("@path[0..position]", "path[0..position]");
+    let result = judge_build(&direct).unwrap();
+    let RouteVerdict::Accepted(accepted) = result else {
+        panic!("the declared range returns the requested byte view: {result:?}");
+    };
+    let elaboration = &accepted.elaboration;
+    let prefix = elaboration
+        .module
+        .machines
+        .iter()
+        .find(|machine| elaboration.names.get(machine.id).unwrap().machine == "prefix_length")
+        .unwrap();
+    let callees: Vec<_> = prefix
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| operation.kind.direct_callee())
+        .map(|callee| elaboration.names.get(callee).unwrap().machine.as_str())
+        .collect();
+    assert_eq!(callees, ["alternative"]);
+    accepted.publish_invocation().unwrap();
 }
 
 #[test]
@@ -1427,6 +1452,9 @@ fn a_shared_array_view_cannot_observe_write_only_backing() {
         RouteVerdict::AcceptedPrefix(_) => String::from("unfinished"),
         RouteVerdict::Incomplete(_) => "incomplete".to_owned(),
         RouteVerdict::FallBack(refusal) => format!("fallback: {}", refusal.detail),
+        RouteVerdict::Laws(_) | RouteVerdict::UnprovedLaws(_) => {
+            "a mathematical signature".to_owned()
+        }
         RouteVerdict::Rejected { conflicts, .. } => format!(
             "loan conflicts: {:?}",
             conflicts.iter().map(|row| row.conflict).collect::<Vec<_>>()

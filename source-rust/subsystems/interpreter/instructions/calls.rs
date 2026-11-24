@@ -2895,9 +2895,14 @@ impl<'artifact> TerminalExecution<'artifact> {
         program: &std::sync::Arc<crate::embedding::program::AdmittedTerminalProgram>,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         let result = operation.result.scalar().ok_or(malformed())?;
-        let Some(scalar_type) = result.scalar_type.as_integer() else {
+        let scalar_type = semantic_vocabulary::IntegerType::new(
+            semantic_vocabulary::IntegerSign::Unsigned,
+            64,
+        )
+        .map_err(|_| malformed())?;
+        if result.scalar_type.as_integer() != Some(scalar_type) {
             return Err(malformed());
-        };
+        }
         if program
             .catalogs
             .execution

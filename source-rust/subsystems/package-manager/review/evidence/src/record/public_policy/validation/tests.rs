@@ -141,3 +141,59 @@ fn a_trait_has_no_implicit_subject_binder_before_its_statics() {
 }
 
 mod structural_parameters;
+
+mod evidence_lanes;
+
+#[test]
+fn public_trait_parents_retain_their_local_declaration() {
+    use crate::record::{PackageReviewTraitCompositionKind, PackageReviewTraitParent};
+    let mut public = api(objective_c(0));
+    public.traits[0].parents.push(PackageReviewTraitParent {
+        kind: PackageReviewTraitCompositionKind::Policy,
+        identity: identity("Parent"),
+        lifetime_arguments: Vec::new(),
+        arguments: Vec::new(),
+    });
+    let mut parent = public.traits[0].clone();
+    parent.identity = identity("Parent");
+    parent.parents.clear();
+    parent.requirements.clear();
+    public.traits.push(parent);
+    assert_eq!(public.validate_canonical_structure(package()), Ok(()));
+    public.traits.pop();
+    assert!(public.validate_canonical_structure(package()).is_err());
+    let dependency = PackageKeyIdentity::from_digest([0xa1; 32]).unwrap();
+    public.traits[0].parents[0].identity.owner = PackageReviewNominalOwner::Package(dependency);
+    assert_eq!(public.validate_canonical_structure(package()), Ok(()));
+}
+
+#[test]
+fn public_witnesses_retain_their_local_interface_and_its_members() {
+    use crate::record::{
+        PackagePolicyConformanceShape, PackageReviewEvidenceInterface,
+        PackageReviewEvidenceRequirement,
+    };
+    let mut public = api(objective_c(0));
+    public.conformances.push(PackagePolicyConformanceShape {
+        identity: identity("Implementation"),
+        lifetime_parameter_count: 0,
+        type_parameters: Vec::new(),
+        interface: PackageReviewEvidenceInterface {
+            trait_identity: identity("ObjectiveC"),
+            lifetime_arguments: Vec::new(),
+            arguments: Vec::new(),
+            requirements: vec![PackageReviewEvidenceRequirement {
+                declaring_trait: identity("ObjectiveC"),
+                declaring_trait_lifetime_arguments: Vec::new(),
+                declaring_trait_arguments: Vec::new(),
+                requirement: identity("ObjectiveC::get_class"),
+            }],
+        },
+    });
+    assert_eq!(public.validate_canonical_structure(package()), Ok(()));
+    public.conformances[0].interface.requirements[0].declaring_trait = identity("MissingParent");
+    assert!(public.validate_canonical_structure(package()).is_err());
+    public.conformances[0].interface.requirements.clear();
+    public.traits.clear();
+    assert!(public.validate_canonical_structure(package()).is_err());
+}

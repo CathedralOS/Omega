@@ -329,7 +329,14 @@ machine Main::main(&mut self) {
         self.positive("data B [copy] { x:[u8;2];} machine main()->u8 {let b:B=B{x:[1,42]};b.x[1]}",42,43);
     }
     state loan_traversal() {
-        self.positive(self.source.as_slice[0..self.length],42,40);
+        // The supplied file starts after its logical path, main.omg. The
+        // loan checker can refer to the fixture's tables through file aliases.
+        let path: &[u8] = "main.omg";
+        self.compiler.parser.sources.single(self.length);
+        self.compiler.parser.sources.units[0].path.end = path.len;
+        self.compiler.parser.sources.units[0].start = path.len;
+        self.compiler.compile_set(self.source.as_slice[0..self.length], 0, "main");
+        self.publish_positive(42,40);
         // A ceiling bounds a returned difference. It cannot discharge underflow.
         self.refusal("machine choose(depth:u64 in Trapping)->u8 crashes Trap requires depth<11 { transition depth>0 {true->bounded(depth-1),_->1} machine bounded(value:u64 in Trapping)->u8 requires value<9 {transition value==7 {true->42,_->1}} } machine main()->u8 crashes Trap {choose(8 as +Trapping)}",2,41);
         self.refusal("machine choose(depth:u64 in Trapping)->u8 crashes none requires depth<9 { transition depth==0 {true->bounded(depth-1),_->1} machine bounded(value:u64 in Trapping)->u8 requires value<9 {transition value==7 {true->42,_->1}} } machine main()->u8 crashes Trap {choose(0 as +Trapping)}",2,42);
@@ -352,6 +359,9 @@ machine Main::main(&mut self) {
 }
 machine Main::positive(&mut self, source: &[u8], expected: i32, failure: i32) {
     self.compiler.compile(source, "main");
+    self.publish_positive(expected, failure);
+}
+machine Main::publish_positive(&mut self, expected: i32, failure: i32) {
     transition self.compiler.status {
         OmegaScalarCompilationStatus::Complete -> publish()
         _ -> self.console.exit_process(failure)

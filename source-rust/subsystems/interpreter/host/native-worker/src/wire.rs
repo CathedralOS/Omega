@@ -15,7 +15,7 @@ pub(crate) fn send(stream: &mut dyn Duplex, bytes: &[u8]) -> io::Result<()> {
     stream.write_all(bytes)?;
     stream.flush()
 }
-pub(crate) fn receive(stream: &mut dyn Duplex) -> io::Result<Vec<u8>> {
+pub(crate) fn receive(stream: &mut dyn Read) -> io::Result<Vec<u8>> {
     let mut length = [0; 4];
     stream.read_exact(&mut length)?;
     let length = u32::from_le_bytes(length) as usize;

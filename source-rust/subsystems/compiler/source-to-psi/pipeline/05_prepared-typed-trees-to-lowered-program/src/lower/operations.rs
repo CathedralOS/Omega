@@ -104,6 +104,31 @@ impl Lowering<'_> {
                 Some(ValueType::Scalar(ScalarType::Integer(t), Qualification::NONE)),
             ) => Ok(Witness::Integer(t, *value)),
             (ExpressionKind::Boolean(value), _) => Ok(Witness::Boolean(*value)),
+            (ExpressionKind::ErasedApplication(term), _) => {
+                use semantic_vocabulary::ScalarTerm;
+                let mut term = term.clone();
+                let mut pending = vec![&mut term];
+                while let Some(current) = pending.pop() {
+                    if let ScalarTerm::Value { id, scalar_type } = *current {
+                        let slot = id.get() as usize - 1;
+                        let bound = *self.slot_mut(slot)?;
+                        *current = match bound {
+                            Some(Bound::Scalar(id)) => ScalarTerm::Value { id, scalar_type },
+                            Some(Bound::Erased(witness)) => witness.term(&self.erased_applications),
+                            _ => return Err(refuse(
+                                self.id,
+                                self.current.map_or(Construct::Machine, Construct::Block),
+                                Unserved::Expression("erased term that reads storage"),
+                            )),
+                        };
+                    } else {
+                        pending.extend(current.operands_mut());
+                    }
+                }
+                let index = self.erased_applications.len();
+                self.erased_applications.push(term);
+                Ok(Witness::Application(index))
+            }
             (ExpressionKind::Slot(slot), Some(ValueType::Scalar(scalar_type, _))) => {
                 match *self.slot_mut(*slot)? {
                     Some(Bound::Scalar(value)) => Ok(Witness::Value(value, scalar_type)),
@@ -123,6 +148,77 @@ impl Lowering<'_> {
                 Unserved::Expression("erased term other than a literal or a binding"),
             )),
         }
+    }
+
+    fn theorem_application(
+        &mut self,
+        proof_position: u32,
+        arguments: &[Expression],
+        source: SourceOrigin,
+    ) -> Checked<()> {
+        let parameter = self
+            .signatures
+            .theorems
+            .iter()
+            .find(|parameter| {
+                parameter.machine == self.id && parameter.proof_position == proof_position
+            })
+            .ok_or_else(|| self.internal("logical application has no declared proof formal"))?;
+        if arguments.len() != parameter.contract.parameters.len() {
+            return Err(self.internal("logical application has another subject telescope"));
+        }
+        let requires = parameter.contract.requires.len();
+        let formal_types: Vec<_> = parameter
+            .contract
+            .parameters
+            .iter()
+            .map(|formal| formal.scalar_type)
+            .collect();
+        let arguments = arguments
+            .iter()
+            .zip(formal_types)
+            .map(|(argument, formal)| {
+                let subject = self.witness(argument)?.term(&self.erased_applications);
+                if subject.scalar_type() != formal {
+                    return Err(self.internal("logical application has another subject carrier"));
+                }
+                Ok(subject)
+            })
+            .collect::<Checked<Vec<_>>>()?;
+        let successor = self.block(source);
+        let edge = self.edge(
+            terminal_check_tables::edges::Destination::Block(successor),
+            source,
+        )?;
+        let mut requirements = Vec::with_capacity(requires);
+        for clause in 0..requires {
+            let clause = self.position(clause)?;
+            requirements.push(self.obligation(
+                ObligationKind::TheoremRequirement { edge, clause },
+                ProgramPoint::Edge(edge),
+                source,
+            ));
+        }
+        self.terminate(terminal_psi::Terminator::Jump {
+            edge,
+            target: successor,
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            cleanup_actions: Vec::new(),
+        })?;
+        self.theorem_applications
+            .push(terminal_psi::TheoremApplication {
+                machine: self.id,
+                edge,
+                successor,
+                proof_position,
+                arguments,
+                requirements,
+            });
+        self.enter(successor);
+        Ok(())
     }
 
     fn result_type(&self, expression: &Expression) -> Checked<ScalarType> {
@@ -189,6 +285,13 @@ impl Lowering<'_> {
             None => None,
         };
         match &expression.kind {
+            ExpressionKind::TheoremApplication {
+                proof_position,
+                arguments,
+            } => {
+                self.theorem_application(*proof_position, arguments, source)?;
+                Ok(Reached::Value(Value::Unit))
+            }
             ExpressionKind::Atomic(operation) => match operation {
                 crate::lowering::body::AtomicOperation::Access {
                     place,
@@ -317,6 +420,9 @@ impl Lowering<'_> {
             }
             ExpressionKind::ByteSequencePredicate { base, predicate } => {
                 self.byte_sequence_predicate(base, *predicate, source)
+            }
+            ExpressionKind::ErasedApplication(_) => {
+                Err(self.internal("an erased application is read as a runtime value"))
             }
             ExpressionKind::ScalarApplication { application } => {
                 let scalar_type = self.result_type(expression)?;
@@ -496,6 +602,7 @@ impl Lowering<'_> {
                 required_contract,
                 static_reach_binding,
                 static_reach_arguments,
+                proof_arguments,
                 arguments,
                 designated,
             } => self.call(
@@ -504,7 +611,12 @@ impl Lowering<'_> {
                 arguments,
                 *designated,
                 expression.result,
-                (source, *static_reach_binding, static_reach_arguments),
+                (
+                    source,
+                    *static_reach_binding,
+                    static_reach_arguments,
+                    proof_arguments,
+                ),
                 expression.call_context.unwrap_or_default(),
             ),
         }

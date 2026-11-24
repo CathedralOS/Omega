@@ -42,6 +42,31 @@ for those concepts (its `PlaceId` names roots only). `PropositionId` is reused f
 the vocabulary, but here it is machine-local and indexes
 `MachineTables::propositions`, not the module's named proposition declarations.
 
+## The mathematical signature
+
+Data that contains itself by value has no storage, so it and the machines
+over it are not in any machine's tables. They are one table for the whole
+compilation, [`MathematicalSignature`](mathematics.rs), carried beside the
+closure in `PreparedCompilation::mathematics`:
+
+- **Declarations**, in dependency order, as kernel terms: each such data
+  declaration as a W type, each of its cases as a definition, and each machine
+  with a result as a definition. A machine that dispatches on one formal is an
+  `indW` over that formal's data.
+- **Laws**: one per `ensures` equality of a machine with no result. A law's
+  statement is an entry with no body. The entries before it are everything
+  its proof is checked against, so a law is never its own evidence, and a law
+  another law cites comes earlier.
+- **A law's script**: the calls its body makes, per case when it dispatches.
+  A call of another law is a citation of that law's statement entry. A call
+  of the law itself at a field of the dispatched case is the induction
+  hypothesis; at any other argument stage 05 refuses it.
+
+Stage 05 writes the table ([`read/signature.rs`](../../pipeline/05_prepared-typed-trees-to-lowered-program/src/read/signature.rs)).
+Stage 06 checks every declaration once with the kernel and judges each law
+([`laws.rs`](../../pipeline/06_lowered-program-to-checked-program/src/laws.rs)).
+Names and source positions in the table are for diagnostics only.
+
 ## Rules every lane relies on
 
 A lane is one piece of work that teaches the checker a construct family.
@@ -129,6 +154,16 @@ exclusive access, or an exclusive reborrow of storage held shared): a resource
 judgment over the lowered form, with no certificate. `Unsupported` means the
 checker does not serve the construct; it says nothing about the program.
 
+## Logical applications
+
+A supplied theorem can establish a fact without executing a machine. Its
+`TheoremApplication` records the fixed subjects and each `TheoremRequirement`
+on an ordinary edge. `Justification::TheoremGuarantee` makes a substituted
+conclusion available only at that edge's unique successor. The source edge
+cannot use the conclusion to prove the premise that enables it. These rows
+use the existing value, edge, obligation and knowledge identities; they create
+no invocation, runtime operand, storage access or effect authority.
+
 ## What the tables cannot say yet
 
 A lane met each, reported it, and read the fact from the lowered form instead.
@@ -170,6 +205,7 @@ A lane met each, reported it, and read the fact from the lowered form instead.
 | `RestorationWindow` | conserved | [language ownership](../../../../../../../../wiki/spec/language/ownership.md#borrowed-storage-invariant-windows): "records a restoration obligation on the original place and loan" |
 | `DomainDebt` | conserved | [dependent values](../../../../../../../../wiki/spec/language/dependent_values.md#invariant-windows): "The domain must be proved again at the next consumption point" |
 | `EstablishmentDebt` | conserved | [dependent values](../../../../../../../../wiki/spec/language/dependent_values.md#invariant-windows): "may open initial target-establishment debt before a valid target value exists" |
+| `TheoremRequirement` | question | [logical hypotheses](../../../../../../../../wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use): "application supplies their proof at the exact substitution." One per aliased premise on the application's ordinary edge, before its unique successor may use the conclusion. |
 | `CallRequirement` | question | [fact validity](../../../../../../../../wiki/spec/terminal-psi/fact_validity.md): "one exact obligation for every callee `requires` clause" |
 | `IntegerWidthPositive` | question | [width-indexed integers](../../../../../../../../wiki/spec/language/numeric_values.md#width-indexed-integers): "Generic formation proves positivity under the declaration's static requirements." One per actual static width input used by the owning machine's declared carriers, at its entry, including unread borrowed storage and zero-length array element types. |
 | `OperationSafety` | question | [control flow](../../../../../../../../wiki/spec/terminal-psi/control_flow.md): "Each partial operation still proves its own safety" |

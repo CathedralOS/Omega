@@ -95,6 +95,60 @@ fn request(entries: &[symbols::SymbolHandle]) -> production::TerminalSourceCompi
 }
 
 #[test]
+fn closed_domain_index_calls_use_their_evaluated_value() {
+    let check = |family: &str, parameter: &str, output: &str, body: &str| {
+        let text = format!(
+            "const KEY: u8 = 4u8; {family} \
+             machine identity(value: u8) -> u8 crashes none {{ value }} \
+             machine main(value: {parameter}) -> u32 in At<{output}> {{ {body} }}"
+        );
+        let mut program = typed_source(&text);
+        let entry = program.realized_machine_named("main").unwrap().symbol;
+        let entries = [entry];
+        let request = request(&entries);
+        let mut accounting = SourceCompletionAccounting::default();
+        let values = evaluate(&mut program, request, None, &mut accounting).unwrap();
+        assert!(
+            values
+                .iter()
+                .any(|value| matches!(value.value, PreparedValue::StaticArgument { .. })),
+            "no evaluation requested the domain index"
+        );
+        let prepared = prepare_typed_trees(program, &values, &[]).unwrap();
+        crate::test_support::judge_terminal_source(
+            prepared,
+            request,
+            terminal_codec::TerminalPublication::Invocation,
+        )
+    };
+    let fixed = "domain<const N: u8> u32::At<N>;";
+    let generic = "domain<T, const N: u8> T::At<N>;";
+    for (family, parameter, output, body) in [
+        (fixed, "u32 in At<(identity(KEY))>", "4", "value"),
+        (fixed, "u32 in At<4>", "(identity(KEY))", "value"),
+        (
+            fixed,
+            "u32 in At<(identity(KEY))>",
+            "(identity(4u8))",
+            "value",
+        ),
+        (generic, "u32 in At<(identity(KEY))>", "4", "value"),
+        (fixed, "u32", "4", "value as +At<(identity(KEY))>"),
+    ] {
+        if let Err(diagnostics) = check(family, parameter, output, body) {
+            panic!("{parameter} to {output} with {body}: {diagnostics:?}");
+        }
+    }
+    let errors = check(fixed, "u32 in At<(identity(KEY))>", "5", "value")
+        .expect_err("different index values must refuse");
+    assert!(
+        diagnostics::join_messages(&errors)
+            .contains("a type gains or loses a domain only through a cast"),
+        "{errors:?}"
+    );
+}
+
+#[test]
 fn a_computed_constant_uses_its_source_receipt_only_when_reached() {
     let mut typed = typed_source(
         "const VALUE: u32 = calc(); const UNREAD: u32 = spare();

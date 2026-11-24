@@ -1,13 +1,11 @@
-use representations\symbol_resolved_trees\NameResolution;
-use representations\syntax_trees\ArmPatternKind;
-use representations\syntax_trees\Expression;
-use representations\syntax_trees\ExpressionKind;
-use representations\syntax_trees\OperatorKind;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\TransitionArm;
-use representations\syntax_trees\syntax_trees_expression;
-use representations\typed_trees\Typing;
-use representations\typed_trees\typing_expression_type;
+use pipeline/typed_trees_to_checked_trees/facts.omg;
+use pipeline/typed_trees_to_checked_trees/flow.omg;
+use pipeline/typed_trees_to_checked_trees/checker.omg;
+use pipeline/typed_trees_to_checked_trees/evaluation.omg;
+
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/typed_trees/typed_trees.omg;
 
 // Alias metadata follows the same branch lifetime as its zone. At a join
 // only associations valid on both reachable paths survive.
@@ -31,32 +29,32 @@ public data AliasTable [copy] {
 // The caller proves replayable before binding: evaluation changed no
 // storage, and the destination does not overwrite a read of this condition.
 // Later writes still retire aliases through forget_aliases below.
-public machine record_alias(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, place: u64 in Trapping, root: u64 in Trapping, value: Value, replayable: bool)
+public machine record_alias(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, place: u64 in Trapping, root: u64 in Trapping, value: |evaluation|::Value, replayable: bool)
 crashes Trap
 {
-    let type_handle: u64 in Trapping = typing_expression_type(typing, root);
-    let expression: Expression = syntax_trees_expression(syntax, root);
+    let type_handle: u64 in Trapping = |typed_trees|::typing_expression_type(typing, root);
+    let expression: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, root);
     transition replayable && place > 0 && type_handle == typing.boolean {
         true -> condition(checker, place, root, expression, value),
         _ -> done()
     }
 
-    machine condition(checker: @mutable Checker, place: u64 in Trapping, root: u64 in Trapping, expression: Expression, value: Value) {
+    machine condition(checker: @mutable |checker|::Checker, place: u64 in Trapping, root: u64 in Trapping, expression: |syntax_trees|::Expression, value: |evaluation|::Value) {
         transition expression.kind {
-            ExpressionKind::Binary -> own(checker, place, root),
-            ExpressionKind::Unary -> own(checker, place, root),
-            ExpressionKind::Membership -> own(checker, place, root),
-            ExpressionKind::Name -> copied(checker, place, value),
-            ExpressionKind::Field -> copied(checker, place, value),
+            |syntax_trees|::ExpressionKind::Binary -> own(checker, place, root),
+            |syntax_trees|::ExpressionKind::Unary -> own(checker, place, root),
+            |syntax_trees|::ExpressionKind::Membership -> own(checker, place, root),
+            |syntax_trees|::ExpressionKind::Name -> copied(checker, place, value),
+            |syntax_trees|::ExpressionKind::Field -> copied(checker, place, value),
             _ -> done()
         }
     }
 
-    machine own(checker: @mutable Checker, place: u64 in Trapping, root: u64 in Trapping) {
+    machine own(checker: @mutable |checker|::Checker, place: u64 in Trapping, root: u64 in Trapping) {
         add_alias(checker, place, root);
     }
 
-    machine copied(checker: @mutable Checker, place: u64 in Trapping, value: Value) {
+    machine copied(checker: @mutable |checker|::Checker, place: u64 in Trapping, value: |evaluation|::Value) {
         let condition: u64 in Trapping = alias_condition(checker, value.place);
         transition condition > 0 {
             true -> chained(checker, place, condition - 1),
@@ -64,7 +62,7 @@ crashes Trap
         }
     }
 
-    machine chained(checker: @mutable Checker, place: u64 in Trapping, condition: u64 in Trapping) {
+    machine chained(checker: @mutable |checker|::Checker, place: u64 in Trapping, condition: u64 in Trapping) {
         add_alias(checker, place, condition);
     }
 
@@ -74,19 +72,19 @@ crashes Trap
 // At a statement-level dispatch or guard (never inside a tree, where the
 // replay would evaluate over it), a Boolean place, or its negation, assumed
 // to hold (or fail) assumes its alias's condition the same way.
-public machine assume_alias(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, root: u64 in Trapping, holds: bool)
+public machine assume_alias(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, root: u64 in Trapping, holds: bool)
 crashes Trap
 {
-    let expression: Expression = syntax_trees_expression(syntax, root);
-    let negated: bool = expression.kind == ExpressionKind::Unary && expression.operator == OperatorKind::Not;
+    let expression: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, root);
+    let negated: bool = expression.kind == |syntax_trees|::ExpressionKind::Unary && expression.operator == |syntax_trees|::OperatorKind::Not;
     let fails: bool = !holds;
     transition negated {
         true -> placed(checker, syntax, resolution, typing, expression.left, fails),
         _ -> placed(checker, syntax, resolution, typing, root, holds)
     }
 
-    machine placed(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, node: u64 in Trapping, holds: bool) {
-        let value: Value = value_at(checker, node);
+    machine placed(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, node: u64 in Trapping, holds: bool) {
+        let value: |evaluation|::Value = |evaluation|::value_at(checker, node);
         let condition: u64 in Trapping = alias_condition(checker, value.place);
         transition condition > 0 {
             true -> aliased(checker, syntax, resolution, typing, condition - 1, holds),
@@ -94,9 +92,9 @@ crashes Trap
         }
     }
 
-    machine aliased(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, condition: u64 in Trapping, holds: bool) {
-        replay_tree(checker, syntax, resolution, typing, condition);
-        assume(checker, syntax, condition, holds);
+    machine aliased(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, condition: u64 in Trapping, holds: bool) {
+        |flow|::replay_tree(checker, syntax, resolution, typing, condition);
+        |facts|::assume(checker, syntax, condition, holds);
     }
 
     machine done() {}
@@ -105,24 +103,24 @@ crashes Trap
 // A Boolean subject's `true`/`false` arm assumes the subject's alias held or
 // failed as its literal says.
 public machine assume_subject_alias(
-    checker: @mutable Checker,
-    syntax: @SyntaxTrees,
-    resolution: @NameResolution,
-    typing: @Typing,
+    checker: @mutable |checker|::Checker,
+    syntax: @|syntax_trees|::SyntaxTrees,
+    resolution: @|symbol_resolved_trees|::NameResolution,
+    typing: @|typed_trees|::Typing,
     subject: u64 in Trapping,
-    arm: TransitionArm,
+    arm: |syntax_trees|::TransitionArm,
     chosen: bool
 )
 crashes Trap
 {
-    let written: Expression = syntax_trees_expression(syntax, arm.pattern);
+    let written: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, arm.pattern);
     let holds: bool = written.flag == chosen;
-    transition arm.kind == ArmPatternKind::Literal && written.kind == ExpressionKind::Boolean {
+    transition arm.kind == |syntax_trees|::ArmPatternKind::Literal && written.kind == |syntax_trees|::ExpressionKind::Boolean {
         true -> literal(checker, syntax, resolution, typing, subject, holds),
         _ -> done()
     }
 
-    machine literal(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, subject: u64 in Trapping, holds: bool) {
+    machine literal(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, subject: u64 in Trapping, holds: bool) {
         assume_alias(checker, syntax, resolution, typing, subject, holds);
     }
 
@@ -130,26 +128,26 @@ crashes Trap
 }
 
 // The condition `place` stands for, plus one; zero when it has none.
-public machine alias_condition(checker: @Checker, place: u64 in Trapping) -> u64 in Trapping
+public machine alias_condition(checker: @|checker|::Checker, place: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition place > 0 {
-        true -> next(checker, place, 0),
-        _ -> answer(0)
+        true -> next(checker, place, 0 as +Trapping),
+        _ -> answer(0 as +Trapping)
     }
 
-    machine next(checker: @Checker, place: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
+    machine next(checker: @|checker|::Checker, place: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
         transition index < checker.aliases.count && index < 16 {
             true -> entry(checker, place, index),
-            _ -> answer(0)
+            _ -> answer(0 as +Trapping)
         }
     }
 
-    machine entry(checker: @Checker, place: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping
+    machine entry(checker: @|checker|::Checker, place: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping
     requires index < 16
     {
-        let aliased: u64 = checker.aliases.places[index];
-        let condition: u64 = checker.aliases.conditions[index];
+        let aliased: u64 = checker.aliases.places[index as -Trapping];
+        let condition: u64 = checker.aliases.conditions[index as -Trapping];
         let found: u64 in Trapping = (condition as u64 +Trapping) + 1;
         transition aliased == place {
             true -> answer(found),
@@ -164,16 +162,17 @@ crashes Trap
 
 // Bind `place` to `condition`, replacing its alias; a full table keeps
 // none, which only forgets facts.
-machine add_alias(checker: @mutable Checker, place: u64 in Trapping, condition: u64 in Trapping)
+machine add_alias(checker: @mutable |checker|::Checker, place: u64 in Trapping, condition: u64 in Trapping)
 crashes Trap
 {
-    drop_aliases(checker, place, 0);
-    transition checker.aliases.count < 16 {
-        true -> write(checker, place, condition, checker.aliases.count),
+    drop_aliases(checker, place, 0 as +Trapping);
+    let count: u64 = checker.aliases.count;
+    transition count < 16 {
+        true -> write(checker, place, condition, count),
         _ -> done()
     }
 
-    machine write(checker: @mutable Checker, place: u64 in Trapping, condition: u64 in Trapping, index: u64)
+    machine write(checker: @mutable |checker|::Checker, place: u64 in Trapping, condition: u64 in Trapping, index: u64)
     requires index < 16
     {
         checker.aliases.places[index] = place as u64;
@@ -187,7 +186,7 @@ crashes Trap
 
 // A written place forgets every alias it is, and every alias formed while it
 // existed, whose condition may read it.
-public machine forget_aliases(checker: @mutable Checker, place: u64 in Trapping)
+public machine forget_aliases(checker: @mutable |checker|::Checker, place: u64 in Trapping)
 crashes Trap
 {
     drop_aliases(checker, place, place);
@@ -195,23 +194,23 @@ crashes Trap
 
 // Drop each alias of `place`, and with `older` nonzero each alias formed
 // while place `older` existed.
-machine drop_aliases(checker: @mutable Checker, place: u64 in Trapping, older: u64 in Trapping)
+machine drop_aliases(checker: @mutable |checker|::Checker, place: u64 in Trapping, older: u64 in Trapping)
 crashes Trap
 {
-    transition { _ -> next(checker, place, older, 0) }
+    transition { _ -> next(checker, place, older, 0 as +Trapping) }
 
-    machine next(checker: @mutable Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping) {
+    machine next(checker: @mutable |checker|::Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping) {
         transition index < checker.aliases.count && index < 16 {
             true -> entry(checker, place, older, index),
             _ -> done()
         }
     }
 
-    machine entry(checker: @mutable Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping)
+    machine entry(checker: @mutable |checker|::Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping)
     requires index < 16
     {
-        let aliased: u64 = checker.aliases.places[index];
-        let limit: u64 = checker.aliases.limits[index];
+        let aliased: u64 = checker.aliases.places[index as -Trapping];
+        let limit: u64 = checker.aliases.limits[index as -Trapping];
         let stale: bool = aliased == place || (older > 0 && older <= limit);
         transition stale {
             true -> removed(checker, place, older, index),
@@ -220,22 +219,23 @@ crashes Trap
     }
 
     // The last alias takes the removed one's slot and is examined next.
-    machine removed(checker: @mutable Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping) {
-        transition checker.aliases.count > 0 && checker.aliases.count <= 16 && index < 16 {
-            true -> moved(checker, place, older, index, checker.aliases.count - 1),
+    machine removed(checker: @mutable |checker|::Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping) {
+        let count: u64 = checker.aliases.count;
+        transition count > 0 && count <= 16 && index < 16 {
+            true -> moved(checker, place, older, index, count - 1),
             _ -> done()
         }
     }
 
-    machine moved(checker: @mutable Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping, last: u64)
+    machine moved(checker: @mutable |checker|::Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping, last: u64)
     requires index < 16, last < 16
     {
         let last_place: u64 = checker.aliases.places[last];
         let last_condition: u64 = checker.aliases.conditions[last];
         let last_limit: u64 = checker.aliases.limits[last];
-        checker.aliases.places[index] = last_place;
-        checker.aliases.conditions[index] = last_condition;
-        checker.aliases.limits[index] = last_limit;
+        checker.aliases.places[index as -Trapping] = last_place;
+        checker.aliases.conditions[index as -Trapping] = last_condition;
+        checker.aliases.limits[index as -Trapping] = last_limit;
         checker.aliases.count = last;
         transition { _ -> next(checker, place, older, index) }
     }
@@ -246,7 +246,7 @@ crashes Trap
 // Copy only an existing, still-valid predicate association. This does not
 // turn an effectful expression into a replayable condition. Ordinary writes
 // retire the copied alias through its original live-place dependencies.
-public machine copy_alias(checker: @mutable Checker, source: u64 in Trapping, target: u64 in Trapping)
+public machine copy_alias(checker: @mutable |checker|::Checker, source: u64 in Trapping, target: u64 in Trapping)
 crashes Trap
 {
     let condition: u64 in Trapping = alias_condition(checker, source);
@@ -254,7 +254,7 @@ crashes Trap
         true -> copied(checker, target, condition - 1),
         _ -> done()
     }
-    machine copied(checker: @mutable Checker, target: u64 in Trapping, condition: u64 in Trapping) {
+    machine copied(checker: @mutable |checker|::Checker, target: u64 in Trapping, condition: u64 in Trapping) {
         add_alias(checker, target, condition);
     }
     machine done() {}
@@ -271,7 +271,7 @@ crashes Trap
     }
     machine reachable(table: @mutable AliasTable, other: @AliasTable, current_live: bool) {
         transition current_live {
-            true -> next(table, other, 0),
+            true -> next(table, other, 0 as +Trapping),
             _ -> copied(table, other)
         }
     }
@@ -291,9 +291,9 @@ crashes Trap
     machine candidate(table: @mutable AliasTable, other: @AliasTable, index: u64 in Trapping)
     requires index < 16
     {
-        let place: u64 = table.places[index];
-        let condition: u64 = table.conditions[index];
-        transition { _ -> find(table, other, index, place, condition, 0) }
+        let place: u64 = table.places[index as -Trapping];
+        let condition: u64 = table.conditions[index as -Trapping];
+        transition { _ -> find(table, other, index, place, condition, 0 as +Trapping) }
     }
     machine find(table: @mutable AliasTable, other: @AliasTable, index: u64 in Trapping, place: u64, condition: u64, offset: u64 in Trapping) {
         transition offset < other.count && offset < 16 {
@@ -304,7 +304,7 @@ crashes Trap
     machine compare(table: @mutable AliasTable, other: @AliasTable, index: u64 in Trapping, place: u64, condition: u64, offset: u64 in Trapping)
     requires offset < 16, index < 16
     {
-        let same: bool = other.places[offset] == place && other.conditions[offset] == condition;
+        let same: bool = other.places[offset as -Trapping] == place && other.conditions[offset as -Trapping] == condition;
         transition same {
             true -> kept(table, other, index, offset),
             _ -> find(table, other, index, place, condition, offset + 1)
@@ -313,8 +313,8 @@ crashes Trap
     machine kept(table: @mutable AliasTable, other: @AliasTable, index: u64 in Trapping, offset: u64 in Trapping)
     requires index < 16, offset < 16
     {
-        let limit: u64 = other.limits[offset];
-        transition limit > table.limits[index] {
+        let limit: u64 = other.limits[offset as -Trapping];
+        transition limit > table.limits[index as -Trapping] {
             true -> limited(table, other, index, limit),
             _ -> next(table, other, index + 1)
         }
@@ -322,21 +322,22 @@ crashes Trap
     machine limited(table: @mutable AliasTable, other: @AliasTable, index: u64 in Trapping, limit: u64)
     requires index < 16
     {
-        table.limits[index] = limit;
+        table.limits[index as -Trapping] = limit;
         transition { _ -> next(table, other, index + 1) }
     }
     machine removed(table: @mutable AliasTable, other: @AliasTable, index: u64 in Trapping) {
-        transition table.count > 0 && table.count <= 16 && index < 16 {
-            true -> moved(table, other, index, table.count - 1),
+        let count: u64 = table.count;
+        transition count > 0 && count <= 16 && index < 16 {
+            true -> moved(table, other, index, count - 1),
             _ -> done()
         }
     }
     machine moved(table: @mutable AliasTable, other: @AliasTable, index: u64 in Trapping, last: u64)
     requires index < 16, last < 16
     {
-        table.places[index] = table.places[last];
-        table.conditions[index] = table.conditions[last];
-        table.limits[index] = table.limits[last];
+        table.places[index as -Trapping] = table.places[last];
+        table.conditions[index as -Trapping] = table.conditions[last];
+        table.limits[index as -Trapping] = table.limits[last];
         table.count = last;
         transition { _ -> next(table, other, index) }
     }

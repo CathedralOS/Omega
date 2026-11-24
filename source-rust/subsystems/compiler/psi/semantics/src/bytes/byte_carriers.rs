@@ -15,6 +15,13 @@ pub struct ByteCarrierLayout {
     pub size: u64,
 }
 
+impl ByteCarrierLayout {
+    /// A record occupies its complete layout, including padding after its last field.
+    pub fn fits_at(&self, offset: u64, byte_extent: u64) -> bool {
+        offset.checked_add(self.size).is_some_and(|end| end <= byte_extent)
+    }
+}
+
 fn leaf_scalar_carriers(field: &StructuralFieldDeclaration) -> Option<(u64, ScalarType)> {
     match field.field_type {
         StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {

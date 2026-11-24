@@ -636,6 +636,9 @@ pub(crate) mod call_targets {
                         crate::source_state::data::TypeParameterKind::Machine { .. } => {
                             StaticMachineBindingValue::Machine(argument.clone())
                         }
+                        crate::source_state::data::TypeParameterKind::Proof { .. } => {
+                            StaticMachineBindingValue::Proof(argument.clone())
+                        }
                         crate::source_state::data::TypeParameterKind::Const { .. } => {
                             StaticMachineBindingValue::Const(
                                 program.static_operand_type_reference_in_scope(
@@ -828,6 +831,7 @@ pub(crate) mod call_targets {
                             program.static_operand_from_type_reference(*reference)?
                         }
                         StaticMachineBindingValue::Machine(argument)
+                        | StaticMachineBindingValue::Proof(argument)
                         | StaticMachineBindingValue::Conformance(argument) => argument.clone(),
                         StaticMachineBindingValue::RuntimeValue { .. } => {
                             return Err("prepared contract helper has an unclosed runtime operand");
@@ -3413,6 +3417,7 @@ pub(crate) mod payloads {
                         *expression = self.expression(program, *expression)?;
                     }
                     static_applications::StaticMachineBindingValue::Machine(argument)
+                    | static_applications::StaticMachineBindingValue::Proof(argument)
                     | static_applications::StaticMachineBindingValue::Conformance(argument) => {
                         self.static_arguments(program, std::slice::from_mut(argument))?
                     }
@@ -4554,6 +4559,11 @@ pub(crate) mod requirement_instances {
                                 return Err("closed requirement call has a stale operand input");
                             }
                         }
+                        StaticMachineBindingValue::Proof(_) => {
+                            return Err(
+                                "closed requirement call has no logical evidence admission receipt",
+                            );
+                        }
                         StaticMachineBindingValue::RuntimeValue { .. } => {
                             return Err(
                                 "closed requirement call has no runtime value argument admission receipt",
@@ -4682,6 +4692,9 @@ pub(crate) mod requirement_instances {
                     | static_applications::StaticMachineBindingValue::Conformance(actual) => self
                         .static_operand_type_reference_in_scope(actual, lexical_owner)
                         .map(RequirementLocalArgument::Static),
+                    static_applications::StaticMachineBindingValue::Proof(_) => Err(
+                        "logical evidence needs its complete implication, not a static requirement operand",
+                    ),
                     static_applications::StaticMachineBindingValue::RuntimeValue {
                         type_reference,
                         ..
@@ -5375,15 +5388,14 @@ pub(crate) mod selected_operands {
                     .is_some();
             }
             match self.symbols.get(symbol).kind {
-                SymbolKind::TypeParameter => {
-                    self.data_type_parameter_by_symbol(symbol)
-                        .is_some_and(|parameter| {
-                            matches!(
-                                parameter.kind,
-                                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
-                            )
-                        })
-                }
+                SymbolKind::TypeParameter => self
+                    .data_type_parameter_by_symbol(symbol)
+                    .is_some_and(|parameter| {
+                        matches!(
+                            parameter.kind,
+                            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+                        )
+                    }),
                 SymbolKind::Const
                 | SymbolKind::Parameter
                 | SymbolKind::Local
@@ -6111,7 +6123,9 @@ pub(crate) mod signatures {
                         signature::AuthoredInvocationTarget::Service(self.symbol(symbol))
                     }
                     signature::AuthoredInvocationTarget::AppliedService(service) => {
-                        signature::AuthoredInvocationTarget::AppliedService(self.service_reach(program, service)?)
+                        signature::AuthoredInvocationTarget::AppliedService(
+                            self.service_reach(program, service)?,
+                        )
                     }
                     unresolved @ (signature::AuthoredInvocationTarget::Unresolved
                     | signature::AuthoredInvocationTarget::Undeclared) => unresolved,
@@ -6323,6 +6337,9 @@ pub(crate) mod signatures {
                         type_reference: self.type_reference(program, type_reference)?,
                     }
                 }
+                data::TypeParameterKind::Proof { contract } => data::TypeParameterKind::Proof {
+                    contract: self.signature(program, &contract)?,
+                },
                 data::TypeParameterKind::Machine { contract } => {
                     let contract = match contract {
                         data::MachineParameterContract::Structural(declared) => {
@@ -6759,9 +6776,7 @@ pub(crate) mod table {
         ) -> Result<Self, record_storage::RecordError> {
             input.record(|input| {
                 let arena =
-                    <RootedArena<AppliedCallableSignature> as record_storage::Record>::read(
-                        input,
-                    )?;
+                    <RootedArena<AppliedCallableSignature> as record_storage::Record>::read(input)?;
                 let layout = AssociationLayout::measure(&arena)
                     .ok_or_else(|| input.error("applied callable association size overflow"))?;
                 let allocation = layout.allocation_bytes().ok_or_else(|| {
@@ -7771,6 +7786,11 @@ pub(crate) mod trait_scopes {
                             }
                             argument.type_reference
                         }
+                        StaticMachineBindingValue::Proof(_) => {
+                            return Err(
+                                "refinement invocation needs its retained logical evidence",
+                            );
+                        }
                         StaticMachineBindingValue::RuntimeValue { .. } => {
                             return Err(
                                 "refinement postcondition invocation has an unresolved value argument",
@@ -8440,7 +8460,10 @@ impl CallableApplication {
     pub fn for_type_parameters<'a>(
         declaration: SymbolHandle,
         bindings: impl IntoIterator<
-            Item = (&'a crate::source_state::data::TypeParameter, types::TypeReferenceHandle),
+            Item = (
+                &'a crate::source_state::data::TypeParameter,
+                types::TypeReferenceHandle,
+            ),
         >,
         subject: Option<(SymbolHandle, SymbolHandle)>,
     ) -> Self {

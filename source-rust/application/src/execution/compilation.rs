@@ -170,7 +170,8 @@ pub(super) fn compile(
                 )]);
             }
         };
-        let test_roster = stage.execute_registered_tests(profile, &[])?;
+        let test_roster =
+            stage.execute_registered_tests(profile, &[], project_build::TestExecution::Available)?;
         (
             RunProduct {
                 root: root_path,
@@ -202,7 +203,7 @@ pub(super) fn interpret_product(
     let program = report
         .artifact()
         .ok_or(TerminalRuntimeError::InvalidProvision(
-            "run lost its produced Terminal artifact before execution",
+            "run lost its produced Psi artifact before execution",
         ))?;
     let runtime = report.runtime();
     retained_image_runtime::execute(

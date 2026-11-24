@@ -1,9 +1,4 @@
-// Shared bounded byte cursor (`Cursor`) and decode-error conversion macros
-// (`take_error_from_adapter!`, `truncated_from_adapter!`) for wire decoders.
-//
-// `counted(width)` pre-flights a `u32` sequence count against `remaining() / width`
-// before allocating or reading elements so a corrupt count cannot request
-// memory beyond the input slice.
+//! Bounded byte reads and error adapters for wire decoders.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Truncated;
@@ -71,6 +66,14 @@ impl<'a> Cursor<'a> {
         Ok(i128::from_le_bytes(self.array()?))
     }
 
+    /// Reads a count and checks it against the remaining encoded bytes.
+    ///
+    /// Pass the minimum encoded width of one element. This consumes the count
+    /// even when the check finds too few bytes for the elements.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the count can be read and `width` is zero.
     pub fn counted(&mut self, width: usize) -> Result<usize, Truncated> {
         let count = self.u32()? as usize;
         if count > self.remaining() / width {

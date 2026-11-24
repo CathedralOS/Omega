@@ -1,17 +1,19 @@
 //! Bind a single static argument tuple against its declared parameters. Source
 //! calls and Build operands use the same typed identities and requirement headers.
-use crate::{TypedTrees, data_applications};
 use crate::data::TypeParameterKind;
 use crate::expression::{ExpressionNode, StaticMachineArgument};
-use crate::static_applications::{StaticMachineApplicationHandle, StaticMachineBinding, StaticMachineBindingValue};
+use crate::static_applications::{
+    StaticMachineApplicationHandle, StaticMachineBinding, StaticMachineBindingValue,
+};
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
+use crate::{TypedTrees, data_applications};
 use std::borrow::Cow;
 use symbols::{SymbolHandle, SymbolKind};
 
 mod nominal_callback;
 mod requirement;
-pub use requirement::{prepare_requirement_application, prepare_requirement_in_scope};
 use nominal_callback::require_nominal_selection;
+pub use requirement::{prepare_requirement_application, prepare_requirement_in_scope};
 
 /// Why one application was left as typing wrote it.
 #[derive(Debug)]
@@ -259,6 +261,9 @@ impl Operand {
                 return Err(unserved(
                     "a static machine binder needs a complete contract on a body-bearing declaration",
                 ));
+            }
+            TypeParameterKind::Proof { .. } => {
+                return Err(unserved("a logical proof is not a specialization operand"));
             }
             TypeParameterKind::Proposition { .. } => {
                 return Err(unserved(

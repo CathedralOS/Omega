@@ -142,17 +142,58 @@ impl Program<'_> {
             return Ok(None);
         };
         let unsupported = |detail| refuse(id, Construct::Machine, Unserved::Contract(detail));
+        if self.mathematical {
+            // contracts.md, "Citation and induction": "Proof/compile-time
+            // recursion may rank on mathematical structure." The subject is
+            // the formal the body dispatches on, and the signature admits a
+            // recursive call only at a field of the dispatched case.
+            let subjects =
+                crate::source_state::ranking::resolve_machine_witness_subjects(self.typed, machine)
+                    .ok_or_else(|| unsupported("ranking subjects have no resolved expressions"))?;
+            let [subject] = subjects.as_slice() else {
+                return Err(unsupported("structural ranking requires exactly one subject"));
+            };
+            let value = self.expression(id, slots, *subject, None)?;
+            if !matches!(value.result, Some(ValueType::Record(record, ..))
+                if self.self_containing.binary_search(&record).is_ok())
+            {
+                return Err(unsupported(
+                    "structural ranking needs data that contains itself",
+                ));
+            }
+            return Ok(Some(Ranking::without_range(vec![value])));
+        }
         let (view, default) = self.ranking_view(id, machine)?;
-        if !witness.view_arguments.is_empty() {
+        let view_arguments = self
+            .typed
+            .ranking_expression_custody_for(machine.symbol)
+            .map_or(&[][..], |custody| custody.view_arguments.as_slice());
+        if view_arguments.len() != witness.view_arguments.len() {
+            return Err(unsupported(
+                "ranking view arguments have no resolved expressions",
+            ));
+        }
+        if view != RankingViewId::NAT_INCREASING_TO && !view_arguments.is_empty() {
             return Err(unsupported("ranking view arguments"));
         }
+        let mut fixed_bound = None;
         let subjects =
             crate::source_state::ranking::resolve_machine_witness_subjects(self.typed, machine)
                 .filter(|subjects| !subjects.is_empty())
                 .ok_or_else(|| unsupported("ranking subjects have no resolved expressions"))?;
         let rank = match (view, subjects.as_slice()) {
             (RankingViewId::NAT_BOUNDED_DISTANCE, [lower, upper]) => {
-                self.distance(id, slots, *lower, *upper, default)?
+                let (cursor, limit) = self.distance_operands(id, slots, *lower, *upper, default)?;
+                distance(cursor, limit)
+            }
+            (RankingViewId::NAT_INCREASING_TO, [cursor]) => {
+                let [limit] = view_arguments else {
+                    return Err(unsupported("IncreasingTo requires one fixed bound"));
+                };
+                let (cursor, limit) =
+                    self.distance_operands(id, slots, *cursor, *limit, default)?;
+                fixed_bound = Some(Box::new(limit.clone()));
+                distance(cursor, limit)
             }
             (RankingViewId::NAT_DESCENDING, [subject]) => {
                 let value = self.expression(id, slots, *subject, None)?;
@@ -175,7 +216,12 @@ impl Program<'_> {
                     "bounded distance requires exactly two subjects",
                 ));
             }
-            (RankingViewId::NAT_DESCENDING | RankingViewId::SLICE_LENGTH, _) => {
+            (
+                RankingViewId::NAT_DESCENDING
+                | RankingViewId::NAT_INCREASING_TO
+                | RankingViewId::SLICE_LENGTH,
+                _,
+            ) => {
                 return Err(unsupported(
                     "selected ranking view requires exactly one subject",
                 ));
@@ -229,18 +275,19 @@ impl Program<'_> {
         };
         Ok(Some(Ranking {
             measures: vec![rank],
+            fixed_bound,
             range,
         }))
     }
 
-    fn distance(
+    fn distance_operands(
         &mut self,
         id: MachineId,
         slots: &[Slot],
         lower: crate::source_state::expression::ExpressionHandle,
         upper: crate::source_state::expression::ExpressionHandle,
         default: bool,
-    ) -> Checked<Expression> {
+    ) -> Checked<(Expression, Expression)> {
         use crate::source_state::expression::ExpressionNode;
         let anonymous = |node: &ExpressionNode| matches!(node, ExpressionNode::Integer(literal) if literal.landing().is_none());
         let lower_anonymous = anonymous(self.node(id, lower)?);
@@ -267,19 +314,23 @@ impl Program<'_> {
                 Unserved::Contract("bounded distance needs one common unsigned integer carrier"),
             ));
         }
-        // Both operands are natural, so unsigned saturating subtraction is
-        // exactly the selected view, including the zero plateau past the limit.
-        Ok(Expression {
-            call_context: None,
-            source: lower.source,
-            kind: ExpressionKind::Strict {
-                operation: Strict::Subtract,
-                policy: Some(Policy::Saturating),
-                left: Box::new(upper),
-                right: Box::new(lower),
-            },
-            result: Some(ValueType::plain(ScalarType::Integer(lower_type))),
-        })
+        Ok((lower, upper))
+    }
+}
+
+// Both operands have the same unsigned carrier. The distance is zero past the limit.
+fn distance(lower: Expression, upper: Expression) -> Expression {
+    let result = lower.result;
+    Expression {
+        call_context: None,
+        source: lower.source,
+        kind: ExpressionKind::Strict {
+            operation: Strict::Subtract,
+            policy: Some(Policy::Saturating),
+            left: Box::new(upper),
+            right: Box::new(lower),
+        },
+        result: result.and_then(ValueType::scalar).map(ValueType::plain),
     }
 }
 

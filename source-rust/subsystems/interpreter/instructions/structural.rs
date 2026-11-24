@@ -26,6 +26,7 @@ use crate::storage::primitive_storage::PrimitiveStorageEndpoint;
 use crate::storage::record::storage::{ConstructorStorage, ConstructorValue};
 use crate::storage::reference::{AggregateViewTip, translate_aggregate_view_field};
 use crate::storage::runtime_rows::RuntimeRows;
+use crate::storage::scalar_storage::CheckedReferenceScalar;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, IntegerSign, IntegerType, IntegerValue, ScalarType,
     StructuralDomainId, StructuralTypeId,
@@ -36,44 +37,12 @@ use terminal_psi::{
     StructuralTypeShape, find_structural_case, nonlinear_multiplicity_pair_pattern,
 };
 use terminal_semantics::{
-    ZeroedStructuralLeaf, byte_carrier_scalar_layout, is_copyable_carrier,
+    ZeroedStructuralLeaf, is_copyable_carrier,
     observed_field_declaration, record_field_carrier, scalar_array_leaf_shape,
 };
 
-// The declaration owns validity on every observation of foreign storage;
-// neither the initial snapshot nor the host's decoder can replace that check.
-struct CheckedReferenceScalar {
-    backing: std::rc::Rc<dyn crate::TerminalScalarBacking>,
-    scalar: ScalarType,
-    stored_scalar: ScalarType,
-    restriction: Option<StructuralFieldType>,
-}
-impl std::fmt::Debug for CheckedReferenceScalar {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CheckedReferenceScalar")
-            .field("scalar", &self.scalar)
-            .finish_non_exhaustive()
-    }
-}
-impl crate::TerminalScalarBacking for CheckedReferenceScalar {
-    fn read(&self) -> Result<TerminalScalarValue, crate::TerminalEffectRejection> {
-        let value = self.backing.read()?;
-        crate::storage::structural_storage::contents::validate_scalar_contents(
-            self.scalar,
-            self.restriction.as_ref(),
-            self.stored_scalar,
-            value,
-            self.stored_scalar,
-        )
-        .map_err(crate::TerminalEffectRejection::new)?;
-        Ok(value)
-    }
-    fn write(&self, _value: TerminalScalarValue) -> Result<(), crate::TerminalEffectRejection> {
-        Err(crate::TerminalEffectRejection::new(
-            "shared provider reference cannot be written",
-        ))
-    }
-}
+#[path = "byte_record.rs"]
+mod byte_record;
 
 struct ResolvedStructuralWindow {
     backing: TerminalStructuralValue,
@@ -270,7 +239,10 @@ impl TerminalExecution<'_> {
                 use crate::storage::structural_storage::contents::{self, StorageLeafKind};
                 if !supply.references.is_empty()
                     || scalars.windows(2).any(|pair| pair[0].path >= pair[1].path)
-                    || access != StructuralAccess::SharedBorrow
+                    || !matches!(
+                        access,
+                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                    )
                 {
                     return Err(malformed());
                 }
@@ -278,8 +250,7 @@ impl TerminalExecution<'_> {
                 // backing rows use canonical paths even when field IDs differ.
                 let mut values = aggregate.canonical_contents();
                 values.sort_unstable_by(|left, right| left.path.cmp(&right.path));
-                let description =
-                    contents::describe(self, &view, StructuralAccess::SharedBorrow, Some(&values))?;
+                let description = contents::describe(self, &view, access, Some(&values))?;
                 if description.requires_erased_establishment || description.requires_atomic_storage
                 {
                     return Err(malformed());
@@ -325,6 +296,7 @@ impl TerminalExecution<'_> {
                         return Err(malformed());
                     };
                     let checked = CheckedReferenceScalar {
+                        access,
                         backing: supplied.backing.clone(),
                         scalar,
                         restriction,
@@ -2318,79 +2290,6 @@ impl TerminalExecution<'_> {
         self.scalar_array_values.publish(result.place, copied)?;
         Ok(OperationFlow::Advance)
     }
-    fn byte_carrier_leaf_copy(
-        &mut self,
-        leaf: &TerminalStructuralValue,
-        result: &terminal_psi::StructuralOperationResult,
-    ) -> Result<OperationFlow, TerminalInterpretError> {
-        let Some((StructuralPathSegment::FixedIndex(index), parent_path)) = leaf.path.split_last()
-        else {
-            return Err(malformed());
-        };
-        let array = StructuralRuntimePlace {
-            opaque_identity: leaf.opaque_identity,
-            path: parent_path.to_vec(),
-        };
-        let bytes = self.structural_byte_storage.require(&array)?;
-        let layout =
-            byte_carrier_scalar_layout(self.structural_types().values(), result.structural_type)
-                .ok_or(malformed())?;
-        let index = usize::try_from(*index).map_err(|_| malformed())?;
-        let mut leaves = Vec::with_capacity(layout.leaves.len());
-        for member in &layout.leaves {
-            let offset = index
-                .checked_add(usize::try_from(member.offset).map_err(|_| malformed())?)
-                .ok_or(malformed())?;
-            let size = usize::from(match member.scalar_type {
-                ScalarType::Boolean => 1u16,
-                ScalarType::Integer(integer) => self.closed_integer(integer)?.bits() / 8,
-                _ => return Err(malformed()),
-            });
-            let end = offset.checked_add(size).ok_or(malformed())?;
-            let window = bytes.read_window(offset, end)?;
-            let mut value = 0u128;
-            for position in 0..size {
-                value |= u128::from(window.read(position)?) << (8 * position);
-            }
-            let scalar = match member.scalar_type {
-                ScalarType::Boolean => {
-                    crate::storage::primitive_storage::encoding::boolean_bits(value)?
-                }
-                ScalarType::Integer(scalar_type) => {
-                    let value = match scalar_type.sign() {
-                        IntegerSign::Signed => {
-                            let bits = u32::from(self.closed_integer(scalar_type)?.bits());
-                            let signed = if bits < 128 && (value >> (bits - 1)) & 1 == 1 {
-                                (value | (!0u128 << bits)) as i128
-                            } else {
-                                value as i128
-                            };
-                            IntegerValue::Signed(signed)
-                        }
-                        IntegerSign::Unsigned => IntegerValue::Unsigned(value),
-                    };
-                    TerminalScalarValue::Integer { scalar_type, value }
-                }
-                _ => return Err(malformed()),
-            };
-            leaves.push((member.field, scalar));
-        }
-        let copied = TerminalStructuralValue::minted(
-            self.local_structural_identities.allocate()?,
-            result.structural_type,
-            Vec::new(),
-        );
-        let parent = StructuralRuntimePlace::from(&copied);
-        for (field, scalar) in leaves {
-            self.structural_scalar_fields.insert(
-                StructuralScalarRuntimeField::member(parent.clone(), field),
-                scalar,
-            )?;
-        }
-        self.structural_values.insert(result.place, copied)?;
-        Ok(OperationFlow::Advance)
-    }
-
     pub(crate) fn execute_structural_case_membership(
         &mut self,
         operation: &terminal_psi::Operation,
@@ -2642,3 +2541,7 @@ impl TerminalExecution<'_> {
         Ok(OperationFlow::Advance)
     }
 }
+
+#[cfg(test)]
+#[path = "byte_carrier_leaf_copy_tests.rs"]
+mod byte_carrier_leaf_copy_tests;

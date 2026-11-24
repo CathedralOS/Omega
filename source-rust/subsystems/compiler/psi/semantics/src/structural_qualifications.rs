@@ -19,6 +19,12 @@
 //! with predicates continues in a block whose invariant states them of its
 //! parameter, so the edge into it proves them. No other operation produces
 //! a qualified value, except provisioning that adds only free domains.
+//!
+//! A value keeps a routed domain only while it is unchanged or while the
+//! machine changing it is one the domain's routes name. A store beneath such
+//! a value, or an exclusive loan of part of it, in any other machine is
+//! refused (`DefaultRequirements::unauthorized_routed_write`): otherwise a
+//! field write would keep evidence that only an issuer may establish.
 
 use application_identity::type_identity::TypeIdentityPackageOwnerVisitor;
 use application_identity::type_identity::TypeIdentityVisitError;
@@ -288,6 +294,35 @@ impl DefaultRequirement {
     }
 }
 
+/// A routed domain declared on a value that an operation changes in part.
+/// The value at `path` beneath `root` keeps its declared domain across the
+/// operation, so the operation's machine must be one the domain's routes
+/// name (`wiki/spec/language/domains.md`: "Mutation invalidates
+/// subject-bound facts unless preserved or re-established").
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RoutedOwner {
+    pub root: PlaceId,
+    pub path: Vec<StructuralPathSegment>,
+    pub domain: StructuralDomainId,
+}
+
+/// Existing storage one operation changes, as each possible lender holds it.
+enum Changed<'path> {
+    /// Every value that contains `path` beneath `root` changes with it.
+    Containing {
+        root: PlaceId,
+        path: Vec<StructuralPathSegment>,
+    },
+    /// The value at `path` beneath `root` is replaced through a display that
+    /// may show fewer domains than its lender declares.
+    Replaced {
+        displayed_root: PlaceId,
+        displayed_path: &'path [StructuralPathSegment],
+        root: PlaceId,
+        path: Vec<StructuralPathSegment>,
+    },
+}
+
 /// Construction owes its clauses immediately. Writes and exclusive calls
 /// can instead open a restoration window on existing storage.
 pub fn operation_writes_default_storage(kind: &OperationKind) -> bool {
@@ -322,6 +357,24 @@ pub struct DefaultRequirements<'a> {
     machine: &'a TerminalMachine,
     declared: Declared<'a>,
     type_defaults: Vec<bool>,
+    /// Whether any domain restricts who may establish it.
+    routed: bool,
+}
+
+fn push_routed(
+    result: &mut Vec<RoutedOwner>,
+    root: PlaceId,
+    path: &[StructuralPathSegment],
+    domain: StructuralDomainId,
+) {
+    let owner = RoutedOwner {
+        root,
+        path: path.to_vec(),
+        domain,
+    };
+    if !result.contains(&owner) {
+        result.push(owner);
+    }
 }
 
 impl<'a> DefaultRequirements<'a> {
@@ -346,6 +399,9 @@ impl<'a> DefaultRequirements<'a> {
             domains,
             machine,
             declared: Declared::new(machine)?,
+            routed: domains
+                .iter()
+                .any(|domain| domain.establishment_routes.is_some()),
             type_defaults: memo
                 .into_iter()
                 .map(|value| value.expect("prepared type"))
@@ -659,8 +715,139 @@ impl<'a> DefaultRequirements<'a> {
         before: crate::descriptor_lifetimes::DescriptorPosition,
         references: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
     ) -> Judged<Vec<DefaultRequirement>> {
-        use terminal_psi::StructuralStorageUse;
         let mut result = self.declared_operation(operation)?;
+        self.changed_storage(operation, before, references, &mut |changed| {
+            match changed {
+                Changed::Containing { root, path } => {
+                    self.append_unique(&mut result, self.owners(root, &path)?)
+                }
+                Changed::Replaced {
+                    displayed_root,
+                    displayed_path,
+                    root,
+                    path,
+                } => self.append_lost(&mut result, displayed_root, displayed_path, root, &path)?,
+            }
+            Ok(())
+        })?;
+        Ok(result)
+    }
+
+    /// The routed domains of every value `operation` changes in part: the
+    /// same displayed owners and actual lenders whose default clauses
+    /// `operation` reconstructs. A store that replaces a whole qualified
+    /// value is not among them, because its source must already deliver the
+    /// destination's exact domains.
+    pub fn routed_owners(
+        &self,
+        operation: &Operation,
+        before: crate::descriptor_lifetimes::DescriptorPosition,
+        references: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+    ) -> Judged<Vec<RoutedOwner>> {
+        let mut result = Vec::new();
+        if !self.routed || !operation_writes_default_storage(&operation.kind) {
+            return Ok(result);
+        }
+        for (root, path) in self.displayed_containers(operation) {
+            self.append_routed(&mut result, root, &path);
+        }
+        self.changed_storage(operation, before, references, &mut |changed| {
+            match changed {
+                Changed::Containing { root, path } => {
+                    self.append_routed(&mut result, root, &path)
+                }
+                Changed::Replaced {
+                    displayed_root,
+                    displayed_path,
+                    root,
+                    path,
+                } => {
+                    // A reference shows its referent's domains one step
+                    // beneath itself, so both count as displayed.
+                    let mut shown = self.declared.at(displayed_root, displayed_path).whole;
+                    let mut referent = displayed_path.to_vec();
+                    referent.push(StructuralPathSegment::Referent);
+                    shown.extend(self.declared.at(displayed_root, &referent).whole);
+                    for domain in self.declared.at(root, &path).whole {
+                        if self.is_routed(domain) && !shown.contains(&domain) {
+                            push_routed(&mut result, root, &path, domain);
+                        }
+                    }
+                }
+            }
+            Ok(())
+        })?;
+        Ok(result)
+    }
+
+    /// The first value with a routed domain that `operation` changes in part
+    /// although none of the domain's routes names this machine. A boundary
+    /// route issues when its call completes and names no checked body, so it
+    /// authorizes no write.
+    pub fn unauthorized_routed_write(
+        &self,
+        module: &TerminalModule,
+        operation: &Operation,
+        before: crate::descriptor_lifetimes::DescriptorPosition,
+        references: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+    ) -> Judged<Option<RoutedOwner>> {
+        for owner in self.routed_owners(operation, before, references)? {
+            let routes = self
+                .domains
+                .binary_search_by_key(&owner.domain, |row| row.id)
+                .ok()
+                .and_then(|position| self.domains[position].establishment_routes.as_deref())
+                .ok_or_else(|| self.error("a routed owner names a domain with no routes"))?;
+            let authorized = self.machine.declaration.as_ref().is_some_and(|declaration| {
+                routes.iter().any(|route| {
+                    issuer_route_authorizes(module, self.machine, declaration, route)
+                })
+            });
+            if !authorized {
+                return Ok(Some(owner));
+            }
+        }
+        Ok(None)
+    }
+
+    fn is_routed(&self, id: StructuralDomainId) -> bool {
+        self.domains
+            .binary_search_by_key(&id, |row| row.id)
+            .is_ok_and(|position| self.domains[position].establishment_routes.is_some())
+    }
+
+    /// Routed domains of the value at `path` beneath `root` and of every
+    /// value containing it, innermost first.
+    fn append_routed(
+        &self,
+        result: &mut Vec<RoutedOwner>,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+    ) {
+        for length in (0..=path.len()).rev() {
+            let path = &path[..length];
+            // A case step selects a payload; the sum itself is the owner.
+            if matches!(path.last(), Some(StructuralPathSegment::Case(_))) {
+                continue;
+            }
+            for domain in self.declared.at(root, path).whole {
+                if self.is_routed(domain) {
+                    push_routed(result, root, path, domain);
+                }
+            }
+        }
+    }
+
+    /// Visit the existing storage `operation` changes, resolved through each
+    /// captured address to the lender that actually holds it.
+    fn changed_storage<'operation>(
+        &self,
+        operation: &'operation Operation,
+        before: crate::descriptor_lifetimes::DescriptorPosition,
+        references: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+        visit: &mut dyn FnMut(Changed<'_>) -> Judged<()>,
+    ) -> Judged<()> {
+        use terminal_psi::StructuralStorageUse;
         // A plain view can still lend storage whose owner has a domain. Keep
         // that owner's requirements after resolving the captured address.
         for (used, effect) in operation.kind.storage_uses() {
@@ -697,7 +884,10 @@ impl<'a> DefaultRequirements<'a> {
                     {
                         selected.extend_from_slice(path);
                         selected.pop(); // Only the containing owner carries the default.
-                        self.append_unique(&mut result, self.owners(root, &selected)?);
+                        visit(Changed::Containing {
+                            root,
+                            path: selected,
+                        })?;
                     }
                     continue;
                 }
@@ -712,12 +902,20 @@ impl<'a> DefaultRequirements<'a> {
             );
             for (owner, mut selected) in self.backings(root, &path, payload, before, references)? {
                 if replaces_whole {
-                    self.append_lost(&mut result, root, &path, owner, &selected)?;
+                    visit(Changed::Replaced {
+                        displayed_root: root,
+                        displayed_path: &path,
+                        root: owner,
+                        path: selected.clone(),
+                    })?;
                     if selected.pop().is_none() {
                         continue;
                     }
                 }
-                self.append_unique(&mut result, self.owners(owner, &selected)?);
+                visit(Changed::Containing {
+                    root: owner,
+                    path: selected,
+                })?;
             }
         }
         for argument in operation.kind.structural_arguments() {
@@ -733,13 +931,18 @@ impl<'a> DefaultRequirements<'a> {
             {
                 // The callee maintains its displayed domains. Each possible
                 // lender still owes its own hidden and enclosing rules.
-                self.append_lost(&mut result, argument.place, &argument.path, root, &path)?;
+                visit(Changed::Replaced {
+                    displayed_root: argument.place,
+                    displayed_path: &argument.path,
+                    root,
+                    path: path.clone(),
+                })?;
                 if path.pop().is_some() {
-                    self.append_unique(&mut result, self.owners(root, &path)?);
+                    visit(Changed::Containing { root, path })?;
                 }
             }
         }
-        Ok(result)
+        Ok(())
     }
 
     fn append_lost(
@@ -862,7 +1065,7 @@ impl<'a> DefaultRequirements<'a> {
 
     fn declared_operation(&self, operation: &Operation) -> Judged<Vec<DefaultRequirement>> {
         let mut result = Vec::new();
-        let (root, mut path, strict) = match &operation.kind {
+        match &operation.kind {
             OperationKind::EstablishRecord { .. }
             | OperationKind::EstablishScalarCase { .. }
             | OperationKind::EstablishStructuralCase { .. } => {
@@ -890,6 +1093,23 @@ impl<'a> DefaultRequirements<'a> {
                 )?;
                 return Ok(result);
             }
+            _ => {}
+        }
+        for (root, path) in self.displayed_containers(operation) {
+            result.extend(self.owners(root, &path)?);
+        }
+        Ok(result)
+    }
+
+    /// The displayed values that contain what a store or an exclusive loan
+    /// changes: each is named by its path, and every prefix of that path is
+    /// a containing value too. A store that replaces a whole value starts at
+    /// that value's parent.
+    fn displayed_containers(
+        &self,
+        operation: &Operation,
+    ) -> Vec<(PlaceId, Vec<StructuralPathSegment>)> {
+        let (root, mut path, strict) = match &operation.kind {
             OperationKind::StructuralScalarFieldStore {
                 destination, path, ..
             }
@@ -914,31 +1134,31 @@ impl<'a> DefaultRequirements<'a> {
                 field: None,
                 ..
             } => (*destination, path.clone(), true),
-            kind if !kind.structural_arguments().is_empty() => {
+            kind => {
                 // A callee may change an exclusively lent subplace. The
                 // formal's own domains are restored at handback; each strict
                 // containing owner owes its defaults at this call instead.
-                for argument in kind.structural_arguments() {
-                    if !matches!(
-                        argument.access,
-                        terminal_psi::StructuralAccess::MutableBorrow
-                            | terminal_psi::StructuralAccess::WriteOnlyBorrow
-                    ) {
-                        continue;
-                    }
-                    let mut path = argument.path.clone();
-                    if path.pop().is_some() {
-                        result.extend(self.owners(argument.place, &path)?);
-                    }
-                }
-                return Ok(result);
+                return kind
+                    .structural_arguments()
+                    .iter()
+                    .filter(|argument| {
+                        matches!(
+                            argument.access,
+                            terminal_psi::StructuralAccess::MutableBorrow
+                                | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                        )
+                    })
+                    .filter_map(|argument| {
+                        let mut path = argument.path.clone();
+                        path.pop().map(|_| (argument.place, path))
+                    })
+                    .collect();
             }
-            _ => return Ok(result),
         };
         if strict && path.pop().is_none() {
-            return Ok(result);
+            return Vec::new();
         }
-        self.owners(root, &path)
+        vec![(root, path)]
     }
 
     fn owners(
@@ -3056,8 +3276,79 @@ pub fn validate(module: &TerminalModule) -> Judged<()> {
             );
         }
     }
+    validate_routed_writes(module)?;
     operation_permissions::validate(module)?;
     validate_change_owners(module)
+}
+
+/// A stored module gets the judgment the lowered-form checker gives a source
+/// program: no machine outside a domain's routes changes part of a value
+/// that carries the domain. The borrowed-storage graph is the one source
+/// lowering builds for default restoration, so a module this compiler
+/// published has it.
+fn validate_routed_writes(module: &TerminalModule) -> Judged<()> {
+    if !module
+        .types
+        .structural_domains
+        .iter()
+        .any(|domain| domain.establishment_routes.is_some())
+    {
+        return Ok(());
+    }
+    let defaults = module
+        .machines
+        .iter()
+        .map(|machine| {
+            DefaultRequirements::new(
+                &module.types.structural_types,
+                &module.types.structural_domains,
+                machine,
+            )
+        })
+        .collect::<Judged<Vec<_>>>()?;
+    let roots = module
+        .machines
+        .iter()
+        .zip(&defaults)
+        .filter(|(_, required)| required.needs_borrowed_storage())
+        .map(|(machine, _)| machine.id);
+    let graph = crate::descriptor_results::terminal_borrowed_storage_graph_from(module, roots, &[])
+        .map_err(|error| StructuralQualificationError {
+            denied_establishment: None,
+            machine: Some(error.machine()),
+            detail: "a routed write has no complete borrowed-storage graph",
+        })?;
+    let mut references = crate::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
+        &module.types.structural_types,
+        &graph,
+    );
+    for (machine, required) in module.machines.iter().zip(&defaults) {
+        for block in &machine.blocks {
+            for (position, operation) in block.operations.iter().enumerate() {
+                let position =
+                    u32::try_from(position).map_err(|_| StructuralQualificationError {
+                        denied_establishment: None,
+                        machine: Some(machine.id),
+                        detail: "a routed write position exceeds the descriptor graph",
+                    })?;
+                if required
+                    .unauthorized_routed_write(
+                        module,
+                        operation,
+                        (block.id, position),
+                        &mut references,
+                    )?
+                    .is_some()
+                {
+                    return malformed(
+                        Some(machine.id),
+                        "a write keeps a routed domain on a value its machine may not establish",
+                    );
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

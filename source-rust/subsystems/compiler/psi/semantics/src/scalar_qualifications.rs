@@ -755,7 +755,8 @@ fn validate_arguments(
     Ok(())
 }
 
-pub(crate) fn field_qualifications(
+/// The declared domain set of one scalar field, empty for an unqualified field.
+pub fn field_qualifications(
     module: &TerminalModule,
     field: semantic_vocabulary::StructuralFieldId,
 ) -> ScalarQualificationSetId {

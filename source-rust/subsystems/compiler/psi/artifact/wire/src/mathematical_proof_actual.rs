@@ -1,6 +1,7 @@
 /*
-Canonical encoding, decoding, and structural validation for `MathematicalProofActual` carrier keys,
-applications, and slots, along with `IndexedTheoremRootTable` theorem-root lookup tables.
+We bind mathematical proof arguments to the source carriers and invocation
+slots expected by the receiver. We then replay the decoded certificates and
+check their used assumptions against the receiver's grants.
 */
 
 pub(crate) mod applications {
@@ -234,10 +235,7 @@ pub(crate) mod slots {
                     .identities
                     .text(b.type_identity)
                     .filter(|s| !s.is_empty());
-                a.source_position != b.source_position
-                    || left.is_none()
-                    || right.is_none()
-                    || left != right
+                a.source != b.source || left.is_none() || right.is_none() || left != right
             })
         {
             return Err(Error::SourceCarrierMismatch);
@@ -586,6 +584,7 @@ pub enum MathematicalProofActualError {
     KernelBatch(MathematicalCertificateBatchError),
 }
 
+/// An ordinal grant refers to one declaration in this complete signature.
 pub fn mathematical_carrier_key(
     arena: &TermArena,
     certificate: &MathematicalCertificate,
@@ -597,6 +596,158 @@ pub fn mathematical_carrier_key(
             ..certificate.clone()
         },
     )
+}
+
+/// Named theorem formals identify their implication independently of the
+/// derivation. Comparing this key alone cannot authorize signature assumptions.
+pub fn theorem_implication_key(
+    arena: &TermArena,
+    certificate: &MathematicalCertificate,
+) -> Result<Vec<u8>, CodecError> {
+    let prefix = mathematical_kernel::certificate_type_signature_prefix(arena, certificate)
+        .map_err(|_| {
+            CodecError::MalformedMathematicalCertificate(
+                "mathematical type has an invalid dependency",
+            )
+        })?;
+    encode_mathematical_certificate(
+        arena,
+        &MathematicalCertificate {
+            signature: certificate.signature[..prefix].to_vec(),
+            term: certificate.expected,
+            ..certificate.clone()
+        },
+    )
+}
+
+#[cfg(test)]
+mod type_key_tests {
+    use super::*;
+    use mathematical_kernel::{Declaration, Level, Sort, Term};
+
+    fn constant(arena: &mut TermArena, declaration: u32) -> mathematical_kernel::TermHandle {
+        arena.insert(Term::Constant {
+            declaration,
+            levels: Vec::new(),
+        })
+    }
+
+    #[test]
+    fn theorem_type_identity_and_assumption_grants_use_their_own_signatures() {
+        let mut arena = TermArena::new();
+        let strict = arena.insert(Term::Sort(Sort::Strict(Level::Constant(0))));
+        let proposition = constant(&mut arena, 0);
+        let required = MathematicalCertificate::with_signature(
+            vec![Declaration::assumption(0, strict)],
+            Vec::new(),
+            proposition,
+            proposition,
+        );
+        let key = theorem_implication_key(&arena, &required).unwrap();
+        let witness = constant(&mut arena, 1);
+        let supplied = MathematicalCertificate::with_signature(
+            vec![
+                Declaration::assumption(0, strict),
+                Declaration::assumption(0, proposition),
+            ],
+            Vec::new(),
+            witness,
+            proposition,
+        );
+        assert_eq!(theorem_implication_key(&arena, &supplied).unwrap(), key);
+        let authorized_key = mathematical_carrier_key(&arena, &supplied).unwrap();
+        assert_ne!(authorized_key, key);
+        let actual = ProofTerm::Mathematical {
+            type_identity: "required-P".into(),
+            certificate: encode_mathematical_certificate(&arena, &supplied).unwrap(),
+        };
+        let declared = terminal_psi::TerminalMathematicalCarrier {
+            type_identity: terminal_psi::TerminalIdentityIndex(1),
+            carrier_key: key.clone(),
+        };
+        let source_carrier = theorem_grant_carrier(&actual, "required-P", &declared).unwrap();
+        assert_eq!(source_carrier.carrier_key, authorized_key);
+        let trusted_grants = BTreeSet::from([0, 1]);
+        verify_mathematical_proof_actual(
+            &actual,
+            "required-P",
+            &authorized_key,
+            &trusted_grants,
+            &mut Budget::default(),
+        )
+        .unwrap();
+        let mut different_signature = supplied.clone();
+        different_signature.signature[1] = Declaration::assumption(0, strict);
+        let different_key = mathematical_carrier_key(&arena, &different_signature).unwrap();
+        assert_eq!(
+            theorem_implication_key(&arena, &different_signature).unwrap(),
+            key
+        );
+        assert!(matches!(
+            verify_mathematical_proof_actual(
+                &actual,
+                "required-P",
+                &different_key,
+                &trusted_grants,
+                &mut Budget::default(),
+            ),
+            Err(MathematicalProofActualError::KernelCarrierMismatch)
+        ));
+        assert!(matches!(
+            verify_mathematical_proof_actual(
+                &actual, "required-P", &authorized_key, &BTreeSet::from([0]), &mut Budget::default(),
+            ),
+            Err(MathematicalProofActualError::UngrantedAssumptions(missing)) if missing == BTreeSet::from([1])
+        ));
+    }
+
+    #[test]
+    fn forwarded_theorem_uses_the_source_calls_exact_proof_dependency() {
+        use terminal_psi::{ErasedProofFormal, ProofFormalSource, TerminalIdentityIndex};
+        let source = [2, 4].map(|header_position| ErasedProofFormal {
+            source: ProofFormalSource::GenericParameter(header_position),
+            type_identity: TerminalIdentityIndex(1),
+        });
+        let first = ProofTerm::InvocationFormal { position: 0 };
+        let second = ProofTerm::InvocationFormal { position: 1 };
+        let block = ProofTerm::Formal { position: 0 };
+        let named = ProofTerm::Mathematical {
+            type_identity: "same-implication".into(),
+            certificate: vec![],
+        };
+        let check = |received: &ProofTerm, trusted: &ProofTerm| {
+            forwarded_proof_formal(&source[0], received, trusted, &source, &source)
+        };
+        assert_eq!(check(&first, &first).unwrap(), &source[0]);
+        assert_eq!(check(&second, &second).unwrap(), &source[1]);
+        for (received, trusted) in [(&first, &second), (&first, &named), (&block, &first)] {
+            assert!(matches!(
+                check(received, trusted),
+                Err(MathematicalProofActualError::SourceCarrierMismatch)
+            ));
+        }
+    }
+
+    #[test]
+    fn distinct_opaque_declarations_keep_their_original_positions() {
+        let mut arena = TermArena::new();
+        let strict = arena.insert(Term::Sort(Sort::Strict(Level::Constant(0))));
+        let left = constant(&mut arena, 0);
+        let right = constant(&mut arena, 1);
+        let signature = vec![
+            Declaration::assumption(0, strict),
+            Declaration::assumption(0, strict),
+        ];
+        let carrier =
+            |ty| MathematicalCertificate::with_signature(signature.clone(), Vec::new(), ty, ty);
+        assert_ne!(
+            theorem_implication_key(&arena, &carrier(left)).unwrap(),
+            theorem_implication_key(&arena, &carrier(right)).unwrap(),
+            "unused-prefix removal must never rename P and Q to the same constant"
+        );
+        let foreign = constant(&mut arena, 2);
+        assert!(theorem_implication_key(&arena, &carrier(foreign)).is_err());
+    }
 }
 
 pub fn verify_mathematical_proof_actual(
@@ -659,6 +810,67 @@ fn check_grants(
     Ok(())
 }
 
+/// Ordinal grants authorize declarations in the trusted proof's complete
+/// signature. The implication shared by its callers can omit proof-local
+/// declarations and therefore has a different identity.
+fn theorem_grant_carrier(
+    source: &ProofTerm,
+    identity: &str,
+    expected: &terminal_psi::TerminalMathematicalCarrier,
+) -> Result<terminal_psi::TerminalMathematicalCarrier, MathematicalProofActualError> {
+    use MathematicalProofActualError as Error;
+    let ProofTerm::Mathematical {
+        type_identity,
+        certificate,
+    } = source
+    else {
+        return Err(Error::SourceCarrierMismatch);
+    };
+    if type_identity != identity {
+        return Err(Error::SourceCarrierMismatch);
+    }
+    let trusted = decode_mathematical_certificate(certificate).map_err(Error::Wire)?;
+    if theorem_implication_key(&trusted.arena, &trusted.certificate).map_err(Error::Wire)?
+        != expected.carrier_key
+    {
+        return Err(Error::KernelCarrierMismatch);
+    }
+    Ok(terminal_psi::TerminalMathematicalCarrier {
+        type_identity: expected.type_identity,
+        carrier_key: mathematical_carrier_key(&trusted.arena, &trusted.certificate)
+            .map_err(Error::Wire)?,
+    })
+}
+
+/// A logical forwarding use cites its exact enclosing machine proof slot.
+/// Source and artifact rosters have already matched by declaration and type.
+fn forwarded_proof_formal<'a>(
+    destination: &terminal_psi::ErasedProofFormal,
+    received: &ProofTerm,
+    trusted: &ProofTerm,
+    invocation_formals: &'a [terminal_psi::ErasedProofFormal],
+    block_formals: &'a [terminal_psi::ErasedProofFormal],
+) -> Result<&'a terminal_psi::ErasedProofFormal, MathematicalProofActualError> {
+    use MathematicalProofActualError as Error;
+    use terminal_psi::ProofFormalSource::GenericParameter;
+    let (formals, position) = match received {
+        ProofTerm::InvocationFormal { position } => (invocation_formals, *position),
+        ProofTerm::Formal { position } => (block_formals, *position),
+        _ => return Err(Error::SourceCarrierMismatch),
+    };
+    let source = formals
+        .get(position as usize)
+        .ok_or(Error::SourceCarrierMismatch)?;
+    if matches!(destination.source, GenericParameter(_))
+        && (!matches!(received, ProofTerm::InvocationFormal { .. })
+            || received != trusted
+            || !matches!(source.source, GenericParameter(_)))
+    {
+        return Err(Error::SourceCarrierMismatch);
+    }
+    Ok(source)
+}
+
 pub fn verify_module_mathematical_actuals(
     module: &terminal_psi::TerminalModule,
     expected: &terminal_psi::TerminalModule,
@@ -715,9 +927,22 @@ pub fn verify_module_mathematical_actuals(
                     if actual_carrier.carrier_key != carrier.carrier_key {
                         return Err(Error::KernelCarrierMismatch);
                     }
-                    let decoded =
-                        prepare_mathematical_proof_actual(term, identity, &carrier.carrier_key)?;
-                    pending.push((decoded, grants(carrier)?));
+                    let source_carrier;
+                    let grant_carrier = if matches!(
+                        formal.source,
+                        terminal_psi::ProofFormalSource::GenericParameter(_)
+                    ) {
+                        source_carrier = theorem_grant_carrier(source_term, identity, carrier)?;
+                        &source_carrier
+                    } else {
+                        carrier
+                    };
+                    let decoded = prepare_mathematical_proof_actual(
+                        term,
+                        identity,
+                        &grant_carrier.carrier_key,
+                    )?;
+                    pending.push((decoded, grants(grant_carrier)?));
                 }
                 (
                     ProofTerm::MathematicalApplication {
@@ -778,36 +1003,20 @@ pub fn verify_module_mathematical_actuals(
                     )?;
                     pending.push((decoded, grants(carrier)?));
                 }
-                (
-                    ProofTerm::Formal { position } | ProofTerm::InvocationFormal { position },
-                    Some(carrier),
-                ) => {
-                    let _authorized = grants(carrier)?;
-                    let (caller, trusted_caller) =
-                        if matches!(term, ProofTerm::InvocationFormal { .. }) {
-                            (
-                                &actual.owner.contract.erased_proof_formals,
-                                &trusted.owner.contract.erased_proof_formals,
-                            )
-                        } else {
-                            (
-                                &actual.block.erased_proof_formals,
-                                &trusted.block.erased_proof_formals,
-                            )
-                        };
-                    let source = caller
-                        .get(*position as usize)
-                        .ok_or(Error::SourceCarrierMismatch)?;
-                    let trusted_source = trusted_caller
-                        .get(*position as usize)
-                        .ok_or(Error::SourceCarrierMismatch)?;
+                (ProofTerm::Formal { .. } | ProofTerm::InvocationFormal { .. }, Some(carrier)) => {
+                    let source = forwarded_proof_formal(
+                        formal,
+                        term,
+                        source_term,
+                        &actual.owner.contract.erased_proof_formals,
+                        &actual.block.erased_proof_formals,
+                    )?;
                     if module.identities.text(source.type_identity)
                         != expected.identities.text(formal.type_identity)
-                        || expected.identities.text(trusted_source.type_identity)
-                            != expected.identities.text(formal.type_identity)
                     {
                         return Err(Error::SourceCarrierMismatch);
                     }
+                    let _authorized = grants(carrier)?;
                 }
                 (_, Some(_)) => return Err(Error::NotMathematical),
                 (_, None)

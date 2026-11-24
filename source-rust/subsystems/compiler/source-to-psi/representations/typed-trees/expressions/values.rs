@@ -1152,6 +1152,7 @@ pub mod expression {
                 let symbols = symbols.into();
                 match &mut binding.value {
                     StaticMachineBindingValue::Machine(argument)
+                    | StaticMachineBindingValue::Proof(argument)
                     | StaticMachineBindingValue::Conformance(argument) => {
                         self.remap_static_argument_symbols(argument, symbols)
                     }
@@ -1168,7 +1169,11 @@ pub mod expression {
                 self.native_code_layout
                     .iter()
                     .map(|request| &request.operand)
-                    .chain(self.layout_query.iter().filter_map(|request| request.type_operand()))
+                    .chain(
+                        self.layout_query
+                            .iter()
+                            .filter_map(|request| request.type_operand()),
+                    )
                     .chain(
                         self.private_layout_operation
                             .iter()
@@ -1537,6 +1542,9 @@ pub mod expression {
                         );
                     }
                     if let crate::source_state::static_applications::StaticMachineBindingValue::Machine(
+                        argument,
+                    )
+                    | crate::source_state::static_applications::StaticMachineBindingValue::Proof(
                         argument,
                     )
                     | crate::source_state::static_applications::StaticMachineBindingValue::Conformance(
@@ -2601,6 +2609,40 @@ pub mod expression {
         #[cfg(test)]
         mod materialization_tests {
             use super::*;
+
+            #[test]
+            fn binary_equality_keeps_the_arithmetic_policy_and_prefix_negation() {
+                use crate::source_state::expression::BinaryOperator;
+                use numeric_literals::IntegerLiteral;
+                use numerics::arithmetic::ArithmeticDomain::{Exact, Saturating, Trapping, Wrapping};
+
+                let mut trees = crate::source_state::TypedTrees::default();
+                let table = &mut trees.expression_table;
+                let zero = table.insert(ExpressionNode::Integer(IntegerLiteral::zero()));
+                let one = table.insert(ExpressionNode::Integer(IntegerLiteral::from_value(1)));
+                let mut subtraction = |policy, negation| {
+                    table.insert(ExpressionNode::Binary(TableBinaryExpression {
+                        left: zero,
+                        operator: BinaryOperator::Subtract,
+                        right: one,
+                        policy,
+                        negation,
+                    }))
+                };
+                let exact = subtraction(Exact, false);
+                let same = subtraction(Exact, false);
+                let different = [
+                    subtraction(Wrapping, false),
+                    subtraction(Saturating, false),
+                    subtraction(Trapping, false),
+                    subtraction(Exact, true),
+                ];
+
+                assert!(table.expressions_structurally_equal(exact, same));
+                for other in different {
+                    assert!(!table.expressions_structurally_equal(exact, other));
+                }
+            }
 
             #[test]
             fn pattern_dependencies_retain_the_combined_condition_once() {
@@ -3716,6 +3758,9 @@ pub mod expression {
                 .to_vec();
             for binding in &mut bindings {
                 if let crate::source_state::static_applications::StaticMachineBindingValue::Machine(argument)
+                | crate::source_state::static_applications::StaticMachineBindingValue::Proof(
+                    argument,
+                )
                 | crate::source_state::static_applications::StaticMachineBindingValue::Conformance(
                     argument,
                 ) = &mut binding.value
@@ -4740,6 +4785,8 @@ pub mod expression {
                 }
                 (ExpressionNode::Binary(x), ExpressionNode::Binary(y)) => {
                     x.operator == y.operator
+                        && x.policy == y.policy
+                        && x.negation == y.negation
                         && self.expressions_structurally_equal(x.left, y.left)
                         && self.expressions_structurally_equal(x.right, y.right)
                 }

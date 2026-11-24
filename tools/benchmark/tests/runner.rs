@@ -264,6 +264,53 @@ fn compiler_samples_check_native_output_and_retain_every_stage_table() {
         String::from_utf8_lossy(&validation.stderr)
     );
     std::fs::write(directory.path().join("candidate.txt"), "different source").unwrap();
+    let original = events(copies.path());
+    for (file, replacement, expected) in [
+        ("input.txt", None, "missing compiler source identity"),
+        (
+            "candidate.txt",
+            Some("broken".to_owned()),
+            "invalid SHA-256",
+        ),
+        (
+            "candidate.txt",
+            Some("0".repeat(64)),
+            "source copies disagree",
+        ),
+    ] {
+        let mut journal = original.clone();
+        let identities = journal
+            .iter_mut()
+            .find(|event| event["event"] == "identities")
+            .unwrap();
+        let hashes = identities["sha256"].as_object_mut().unwrap();
+        let path = directory.path().join(file).display().to_string();
+        assert!(hashes.remove(&path).is_some());
+        if let Some(value) = replacement {
+            hashes.insert(path, json!(value));
+        }
+        std::fs::write(
+            copies.path().join("result/journal.jsonl"),
+            journal
+                .iter()
+                .map(|event| format!("{event}\n"))
+                .collect::<String>(),
+        )
+        .unwrap();
+        let result = Command::new(env!("CARGO_BIN_EXE_omega-bench"))
+            .arg("validate")
+            .arg(copies.path().join("result"))
+            .output()
+            .unwrap();
+        assert!(
+            !result.status.success(),
+            "accepted damaged identity for {file}"
+        );
+        assert!(
+            String::from_utf8_lossy(&result.stderr).contains(expected),
+            "{result:?}"
+        );
+    }
     let mismatched = TestDirectory::new();
     let refusal = execute(mismatched.path(), &plan);
     assert!(!refusal.status.success());
@@ -514,7 +561,10 @@ fn historical_comparisons_refuse_a_changed_workload_and_never_pair_separate_runs
     let third = TestDirectory::new();
     let plan = plan(first.path());
     assert!(execute(first.path(), &plan).status.success());
-    assert!(execute(second.path(), &plan).status.success());
+    let mut independent = plan.clone();
+    independent["pairs"] = json!(3);
+    independent["baseline"]["environment"] = json!({"CONTROL_VARIANT": "second"});
+    assert!(execute(second.path(), &independent).status.success());
     let history = |after: &Path| {
         Command::new(env!("CARGO_BIN_EXE_omega-bench"))
             .arg("history")
@@ -531,6 +581,17 @@ fn historical_comparisons_refuse_a_changed_workload_and_never_pair_separate_runs
     );
     let comparison: Value = serde_json::from_slice(&result.stdout).unwrap();
     assert_eq!(comparison["comparison_kind"], "unpaired_independent_runs");
+    assert_eq!(comparison["baseline_observations"], 2);
+    assert_eq!(comparison["candidate_observations"], 3);
+
+    let different_settings = TestDirectory::new();
+    let mut changed_environment = plan.clone();
+    changed_environment["candidate"]["environment"] = json!({"OMEGA_LIBRARY_ROOT": "other-library"});
+    assert!(execute(different_settings.path(), &changed_environment).status.success());
+    let changed = history(different_settings.path());
+    assert!(!changed.status.success(), "history accepted a changed process environment");
+    assert!(String::from_utf8_lossy(&changed.stderr).contains("settings changed"));
+
     std::fs::write(first.path().join("input.txt"), "different workload bytes").unwrap();
     assert!(execute(third.path(), &plan).status.success());
     let changed = history(third.path());

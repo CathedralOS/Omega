@@ -1,0 +1,3 @@
+# slice 044: 7486 lines in 2 file range(s)
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_termination_progress.rs	1	4597
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution.rs	1	2889

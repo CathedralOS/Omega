@@ -1502,6 +1502,7 @@ dependencies = [
  "image-emission",
  "image-macho",
  "installation-conditions",
+ "language-core",
  "machine-code",
  "native-binding-admission",
  "native-execution-reach",
@@ -1547,6 +1548,7 @@ dependencies = [
  "semantic-vocabulary",
  "terminal-authority-receipts",
  "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]
@@ -2210,9 +2212,11 @@ dependencies = [
  "language-core",
  "lowered-source-publication",
  "lowered-source-publication-issuer",
+ "mathematical-kernel",
  "numeric-literals",
  "numerics",
  "prepared-source",
+ "proof-admission",
  "proof-applications",
  "schema-reflection",
  "semantic-vocabulary",
@@ -3720,6 +3724,7 @@ dependencies = [
  "arena",
  "diagnostics",
  "language-core",
+ "mathematical-kernel",
  "semantic-vocabulary",
  "source-admission",
  "source-text",

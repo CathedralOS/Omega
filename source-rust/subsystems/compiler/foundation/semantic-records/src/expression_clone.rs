@@ -80,6 +80,14 @@ impl ScalarTerm {
                         $( $field: $field.clone(), )*
                         $( $child: take_operand(copies), )*
                     },)*
+                    Self::DeclarationApplication { declaration, arguments, scalar_type } =>
+                        Self::DeclarationApplication {
+                            declaration: *declaration,
+                            arguments: arguments.iter().map(|_| {
+                                copies.pop().expect("each argument was visited before its application")
+                            }).collect(),
+                            scalar_type: *scalar_type,
+                        },
                     Self::Boolean(value) => Self::Boolean(*value),
                     Self::IeeeFloatLiteral(value) => Self::IeeeFloatLiteral(*value),
                     Self::StructuralRead { root, path, scalar_type } => Self::StructuralRead {

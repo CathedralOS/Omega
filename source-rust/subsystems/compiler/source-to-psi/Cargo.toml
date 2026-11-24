@@ -228,6 +228,11 @@ path = "pipeline/06_lowered-program-to-checked-program/tests/call_contract_input
 required-features = ["test-support"]
 
 [[test]]
+name = "checking_theorem_proof_parameters"
+path = "pipeline/06_lowered-program-to-checked-program/tests/theorem_proof_parameters.rs"
+required-features = ["test-support"]
+
+[[test]]
 name = "checking_cast_edges"
 path = "pipeline/06_lowered-program-to-checked-program/tests/cast_edges.rs"
 required-features = ["test-support"]

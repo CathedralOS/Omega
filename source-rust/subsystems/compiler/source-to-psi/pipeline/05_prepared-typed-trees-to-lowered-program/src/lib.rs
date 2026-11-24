@@ -1,34 +1,24 @@
 #![forbid(unsafe_code)]
 
 /*
-Structure-only elaboration: frozen typed trees (Psi 04 output) become an
-unsealed Terminal Psi module and the check tables that describe it, for route
-one's scalar subset and plain records by structure
-(`wiki/drafts/designs/check_on_lowered_form.md`,
-`wiki/drafts/designs/places_foundation_lane.md`). It proves nothing and reads
-no checker fact. Every obligation the lowered form implies is
-minted with its identity and left open; a later checker discharges it.
+We lower prepared typed trees into an unsealed Terminal Psi module and its
+check tables. Each operation that owes a proof records the obligation at
+the point that created it. The lowered-form checker discharges those
+obligations before publication.
 
 It runs in two steps, each one route per construct:
 
 - `read` resolves a machine's typed-tree nodes into a closed body (`body`):
-  every name becomes a parameter or local slot by its symbol, every type a
-  `ScalarType` by its builtin symbol slot or a record type by its data
-  declaration, every field a position in that declaration, every callee a
-  `MachineId`.
-  Its matches over typed-tree node kinds are exhaustive and every kind outside
-  the subset is refused as `Unsupported`, naming the kind. Nothing is keyed on
-  a spelling: where the typed trees offer only a spelling, the reader refuses.
+  local names use their resolved symbols, fields use their declared
+  positions, and direct callees use `MachineId`. The readers retain
+  the types, contracts and storage paths needed by lowering. An
+  unsupported form reports the construct at its source location.
 - `lower` turns that body into blocks, typed values, operations, edges and
   invocations, pushing each row into `MachineTables` as it mints the identity,
   so the module and the tables name the same values, edges and obligations.
 
-Scalar locals are SSA values: a binding or an assignment names the value it
-holds from then on, and a write never changes a value. In this subset every
-transition arm completes the machine or leaves it with no successor (a crash,
-or a call of a machine with no normal completion), so the only joins are the
-short-circuit operators, whose join block takes the result as a block
-parameter.
+Scalar locals use SSA values. An assignment changes which value the binding
+names. Paths that continue at a shared block pass the values that reach it.
 
 A record value is storage. A record formal, and every operation that
 produces a record (a literal, a whole copy, a call), is a root place; a
@@ -72,6 +62,7 @@ mod default_obligations;
 mod external_providers;
 mod inhabitation;
 mod lower;
+mod mathematics;
 
 mod operational;
 mod outcome;
@@ -243,11 +234,10 @@ pub use terminal_check_tables::program::{
 /// refusal names one of these.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Unserved {
-    /// A machine declaration feature outside the subset (generics, reach,
-    /// attached data, a missing body, several states, ...).
+    /// A machine declaration the reader cannot lower in the requested context.
     Machine(&'static str),
     Parameter(&'static str),
-    /// A type that is not a builtin integer, `bool` or a plain record.
+    /// A type or type requirement that lowering cannot represent here.
     Type(&'static str),
     Contract(&'static str),
     Statement(&'static str),
@@ -920,6 +910,7 @@ fn witness_call(
             required_contract: None,
             static_reach_binding: None,
             static_reach_arguments: Vec::new(),
+            proof_arguments: Vec::new(),
         },
         result: required.result,
         source,
@@ -986,6 +977,7 @@ fn finish_logical_witness<'source>(
         &bodies,
         &components,
         body::Signatures {
+            theorems: &program.theorem_parameters,
             machines: &program.signatures,
             boundaries: &program.boundaries,
             declarations: &program.declaration_signatures,
@@ -1185,6 +1177,7 @@ fn finish_reading_into<'source>(
         &bodies,
         &components,
         body::Signatures {
+            theorems: &program.theorem_parameters,
             machines: &program.signatures,
             boundaries: &program.boundaries,
             declarations: &program.declaration_signatures,
@@ -1275,6 +1268,7 @@ fn finish_reading_into<'source>(
         .sort_unstable_by_key(|row| (row.caller, row.site));
     // Real typed bodies retain their actual declarations in check forms too.
     // A synthetic frame has no such declaration and is recorded as undeclared.
+    program.publish_theorem_parameters(&mut elaboration.module)?;
     let prepared_applications = declare::declare(
         program.typed,
         &program,
@@ -1456,6 +1450,7 @@ pub fn lower_generic(
         Some(entry),
         bodies,
         body::Signatures {
+            theorems: &[],
             declarations: &IdTable::default(),
             declaration_aliases: None,
             machines: signatures,
@@ -1811,13 +1806,24 @@ fn lower_program<'source>(
         module.machines.push(lowered.machine);
         // Machines are lowered in identity order and each machine's heads in
         // block order, which is the order the module's roster requires.
-        module.proofs.scalar_block_invariants.extend(lowered.invariants);
+        module
+            .proofs
+            .scalar_block_invariants
+            .extend(lowered.invariants);
+        module
+            .proofs
+            .theorem_applications
+            .extend(lowered.theorem_applications);
         if component.len() > 1 {
             loop_rows.retain(&mut lowered.tables);
         }
         tables.machines.push(lowered.tables);
         sources.push(lowered.sources);
         source.designated.push(lowered.designated);
+        module
+            .proofs
+            .theorem_citations
+            .extend(lowered.theorem_citations);
         source.calls.extend(lowered.source_calls);
         static_reach_applications.extend(lowered.static_reach_applications);
         source.constructions.extend(lowered.source_constructions);
@@ -2220,6 +2226,7 @@ mod publication_scope_tests {
                 &bodies,
                 &components,
                 body::Signatures {
+                    theorems: &[],
                     declarations: &IdTable::default(),
                     declaration_aliases: None,
                     machines: &signatures,

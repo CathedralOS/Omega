@@ -249,6 +249,39 @@ fn lower_data_definition_with_argument_origins(
     every field name reads 0, literals read themselves, `+ - *` fold,
     comparisons and `&&`/`||` yield 1/0. `None` = outside the fragment.
 */
+fn lower_parameter_contract(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    contract: &syntax::item::StateSignature,
+) -> Result<crate::resolution::lowering::state::LoweredStateSignature, Diagnostic> {
+    crate::resolution::lowering::state::lower_state_signature_parts(
+        lowerer,
+        syntax_trees,
+        crate::resolution::lowering::state::StateSignatureParts {
+            name: &contract.name,
+            spelling: contract.spelling,
+            lifetime_parameters: &contract.lifetime_parameters,
+            type_parameters: contract.type_parameters,
+            conformance_bounds: &contract.conformance_bounds,
+            parameters: contract.parameters,
+            native_callback_parameters: &contract.native_callback_parameters,
+            return_type_handle: contract.return_type,
+            is_default: contract.default_body.is_some(),
+            service_reach_is_installation_bound: false,
+            service_reach_keyword_source_spans: &contract.service_reach_keyword_source_spans,
+            service_reaches: contract.service_reaches,
+            invokes: contract.invokes,
+            suspends_keyword_source_spans: &contract.suspends_keyword_source_spans,
+            blocks_keyword_source_spans: &contract.blocks_keyword_source_spans,
+            suspends: contract.suspends,
+            blocks: contract.blocks,
+            contracts: contract.contracts,
+            terminates_guarantee: contract.terminates_guarantee,
+            declares_no_crash_route: contract.declares_no_crash_route,
+        },
+    )
+}
+
 pub(crate) fn lower_type_parameters(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
@@ -281,6 +314,19 @@ pub(crate) fn lower_type_parameters(
                 },
                 None,
             ),
+            syntax::item::TypeParameterKind::Proof { contract } => {
+                let lowered_contract = lower_parameter_contract(lowerer, syntax_trees, contract)?;
+                (
+                    TypeParameterKind::Proof {
+                        contract: lowered_contract.signature,
+                    },
+                    Some((
+                        lowered_contract.service_reach_keyword_source_spans,
+                        lowered_contract.service_reaches,
+                        lowered_contract.callable_scope,
+                    )),
+                )
+            }
             syntax::item::TypeParameterKind::Machine { contract } => {
                 let contract = contract.as_ref().ok_or_else(|| {
                     Diagnostic::error(format!(
@@ -302,27 +348,7 @@ pub(crate) fn lower_type_parameters(
                         None,
                     ),
                     syntax::item::MachineParameterContract::Structural(contract) => {
-                        let lowered_contract = crate::resolution::lowering::state::lower_state_signature_parts(lowerer, syntax_trees, crate::resolution::lowering::state::StateSignatureParts { name: &contract.name,
-spelling: contract.spelling,
-lifetime_parameters: &contract.lifetime_parameters,
-type_parameters: contract.type_parameters,
-conformance_bounds: &contract.conformance_bounds,
-parameters: contract.parameters,
-native_callback_parameters: &contract.native_callback_parameters,
-return_type_handle: contract.return_type,
-is_default: contract.default_body.is_some(),
-service_reach_is_installation_bound: false,
-service_reach_keyword_source_spans: &contract.service_reach_keyword_source_spans,
-service_reaches: contract.service_reaches,
-invokes: contract.invokes,
-suspends_keyword_source_spans: &contract.suspends_keyword_source_spans,
-blocks_keyword_source_spans: &contract.blocks_keyword_source_spans,
-suspends: contract.suspends,
-blocks: contract.blocks,
-contracts: contract.contracts,
-terminates_guarantee: contract.terminates_guarantee,
-declares_no_crash_route: contract.declares_no_crash_route,
-})?;
+                        let lowered_contract = lower_parameter_contract(lowerer, syntax_trees, contract)?;
                         (
                             TypeParameterKind::Machine {
                                 contract: crate::source_resolved::data::MachineParameterContract::Structural(
@@ -422,7 +448,7 @@ declares_no_crash_route: contract.declares_no_crash_route,
             lowerer.runtime_callable_scopes.bind(
                 callable_scope,
                 crate::resolution::names::runtime_callable_scopes::CallableScopeOwner::Signature(
-                    PendingSignatureLocation::MachineParameter(handle),
+                    PendingSignatureLocation::ParameterContract(handle),
                 ),
             );
             let owner = lowerer
@@ -435,7 +461,7 @@ declares_no_crash_route: contract.declares_no_crash_route,
                 .clone();
             lowerer.pending_signature_service_reaches.push(
                 crate::resolution::lowering::lowerer::PendingSignatureServiceReach {
-                    location: PendingSignatureLocation::MachineParameter(handle),
+                    location: PendingSignatureLocation::ParameterContract(handle),
                     owner: crate::resolution::lowering::lowerer::PendingSignatureOwner::Requirement(owner),
                     reaches:
                         crate::resolution::selections::service_reaches::PendingAuthoredServiceReach::Authored {

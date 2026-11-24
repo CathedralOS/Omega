@@ -1,0 +1,4 @@
+# slice 079: 7495 lines in 3 file range(s)
+omega-rust/psi/compilation/proof/src/obligations.rs	1	4107
+omega-rust/psi/compilation/representations/checked-trees/facts/src/contexts_and_places.rs	1	2210
+omega-rust/psi/compilation/representations/checked-trees/facts/src/evidence.rs	1	1178

@@ -11,6 +11,18 @@ what it supports is refused. To check a source program without running its
 Build, see
 [Running the checker on a source program](../06_lowered-program-to-checked-program/README.md#running-the-checker-on-a-source-program).
 
+Data that contains itself by value has no storage, so a machine over it never
+runs. Such declarations take a second route: [mathematics.rs](src/mathematics.rs)
+reads them with the same reader, in a reader of its own so none of them is
+lowered, and [read/signature.rs](src/read/signature.rs) turns what was read
+into the compilation's
+[mathematical signature](../../representations/lowered-program/README.md#the-mathematical-signature).
+[read/proof_stratum.rs](src/read/proof_stratum.rs) decides which declarations
+those are. The ordinary reader refuses the same data and machines when a
+runtime machine reaches them. A field of any other type in such data, a
+premise on such a machine and a result together with a guarantee are refused
+as not supported yet.
+
 Start at [compilation.rs](src/compilation.rs) (`prepare_compilation`): before
 the checker runs, it prepares the root machines, the generic forms they need
 and the conformance witnesses. The semantic data it produces is defined in
@@ -585,7 +597,9 @@ gives the lowered form.
 
 A loop can name its decreasing measure with `terminates by remaining`,
 `terminates by bytes -> Slice::Length` or `terminates by (cursor, limit) ->
-Nat::BoundedDistance`. The reader uses the resolved typed expressions and
+Nat::BoundedDistance`. A cursor approaching a fixed bound can use
+`terminates by cursor -> Nat::IncreasingTo(limit)`. Each recursive transfer
+must prove that its successor has the same limit. The reader uses the resolved typed expressions and
 checks explicit natural views against their sealed catalog headers. Short
 forms use the carrier's canonical default; a pair is not a carrier and
 has none, so the author names its view. A user-written lookalike grants

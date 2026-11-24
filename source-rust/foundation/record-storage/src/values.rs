@@ -1,10 +1,4 @@
-/*
-We implement `Record` for standard Rust primitives, collections, smart pointers,
-non-zero integers, paths, durations, and `Mutex<T>`. Shared values (`Arc<T>`,
-`Arc<str>`, `Arc<[T]>`) assign sequential identities per writer/reader so pointer
-addresses never enter the encoded bytes and decoding cannot construct forward or
-cyclic references.
-*/
+//! `Record` implementations for standard Rust values.
 
 use crate::{Record, RecordError, RecordReader, RecordWriter};
 use std::borrow::Cow;
@@ -331,8 +325,8 @@ tuple!(A:0,B:1,C:2,D:3,E:4,F:5,G:6,H:7);
 /*
     An ordered collection iterates in its keys' `Ord`, which for an interned
     number is the order it was minted in. Under a renumbering those numbers are
-    written canonically, so entries are written in their keys' written order
-    too (`canonical_order`); otherwise the iteration order already is that.
+    written canonically, so we sort entries by their encoded keys. Without
+    renumbering the collection's `Ord` gives a stable order.
 */
 impl<K: Record + Ord, V: Record> Record for BTreeMap<K, V> {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
@@ -396,9 +390,9 @@ impl<T: Record + Ord> Record for BTreeSet<T> {
 /*
     A hashed collection iterates in an order chosen per instance, so writing it
     in that order gave equal values different bytes, and a key over a record's
-    bytes never matched again. Entries are written ordered by each key's own
-    encoding instead. That order depends only on the keys, so equal collections
-    write equal bytes. Reading does not depend on the order.
+    bytes never matched again. We encode each key with the writer's current
+    renumbering and sort by those bytes. Distinct key encodings give a stable
+    order across hash seeds. The reader inserts each entry and rejects duplicates.
 */
 fn canonical_order<'value, K: Record + 'value>(
     keys: impl Iterator<Item = &'value K>,

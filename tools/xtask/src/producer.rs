@@ -15,16 +15,22 @@ pub struct Producer {
 }
 
 pub fn host_target() -> &'static str {
-    match (std::env::consts::OS, std::env::consts::ARCH) {
+    hosted_profile(std::env::consts::OS, std::env::consts::ARCH)
+}
+
+fn hosted_profile(os: &str, arch: &str) -> &'static str {
+    match (os, arch) {
         ("windows", "x86_64") => "windows_x86_64",
+        ("windows", "aarch64") => "windows_arm64",
         ("macos", "aarch64") => "macos_arm64",
+        ("macos", "x86_64") => "macos_x86_64",
         ("linux", "aarch64") => "linux_arm64",
         ("linux", "x86_64") => "linux_x86_64",
         _ => "unsupported",
     }
 }
 
-fn git(root: &Path, args: &[&str]) -> Result<String, String> {
+fn git_bytes(root: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
     let output = Command::new("git")
         .args(args)
         .current_dir(root)
@@ -34,13 +40,97 @@ fn git(root: &Path, args: &[&str]) -> Result<String, String> {
     if !output.status.success() {
         return Err(format!("git {} failed", args.join(" ")));
     }
-    Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
+    Ok(output.stdout)
+}
+
+fn git(root: &Path, args: &[&str]) -> Result<String, String> {
+    Ok(String::from_utf8_lossy(&git_bytes(root, args)?)
+        .trim()
+        .to_owned())
+}
+
+fn dirty_inputs_digest(root: &Path) -> Result<String, String> {
+    use sha2::{Digest, Sha256};
+
+    // Porcelain v2 carries the index and HEAD object IDs, modes and raw paths.
+    // File bytes distinguish repeated working-tree edits with identical status.
+    let entries = git_bytes(
+        root,
+        &[
+            "status",
+            "--porcelain=v2",
+            "-z",
+            "--no-renames",
+            "--untracked-files=all",
+        ],
+    )?;
+    let mut digest = Sha256::new();
+    for entry in entries.split(|&b| b == 0).filter(|entry| !entry.is_empty()) {
+        let fields = match entry[0] {
+            b'1' => 9,
+            b'u' => 11,
+            b'?' => 2,
+            other => return Err(format!("unrecognized Git status entry: {other}")),
+        };
+        let name = entry
+            .splitn(fields, |&b| b == b' ')
+            .nth(fields - 1)
+            .ok_or_else(|| "incomplete Git status entry".to_owned())?;
+        #[cfg(unix)]
+        let name = {
+            use std::os::unix::ffi::OsStrExt;
+            std::ffi::OsStr::from_bytes(name)
+        };
+        #[cfg(not(unix))]
+        let name = std::str::from_utf8(name).map_err(|e| format!("invalid Git path: {e}"))?;
+        let path = root.join(name);
+        digest.update(entry);
+        digest.update([0]);
+        let metadata = match fs::symlink_metadata(&path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                digest.update(b"deleted");
+                continue;
+            }
+            Err(error) => return Err(format!("{}: {error}", path.display())),
+        };
+        if metadata.is_file() {
+            let mut file = fs::File::open(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+            let mut content = Sha256::new();
+            std::io::copy(&mut file, &mut content)
+                .map_err(|e| format!("{}: {e}", path.display()))?;
+            digest.update(b"file");
+            digest.update(content.finalize());
+        } else if metadata.is_symlink() {
+            let target = fs::read_link(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+            digest.update(b"link");
+            digest.update(Sha256::digest(target.as_os_str().as_encoded_bytes()));
+        } else if metadata.is_dir() && git(&path, &["rev-parse", "--show-prefix"])?.is_empty() {
+            // Git reports submodules and untracked nested repositories as one directory.
+            // An unborn nested repository has no revision, but may already have source files.
+            let revision = git(&path, &["rev-parse", "--revs-only", "HEAD"])?;
+            digest.update(b"repository");
+            digest.update(Sha256::digest(revision.as_bytes()));
+            digest.update(dirty_inputs_digest(&path)?.as_bytes());
+        } else {
+            return Err(format!(
+                "cannot establish source identity for {}",
+                path.display()
+            ));
+        }
+    }
+    Ok(format!("{:x}", digest.finalize()))
 }
 
 pub fn source_identity(root: &Path) -> Result<Value, String> {
-    Ok(json!({"revision": git(root, &["rev-parse", "HEAD"])?,
+    let changes = git(root, &["status", "--porcelain", "--untracked-files=normal"])?;
+    let mut identity = json!({"revision": git(root, &["rev-parse", "HEAD"])?,
         "tree": git(root, &["rev-parse", "HEAD^{tree}"])?,
-        "tracked_changes": git(root, &["status", "--porcelain", "--untracked-files=normal"])?}))
+        "tracked_changes": changes});
+    if !changes.is_empty() {
+        identity["dirty_inputs_sha256"] = Value::String(dirty_inputs_digest(root)?);
+    }
+    Ok(identity)
 }
 
 fn optimized(profile: &Value, flags: &Value) -> Result<(), String> {
@@ -365,6 +455,65 @@ impl Producer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn host_architecture_selects_the_matching_profile() {
+        assert_eq!(hosted_profile("windows", "aarch64"), "windows_arm64");
+        assert_eq!(hosted_profile("windows", "x86_64"), "windows_x86_64");
+        assert_eq!(hosted_profile("macos", "x86_64"), "macos_x86_64");
+        assert_eq!(hosted_profile("linux", "riscv64"), "unsupported");
+    }
+
+    #[test]
+    fn source_identity_distinguishes_edits_with_the_same_porcelain_status() {
+        let root = execution::reserve_directory(
+            &std::env::temp_dir().join("omega-producer-source-identity-tests"),
+        )
+        .unwrap();
+        git(&root, &["init", "-q"]).unwrap();
+        let tracked = root.join("tracked.omg");
+        fs::write(&tracked, "original").unwrap();
+        git(&root, &["add", "tracked.omg"]).unwrap();
+        git(
+            &root,
+            &[
+                "-c",
+                "user.name=Test",
+                "-c",
+                "user.email=test@example.invalid",
+                "-c",
+                "commit.gpgSign=false",
+                "commit",
+                "-qm",
+                "fixture",
+            ],
+        )
+        .unwrap();
+        let clean = source_identity(&root).unwrap();
+        fs::write(&tracked, "first edit").unwrap();
+        let first = source_identity(&root).unwrap();
+        fs::write(&tracked, "next edit").unwrap();
+        let second = source_identity(&root).unwrap();
+        assert_eq!(first["tracked_changes"], second["tracked_changes"]);
+        assert_ne!(first, second, "two versions of the same tracked input");
+        fs::write(&tracked, "original").unwrap();
+        assert_eq!(source_identity(&root).unwrap(), clean);
+        let directory = root.join("new inputs");
+        fs::create_dir(&directory).unwrap();
+        let added = directory.join("a source.omg");
+        fs::write(&added, "first").unwrap();
+        let first = source_identity(&root).unwrap();
+        fs::write(&added, "other").unwrap();
+        let second = source_identity(&root).unwrap();
+        assert_eq!(first["tracked_changes"], second["tracked_changes"]);
+        assert_ne!(first, second, "two versions of the same untracked input");
+
+        git(&directory, &["init", "-q"]).unwrap();
+        let first = source_identity(&root).unwrap();
+        fs::write(&added, "edited inside nested repository").unwrap();
+        assert_ne!(first, source_identity(&root).unwrap());
+        fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn preparation_retains_real_status_without_a_wall_clock_cap() {

@@ -1,0 +1,2 @@
+# slice 105: 7744 lines in 1 file range(s)
+omega-rust/psi/compilation/validation/src/contract_entailment.rs	54206	61949

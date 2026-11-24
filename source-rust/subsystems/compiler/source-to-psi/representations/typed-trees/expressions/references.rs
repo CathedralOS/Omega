@@ -668,6 +668,7 @@ pub(crate) mod source_occurrences {
                             }
                         }
                         StaticMachineBindingValue::Machine(argument)
+                        | StaticMachineBindingValue::Proof(argument)
                         | StaticMachineBindingValue::Conformance(argument) => {
                             self.retain_static_operand_sources(
                                 std::slice::from_mut(argument),
@@ -1299,6 +1300,10 @@ impl<'call> StaticArgumentCall<'call> {
 pub type StaticArgumentClassifier = fn(&TypedTrees, StaticArgumentCall<'_>) -> StaticArgumentRole;
 
 pub trait TypedReferences: Extend<SymbolHandle> {
+    /// A static record parameter selects the requirement signatures of its
+    /// declared schema even before the caller supplies a concrete record.
+    fn static_parameter_type(&mut self, _program: &TypedTrees, _reference: TypeReferenceHandle) {}
+
     fn callable_use(&mut self, _: SymbolHandle) {}
     fn code_selection(&mut self, symbol: SymbolHandle) {
         self.extend([symbol]);
@@ -1894,6 +1899,15 @@ impl Extend<SymbolHandle> for TypeOccurrences {
 }
 
 impl TypedReferences for TypeOccurrences {
+    fn static_parameter_type(&mut self, program: &TypedTrees, reference: TypeReferenceHandle) {
+        if program.static_record_schema(reference, self.owner).is_some() {
+            let occurrence = TypeOccurrence { lexical_owner: self.owner, reference };
+            if !self.requirement_applications.contains(&occurrence) {
+                self.requirement_applications.push(occurrence);
+            }
+        }
+    }
+
     fn call_arguments(&mut self, program: &TypedTrees, call: StaticArgumentCall<'_>) -> bool {
         if let StaticArgumentCall::Expression(_, call) = call {
             let readiness = match program
@@ -2652,6 +2666,7 @@ fn visit_static_machine_bindings_inner(
                 visit_expression(program, retained, *expression);
             }
             StaticMachineBindingValue::Machine(argument)
+            | StaticMachineBindingValue::Proof(argument)
             | StaticMachineBindingValue::Conformance(argument) => {
                 visit_static_argument(program, retained, argument)
             }
@@ -3317,7 +3332,9 @@ pub fn visit_signature(
     {
         match invocation.target {
             AuthoredInvocationTarget::Service(symbol) => visit_symbol(retained, symbol),
-            AuthoredInvocationTarget::AppliedService(id) => visit_service_reach(program, retained, id),
+            AuthoredInvocationTarget::AppliedService(id) => {
+                visit_service_reach(program, retained, id)
+            }
             _ => {}
         }
     }
@@ -4039,10 +4056,14 @@ fn visit_type_parameters(
     use crate::source_state::data::TypeParameterKind;
     for parameter in program.data_type_parameters.span_or_empty(parameters) {
         match &parameter.kind {
-            TypeParameterKind::Const { type_reference }
-            | TypeParameterKind::Value { type_reference } => {
+            TypeParameterKind::Const { type_reference } => {
+                retained.static_parameter_type(program, *type_reference);
                 visit_type_reference(program, retained, *type_reference)
             }
+            TypeParameterKind::Value { type_reference } => {
+                visit_type_reference(program, retained, *type_reference)
+            }
+            TypeParameterKind::Proof { contract } => visit_signature(program, retained, contract),
             TypeParameterKind::Machine { contract } => {
                 let signature = match contract {
                     crate::source_state::data::MachineParameterContract::Structural(signature) => {
@@ -4215,7 +4236,9 @@ fn visit_machine_with_sidecars(
     for invocation in program.machine_invokes(machine) {
         match invocation.target {
             AuthoredInvocationTarget::Service(symbol) => visit_symbol(retained, symbol),
-            AuthoredInvocationTarget::AppliedService(id) => visit_service_reach(program, retained, id),
+            AuthoredInvocationTarget::AppliedService(id) => {
+                visit_service_reach(program, retained, id)
+            }
             _ => {}
         }
     }
@@ -4225,8 +4248,12 @@ fn visit_machine_with_sidecars(
             for &(_, index) in sidecar_symbol_rows(&sidecars.service_reaches, from) {
                 for target in &program.authored_service_reach_rows[index as usize].targets {
                     match target.service {
-                        crate::source_state::signature::ReachSubject::Static(symbol) => visit_symbol(retained, symbol),
-                        crate::source_state::signature::ReachSubject::Service(id) => visit_service_reach(program, retained, id),
+                        crate::source_state::signature::ReachSubject::Static(symbol) => {
+                            visit_symbol(retained, symbol)
+                        }
+                        crate::source_state::signature::ReachSubject::Service(id) => {
+                            visit_service_reach(program, retained, id)
+                        }
                     }
                 }
             }
@@ -4234,8 +4261,12 @@ fn visit_machine_with_sidecars(
             for row in program.authored_service_reach_rows_for(from) {
                 for target in &row.targets {
                     match target.service {
-                        crate::source_state::signature::ReachSubject::Static(symbol) => visit_symbol(retained, symbol),
-                        crate::source_state::signature::ReachSubject::Service(id) => visit_service_reach(program, retained, id),
+                        crate::source_state::signature::ReachSubject::Static(symbol) => {
+                            visit_symbol(retained, symbol)
+                        }
+                        crate::source_state::signature::ReachSubject::Service(id) => {
+                            visit_service_reach(program, retained, id)
+                        }
                     }
                 }
             }

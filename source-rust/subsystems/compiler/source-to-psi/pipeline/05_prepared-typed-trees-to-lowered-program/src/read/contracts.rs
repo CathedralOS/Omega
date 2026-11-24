@@ -20,6 +20,7 @@ use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 
 use super::authority::Access;
+use super::clause_calls::{ClauseTerm, ClauseUse};
 use super::places::Member;
 use super::types::{OPEN_CARRIER_FAMILY, TypeTruth};
 use super::{Program, Slot};
@@ -227,7 +228,7 @@ impl Program<'_> {
             .map(|_| reference)
     }
 
-    fn contract_operator_owner(
+    pub(super) fn contract_operator_owner(
         &self,
         id: MachineId,
         scope: &ClauseScope<'_>,
@@ -454,24 +455,20 @@ impl Program<'_> {
                     Proposition::Falsehood
                 });
             }
-            ExpressionNode::Call(call)
-                if typed
-                    .symbols
-                    .fixed_core_declaration_for_symbol(call.target_symbol)
-                    == Some(symbols::FixedCoreDeclaration::Identity) =>
-            {
-                return self.identity_clause(id, scope, expression, call);
-            }
-            ExpressionNode::Call(call) if self.is_mathematical_term(expression) => {
-                return self.mathematical_clause(id, scope, call);
-            }
             ExpressionNode::Call(call) => {
                 if let Some(predicate) = self.numeric_comparison_clause(id, scope, call)? {
                     return Ok(predicate);
                 }
                 // A call of a declared machine states what its body computes
                 // for the arguments (`clause_calls`).
-                return self.called_clause(id, scope, call);
+                return match self.clause_term(id, scope, expression, ClauseUse::Proposition)? {
+                    ClauseTerm::Proposition(proposition) => Ok(proposition),
+                    ClauseTerm::Scalar(..)
+                    | ClauseTerm::Operand(_)
+                    | ClauseTerm::TypeParameter(_) => {
+                        unserved("value application used as a proposition")
+                    }
+                };
             }
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
                 // A callable predicate is Boolean, including a named input
@@ -768,11 +765,6 @@ impl Program<'_> {
         };
 
         let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
-        if !scope.formal_fields || scope.logical.is_some() || scope.subject.is_some() {
-            return Err(unavailable(
-                "Identity outside a machine entry or return clause",
-            ));
-        }
         if call.receiver.is_valid()
             || call.runtime_call.is_some()
             || call.build_selection.is_valid()
@@ -821,7 +813,8 @@ impl Program<'_> {
         // A concrete body's result belongs to its entry state, while its
         // static applications belong to the machine. A bodyless requirement
         // owns its own result and its written applications directly.
-        let owner = self.entered_machine(scope.owner).unwrap_or(scope.owner);
+        let owner = self.contract_operator_owner(id, scope)?;
+        let owner = self.entered_machine(owner).unwrap_or(owner);
         if !typed.symbols.symbols().nodes().is_valid(owner) || application.lexical_owner != owner {
             return Err(unavailable(
                 "Identity application has a different lexical declaration",
@@ -893,8 +886,58 @@ impl Program<'_> {
                 return Err(unavailable("Identity repeats its written type selection"));
             }
         }
+        // Name resolution records selections for declarations. A lexical type
+        // parameter instead has its identity in the current type telescope.
+        let parameter_in_scope = typed.symbols.get(argument.symbol).kind
+            == symbols::SymbolKind::TypeParameter
+            && self
+                .scope
+                .iter()
+                .any(|(binder, _)| *binder == argument.symbol);
+        let supplied_type = if written_type.is_none()
+            && !parameter_in_scope
+            && let Some(supplier) = self.clause_supplier
+        {
+            // The requirement was written over a binder and its prepared copy
+            // names the supplied type. Match the same retained call occurrence
+            // in the requirement signature before applying its binder.
+            let lexical = typed.symbols.get(supplier).parent;
+            let required = typed
+                .static_record_bound_requirement(lexical, supplier, owner)
+                .map_err(|_| unavailable("Identity lost its supplying requirement scope"))?;
+            required.is_some_and(|required| {
+                let template = typed.closed_requirement_application(owner).map_or(owner, |closed| closed.template);
+                let Some(original) = typed.trait_machine_signature_by_symbol(required.application.declaration, template) else { return false };
+                let Some(contracts) = typed.signature_contracts.span(original.contracts) else { return false };
+                let mut pending = Vec::new();
+                for contract in contracts {
+                    let Some(facts) = typed.proof_facts.span(contract.facts) else { return false };
+                    pending.extend(facts.iter().filter_map(|fact| fact.as_expression().copied()));
+                }
+                while let Some(handle) = pending.pop() {
+                    if !expressions.expression_is_valid(handle) { return false; }
+                    let node = expressions.expression(handle);
+                    if let ExpressionNode::Call(written) = node
+                        && written.authored_call_selection == Some(selection)
+                        && written.target_symbol == call.target_symbol
+                        && let [binder] = written.machine_arguments.as_ref()
+                        && typed.symbols.symbols().nodes().is_valid(binder.symbol)
+                        && typed.symbols.get(binder.symbol).kind == symbols::SymbolKind::TypeParameter
+                    {
+                        let supplied = required.application.parameter_argument(typed, binder.symbol);
+                        return typed.contains_type_reference(supplied)
+                            && matches!(typed.type_reference_table.type_reference(supplied),
+                                TypeReferenceNode::Named { symbol, .. } if *symbol == argument.symbol);
+                    }
+                    typed.expression_children(node, |child| pending.push(child));
+                }
+                false
+            })
+        } else {
+            false
+        };
         if !attached_call
-            || written_type.is_none_or(|row| {
+            || written_type.map_or(!(parameter_in_scope || supplied_type), |row| {
                 let typed_source = row.source_span();
                 !within_call(typed_source)
                     || typed_source.span.start < call_source.span.end
@@ -924,41 +967,48 @@ impl Program<'_> {
         ))
     }
 
-    fn identity_clause(
+    pub(super) fn identity_clause(
         &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
         call: &TableCallExpression,
+        preserve_type: bool,
     ) -> Checked<Proposition> {
-        let (subject_type, [left, right], source) =
-            self.identity_inputs(id, scope, expression, call)?;
+        let (subject_type, [left, right], _) = self.identity_inputs(id, scope, expression, call)?;
         if self.typed.core_vocabulary(subject_type)
             == Some(language_core::core_vocabulary::CoreVocabulary::FloatMeaning)
         {
             return self.float_meaning_identity(id, scope, left, right);
         }
-        let Some(atom @ symbols::BuiltinTypeAtom::Integer(_)) =
-            self.typed.symbols.builtin_type_atom(subject_type)
-        else {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Contract("Identity of an unserved type"),
-            ));
-        };
-        let scalar = super::types::atom_type(atom, id)?;
-        let (left, left_type) = self.term(id, scope, left, Some(scalar))?;
-        let (right, right_type) = self.term(id, scope, right, Some(scalar))?;
-        let expected = ValueType::plain(scalar);
-        if left_type != expected || right_type != expected {
-            return Err(reject(
-                id,
-                source,
-                "Identity subjects must have the exact written plain integer type",
-            ));
+        let carrier = self.value_type(id, call.machine_arguments[0].type_reference)?;
+        let mut values = Vec::new();
+        let left = self
+            .clause_term(id, scope, left, ClauseUse::Operand(carrier, &mut values))?
+            .operand(id)?;
+        let right = self
+            .clause_term(id, scope, right, ClauseUse::Operand(carrier, &mut values))?
+            .operand(id)?;
+        // Keep the arithmetic prover's integer relation when both operands
+        // already have scalar denotations. An abstract operation stays applied.
+        if !preserve_type && matches!(carrier.scalar(), Some(ScalarType::Integer(_)))
+            && let (
+                semantic_vocabulary::ClauseOperand::Scalar(a),
+                semantic_vocabulary::ClauseOperand::Scalar(b),
+            ) = (
+                &values[left as usize].operand,
+                &values[right as usize].operand,
+            )
+        {
+            return canonical::equal(a.clone(), b.clone(), id);
         }
-        canonical::equal(left, right, id)
+        Ok(Proposition::DeclarationIdentity(
+            semantic_vocabulary::ClauseIdentity {
+                values,
+                left,
+                right,
+            },
+        ))
     }
 
     /// A primitive byte predicate of a byte view (`no_nul(self)`,
@@ -1189,7 +1239,10 @@ impl Program<'_> {
     /// diagnostics. Rendering preserves the authored operation and permits
     /// substitution of the caller's actuals without re-reading source text.
     pub(super) fn clause_text(&self, slots: &[Slot], expression: ExpressionHandle) -> ClauseText {
-        let mut text = ClauseText::default();
+        let mut text = ClauseText {
+            source: expression.is_valid().then(|| self.typed.expression_table.source_span(expression)),
+            ..Default::default()
+        };
         self.write_clause_text(slots, expression, &mut text);
         text
     }
@@ -1227,6 +1280,34 @@ impl Program<'_> {
                 text.push_text(&language_core::PLACE_MEMBER_SEPARATOR.to_string());
                 text.push_text(member.member.as_str());
             }
+            // Retain the type argument and static receiver in the diagnostic.
+            // The callee display shared with runtime calls prints receiver
+            // methods with a dot and package-qualified targets with "::".
+            ExpressionNode::Call(call) if self.typed.symbols.fixed_core_declaration_for_symbol(call.target_symbol)
+                    == Some(symbols::FixedCoreDeclaration::Identity)
+                || table.name_path_node(call.receiver).is_some_and(|name|
+                    self.typed.symbols.symbols().nodes().is_valid(name.symbol)
+                    && self.typed.symbols.get(name.symbol).kind == symbols::SymbolKind::TypeParameter) => {
+                if call.receiver.is_valid() {
+                    self.write_clause_text(slots, call.receiver, text);
+                    text.push_text("::");
+                }
+                text.push_text(&call.target.as_str().replace("::", "\\"));
+                if !call.machine_arguments.is_empty() {
+                    text.push_text("::<");
+                    for (position, argument) in call.machine_arguments.iter().enumerate() {
+                        if position != 0 { text.push_text(", "); }
+                        text.push_text(&argument.display_name_in(table));
+                    }
+                    text.push_text(">");
+                }
+                text.push_text("(");
+                for (position, &argument) in table.expression_handles(call.arguments).iter().enumerate() {
+                    if position != 0 { text.push_text(", "); }
+                    self.write_clause_text(slots, argument, text);
+                }
+                text.push_text(")");
+            }
             // Proof projections keep the formal inside open, so a call's
             // statement of the clause names its own argument there.
             ExpressionNode::Call(call)
@@ -1249,7 +1330,7 @@ impl Program<'_> {
                     && table.name_path_members(path.members).len() == 1 =>
             {
                 match slots.iter().position(|slot| slot.symbol == path.symbol) {
-                    Some(position) => text.0.push(Piece::Formal(position)),
+                    Some(position) => text.pieces.push(Piece::Formal(position)),
                     None => text.push_text(&table.display_name(expression)),
                 }
             }
@@ -1318,7 +1399,7 @@ impl Program<'_> {
             ));
         }
         if let Some(logical) = &scope.logical
-            && let Some((term, scalar)) = logical.term(typed, expression)?
+            && let Some((term, scalar)) = logical.term(typed, expression, false)?
         {
             return Ok((term, ValueType::Scalar(scalar, Qualification::NONE)));
         }
@@ -1713,7 +1794,14 @@ impl Program<'_> {
                 }
                 unserved("layout query has no scalar application")
             }
-            ExpressionNode::Call(call) => self.called_term(id, scope, call),
+            ExpressionNode::Call(_) => {
+                match self.clause_term(id, scope, expression, ClauseUse::Value)? {
+                    ClauseTerm::Scalar(value, ty) => Ok((value, ty)),
+                    ClauseTerm::Proposition(_)
+                    | ClauseTerm::Operand(_)
+                    | ClauseTerm::TypeParameter(_) => unserved("expected a scalar operand"),
+                }
+            }
             _ => unserved("term other than a formal, a literal or an embedded integer"),
         }
     }
@@ -1738,7 +1826,7 @@ impl Program<'_> {
         }
         let argument = self.old_argument(id, call)?;
         if let Some(logical) = scope.logical
-            && let Some((term, scalar)) = logical.old_term(self.typed, argument)?
+            && let Some((term, scalar)) = logical.term(self.typed, argument, true)?
         {
             return Ok((term, ValueType::plain(scalar)));
         }

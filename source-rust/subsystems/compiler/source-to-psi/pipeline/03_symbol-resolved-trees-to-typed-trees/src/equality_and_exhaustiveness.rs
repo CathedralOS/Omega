@@ -2846,6 +2846,7 @@ pub(crate) mod proposition {
                             Some(ArgumentKind::Machine)
                         }
                         resolved::data::TypeParameterKind::Implementation
+                        | resolved::data::TypeParameterKind::Proof { .. }
                         | resolved::data::TypeParameterKind::Proposition { .. } => None,
                     })
                 }),
@@ -2905,6 +2906,7 @@ pub(crate) mod proposition {
                         resolved::data::TypeParameterKind::Type
                         | resolved::data::TypeParameterKind::Implementation
                         | resolved::data::TypeParameterKind::Machine { .. }
+                        | resolved::data::TypeParameterKind::Proof { .. }
                         | resolved::data::TypeParameterKind::Proposition { .. } => None,
                     }
                 })

@@ -422,7 +422,9 @@ pub(crate) fn closed_parameter_argument_identity(
                 closed_argument_identities(syntax, selection, parameters, arguments)?,
             ))
         }
-        TypeParameterKind::Machine { .. } | TypeParameterKind::Proposition { .. } => None,
+        TypeParameterKind::Machine { .. }
+        | TypeParameterKind::Proof { .. }
+        | TypeParameterKind::Proposition { .. } => None,
     }
 }
 

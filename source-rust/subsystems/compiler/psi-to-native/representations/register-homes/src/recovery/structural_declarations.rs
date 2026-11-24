@@ -50,7 +50,10 @@ pub(super) fn encode_parameter(
     retain_projected_qualifications: bool,
 ) {
     encode_semantic_parameter(bytes, &parameter.semantic, retain_projected_qualifications);
-    encode_target_parameter(bytes, &parameter.target);
+    target_vocabulary::identity::structural_types::encode_target_structural_parameter(
+        bytes,
+        &parameter.target,
+    );
 }
 
 pub(super) fn decode_parameter(
@@ -59,7 +62,7 @@ pub(super) fn decode_parameter(
 ) -> Result<LegalizedCallUnitParameter, FixedViewCopyDecodeError> {
     Ok(LegalizedCallUnitParameter {
         semantic: decode_semantic_parameter(cursor, retain_projected_qualifications)?,
-        target: decode_target_parameter(cursor)?,
+        target: decode_abi_parameter(cursor)?,
     })
 }
 
@@ -67,6 +70,20 @@ pub(super) fn encode_type(
     bytes: &mut Vec<u8>,
     declaration: &StructuralTypeDeclaration,
 ) -> Result<(), terminal_wire::CodecError> {
+    if !declaration.requires.is_empty()
+        && !matches!(
+            declaration.shape,
+            StructuralTypeShape::Record { .. } | StructuralTypeShape::Sum { .. }
+        )
+    {
+        return Err(terminal_wire::CodecError::MalformedStructuralFoundation(
+            "only a record or a sum declares requires clauses",
+        ));
+    }
+    target_vocabulary::identity::structural_types::encode_type_requirements(
+        bytes,
+        &declaration.requires,
+    )?;
     bytes.push(u8::from(declaration.quotient_carrier.is_some()));
     if let Some(carrier) = declaration.quotient_carrier {
         crate::codec_bytes::push_encoded(bytes, carrier.get().to_le_bytes());
@@ -192,6 +209,11 @@ pub(super) fn encode_type(
 pub(super) fn decode_type(
     cursor: &mut Cursor<'_>,
 ) -> Result<StructuralTypeDeclaration, FixedViewCopyDecodeError> {
+    let requires = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
+        let length = cursor.length()?;
+        terminal_wire::decode_canonical_proposition(cursor.take(length)?)
+            .map_err(|_| FixedViewCopyDecodeError::InvalidStructuralTypeRequirement)
+    })?;
     let quotient_carrier = if decode_bool(cursor)? {
         Some(decode_id(cursor, StructuralTypeId::new)?)
     } else {
@@ -313,9 +335,17 @@ pub(super) fn decode_type(
         }
         tag => return Err(FixedViewCopyDecodeError::UnknownStructuralTypeShape(tag)),
     };
+    if !requires.is_empty()
+        && !matches!(
+            shape,
+            StructuralTypeShape::Record { .. } | StructuralTypeShape::Sum { .. }
+        )
+    {
+        return Err(FixedViewCopyDecodeError::InvalidStructuralTypeRequirement);
+    }
     Ok(StructuralTypeDeclaration {
         declaration_identity,
-        requires: Vec::new(),
+        requires,
         quotient_carrier,
         owns_linear_claim,
         no_code_affine_cleanup,
@@ -535,15 +565,6 @@ pub(super) fn decode_semantic_parameter(
     })
 }
 
-fn encode_target_parameter(bytes: &mut Vec<u8>, parameter: &TargetStructuralParameter) {
-    crate::codec_bytes::push_encoded(bytes, parameter.place.get().to_le_bytes());
-    crate::codec_bytes::push_encoded(bytes, parameter.structural_type.get().to_le_bytes());
-    encode_multiplicity(bytes, parameter.multiplicity);
-    encode_access(bytes, parameter.access);
-    encode_shape(bytes, parameter.shape);
-    encode_placement(bytes, &parameter.placement);
-}
-
 fn decode_target_parameter(
     cursor: &mut Cursor<'_>,
 ) -> Result<TargetStructuralParameter, FixedViewCopyDecodeError> {
@@ -595,11 +616,12 @@ pub(super) fn encode_target_argument(
     crate::codec_bytes::push_encoded(bytes, argument.source_byte_offset.to_le_bytes());
     encode_option_u64(bytes, argument.fixed_array_length);
     encode_option_u32(bytes, argument.element_stride);
-    bytes.extend_from_slice(
-        &u32::try_from(argument.indices.len())
-            .unwrap_or(u32::MAX)
-            .to_le_bytes(),
-    );
+    // The decoder reads exactly this many index rows, so a count that does not
+    // fit the u32 field must refuse rather than saturate.
+    let index_count = u32::try_from(argument.indices.len()).map_err(|_| {
+        terminal_wire::CodecError::CollectionTooLong("structural argument runtime indices")
+    })?;
+    bytes.extend_from_slice(&index_count.to_le_bytes());
     for index in &argument.indices {
         encode_scalar_source(bytes, index.operand)?;
         crate::codec_bytes::push_encoded(bytes, index.stride.to_le_bytes());
@@ -1046,11 +1068,59 @@ mod tests {
     use terminal_wire::canonical_proposition_order_key;
 
     #[test]
+    fn retained_parameter_keeps_its_target_projection() {
+        use calling_conventions::{ValueLocation, ValuePlacement, ValueShape};
+        let place = PlaceId::new(1).unwrap();
+        let structural_type = StructuralTypeId::new(1).unwrap();
+        let multiplicity = StructuralMultiplicity::Unrestricted;
+        let access = StructuralAccess::SharedBorrow;
+        let projections = vec![StructuralPathQualification {
+            path: vec![StructuralPathSegment::AllElements],
+            domain: StructuralDomainId::new(3).unwrap(),
+        }];
+        let shape = ValueShape::integer(8, 8);
+        let row = target_vocabulary::LegalizedCallUnitParameter {
+            semantic: terminal_psi::StructuralParameterDeclaration {
+                place,
+                position: 0,
+                structural_type,
+                multiplicity,
+                access,
+                qualifications: vec![],
+                projected_qualifications: projections.clone(),
+                additional_input_qualifications: vec![],
+            },
+            target: target_vocabulary::TargetStructuralParameter {
+                place,
+                structural_type,
+                multiplicity,
+                access,
+                projected_qualifications: projections,
+                shape,
+                placement: ValuePlacement {
+                    shape,
+                    locations: vec![ValueLocation::Stack {
+                        stack_byte_offset: 0,
+                        value_byte_offset: 0,
+                        byte_size: 8,
+                        alignment: 8,
+                    }],
+                },
+            },
+        };
+        let mut bytes = Vec::new();
+        super::encode_parameter(&mut bytes, &row, true);
+        let mut cursor = Cursor::new(&bytes);
+        assert_eq!(super::decode_parameter(&mut cursor, true).unwrap(), row);
+        assert_eq!(cursor.remaining(), 0);
+    }
+
+    #[test]
     fn nominal_cleanup_selection_round_trip_binds_declaration_and_target() {
         let mut encodings = Vec::new();
         for selection in [None, Some((2, 3)), Some((4, 3)), Some((2, 5))] {
             let declaration = StructuralTypeDeclaration {
-                requires: Vec::new(),
+                requires: vec![semantic_vocabulary::Proposition::Truth],
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
@@ -1080,6 +1150,24 @@ mod tests {
             assert_eq!(cursor.remaining(), 0);
             assert!(!encodings.contains(&bytes));
             encodings.push(bytes);
+            let mut sum = declaration;
+            sum.shape = StructuralTypeShape::Sum { cases: Vec::new() };
+            let mut sum_bytes = Vec::new();
+            encode_type(&mut sum_bytes, &sum).unwrap();
+            assert_eq!(decode_type(&mut Cursor::new(&sum_bytes)).unwrap(), sum);
+
+            let mut with_requirement = Vec::new();
+            let mut without_requirement = Vec::new();
+            target_vocabulary::identity::structural_types::encode_structural_type(
+                &mut with_requirement,
+                &sum,
+            );
+            sum.requires.clear();
+            target_vocabulary::identity::structural_types::encode_structural_type(
+                &mut without_requirement,
+                &sum,
+            );
+            assert_ne!(with_requirement, without_requirement);
         }
     }
 

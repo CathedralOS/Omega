@@ -1,0 +1,101 @@
+// Expected exit: 0.
+// `sha256\digest` hashes the bytes a caller stages in `msg[..msg_n]`,
+// and `msg` holds at most 8,192 bytes. The program checks three lengths:
+// - "abc" must give the FIPS 180-2 example digest ba7816bf...f20015ad.
+// - 8,192 bytes of `a`, the full capacity, must give dd4e6730...ed30ef87
+//   (from `sha256sum`, independent of this library).
+// - 8,256 and 8,193 bytes, past capacity, must be refused: `bad` is set and
+//   `out32` holds zeros, not a digest of the bytes that did fit.
+// The run also shows that a refusal does not stick: the next valid digest
+// clears `bad`.
+use omega\language\core\sha256;
+
+machine fill_a(state: @mutable sha256\Sha256) {
+    transition { _ -> step(state, 0u64) }
+
+    machine step(state: @mutable sha256\Sha256, k: u64) {
+        transition k < 8192u64 {
+            true -> write(state, k),
+            _ -> done(state)
+        }
+    }
+    machine write(state: @mutable sha256\Sha256, k: u64) {
+        state.msg[k] = 97;
+        transition { _ -> step(state, k + 1u64) }
+    }
+    machine done(state: @mutable sha256\Sha256) {}
+}
+
+machine matches(actual: @[u8; 32], expected: @[u8; 32]) -> bool {
+    transition { _ -> step(actual, expected, 0u64) }
+
+    machine step(actual: @[u8; 32], expected: @[u8; 32], k: u64) -> bool {
+        transition k < 32u64 {
+            true -> compare(actual, expected, k),
+            _ -> same()
+        }
+    }
+    machine compare(actual: @[u8; 32], expected: @[u8; 32], k: u64) -> bool {
+        transition actual[k] == expected[k] {
+            true -> step(actual, expected, k + 1u64),
+            _ -> differ()
+        }
+    }
+    machine same() -> bool { true }
+    machine differ() -> bool { false }
+}
+
+machine abc_digest(state: @mutable sha256\Sha256) -> bool {
+    let expected: [u8; 32] = [
+        186, 120, 22, 191, 143, 1, 207, 234, 65, 65, 64, 222, 93, 174, 34, 35,
+        176, 3, 97, 163, 150, 23, 122, 156, 180, 16, 255, 97, 242, 0, 21, 173
+    ];
+    state.msg[0] = 97;
+    state.msg[1] = 98;
+    state.msg[2] = 99;
+    state.msg_n = 3u64 as u64 +Wrapping;
+    sha256\digest(state);
+    !state.bad && matches(@state.out32, @expected)
+}
+
+machine full_capacity_digest(state: @mutable sha256\Sha256) -> bool {
+    let expected: [u8; 32] = [
+        221, 78, 103, 48, 82, 9, 50, 118, 126, 192, 169, 227, 63, 225, 156, 76,
+        226, 67, 153, 214, 235, 164, 255, 98, 241, 48, 19, 201, 237, 48, 239, 135
+    ];
+    fill_a(state);
+    state.msg_n = 8192u64 as u64 +Wrapping;
+    sha256\digest(state);
+    !state.bad && matches(@state.out32, @expected)
+}
+
+machine over_capacity_refused(state: @mutable sha256\Sha256, length: u64) -> bool {
+    let zeros: [u8; 32] = [
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    ];
+    fill_a(state);
+    state.msg_n = length as +Wrapping;
+    sha256\digest(state);
+    state.bad && matches(@state.out32, @zeros)
+}
+
+// Each check follows a successful digest, so a stale `out32` would be visible.
+// 8,256 ends on a block boundary, where the unrepaired library hashed the
+// blocks that fit and wrote that digest; 8,193 stopped in the tail copy and
+// left the previous digest in place.
+machine digests_hold() -> bool {
+    let mutable state: sha256\Sha256;
+    let abc: bool = abc_digest(@mutable state);
+    let full: bool = full_capacity_digest(@mutable state);
+    let block_over: bool = over_capacity_refused(@mutable state, 8256u64);
+    let abc_again: bool = abc_digest(@mutable state);
+    let byte_over: bool = over_capacity_refused(@mutable state, 8193u64);
+    abc && full && block_over && abc_again && byte_over
+}
+
+machine main() crashes Trap {
+    transition digests_hold() { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

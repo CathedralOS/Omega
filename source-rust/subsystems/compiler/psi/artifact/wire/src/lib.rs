@@ -45,7 +45,12 @@ pub use identity_formations::{
     ExpectedIdentityFormation, ExpectedIdentityFormations, verify_identity_formations,
 };
 mod mathematical_proof_actual;
+mod theorem_citations;
 pub(crate) use mathematical_proof_actual::indexed_theorem_roots;
+pub use theorem_citations::{
+    TheoremCitationContext, theorem_citation_actual, theorem_citation_context,
+    validate_theorem_evidence, validate_theorem_parameters, validate_theorem_supply_sites,
+};
 mod module_wire;
 mod obligation_evidence;
 mod sections;
@@ -60,16 +65,15 @@ pub(crate) use semantic_module::*;
 
 pub(crate) use ::wire::codec_bytes;
 
-/// The encoding steps `terminal_codec::ClosedTerminalModule` and its artifact
-/// envelope seal. Nothing else should call these: a module closed here is
-/// not sealed until that type holds it.
-/// Encodes a module without validating it, so a test can build deliberately
-/// malformed wire for a receiver to refuse.
+/// Encodes a module without validation so a test can build malformed wire
+/// for a receiver to refuse.
 #[cfg(feature = "test-support")]
 pub mod test_support {
     pub use crate::module_wire::encode_raw as encode_unchecked_module;
 }
 
+/// Encoding and decoding steps used by `terminal_codec::ClosedTerminalModule`
+/// and its artifact envelope. The codec owns the sealed module type.
 #[doc(hidden)]
 pub mod sealing {
     pub use crate::sections::artifact_manifest::manifest_for_semantic;
@@ -81,8 +85,8 @@ pub mod sealing {
 
 pub use indexed_theorem_roots::verify_indexed_theorem_roots;
 pub use mathematical_proof_actual::{
-    MathematicalProofActualError, mathematical_carrier_key, verify_mathematical_proof_actual,
-    verify_module_mathematical_actuals,
+    MathematicalProofActualError, mathematical_carrier_key, theorem_implication_key,
+    verify_mathematical_proof_actual, verify_module_mathematical_actuals,
 };
 pub(crate) use psi_declaration_encoding::error as codec_error;
 pub(crate) mod cursor {

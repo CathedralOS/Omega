@@ -84,13 +84,36 @@ pub fn validate(directory: &Path) -> Result<VerifiedRun, String> {
     if identities.len() != 1 {
         return Err("exactly one executable/input identity record required".into());
     }
+    let hashes = identities[0]["sha256"]
+        .as_object()
+        .ok_or("missing input identity map")?;
+    for (path, hash) in hashes {
+        if !hash.as_str().is_some_and(is_sha256) {
+            return Err(format!("invalid SHA-256 for recorded input {path}"));
+        }
+    }
     for command in [&plan.baseline, &plan.candidate] {
-        if !is_sha256(
-            identities[0]["sha256"][command.program.display().to_string()]
-                .as_str()
-                .unwrap_or(""),
-        ) {
+        if !hashes.contains_key(&command.program.display().to_string()) {
             return Err("missing executable identity".into());
+        }
+    }
+    if let Measurement::Compiler {
+        source,
+        candidate_source,
+        ..
+    } = &plan.measurement
+    {
+        let source_hash = |path: &Path| {
+            hashes
+                .get(&path.display().to_string())
+                .and_then(Value::as_str)
+                .ok_or_else(|| format!("missing compiler source identity for {}", path.display()))
+        };
+        let original = source_hash(source)?;
+        if let Some(candidate) = candidate_source
+            && !original.eq_ignore_ascii_case(source_hash(candidate)?)
+        {
+            return Err("recorded compiler source copies disagree".into());
         }
     }
     let samples: Vec<Sample> = events

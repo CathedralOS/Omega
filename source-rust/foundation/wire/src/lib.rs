@@ -1,7 +1,44 @@
-//! Bounded byte reads and domain-separated digests, without compiler vocabulary.
-//!
-//! Representation owners choose their tags, field order and identity domains.
-//! These primitives only preserve the bytes those owners supply.
+/*!
+We share the byte operations used by compiler artifact formats. Each format
+chooses its own tags, field order and digest domain. The cursor reads
+little-endian fields from a borrowed slice. A fixed-width read advances only
+after all its bytes are present. For a counted sequence, we divide the
+remaining bytes by the minimum encoded element width before accepting the
+count. This avoids multiplying an untrusted count and leaves allocation and
+element validation to the decoder.
+*/
+
+/*!
+
+Two variable-width fields can have the same concatenated bytes with different
+boundaries. We prefix each with its byte length when hashing those fields, so
+the digest input records where each field ends. Fixed-width fields already
+have boundaries. The tests below pin both the SHA-256 byte stream and cursor
+behavior on a short read.
+*/
+
+/*!
+
+Write a tagged header and one counted field, then check the count before
+reading the field's elements.
+
+```
+use wire::{codec_bytes, cursor::Cursor};
+
+let mut bytes = Vec::new();
+codec_bytes::encode_header(&mut bytes, b"EXAMPLE\0", 1);
+codec_bytes::push_count_u32(&mut bytes, 1);
+codec_bytes::push_encoded(&mut bytes, 513u16.to_le_bytes());
+
+let mut input = Cursor::new(&bytes);
+assert_eq!(input.take(8).unwrap(), b"EXAMPLE\0");
+assert_eq!(input.u32().unwrap(), 1);
+assert_eq!(input.counted(2).unwrap(), 1);
+assert_eq!(input.u16().unwrap(), 513);
+assert_eq!(input.remaining(), 0);
+```
+*/
+
 #![forbid(unsafe_code)]
 
 pub mod codec_bytes;

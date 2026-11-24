@@ -334,6 +334,11 @@ impl Program<'_> {
             .then_some(record)
         });
         if let Some(record) = known {
+            // A field of data that contains itself names the same
+            // mathematical type; there is no storage to admit again.
+            if self.self_containing.binary_search(&record).is_ok() {
+                return Ok(ValueType::record(record));
+            }
             // A description cannot authorize a later value use, including
             // use of a plain outer record containing an address or linear child.
             if self.type_purpose == super::storage_metadata::TypePurpose::Value
@@ -398,6 +403,48 @@ impl Program<'_> {
         .and_then(|identity| typed.type_identity_text(identity))
         .filter(|identity| !identity.is_empty())
         .ok_or_else(|| unserved("data without a complete application identity"))?;
+        // Data that contains itself is a mathematical type. Its record is
+        // reserved before the members are read, so the field that names the
+        // declaration resolves to it.
+        let reserved = if self.mathematical && self.contains_itself(data) {
+            if application
+                .as_ref()
+                .is_some_and(|application| !application.substitutions.is_empty())
+                || !data.type_parameters.is_empty()
+                || !data.requires_facts.is_empty()
+                || data.cleanup_selection.is_some()
+                || data.supply_mode == language_core::DataSupplyMode::BoundaryOpaque
+            {
+                return Err(unserved(
+                    "applied, constrained or boundary data that contains itself",
+                ));
+            }
+            let record = self.records.push(RecordType {
+                multiplicity: crate::lowering::body::source_multiplicity(
+                    data.properties.multiplicity,
+                ),
+                cleanup: None,
+                identity: identity.clone(),
+                shape: crate::lowering::StorageShape::Sum(Vec::new()),
+                requires: Vec::new(),
+                authored_layout: false,
+            });
+            self.record_sources.push(RecordSource {
+                constant_input_owner: None,
+                declaration: symbol,
+                cleanup: None,
+                application: application.clone(),
+                region_owner: SymbolHandle::invalid(),
+                fields: Vec::new(),
+                cases: Vec::new(),
+            });
+            if let Err(position) = self.self_containing.binary_search(&record) {
+                self.self_containing.insert(position, record);
+            }
+            Some(record)
+        } else {
+            None
+        };
         self.resolving.push((symbol, application.clone()));
         // Field types are read with this declaration as the owner of the
         // lifetimes they name: lifetimes.md, a named data application must
@@ -473,6 +520,26 @@ impl Program<'_> {
                 identity,
                 fields,
             });
+        }
+        if let Some(record) = reserved {
+            if !declared.is_empty() || case_types.is_empty() {
+                return Err(unserved("data that contains itself outside a case"));
+            }
+            self.records
+                .get_mut(record)
+                .ok_or_else(|| unserved("record identity"))?
+                .shape = crate::lowering::StorageShape::Sum(case_types);
+            let source = self
+                .record_sources
+                .get_mut(record)
+                .ok_or_else(|| unserved("record identity"))?;
+            source.fields = field_symbols;
+            source.cases = case_symbols;
+            self.admitted_declarations.include(symbol);
+            if let Err(position) = self.value_records.binary_search(&record) {
+                self.value_records.insert(position, record);
+            }
+            return Ok(ValueType::record(record));
         }
         let copyable =
             data.properties.multiplicity == language_core::Multiplicity::Unrestricted;

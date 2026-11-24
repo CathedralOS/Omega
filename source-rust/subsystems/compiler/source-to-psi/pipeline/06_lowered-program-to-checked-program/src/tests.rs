@@ -58,7 +58,6 @@ mod indexed_contracts;
 mod inferred_bounds;
 mod inferred_locals;
 mod layout_queries;
-mod optimization;
 mod lifetime_elision;
 mod lifetime_generics;
 mod loan_regions;
@@ -68,6 +67,7 @@ mod machine_lifetimes;
 mod mathematical_clauses;
 mod mutable_formals;
 mod operational_effects;
+mod optimization;
 mod owned_cleanup;
 mod owned_dispatch;
 mod owned_match_results;
@@ -84,7 +84,10 @@ mod references;
 mod representation_views;
 mod result_fields;
 mod result_summaries;
+mod ring_law;
+mod semiring_identity;
 mod returned_views;
+mod routed_domain_writes;
 mod rule_violations;
 mod runtime_indexed_elements;
 mod scalar_joins;
@@ -162,6 +165,7 @@ fn call(callee: u64, arguments: Vec<Expression>) -> Expression {
             required_contract: None,
             static_reach_binding: None,
             static_reach_arguments: Vec::new(),
+            proof_arguments: Vec::new(),
             callee: id::<MachineId>(callee).into(),
             arguments,
             designated: None,
@@ -348,10 +352,14 @@ fn assert_kernel_accepted(
     };
     let lowered = elaboration.module.machine(id(machine)).unwrap();
     let context = PropositionContext::from_value_types_and_places(
-        tables.values.iter().filter_map(|(value, row)| {
-            row.rigid.is_none().then_some((value, row.scalar_type))
-        }),
-        lowered.structural_places.iter().map(|place| (place.id, place.kind)),
+        tables
+            .values
+            .iter()
+            .filter_map(|(value, row)| row.rigid.is_none().then_some((value, row.scalar_type))),
+        lowered
+            .structural_places
+            .iter()
+            .map(|place| (place.id, place.kind)),
     )
     .unwrap();
     let decide = |goal: &Proposition, certificate: &CertificateEnvelope| {
@@ -1573,6 +1581,7 @@ fn transferred_when(flag: usize, value: usize) -> Expression {
                 required_contract: None,
                 static_reach_binding: None,
                 static_reach_arguments: Vec::new(),
+                proof_arguments: Vec::new(),
                 callee: id::<MachineId>(2).into(),
                 arguments: vec![place(value, point())],
                 designated: None,
@@ -2233,6 +2242,7 @@ fn a_copy_reads_as_what_its_source_held_and_a_call_result_as_its_own_unknown_lea
                         required_contract: None,
                         static_reach_binding: None,
                         static_reach_arguments: Vec::new(),
+                        proof_arguments: Vec::new(),
                         callee: id::<MachineId>(3).into(),
                         arguments: Vec::new(),
                         designated: None,
@@ -2508,6 +2518,7 @@ fn store(slot: usize, path: &[usize], value: Expression) -> Statement {
         };
     }
     Statement::Store {
+        slot_home: None,
         destination,
         value,
         source: nowhere(),
@@ -3255,6 +3266,7 @@ fn every_use_of_storage_has_exactly_one_verdict() {
                         required_contract: None,
                         static_reach_binding: None,
                         static_reach_arguments: Vec::new(),
+                        proof_arguments: Vec::new(),
                         callee: id::<MachineId>(2).into(),
                         arguments: vec![place(4, point())],
                         designated: None,
@@ -4299,6 +4311,7 @@ fn returned_span_store(stored: u128) -> (crate::lowering::Elaboration, Discharge
                             required_contract: None,
                             static_reach_binding: None,
                             static_reach_arguments: Vec::new(),
+                            proof_arguments: Vec::new(),
                             callee: id::<MachineId>(2).into(),
                             arguments: Vec::new(),
                             designated: None,
@@ -4926,6 +4939,7 @@ fn a_read_of_what_a_call_returned_carries_its_types_clause() {
                             required_contract: None,
                             static_reach_binding: None,
                             static_reach_arguments: Vec::new(),
+                            proof_arguments: Vec::new(),
                             callee: id::<MachineId>(3).into(),
                             arguments: Vec::new(),
                             designated: None,
@@ -4988,6 +5002,7 @@ fn peeking(argument: Expression) -> Expression {
             required_contract: None,
             static_reach_binding: None,
             static_reach_arguments: Vec::new(),
+            proof_arguments: Vec::new(),
             callee: id::<MachineId>(2).into(),
             arguments: vec![argument],
             designated: None,
@@ -5041,6 +5056,7 @@ fn a_requirement_over_a_field_of_a_record_formal_is_decided_by_the_actuals_leaf(
                     required_contract: None,
                     static_reach_binding: None,
                     static_reach_arguments: Vec::new(),
+                    proof_arguments: Vec::new(),
                     callee: id::<MachineId>(3).into(),
                     arguments: Vec::new(),
                     designated: None,
@@ -5148,6 +5164,7 @@ fn taking(callee: u64, argument: Expression) -> Expression {
             required_contract: None,
             static_reach_binding: None,
             static_reach_arguments: Vec::new(),
+            proof_arguments: Vec::new(),
             callee: id::<MachineId>(callee).into(),
             arguments: vec![argument],
             designated: None,
@@ -6516,6 +6533,7 @@ mod generic_bodies {
             witnesses: vec![refinement],
             specializations,
             selection_witnesses: (0..selections).map(|selection| (selection, 0)).collect(),
+            mathematics: Default::default(),
         })
     }
 

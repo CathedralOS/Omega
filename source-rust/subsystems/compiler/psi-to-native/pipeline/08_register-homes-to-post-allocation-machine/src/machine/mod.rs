@@ -3,7 +3,7 @@ We lower a register-allocated selected instruction program into a sealed
 post-allocation physical machine plan and run the post-allocation optimization
 phase over that plan before sealing custody.
 
-In Stage 05 (`register-homes`), virtual registers received concrete physical
+During register allocation in native stage 07, virtual registers received physical
 register views (`rax`, `x0`, `xmm1`), and pre-allocation machine effects were
 verified against the target register environment. However, each selected
 instruction still listed a family of candidate machine alternatives rather than
@@ -59,7 +59,7 @@ target instruction definitions in one place.
 /*
 Provenance and custody boundaries:
 
-We consume `AllocatedProgramFacts` from `register-homes` (produced by Stage 05),
+We consume `AllocatedProgramFacts` from native stage 07,
 including its settled preservation requirements and register environment. We
 produce `StagedOptimizedPostAllocationMachinePlan`, which pairs the sealed
 `ValidatedPostAllocationMachinePlan` (`post-allocation-machine`) with the shared

@@ -48,24 +48,20 @@ pub(super) fn carry(
                 let inputs =
                     forwarded_inputs(&source.parameters, &target.parameters, site.arguments);
                 let Some(ranks) = source.ranking.as_ref().and_then(|ranks| {
-                    ranks
-                        .measures
-                        .iter()
-                        .map(|rank| {
-                            substitute(rank, target, |slot| {
-                                let position =
-                                    inputs.binary_search_by_key(&slot, |(slot, _)| *slot).ok()?;
-                                inputs[position].1.clone()
-                            })
+                    carry_ranking(ranks, |rank| {
+                        substitute(rank, target, |slot| {
+                            let position =
+                                inputs.binary_search_by_key(&slot, |(slot, _)| *slot).ok()?;
+                            inputs[position].1.clone()
                         })
-                        .collect::<Option<Vec<_>>>()
+                    })
                 }) else {
                     continue;
                 };
                 signatures
                     .get_mut(site.callee)
                     .expect("the callee signature was checked")
-                    .ranking = Some(Ranking::without_range(ranks));
+                    .ranking = Some(ranks);
                 pending.push(site.callee);
             }
         }
@@ -96,11 +92,9 @@ pub(super) fn carry(
                 continue;
             }
             let Some(ranks) = target.ranking.as_ref().and_then(|ranks| {
-                ranks
-                    .measures
-                    .iter()
-                    .map(|rank| substitute(rank, source, |slot| site.arguments.get(slot).cloned()))
-                    .collect::<Option<Vec<_>>>()
+                carry_ranking(ranks, |rank| {
+                    substitute(rank, source, |slot| site.arguments.get(slot).cloned())
+                })
             }) else {
                 continue;
             };
@@ -109,11 +103,29 @@ pub(super) fn carry(
             signatures
                 .get_mut(caller)
                 .expect("the caller signature was checked")
-                .ranking = Some(Ranking::without_range(ranks));
+                .ranking = Some(ranks);
             pending.push(caller);
         }
     }
     Ok(())
+}
+
+/// A helper inherits both the measure and any bound its recursive transfers
+/// must preserve. The declared range belongs to the original invocation.
+fn carry_ranking(
+    ranking: &Ranking,
+    mut translate: impl FnMut(&Expression) -> Option<Expression>,
+) -> Option<Ranking> {
+    let measures = ranking
+        .measures
+        .iter()
+        .map(&mut translate)
+        .collect::<Option<Vec<_>>>()?;
+    let mut carried = Ranking::without_range(measures);
+    if let Some(bound) = &ranking.fixed_bound {
+        carried.fixed_bound = Some(Box::new(translate(bound)?));
+    }
+    Some(carried)
 }
 
 /// Invert only exact formal bindings. If two target formals receive the

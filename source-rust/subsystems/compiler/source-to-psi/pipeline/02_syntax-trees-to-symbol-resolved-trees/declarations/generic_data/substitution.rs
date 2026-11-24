@@ -346,9 +346,9 @@ fn fold_instance_boolean_node(syntax: &mut SyntaxTrees, expression: ExpressionHa
 /*
     What one copied data `requires` fact says about one case holding on this
     instance: `self in DataName::Case` membership leaves decide for and
-    against the candidate, literal `0`/`1` leaves (the folded type-equality
-    witnesses) read themselves, `&&`/`||`/`!` fold, and every other leaf —
-    value couplings, named-domain memberships, calls — stays undecided.
+    against the candidate. Boolean literals, including the result of a closed
+    type equality, decide themselves. Integer operands stay undecided until
+    the enclosing proposition is checked. `&&`, `||` and `!` combine verdicts.
     `Refuted` means the fact cannot hold while the value's case is
     `variant_name`, so this instance can never carry it; `Undecided` keeps the
     case possible, since establishment and observation still own those terms.
@@ -368,13 +368,6 @@ pub(crate) fn variant_fact_verdict(
 ) -> VariantFactVerdict {
     use VariantFactVerdict::*;
     match syntax.expressions.expression(expression) {
-        ExpressionNode::Integer(literal) => {
-            if literal.decimal_value_i128() == Some(0) {
-                Refuted
-            } else {
-                Holds
-            }
-        }
         ExpressionNode::Boolean(value) => {
             if *value {
                 Holds

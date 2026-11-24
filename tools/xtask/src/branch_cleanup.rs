@@ -260,6 +260,17 @@ fn linked_branches(
         .args(["-C", checkout, "grep", "-hoiIE", &pattern])
         .output()
         .map_err(|error| format!("cannot run git grep: {error}"))?;
+    match output.status.code() {
+        Some(0) => {}
+        Some(1) => return Ok(BTreeSet::new()),
+        _ => {
+            return Err(format!(
+                "git grep in {checkout} failed ({}): {}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr).trim()
+            ));
+        }
+    }
     let text = String::from_utf8_lossy(&output.stdout);
     let lowered_repo = format!("github.com/{}/", repo.to_ascii_lowercase());
     let mut linked = BTreeSet::new();
@@ -650,6 +661,43 @@ pub(crate) fn run(args: &[String]) -> Result<(), u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn branch_links_distinguish_matches_no_matches_and_search_errors() {
+        let checkout = std::env::temp_dir().join(format!(
+            "omega-branch-links-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&checkout).unwrap();
+        let directory = checkout.to_str().unwrap();
+        let names = BTreeSet::from(["work/keep".to_owned()]);
+        let repo = "example/omega";
+        command("git", &["-C", directory, "init", "-q"]).unwrap();
+
+        let absent = linked_branches(directory, repo, &names);
+        fs::write(
+            checkout.join("links"),
+            "https://github.com/example/omega/tree/work/keep/src\n",
+        )
+        .unwrap();
+        command("git", &["-C", directory, "add", "links"]).unwrap();
+        let found = linked_branches(directory, repo, &names);
+        let missing = checkout.join("missing");
+        let failed = linked_branches(missing.to_str().unwrap(), repo, &names);
+        fs::remove_dir_all(&checkout).unwrap();
+
+        assert_eq!(absent.unwrap(), BTreeSet::new());
+        assert_eq!(found.unwrap(), names);
+        let error = failed.unwrap_err();
+        assert!(
+            error.contains("git grep") && error.contains("missing"),
+            "{error}"
+        );
+    }
 
     fn facts_for<'a>(
         protected: &'a BTreeSet<String>,

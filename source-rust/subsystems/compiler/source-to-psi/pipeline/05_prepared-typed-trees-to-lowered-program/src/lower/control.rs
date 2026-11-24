@@ -178,7 +178,13 @@ impl Lowering<'_> {
         {
             return Err(self.internal("an arrival does not match the head's parameters"));
         }
-        self.successor_ranking(member, &arguments, &structural_arguments)?;
+        self.successor_ranking(
+            member,
+            &arguments,
+            &structural_arguments,
+            acknowledgement.is_some(),
+            source,
+        )?;
         let edge = self.edge(Destination::Block(target), source)?;
         if let Some(acknowledgement) = acknowledgement {
             self.call_formations.push(terminal_psi::CallFormation {
@@ -318,9 +324,8 @@ impl Lowering<'_> {
         }
         match statement {
             Statement::Bind { slot, value } => {
-                // A loan may have given this scalar binding a storage home.
-                // Reassignment must write that same home: replacing only its
-                // SSA binding would hide the write from outstanding loans.
+                // A loan or a write inside a branch may require this scalar
+                // to live in storage. Later assignments update the same place.
                 if matches!(*self.slot_mut(*slot)?, Some(Bound::Home(_))) {
                     let destination = Expression {
                         call_context: None,
@@ -336,7 +341,7 @@ impl Lowering<'_> {
                     }
                     Some(ValueType::Scalar(..) | ValueType::Rigid(_)) | None => {
                         let scalar = continuing!(self.scalar(value));
-                        match self.lender_homes.get(*slot).copied().flatten() {
+                        match self.slot_homes.get(*slot).copied().flatten() {
                             Some(home) => {
                                 Bound::Home(self.establish_home(scalar, home, value.source)?)
                             }
@@ -375,6 +380,7 @@ impl Lowering<'_> {
                 destination,
                 value,
                 source,
+                ..
             } => self.store(destination, value, *source),
             Statement::Dispatch {
                 subject,

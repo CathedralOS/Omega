@@ -1,7 +1,7 @@
 /*
 Wire envelope, round-trip, rejection precedence, and structural catalog tests for the fixed-view copy recovery codec.
 
-Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v119), authentication digests, stale-version rejection precedence, edge transport bindings, call-site owners, local and outgoing storage rosters, returned descriptor origins, and complete placement/lifecycle catalogs survive round-trip encoding and fail closed under tampering or truncation.
+Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v120), authentication digests, stale-version rejection precedence, edge transport bindings, call-site owners, local and outgoing storage rosters, returned descriptor origins, and complete placement/lifecycle catalogs survive round-trip encoding and fail closed under tampering or truncation.
 */
 
 use access_admission::AccessFields;
@@ -546,7 +546,7 @@ fn current_envelope_has_exact_header_and_deterministic_bytes() {
     let plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     let encoded = plan.encode().unwrap();
     assert_eq!(&encoded[..8], b"OMGFCV\0\0");
-    assert_eq!(&encoded[8..12], &119_u32.to_le_bytes());
+    assert_eq!(&encoded[8..12], &120_u32.to_le_bytes());
     assert_eq!(encoded, plan.encode().unwrap());
     assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), plan);
 }
@@ -1873,7 +1873,10 @@ fn retained_plan_preserves_returned_input_fact_lifetimes() {
             path: Vec::new(),
             domain,
         }],
-        qualification_establishments: Vec::new(),
+        qualification_establishments: vec![terminal_psi::ResultQualificationEstablishment {
+            domain,
+            route: 2,
+        }],
         claims: Vec::new(),
     });
     std::sync::Arc::make_mut(&mut plan.transformed)
@@ -1882,6 +1885,29 @@ fn retained_plan_preserves_returned_input_fact_lifetimes() {
     let encoded = plan.encode().unwrap();
     assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), plan);
     let identity = selected_instructions::selected_instruction_plan_identity(&plan.transformed);
+    let mut alternate = plan.clone();
+    let function = std::sync::Arc::make_mut(&mut alternate.transformed)
+        .functions
+        .iter_mut()
+        .next_back()
+        .unwrap();
+    function.calls[0]
+        .call
+        .structural_result
+        .as_mut()
+        .unwrap()
+        .qualification_establishments[0]
+        .route = 3;
+    assert_ne!(
+        selected_instructions::selected_instruction_plan_identity(&alternate.transformed),
+        identity
+    );
+    let alternate_bytes = alternate.encode().unwrap();
+    assert_eq!(
+        FixedViewCopyPlan::decode(&alternate_bytes).unwrap(),
+        alternate
+    );
+
     let mut standing = plan.clone();
     std::sync::Arc::make_mut(&mut standing.transformed)
         .functions

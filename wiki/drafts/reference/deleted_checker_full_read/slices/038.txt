@@ -1,0 +1,4 @@
+# slice 038: 8416 lines in 3 file range(s)
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_multiplicity_cleanup_dispositions.rs	1	1705
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_multiplicity_linear_validation.rs	1	4629
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_multiplicity_permission_events.rs	1	2082

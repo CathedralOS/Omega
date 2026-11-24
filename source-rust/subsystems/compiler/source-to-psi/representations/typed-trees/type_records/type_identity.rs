@@ -147,7 +147,7 @@ pub(crate) mod callable_identity {
         }
     }
 
-    #[derive(Clone, record_storage::Record)]
+    #[derive(Clone, PartialEq, Eq, record_storage::Record)]
     struct CallableIdentityRecord {
         path: CallablePathId,
         parameters: CallableParametersId,
@@ -155,7 +155,7 @@ pub(crate) mod callable_identity {
         text: Box<str>,
     }
 
-    #[derive(Clone, Default, record_storage::Record)]
+    #[derive(Clone, Default, PartialEq, Eq, record_storage::Record)]
     pub struct CallableIdentityTable {
         paths: arena::RetainedRows<Box<str>>,
         path_slots: SharedValue<HashMap<SharedValue<Box<str>>, CallablePathId>>,
@@ -438,7 +438,8 @@ pub(crate) mod callable_identity {
                         };
                         (kind, identity)
                     }
-                    TypeParameterKind::Machine { .. }
+                    TypeParameterKind::Proof { .. }
+                    | TypeParameterKind::Machine { .. }
                     | TypeParameterKind::Implementation
                     | TypeParameterKind::Proposition { .. } => {
                         return Err(
@@ -1010,17 +1011,23 @@ pub(crate) mod constraint_identity {
             program.domain_arguments_for_instance(domain.symbol, domain.semantic_id)
             && !arguments.is_empty()
         {
+            let Some(definition) = program.domain_definition(domain.symbol) else {
+                return substitution::rejected(context);
+            };
+            let parameters = program.domain_type_parameters(definition);
+            if parameters.len() != arguments.len() {
+                return substitution::rejected(context);
+            }
+            let indices = parameters.iter().zip(arguments).map(|(parameter, argument)| {
+                super::normalized_domain_index(program, parameter, *argument, context)
+            });
             return compound(
                 ConstraintForm::DeclaredDomain,
                 std::iter::once(atom(
                     Label::Name,
                     &context.name(program, domain.symbol, &ordinary_name),
                 ))
-                .chain(
-                    arguments
-                        .iter()
-                        .map(|argument| normalize_type_reference(program, *argument, context)),
-                ),
+                .chain(indices),
             );
         }
         if context.qualification == TypeIdentityQualification::Ordinary
@@ -4167,6 +4174,15 @@ pub(crate) mod normalized_identities {
             identities: TypeIdentityTable,
             named: Vec<TypeIdentityId>,
             by_identity: BTreeMap<TypeIdentityId, u32>,
+        }
+
+        #[test]
+        fn identity_table_equality_resolves_the_text_at_each_slot() {
+            let first = TypeIdentityTable::default();
+            let second = TypeIdentityTable::default();
+            assert_eq!(first.intern("left"), second.intern("right"));
+            assert_ne!(first, second);
+            assert_eq!(first, first.clone());
         }
 
         const NAMED: [&str; 3] = ["b", "a", "c"];
@@ -7803,6 +7819,9 @@ pub(crate) mod static_operand_identity {
                     }
                     StaticMachineBindingValue::Machine(argument)
                     | StaticMachineBindingValue::Conformance(argument) => argument.clone(),
+                    StaticMachineBindingValue::Proof(_) => {
+                        return Err("logical evidence is not a static source application key");
+                    }
                     StaticMachineBindingValue::RuntimeValue { .. } => {
                         return Err("a runtime value is not a static source application key");
                     }
@@ -8763,6 +8782,25 @@ pub(crate) mod substitution {
             _ => None,
         }
     }
+}
+
+/// A domain's declaration determines whether an argument names a type or a
+/// static value. Signatures and the published domain identity use the same role.
+fn normalized_domain_index(
+    program: &TypedTrees,
+    parameter: &crate::source_state::data::TypeParameter,
+    argument: TypeReferenceHandle,
+    context: &TypeIdentityContext<'_>,
+) -> String {
+    use crate::source_state::data::TypeParameterKind;
+    let argument = match parameter.kind {
+        TypeParameterKind::Type => IndexIdentityArgument::TypeArgument(argument),
+        TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
+            IndexIdentityArgument::TypeReference(argument)
+        }
+        _ => return substitution::rejected(context),
+    };
+    substitution::index_argument(program, argument, context)
 }
 
 pub use application_identity::type_identity::TypeIdentityPackageOwnerVisitor;
@@ -10135,20 +10173,7 @@ impl TypedTrees {
             .iter()
             .zip(arguments)
             .map(|(parameter, argument)| {
-                let argument = match parameter.kind {
-                    crate::source_state::data::TypeParameterKind::Type => {
-                        IndexIdentityArgument::TypeArgument(*argument)
-                    }
-                    crate::source_state::data::TypeParameterKind::Const { .. }
-                    | crate::source_state::data::TypeParameterKind::Value { .. } => {
-                        IndexIdentityArgument::TypeReference(*argument)
-                    }
-                    _ => {
-                        invalid.set(true);
-                        return String::new();
-                    }
-                };
-                substitution::index_argument(self, argument, &context)
+                normalized_domain_index(self, parameter, *argument, &context)
             });
         let application = compound(
             TypeForm::Generic,

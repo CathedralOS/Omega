@@ -204,7 +204,7 @@ fn parse_data_definition<'tokens, 'source>(
     while input.at_contextual("requires") {
         input = input.take_contextual("requires")?;
         let (facts, rest) =
-            parse_required_logical_proof_facts_until(syntax_trees, input, |input| {
+            parse_required_logical_proof_facts_until(syntax_trees, input, |input, _| {
                 input.at_contextual("requires")
                     || input.at_punctuation(PunctuationKind::LeftBrace)
                     || input.tokens.is_empty()

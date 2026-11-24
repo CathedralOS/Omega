@@ -1,0 +1,2 @@
+# slice 110: 3567 lines in 1 file range(s)
+omega-rust/psi/compilation/validation/src/declarations_core.rs	1	3567

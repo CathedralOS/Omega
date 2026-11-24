@@ -1,0 +1,6 @@
+# slice 083: 7841 lines in 5 file range(s)
+omega-rust/psi/compilation/representations/checked-trees/src/flow_terminal_units.rs	1	2676
+omega-rust/psi/compilation/representations/checked-trees/src/lib.rs	1	802
+omega-rust/psi/compilation/representations/checked-trees/src/operators_and_proof.rs	1	2826
+omega-rust/psi/compilation/representations/checked-trees/src/providers_and_trust.rs	1	631
+omega-rust/psi/compilation/representations/checked-trees/src/termination_and_cleanup_facts.rs	1	906

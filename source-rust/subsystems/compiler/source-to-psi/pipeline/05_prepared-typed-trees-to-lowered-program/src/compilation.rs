@@ -154,6 +154,7 @@ pub fn prepare_compilation(
     // Every refusal reading met is reported: the first as the closure's
     // verdict, the rest beside it (`PreparedCompilation::further`).
     let mut further = Vec::new();
+    let mathematical_roots = (compilation.subjects.to_vec(), compilation.purpose);
     let (mut closure, primary_source, signatures, prepared_applications, pending_publication) =
         match crate::lowering::elaborate_source_for(
             typed,
@@ -172,6 +173,16 @@ pub fn prepare_compilation(
                 let first = refused.remove(0);
                 further = refused;
                 (Err(first), None, Vec::new(), Vec::new(), None)
+            }
+        };
+    // The declarations over data that contains itself are read apart from
+    // the closure: they become one kernel signature and no operations.
+    let mathematics =
+        match crate::lowering::mathematics::read(typed, &mathematical_roots, captures.clone()) {
+            Ok(mathematics) => mathematics,
+            Err(mut refused) => {
+                further.append(&mut refused);
+                Default::default()
             }
         };
     let mut source = crate::lowering::SourceCorrespondence {
@@ -386,6 +397,7 @@ pub fn prepare_compilation(
             witnesses,
             specializations,
             selection_witnesses,
+            mathematics,
         }),
     })
 }

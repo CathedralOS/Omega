@@ -428,6 +428,11 @@ fn append_note(
     text: &str,
     now: SystemTime,
 ) -> Result<(), u8> {
+    // Only a live claim can own a note; publication prunes every other ticket.
+    if !renew_claim(record, ticket, now).map_err(clock_error)? {
+        eprintln!("claims: no live claim for ticket `{ticket}`");
+        return Err(1);
+    }
     let created_utc = format_utc(now).map_err(clock_error)?;
     if record.notes.iter().any(|note| {
         note["ticket"] == ticket
@@ -438,8 +443,6 @@ fn append_note(
     }) {
         return Ok(());
     }
-    // A note is a sign of life: it renews the claim it names.
-    renew_claim(record, ticket, now).map_err(clock_error)?;
     record.notes.push(serde_json::json!({
         "ticket": ticket,
         "item": "note",
@@ -1492,6 +1495,31 @@ mod tests {
         let fixture = RegistryFixture::new();
         let version = fixture.publish(&serde_json::to_string(&ClaimsRecord::default()).unwrap());
         update_registry(&fixture.reader, |_| Ok(())).unwrap();
+        assert_eq!(
+            RegistryFixture::git(&fixture.remote, &["rev-parse", CLAIMS_REF]),
+            version
+        );
+    }
+
+    #[test]
+    fn notes_require_a_live_ticket_before_publishing() {
+        let fixture = RegistryFixture::new();
+        let taken = SystemTime::now() - Duration::from_secs(LEASE_MINUTES * 60 + 1);
+        let (claimed, expires) = lease_timestamps(taken).unwrap();
+        let expired = json!({"ticket": "expired", "claimed_utc": claimed, "expires_utc": expires});
+        let record = ClaimsRecord {
+            claims: vec![expired],
+            ..Default::default()
+        };
+        let version = fixture.publish(&serde_json::to_string(&record).unwrap());
+        for ticket in ["missing", "expired"] {
+            assert!(
+                update_registry(&fixture.reader, |record| {
+                    append_note(record, ticket, "still working", SystemTime::now())
+                })
+                .is_err()
+            );
+        }
         assert_eq!(
             RegistryFixture::git(&fixture.remote, &["rev-parse", CLAIMS_REF]),
             version

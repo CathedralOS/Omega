@@ -245,3 +245,83 @@ fn conjunctions_keep_only_structural_definitions() {
         }
     }
 }
+
+#[test]
+fn build_bind_uses_the_selected_operation_record_before_root_operand_grammar() {
+    use crate::source_resolved::statement::StatementNode;
+
+    for (parameters, arguments) in [
+        ("a: u64, b: u64", "1, 2"),
+        ("a: u64, b: u64, c: u64", "1, 2, 3"),
+    ] {
+        for (owner, binder) in [("Local", "<const Build: Writer>"), ("Build", "")] {
+            let source = format!(
+                "trait Writer {{ machine bind({parameters}); }}
+                machine write({parameters}) {{}}
+                {owner} satisfies Writer {{ Writer::bind = write; }}
+                machine apply{binder}() {{ Build::bind({arguments}); }}"
+            );
+            let program = resolve(super::source_request(&source))
+                .unwrap_or_else(|errors| panic!("{source}: {errors:?}"));
+            let machine = program
+                .machines
+                .iter()
+                .find(|machine| machine.name.as_str() == "apply")
+                .unwrap();
+            let state = program.machine_state(program.machine_state_handles(machine.states)[0]);
+            let [StatementNode::Call(call)] = program.state_body(state) else {
+                panic!("expected an ordinary call: {:?}", program.state_body(state));
+            };
+            assert!(call.target_symbol.is_valid(), "{source}: {call:?}");
+        }
+    }
+
+    let source = "data Build {} machine apply<const Build: u64>(builder: @mutable Build) {
+        Build::bind(builder, Slot, main);
+    }";
+    let program = resolve(super::source_request(source)).unwrap();
+    let machine = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "apply")
+        .unwrap();
+    let state = program.machine_state(program.machine_state_handles(machine.states)[0]);
+    assert!(matches!(
+        program.state_body(state),
+        [StatementNode::RootBinding(_)]
+    ));
+}
+
+#[test]
+fn malformed_selected_root_bindings_report_the_authored_bind_or_operand() {
+    for (args, expected) in [("builder, slot", "bind"), ("builder, 7, entry", "7")] {
+        let source = format!(
+            "data Build {{}} machine plan(builder: Build) {{\n    Build::bind({args});\n}}\n"
+        );
+        let errors = resolve(super::source_request(&source)).unwrap_err();
+        let [error] = errors.as_slice() else {
+            panic!("{errors:?}")
+        };
+        assert!(error.message.contains("root-slot binding requires an explicit Build argument, one slot path and one implementation path or description expression"), "{error:?}");
+        let span = error.source_span.unwrap().span;
+        assert_eq!(&source[span.start..span.end], expected);
+    }
+}
+
+#[test]
+fn a_selected_root_binding_cannot_run_in_a_block_value() {
+    let source = "data Build {} machine plan(builder: Build, choice: u64) -> u64 {
+        match choice { _ -> { Build::bind(builder, slot, entry); 0 } }
+    }";
+    let errors = resolve(super::source_request(source)).unwrap_err();
+    let [error] = errors.as_slice() else {
+        panic!("{errors:?}")
+    };
+    assert!(
+        error
+            .message
+            .contains("root or proof-output binding statement cannot appear in it")
+    );
+    let span = error.source_span.unwrap().span;
+    assert_eq!(&source[span.start..span.end], "Build");
+}

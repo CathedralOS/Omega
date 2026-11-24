@@ -38,6 +38,10 @@ impl Writer {
         }
     }
 
+    pub(crate) fn is_checking_identity(&self) -> bool {
+        matches!(self.role, EncodingRole::CheckingIdentity)
+    }
+
     /// Local canonical keys keep their real bytes and share the closure
     /// traversal with the enclosing module or record.
     pub fn nested(&self) -> Self {
@@ -52,7 +56,7 @@ impl Writer {
         &mut self,
         integer: semantic_vocabulary::IntegerType,
     ) -> Result<(), CodecError> {
-        if matches!(self.role, EncodingRole::CheckingIdentity)
+        if self.is_checking_identity()
             && matches!(
                 integer.width(),
                 semantic_vocabulary::IntegerWidth::Parameter(_)

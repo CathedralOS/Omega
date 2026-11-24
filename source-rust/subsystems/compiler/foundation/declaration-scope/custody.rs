@@ -4,50 +4,29 @@
 //! occurrence and apply the authority for that occurrence's actual purpose.
 
 use crate::DeclarationSelectionAuthority;
-use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
+use semantic_vocabulary::compiler_evaluation::{DeclarationCustody, declaration_authority_request};
 
 pub fn require_declaration_selection(
     requester: DeclarationCustody,
     owner: DeclarationCustody,
     authority: Option<&dyn DeclarationSelectionAuthority>,
 ) -> Result<(), String> {
-    match (requester, owner) {
-        (DeclarationCustody::Missing, _) | (_, DeclarationCustody::Missing) => {
-            Err("build-time invocation lacks compiler-owned source/package provenance".into())
-        }
-        (DeclarationCustody::UnownedUser, _) | (_, DeclarationCustody::UnownedUser) => {
-            Err("build-time invocation has user source without reconciled package custody".into())
-        }
-        // Exact checked selections bind the contract closure before lowering.
-        // Its retained role never grants a package caller a default std edge.
-        (DeclarationCustody::ToolchainContract, DeclarationCustody::Package(_))
-        | (DeclarationCustody::Package(_), DeclarationCustody::ToolchainContract) => {
-            Err("build-time invocation crosses closed-contract/package custody".into())
-        }
-        (DeclarationCustody::ToolchainContract, DeclarationCustody::ToolchainContract) => Ok(()),
-        (DeclarationCustody::Toolchain, _) | (_, DeclarationCustody::Toolchain) => Ok(()),
-        (DeclarationCustody::Package(requester), DeclarationCustody::Package(owner))
-            if requester == owner =>
-        {
-            Ok(())
-        }
-        (DeclarationCustody::Package(requester), DeclarationCustody::Package(owner))
-            if authority.is_some_and(|authority| {
-                authority.allows_declaration_selection(requester, owner)
-            }) =>
-        {
-            Ok(())
-        }
-        (DeclarationCustody::Package(requester), DeclarationCustody::Package(owner)) => {
-            let authority = authority
-                .ok_or("build-time invocation has no direct dependency selection authority")?;
-            Err(format!(
-                "build-time invocation selects package {} from package {} without direct dependency authority",
-                authority.package_label(owner),
-                authority.package_label(requester)
-            ))
-        }
+    let Some(request) = declaration_authority_request(requester, owner)? else {
+        return Ok(());
+    };
+    if request.requester == request.owner {
+        return Ok(());
     }
+    let authority =
+        authority.ok_or("build-time invocation has no direct dependency selection authority")?;
+    if authority.allows_declaration_selection(request.requester, request.owner) {
+        return Ok(());
+    }
+    Err(format!(
+        "build-time invocation selects package {} from package {} without direct dependency authority",
+        authority.package_label(request.owner),
+        authority.package_label(request.requester)
+    ))
 }
 
 #[cfg(test)]
@@ -88,6 +67,10 @@ mod tests {
             ),
         ] {
             assert!(require_declaration_selection(requester, owner, Some(&AllowPackages)).is_err());
+            assert!(
+                declaration_authority_request(requester, owner).is_err(),
+                "collecting proof references must reject {requester:?} -> {owner:?}"
+            );
         }
         for (requester, owner) in [
             (contract, contract),

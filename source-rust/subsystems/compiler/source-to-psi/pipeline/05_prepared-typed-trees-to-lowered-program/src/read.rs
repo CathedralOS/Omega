@@ -42,8 +42,8 @@ mod clause_calls;
 mod constant_values;
 mod contracts;
 mod expressions;
-mod float_meaning;
 mod fixed_bytes;
+mod float_meaning;
 pub(crate) mod logical;
 mod machine;
 mod mathematics;
@@ -51,6 +51,7 @@ mod nominal_applications;
 mod numeric_contracts;
 mod places;
 mod predicates;
+mod proof_stratum;
 mod provider_methods;
 mod provider_selections;
 mod providers;
@@ -62,6 +63,7 @@ mod regions;
 mod rejections;
 mod review_requirements;
 pub(crate) mod services;
+mod signature;
 mod source_operators;
 mod source_records;
 mod source_views;
@@ -70,6 +72,7 @@ mod static_contexts;
 pub(crate) mod storage_metadata;
 mod storage_path;
 mod subjects;
+mod theorems;
 mod traits;
 mod transitions;
 mod type_equations;
@@ -150,7 +153,8 @@ pub(crate) struct PredicateDefinition {
     pub symbol: SymbolHandle,
     pub diagnostic: MachineId,
     pub parameters: Vec<terminal_psi::ValueDeclaration>,
-    pub body: semantic_vocabulary::Proposition,
+    pub type_parameters: Vec<u32>,
+    pub body: terminal_psi::MathematicalPredicateBody,
 }
 
 pub(crate) struct Program<'t> {
@@ -188,6 +192,8 @@ pub(crate) struct Program<'t> {
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
     pub signatures: IdTable<MachineId, Signature>,
+    pub(crate) theorem_parameters: Vec<terminal_psi::TheoremParameter>,
+    pub(crate) theorem_parameter_sources: Vec<theorems::PreparedTheoremParameter>,
     /// Requirement headers keep their exact source parameter origins until
     /// the call closure completes their omitted bounds.
     declared_envelope_policies: IdTable<MachineId, Option<services::Policy>>,
@@ -287,6 +293,8 @@ pub(crate) struct Program<'t> {
     reading_schema: bool,
     /// Runtime carriers keep their original binder even in applied callees.
     rigid_storage: Vec<Option<type_parameters::ParameterStorage>>,
+    /// Binds sibling operations while reading a law supplied by this record.
+    clause_supplier: Option<SymbolHandle>,
     /// `scope` of each machine, pushed with its signature and restored
     /// when its body is read.
     scopes: IdTable<MachineId, Vec<(SymbolHandle, ValueType)>>,
@@ -352,6 +360,13 @@ pub(crate) struct Program<'t> {
         SymbolHandle,
         Option<crate::source_state::SourceTypeApplication>,
     )>,
+    /// Set for the reader of the compilation's mathematical declarations
+    /// (`crate::lowering::mathematics`). Only that reader admits data that
+    /// contains itself and the machines over it; it lowers nothing.
+    pub(crate) mathematical: bool,
+    /// The records of data that contains itself, in identity order. Such a
+    /// record names a mathematical type and has no storage.
+    pub(crate) self_containing: Vec<StructuralTypeId>,
     /// The declaration being read, which is the lexical owner of the
     /// lifetimes its types name when the typed trees retained none for an
     /// occurrence: the data declaration whose members are read, or the
@@ -522,6 +537,8 @@ impl<'t> Program<'t> {
             shared,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
+            theorem_parameters: Vec::new(),
+            theorem_parameter_sources: Vec::new(),
             declared_envelope_policies: IdTable::default(),
             checking_envelopes: IdTable::default(),
             callables: crate::lowering::callables::CallableNamespace::default(),
@@ -554,6 +571,7 @@ impl<'t> Program<'t> {
             source_scopes: IdTable::default(),
             reading_schema: false,
             rigid_storage: Vec::new(),
+            clause_supplier: None,
             scopes: IdTable::default(),
             nominal_calls: Vec::new(),
             const_scope: Vec::new(),
@@ -577,6 +595,8 @@ impl<'t> Program<'t> {
             inhabitation: Default::default(),
             record_sources: IdTable::default(),
             resolving: Vec::new(),
+            mathematical: false,
+            self_containing: Vec::new(),
             lifetime_owner: SymbolHandle::invalid(),
             region_tuples: vec![Vec::new()],
             fixed_regions: Vec::new(),
@@ -925,10 +945,10 @@ mod tests {
         use crate::source_inputs::SourceMap;
         use crate::source_state::domain::{DomainDefinition, ProofFact};
         use language_core::DomainPredicatePresence;
-        use source_provenance::DependencyScope;
         use semantic_vocabulary::Proposition;
         use source_admission::SourceOrigin;
         use source_admission::SourceResolutionStratum;
+        use source_provenance::DependencyScope;
         use source_text::SourceSpan;
 
         // Each domain's subject is the record `Point`: lowering refuses a
@@ -1049,6 +1069,7 @@ mod tests {
             &bodies,
             &components,
             crate::lowering::body::Signatures {
+                theorems: &program.theorem_parameters,
                 machines: &program.signatures,
                 declarations: &program.declaration_signatures,
                 declaration_aliases: None,
@@ -2281,6 +2302,7 @@ mod tests {
                 required_contract: None,
                 static_reach_binding: None,
                 static_reach_arguments: Vec::new(),
+                proof_arguments: Vec::new(),
             },
             result: None,
             source,

@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 291`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 292`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -222,6 +222,30 @@ pub(crate) mod canonical_order {
                 .iter()
                 .map(|invariant| (invariant.machine, invariant.header)),
             "scalar block invariants by machine and header",
+        )?;
+        require_increasing(
+            module
+                .proofs
+                .theorem_parameters
+                .iter()
+                .map(|row| (row.machine, row.proof_position)),
+            "logical parameters by machine and header position",
+        )?;
+        require_increasing(
+            module
+                .proofs
+                .theorem_applications
+                .iter()
+                .map(|row| (row.machine, row.edge)),
+            "logical applications by machine and edge",
+        )?;
+        require_increasing(
+            module
+                .proofs
+                .theorem_citations
+                .iter()
+                .map(|row| (row.machine, row.site, row.proof_position)),
+            "logical supplies by machine, site and header position",
         )?;
         for invariant in &module.proofs.scalar_block_invariants {
             validate_canonical_proposition(&invariant.predicate)?;
@@ -607,7 +631,12 @@ pub(crate) mod canonical_order {
                 definition.parameters.iter().map(|parameter| parameter.id),
                 "scalar predicate inputs by ValueId",
             )?;
-            validate_canonical_proposition(&definition.body)?;
+            if let Some(body) = definition
+                .clause_body()
+                .map_err(CodecError::MalformedStructuralFoundation)?
+            {
+                validate_canonical_proposition(body)?;
+            }
         }
         require_increasing(
             module
@@ -4129,8 +4158,8 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 291 records suspension frontiers and generic contracts without data carry policies.
-pub(crate) const FORMAT_MARKER: u16 = 291;
+// Marker 292 retains theorem parameter contracts, applications and cited derivations.
+pub(crate) const FORMAT_MARKER: u16 = 292;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -4216,9 +4245,18 @@ pub fn decode_closed_parts(
     // checker does; an artifact cannot carry a domain the checker would refuse.
     terminal_semantics::structural_qualifications::validate(&module)
         .map_err(|error| CodecError::MalformedStructuralFoundation(error.detail))?;
+    // A stored provider of a requirement that ends the process gets the
+    // lowered-form checker's judgment too.
+    terminal_semantics::external_completions::validate(&module).map_err(|_| {
+        CodecError::MalformedStructuralFoundation(
+            "a provider of an external completion does not pass on its own arguments",
+        )
+    })?;
     // Canonical shape only; source-bound `verify_identity_formations` replays
     // the kernel. Decoding does not re-decide a carried judgment.
     crate::identity_formations::validate_identity_formations(&module)?;
+    crate::theorem_citations::validate_received_theorems(&module)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     dynamic_result_admission::validate_dynamic_descriptor_results(&module)?;
     opaque_storage
         .restore(&mut module)
@@ -5289,12 +5327,30 @@ mod scalar_predicate_definition_tests {
                     scalar_type: scalar,
                     qualifications: ScalarQualificationSetId::ZERO,
                 }],
-                body: Proposition::LessOrEqual(
-                    ScalarTerm::integer(integer, IntegerValue::Unsigned(0)).unwrap(),
-                    ScalarTerm::value(formal, scalar),
+                type_parameters: vec![],
+                body: terminal_psi::MathematicalPredicateBody::Proposition(
+                    Proposition::LessOrEqual(
+                        ScalarTerm::integer(integer, IntegerValue::Unsigned(0)).unwrap(),
+                        ScalarTerm::value(formal, scalar),
+                    ),
                 ),
             });
         module
+    }
+
+    #[test]
+    fn an_erased_type_projection_roundtrips_only_in_its_declared_scope() {
+        use terminal_psi::MathematicalPredicateBody::TypeParameter;
+        let mut module = predicate_module();
+        let definition = &mut module.scalars.scalar_predicate_definitions[0];
+        definition.type_parameters = vec![1];
+        definition.body = TypeParameter(1);
+        assert_eq!(
+            decode_module(&encode_module(&module).unwrap()).unwrap(),
+            module
+        );
+        module.scalars.scalar_predicate_definitions[0].body = TypeParameter(0);
+        assert!(decode_module(&module_wire::encode_raw(&module).unwrap()).is_err());
     }
 
     #[test]
@@ -5303,16 +5359,20 @@ mod scalar_predicate_definition_tests {
         let bytes = encode_module(&original).unwrap();
         assert_eq!(decode_module(&bytes).unwrap(), original);
         let mut changed = original.clone();
-        changed.scalars.scalar_predicate_definitions[0].body = Proposition::Truth;
+        changed.scalars.scalar_predicate_definitions[0].body =
+            terminal_psi::MathematicalPredicateBody::Proposition(Proposition::Truth);
         assert_ne!(
             semantic_fingerprint(&original).unwrap(),
             semantic_fingerprint(&changed).unwrap()
         );
 
         let mut capture = original.clone();
-        capture.scalars.scalar_predicate_definitions[0]
-            .body
-            .remap_value_ids(|_| ValueId::new(2).unwrap());
+        let terminal_psi::MathematicalPredicateBody::Proposition(body) =
+            &mut capture.scalars.scalar_predicate_definitions[0].body
+        else {
+            unreachable!()
+        };
+        body.remap_value_ids(|_| ValueId::new(2).unwrap());
         assert!(matches!(
             decode_module(&encode_module(&capture).unwrap()),
             Err(CodecError::MalformedProposition(_))

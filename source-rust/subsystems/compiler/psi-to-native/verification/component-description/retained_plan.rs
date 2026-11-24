@@ -378,7 +378,7 @@ impl<'a> Reader<'a> {
                     return Err("provider calling operand ordinals repeat or reorder");
                 }
                 previous_ordinal = Some(ordinal);
-                let kind = self.tag(semantic_vocabulary::CallingOperandKind::Proposition as u8)?;
+                let kind = self.tag(semantic_vocabulary::CallingOperandKind::Proof as u8)?;
                 let identity = self.nonempty_string()?;
                 operands.push((ordinal, kind, identity));
             }

@@ -23,7 +23,7 @@ use std::{
     collections::BTreeMap,
     ffi::OsString,
     fs::OpenOptions,
-    io::{self, Write},
+    io::{self, Read, Write},
     mem::ManuallyDrop,
     path::{Path, PathBuf},
     time::Duration,
@@ -149,7 +149,10 @@ pub fn run_worker_if_requested() {
             guest_last_error: 0,
         });
         loop {
-            let packet = wire::receive(&mut stream)?;
+            // The interpreter can compute between calls for longer than a single
+            // exchange takes. Only the first request byte waits without a deadline.
+            let first = channel::first_request_byte(&mut stream, timeout)?;
+            let packet = wire::receive(&mut first.as_slice().chain(&mut stream))?;
             let mut cursor = Cursor::new(&packet);
             let tag = cursor.byte()?;
             if tag == 4 {

@@ -162,7 +162,7 @@ fn git_cache_rejects_symlinks_in_owned_repository_namespaces() {
     remove_fixture(&repo, &cache);
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 #[test]
 fn git_cache_rejects_multiply_linked_regular_files() {
     let (repo, cache, request) = primed_git_cache("git-hardlink");

@@ -28,6 +28,10 @@ use calling_conventions::{
     ValueShape, validate_boundary_entry_plan,
 };
 use function_identity::MachineFunctionIdentity;
+use provider_stack_contribution::{
+    SameStackContributionAdmissionCandidate, SameStackContributionAdmissionReceiptId,
+    SameStackProviderPlanCommitment, admit_same_stack_contribution,
+};
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, MachineId, ObligationId, OperationId, PlaceId,
     ScalarType, ServiceId, StructuralDomainId, StructuralTypeId, ValueId,
@@ -35,6 +39,7 @@ use semantic_vocabulary::{
 use target::{
     ForeignLocatorCandidate, NormalizedComponentLocator, TargetProfile, normalize_foreign_locator,
 };
+use target_vocabulary::identity::structural::encode_result_establishments;
 use target_vocabulary::identity::structural_types::encode_claim_transfers;
 use target_vocabulary::{
     LegalizedNormalizedForeignCall, LegalizedScalarArgument, LegalizedScalarCall,
@@ -47,15 +52,11 @@ use target_vocabulary::{
     TargetStructuralHomeLayout, TargetStructuralHomeOrigin, TargetUnitScalarArgumentSource,
     TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
 };
-use provider_stack_contribution::{
-    SameStackContributionAdmissionCandidate, SameStackContributionAdmissionReceiptId,
-    SameStackProviderPlanCommitment, admit_same_stack_contribution,
-};
 use terminal_psi::{
     ClaimTransfer, ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
-    ProviderSignature, ProviderSignatureParameter, SemanticFingerprint,
-    StructuralDomainRequirement, StructuralOperationResult, StructuralResultClaimBinding,
-    TerminalAccessViewInput, TerminalIdentityIndex,
+    ProviderSignature, ProviderSignatureParameter, ResultQualificationEstablishment,
+    SemanticFingerprint, StructuralDomainRequirement, StructuralOperationResult,
+    StructuralResultClaimBinding, TerminalAccessViewInput, TerminalIdentityIndex,
 };
 
 use crate::FixedViewCopyDecodeError;
@@ -1551,6 +1552,7 @@ pub(super) fn encode_result(bytes: &mut Vec<u8>, result: &StructuralOperationRes
     );
     encode_projected(bytes, &result.projected_qualifications, true);
     encode_projected(bytes, &result.additional_input_qualifications, true);
+    encode_result_establishments(bytes, &result.qualification_establishments);
     length(bytes, result.claims.len());
     for claim in &result.claims {
         crate::codec_bytes::push_encoded(bytes, claim.claim.get().to_le_bytes());
@@ -1567,6 +1569,13 @@ pub(super) fn decode_result(
     let qualifications = decode_ids(cursor, StructuralDomainId::new)?;
     let projected_qualifications = decode_projected(cursor, true)?;
     let additional_input_qualifications = decode_projected(cursor, true)?;
+    let qualification_establishments =
+        decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
+            Ok(ResultQualificationEstablishment {
+                domain: decode_id(cursor, StructuralDomainId::new)?,
+                route: cursor.u32()?,
+            })
+        })?;
     let claims = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
         Ok(StructuralResultClaimBinding {
             claim: decode_id(cursor, ClaimId::new)?,
@@ -1574,7 +1583,7 @@ pub(super) fn decode_result(
         })
     })?;
     Ok(StructuralOperationResult {
-        qualification_establishments: Vec::new(),
+        qualification_establishments,
         place,
         structural_type,
         multiplicity,

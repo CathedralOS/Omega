@@ -107,15 +107,19 @@ pub enum RouteVerdict {
         /// One per call that reaches a service outside its caller's reach.
         exceeded: Vec<ExceededReach>,
     },
-    /// No obligation is unproved for want of a derivation, but the prover has
-    /// no rule for the form of at least one goal, so the route can judge the
-    /// program neither way. Every entry's cause is
-    /// `UnprovedCause::NoRuleForGoalForm`. Never empty.
+    /// Every remaining obligation needs a missing proof rule or more search
+    /// budget. Each diagnostic records which condition stopped the prover.
     Incomplete(Vec<UnprovedObligation>),
     /// The route does not serve some construct or obligation of the closure,
     /// so the whole closure is refused as not supported yet. The first such
     /// refusal.
     FallBack(Refusal),
+    /// The compilation's mathematical signature: the kernel checked every
+    /// declaration once and judged every law. Reported after every closure.
+    Laws(Box<crate::checking::laws::SignatureJudgment>),
+    /// Laws of that signature the checker could not prove, one entry per
+    /// law. The compilation is refused.
+    UnprovedLaws(Vec<crate::checking::laws::UnprovedLaw>),
 }
 
 pub use super::publication::AcceptedClosure;
@@ -445,7 +449,10 @@ fn accept_proof_callables(elaboration: &mut Elaboration, discharge: &Discharge) 
             )
         }) {
             if header.supplies_checked_body {
-                return Err(invalid(machine, "an unfinished Build suffix claims to supply a checked callable body"));
+                return Err(invalid(
+                    machine,
+                    "an unfinished Build suffix claims to supply a checked callable body",
+                ));
             }
             continue;
         }
@@ -854,6 +861,9 @@ fn describe_kind(kind: ObligationKind) -> String {
     match kind {
         ObligationKind::IntegerWidthPositive { .. } => String::from("positive integer width"),
         ObligationKind::OperationSafety { .. } => String::from("operation safety"),
+        ObligationKind::TheoremRequirement { clause, .. } => {
+            format!("premise {} of the supplied theorem", u64::from(clause) + 1)
+        }
         ObligationKind::CallRequirement { clause, .. } => {
             format!(
                 "requires clause {} of the called machine",
@@ -1230,11 +1240,23 @@ fn conclude(
                 terminal_check_tables::row(&tables.obligations, obligation, machine, concerns)?;
             let site =
                 *terminal_check_tables::row(&sources.obligations, obligation, machine, concerns)?;
+            // The return edge identifies the failing path. The authored
+            // equality identifies the exact claim to underline on that path.
+            let claim_site = match row.kind {
+                ObligationKind::NormalGuarantee { clause, .. }
+                    if elaboration.module.machine(machine)
+                        .and_then(|body| body.ensures.get(clause as usize))
+                        .is_some_and(|row| matches!(row.proposition, semantic_vocabulary::Proposition::DeclarationIdentity(_))) => {
+                    elaboration.names.get(machine).and_then(|names| names.ensures.get(clause as usize))
+                        .and_then(|text| text.source).map(SourceOrigin::Authored)
+                }
+                _ => None,
+            };
             unproved.push(UnprovedObligation {
                 machine,
                 obligation,
                 kind: row.kind,
-                site,
+                site: claim_site.unwrap_or(site),
                 cause,
                 detail: refused.detail.clone(),
                 statement: describe::unproved(
@@ -1408,7 +1430,7 @@ fn conclude(
         return fall_back_or_defect(refused);
     }
     if let Err(refused) = crate::checking::static_contracts::publish(&mut elaboration) {
-        return fall_back_or_defect(refused);
+        return fall_back_or_defect(Roster::of(&elaboration).locate(refused));
     }
     let applications = &mut elaboration.module.scalars.scalar_applications;
     let mut pending = Vec::new();
@@ -1552,7 +1574,7 @@ pub(crate) fn judge_compilation_with_activity(
     activity: &mut crate::checking::ProofSearchActivity,
 ) -> Vec<Result<RouteVerdict, CompilationRefusal>> {
     use terminal_check_tables::compilation::TerminalCompilation;
-    let prepared = match input {
+    let mut prepared = match input {
         TerminalCompilation::FormationFailures(formations) => {
             return vec![Ok(RouteVerdict::Rejected {
                 formations,
@@ -1573,7 +1595,7 @@ pub(crate) fn judge_compilation_with_activity(
         Ok(unproved) => {
             let verdict = if unproved
                 .iter()
-                .all(|failure| failure.cause == UnprovedCause::NoRuleForGoalForm)
+                .all(|failure| failure.cause.is_incomplete())
             {
                 RouteVerdict::Incomplete(unproved)
             } else {
@@ -1595,6 +1617,7 @@ pub(crate) fn judge_compilation_with_activity(
             ];
         }
     }
+    let mathematics = std::mem::take(&mut prepared.mathematics);
     let mut further = Vec::new();
     let forms = examine_generic_forms(prepared.forms, activity, &mut further);
     // A selection borrows the same discharge that later decides its witness's
@@ -1657,6 +1680,14 @@ pub(crate) fn judge_compilation_with_activity(
             .into_iter()
             .map(|refused| Ok(RouteVerdict::FallBack(refused))),
     );
+    // The signature is one judgment for the whole compilation, independent of
+    // every closure above: no machine's obligations are among its inputs.
+    if !mathematics.is_empty() {
+        verdicts.push(Ok(match crate::checking::laws::judge(mathematics) {
+            Ok(judged) => RouteVerdict::Laws(Box::new(judged)),
+            Err(unproved) => RouteVerdict::UnprovedLaws(unproved),
+        }));
+    }
     verdicts
 }
 

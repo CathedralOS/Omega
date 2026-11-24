@@ -239,13 +239,21 @@ fn parse_domain_requires<'tokens, 'source>(
     ))
 }
 
-fn domain_requires_terminator(input: Input<'_, '_>) -> bool {
-    crate::declarations::items::named_implementation_prefix(input).is_some()
-        || input.at_contextual("established")
+fn domain_requires_terminator(input: Input<'_, '_>, after_separator: bool) -> bool {
+    if input.at_contextual("established")
         || input.at_contextual("access")
         || input.at_contextual("satisfies")
         || input.at_punctuation(PunctuationKind::LeftBrace)
         || input.tokens.is_empty()
+    {
+        return true;
+    }
+    // A comma continues the facts. At a semicolon the fact parser already
+    // checked the complete following declaration before advancing past it.
+    if after_separator {
+        return false;
+    }
+    crate::declarations::items::named_implementation_prefix(input).is_some()
         || input.at_keyword(KeywordKind::Public)
         || input.at_keyword(KeywordKind::Data)
         || input.at_keyword(KeywordKind::Machine)
@@ -351,7 +359,7 @@ fn parse_domain_establishment<'tokens, 'source>(
     if requires_consumed
         && !input.at_contextual("established")
         && !input.at_punctuation(PunctuationKind::LeftBrace)
-        && domain_requires_terminator(input)
+        && domain_requires_terminator(input, false)
     {
         return Ok(((Vec::new(), None), input));
     }

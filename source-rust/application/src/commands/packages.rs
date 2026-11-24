@@ -169,7 +169,10 @@ fn accept_pending_decisions(path: &Path) -> Result<usize, PackageCommandError> {
     let mut accepted = 0;
     let mut rewritten = String::with_capacity(text.len());
     for line in text.split_inclusive('\n') {
-        let body = line.trim_end_matches('\n');
+        let body = line
+            .strip_suffix("\r\n")
+            .or_else(|| line.strip_suffix('\n'))
+            .unwrap_or(line);
         match body.strip_suffix(" pending") {
             Some(subject) if subject.starts_with("decision ") => {
                 accepted += 1;
@@ -191,5 +194,27 @@ fn exit_status(status: PackageCommandStatus) -> i32 {
     match status {
         PackageCommandStatus::Published | PackageCommandStatus::ReviewDiscarded => 0,
         PackageCommandStatus::ReviewRequired => 3,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accept_pending_decisions_preserves_review_line_endings() {
+        let directory = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "package-review-decisions", false,
+        )
+        .unwrap();
+        let path = directory.path().join("review");
+        let original = "header\r\ndecision root-role pending\r\nrow data\ndecision row x pending";
+        std::fs::write(&path, original).unwrap();
+        assert_eq!(accept_pending_decisions(&path).unwrap(), 2);
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            original.replace(" pending", " accept")
+        );
+        assert_eq!(accept_pending_decisions(&path).unwrap(), 0);
     }
 }

@@ -561,16 +561,17 @@ pub struct BigRational {
     negative_zero: bool,
 }
 
-impl BigRational {
-    pub fn zero() -> Self {
-        Self {
-            numerator: BigInt::zero(),
-            denominator: BigInt::from_u64(1),
-            negative_zero: false,
-        }
-    }
+// Parsing a retained spelling must not construct a power of ten just to validate its syntax.
+struct DecimalParts<'a> {
+    negative: bool,
+    whole: &'a str,
+    fraction: &'a str,
+    fractional_scale: bool,
+    places: usize,
+}
 
-    pub fn from_decimal_str(text: &str) -> Option<Self> {
+impl<'a> DecimalParts<'a> {
+    fn parse(text: &'a str) -> Option<Self> {
         let (negative, unsigned) = match text.strip_prefix('-') {
             Some(rest) => (true, rest),
             None => (false, text.strip_prefix('+').unwrap_or(text)),
@@ -583,19 +584,50 @@ impl BigRational {
             Some(parts) => parts,
             None => (mantissa, ""),
         };
-        let digits = format!("{whole}{fraction}");
-        if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+        if whole.is_empty() && fraction.is_empty()
+            || !whole
+                .bytes()
+                .chain(fraction.bytes())
+                .all(|byte| byte.is_ascii_digit())
+        {
             return None;
         }
-        let mut numerator = BigInt::from_decimal_str(&digits)?;
         let scale = exponent.checked_sub(i64::try_from(fraction.len()).ok()?)?;
-        let denominator;
-        if scale >= 0 {
-            numerator = numerator.mul(&pow10(usize::try_from(scale).ok()?));
-            denominator = BigInt::from_u64(1);
-        } else {
-            denominator = pow10(usize::try_from(scale.unsigned_abs()).ok()?);
+        Some(Self {
+            negative,
+            whole,
+            fraction,
+            fractional_scale: scale < 0,
+            places: usize::try_from(scale.unsigned_abs()).ok()?,
+        })
+    }
+}
+
+impl BigRational {
+    pub fn zero() -> Self {
+        Self {
+            numerator: BigInt::zero(),
+            denominator: BigInt::from_u64(1),
+            negative_zero: false,
         }
+    }
+
+    pub fn from_decimal_str(text: &str) -> Option<Self> {
+        let DecimalParts {
+            negative,
+            whole,
+            fraction,
+            fractional_scale,
+            places,
+        } = DecimalParts::parse(text)?;
+        let digits = format!("{whole}{fraction}");
+        let mut numerator = BigInt::from_decimal_str(&digits)?;
+        let denominator = if fractional_scale {
+            pow10(places)
+        } else {
+            numerator = numerator.mul(&pow10(places));
+            BigInt::from_u64(1)
+        };
         if negative {
             numerator = numerator.negate();
         }
@@ -828,12 +860,22 @@ pub enum ExactFloat {
 }
 
 impl ExactFloat {
+    /// Check the exact decimal grammar without allocating or rounding the value.
+    pub fn accepts_decimal_str(text: &str) -> bool {
+        Self::special_spelling(text).is_some() || DecimalParts::parse(text).is_some()
+    }
+
     pub fn from_decimal_str(text: &str) -> Option<Self> {
+        Self::special_spelling(text)
+            .or_else(|| BigRational::from_decimal_str(text).map(Self::Finite))
+    }
+
+    fn special_spelling(text: &str) -> Option<Self> {
         match text {
             "NaN" | "+NaN" | "-NaN" | "nan" | "+nan" | "-nan" => Some(Self::NaN),
             "inf" | "+inf" | "infinity" | "+infinity" => Some(Self::Infinity { negative: false }),
             "-inf" | "-infinity" => Some(Self::Infinity { negative: true }),
-            _ => BigRational::from_decimal_str(text).map(Self::Finite),
+            _ => None,
         }
     }
 

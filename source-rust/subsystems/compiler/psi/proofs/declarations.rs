@@ -2,6 +2,9 @@ use crate::*;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProgramProofs {
+    pub theorem_parameters: Vec<TheoremParameter>,
+    pub theorem_applications: Vec<TheoremApplication>,
+    pub theorem_citations: Vec<TheoremCitation>,
     pub indexed_theorems: Vec<TerminalIndexedTheorem>,
     pub proposition_declarations: Vec<PropositionDeclaration>,
     pub proposition_applications: Vec<PropositionApplicationIdentity>,

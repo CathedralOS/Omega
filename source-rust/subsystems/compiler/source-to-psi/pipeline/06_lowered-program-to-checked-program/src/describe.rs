@@ -62,6 +62,10 @@ pub(crate) fn unproved(
                 None => String::from("cannot prove integer width is positive"),
             }
         }
+        ObligationKind::TheoremRequirement { clause, .. } => format!(
+            "cannot prove premise {} of the supplied theorem",
+            u64::from(clause) + 1
+        ),
         ObligationKind::CallRequirement { invocation, clause } => {
             let callee = tables
                 .invocations
@@ -240,6 +244,12 @@ fn established_predicate_arrival(
         EstablishedCondition::DispatchCoverage => {
             return Some(format!(
                 "cannot prove the last guard covers every remaining arrival in {}. Add a `_ ->` arm",
+                owner(names, site)
+            ));
+        }
+        EstablishedCondition::FixedRankBound => {
+            return Some(format!(
+                "cannot prove the fixed bound of `Nat::IncreasingTo` is unchanged on the recursive transfer in {}",
                 owner(names, site)
             ));
         }
@@ -540,6 +550,7 @@ pub(crate) fn premise(
         Justification::EntryRequirement { clause: position } => {
             clause(names, position, false).unwrap_or_else(|| String::from("an entry requirement"))
         }
+        Justification::TheoremGuarantee { .. } => String::from("a supplied theorem's conclusion"),
         Justification::CalleeGuarantee {
             invocation,
             clause: position,

@@ -600,26 +600,15 @@ pub fn realize_target_supply(
         if covered[ordinal] {
             continue;
         }
-        let declaration = module
+        let row = module
             .boundary_machine(*boundary)
-            .and_then(|boundary| boundary.declaration.as_ref())
+            .ok_or("reached boundary has no genuine checked declaration")?;
+        let declaration = row
+            .declaration
+            .as_ref()
             .ok_or("reached boundary has no genuine checked declaration")?;
         if !direct_boundary_leaves.iter().any(|leaf| {
-            module.identities.text(
-                if module.boundary_machine(*boundary).is_some_and(|row| {
-                    row.kind == semantic_vocabulary::BoundaryRequirementKind::Trait
-                        || row.declaration.as_ref().is_some_and(|declaration| {
-                            declaration.execution
-                                != terminal_psi::CheckedBoundaryExecution::Provider
-                        })
-                }) {
-                    declaration.source.semantic_declaration
-                } else {
-                    declaration.source.machine.identity()
-                },
-            ) == Some(leaf.declaration_identity.as_str())
-                && module.identities.text(declaration.source.callable)
-                    == Some(leaf.callable_identity.as_str())
+            super::matches_direct_leaf(&module.identities, row.kind, declaration, leaf)
         }) {
             missing.push(*boundary);
         }

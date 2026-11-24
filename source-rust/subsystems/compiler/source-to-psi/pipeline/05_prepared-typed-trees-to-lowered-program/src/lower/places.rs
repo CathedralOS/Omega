@@ -102,9 +102,9 @@ pub(crate) struct Records<'a> {
     /// Scalar homes retain their exact type identity and qualification. An
     /// array element of the same scalar width need not be the same home type.
     primitives: Vec<(ValueType, String, StructuralTypeId)>,
-    /// Each scalar binder whose storage a loan will capture. The row
-    /// names the existing primitive home type, in the body's slot order.
-    lender_homes: IdTable<MachineId, Vec<Option<StructuralTypeId>>>,
+    /// The primitive storage for each scalar slot captured by a loan or
+    /// assigned across control flow, in the body's slot order.
+    slot_homes: IdTable<MachineId, Vec<Option<StructuralTypeId>>>,
     /// `field_identities[record][position]`: the field's index in the
     /// module's identity table. It is written into `StructuralLeafCopy`
     /// paths, which is the form Terminal Psi gives them; nothing compares it.
@@ -597,10 +597,9 @@ pub(crate) fn declare<'a, 'b>(
             scalar_restriction: None,
         });
     }
-    // Every scalar place a body names besides its records: the home of a
-    // scalar local declared without an initializer or lent to a call, and
-    // the place of a borrowed scalar formal. Each needs its primitive type
-    // declared once, with the text identity the typed trees gave it.
+    // Declare each scalar storage type once. Locals can need storage for
+    // zero initialization, a loan, or an assignment on one incoming edge.
+    // A borrowed formal already refers to its caller's storage.
     let mut homes: Vec<ScalarHomeDemand<'_>> = Vec::new();
     for signature in signatures {
         for borrowed in &signature.borrowed {
@@ -610,7 +609,7 @@ pub(crate) fn declare<'a, 'b>(
                 homes.push(ScalarHomeDemand {
                     value_type,
                     identity: borrowed.home.as_ref(),
-                    lender: None,
+                    slot: None,
                 });
             }
         }
@@ -621,7 +620,7 @@ pub(crate) fn declare<'a, 'b>(
                 homes.push(ScalarHomeDemand {
                     value_type,
                     identity,
-                    lender: slot.map(|slot| (machine, slot)),
+                    slot: slot.map(|slot| (machine, slot)),
                 });
             });
         }
@@ -640,11 +639,11 @@ pub(crate) fn declare<'a, 'b>(
             _ => None,
         })
         .collect();
-    let mut lender_homes = bodies.map(|_, _| Vec::new());
+    let mut slot_homes = bodies.map(|_, _| Vec::new());
     for ScalarHomeDemand {
         value_type,
         identity,
-        lender,
+        slot,
     } in homes
     {
         let Some(home) = identity else {
@@ -680,19 +679,19 @@ pub(crate) fn declare<'a, 'b>(
             primitives.push((value_type, home.clone(), declared));
             declared
         };
-        if let Some((machine, slot)) = lender {
+        if let Some((machine, slot)) = slot {
             let body = terminal_check_tables::row(bodies, machine, entry, Construct::Machine)?;
             let invalid = || {
                 refuse(
                     machine,
                     Construct::Machine,
-                    Unserved::Type("a scalar lender has conflicting home types"),
+                    Unserved::Type("a scalar slot has conflicting home types"),
                 )
             };
             if body.slots.get(slot) != Some(&value_type) {
                 return Err(invalid());
             }
-            let slots = lender_homes.get_mut(machine).ok_or_else(invalid)?;
+            let slots = slot_homes.get_mut(machine).ok_or_else(invalid)?;
             if slots.len() <= slot {
                 slots.resize(slot + 1, None);
             }
@@ -882,7 +881,7 @@ pub(crate) fn declare<'a, 'b>(
                 )
             })?,
             primitives,
-            lender_homes,
+            slot_homes,
             field_identities,
             payload_identities,
         },
@@ -1013,11 +1012,10 @@ fn append_scalar_type(
 struct ScalarHomeDemand<'b> {
     value_type: ValueType,
     identity: Option<&'b String>,
-    lender: Option<(MachineId, usize)>,
+    slot: Option<(MachineId, usize)>,
 }
 
-/// The homes required by scalar loans in the statement, including which
-/// local binding the loan captures.
+/// Collect the scalar places a statement needs and the bindings that own them.
 fn statement_homes<'b>(
     statement: &'b Statement,
     slots: &[ValueType],
@@ -1031,8 +1029,16 @@ fn statement_homes<'b>(
             expression: value, ..
         } => expression_homes(value, slots, homes),
         Statement::Store {
-            destination, value, ..
+            slot_home,
+            destination,
+            value,
+            ..
         } => {
+            if let (Some(home), ExpressionKind::Slot(slot), Some(value_type)) =
+                (slot_home, &destination.kind, destination.result)
+            {
+                homes(value_type, Some(home), Some(*slot));
+            }
             expression_homes(destination, slots, homes);
             expression_homes(value, slots, homes);
         }
@@ -1087,6 +1093,7 @@ fn expression_homes<'b>(
     homes: &mut impl FnMut(ValueType, Option<&'b String>, Option<usize>),
 ) {
     match &expression.kind {
+        ExpressionKind::TheoremApplication { .. } => {}
         ExpressionKind::Atomic(operation) => {
             for operand in operation.inputs() {
                 expression_homes(operand, slots, homes);
@@ -1095,6 +1102,7 @@ fn expression_homes<'b>(
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
         | ExpressionKind::Float(_)
+        | ExpressionKind::ErasedApplication(_)
         | ExpressionKind::ScalarApplication { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::MachineValue { .. }
@@ -1398,13 +1406,13 @@ impl Records<'_> {
         let record = terminal_check_tables::row(self.types, record, machine, Construct::Machine)?;
         Ok(record.multiplicity)
     }
-    pub(super) fn lender_homes(
+    pub(super) fn slot_homes(
         &self,
         member: MachineId,
         machine: MachineId,
     ) -> Checked<&[Option<StructuralTypeId>]> {
         let homes =
-            terminal_check_tables::row(&self.lender_homes, member, machine, Construct::Machine)?;
+            terminal_check_tables::row(&self.slot_homes, member, machine, Construct::Machine)?;
         Ok(homes)
     }
 
@@ -1449,10 +1457,10 @@ pub(super) enum Bound {
     Erased(Witness),
 }
 
-/// The term an erased binding names: a value of this machine or a literal,
-/// the forms `ScalarTerm` states with no formation condition.
+/// The term an erased binding names, with its operands already formed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Witness {
+    Application(usize),
     Value(ValueId, ScalarType),
     Integer(
         semantic_vocabulary::IntegerType,
@@ -1462,9 +1470,13 @@ pub(super) enum Witness {
 }
 
 impl Witness {
-    pub(super) fn term(self) -> semantic_vocabulary::ScalarTerm {
+    pub(super) fn term(
+        self,
+        applications: &[semantic_vocabulary::ScalarTerm],
+    ) -> semantic_vocabulary::ScalarTerm {
         use semantic_vocabulary::ScalarTerm;
         match self {
+            Self::Application(index) => applications[index].clone(),
             Self::Value(id, scalar_type) => ScalarTerm::Value { id, scalar_type },
             Self::Integer(scalar_type, value) => ScalarTerm::Integer { scalar_type, value },
             Self::Boolean(value) => ScalarTerm::Boolean(value),
@@ -2417,6 +2429,9 @@ impl<'a> Lowering<'a> {
             return Err(self.internal("a scalar expression is used as a record"));
         };
         match &expression.kind {
+            ExpressionKind::TheoremApplication { .. } => {
+                Err(self.internal("a logical application is used as storage"))
+            }
             ExpressionKind::Atomic(_) => {
                 Err(self.internal("an atomic scalar event is used as structural storage"))
             }
@@ -2826,6 +2841,7 @@ impl<'a> Lowering<'a> {
                 required_contract,
                 static_reach_binding,
                 static_reach_arguments,
+                proof_arguments,
                 arguments,
                 designated,
             } => {
@@ -2838,7 +2854,8 @@ impl<'a> Lowering<'a> {
                     (
                         expression.source,
                         *static_reach_binding,
-                        static_reach_arguments
+                        static_reach_arguments,
+                        proof_arguments,
                     ),
                     expression.call_context.unwrap_or_default(),
                 )) {
@@ -2892,6 +2909,7 @@ impl<'a> Lowering<'a> {
             | ExpressionKind::StorageLocation { .. }
             | ExpressionKind::CollectionMeasure { .. }
             | ExpressionKind::ByteSequencePredicate { .. }
+            | ExpressionKind::ErasedApplication(_)
             | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::Strict { .. }
             | ExpressionKind::Not(_)
@@ -5600,6 +5618,7 @@ mod tests {
                         required_contract: None,
                         static_reach_binding: None,
                         static_reach_arguments: Vec::new(),
+                        proof_arguments: Vec::new(),
                     },
                     result: Some(plain),
                     source,
@@ -5648,7 +5667,7 @@ mod tests {
             .primitive(plain, Some("plain-alias"), machine)
             .unwrap();
         assert_eq!(
-            records.lender_homes(machine, machine).unwrap(),
+            records.slot_homes(machine, machine).unwrap(),
             &[None, None, None, Some(plain_id)]
         );
         assert_ne!(plain_id, wrapping_id);

@@ -194,6 +194,7 @@ impl RankingViewId {
         let (name, subject_count) = match self {
             Self::NAT_DESCENDING => ("Descending", 1),
             Self::NAT_BOUNDED_DISTANCE => ("BoundedDistance", 2),
+            Self::NAT_INCREASING_TO => ("IncreasingTo", 2),
             _ => return None,
         };
         Some(RankingViewDeclaration {

@@ -1,11 +1,6 @@
-// blocking-executor — package-level blocking executor (TASKS.md BLOCKEXEC).
-//
-// Contract-surface stage, following the source/library/core/fixed_vec.omg
-// convention: the generic `data` declarations and boundary-trait
-// contracts compile today; machine bodies attached to generic data remain
-// blocked on the generic-machine frontier recorded there, so the executable
-// pattern is pinned concretely in a pass canary once the task-runtime canary
-// lane is open.
+// This package declares bounded submissions and linear completion claims.
+// `COMPONENT-SUBSTRATE` in TASKS.md tracks executable queue and worker
+// bodies and provider integration.
 //
 // Surface contract pieces and where each spec obligation lands
 // (wiki/spec/build/task_runtime.md):

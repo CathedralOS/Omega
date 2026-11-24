@@ -1814,7 +1814,7 @@ mod catalogs {
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     ) -> Result<(), OptimizationUnitValidationError> {
         use abstract_operations::AbstractOperation as O;
-        use terminal_psi::{RecordFieldValue, StructuralTypeShape};
+        use terminal_psi::StructuralTypeShape;
         macro_rules! require_operation {
             ($operation:expr, $obligation:expr, $goal:expr) => {
                 require_accepted_goal_fact(
@@ -2407,31 +2407,29 @@ mod catalogs {
                     result_case,
                     fields,
                 } => {
-                    let Some(StructuralTypeDeclaration {
-                        shape: StructuralTypeShape::Sum { cases },
-                        ..
-                    }) = types.get(&result.structural_type).copied()
-                    else {
-                        continue;
+                    let invalid =
+                        || OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;
+                    let (common, cases) = match types.get(&result.structural_type).map(|d| &d.shape)
+                    {
+                        Some(StructuralTypeShape::Sum { cases }) => (&[][..], cases),
+                        Some(StructuralTypeShape::Mixed { fields, cases }) => {
+                            (fields.as_slice(), cases)
+                        }
+                        _ => return Err(invalid()),
                     };
-                    let Some(case) = find_structural_case(cases, *result_case) else {
-                        continue;
-                    };
-                    for (declaration, binding) in case.fields.iter().zip(fields) {
-                        if let RecordFieldValue::Scalar {
+                    let case = find_structural_case(cases, *result_case).ok_or_else(invalid)?;
+                    for (declaration, value, range_obligation) in
+                        scalar_initializer_declarations(common.iter().chain(&case.fields), fields)
+                            .ok_or_else(invalid)?
+                    {
+                        validate_field_range_authority(
+                            unit,
+                            function.machine,
+                            *psi_operation,
+                            declaration,
                             value,
                             range_obligation,
-                        } = &binding.value
-                        {
-                            validate_field_range_authority(
-                                unit,
-                                function.machine,
-                                *psi_operation,
-                                declaration,
-                                *value,
-                                *range_obligation,
-                            )?;
-                        }
+                        )?;
                     }
                 }
                 O::EstablishRecord {
@@ -2439,38 +2437,70 @@ mod catalogs {
                     result,
                     fields,
                 } => {
-                    let Some(StructuralTypeDeclaration {
-                        shape:
-                            StructuralTypeShape::Record {
-                                fields: declarations,
-                                ..
-                            },
+                    let invalid =
+                        || OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;
+                    let Some(StructuralTypeShape::Record {
+                        fields: declarations,
                         ..
-                    }) = types.get(&result.structural_type).copied()
+                    }) = types.get(&result.structural_type).map(|d| &d.shape)
                     else {
-                        continue;
+                        return Err(invalid());
                     };
-                    for (declaration, initializer) in declarations.iter().zip(fields) {
-                        if let RecordFieldValue::Scalar {
+                    for (declaration, value, range_obligation) in
+                        scalar_initializer_declarations(declarations.iter(), fields)
+                            .ok_or_else(invalid)?
+                    {
+                        validate_field_range_authority(
+                            unit,
+                            function.machine,
+                            *psi_operation,
+                            declaration,
                             value,
                             range_obligation,
-                        } = &initializer.value
-                        {
-                            validate_field_range_authority(
-                                unit,
-                                function.machine,
-                                *psi_operation,
-                                declaration,
-                                *value,
-                                *range_obligation,
-                            )?;
-                        }
+                        )?;
                     }
                 }
                 _ => {}
             }
         }
         Ok(())
+    }
+
+    /// Pairs each scalar initializer of a record or case constructor with the
+    /// field declaration it names. Initializers cover only the relevant fields,
+    /// in declaration order (`field_initializers_match`), while a type's roster
+    /// also lists `[erased]` fields and, for a mixed type, the common fields
+    /// before the case's own. Matching by field id keeps an erased field from
+    /// shifting every later initializer onto the wrong declaration. `None`
+    /// means an initializer names no relevant field of the roster.
+    pub(super) fn scalar_initializer_declarations<'a>(
+        roster: impl Iterator<Item = &'a terminal_psi::StructuralFieldDeclaration> + Clone,
+        fields: &'a [terminal_psi::RecordFieldInitializer],
+    ) -> Option<
+        Vec<(
+            &'a terminal_psi::StructuralFieldDeclaration,
+            ValueId,
+            Option<ObligationId>,
+        )>,
+    > {
+        fields
+            .iter()
+            .filter_map(|initializer| match &initializer.value {
+                terminal_psi::RecordFieldValue::Scalar {
+                    value,
+                    range_obligation,
+                } => Some((initializer.field, *value, *range_obligation)),
+                _ => None,
+            })
+            .map(|(field, value, range_obligation)| {
+                roster
+                    .clone()
+                    .find(|declaration| {
+                        declaration.id == field && !declaration.relevance.is_erased()
+                    })
+                    .map(|declaration| (declaration, value, range_obligation))
+            })
+            .collect()
     }
 
     fn validate_field_range_authority(
@@ -2620,6 +2650,115 @@ mod catalogs {
         }
         validate_root_service_reach(unit, machines, boundary_machines, services)?;
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod field_range_pairing_tests {
+        use super::scalar_initializer_declarations;
+        use semantic_vocabulary::{
+            BoundedIntegerType, IntegerSign, IntegerType, IntegerValue, ObligationId, ScalarType,
+            StructuralFieldId, ValueId,
+        };
+        use terminal_psi::{
+            BindingRelevance, RecordFieldInitializer, RecordFieldValue, StructuralFieldDeclaration,
+            StructuralFieldType,
+        };
+
+        fn field(
+            id: u64,
+            relevance: BindingRelevance,
+            field_type: StructuralFieldType,
+        ) -> StructuralFieldDeclaration {
+            StructuralFieldDeclaration {
+                declaration_identity: Default::default(),
+                inline_carrier: None,
+                id: StructuralFieldId::new(id).unwrap(),
+                identity: Default::default(),
+                relevance,
+                field_type,
+                storage: None,
+            }
+        }
+
+        fn scalar(id: u64, value: u64, obligation: Option<u64>) -> RecordFieldInitializer {
+            RecordFieldInitializer {
+                field: StructuralFieldId::new(id).unwrap(),
+                value: RecordFieldValue::Scalar {
+                    value: ValueId::new(value).unwrap(),
+                    range_obligation: obligation.map(|id| ObligationId::new(id).unwrap()),
+                },
+            }
+        }
+
+        fn byte() -> IntegerType {
+            IntegerType::new(IntegerSign::Unsigned, 8).unwrap()
+        }
+
+        fn bounded() -> StructuralFieldType {
+            StructuralFieldType::BoundedInteger(
+                BoundedIntegerType::new(
+                    byte(),
+                    IntegerValue::Unsigned(0),
+                    IntegerValue::Unsigned(9),
+                )
+                .unwrap(),
+            )
+        }
+
+        /// A record `{ [erased] ghost: u8, count: u8 in 0..=9 }` is built with
+        /// one initializer, for `count`. Its range obligation must be checked
+        /// against `count`'s bounded declaration, not the erased field before
+        /// it.
+        #[test]
+        fn erased_field_does_not_shift_initializer_declarations() {
+            let roster = [
+                field(
+                    1,
+                    BindingRelevance::Erased,
+                    StructuralFieldType::Scalar(ScalarType::Integer(byte())),
+                ),
+                field(2, BindingRelevance::Relevant, bounded()),
+            ];
+            let fields = [scalar(2, 7, Some(3))];
+            let pairs = scalar_initializer_declarations(roster.iter(), &fields).unwrap();
+            assert_eq!(pairs.len(), 1);
+            assert_eq!(pairs[0].0.id, StructuralFieldId::new(2).unwrap());
+            assert_eq!(pairs[0].0.field_type, bounded());
+            assert_eq!(pairs[0].2, Some(ObligationId::new(3).unwrap()));
+        }
+
+        /// A mixed type's case constructor initializes the common fields first,
+        /// then the case's own fields; both lists take part in the pairing.
+        #[test]
+        fn mixed_case_pairs_common_and_case_fields() {
+            let common = [field(1, BindingRelevance::Relevant, bounded())];
+            let case = [field(
+                2,
+                BindingRelevance::Relevant,
+                StructuralFieldType::Scalar(ScalarType::Integer(byte())),
+            )];
+            let fields = [scalar(1, 4, Some(5)), scalar(2, 6, None)];
+            let pairs =
+                scalar_initializer_declarations(common.iter().chain(&case), &fields).unwrap();
+            let ids = pairs
+                .iter()
+                .map(|(declaration, _, _)| declaration.id.get())
+                .collect::<Vec<_>>();
+            assert_eq!(ids, [1, 2]);
+        }
+
+        /// An initializer for an erased or unknown field has no declaration to
+        /// check against, so the range check refuses it.
+        #[test]
+        fn initializer_without_relevant_declaration_is_refused() {
+            let roster = [field(1, BindingRelevance::Erased, bounded())];
+            assert!(
+                scalar_initializer_declarations(roster.iter(), &[scalar(1, 2, None)]).is_none()
+            );
+            assert!(
+                scalar_initializer_declarations(roster.iter(), &[scalar(9, 2, None)]).is_none()
+            );
+        }
     }
 }
 pub(crate) mod derived_metadata {
@@ -6157,154 +6296,116 @@ pub(crate) mod function_structure {
         pub(crate) fn reconstruct_fact_index(
             function: &PsiOptimizationFunction,
         ) -> Vec<OptimizationFact> {
-            use abstract_operations::{AbstractOperation as O, IntegerShiftPolicy};
-
             let mut expected = Vec::new();
-            for operation in function.block_nodes().map(|node| &node.operation) {
-                match operation {
-                    O::StructuralScalarFieldStore {
-                        psi_operation,
-                        range_obligation: Some(obligation),
-                        ..
-                    }
-                    | O::StructuralByteViewFieldStore {
-                        psi_operation,
-                        predicate_obligation: Some(obligation),
-                        ..
-                    } => expected.push(OptimizationFact::OperationObligationReference {
-                        obligation: *obligation,
-                        support: *psi_operation,
-                    }),
-                    abstract_operations::establish_record_or_case_pattern!(
-                        psi_operation,
-                        fields,
-                        ..
-                    ) => {
-                        expected.extend(fields.iter().filter_map(|initializer| {
-                            let terminal_psi::RecordFieldValue::Scalar {
-                                range_obligation, ..
-                            } = &initializer.value
-                            else {
-                                return None;
-                            };
-                            range_obligation.map(|obligation| {
-                                OptimizationFact::OperationObligationReference {
-                                    obligation,
-                                    support: *psi_operation,
-                                }
-                            })
-                        }));
-                    }
-
-                    O::EstablishByteSequenceConcatenation {
-                        psi_operation,
-                        capacity_obligation: obligation,
-                        ..
-                    }
-                    | O::ByteSequenceSubslice {
-                        psi_operation,
-                        obligation,
-                        ..
-                    }
-                    | O::ByteSequenceWrite {
-                        psi_operation,
-                        obligation,
-                        ..
-                    }
-                    | abstract_operations::byte_sequence_store_pair_pattern!(
-                        psi_operation,
-                        obligation,
-                        ..
-                    )
-                    | O::StructuralByteSequenceFieldByteStore {
-                        psi_operation,
-                        obligation,
-                        ..
-                    }
-                    | abstract_operations::byte_read_or_field_read_pattern!(
-                        psi_operation,
-                        obligation,
-                        ..
-                    )
-                    | O::ElementViewSubslice {
-                        psi_operation,
-                        obligation,
-                        ..
-                    }
-                    | O::EstablishElementView {
-                        psi_operation,
-                        region:
-                            terminal_psi::ElementViewRegion::RepresentationBytes { obligation, .. }
-                            | terminal_psi::ElementViewRegion::WholeRepresentation { obligation, .. },
-                        ..
-                    }
-                    | abstract_operations::element_view_read_write_pair_pattern!(
-                        psi_operation,
-                        obligation,
-                        ..
-                    )
-                    | O::IntegerExactCast {
-                        psi_operation,
-                        obligation,
-                        ..
-                    } => expected.push(OptimizationFact::OperationObligationReference {
-                        obligation: *obligation,
-                        support: *psi_operation,
-                    }),
-                    O::IntegerShift {
-                        psi_operation,
-                        policy: IntegerShiftPolicy::Exact { obligation },
-                        ..
-                    } => expected.push(OptimizationFact::OperationObligationReference {
-                        obligation: *obligation,
-                        support: *psi_operation,
-                    }),
-                    O::IntegerArithmetic {
-                        psi_operation,
-                        arithmetic,
-                        ..
-                    } => {
-                        if let Some(obligation) = arithmetic.obligation() {
-                            expected.push(OptimizationFact::OperationObligationReference {
-                                obligation,
-                                support: *psi_operation,
-                            });
-                        }
-                    }
-                    _ => {}
-                }
-                if let Some(support) = operation.psi_operation() {
-                    expected.extend(operation.runtime_indices().into_iter().map(
-                        |(_, obligation)| OptimizationFact::OperationObligationReference {
-                            obligation,
-                            support,
-                        },
-                    ));
-                }
-                match operation {
-                    O::BooleanConstant {
-                        psi_operation,
-                        result,
-                        value,
-                    } => expected.push(OptimizationFact::BooleanConstant {
-                        value: *result,
-                        constant: *value,
-                        support: *psi_operation,
-                    }),
-                    O::IntegerConstant {
-                        psi_operation,
-                        result,
-                        value,
-                        ..
-                    } => expected.push(OptimizationFact::IntegerConstant {
-                        value: *result,
-                        constant: *value,
-                        support: *psi_operation,
-                    }),
-                    _ => {}
-                }
+            for node in function.block_nodes() {
+                optimization_unit::collect_fact(&node.operation, &mut expected);
             }
             expected
+        }
+
+        /// Unit construction indexes every operation-owned obligation. The
+        /// validator must rebuild the same index, or a valid unit is refused
+        /// with `FactIndexMismatch` and a rewrite drops the obligation's fact.
+        #[cfg(test)]
+        mod tests {
+            use abstract_operations::{
+                AbstractBlock, AbstractFunction, AbstractFunctionResult, AbstractOperation as O,
+                AbstractResult, StructuralScalarStoreDestination,
+            };
+            use optimization_unit::{OptimizationFact, reconstruct_psi_optimization_function_seed};
+            use semantic_vocabulary::{
+                BlockId, EdgeId, IntegerSign, IntegerType, MachineId, ObligationId, OperationId,
+                PlaceId, ScalarType, StructuralTypeId, ValueId,
+            };
+            use terminal_psi::{
+                StructuralAccess, StructuralMultiplicity, StructuralOperationResult,
+                StructuralParameterDeclaration,
+            };
+
+            fn byte() -> ScalarType {
+                ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap())
+            }
+
+            #[test]
+            fn primitive_store_range_obligations_stay_in_the_rebuilt_fact_index() {
+                let destination = StructuralParameterDeclaration {
+                    place: PlaceId::new(1).unwrap(),
+                    position: 0,
+                    structural_type: StructuralTypeId::new(1).unwrap(),
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access: StructuralAccess::WriteOnlyBorrow,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                };
+                let value = AbstractResult {
+                    value: ValueId::new(1).unwrap(),
+                    scalar_type: byte(),
+                };
+                let function = AbstractFunction {
+                    machine: MachineId::new(1).unwrap(),
+                    attachment: None,
+                    entry: BlockId::new(1).unwrap(),
+                    parameters: Vec::new(),
+                    structural_parameters: vec![destination.clone()],
+                    result: AbstractFunctionResult::Unit,
+                    entry_claims: Vec::new(),
+                    block_entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    blocks: vec![AbstractBlock {
+                        block: BlockId::new(1).unwrap(),
+                        structural_parameters: Vec::new(),
+                        parameters: Vec::new(),
+                        operations: vec![
+                            O::IntegerConstant {
+                                psi_operation: OperationId::new(1).unwrap(),
+                                result: value.value,
+                                scalar_type: value.scalar_type,
+                                value: semantic_vocabulary::IntegerValue::Unsigned(7),
+                            },
+                            O::EstablishPrimitiveLocal {
+                                psi_operation: OperationId::new(2).unwrap(),
+                                result: StructuralOperationResult {
+                                    place: PlaceId::new(2).unwrap(),
+                                    structural_type: StructuralTypeId::new(2).unwrap(),
+                                    multiplicity: StructuralMultiplicity::Unrestricted,
+                                    qualifications: Vec::new(),
+                                    projected_qualifications: Vec::new(),
+                                    additional_input_qualifications: Vec::new(),
+                                    qualification_establishments: Vec::new(),
+                                    claims: Vec::new(),
+                                },
+                                value,
+                                range_obligation: Some(ObligationId::new(1).unwrap()),
+                            },
+                            O::WriteOnlyPrimitiveStore {
+                                psi_operation: OperationId::new(3).unwrap(),
+                                destination: StructuralScalarStoreDestination::Parameter(
+                                    destination,
+                                ),
+                                path: Vec::new(),
+                                value,
+                                range_obligation: Some(ObligationId::new(2).unwrap()),
+                            },
+                            O::ReturnUnit {
+                                psi_edge: EdgeId::new(1).unwrap(),
+                                cleanup_actions: Vec::new(),
+                            },
+                        ],
+                    }],
+                };
+                let function = reconstruct_psi_optimization_function_seed(&function).unwrap();
+                for (obligation, support) in [(1, 2), (2, 3)] {
+                    assert!(function.facts.contains(
+                        &OptimizationFact::OperationObligationReference {
+                            obligation: ObligationId::new(obligation).unwrap(),
+                            support: OperationId::new(support).unwrap(),
+                        }
+                    ));
+                }
+                assert_eq!(super::reconstruct_fact_index(&function), function.facts);
+                assert!(super::validate_fact_index(&function).is_ok());
+            }
         }
     }
     mod mutable_views {
@@ -10703,6 +10804,18 @@ pub(crate) mod operation_contracts {
                     | Proposition::IntegerIeeeFloatExact { source, .. } => {
                         scalar_term_roots(source, roots)
                     }
+                    Proposition::DeclarationIdentity(clause) => {
+                        use semantic_vocabulary::ClauseOperand;
+                        for value in &clause.values {
+                            match &value.operand {
+                                ClauseOperand::Input(subject) => {
+                                    roots.insert(subject.root());
+                                }
+                                ClauseOperand::Scalar(term) => scalar_term_roots(term, roots),
+                                ClauseOperand::Formal(_) | ClauseOperand::Application { .. } => {}
+                            }
+                        }
+                    }
                     Proposition::FloatMeaningEqual(clause) => {
                         for source in clause.sources() {
                             scalar_term_roots(source, roots);
@@ -10732,6 +10845,59 @@ pub(crate) mod operation_contracts {
             let mut roots = BTreeSet::new();
             collect(proposition, &mut roots);
             roots
+        }
+
+        #[cfg(test)]
+        mod tests {
+            use super::proposition_structural_roots;
+            use semantic_vocabulary::{
+                ClauseCarrier, ClauseDeclaration, ClauseIdentity, ClauseOperand, ClauseValue,
+                PlaceId, Proposition, ScalarReadProjection, ScalarTerm, ScalarType,
+                StructuralCaseSubject,
+            };
+            use std::collections::BTreeSet;
+
+            // A payloadless call is accepted only when every ensures root is the
+            // result place, so a declared Identity must report the places it reads.
+            #[test]
+            fn declaration_identity_reports_scalar_and_input_roots() {
+                let place = |raw| PlaceId::new(raw).unwrap();
+                let carrier = ClauseCarrier::Parameter(0);
+                let identity = |values: Vec<ClauseOperand>| {
+                    Proposition::DeclarationIdentity(ClauseIdentity {
+                        values: values
+                            .into_iter()
+                            .map(|operand| ClauseValue { carrier, operand })
+                            .collect(),
+                        left: 0,
+                        right: 1,
+                    })
+                };
+                let read = ClauseOperand::Scalar(ScalarTerm::StructuralRead {
+                    root: place(4),
+                    path: vec![ScalarReadProjection::Referent],
+                    scalar_type: ScalarType::Boolean,
+                });
+                let input = ClauseOperand::Input(StructuralCaseSubject::new(place(3), Vec::new()));
+                let application = ClauseOperand::Application {
+                    declaration: ClauseDeclaration {
+                        supplier: None,
+                        member: (1, 1),
+                    },
+                    arguments: vec![0],
+                };
+                assert_eq!(
+                    proposition_structural_roots(&identity(vec![read, input, application.clone()])),
+                    BTreeSet::from([place(3), place(4)])
+                );
+                assert!(
+                    proposition_structural_roots(&identity(vec![
+                        ClauseOperand::Formal(0),
+                        application
+                    ]))
+                    .is_empty()
+                );
+            }
         }
     }
     pub(crate) use claim_transfers::{function_entry_claim_paths, validate_slot_claim_transfers};
@@ -17689,9 +17855,7 @@ pub(crate) mod structural_catalog {
             else {
                 return false;
             };
-            index
-                .checked_add(layout.size)
-                .is_some_and(|end| end <= *length)
+            layout.fits_at(*index, *length)
         }
 
         impl StructuralTypes for BTreeMap<StructuralTypeId, &StructuralTypeDeclaration> {

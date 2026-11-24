@@ -110,61 +110,89 @@ fn pending_argument(
 /// same header) asks more than a value of the carrier, so its argument is
 /// left as written and stays refused where it is demanded.
 fn pending(program: &TypedTrees) -> Vec<Job> {
-    let mut found: Vec<Job> = Vec::new();
+    let mut found = Vec::new();
     let mut array_arguments = Vec::new();
     let mut generic_arguments = Vec::new();
-    for (_, node) in program.type_reference_table.type_reference_rows() {
-        if let TypeReferenceNode::FixedArray {
-            length: FixedArrayLength::Expression(argument),
-            ..
-        } = node
-            && let TypeReferenceNode::ConstExpression(expression) =
-                program.type_reference_table.type_reference(*argument)
-        {
-            array_arguments.push((*argument, *expression));
-        }
-        let TypeReferenceNode::Generic {
-            base_symbol,
-            arguments,
-            ..
-        } = node
-        else {
-            continue;
-        };
-        let arguments = program
-            .type_reference_table
-            .type_reference_handles(*arguments);
-        if !arguments.iter().any(|argument| {
-            matches!(
-                program.type_reference_table.type_reference(*argument),
-                TypeReferenceNode::ConstExpression(_)
-            )
-        }) || !program.symbols.symbols().nodes().is_valid(*base_symbol)
-        {
-            continue;
-        }
-        let parameters = program.declaration_type_parameters(*base_symbol);
-        if parameters.len() != arguments.len() {
-            continue;
-        }
-        for (parameter, argument) in parameters.iter().zip(arguments) {
-            let TypeParameterKind::Const { type_reference } = parameter.kind else {
-                continue;
-            };
-            if !matches!(
-                program.type_reference_table.type_reference(*argument),
-                TypeReferenceNode::ConstExpression(_)
-            ) {
-                continue;
+    let expression = |argument: &TypeReferenceHandle| match program
+        .type_reference_table
+        .type_reference(*argument)
+    {
+        TypeReferenceNode::ConstExpression(expression) => Some(*expression),
+        _ => None,
+    };
+    let has_expression = |arguments: &[TypeReferenceHandle]| {
+        arguments
+            .iter()
+            .any(|argument| expression(argument).is_some())
+    };
+    let mut collect =
+        |declaration: SymbolHandle,
+         parameters: arena::RootRows<'_, crate::source_state::data::TypeParameter>,
+         arguments: &[TypeReferenceHandle]| {
+            if parameters.len() != arguments.len() {
+                return;
             }
-            generic_arguments.push(*argument);
-            pending_argument(
-                program,
-                &mut found,
-                *argument,
-                type_reference,
-                Some((*base_symbol, parameter.name.as_str())),
-            );
+            for (parameter, argument) in parameters.iter().zip(arguments) {
+                if let TypeParameterKind::Const { type_reference } = parameter.kind
+                    && expression(argument).is_some()
+                {
+                    generic_arguments.push(*argument);
+                    pending_argument(
+                        program,
+                        &mut found,
+                        *argument,
+                        type_reference,
+                        Some((declaration, parameter.name.as_str())),
+                    );
+                }
+            }
+        };
+    for (_, node) in program.type_reference_table.type_reference_rows() {
+        match node {
+            TypeReferenceNode::FixedArray {
+                length: FixedArrayLength::Expression(argument),
+                ..
+            } => {
+                if let Some(expression) = expression(argument) {
+                    array_arguments.push((*argument, expression));
+                }
+            }
+            TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } => {
+                let arguments = program
+                    .type_reference_table
+                    .type_reference_handles(*arguments);
+                if has_expression(arguments)
+                    && program.symbols.symbols().nodes().is_valid(*base_symbol)
+                {
+                    collect(
+                        *base_symbol,
+                        program.declaration_type_parameters(*base_symbol),
+                        arguments,
+                    );
+                }
+            }
+            TypeReferenceNode::Constrained { constraints, .. } => {
+                for constraint in program.type_reference_table.constraints(*constraints) {
+                    if let crate::source_state::types::TypeConstraintNode::Domain(domain) =
+                        constraint
+                        && domain.subject
+                            == crate::source_state::types::DomainConstraintSubject::Declared
+                        && has_expression(&domain.arguments)
+                        && let Some(definition) = program.domain_definition(domain.symbol)
+                    {
+                        collect(
+                            domain.symbol,
+                            crate::source_state::domain::index_parameters(program, definition),
+                            &domain.arguments,
+                        );
+                    }
+                }
+            }
+            _ => {}
         }
     }
     // Array extents derived from a generic argument keep that parameter's

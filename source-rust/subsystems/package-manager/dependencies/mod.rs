@@ -8,8 +8,8 @@
 */
 
 /*
-    Package source and graph resolution belong to the package manager's
-    resolution boundary (`resolution/mod.rs`).
+    `package_manager.rs` re-exports `graph` and `source` through its
+    `resolution` module for Build and review callers.
 */
 
 mod compiler_input;

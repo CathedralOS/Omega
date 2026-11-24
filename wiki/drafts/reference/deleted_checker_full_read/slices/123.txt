@@ -1,0 +1,2 @@
+# slice 123: 4994 lines in 1 file range(s)
+omega-rust/psi/compilation/validation/src/program_validation.rs	1	4994

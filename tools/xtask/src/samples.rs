@@ -1,11 +1,14 @@
 //! Check samples and compare native/Psi execution (`cargo xtask sample-gate`).
 
+mod application;
+mod file_outputs;
+
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use crate::{execution, producer, repo_root};
+use crate::{execution, producer, producer::host_target, repo_root};
 
 const REJECTION_FILES: &[&str] = &[
     "expected_diagnostic.txt",
@@ -24,27 +27,12 @@ pub struct SampleProject {
     pub entry: Option<PathBuf>,
     pub role: String,
     pub source_inputs: Vec<String>, // The same explicit caller inventory for preparation and execution.
+    pub(crate) output_files: file_outputs::Declarations,
     pub rejection: Vec<String>,
     pub rejection_any: Vec<String>,
     pub rejection_casefold: bool,
     /// Fragments from [`NATIVE_REJECTION_FILE`]; `None` when it is absent.
     pub native_rejection: Option<Vec<String>>,
-}
-
-fn host_target() -> &'static str {
-    if cfg!(target_os = "windows") {
-        "windows_x86_64"
-    } else if cfg!(target_os = "macos") {
-        if cfg!(target_arch = "aarch64") {
-            "macos_arm64"
-        } else {
-            "macos_x86_64"
-        }
-    } else if cfg!(target_arch = "aarch64") {
-        "linux_arm64"
-    } else {
-        "linux_x86_64"
-    }
 }
 
 fn strip_comments(text: &str) -> String {
@@ -219,6 +207,7 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
         entry,
         role,
         source_inputs,
+        output_files: file_outputs::declarations(meta.get("output_files"), &meta_path)?,
         rejection,
         rejection_any,
         rejection_casefold,
@@ -332,25 +321,23 @@ pub fn discover_samples(
 }
 
 fn accept_pending_decisions(review_bytes: &[u8]) -> Option<Vec<u8>> {
-    let text = String::from_utf8_lossy(review_bytes);
     let mut changed = false;
-    let mut out = String::with_capacity(text.len());
-    for (idx, line) in text.split('\n').enumerate() {
-        if idx > 0 {
-            out.push('\n');
-        }
-        let trimmed = line.strip_suffix('\r').unwrap_or(line);
-        if let Some(prefix) = trimmed.strip_suffix(" pending")
-            && prefix.starts_with("decision row ")
+    let mut out = Vec::with_capacity(review_bytes.len());
+    for line in review_bytes.split_inclusive(|&byte| byte == b'\n') {
+        let content = line.strip_suffix(b"\n").unwrap_or(line);
+        let body = content.strip_suffix(b"\r").unwrap_or(content);
+        if let Some(prefix) = body.strip_suffix(b" pending")
+            && prefix.starts_with(b"decision row ")
         {
-            out.push_str(prefix);
-            out.push_str(" accept");
+            out.extend_from_slice(prefix);
+            out.extend_from_slice(b" accept");
+            out.extend_from_slice(&line[body.len()..]);
             changed = true;
         } else {
-            out.push_str(line);
+            out.extend_from_slice(line);
         }
     }
-    changed.then(|| out.into_bytes())
+    changed.then_some(out)
 }
 
 fn retain_accepted_inputs(sample_dir: &Path, evidence: &Path) -> Result<(), String> {
@@ -575,20 +562,6 @@ pub fn bound_targets(sample_dir: &Path) -> Result<BTreeSet<String>, String> {
         .collect())
 }
 
-fn compared_host_command(cli: &Path, target: &str) -> Result<Command, String> {
-    let host = host_target();
-    if target != host {
-        return Err(format!(
-            "native/Psi execution requires host target {host}, requested {target}"
-        ));
-    }
-    // An explicit CLI --target requests compilation without execution, even
-    // when it names this host. Both engines run only through the host request.
-    let mut command = Command::new(cli);
-    command.args(["run", "--both"]);
-    Ok(command)
-}
-
 /// Exit 1 alone also describes unrelated compiler errors. A negative sample
 /// needs a diagnostic oracle before its refusal can earn credit.
 fn expectations_usable(project: &SampleProject) -> Result<(), String> {
@@ -753,10 +726,12 @@ pub fn verify_sample(
         return Ok("checked".to_owned());
     }
 
-    let (expected_exit, expected_output) = parse_header_oracle(entry)?;
-    let input_path = project.directory.join("input.txt");
-    let has_input = input_path.is_file();
-    if !has_input && expected_exit.is_none() && expected_output.is_none() {
+    let input = project.directory.join("input.txt");
+    let has_input = input
+        .try_exists()
+        .map_err(|error| format!("{}: {error}", input.display()))?;
+    let oracle = application::Oracle::load(project, entry, target, has_input, evidence)?;
+    if !has_input && oracle.is_empty() {
         if project.rel_path.split('/').any(|p| p == "probes") {
             return Ok("no-oracle".to_owned());
         }
@@ -781,67 +756,15 @@ pub fn verify_sample(
         return Ok("no-oracle".to_owned());
     }
 
-    let mut cmd = compared_host_command(cli, target)?;
-    with_source_inputs(&mut cmd, &project.source_inputs);
-    let scratch = project.directory.join("build/gate-run");
-    let _ = fs::create_dir_all(&scratch);
-    cmd.arg(product_entry).current_dir(&scratch);
-    if has_input {
-        let file = fs::File::open(&input_path)
-            .map_err(|e| format!("failed opening {}: {e}", input_path.display()))?;
-        cmd.stdin(Stdio::from(file));
-    } else {
-        cmd.stdin(Stdio::null());
-    }
-    let out = execution::output(&mut cmd, evidence, "run-both")?;
-    let stdout = String::from_utf8_lossy(&out.stdout).replace("\r\n", "\n");
-    let stderr = String::from_utf8_lossy(&out.stderr).replace("\r\n", "\n");
-
-    let mut native_exit: Option<i32> = None;
-    let mut interp_exit: Option<i32> = None;
-    for line in stderr.lines() {
-        if let Some(rest) = line.strip_prefix("native exit ")
-            && let Ok(c) = rest.trim().parse::<i32>()
-        {
-            native_exit = Some(c);
-        } else if let Some(rest) = line.strip_prefix("interp exit: ")
-            && let Ok(c) = rest.trim().parse::<i32>()
-        {
-            interp_exit = Some(c);
-        }
-    }
-    let (Some(n_exit), Some(i_exit)) = (native_exit, interp_exit) else {
-        return Err(format!(
-            "execution failed (exit {:?}): {stdout}{stderr}",
-            out.status.code()
-        ));
-    };
-    if n_exit != i_exit {
-        return Err(format!(
-            "engine disagreement: native exit {n_exit} != interp exit {i_exit}"
-        ));
-    }
-    // The CLI returns the program's exit on agreement, including authored
-    // nonzero exits. Require the CLI result to match the two observed engine exits.
-    if out.status.code() != Some(n_exit) {
-        return Err(format!(
-            "execution failed (exit {:?}, engines {n_exit}): {stdout}{stderr}",
-            out.status.code()
-        ));
-    }
-    if let Some(exp) = expected_exit
-        && n_exit != exp
-    {
-        return Err(format!("expected exit {exp}, got {n_exit}"));
-    }
-    if let Some(exp_out) = expected_output
-        && !stdout.contains(&exp_out)
-    {
-        return Err(format!(
-            "expected output containing {exp_out:?}, got {stdout:?}"
-        ));
-    }
-    Ok(format!("pass (native exit {n_exit}, Psi exit {i_exit})"))
+    application::compare(
+        cli,
+        project,
+        product_entry,
+        target,
+        evidence,
+        has_input.then_some(input.as_path()),
+        &oracle,
+    )
 }
 
 // Compiler errors often put their cause after a heading. Keep those following
@@ -1361,9 +1284,10 @@ mod tests {
         .unwrap();
         fs::write(directory.join("build.omg"), format!(
             "machine build(builder: @mutable Build) {{ Build::application(builder, \"sample\"); Build::bind(builder, {}\\ProgramEntry, main); }}\n", host_target())).unwrap();
+        fs::write(directory.join("empty.img"), []).unwrap();
         fs::write(
             directory.join("sample.json"),
-            r#"{"source_inputs":["main.omg","build.omg"]}"#,
+            r#"{"source_inputs":["main.omg","build.omg"],"output_files":{"guest-state":"empty.img","lock":null}}"#,
         )
         .unwrap();
         let cli = directory.join("compiler");
@@ -1396,8 +1320,20 @@ case "$1" in
       echo "expected the gate to launch $expected, got $previous" >&2
       exit 93
     fi
-    echo 'native exit 0' >&2
-    echo 'interp exit: 0' >&2
+    [ "$2" = --engine ] && [ "$4" = --outputs ] || exit 94
+    mkdir "$5" || exit 95
+    [ ! -e guest-state ] || exit 98
+    if [ "$3" != psi ] || [ ! -f "${0%/*}/omit-file" ]; then touch guest-state; fi
+    cat > "$5/stdout"
+    printf 'spoofed status -- native exit 9\377' > "$5/stderr"
+    case "$3" in
+      native) printf 'native\texit\t0\tother\tprocess-exit-excluded\n' > "$5/termination.tsv";;
+      psi) printf 'psi\treturn\n' > "$5/termination.tsv";;
+      *) exit 96;;
+    esac
+    if [ "$3" = psi ] && [ -e "${0%/*}/diverge" ]; then
+      printf '!' >> "$5/stderr"
+    fi
     exit 0
     ;;
   *) exit 92;;
@@ -1406,12 +1342,57 @@ esac
         )
         .unwrap();
         fs::set_permissions(&cli, fs::Permissions::from_mode(0o700)).unwrap();
+        fs::write(directory.join("input.txt"), [0xff, 0, b'\r', b'\n']).unwrap();
+        fs::write(
+            directory.join("expected_stdout.txt"),
+            [0xff, 0, b'\r', b'\n'],
+        )
+        .unwrap();
+        fs::write(directory.join("expected_native_exit.txt"), "7").unwrap();
+        fs::write(
+            directory.join(format!("expected_native_exit.{}.txt", host_target())),
+            "0",
+        )
+        .unwrap();
         let project = project_at(&directory, &directory).unwrap();
         assert!(
             verify_sample(&cli, &project, host_target(), &directory.join("evidence"))
                 .unwrap()
                 .starts_with("pass")
         );
+        fs::write(directory.join("omit-file"), []).unwrap();
+        let missing = verify_sample(
+            &cli,
+            &project,
+            host_target(),
+            &directory.join("one-missing"),
+        )
+        .unwrap_err();
+        assert!(
+            missing.contains("Psi expectation: guest-state differs: present vs absent"),
+            "{missing}"
+        );
+        assert!(
+            missing.contains("comparison: guest-state differs: present vs absent"),
+            "{missing}"
+        );
+        fs::remove_file(directory.join("omit-file")).unwrap();
+        fs::write(directory.join("diverge"), []).unwrap();
+        let mismatch =
+            verify_sample(&cli, &project, host_target(), &directory.join("mismatch")).unwrap_err();
+        assert!(mismatch.contains("stderr differs at byte"), "{mismatch}");
+        fs::remove_file(directory.join("diverge")).unwrap();
+        fs::write(directory.join("expected_stdout.txt"), [0xfe]).unwrap();
+        let wrong =
+            verify_sample(&cli, &project, host_target(), &directory.join("wrong")).unwrap_err();
+        for fragment in [
+            "native expectation: expected stdout differs at byte 0",
+            "Psi expectation: expected stdout differs at byte 0",
+            "comparison: native and Psi agree",
+        ] {
+            assert!(wrong.contains(fragment), "{wrong}");
+        }
+        fs::remove_file(directory.join("expected_stdout.txt")).unwrap();
         fs::remove_file(directory.join("build.omg")).unwrap();
         fs::write(
             directory.join("sample.json"),
@@ -1532,21 +1513,10 @@ esac
     }
 
     #[test]
-    fn compared_host_request_executes_both_without_compile_only_target() {
-        let command = compared_host_command(Path::new("omega"), host_target()).unwrap();
-        assert_eq!(command.get_args().collect::<Vec<_>>(), ["run", "--both"]);
-    }
-
-    #[test]
-    fn compared_host_request_refuses_a_different_target() {
-        let other = if host_target() == "linux_x86_64" {
-            "windows_x86_64"
-        } else {
-            "linux_x86_64"
-        };
-        let error = compared_host_command(Path::new("omega"), other).unwrap_err();
-        assert!(error.contains(host_target()));
-        assert!(error.contains(other));
+    fn sample_review_edits_only_row_choices_and_preserves_the_source_bytes() {
+        let input = b"decision root-role pending\r\ndecision row abcd pending\r\ndecision source-replacement 1234 pending\n";
+        let expected = b"decision root-role pending\r\ndecision row abcd accept\r\ndecision source-replacement 1234 pending\n";
+        assert_eq!(accept_pending_decisions(input).unwrap(), expected);
     }
 
     #[test]
@@ -1577,6 +1547,7 @@ mod result_file_tests {
             entry: None,
             role: "program".to_owned(),
             source_inputs: Vec::new(),
+            output_files: Default::default(),
             rejection: Vec::new(),
             rejection_any: Vec::new(),
             rejection_casefold: false,

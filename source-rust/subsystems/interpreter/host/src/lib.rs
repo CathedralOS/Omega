@@ -14,9 +14,10 @@ native lowering.
 Why separate hosted Terminal runtime integration from `terminal-interpreter` and
 `compiler`?
 
-The Psi interpreter (`terminal-interpreter`) lives in `psi/` and must remain
-target-neutral, while `compiler` must never depend on runtime execution. Our
-crate bridges target-specific retained provisions (`TerminalRuntimeProvisions`),
+The engine under `source-rust/subsystems/interpreter/` executes Psi using
+target-neutral semantics. The compiler produces the provisions that this
+host integration crate consumes. We bridge target-specific retained
+provisions (`TerminalRuntimeProvisions`),
 isolated native provider processes (`native-provider-runtime`), and explicit
 host capability delegations (`TerminalDomainExitDelegation`,
 `TerminalFilesystemDelegation`, `TerminalNativeServiceDelegation`) into the

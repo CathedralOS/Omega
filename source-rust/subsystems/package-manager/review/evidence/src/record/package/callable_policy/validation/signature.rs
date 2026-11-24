@@ -112,9 +112,7 @@ pub(super) fn validate(callable: &PackagePolicyCallable) -> Result {
             value_type(argument)?;
         }
     }
-    for contract in &callable.contracts {
-        contracts::contract(contract, &scope, 0)?;
-    }
+    contracts::roster(&callable.contracts, &scope, 0)?;
     for conformance in &callable.conformances {
         owned_pair(
             &conformance.trait_identity,

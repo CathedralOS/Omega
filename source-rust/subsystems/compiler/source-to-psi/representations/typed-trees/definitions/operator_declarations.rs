@@ -205,7 +205,8 @@ pub mod operator {
                             })
                             .filter(|_| closed_boundary_application_type(program, type_reference))
                     }
-                    crate::source_state::data::TypeParameterKind::Machine { .. }
+                    crate::source_state::data::TypeParameterKind::Proof { .. }
+                    | crate::source_state::data::TypeParameterKind::Machine { .. }
                     | crate::source_state::data::TypeParameterKind::Implementation
                     | crate::source_state::data::TypeParameterKind::Proposition { .. } => None,
                 })
@@ -390,10 +391,10 @@ pub mod operator {
                 TypeReferenceNode::Constrained { .. }
                 | TypeReferenceNode::ConstExpression(_)
                 | TypeReferenceNode::Callable { .. } => false,
-                TypeReferenceNode::FixedArray {
-                    element_type,
-                    ..
-                } => program.closed_fixed_array_length(type_reference).is_some() && closed_boundary_application_type(program, *element_type),
+                TypeReferenceNode::FixedArray { element_type, .. } => {
+                    program.closed_fixed_array_length(type_reference).is_some()
+                        && closed_boundary_application_type(program, *element_type)
+                }
                 TypeReferenceNode::Slice { element_type } => {
                     closed_boundary_application_type(program, *element_type)
                 }
@@ -1493,6 +1494,7 @@ pub mod operator {
                         | TypeParameterKind::Value { type_reference } => {
                             self.reference(*type_reference)
                         }
+                        TypeParameterKind::Proof { contract } => self.signature(contract),
                         TypeParameterKind::Machine { contract } => match contract {
                             MachineParameterContract::Structural(nested) => self.signature(nested),
                             MachineParameterContract::Nominal {
@@ -2693,14 +2695,11 @@ pub mod operator {
                 TypeReferenceNode::Reference {
                     referee, lifetime, ..
                 } => lifetime.is_none() && closed(*referee),
-                TypeReferenceNode::FixedArray {
-                    element_type,
-                    ..
-                } => program.closed_fixed_array_length(reference).is_some() && closed(*element_type),
-                TypeReferenceNode::Slice { element_type } => closed(*element_type),
-                TypeReferenceNode::ConstExpression(_) => {
-                    false
+                TypeReferenceNode::FixedArray { element_type, .. } => {
+                    program.closed_fixed_array_length(reference).is_some() && closed(*element_type)
                 }
+                TypeReferenceNode::Slice { element_type } => closed(*element_type),
+                TypeReferenceNode::ConstExpression(_) => false,
                 TypeReferenceNode::Named { symbol, .. } => {
                     if program.data_type_parameter_by_symbol(*symbol).is_some() {
                         return false;
@@ -3494,11 +3493,9 @@ pub mod operator {
                         .unwrap();
                 assert_eq!(restored, program.tables.operators);
                 assert!(restored.storage_identity() != program.tables.operators.storage_identity());
-                let domain_bytes = record_storage::encode(
-                    &domain_arena,
-                    record_storage::RecordLimits::default(),
-                )
-                .unwrap();
+                let domain_bytes =
+                    record_storage::encode(&domain_arena, record_storage::RecordLimits::default())
+                        .unwrap();
                 assert_eq!(
                     domain_bytes,
                     record_storage::encode(
@@ -3508,11 +3505,8 @@ pub mod operator {
                     .unwrap()
                 );
                 let domain_restored: SpelledDeclarationTable<DomainDefinition> =
-                    record_storage::decode(
-                        &domain_bytes,
-                        record_storage::RecordLimits::default(),
-                    )
-                    .unwrap();
+                    record_storage::decode(&domain_bytes, record_storage::RecordLimits::default())
+                        .unwrap();
                 assert_eq!(domain_restored, program.tables.domain_definitions);
                 assert!(
                     domain_restored.storage_identity()
@@ -3520,11 +3514,9 @@ pub mod operator {
                 );
                 let mut cold_program = program.clone();
                 cold_program.declaration_indexes = Default::default();
-                let cold = record_storage::encode(
-                    &cold_program,
-                    record_storage::RecordLimits::default(),
-                )
-                .unwrap();
+                let cold =
+                    record_storage::encode(&cold_program, record_storage::RecordLimits::default())
+                        .unwrap();
                 compare(&cold_program, unsigned, signed);
                 assert_eq!(
                     cold,

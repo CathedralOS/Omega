@@ -159,13 +159,12 @@ fn run_evaluator(
         .ok_or_else(|| EvaluatorStop::Failed("evaluator stdout was not piped".into()))?;
     let request = request.to_vec();
     let writer = thread::spawn(move || {
-        let _ = stdin.write_all(&request);
-        let _ = stdin.flush();
+        stdin.write_all(&request)?;
+        stdin.flush()
     });
     let reader = thread::spawn(move || {
         let mut output = Vec::new();
-        let _ = stdout.read_to_end(&mut output);
-        output
+        stdout.read_to_end(&mut output).map(|_| output)
     });
     let started = Instant::now();
     let status = loop {
@@ -183,8 +182,21 @@ fn run_evaluator(
         }
         thread::sleep(Duration::from_millis(10));
     };
-    let output = reader.join().unwrap_or_default();
-    let _ = writer.join();
+    let output = reader.join();
+    let delivery = writer.join();
+    let output = output
+        .map_err(|_| EvaluatorStop::Failed("evaluator stdout reader panicked".into()))?
+        .map_err(|error| EvaluatorStop::Failed(format!("read evaluator stdout: {error}")))?;
+    let delivery =
+        delivery.map_err(|_| EvaluatorStop::Failed("evaluator stdin writer panicked".into()))?;
+    // A rejecting evaluator can report its own diagnostic and close the pipe early.
+    if let Err(error) = delivery
+        && (status.success() || error.kind() != ErrorKind::BrokenPipe)
+    {
+        return Err(EvaluatorStop::Failed(format!(
+            "write evaluator stdin: {error}"
+        )));
+    }
     Ok((output, status))
 }
 
@@ -287,6 +299,18 @@ mod tests {
         }
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn a_successful_child_must_accept_the_evaluator_request() {
+        // hostname exits zero and writes output without ever opening its input.
+        let evaluator =
+            PathBuf::from(std::env::var_os("SystemRoot").unwrap()).join("System32/hostname.exe");
+        let result = run_evaluator(&evaluator, &vec![0; 4 << 20], Duration::from_secs(5));
+        assert!(
+            matches!(result, Err(EvaluatorStop::Failed(message)) if message.contains("write evaluator stdin"))
+        );
+    }
+
     /// The evaluator in these tests is a `/bin/sh` script, so they and the
     /// fixture that writes it build only where a shell script is executable.
     #[cfg(unix)]
@@ -366,6 +390,25 @@ mod tests {
             let invocation = prepare(&fixture, evaluator, Duration::from_secs(5));
             assert_eq!(invoke(&invocation).unwrap(), 2);
             assert_eq!(fs::read(&invocation.output).unwrap(), b"hi");
+        }
+
+        #[test]
+        fn early_success_preserves_the_output_and_early_refusal_keeps_its_diagnostic() {
+            let fixture = Fixture::new();
+            let evaluator = fixture.script("exec 0<&-; printf partial");
+            let invocation = prepare(&fixture, evaluator, Duration::from_secs(5));
+            fs::write(&invocation.source, vec![0; 4 << 20]).unwrap();
+            fs::write(&invocation.output, b"previous").unwrap();
+            assert!(
+                invoke(&invocation)
+                    .unwrap_err()
+                    .contains("write evaluator stdin")
+            );
+            assert_eq!(fs::read(&invocation.output).unwrap(), b"previous");
+
+            fixture.script("exec 0<&-; printf refused; exit 7");
+            assert_eq!(invoke(&invocation).unwrap(), 7);
+            assert_eq!(fs::read(&invocation.output).unwrap(), b"refused");
         }
 
         #[test]

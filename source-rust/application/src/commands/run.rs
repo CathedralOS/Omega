@@ -10,7 +10,7 @@ We run a program in one of two shapes:
   artifact emission when using the native default, `--engine native`, or
   `--both` (`ExecutionOutcome::TargetOnly`). `--engine psi` uses the
   selected target environment for execution.
-- Case batch (`run_cases`, selected when `--outputs` is present): compiles the
+- Case batch (`run_cases`, selected by `--inputs` or `--input`): compiles the
   program once on the host and runs every `*.stdin` file in `--inputs` (sorted
   lexicographically) or each explicit `--input` file in argument order. Per-case
   streams and `results.tsv` are written to `--outputs`.
@@ -33,9 +33,9 @@ established native failure wording.
 
 Why `omega run` uses exit codes 200..=204 for harness and interpreter outcomes:
 
-A guest program can legitimately exit with small positive statuses (including
-1, 2, or 3). To keep `omega run` statuses unambiguous when a caller inspects
-`$?`, we reserve 200..=204 for outcomes that are not a normal guest exit code:
+The harness uses 200..=204 to keep common guest statuses (including 1, 2 and 3)
+available. A guest can also return 200..=204. In that range the accompanying
+exit or failure message identifies which outcome occurred.
 - `200`: compile rejection, launch failure, output-forwarding failure, empty or
   unreadable `--inputs`, or Terminal Psi execution stopping without a process
   exit (unavailable host capability, sponsor work exhaustion, or pending host
@@ -55,6 +55,8 @@ A guest program can legitimately exit with small positive statuses (including
   truncated). The native status alone is not agreement, so it is not reused.
 
 */
+
+mod observation;
 
 use crate::arguments::RunArguments;
 use crate::execution::{
@@ -88,7 +90,9 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
     } else {
         None
     };
-    if let Some(outputs) = arguments.outputs.clone() {
+    if let Some(outputs) = arguments.outputs.clone()
+        && (arguments.inputs.is_some() || !arguments.input_files.is_empty())
+    {
         run_cases(arguments, outputs, artifact);
     }
     let selection = arguments.selection;
@@ -123,6 +127,22 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
     for entry in &outcome.test_roster {
         eprintln!("{entry}");
     }
+    if let Some(directory) = arguments.outputs {
+        if arguments.keep {
+            eprintln!("build dir kept: {}", outcome.build_dir.display());
+        }
+        match observation::write(&directory, &outcome.execution) {
+            Ok(true) => std::process::exit(0),
+            Ok(false) => std::process::exit(200),
+            Err(error) => {
+                eprintln!(
+                    "cannot write execution observation in {}: {error}",
+                    directory.display()
+                );
+                std::process::exit(200);
+            }
+        }
+    }
     let status = match outcome.execution {
         ExecutionOutcome::Terminal(terminal) => present_terminal(terminal),
         ExecutionOutcome::TargetOnly { target_name } => {
@@ -137,6 +157,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
             exit,
             comparison,
             private_entry_ram,
+            ..
         } => {
             forward_output_or_exit(&output.stdout, &output.stderr);
             print_private_entry_ram(&private_entry_ram);
@@ -185,7 +206,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
                     201
                 }
                 InterpreterComparison::Failed(diagnostics) => {
-                    eprintln!("Terminal interpretation FAILED:");
+                    eprintln!("Psi interpretation FAILED:");
                     for diagnostic in diagnostics {
                         eprintln!("  {diagnostic}");
                     }
@@ -330,7 +351,7 @@ fn run_cases(
                     .iter()
                     .map(ToString::to_string)
                     .collect::<Vec<_>>();
-                format!("; Terminal interpretation FAILED: {}", reasons.join("; "))
+                format!("; Psi interpretation FAILED: {}", reasons.join("; "))
             }
         };
         eprintln!(

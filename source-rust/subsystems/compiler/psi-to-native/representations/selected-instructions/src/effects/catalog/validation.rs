@@ -1,7 +1,8 @@
 /*
-  Admission validation (`validate_declaration`, `validate_isa_machine_effect_catalog`)
-  for `MachineEffectCatalog` declarations against target register constraints
-  and ISA encodings.
+  Admission validation (`validate_declaration`) for one `MachineEffectCatalog`
+  declaration against its target register constraint and ISA encodings.
+  `validate_machine_effect_catalog` in `catalog.rs` calls it for every row, and
+  `validate_isa_machine_effect_catalog` there admits a separately supplied catalog.
 */
 
 use register_model::{
@@ -1744,6 +1745,38 @@ mod tests {
         }
     }
 
+    /// A port write may fault, so its encoding must say so: stage 10 skips the
+    /// installed fault check for any alternative encoded as never trapping.
+    #[test]
+    fn may_fault_declarations_cannot_encode_a_never_trapping_alternative() {
+        let constraint = instruction_constraint(71, &[]);
+        let mut encoded = MachineEncodedEffects::fallthrough_v1(Vec::new(), Vec::new());
+        encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+        let port_write = MachineEffectDeclaration {
+            semantic: MachineSemanticKind::PortWrite,
+            constraint: constraint.key,
+            memory: NoneV1,
+            trap: crate::MachineTrapBehavior::MayArchitecturalFaultV1,
+            barrier: MachineBarrier::ExternalEffect,
+            call: crate::MachineCallEffect::NoneV1,
+            cleanup: crate::MachineCleanupEffect::NoneV1,
+            alternatives: vec![always_alternative(
+                MachineSemanticKind::PortWrite,
+                27,
+                encoded,
+            )],
+        };
+        validate_declaration(target::Architecture::X86_64, &constraint, &port_write).unwrap();
+        let mut understated = port_write;
+        understated.alternatives[0].encoded.trap = MachineEncodedTrapBehavior::NeverV1;
+        assert_eq!(
+            validate_declaration(target::Architecture::X86_64, &constraint, &understated),
+            Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
+                MachineSemanticKind::PortWrite
+            ))
+        );
+    }
+
     #[test]
     fn hosted_exit_cannot_fall_through_to_the_plain_surface_row() {
         let constraint = instruction_constraint(
@@ -3470,12 +3503,17 @@ fn validate_encoded_effects(
                         operand.access == RegisterOperandAccess::Use && !operand.early_clobber
                     }
                 }) => {}
+        // An alternative may encode a wider trap than its row declares (relative
+        // branches may fault on fetch), never a narrower one: stage 10 skips the
+        // installed fault check for alternatives encoded as never trapping.
         (
             MachineEncodedMemoryEffect::NoneV1,
             MachineEncodedStackEffect::UnchangedV1,
             MachineEncodedTrapBehavior::NeverV1
             | MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-        ) if declaration.memory == crate::MachineMemoryEffect::NoneV1 => {}
+        ) if declaration.memory == crate::MachineMemoryEffect::NoneV1
+            && (encoded.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+                || declaration.trap == crate::MachineTrapBehavior::NeverV1) => {}
         _ => return Err(()),
     }
     Ok(())

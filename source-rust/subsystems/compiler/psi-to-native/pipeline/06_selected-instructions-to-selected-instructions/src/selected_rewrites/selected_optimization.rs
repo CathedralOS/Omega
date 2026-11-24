@@ -2,13 +2,12 @@
 We admit selected-instruction optimization compositions, stage liveness,
 live-range, and frameless-leaf allocation legality prerequisites, run the one
 selected catalog slice (`SelectedLowering` or `PreAllocation`), and hand
-Omega 05 one `SelectedAllocationInput`: the current program, the analyses this
-stage already validated for it, and the record of the rewrites that produced
-it. Whether a phase ran changes that record, never the form Omega 05 receives.
+register allocation one `SelectedAllocationInput`. It carries the current
+program, its validated analyses and the record of its rewrites. The same
+input type carries an identity run when no phase is selected.
 
-The default compile trusts the run it just produced and does not replay it
-(omega-rust/pipeline.md#verification-placement). The completed run stays
-available as `SelectedOptimizationReplay` only when the driver asks for it with
+Ordinary compilation drops the completed run after producing the allocation
+input. The driver can keep it as `SelectedOptimizationReplay` with
 `retain_replay_for_validation`; its `validate` re-executes the producer to check
 determinism and checks the run is the one an allocated program's record names.
 It cannot establish rewrite correctness independently of that producer.
@@ -26,8 +25,8 @@ pub(crate) mod optimization_output {
         SelectedAllocationInput, SelectedOptimizationRecord, SelectedProgramRef,
     };
 
-    /// Omega 04's result: the input Omega 05 allocates, and the completed
-    /// rewrite run behind it when a phase ran.
+    /// The input to register allocation and the completed rewrite run when
+    /// an optimization phase ran.
     #[derive(Debug)]
     pub struct SelectedInstructionOptimizationOutput {
         body: std::sync::Arc<physical_program::NativeBodyFacts>,
@@ -76,7 +75,7 @@ pub(crate) mod optimization_output {
         PreAllocation(StagedPreAllocationOptimizationRun),
     }
 
-    /// One completed Omega 04 rewrite run, kept only for an explicit
+    /// One completed selected-instruction rewrite run, kept for an explicit
     /// validator. It is evidence beside the allocated program, never input to
     /// a later stage.
     #[derive(Debug)]
@@ -135,7 +134,7 @@ pub(crate) mod optimization_output {
         }
     }
 
-    /// Why a retained Omega 04 run failed its determinism and custody check.
+    /// Why a retained rewrite run failed its determinism and custody check.
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum SelectedOptimizationReplayError {
         /// The run is not the one the checked program's record names.

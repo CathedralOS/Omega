@@ -1711,6 +1711,7 @@ mod propositions {
                     case: *case,
                 },
                 ContentConservation(conservation) => ContentConservation(conservation.clone()),
+                DeclarationIdentity(clause) => DeclarationIdentity(clause.clone()),
                 FloatMeaningEqual(clause) => FloatMeaningEqual(clause.clone()),
                 FloatIntegerConversion(clause) => FloatIntegerConversion(clause.clone()),
                 IeeeFloatIntegerExact { source, target } => IeeeFloatIntegerExact {
@@ -1865,6 +1866,7 @@ mod propositions {
                             true
                         }
                         ContentConservation(a) => matches!(right, ContentConservation(b) if a == b),
+                        DeclarationIdentity(a) => matches!(right, DeclarationIdentity(b) if a == b),
                         FloatMeaningEqual(a) => matches!(right, FloatMeaningEqual(b) if a == b),
                         FloatIntegerConversion(a) => {
                             matches!(right, FloatIntegerConversion(b) if a == b)
@@ -1905,6 +1907,7 @@ mod propositions {
                     match current {
                         Truth | Falsehood => {}
                         Atom(identity) => identity.hash(state),
+                        DeclarationIdentity(clause) => clause.hash(state),
                         FloatMeaningEqual(clause) => clause.hash(state),
                         FloatIntegerConversion(clause) => clause.hash(state),
                         IeeeFloatIntegerExact { source, target } => {
@@ -2044,9 +2047,32 @@ mod propositions {
             source: ScalarTerm,
             target: crate::IeeeFloatFormat,
         },
+        DeclarationIdentity(crate::ClauseIdentity),
     }
 
     impl Proposition {
+        /// A compound clause containing Identity needs a mathematical judgment
+        /// of the entire proposition, including the connective.
+        pub fn contains_declaration_identity(&self) -> bool {
+            match self {
+                Self::DeclarationIdentity(_) => return true,
+                Self::Conjunction(_) | Self::Disjunction(_) | Self::Implication { .. } => {}
+                _ => return false,
+            }
+            let mut pending = vec![self];
+            while let Some(part) = pending.pop() {
+                match part {
+                    Self::DeclarationIdentity(_) => return true,
+                    Self::Conjunction(parts) | Self::Disjunction(parts) => pending.extend(parts),
+                    Self::Implication { premise, conclusion } => {
+                        pending.extend([premise.as_ref(), conclusion.as_ref()]);
+                    }
+                    _ => {}
+                }
+            }
+            false
+        }
+
         pub fn same_commutative_predicate(&self, other: &Self) -> bool {
             match (self, other) {
                 (Self::Equal(left_a, left_b), Self::Equal(right_a, right_b)) => {
@@ -2083,6 +2109,7 @@ mod propositions {
                 match proposition {
                     Self::Truth | Self::Falsehood => {}
                     Self::Atom(_) => {}
+                    Self::DeclarationIdentity(clause) => clause.validate()?,
                     Self::FloatMeaningEqual(clause) => clause
                         .validate()
                         .map_err(PropositionError::InvalidFloatMeaningClause)?,
@@ -2262,6 +2289,18 @@ mod propositions {
             while let Some(proposition) = pending.pop() {
                 match proposition {
                     Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
+                    Proposition::DeclarationIdentity(clause) => {
+                        clause.validate()?;
+                        for value in &clause.values {
+                            match &value.operand {
+                                crate::ClauseOperand::Scalar(term) => self.validate_term(term)?,
+                                crate::ClauseOperand::Input(subject) if !self.structural_places.contains_key(&subject.root()) => {
+                                    return Err(PropositionError::UnknownStructuralPlace(subject.root()));
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
                     Proposition::FloatMeaningEqual(clause) => {
                         for source in clause.sources() {
                             self.validate_term(source)?;
@@ -2534,6 +2573,7 @@ mod propositions {
         InvalidFloatMeaningClause(&'static str),
         InvalidFloatIntegerConversion(Box<crate::FloatIntegerConversionError>),
         StructuralIdentityTypeMismatch,
+        InvalidClauseIdentity,
         NonCanonicalStructuralIdentityOperands,
         EmptyStructuralReadPath,
         NonCanonicalScalarReadProjection,
@@ -2683,6 +2723,13 @@ mod value_ids {
                             | Self::StructuralIdentity { .. }
                             | Self::StructuralCaseMembership { .. }
                             | Self::ContentConservation(_) => {}
+                            Self::DeclarationIdentity(clause) => {
+                                for value in &mut clause.values {
+                                    if let crate::ClauseOperand::Scalar(source) = &mut value.operand {
+                                        source.remap_value_ids(&mut map);
+                                    }
+                                }
+                            }
                             Self::FloatMeaningEqual(clause) => {
                                 *clause = clause.map_sources_or_invalid(|source| {
                                     let mut source = source.clone();
@@ -2849,6 +2896,15 @@ mod value_ids {
                     | Proposition::StructuralIdentity { .. }
                     | Proposition::StructuralCaseMembership { .. }
                     | Proposition::ContentConservation(_) => complete = false,
+                    Proposition::DeclarationIdentity(clause) => {
+                        for value in clause.values.iter().rev() {
+                            match &value.operand {
+                                crate::ClauseOperand::Scalar(source) => pending.push(Pending::Scalar(source)),
+                                crate::ClauseOperand::Input(_) | crate::ClauseOperand::Formal(_) => complete = false,
+                                crate::ClauseOperand::Application { .. } => {}
+                            }
+                        }
+                    }
                     Proposition::FloatMeaningEqual(clause) => {
                         for source in clause.sources().rev() {
                             pending.push(Pending::Scalar(source));

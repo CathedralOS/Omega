@@ -377,6 +377,52 @@ pub(crate) mod proposition_encoding {
                 encode_scalar_term(bytes, source);
                 encode_float_format(bytes, *target);
             }
+            // Psi publication refuses a declaration Identity, but this encoder
+            // cannot refuse, so it binds every field of the clause instead.
+            Proposition::DeclarationIdentity(clause) => {
+                use semantic_vocabulary::{ClauseCarrier, ClauseOperand};
+                bytes.u8(23);
+                bytes.slice(&clause.values, |bytes, value| {
+                    match value.carrier {
+                        ClauseCarrier::Parameter(index) => {
+                            bytes.u8(0);
+                            bytes.u32(index);
+                        }
+                        ClauseCarrier::Scalar(scalar) => {
+                            bytes.u8(1);
+                            encode_scalar_type(bytes, scalar);
+                        }
+                        ClauseCarrier::Structural(structural) => {
+                            bytes.u8(2);
+                            bytes.id(structural);
+                        }
+                    }
+                    match &value.operand {
+                        ClauseOperand::Scalar(term) => {
+                            bytes.u8(0);
+                            encode_scalar_term(bytes, term);
+                        }
+                        ClauseOperand::Input(subject) => {
+                            bytes.u8(1);
+                            encode_case_subject(bytes, subject);
+                        }
+                        ClauseOperand::Formal(index) => {
+                            bytes.u8(2);
+                            bytes.u32(*index);
+                        }
+                        ClauseOperand::Application {
+                            declaration,
+                            arguments,
+                        } => {
+                            bytes.u8(3);
+                            encode_clause_declaration(bytes, *declaration);
+                            bytes.slice(arguments, |bytes, argument| bytes.u32(*argument));
+                        }
+                    }
+                });
+                bytes.u32(clause.left);
+                bytes.u32(clause.right);
+            }
             Proposition::FloatMeaningEqual(clause) => {
                 use semantic_vocabulary::{
                     FloatMeaningClauseOperand as Operand, FloatMeaningClauseValue as Value,
@@ -472,9 +518,28 @@ pub(crate) mod proposition_encoding {
         }
     }
 
+    fn encode_clause_declaration(
+        bytes: &mut CanonicalBytes,
+        declaration: semantic_vocabulary::ClauseDeclaration,
+    ) {
+        bytes.boolean(declaration.supplier.is_some());
+        if let Some((slot, generation)) = declaration.supplier {
+            bytes.u32(slot);
+            bytes.u32(generation);
+        }
+        bytes.u32(declaration.member.0);
+        bytes.u32(declaration.member.1);
+    }
+
     pub(super) fn encode_scalar_term(bytes: &mut CanonicalBytes, term: &ScalarTerm) {
         use ScalarTerm as S;
         match term {
+            S::DeclarationApplication { declaration, arguments, scalar_type } => {
+                bytes.u8(45);
+                encode_clause_declaration(bytes, *declaration);
+                encode_scalar_type(bytes, *scalar_type);
+                bytes.slice(arguments, encode_scalar_term);
+            }
             S::Application {
                 application,
                 scalar_type,
@@ -912,6 +977,48 @@ pub(crate) mod proposition_encoding {
     encode_rooted_field!(encode_float_field, IeeeFloatStructuralField);
     encode_rooted_field!(encode_byte_field, ByteSequenceStructuralField);
     encode_rooted_field!(encode_case_subject, StructuralCaseSubject);
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use semantic_vocabulary::{
+            ClauseCarrier, ClauseDeclaration, ClauseIdentity, ClauseOperand, ClauseValue,
+        };
+
+        fn identity_bytes(supplier: Option<(u32, u32)>, member: (u32, u32)) -> Vec<u8> {
+            let carrier = ClauseCarrier::Parameter(0);
+            let proposition = Proposition::DeclarationIdentity(ClauseIdentity {
+                values: vec![
+                    ClauseValue {
+                        carrier,
+                        operand: ClauseOperand::Formal(0),
+                    },
+                    ClauseValue {
+                        carrier,
+                        operand: ClauseOperand::Application {
+                            declaration: ClauseDeclaration { supplier, member },
+                            arguments: vec![0],
+                        },
+                    },
+                ],
+                left: 0,
+                right: 1,
+            });
+            let mut bytes = CanonicalBytes::collect();
+            encode_proposition(&mut bytes, &proposition);
+            bytes.finish()
+        }
+
+        #[test]
+        fn declaration_identity_commits_its_cited_declaration() {
+            let cited = identity_bytes(Some((1, 1)), (2, 1));
+            assert_eq!(cited[0], 23);
+            assert_eq!(cited, identity_bytes(Some((1, 1)), (2, 1)));
+            assert_ne!(cited, identity_bytes(Some((1, 2)), (2, 1)));
+            assert_ne!(cited, identity_bytes(None, (2, 1)));
+            assert_ne!(cited, identity_bytes(Some((1, 1)), (3, 1)));
+        }
+    }
 }
 
 pub(crate) mod runtime_evidence_encoding {
@@ -1330,7 +1437,16 @@ pub(crate) mod structural_encoding {
                 bytes.u64(formal.qualifications.get());
             });
             bytes.slice(&contract.erased_proof_formals, |bytes, formal| {
-                bytes.u32(formal.source_position);
+                match formal.source {
+                    terminal_psi::ProofFormalSource::ValueParameter(position) => {
+                        bytes.u8(1);
+                        bytes.u32(position);
+                    }
+                    terminal_psi::ProofFormalSource::GenericParameter(position) => {
+                        bytes.u8(2);
+                        bytes.u32(position);
+                    }
+                }
                 bytes.u32(formal.type_identity.0);
             });
             bytes.slice(&contract.membership_ensures, encode_runtime_membership);
@@ -2669,7 +2785,7 @@ pub(crate) mod unit_encoding {
         ValueDefinitionSite, ValueUse, WorkSettlement,
     };
 
-    const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v60\0";
+    const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v61\0";
     pub fn recompute_psi_optimization_unit_identity(
         unit: &PsiOptimizationUnit,
     ) -> OptimizationUnitIdentity {
@@ -3437,6 +3553,16 @@ pub(crate) mod unit_encoding {
 pub(crate) mod operation_encoding {
     use super::CanonicalBytes;
     use abstract_operations::AbstractOperation;
+    // Each family numbers its own tags, and several numbers repeat across
+    // families (Jump and IeeeFloatConstant both use 42). The family byte
+    // written first keeps two operations from different families apart.
+    const STRUCTURAL: u8 = 0;
+    const ATOMIC: u8 = 1;
+    const CALLS_AND_EFFECTS: u8 = 2;
+    const IEEE_FLOAT: u8 = 3;
+    const SCALAR: u8 = 4;
+    const CONTROL: u8 = 5;
+
     pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
         use AbstractOperation as O;
         match operation {
@@ -3467,9 +3593,15 @@ pub(crate) mod operation_encoding {
             | O::DecomposeStructuralValue { .. }
             | O::TransformContent { .. }
             | O::EstablishNativeCodeLayout { .. }
-            | O::EstablishRecord { .. } => structural::encode(bytes, operation),
+            | O::EstablishRecord { .. } => {
+                bytes.u8(STRUCTURAL);
+                structural::encode(bytes, operation)
+            }
 
-            O::AtomicEvent { .. } => atomic::encode(bytes, operation),
+            O::AtomicEvent { .. } => {
+                bytes.u8(ATOMIC);
+                atomic::encode(bytes, operation)
+            }
 
             O::CallStructural { .. }
             | O::SelectImplementation { .. }
@@ -3482,12 +3614,18 @@ pub(crate) mod operation_encoding {
             | O::ReadSegmentSelector { .. }
             | O::GlobalDescriptorTable { .. }
             | O::RegisterAccess { .. }
-            | O::Call { .. } => calls_and_effects::encode(bytes, operation),
+            | O::Call { .. } => {
+                bytes.u8(CALLS_AND_EFFECTS);
+                calls_and_effects::encode(bytes, operation)
+            }
 
             O::IeeeFloatConstant { .. }
             | O::FloatResultPolicy { .. }
             | O::NearestIeeeFloatFusedMultiplyAdd { .. }
-            | O::IeeeFloatCompare { .. } => ieee_float::encode(bytes, operation),
+            | O::IeeeFloatCompare { .. } => {
+                bytes.u8(IEEE_FLOAT);
+                ieee_float::encode(bytes, operation)
+            }
 
             O::IntegerConstant { .. }
             | O::BooleanConstant { .. }
@@ -3508,6 +3646,7 @@ pub(crate) mod operation_encoding {
             | abstract_operations::bitwise_and_or_view_pair_pattern!(..)
             | abstract_operations::bitwise_or_xor_pair_pattern!(..)
             | abstract_operations::integer_dispatch_triple_pattern!(..) => {
+                bytes.u8(SCALAR);
                 scalar::encode(bytes, operation)
             }
 
@@ -3518,7 +3657,10 @@ pub(crate) mod operation_encoding {
             | O::InvokeNoNormal { .. }
             | O::ExternalCompletion { .. }
             | O::EliminateEmpty { .. }
-            | O::Crash { .. } => control::encode(bytes, operation),
+            | O::Crash { .. } => {
+                bytes.u8(CONTROL);
+                control::encode(bytes, operation)
+            }
         }
     }
 
@@ -5038,7 +5180,10 @@ pub(crate) mod operation_encoding {
                     path,
                 } => {
                     tag!(bytes, 122, psi_operation);
-                    bytes.u8(match query { terminal_psi::StorageLocationQuery::Address => 0, terminal_psi::StorageLocationQuery::Alignment => 1 });
+                    bytes.u8(match query {
+                        terminal_psi::StorageLocationQuery::Address => 0,
+                        terminal_psi::StorageLocationQuery::Alignment => 1,
+                    });
                     encode_abstract_result(bytes, *result);
                     bytes.id(*source);
                     bytes.slice(path, encode_structural_path_segment);
@@ -5658,5 +5803,135 @@ mod float_meaning_identity_tests {
             })
             .unwrap();
         assert_ne!(bytes(clause), bytes(changed));
+    }
+}
+
+#[cfg(test)]
+mod declaration_identity_tests {
+    use semantic_vocabulary::{
+        ClauseCarrier, ClauseDeclaration, ClauseIdentity, ClauseOperand, ClauseValue, IntegerSign,
+        IntegerType, Proposition, ScalarTerm, ScalarType, ValueId,
+    };
+
+    fn bytes(clause: &ClauseIdentity) -> Vec<u8> {
+        let mut bytes = super::unit_encoding::CanonicalBytes::collect();
+        super::proposition_encoding::encode_proposition(
+            &mut bytes,
+            &Proposition::DeclarationIdentity(clause.clone()),
+        );
+        bytes.finish()
+    }
+
+    #[test]
+    fn declaration_identity_binds_its_values_declarations_and_sides() {
+        let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+        let value = |id| ClauseValue {
+            carrier: ClauseCarrier::Scalar(scalar),
+            operand: ClauseOperand::Scalar(ScalarTerm::value(ValueId::new(id).unwrap(), scalar)),
+        };
+        let apply = |arguments: Vec<u32>| ClauseValue {
+            carrier: ClauseCarrier::Scalar(scalar),
+            operand: ClauseOperand::Application {
+                declaration: ClauseDeclaration {
+                    supplier: Some((1, 2)),
+                    member: (3, 4),
+                },
+                arguments,
+            },
+        };
+        let clause = ClauseIdentity {
+            values: vec![value(1), value(2), apply(vec![0, 1]), apply(vec![1, 0])],
+            left: 2,
+            right: 3,
+        };
+        clause.validate().unwrap();
+        let original = bytes(&clause);
+        assert_eq!(original, bytes(&clause));
+
+        let mut changed = clause.clone();
+        changed.values[0] = value(5);
+        assert_ne!(original, bytes(&changed));
+
+        let mut changed = clause.clone();
+        let ClauseOperand::Application { declaration, .. } = &mut changed.values[2].operand else {
+            unreachable!()
+        };
+        declaration.supplier = None;
+        assert_ne!(original, bytes(&changed));
+
+        let mut changed = clause.clone();
+        let ClauseOperand::Application { declaration, .. } = &mut changed.values[2].operand else {
+            unreachable!()
+        };
+        declaration.member.1 = 5;
+        assert_ne!(original, bytes(&changed));
+
+        let mut changed = clause.clone();
+        changed.values[0].operand = ClauseOperand::Formal(0);
+        assert_ne!(original, bytes(&changed));
+
+        let mut changed = clause;
+        std::mem::swap(&mut changed.left, &mut changed.right);
+        assert_ne!(original, bytes(&changed));
+    }
+}
+
+#[cfg(test)]
+mod operation_family_identity_tests {
+    // Families reuse tag numbers (42, 43, 48, 88, 90, 253 and 255), so each
+    // operation starts with its family byte. These pairs once shared tag 42
+    // and tag 43; their first bytes must differ.
+    use super::CanonicalBytes;
+    use super::operation_encoding::encode_operation;
+    use abstract_operations::{AbstractOperation, AbstractSuccessor};
+    use semantic_vocabulary::{
+        BlockId, EdgeId, IeeeFloatFormat, IeeeFloatValue, OperationId, ValueId,
+    };
+
+    fn bytes(operation: &AbstractOperation) -> Vec<u8> {
+        let mut bytes = CanonicalBytes::collect();
+        encode_operation(&mut bytes, operation);
+        bytes.finish()
+    }
+
+    fn successor() -> AbstractSuccessor {
+        AbstractSuccessor {
+            psi_edge: EdgeId::new(1).unwrap(),
+            target: BlockId::new(1).unwrap(),
+            bindings: Vec::new(),
+            structural_bindings: Vec::new(),
+            cleanup_actions: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn operations_from_different_families_start_with_different_bytes() {
+        let jump = AbstractOperation::Jump {
+            psi_edge: EdgeId::new(1).unwrap(),
+            target: BlockId::new(1).unwrap(),
+            bindings: Vec::new(),
+            structural_bindings: Vec::new(),
+            cleanup_actions: Vec::new(),
+        };
+        let float_constant = AbstractOperation::IeeeFloatConstant {
+            psi_operation: OperationId::new(1).unwrap(),
+            result: ValueId::new(1).unwrap(),
+            value: IeeeFloatValue::Binary32(0),
+        };
+        let conditional = AbstractOperation::Conditional {
+            condition: ValueId::new(1).unwrap(),
+            when_true: successor(),
+            when_false: successor(),
+        };
+        let fused_multiply_add = AbstractOperation::NearestIeeeFloatFusedMultiplyAdd {
+            psi_operation: OperationId::new(1).unwrap(),
+            result: ValueId::new(1).unwrap(),
+            format: IeeeFloatFormat::Binary64,
+            left: ValueId::new(1).unwrap(),
+            right: ValueId::new(1).unwrap(),
+            addend: ValueId::new(1).unwrap(),
+        };
+        assert_ne!(bytes(&jump)[0], bytes(&float_constant)[0]);
+        assert_ne!(bytes(&conditional)[0], bytes(&fused_multiply_add)[0]);
     }
 }

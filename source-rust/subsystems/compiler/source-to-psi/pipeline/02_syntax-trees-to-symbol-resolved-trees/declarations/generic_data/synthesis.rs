@@ -25,7 +25,6 @@ use crate::resolution::declarations::generic_data::normalize_domain_head_positio
 use crate::resolution::declarations::generic_data::normalize_generic_template_const_expressions;
 use crate::resolution::declarations::generic_data::prepare_closed_application;
 
-use super::source_modules::module_path;
 use super::substitution::fold_impossible_case_memberships;
 use super::substitution::variant_fact_verdict;
 use crate::resolution::declarations::declaration_selection::ConstantSelection;
@@ -162,7 +161,12 @@ fn desugar_generic_data_instances_in(
         if matches!(
             definition.name.as_str(syntax),
             "IntervalSet" | "CountedQuantity"
-        ) && module_path(selection, definition.name.source_span().source_id).is_none()
+        ) && selection
+            .and_then(|selection| {
+                selection.header_symbols().source_file(definition.name.source_span())
+            })
+            .and_then(crate::source_symbols::core_source_at)
+            == Some(language_core::core_vocabulary::CoreSource::Content)
         {
             continue;
         }

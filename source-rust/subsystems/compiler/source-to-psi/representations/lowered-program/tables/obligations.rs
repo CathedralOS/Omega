@@ -83,6 +83,10 @@ pub enum ObligationKind {
     /// requirements." The subject is the actual const u64 input, not a
     /// runtime formal or a value supplied by a current specialization.
     IntegerWidthPositive { parameter: ValueId },
+    /// A logical use owes its substituted premises before using its conclusions.
+    /// `wiki/spec/proofs/mathematical_bindings.md`, "Logical hypotheses and
+    /// machine use": "application supplies their proof at the exact substitution."
+    TheoremRequirement { edge: EdgeId, clause: u32 },
     /// One callee `requires` clause at one invocation, by position.
     /// `wiki/spec/terminal-psi/fact_validity.md`: "Call coverage reconstructs
     /// one exact obligation for every callee `requires` clause."
@@ -202,6 +206,7 @@ impl ObligationKind {
             | Self::DomainDebt { .. }
             | Self::EstablishmentDebt { .. }
             | Self::IntegerWidthPositive { .. }
+            | Self::TheoremRequirement { .. }
             | Self::ArrivalInvariant { .. }
             | Self::NormalGuarantee { .. }
             | Self::PublishedGuarantee { .. }

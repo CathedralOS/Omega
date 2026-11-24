@@ -314,10 +314,10 @@ pub struct ResolvedMachineProgram {
     pub layout: Arc<ResolvedMachineLayout>,
 }
 
-/// Stage 09's output as later consumers read it: the program with its active
+/// The resolved-layout stage's output: the program with its active
 /// layout, the baseline layout it came from, the layout-phase selections and
 /// budget that governed the run, and the roots of any x86 branch relaxation.
-/// The relaxation trace itself stays with stage 09 for replay.
+/// Native stage 12 retains the relaxation trace for replay.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OptimizedMachineLayout {
     pub baseline: ResolvedLayoutRoots,

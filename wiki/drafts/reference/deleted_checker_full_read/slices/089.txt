@@ -1,0 +1,2 @@
+# slice 089: 5587 lines in 1 file range(s)
+omega-rust/psi/compilation/validation/src/borrow_and_reflection.rs	1	5587

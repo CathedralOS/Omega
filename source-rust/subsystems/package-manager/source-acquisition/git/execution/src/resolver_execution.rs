@@ -8,15 +8,12 @@
 // against `package_controlled_roots` so a symlink in a host directory cannot
 // redirect execution into a package-controlled tree.
 
-#[path = "path_custody.rs"]
-mod path_custody;
-
 use crate::ResolverPreparedExecution;
-use bounded_process::BoundedProcessLimits;
-use path_custody::{
+use crate::path_custody::{
     require_absolute, require_lexically_canonical_bounded_path, require_outside_roots,
     require_regular_file,
 };
+use bounded_process::BoundedProcessLimits;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;

@@ -1,0 +1,2 @@
+# slice 041: 5900 lines in 1 file range(s)
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_ranges.rs	5368	11267

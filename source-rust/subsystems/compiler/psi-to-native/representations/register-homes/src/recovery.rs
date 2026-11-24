@@ -172,6 +172,7 @@ pub enum RecoveryClassificationDecodeError {
     UnknownClassification(u8),
     UnknownReason(u8),
     UnknownScalarType(u8),
+    UnknownFloatFormat(u8),
     UnknownIntegerValue(u8),
     UnknownOrigin(u8),
     UnknownDefinitionSite(u8),
@@ -186,6 +187,7 @@ pub enum RecoveryClassificationDecodeError {
     InvalidPlaceId(u64),
     InvalidEdgeId(u64),
     InvalidObligationId(u64),
+    InvalidCallableContractId(u64),
     InvalidIntegerType,
     LengthOverflow,
     IdentityMismatch,
@@ -408,6 +410,24 @@ fn decode_classification_scalar_type(
             IntegerType::address(cursor.u16()?)
                 .map_err(|_| RecoveryClassificationDecodeError::InvalidIntegerType)?,
         ),
+        // Stage 06 keeps a float or callable victim's own type beside the
+        // `UnsupportedScalarType` reason, so these tags must read back too.
+        4 => ScalarType::IeeeFloat(match cursor.byte()? {
+            0 => semantic_vocabulary::IeeeFloatFormat::Binary32,
+            1 => semantic_vocabulary::IeeeFloatFormat::Binary64,
+            format => {
+                return Err(RecoveryClassificationDecodeError::UnknownFloatFormat(
+                    format,
+                ));
+            }
+        }),
+        5 => {
+            let raw = cursor.u64()?;
+            ScalarType::Callable(
+                semantic_vocabulary::CallableContractId::new(raw)
+                    .ok_or(RecoveryClassificationDecodeError::InvalidCallableContractId(raw))?,
+            )
+        }
         tag => return Err(RecoveryClassificationDecodeError::UnknownScalarType(tag)),
     };
     Ok(scalar)
@@ -1032,6 +1052,7 @@ pub enum FixedViewCopyDecodeError {
     UnknownCrashCause(u8),
     InvalidCrashPredicate,
     InvalidScalarRefinement,
+    InvalidStructuralTypeRequirement,
     UnknownValueTransport(u8),
     UnknownBlockOrigin(u8),
     UnknownSuccessorRole(u8),
@@ -1366,6 +1387,48 @@ mod tests {
             changed.functions[0].classification.as_mut().unwrap().origin = origin;
             assert_ne!(recovery_classification_identity(&changed), identity);
         }
+    }
+
+    #[test]
+    fn unsupported_float_and_callable_victims_round_trip_through_the_codec() {
+        // Stage 06 records a float or callable victim with its own scalar type
+        // and the `UnsupportedScalarType` reason. The codec must read back
+        // every scalar type the identity encoder writes.
+        for scalar_type in [
+            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32),
+            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64),
+            ScalarType::Callable(semantic_vocabulary::CallableContractId::new(21).unwrap()),
+            ScalarType::Boolean,
+            ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap()),
+            ScalarType::Integer(IntegerType::address(64).unwrap()),
+        ] {
+            let mut source = classification_plan();
+            let row = source.functions[0].classification.as_mut().unwrap();
+            row.scalar_type = scalar_type;
+            row.classification = RecoveryClassification::NoAdmittedRecovery {
+                reason: NoAdmittedRecoveryReason::UnsupportedScalarType,
+            };
+            assert_eq!(
+                RecoveryClassificationPlan::decode(&source.encode()),
+                Ok(source),
+                "{scalar_type:?}"
+            );
+        }
+        let decode = |bytes: &[u8]| {
+            super::decode_classification_scalar_type(&mut crate::cursor::Cursor::new(bytes))
+        };
+        assert_eq!(
+            decode(&[4, 2]),
+            Err(RecoveryClassificationDecodeError::UnknownFloatFormat(2))
+        );
+        assert_eq!(
+            decode(&[5, 0, 0, 0, 0, 0, 0, 0, 0]),
+            Err(RecoveryClassificationDecodeError::InvalidCallableContractId(0))
+        );
+        assert_eq!(
+            decode(&[6]),
+            Err(RecoveryClassificationDecodeError::UnknownScalarType(6))
+        );
     }
 
     #[test]

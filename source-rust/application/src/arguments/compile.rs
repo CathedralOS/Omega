@@ -16,6 +16,7 @@ pub(crate) struct CompileArguments {
     pub(crate) build_dir: Option<PathBuf>,
     pub(crate) build_inputs: Option<BuildSourceCaptureRequest>,
     pub(crate) check_only: bool,
+    pub(crate) compare_tests: bool,
     pub(crate) emit_psi: Option<PathBuf>,
     pub(crate) trusted_artifact: Option<String>,
     pub(crate) offline: bool,
@@ -30,9 +31,9 @@ pub(crate) struct CompileArguments {
 
 pub(super) const USAGE: &str = concat!(
     "usage: omega [--check] [--verify] [--offline] [--timings] [--report-file <path>] [--bootstrap-assumptions <review-record>] [--interrupt-delivery-assumptions <review-record>] [--build-dir <dir>] [--build-input <path>]... [--optional-build-input <path>]... [--target <name>]... [--disable-optimization <ExactName>]... [--validator <ExactName>]... [--every-validator] <root.omg>\n       ",
-    "omega build <root.omg>\n       omega --emit-psi <program.psi> [--target <name>]... <root.omg>\n       omega --trusted-artifact <manifest-id> [--target <name>] [--build-dir <dir>] <program.psi>\n       ",
+    "omega build [--compare-tests] <root.omg>\n       omega --emit-psi <program.psi> [--target <name>]... <root.omg>\n       omega --trusted-artifact <manifest-id> [--target <name>] [--build-dir <dir>] <program.psi>\n       ",
     super::run::run_help!(synopsis),
-    "\n       omega psi inspect --machine <qualified> [--target <name>] [--output <file>] <root.omg>\n       omega psi inspect --artifact <file>\n       omega source rewrite <ExactRule>... [--check] <root.omg>\n       omega packages audit --kind <local|git> <locator> [--rev <rev>]\n       omega packages audit [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega packages install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega packages update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega packages <install|update> --resume [--project <dir>] [--offline]\n       omega packages <install|update> --discard-review [--project <dir>] [--offline]\n       omega --version\n--verify requires --check. Source checking re-verifies the captured package sources under their locked pins.\n--offline disables package source network acquisition for this invocation.\nrun and psi inspect do not support --offline.\nFor omega run, an explicit --target makes the default engine, --engine native,\nand --both emit artifacts without running the program, even for this host.\nWith --engine psi, --target selects the target environment for Psi execution.\n",
+    "\n       omega psi inspect --machine <qualified> [--target <name>] [--output <file>] <root.omg>\n       omega psi inspect --artifact <file>\n       omega source rewrite <ExactRule>... [--check] <root.omg>\n       omega packages audit --kind <local|git> <locator> [--rev <rev>]\n       omega packages audit [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega packages install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega packages update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega packages <install|update> --resume [--project <dir>] [--offline]\n       omega packages <install|update> --discard-review [--project <dir>] [--offline]\n       omega --version\n--compare-tests runs every enabled registered test on both engines and compares their observations.\n--verify requires --check. Source checking re-verifies the captured package sources under their locked pins.\n--offline disables package source network acquisition for this invocation.\nrun and psi inspect do not support --offline.\nFor omega run, an explicit --target makes the default engine, --engine native,\nand --both emit artifacts without running the program, even for this host.\nWith --engine psi, --target selects the target environment for Psi execution.\n",
     super::run::run_help!(work_budget),
     "\n",
     super::run::run_help!(host_packages),
@@ -45,6 +46,7 @@ pub(super) fn parse_arguments(
     let mut build_dir = None;
     let mut build_inputs = Vec::new();
     let mut check_only = false;
+    let mut compare_tests = false;
     let mut emit_psi = None;
     let mut trusted_artifact = None;
     let mut disabled_optimizations = Vec::new();
@@ -68,6 +70,11 @@ pub(super) fn parse_arguments(
 
         if argument == "--offline" {
             super::set_flag(&mut offline, "--offline")?;
+            continue;
+        }
+
+        if argument == "--compare-tests" {
+            super::set_flag(&mut compare_tests, "--compare-tests")?;
             continue;
         }
 
@@ -253,6 +260,9 @@ pub(super) fn parse_arguments(
     let saved = root_path
         .extension()
         .is_some_and(|ext| ext.eq_ignore_ascii_case("psi"));
+    if compare_tests && (check_only || emit_psi.is_some() || saved) {
+        return Err("--compare-tests requires a source build that runs its registered tests".into());
+    }
     if trusted_artifact.is_some() && !saved {
         return Err("--trusted-artifact applies to a saved .psi program".into());
     }
@@ -290,6 +300,7 @@ pub(super) fn parse_arguments(
         build_dir,
         build_inputs,
         check_only,
+        compare_tests,
         offline,
         timings,
         report_file,

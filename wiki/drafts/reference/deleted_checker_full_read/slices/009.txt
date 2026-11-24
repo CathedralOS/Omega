@@ -1,0 +1,4 @@
+# slice 009: 5725 lines in 3 file range(s)
+omega-rust/psi/compilation/build-time-evaluation/src/const_initializers.rs	1	4659
+omega-rust/psi/compilation/build-time-evaluation/src/evaluation_accounting.rs	1	751
+omega-rust/psi/compilation/build-time-evaluation/src/evaluation_requests.rs	1	315

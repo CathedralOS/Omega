@@ -7,28 +7,24 @@ and private references before image composition can bind them.
 */
 
 /*
-Although both `OMGOBJ` and `OMGTRO` begin with a 44-byte header, they serve
-different pipeline contracts and intentionally diverge in wire widths (`u32`
-versus `u64` length prefixes, 4-byte versus 1-byte enum tags) and tag tables so
-changes to one format never silently reinterpret hashed identities in the other:
+Image composition reads `ObjectPlan` and `RelocationPlan` directly. For replay,
+we encode the relocation-free object in an `OMGTRO` container. The encoder and
+decoder share `relocation_free_object::CONTAINER_VERSION`, and the decoder
+accepts exactly that version. The header locates the plan identity before the
+encoded body.
 
 ```text
-  OMGOBJ   0  magic b"OMGOBJ\0\0"      (six characters, two NUL pad)
-           8  u32 version = 6
-          12  u32 architecture, u32 object format
-          20  u64 text length, u64 data length, u64 bss length
-          44  symbols, relocations, then raw text and data verbatim
-
   OMGTRO   0  magic b"OMGTRO\0\0"
-           8  u32 version = 5
+           8  little-endian u32 version
           12  32-byte RelocationFreeObjectPlanIdentity
           44  body
 ```
 
-We enforce fail-closed semantics throughout both lanes:
-- `target_matrix` admits only the five canonical 64-bit `(architecture, object_format)`
-  pairs (`Aarch64` with `Elf`/`MachO`, `X86_64` with `Elf`/`Coff`/`MachO`),
-  rejecting `(Aarch64, Coff)` rather than falling back to a format wildcard.
+We use the following rules when composing plans and encoding replay data.
+- `target_matrix` names one row for each of the six 64-bit `(architecture, object_format)`
+  pairs (`Aarch64` and `X86_64`, each with `Elf`/`Coff`/`MachO`) in an exhaustive
+  match, so a new architecture or format fails to compile instead of falling back
+  to a wildcard row.
 - `RelocationOrigin::SemanticOperation` and `RelocationOrigin::SemanticEdge`
   remain distinct variants and wire tags even though both carry a symbol handle
   and a `u64`, because operation and edge identities live in disjoint integer
@@ -39,9 +35,12 @@ We enforce fail-closed semantics throughout both lanes:
 - Single-variant enums in `OMGTRO` and `OMGTOM` still write an explicit tag byte
   (`1`) on the wire so future policy variants can be added without misparsing
   adjacent fields.
-- Function symbol names derive from the compiler-private `MachineFunctionIdentity`
-  (arena index, generation, and segment index) rather than source names,
-  preventing collisions across reused arena slots or identical source names.
+- Function symbol names never use source names. A placed machine is named
+  `omega_terminal_machine_{MachineId}`, or the target's entry symbol for the
+  semantic entry. A callback target is named from its `MachineFunctionIdentity`:
+  the caller's vocabulary marker and program fingerprint plus the callback-thunk
+  placement index (`private_function_symbol_name`). Identical source names
+  therefore cannot collide.
 */
 
 /*

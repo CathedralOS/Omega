@@ -8,7 +8,6 @@ use crate::record::PackagePolicyPublicApi;
 use crate::record::PackagePolicyTraitShape;
 use crate::record::PackageReviewDomainEstablishmentRoute;
 use crate::record::PackageReviewEvidenceInterface;
-use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewPropositionBinderKind;
 use crate::record::PackageReviewPropositionShape;
 use crate::record::PackageReviewPublicPropositionBody;
@@ -20,6 +19,7 @@ use crate::record::validation::behavior;
 use crate::record::validation::contracts;
 use crate::record::validation::ordered;
 use crate::record::validation::signatures;
+use crate::record::{PackageReviewNominalIdentity, PackageReviewNominalOwner};
 
 pub(super) fn trait_shape(value: &PackagePolicyTraitShape, api: &PackagePolicyPublicApi) -> Result {
     let scope = super::scope(&value.type_parameters, value.lifetime_parameter_count);
@@ -32,6 +32,7 @@ pub(super) fn trait_shape(value: &PackagePolicyTraitShape, api: &PackagePolicyPu
             &parent.arguments,
             &scope,
             api,
+            &value.identity.owner,
         )?;
     }
     for (index, requirement) in value.requirements.iter().enumerate() {
@@ -57,9 +58,7 @@ pub(super) fn trait_shape(value: &PackagePolicyTraitShape, api: &PackagePolicyPu
         })?;
         signatures::result(&mut scope, requirement.return_type.as_ref())?;
         signatures::parameters(&scope, 0)?;
-        for contract in &requirement.contracts {
-            contracts::contract(contract, &scope, 0)?;
-        }
+        contracts::roster(&requirement.contracts, &scope, 0)?;
         behavior::validate(
             requirement.published_crash.as_deref().unwrap_or_default(),
             requirement.service_reach.as_deref().unwrap_or_default(),
@@ -111,9 +110,7 @@ pub(super) fn operator(value: &PackagePolicyOperatorShape) -> Result {
     })?;
     signatures::result(&mut scope, value.return_type.as_ref())?;
     signatures::parameters(&scope, 0)?;
-    for contract in &value.contracts {
-        contracts::contract(contract, &scope, 0)?;
-    }
+    contracts::roster(&value.contracts, &scope, 0)?;
     behavior::crash(&value.published_crash, &scope, 0)
 }
 
@@ -123,7 +120,7 @@ pub(super) fn conformance(
 ) -> Result {
     conformance_scope(value)?;
     let scope = super::scope(&value.type_parameters, value.lifetime_parameter_count);
-    evidence(&value.interface, &scope, api)
+    evidence(&value.interface, &scope, api, &value.identity.owner)
 }
 
 pub(super) fn conformance_scope(value: &PackagePolicyConformanceShape) -> Result {
@@ -198,36 +195,48 @@ pub(super) fn proposition(
     }
     match &value.body {
         PackageReviewPublicPropositionBody::Primitive => Ok(()),
-        PackageReviewPublicPropositionBody::Witness(value) => evidence(value, &scope, api),
+        PackageReviewPublicPropositionBody::Witness(interface) => {
+            evidence(interface, &scope, api, &value.identity.owner)
+        }
         PackageReviewPublicPropositionBody::Transparent(fact) => contracts::fact(fact, &scope, 0),
     }
 }
 
-fn application(
+fn application<'a>(
     identity: &PackageReviewNominalIdentity,
     lifetime_arguments: &[u32],
     arguments: &[PackageReviewTypeIdentity],
     scope: &Scope<'_>,
-    api: &PackagePolicyPublicApi,
-) -> Result {
+    api: &'a PackagePolicyPublicApi,
+    local_owner: &PackageReviewNominalOwner,
+) -> std::result::Result<Option<&'a PackagePolicyTraitShape>, &'static str> {
     identity.validate_resolved()?;
     lifetimes(lifetime_arguments, scope)?;
     for argument in arguments {
         value_type(argument)?;
     }
-    if let Some(declaration) = api.traits.iter().find(|value| value.identity == *identity)
-        && (lifetime_arguments.len() != declaration.lifetime_parameter_count
-            || arguments.len() != declaration.type_parameters.len())
+    if identity.owner != *local_owner {
+        return Ok(None);
+    }
+    let declaration = api
+        .traits
+        .binary_search_by(|value| value.identity.cmp(identity))
+        .ok()
+        .map(|index| &api.traits[index])
+        .ok_or("public trait application lacks its local declaration")?;
+    if lifetime_arguments.len() != declaration.lifetime_parameter_count
+        || arguments.len() != declaration.type_parameters.len()
     {
         return Err("public trait application changes its retained declaration telescope");
     }
-    Ok(())
+    Ok(Some(declaration))
 }
 
 fn evidence(
     value: &PackageReviewEvidenceInterface,
     scope: &Scope<'_>,
     api: &PackagePolicyPublicApi,
+    local_owner: &PackageReviewNominalOwner,
 ) -> Result {
     contracts::evidence(value, scope)?;
     application(
@@ -236,6 +245,7 @@ fn evidence(
         &value.arguments,
         scope,
         api,
+        local_owner,
     )?;
     for (index, requirement) in value.requirements.iter().enumerate() {
         if value.requirements[..index]
@@ -244,17 +254,15 @@ fn evidence(
         {
             return Err("public evidence repeats an exact inherited requirement");
         }
-        application(
+        let declaring_trait = application(
             &requirement.declaring_trait,
             &requirement.declaring_trait_lifetime_arguments,
             &requirement.declaring_trait_arguments,
             scope,
             api,
+            local_owner,
         )?;
-        if let Some(declaration) = api
-            .traits
-            .iter()
-            .find(|value| value.identity == requirement.declaring_trait)
+        if let Some(declaration) = declaring_trait
             && !declaration
                 .requirements
                 .iter()
