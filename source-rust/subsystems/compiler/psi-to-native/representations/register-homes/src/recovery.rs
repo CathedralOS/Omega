@@ -1370,6 +1370,33 @@ mod tests {
     }
 
     #[test]
+    fn unsupported_float_and_callable_victims_round_trip_through_the_codec() {
+        // Stage 06 records a float or callable victim with its own scalar type
+        // and the `UnsupportedScalarType` reason. The codec must read back
+        // every scalar type the identity encoder writes.
+        for scalar_type in [
+            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32),
+            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64),
+            ScalarType::Callable(semantic_vocabulary::CallableContractId::new(21).unwrap()),
+            ScalarType::Boolean,
+            ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap()),
+            ScalarType::Integer(IntegerType::address(64).unwrap()),
+        ] {
+            let mut source = classification_plan();
+            let row = source.functions[0].classification.as_mut().unwrap();
+            row.scalar_type = scalar_type;
+            row.classification = RecoveryClassification::NoAdmittedRecovery {
+                reason: NoAdmittedRecoveryReason::UnsupportedScalarType,
+            };
+            assert_eq!(
+                RecoveryClassificationPlan::decode(&source.encode()),
+                Ok(source),
+                "{scalar_type:?}"
+            );
+        }
+    }
+
+    #[test]
     fn classification_codec_round_trips_and_rejects_corrupt_framing_and_identity() {
         let plan = classification_plan();
         let encoded = plan.encode();
