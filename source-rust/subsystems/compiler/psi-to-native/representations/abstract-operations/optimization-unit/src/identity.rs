@@ -5715,3 +5715,91 @@ mod float_meaning_identity_tests {
         assert_ne!(bytes(clause), bytes(changed));
     }
 }
+
+#[cfg(test)]
+mod declaration_identity_tests {
+    use semantic_vocabulary::{
+        ClauseCarrier, ClauseDeclaration, ClauseIdentity, ClauseOperand, ClauseValue, IntegerSign,
+        IntegerType, Proposition, ScalarTerm, ScalarType, ValueId,
+    };
+
+    fn bytes(clause: &ClauseIdentity) -> Vec<u8> {
+        let mut bytes = super::unit_encoding::CanonicalBytes::collect();
+        super::proposition_encoding::encode_proposition(
+            &mut bytes,
+            &Proposition::DeclarationIdentity(clause.clone()),
+        );
+        bytes.finish()
+    }
+
+    // A changed carrier, operand, declaration, argument or side must change the
+    // optimizer identity; equal clauses must keep equal bytes.
+    #[test]
+    fn declaration_identity_commits_every_clause_field() {
+        let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
+        let value = |id| ScalarTerm::value(ValueId::new(id).unwrap(), scalar);
+        let clause = ClauseIdentity {
+            values: vec![
+                ClauseValue {
+                    carrier: ClauseCarrier::Scalar(scalar),
+                    operand: ClauseOperand::Scalar(value(1)),
+                },
+                ClauseValue {
+                    carrier: ClauseCarrier::Parameter(0),
+                    operand: ClauseOperand::Formal(0),
+                },
+                ClauseValue {
+                    carrier: ClauseCarrier::Scalar(scalar),
+                    operand: ClauseOperand::Application {
+                        declaration: ClauseDeclaration {
+                            supplier: Some((4, 1)),
+                            member: (7, 2),
+                        },
+                        arguments: vec![0, 1],
+                    },
+                },
+            ],
+            left: 0,
+            right: 2,
+        };
+        let original = bytes(&clause);
+        assert_eq!(original, bytes(&clause.clone()));
+        assert_eq!(original[0], 23);
+        let mut changes = Vec::new();
+        let mut changed = clause.clone();
+        changed.values[0].operand = ClauseOperand::Scalar(value(9));
+        changes.push(changed);
+        let mut changed = clause.clone();
+        changed.values[1].carrier = ClauseCarrier::Parameter(1);
+        changes.push(changed);
+        let mut changed = clause.clone();
+        changed.values[1].operand = ClauseOperand::Formal(1);
+        changes.push(changed);
+        for edit in 0..4 {
+            let mut changed = clause.clone();
+            let ClauseOperand::Application {
+                declaration,
+                arguments,
+            } = &mut changed.values[2].operand
+            else {
+                unreachable!()
+            };
+            match edit {
+                0 => declaration.supplier = None,
+                1 => declaration.member.0 = 8,
+                2 => declaration.member.1 = 3,
+                _ => arguments.reverse(),
+            }
+            changes.push(changed);
+        }
+        let mut changed = clause.clone();
+        changed.left = 1;
+        changes.push(changed);
+        let mut changed = clause.clone();
+        changed.right = 1;
+        changes.push(changed);
+        for changed in &changes {
+            assert_ne!(original, bytes(changed), "{changed:?}");
+        }
+    }
+}
