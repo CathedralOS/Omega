@@ -1814,7 +1814,7 @@ mod catalogs {
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     ) -> Result<(), OptimizationUnitValidationError> {
         use abstract_operations::AbstractOperation as O;
-        use terminal_psi::{RecordFieldValue, StructuralTypeShape};
+        use terminal_psi::StructuralTypeShape;
         macro_rules! require_operation {
             ($operation:expr, $obligation:expr, $goal:expr) => {
                 require_accepted_goal_fact(
@@ -2407,31 +2407,29 @@ mod catalogs {
                     result_case,
                     fields,
                 } => {
-                    let Some(StructuralTypeDeclaration {
-                        shape: StructuralTypeShape::Sum { cases },
-                        ..
-                    }) = types.get(&result.structural_type).copied()
-                    else {
-                        continue;
+                    let invalid =
+                        || OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;
+                    let (common, cases) = match types.get(&result.structural_type).map(|d| &d.shape)
+                    {
+                        Some(StructuralTypeShape::Sum { cases }) => (&[][..], cases),
+                        Some(StructuralTypeShape::Mixed { fields, cases }) => {
+                            (fields.as_slice(), cases)
+                        }
+                        _ => return Err(invalid()),
                     };
-                    let Some(case) = find_structural_case(cases, *result_case) else {
-                        continue;
-                    };
-                    for (declaration, binding) in case.fields.iter().zip(fields) {
-                        if let RecordFieldValue::Scalar {
+                    let case = find_structural_case(cases, *result_case).ok_or_else(invalid)?;
+                    for (declaration, value, range_obligation) in
+                        scalar_initializer_declarations(common.iter().chain(&case.fields), fields)
+                            .ok_or_else(invalid)?
+                    {
+                        validate_field_range_authority(
+                            unit,
+                            function.machine,
+                            *psi_operation,
+                            declaration,
                             value,
                             range_obligation,
-                        } = &binding.value
-                        {
-                            validate_field_range_authority(
-                                unit,
-                                function.machine,
-                                *psi_operation,
-                                declaration,
-                                *value,
-                                *range_obligation,
-                            )?;
-                        }
+                        )?;
                     }
                 }
                 O::EstablishRecord {
@@ -2439,38 +2437,70 @@ mod catalogs {
                     result,
                     fields,
                 } => {
-                    let Some(StructuralTypeDeclaration {
-                        shape:
-                            StructuralTypeShape::Record {
-                                fields: declarations,
-                                ..
-                            },
+                    let invalid =
+                        || OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;
+                    let Some(StructuralTypeShape::Record {
+                        fields: declarations,
                         ..
-                    }) = types.get(&result.structural_type).copied()
+                    }) = types.get(&result.structural_type).map(|d| &d.shape)
                     else {
-                        continue;
+                        return Err(invalid());
                     };
-                    for (declaration, initializer) in declarations.iter().zip(fields) {
-                        if let RecordFieldValue::Scalar {
+                    for (declaration, value, range_obligation) in
+                        scalar_initializer_declarations(declarations.iter(), fields)
+                            .ok_or_else(invalid)?
+                    {
+                        validate_field_range_authority(
+                            unit,
+                            function.machine,
+                            *psi_operation,
+                            declaration,
                             value,
                             range_obligation,
-                        } = &initializer.value
-                        {
-                            validate_field_range_authority(
-                                unit,
-                                function.machine,
-                                *psi_operation,
-                                declaration,
-                                *value,
-                                *range_obligation,
-                            )?;
-                        }
+                        )?;
                     }
                 }
                 _ => {}
             }
         }
         Ok(())
+    }
+
+    /// Pairs each scalar initializer of a record or case constructor with the
+    /// field declaration it names. Initializers cover only the relevant fields,
+    /// in declaration order (`field_initializers_match`), while a type's roster
+    /// also lists `[erased]` fields and, for a mixed type, the common fields
+    /// before the case's own. Matching by field id keeps an erased field from
+    /// shifting every later initializer onto the wrong declaration. `None`
+    /// means an initializer names no relevant field of the roster.
+    pub(super) fn scalar_initializer_declarations<'a>(
+        roster: impl Iterator<Item = &'a terminal_psi::StructuralFieldDeclaration> + Clone,
+        fields: &'a [terminal_psi::RecordFieldInitializer],
+    ) -> Option<
+        Vec<(
+            &'a terminal_psi::StructuralFieldDeclaration,
+            ValueId,
+            Option<ObligationId>,
+        )>,
+    > {
+        fields
+            .iter()
+            .filter_map(|initializer| match &initializer.value {
+                terminal_psi::RecordFieldValue::Scalar {
+                    value,
+                    range_obligation,
+                } => Some((initializer.field, *value, *range_obligation)),
+                _ => None,
+            })
+            .map(|(field, value, range_obligation)| {
+                roster
+                    .clone()
+                    .find(|declaration| {
+                        declaration.id == field && !declaration.relevance.is_erased()
+                    })
+                    .map(|declaration| (declaration, value, range_obligation))
+            })
+            .collect()
     }
 
     fn validate_field_range_authority(
