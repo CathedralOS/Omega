@@ -96,7 +96,7 @@ public LocalReader satisfies Reader {
 }
 
 #[test]
-fn review_retains_only_accounted_public_domain_casts_in_contracts() {
+fn review_retains_checked_domain_casts_at_their_declared_exposure() {
     let project = TemporaryDirectory::create("review-domain-cast", false).unwrap();
     fs::write(
         project.path().join("build.omg"),
