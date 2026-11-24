@@ -23,7 +23,6 @@ impl<'program> Program<'program> {
                 .or_else(|| {
                     application.keeps_declared_signatures(typed).then_some(required)
                 })
-                .or_else(|| typed.closed_requirement_in_scope(application, required.symbol))
                 .ok_or_else(|| {
                     services::unavailable(context, "conformance lost its prepared requirement header")
                 })?;
