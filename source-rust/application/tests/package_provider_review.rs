@@ -183,8 +183,8 @@ public LocalReader satisfies Reader {
     machine read<const Count: u64>(bytes: @[u8; Count], count: u64) -> u64
     requires count <= Count { count }
 }
-public machine four(bytes: @[u8; 4]) -> u64 reaches Reader { Reader::read::<4>(bytes, 3) }
-public machine eight(bytes: @[u8; 8]) -> u64 reaches Reader { Reader::read::<8>(bytes, 7) }"#;
+public machine four<'a>(bytes: @'a [u8; 4]) -> u64 reaches Reader { Reader::read::<4>(bytes, 3) }
+public machine eight<'a>(bytes: @'a [u8; 8]) -> u64 reaches Reader { Reader::read::<8>(bytes, 7) }"#;
     let (status, report) = audit_reader(&project, source);
     assert_eq!(status, Some(0), "{report}");
     assert!(report.contains("fresh-analysis complete"), "{report}");
