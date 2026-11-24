@@ -507,7 +507,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
             .queries
             .iter()
             .map(|query| query.site)
-            .chain(self.host.fixture_calls.iter().copied())
+            .chain(self.host.group_requests.iter().map(|request| request.site))
             .any(|site| crate::host::is_call_at(effect, site))
         {
             return Ok(true);
