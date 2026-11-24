@@ -656,42 +656,24 @@ impl AcceptedTerminalSource {
         &self,
         boundary: semantic_vocabulary::BoundaryMachineId,
         declaration: symbols::SymbolHandle,
-    ) -> Result<Option<&terminal_check_tables::contracts::StaticSignature>, &'static str> {
-        let elaboration = self.closure().elaboration();
-        let original = *elaboration
+    ) -> Result<&terminal_check_tables::contracts::StaticSignature, &'static str> {
+        let original = *self
+            .closure()
+            .elaboration()
             .boundaries
             .get(boundary)
             .ok_or("the checked boundary source")?;
-        if let Some(application) = self.source().closed_requirement_application(original) {
-            if application.template != declaration {
-                return Err("the original applied requirement");
-            }
-            let rows = &self.correspondence().applied_boundary_signatures;
-            let index = rows
-                .binary_search_by_key(&boundary, |(id, _)| *id)
-                .map_err(|_| "the checked applied predicate signature")?;
-            return Ok(Some(&rows[index].1));
-        }
-        if original != declaration {
+        let template = self
+            .source()
+            .closed_requirement_application(original)
+            .map_or(original, |application| application.template);
+        if template != declaration {
             return Err("the original boundary declaration");
         }
-        let (owner, _) = self
-            .source()
-            .trait_machine_signature(declaration)
-            .ok_or("the original declaring trait")?;
-        let key = |symbol: symbols::SymbolHandle| (symbol.arena_index(), symbol.generation());
-        let schemas = &elaboration.static_schemas;
-        Ok(schemas
-            .binary_search_by_key(&key(owner.symbol), |schema| key(schema.declaration))
-            .ok()
-            .and_then(|index| {
-                schemas[index]
-                    .requirements
-                    .iter()
-                    .find(|row| row.declaration == declaration)?
-                    .signature
-                    .as_ref()
-            }))
+        self.correspondence()
+            .boundary_signatures
+            .get(boundary)
+            .ok_or("the checked declaration predicate signature")
     }
 
     /// Source record associations for the accepted executable form.
