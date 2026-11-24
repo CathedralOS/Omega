@@ -1061,3 +1061,47 @@ fn the_order_files_are_met_in_does_not_change_the_published_psi() {
         forward.len()
     );
 }
+
+#[test]
+fn identity_checks_the_complete_applied_data_type_of_both_subjects() {
+    let package = PackageKeyIdentity::from_digest([0x79; 32]).unwrap();
+    let check = |source: &str| {
+        let (files, root) = captured(package, source);
+        source_compiler::check(
+            product(files, root, package, &[]).unwrap(),
+            &mut Default::default(),
+        )
+    };
+    let source = r#"data Holder<T> { field: T; }
+machine carry(left: Holder<Holder<u32>>, right: Holder<Holder<u32>>)
+requires core\Identity::<Holder<Holder<u32>>>(left, right)
+ensures core\Identity::<Holder<Holder<u32>>>(left, right)
+{}
+machine main() {}
+"#;
+    check(source).expect("the same typed equality is available in the entry assumptions");
+
+    let changed = source.replace(
+        "Identity::<Holder<Holder<u32>>>",
+        "Identity::<Holder<Holder<u16>>>",
+    );
+    let wrong_type = check(&changed).expect_err("the innermost type differs from both subjects");
+    assert!(
+        wrong_type
+            .iter()
+            .any(|error| error.message.contains("Identity operand has no exact input observation")),
+        "{wrong_type:?}"
+    );
+
+    let unproved = source.replace(
+        "requires core\\Identity::<Holder<Holder<u32>>>(left, right)\n",
+        "",
+    );
+    let missing = check(&unproved).expect_err("two independent values supply no identity proof");
+    assert!(
+        missing
+            .iter()
+            .any(|error| error.message.contains("cannot prove ensures")),
+        "{missing:?}"
+    );
+}

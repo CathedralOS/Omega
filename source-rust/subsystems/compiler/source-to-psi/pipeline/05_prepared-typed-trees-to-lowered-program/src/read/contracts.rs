@@ -5,6 +5,8 @@ read into propositions over the formals, and the identity of the reserved
 with `self` and its fields as the names in scope (`ClauseScope::subject`).
 */
 
+mod identity_type;
+
 use crate::lowering::body::Qualification;
 use crate::source_state::domain::ProofFact;
 use crate::source_state::expression::{
@@ -901,15 +903,26 @@ impl Program<'_> {
         let [argument] = call.machine_arguments.as_ref() else {
             return Err(unavailable("Identity requires one explicit type argument"));
         };
-        if argument.path.is_empty() {
-            return Err(unavailable("Identity is missing its selected type name"));
+        if !typed.contains_type_reference(argument.type_reference) {
+            return Err(unavailable("Identity lost its written type reference"));
         }
-        if !typed.contains_type_reference(argument.type_reference)
-            || !matches!(
-                typed.type_reference_table.type_reference(argument.type_reference),
-                TypeReferenceNode::Named { symbol, .. } if *symbol == argument.symbol
-            )
-            || !typed.symbols.symbols().nodes().is_valid(argument.symbol)
+        let (subject, applied) = match typed
+            .type_reference_table
+            .type_reference(argument.type_reference)
+        {
+            TypeReferenceNode::Named { symbol, .. }
+                if !argument.path.is_empty() && *symbol == argument.symbol =>
+            {
+                (*symbol, false)
+            }
+            TypeReferenceNode::Generic { base_symbol, .. }
+                if argument.path.is_empty() && !argument.symbol.is_valid() =>
+            {
+                (*base_symbol, true)
+            }
+            _ => return Err(unavailable("Identity lost its exact written type")),
+        };
+        if !typed.symbols.symbols().nodes().is_valid(subject)
             || argument.application.is_some()
             || argument.const_literal.is_some()
             || argument.evidence_projection.is_some()
@@ -991,6 +1004,7 @@ impl Program<'_> {
 
         let mut attached_call = false;
         let mut written_type = None;
+        let mut nested_types = Vec::new();
         for occurrence in expressions.authored_selection_occurrences(expression) {
             let row = ledger
                 .get(occurrence)
@@ -1004,16 +1018,21 @@ impl Program<'_> {
                 && written_type.replace(row).is_some()
             {
                 return Err(unavailable("Identity repeats its written type selection"));
+            } else if applied && row.kind() == StaticArgument && row.top_level_static_argument_position().is_none() {
+                let symbol = row.target().as_resolved()
+                    .map(|selected| selected.selected_symbol())
+                    .ok_or_else(|| unavailable("Identity has an unresolved nested type selection"))?;
+                nested_types.push((row.source_span(), symbol));
             }
         }
         // Name resolution records selections for declarations. A lexical type
         // parameter instead has its identity in the current type telescope.
-        let parameter_in_scope = typed.symbols.get(argument.symbol).kind
+        let parameter_in_scope = typed.symbols.get(subject).kind
             == symbols::SymbolKind::TypeParameter
             && self
                 .scope
                 .iter()
-                .any(|(binder, _)| *binder == argument.symbol);
+                .any(|(binder, _)| *binder == subject);
         let supplied_type = if written_type.is_none()
             && !parameter_in_scope
             && let Some(supplier) = self.clause_supplier
@@ -1047,7 +1066,7 @@ impl Program<'_> {
                         let supplied = required.application.parameter_argument(typed, binder.symbol);
                         return typed.contains_type_reference(supplied)
                             && matches!(typed.type_reference_table.type_reference(supplied),
-                                TypeReferenceNode::Named { symbol, .. } if *symbol == argument.symbol);
+                                TypeReferenceNode::Named { symbol, .. } if *symbol == subject);
                     }
                     typed.expression_children(node, |child| pending.push(child));
                 }
@@ -1065,12 +1084,24 @@ impl Program<'_> {
                         .target()
                         .as_resolved()
                         .map(|selected| selected.selected_symbol())
-                        != Some(argument.symbol)
+                        != Some(subject)
             })
         {
             return Err(unavailable(
                 "Identity lost the source selection for its written type",
             ));
+        }
+
+        if applied {
+            let head = written_type
+                .ok_or_else(|| unavailable("Identity lost its applied type selection"))?;
+            self.check_identity_type_application(
+                id,
+                argument.type_reference,
+                source,
+                head.source_span(),
+                nested_types,
+            )?;
         }
 
         let [left, right] = expressions.expression_handles(call.arguments) else {
@@ -1081,7 +1112,7 @@ impl Program<'_> {
             ));
         };
         Ok((
-            argument.symbol,
+            subject,
             [*left, *right],
             SourceOrigin::Authored(call_source),
         ))
