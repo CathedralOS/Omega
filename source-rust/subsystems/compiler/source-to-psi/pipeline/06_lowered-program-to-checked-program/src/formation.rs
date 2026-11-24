@@ -114,8 +114,19 @@ pub fn prepare_replay<'source>(
         &bodies,
     )
     .map_err(|error| {
-        if let Some(denied) = error.denied_establishment() {
-            return denied_domain_cast(elaboration, denied);
+        use terminal_semantics::structural_qualifications::QualificationViolation;
+        if let Some(violation) = error.violation {
+            return match violation {
+                QualificationViolation::Establishment(denied) => {
+                    denied_domain_cast(elaboration, denied)
+                }
+                QualificationViolation::MemoryAccess { machine, operation } => crate::checking::refusal(
+                    RefusalReason::Violation,
+                    machine,
+                    Construct::Operation(operation),
+                    error.detail,
+                ),
+            };
         }
         crate::checking::refusal(
             RefusalReason::ForeignIdentity,

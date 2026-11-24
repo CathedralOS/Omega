@@ -34,8 +34,8 @@ use application_identity::type_identity::vocabulary::OwnerForm;
 
 use semantic_vocabulary::{
     BlockId, CanonicalStructuralPathSegment, ContentPlaceVersion, EdgeId, IntegerType, MachineId,
-    PlaceId, Proposition, ScalarTerm, ScalarType, StructuralCaseId, StructuralDomainId,
-    StructuralFieldId, StructuralTypeId, ValueId,
+    OperationId, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralCaseId,
+    StructuralDomainId, StructuralFieldId, StructuralTypeId, ValueId,
 };
 use terminal_psi::{
     Operation, OperationKind, StructuralArgument, StructuralDomainDeclaration,
@@ -51,20 +51,24 @@ use crate::domain_issuance::{DeniedEstablishment, excludes_machine, issuer_route
 pub struct StructuralQualificationError {
     pub machine: Option<MachineId>,
     pub detail: &'static str,
-    denied_establishment: Option<DeniedEstablishment>,
+    pub violation: Option<QualificationViolation>,
 }
 
-impl StructuralQualificationError {
-    pub fn denied_establishment(&self) -> Option<DeniedEstablishment> {
-        self.denied_establishment
-    }
+/// A checked access plan excludes this source operation or cast.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QualificationViolation {
+    Establishment(DeniedEstablishment),
+    MemoryAccess {
+        machine: MachineId,
+        operation: OperationId,
+    },
 }
 
 type Judged<T> = Result<T, StructuralQualificationError>;
 
 fn malformed<T>(machine: Option<MachineId>, detail: &'static str) -> Judged<T> {
     Err(StructuralQualificationError {
-        denied_establishment: None,
+        violation: None,
         machine,
         detail,
     })
@@ -388,7 +392,7 @@ impl<'a> DefaultRequirements<'a> {
         for position in 0..types.len() {
             type_has_defaults(types, position, &mut memo, &mut active).map_err(|detail| {
                 StructuralQualificationError {
-                    denied_establishment: None,
+                    violation: None,
                     machine: Some(machine.id),
                     detail,
                 }
@@ -411,7 +415,7 @@ impl<'a> DefaultRequirements<'a> {
 
     fn error(&self, detail: &'static str) -> StructuralQualificationError {
         StructuralQualificationError {
-            denied_establishment: None,
+            violation: None,
             machine: Some(self.machine.id),
             detail,
         }
@@ -1864,7 +1868,7 @@ fn validate_change(
                 let mut error = StructuralQualificationError {
                     machine,
                     detail: "a structural cast lacks both an existing membership and an authorized issuer route",
-                    denied_establishment: None,
+                    violation: None,
                 };
                 // An unrun access plan leaves an empty issuer placeholder.
                 // Only its checked, explicitly empty plan establishes that
@@ -1877,11 +1881,12 @@ fn validate_change(
                 if (!routes.is_empty() || explicitly_empty)
                     && excludes_machine(module, places.machine, routes)
                 {
-                    error.denied_establishment = Some(DeniedEstablishment {
-                        machine: places.machine.id,
-                        edge: change.edge,
-                        domain: declared.semantic_domain,
-                    });
+                    error.violation =
+                        Some(QualificationViolation::Establishment(DeniedEstablishment {
+                            machine: places.machine.id,
+                            edge: change.edge,
+                            domain: declared.semantic_domain,
+                        }));
                 }
                 return Err(error);
             }
@@ -1939,7 +1944,7 @@ fn byte_change_judgment(
     let mut established = true;
     for (id, referent) in &added {
         let declared = domain(module, *id).ok_or(StructuralQualificationError {
-            denied_establishment: None,
+            violation: None,
             machine,
             detail: "a structural qualification change adds an absent domain",
         })?;
@@ -1950,7 +1955,7 @@ fn byte_change_judgment(
             .machine
             .structural_place_type(change.destination)
             .ok_or(StructuralQualificationError {
-                denied_establishment: None,
+                violation: None,
                 machine,
                 detail: "a byte qualification change has no declared destination carrier",
             })?;
@@ -1962,7 +1967,7 @@ fn byte_change_judgment(
         let carrier =
             crate::runtime_structural_path_tip(module.types.structural_types.iter(), root, path)
                 .ok_or(StructuralQualificationError {
-                    denied_establishment: None,
+                    violation: None,
                     machine,
                     detail: "a byte qualification change has no declared displayed carrier",
                 })?
@@ -1979,7 +1984,7 @@ fn byte_change_judgment(
             std::slice::from_ref(id),
         )
         .ok_or(StructuralQualificationError {
-            denied_establishment: None,
+            violation: None,
             machine,
             detail: "a byte qualification change is not a complete primitive byte domain",
         })?;
@@ -1988,7 +1993,7 @@ fn byte_change_judgment(
         let mut supplied =
             crate::byte_sequence_argument_predicates(module, places.machine, &argument).ok_or(
                 StructuralQualificationError {
-                    denied_establishment: None,
+                    violation: None,
                     machine,
                     detail: "a byte qualification change has no reconstructed source predicates",
                 },
@@ -2068,7 +2073,7 @@ fn validate_machine(
                         }
                         let position = u32::try_from(block.operations.len()).map_err(|_| {
                             StructuralQualificationError {
-                                denied_establishment: None,
+                                violation: None,
                                 machine: id,
                                 detail: "a byte qualification use exceeds its descriptor graph",
                             }
@@ -2344,7 +2349,7 @@ fn validate_machine(
                 OperationKind::EstablishStructuralLocal {} => {}
                 OperationKind::EstablishZeroedStructural {} => {
                     let carrier = result_type.ok_or(StructuralQualificationError {
-                        denied_establishment: None,
+                        violation: None,
                         machine: id,
                         detail: "zero provisioning has no declared result carrier",
                     })?;
@@ -2602,7 +2607,7 @@ fn read_machine_caller_declaration(
     callable: terminal_psi::TerminalIdentityIndex,
 ) -> Judged<MachineCallerDescription> {
     let error = |detail| StructuralQualificationError {
-        denied_establishment: None,
+        violation: None,
         machine: None,
         detail,
     };
@@ -2671,7 +2676,7 @@ fn machine_caller_application_matches(
     described: &MachineCallerDescription,
 ) -> Judged<bool> {
     let error = |detail| StructuralQualificationError {
-        denied_establishment: None,
+        violation: None,
         machine: Some(current.id),
         detail,
     };
@@ -2772,7 +2777,7 @@ pub fn caller_matches_machine(
     let current = module
         .machine(current)
         .ok_or(StructuralQualificationError {
-            denied_establishment: None,
+            violation: None,
             machine: Some(current),
             detail: "policy caller is absent from the actual module",
         })?;
@@ -2780,7 +2785,7 @@ pub fn caller_matches_machine(
         .declaration
         .as_ref()
         .ok_or(StructuralQualificationError {
-            denied_establishment: None,
+            violation: None,
             machine: Some(current.id),
             detail: "policy caller has no checked declaration",
         })?;
@@ -2840,7 +2845,7 @@ pub fn validate_access_policy(
         return Ok(());
     };
     let error = |detail| StructuralQualificationError {
-        denied_establishment: None,
+        violation: None,
         machine: None,
         detail,
     };
@@ -3168,7 +3173,7 @@ pub fn validate_shape_for_bodies(module: &TerminalModule, bodies: &[MachineId]) 
     validate_access_policies(module)?;
     let facts = crate::membership_facts::analyze_bodies(module, bodies).map_err(|error| {
         StructuralQualificationError {
-            denied_establishment: None,
+            violation: None,
             machine: error.machine,
             detail: error.detail,
         }
@@ -3224,7 +3229,7 @@ pub fn byte_qualification_change_judgments_in(
     for block in &machine.blocks {
         let position =
             u32::try_from(block.operations.len()).map_err(|_| StructuralQualificationError {
-                denied_establishment: None,
+                violation: None,
                 machine: Some(machine.id),
                 detail: "byte qualification cut exceeds descriptor coordinates",
             })?;
@@ -3238,13 +3243,13 @@ pub fn byte_qualification_change_judgments_in(
         }
         for ((edge, target), arguments) in edges.into_iter().zip(arguments) {
             let target = machine.block(&target).ok_or(StructuralQualificationError {
-                denied_establishment: None,
+                violation: None,
                 machine: Some(machine.id),
                 detail: "byte qualification successor names an absent block",
             })?;
             for (ordinal, source) in arguments.iter().enumerate() {
                 let ordinal = u32::try_from(ordinal).map_err(|_| StructuralQualificationError {
-                    denied_establishment: None,
+                    violation: None,
                     machine: Some(machine.id),
                     detail: "byte qualification argument ordinal overflow",
                 })?;
@@ -3256,7 +3261,7 @@ pub fn byte_qualification_change_judgments_in(
                     .get(ordinal as usize)
                     .filter(|parameter| parameter.place == change.destination)
                     .ok_or(StructuralQualificationError {
-                        denied_establishment: None,
+                        violation: None,
                         machine: Some(machine.id),
                         detail: "byte qualification change names another destination",
                     })?;
@@ -3291,7 +3296,7 @@ pub fn validate(module: &TerminalModule) -> Judged<()> {
     validate_access_policies(module)?;
     let facts =
         crate::membership_facts::analyze(module).map_err(|error| StructuralQualificationError {
-            denied_establishment: None,
+            violation: None,
             machine: error.machine,
             detail: error.detail,
         })?;
@@ -3367,7 +3372,7 @@ fn validate_routed_writes(module: &TerminalModule) -> Judged<()> {
         .map(|(machine, _)| machine.id);
     let graph = crate::descriptor_results::terminal_borrowed_storage_graph_from(module, roots, &[])
         .map_err(|error| StructuralQualificationError {
-            denied_establishment: None,
+            violation: None,
             machine: Some(error.machine()),
             detail: "a routed write has no complete borrowed-storage graph",
         })?;
@@ -3380,7 +3385,7 @@ fn validate_routed_writes(module: &TerminalModule) -> Judged<()> {
             for (position, operation) in block.operations.iter().enumerate() {
                 let position =
                     u32::try_from(position).map_err(|_| StructuralQualificationError {
-                        denied_establishment: None,
+                        violation: None,
                         machine: Some(machine.id),
                         detail: "a routed write position exceeds the descriptor graph",
                     })?;

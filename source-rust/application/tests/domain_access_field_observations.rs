@@ -41,11 +41,18 @@ fn a_loan_cannot_read_or_write_the_excluded_field() {
         ("pair.visible =", "pair.hidden ="),
     ] {
         let source = SOURCE.replace(original, changed);
-        assert_ne!(source, SOURCE);
+        let line = source
+            .lines()
+            .position(|line| line.contains(changed.trim()))
+            .unwrap()
+            + 1;
         let (output, report) = program::invoke(&source, &["run", "--engine", "psi"]);
         assert!(!output.status.success(), "{report}");
         assert!(
-            report.contains("this field is inaccessible") && report.contains("select"),
+            report.contains("this field is inaccessible")
+                && report.contains("select")
+                && report.contains(&format!("main.omg:{line}:"))
+                && !report.contains("defect of the checker"),
             "{report}"
         );
     }

@@ -27,7 +27,8 @@ type Caller = (
 struct RuleJudgment<'a> {
     target: &'a Subject,
     allowed: &'a [Caller],
-    denied: StructuralQualificationError,
+    original: &'a Subject,
+    denial: &'static str,
     answers: std::collections::BTreeMap<(Subject, bool, bool), Option<Judged<bool>>>,
 }
 
@@ -50,7 +51,7 @@ struct Permissions<'a> {
 }
 fn failure(machine: MachineId, detail: &'static str) -> StructuralQualificationError {
     StructuralQualificationError {
-        denied_establishment: None,
+        violation: None,
         machine: Some(machine),
         detail,
     }
@@ -398,7 +399,20 @@ impl<'a> Permissions<'a> {
             if entry && encountered && !granted {
                 // The unauthorized instruction owns this refusal. An
                 // outer caller ending the search is not that instruction.
-                return Err(rule.denied.clone());
+                let at = rule.original;
+                let operation = self
+                    .block(at.machine, at.position.0)?
+                    .operations
+                    .get(at.position.1 as usize)
+                    .ok_or_else(|| failure(at.machine, "memory access has no original operation"))?;
+                return Err(StructuralQualificationError {
+                    machine: Some(at.machine),
+                    detail: rule.denial,
+                    violation: Some(QualificationViolation::MemoryAccess {
+                        machine: at.machine,
+                        operation: operation.id,
+                    }),
+                });
             }
             let mut found = entry && encountered;
             for caller in callers {
@@ -433,7 +447,8 @@ impl<'a> Permissions<'a> {
                 let mut judgment = RuleJudgment {
                     target: subject,
                     allowed,
-                    denied: failure(original.machine, denied),
+                    original,
+                    denial: denied,
                     answers: std::collections::BTreeMap::new(),
                 };
                 if self.route(original.clone(), false, false, &mut judgment)? {
@@ -608,7 +623,7 @@ pub(super) fn validate(module: &TerminalModule) -> Judged<()> {
     }
     let mut graph = terminal_borrowed_storage_graph_from(module, roots.iter().copied(), &[])
         .map_err(|error| StructuralQualificationError {
-            denied_establishment: None,
+            violation: None,
             machine: Some(error.machine()),
             detail: error
                 .detail()

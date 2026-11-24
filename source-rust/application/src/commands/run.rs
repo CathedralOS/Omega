@@ -115,10 +115,10 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
         Err(error) => {
             match (&error, selection) {
                 (RunError::Compilation(diagnostics), ExecutionSelection::Terminal) => {
-                    eprintln!("Psi compile FAILED:");
-                    for diagnostic in diagnostics {
-                        eprintln!("  {diagnostic}");
-                    }
+                    eprintln!(
+                        "Psi compile FAILED:{}",
+                        std::fmt::from_fn(|f| diagnostics::write_bounded_diagnostics(f, diagnostics))
+                    );
                 }
                 _ => eprintln!("{error}"),
             }
