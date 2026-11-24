@@ -142,3 +142,15 @@ fn executable_authority_rejects_directories() {
     let root = inspection_root();
     assert!(ResolverExecutionBackend::open(&root, &[] as &[PathBuf]).is_err());
 }
+
+#[test]
+fn exclusion_root_distinguishes_a_future_directory_from_an_invalid_path() {
+    let executable = super::resolver_executable();
+    let base = inspection_root();
+    let future = base.join("future-package-controlled-directory");
+    ResolverExecutionBackend::open(&executable, &[future]).unwrap();
+    let invalid = base.join("invalid\0root");
+    let error = ResolverExecutionBackend::open(&executable, &[invalid])
+        .expect_err("unsupported exclusion path must be diagnosed");
+    assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput);
+}
