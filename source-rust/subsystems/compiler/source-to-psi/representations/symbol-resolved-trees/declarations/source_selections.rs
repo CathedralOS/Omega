@@ -53,6 +53,7 @@ pub struct TestGroupRegistration {
     pub origin: crate::declaration_selection::BuildSelectionOrigin,
     pub requirement: SymbolHandle,
     pub closed_requirement: Option<SymbolHandle>,
+    pub adapter: Option<SymbolHandle>,
     pub selecting_machine: SymbolHandle,
     pub source_span: SourceSpan,
 }

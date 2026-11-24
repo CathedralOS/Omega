@@ -102,16 +102,17 @@ impl Program<'_> {
             .authored_selection
             .and_then(|occurrence| self.typed.authored_declaration_selections().get(occurrence))
             .ok_or_else(|| unserved("static call argument lost its authored selection"))?;
-        if selection.kind()
-            != crate::declaration_selection::AuthoredDeclarationSelectionKind::StaticArgument
-            || selection.target().as_resolved().is_none_or(|selected| {
-                let selected = selected.selected_symbol();
-                !self.typed.symbols.symbols().nodes().is_valid(selected)
-                    || (selected != argument.symbol
-                        && !self.instantiates_callable(argument.symbol, selected)
-                        && self.entered_machine(selected) != self.entered_machine(argument.symbol))
-            })
-        {
+        use crate::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
+        if !matches!(
+            selection.kind(),
+            Kind::StaticArgument | Kind::InstalledStaticArgument
+        ) || selection.target().as_resolved().is_none_or(|selected| {
+            let selected = selected.selected_symbol();
+            !self.typed.symbols.symbols().nodes().is_valid(selected)
+                || (selected != argument.symbol
+                    && !self.instantiates_callable(argument.symbol, selected)
+                    && self.entered_machine(selected) != self.entered_machine(argument.symbol))
+        }) {
             return Err(unserved(
                 "static call argument changed its authored selection",
             ));

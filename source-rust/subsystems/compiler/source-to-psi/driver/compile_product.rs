@@ -17,6 +17,8 @@ pub(crate) mod declaration_lookup;
 pub use declaration_lookup::ProductDeclarations;
 mod declarations;
 mod entry_contracts;
+mod entry_roots;
+pub(super) use entry_roots::ProductRoots;
 mod entry_shapes;
 pub(crate) mod layout_scopes;
 pub mod native_binding_declarations;
@@ -221,16 +223,18 @@ pub(crate) fn prepare_lower_and_check(
         || typed.machines().iter().any(|machine| {
             machine.purpose == crate::source_state::machine::MachinePurpose::ProviderDefaults
         });
-    let unprepared = has_defaults.then(|| typed.clone());
-    let root_bindings = match entry {
+    let roots = match entry {
         ProductEntry::RegisteredTest { root, target } => {
-            vec![root.bind(&typed, &admitted.declarations.test_groups, target)?]
+            root.bind(&mut typed, &admitted.declarations.test_groups, target)?
         }
-        _ => crate::compile_product::declaration_lookup::collect_root_bindings(
-            &typed,
-            inputs.root_binding_requests,
-        )?,
+        _ => ProductRoots::Direct(
+            crate::compile_product::declaration_lookup::collect_root_bindings(
+                &typed,
+                inputs.root_binding_requests,
+            )?,
+        ),
     };
+    let unprepared = has_defaults.then(|| typed.clone());
     let mut pass = ProductSourcePass {
         inputs,
         activation,
@@ -238,7 +242,7 @@ pub(crate) fn prepare_lower_and_check(
         representations: admitted.representations,
         declarations: admitted.declarations,
         native_supplies,
-        root_bindings,
+        roots,
         default_provider_selections,
         entry,
         initial_accounting: accounting.clone(),
@@ -284,6 +288,13 @@ pub(crate) fn prepare_lower_and_check(
             }
         }
     }
+    if let (
+        ProductRoots::Applied { test, application },
+        ProductEntry::RegisteredTest { target, .. },
+    ) = (&pass.roots, pass.entry)
+    {
+        entry_roots::check_test_invocation(&judged.publication, test, *application, target)?;
+    }
     // Layout retries can materialize additional Product receipts. Check the final
     // charges and the originating Build's charges in their own evaluation contexts.
     pass.accounting
@@ -320,7 +331,7 @@ struct ProductSourcePass<'a, 'f> {
         Vec<crate::source_state::opaque_representations::OpaqueRepresentationSelection>,
     declarations: crate::compile_product::declarations::AdmittedProductDeclarations,
     native_supplies: Vec<provider_choice_inputs::NativeBuildSupply>,
-    root_bindings: Vec<crate::RootBinding>,
+    roots: ProductRoots,
     default_provider_selections: Vec<provider_choice_inputs::ProviderSelection>,
     entry: ProductEntry<'f>,
     initial_accounting: crate::compile_time_invocations::SourceCompletionAccounting,

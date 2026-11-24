@@ -135,7 +135,7 @@ impl<'program> ProductDeclarationLookup<'program> {
     }
 }
 
-const PRODUCT_ROLES: [ProductOperandKind; 10] = [
+const PRODUCT_ROLES: [ProductOperandKind; 11] = [
     ProductOperandKind::BoundarySubject,
     ProductOperandKind::RootGrantSubject,
     ProductOperandKind::Provider,
@@ -146,6 +146,7 @@ const PRODUCT_ROLES: [ProductOperandKind; 10] = [
     ProductOperandKind::Formal,
     ProductOperandKind::Field,
     ProductOperandKind::Domain,
+    ProductOperandKind::CheckedMachine,
 ];
 
 fn product_role_position(role: ProductOperandKind) -> Option<usize> {
@@ -318,6 +319,15 @@ pub fn product_candidates(
                     .iter()
                     .map(move |requirement| (requirement.symbol, definition.is_public))
             })
+            .collect(),
+        ProductOperandKind::CheckedMachine => program
+            .machines()
+            .iter()
+            .filter(|machine| {
+                machine.body_is_present
+                    && machine.supply_mode == source_declarations::MachineSupplyMode::CheckedBody
+            })
+            .map(|machine| (machine.symbol, machine.is_public))
             .collect(),
         ProductOperandKind::TestRequirement => program
             .traits()
