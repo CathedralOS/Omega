@@ -482,7 +482,11 @@ machine entry<const N: u64, const M: u64>(token: @Token<N>) -> u64 {
 #[test]
 fn a_const_record_requirement_follows_the_callers_bound_value() {
     let source = "
-data Slots<const Count: u64> requires Count >= 1 { items: [u64; Count]; }
+data Slots<const Count: u64> requires Count >= 1, active < Count {
+    items: [u64; Count];
+    active: u64;
+    other: u64;
+}
 machine entry<const Count: u64>(slots: @Slots<Count>) -> u64
 requires Count >= 1 {
     read_slot(slots, 0)
@@ -509,7 +513,29 @@ requires Count >= 1 {
         .iter_mut()
         .find(|declaration| declaration.id == expected)
         .unwrap();
-    declaration.requires[0] = semantic_vocabulary::Proposition::Falsehood;
+    let semantic_vocabulary::Proposition::LessThan(
+        semantic_vocabulary::ScalarTerm::IntegerField { path, scalar_type, .. },
+        _,
+    ) = &mut declaration.requires[1]
+    else {
+        panic!("the record must retain its field bound");
+    };
+    let [semantic_vocabulary::CanonicalStructuralPathSegment::Field(field)] = path.as_mut_slice()
+    else {
+        panic!("the bound must name one field");
+    };
+    *field = declaration
+        .shape
+        .fields()
+        .find(|other| {
+            other.id != *field
+                && other.field_type
+                    == terminal_psi::StructuralFieldType::Scalar(
+                        semantic_vocabulary::ScalarType::Integer(*scalar_type),
+                    )
+        })
+        .expect("the alternate field should have the original carrier")
+        .id;
     let error = discharge(&mut changed, &mut Default::default()).unwrap_err();
     assert!(
         error
