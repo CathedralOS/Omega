@@ -138,8 +138,7 @@ A runtime selector keeps its scalar source, stride, fixed extent if any, and
 exact obligation key through geometry and argument construction. Calls pass
 those rows forward; the next stage looks the keys up in the admitted proof
 catalog instead of rebuilding the selector from an earlier body.
-Source-specific restrictions are still checked separately. Foreign calls
-keep their own carriers; not every call uses this record yet.
+Source-specific restrictions are still checked separately. The same established view can reach an ordinary call or a foreign call. Both carry the descriptor producer and retain its backing access. Foreign calls place that descriptor according to the selected calling policy.
 
 Operation dispatch has no up-front borrow check for the whole operation. An
 ordinary call selects the existing descriptor metadata under each owned

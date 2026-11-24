@@ -1,0 +1,14 @@
+use omega\language\core\StandardOutput;
+use omega_language_std\Calling;
+use omega_language_std\LinuxX86ByteViewCalling;
+boundary trait Output: Calling<LinuxX86ByteViewCalling> {
+    machine write(descriptor: i32, bytes: @[u8]) -> i64
+    requires descriptor == 1
+    reaches StandardOutput crashes none;
+}
+trait Tests { machine capture() reaches StandardOutput; }
+machine writes_to_capture() satisfies Tests::capture {
+    let observed: i64 = Output::write(1i32, "okay");
+}
+machine returns_normally() satisfies Tests::capture { }
+machine main() reaches StandardOutput { writes_to_capture(); }

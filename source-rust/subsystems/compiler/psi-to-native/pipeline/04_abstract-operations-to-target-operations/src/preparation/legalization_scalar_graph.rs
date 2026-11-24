@@ -4241,7 +4241,7 @@ pub(crate) mod normalized_foreign {
         declaration_parameter: &terminal_psi::StructuralParameterDeclaration,
         plan_row: Option<&ValuePlacement>,
         parameters: &[TargetStructuralParameter],
-        optimized: &PsiOptimizationFunction,
+        function_inputs: &crate::preparation::legalization_function_inputs::FunctionInputs<'_>,
         native: ::target::NativeTarget,
         policy: calling_conventions::CallingPolicy,
         plan: &crate::preparation::native_geometry::NativePlan<'_>,
@@ -4250,6 +4250,7 @@ pub(crate) mod normalized_foreign {
         unit: &crate::preparation::native_geometry::NativeUnit<'_>,
     ) -> Result<TargetStructuralArgument, LegalizationError> {
         use terminal_psi::{StructuralAccess, StructuralPathSegment};
+        let optimized = function_inputs.function();
         let declarations = plan.geometry();
         let (root_type, root_access, root_multiplicity, source, root, presentation_debt) =
             if let Some(caller_parameter) = parameters
@@ -4281,7 +4282,7 @@ pub(crate) mod normalized_foreign {
                     semantic_parameter.access,
                     semantic_parameter.multiplicity,
                     caller_parameter.placement.clone().into(),
-                    semantic_parameter.clone(),
+                    Some(semantic_parameter.clone()),
                     false,
                 )
             } else if let Some((block, parameter)) =
@@ -4319,7 +4320,21 @@ pub(crate) mod normalized_foreign {
                         block,
                         place: parameter.place,
                     },
-                    parameter.clone(),
+                    Some(parameter.clone()),
+                    false,
+                )
+            } else if let Some((identity, source)) = super::established_views::argument_source(
+                function_inputs,
+                call_operation.into(),
+                semantic,
+                declarations,
+            ) {
+                (
+                    identity,
+                    semantic.access,
+                    terminal_psi::StructuralMultiplicity::Unrestricted,
+                    source,
+                    None,
                     false,
                 )
             } else {
@@ -4371,7 +4386,7 @@ pub(crate) mod normalized_foreign {
                     home.access(),
                     home.multiplicity(),
                     source,
-                    terminal_psi::StructuralParameterDeclaration {
+                    Some(terminal_psi::StructuralParameterDeclaration {
                         place: home.place(),
                         position: declaration_parameter.position,
                         structural_type: home.structural_type(),
@@ -4382,7 +4397,7 @@ pub(crate) mod normalized_foreign {
                         additional_input_qualifications: home
                             .additional_input_qualifications()
                             .to_vec(),
-                    },
+                    }),
                     home.has_claims()
                         || home.operation_result().is_some_and(|(_, result)| {
                             !result.qualification_establishments.is_empty()
@@ -4393,16 +4408,17 @@ pub(crate) mod normalized_foreign {
             .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
         let pointer_alignment = u16::try_from(native.pointer_alignment)
             .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
-        let presentation = (semantic.access != StructuralAccess::Owned)
-            .then(|| {
+        let presentation = root
+            .as_ref()
+            .filter(|_| semantic.access != StructuralAccess::Owned)
+            .and_then(|root| {
                 borrowed_byte_view_presentation(
-                    &root,
+                    root,
                     semantic,
                     declaration_parameter.structural_type,
                     declarations,
                 )
-            })
-            .flatten();
+            });
         let (projected_type, source_byte_offset, elements) = if let Some((offset, _, _)) =
             presentation
         {
@@ -5540,30 +5556,84 @@ pub(crate) mod invocations {
         sites.next().is_none().then_some(position)
     }
 }
-pub(crate) mod literals {
+pub(crate) mod established_views {
     use crate::preparation::legalization_function_inputs::FunctionInputs;
-    use semantic_vocabulary::{OperationId, PlaceId};
+    use crate::preparation::native_geometry::NativeGeometry;
+    use semantic_vocabulary::{InvocationSite, StructuralTypeId};
+    use target_operations::TargetStructuralArgumentSource;
+    use terminal_psi::StructuralArgument;
 
-    /// Find the byte literal a call passes as `source`. The call must occur
-    /// once and name `source` among its structural arguments; the literal
-    /// itself comes from the function's indexed producer rows.
-    pub(crate) fn producer(
-        function_inputs: &FunctionInputs<'_>,
-        call: semantic_vocabulary::InvocationSite,
-        source: PlaceId,
-    ) -> Option<(OperationId, semantic_vocabulary::StructuralTypeId)> {
-        let function = function_inputs.function();
-        super::invocations::position(function, call, None)?;
-        function.block_nodes().find(|node| {
-            super::invocations::matches(&node.operation, call)
-                && node.operation.module_invocation().is_some_and(|invocation|
-                    invocation.structural_arguments.iter().any(|argument| argument.place == source))
-                || matches!(&node.operation,
-                    abstract_operations::boundary_or_structural_call_pair_pattern!(psi_operation, structural_arguments, ..)
-                    if call == semantic_vocabulary::InvocationSite::Operation(*psi_operation)
-                        && structural_arguments.iter().any(|argument| argument.place == source))
+    /// Lend the descriptor established before this invocation, retaining its backing access.
+    pub(crate) fn argument_source(
+        inputs: &FunctionInputs<'_>,
+        call: InvocationSite,
+        argument: &StructuralArgument,
+        geometry: &NativeGeometry<'_>,
+    ) -> Option<(StructuralTypeId, TargetStructuralArgumentSource)> {
+        if !argument.path.is_empty()
+            || !matches!(
+                argument.access,
+                terminal_psi::reading_borrow_pair_pattern!()
+            )
+        {
+            return None;
+        }
+        let function = inputs.function();
+        let access = optimization_unit_semantics::structural_place_backing_access(
+            function,
+            argument.place,
+            geometry.iter(),
+        )?;
+        if !argument.access.admits_referent(access) {
+            return None;
+        }
+        let (producer, identity, recipe) =
+            if let Some((producer, identity)) = inputs.byte_literal(argument.place) {
+                (producer, identity, false)
+            } else {
+                let (producer, result) = inputs.source_result(argument.place).ok()?;
+                if function
+                    .structural_place(argument.place)?
+                    .kind
+                    .as_operation_result()
+                    != Some((producer, result.structural_type))
+                    || !result.qualifications.is_empty()
+                    || !result.claims.is_empty()
+                    || !terminal_semantics::view_descriptor_projected_qualifications(
+                        geometry.iter(),
+                        result.structural_type,
+                        &result.projected_qualifications,
+                    )
+                {
+                    return None;
+                }
+                (producer, result.structural_type, true)
+            };
+        let site = super::aggregate_results::node_site(function, |operation| {
+            operation.psi_operation() == Some(producer)
+                && (!recipe
+                    || operation
+                        .structural_result_metadata()
+                        .is_some_and(|metadata| {
+                            metadata.role == abstract_operations::StructuralResultRole::ViewRecipe
+                        }))
         })?;
-        function_inputs.byte_literal(source)
+        if !super::aggregate_results::precedes(function, site, call, argument).ok()? {
+            return None;
+        }
+        let shape = &geometry.declaration(identity).ok()?.shape;
+        let source = if shape.is_borrowed_byte_carrier() {
+            TargetStructuralArgumentSource::EstablishedByteView {
+                psi_operation: producer,
+            }
+        } else if matches!(shape, terminal_psi::StructuralTypeShape::ElementView { .. }) {
+            TargetStructuralArgumentSource::EstablishedElementView {
+                psi_operation: producer,
+            }
+        } else {
+            return None;
+        };
+        Some((identity, source))
     }
 }
 pub(crate) mod primitive_locals {
@@ -6583,20 +6653,13 @@ pub(crate) mod structural_call {
                     psi_operation: producer,
                 },
             )
-        } else if let Some((producer, structural_type)) =
-            super::literals::producer(function_inputs, call_operation, semantic.place)
-        {
-            if !find_structural_type(structural_types, structural_type)
-                .is_some_and(|declaration| declaration.shape.is_borrowed_byte_carrier())
-            {
-                return Err(LegalizationError::custody());
-            }
-            (
-                structural_type,
-                TargetStructuralArgumentSource::EstablishedByteView {
-                    psi_operation: producer,
-                },
-            )
+        } else if let Some(source) = super::established_views::argument_source(
+            function_inputs,
+            call_operation,
+            semantic,
+            structural_types,
+        ) {
+            source
         } else if let Some((block, parameter)) = caller.blocks.iter().find_map(|block| {
             block
                 .structural_parameter(semantic.place)
