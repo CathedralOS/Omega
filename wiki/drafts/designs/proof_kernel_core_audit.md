@@ -1188,7 +1188,7 @@ names it.
   [proof-work policy](../../spec/build/configuration.md#proof-work-policy) yet,
   and the diagnostic does not say which limit stopped the proof.
 
-**Step 4 as built so far (2026-11-24): records, not yet propositions.**
+**Step 4 as built so far (2026-11-24): records, named propositions and hypotheses inside sums.**
 `core/int.omg` builds the integers as a record of two naturals, so step 4
 starts with records.
 
@@ -1209,22 +1209,31 @@ starts with records.
   Before that, a law with one missing citation ran out of budget where it
   should have reported no proof, and `mul_int_identity`, whose six citations
   read backwards grow terms, did not finish.
-- **Customers.** `record_law/pass/pair_of_peano` and its twin without one
-  field's citation. Ten laws of `int.omg` are judged when the two library
-  files' declarations are compiled as a program, among them
-  `mul_int_assoc` (7,533 conversion steps) and `mul_int_distributes`
-  (4,105), both with empty bodies.
-- **Not done: the named proposition.** `int.omg` declares
+- **Named propositions.** `int.omg` declares
   `proposition int_pair_equivalent(left, right) = core\Identity::<Nat>(..)`
-  and states one law with it. The clause reader refuses a named proposition
-  in a clause, and its arguments there are whole expressions
-  (`add_int(a, b)`), so its fields are projections of an application, which
-  a clause operand cannot yet state.
-- **Not done: a hypothesis used inside a larger sum.** `neg_int_respects_eq`,
-  `mul_int_respects_eq` and `int_eq_transitive` hold an equation between two
-  sums and need it applied to some of the addends of a longer sum, the
-  second after scaling by a factor. The search matches a whole subterm only.
-- **Not done:** `rat.omg`, `cauchy.omg` and `extent.omg`, not yet tried.
+  and states one law with it. A clause of a mathematical machine that applies
+  a proposition declared as one formula is read as that formula, each
+  parameter standing for the argument written for it. The arguments are whole
+  expressions (`add_int(a, b)`), so a clause now states a field as the
+  field's declaration applied to a value, whatever the value is.
+- **A hypothesis used on part of a sum.** Four laws hold an equation between
+  two sums and need it on some addends of a longer sum:
+  `add_int_respects_eq`, `neg_int_respects_eq`, `int_eq_transitive` (in the
+  premise of its `add_cancel` citation) and `mul_int_respects_eq`, where the
+  hypothesis is first multiplied by `b.pos` and by `b.neg`. Under a
+  conformance that lets the operation regroup and reorder, the prover
+  rewrites a chain to hold the rule's left side as one operand, or that side
+  times a common factor where multiplication distributes, and uses the rule
+  there (`exchange` in stage 06's `equality.rs`).
+- **Customers.** `record_law/pass/pair_of_peano` and its twin without one
+  field's citation; `sum_hypothesis/pass/proposition_under_addition` and its
+  twin without the hypothesis. All fourteen laws of `int.omg` are judged when
+  the two library files' declarations are compiled as a program. The largest
+  is `mul_int_assoc` at 7,533 conversion steps; the four that use a
+  hypothesis on part of a sum take 1,021 to 3,637.
+- **Not done:** `rat.omg`, `cauchy.omg` and `extent.omg`, not yet tried. A
+  refused law whose goal names a field inside one case of an induction
+  prints `?` for that field.
 
 The first version of this plan started with level binders and value-indexed
 type arguments because they move 66 samples. They move those samples to

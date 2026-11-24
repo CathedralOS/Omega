@@ -785,7 +785,12 @@ fn statement(
                 .map_or("?", |entry| entry.name.as_str())
         );
     }
-    let equality = render(arena, entries, goal, &names);
+    let mut equality = render(arena, entries, goal, &names);
+    // A field of a record is a projection of a tuple, which carries no name
+    // to print. The clause as written says it, where there is one to quote.
+    if equality.contains('?') && case.is_none() && !law.text.is_empty() {
+        equality.clone_from(&law.text);
+    }
     if law.text.is_empty() {
         format!(
             "cannot prove the law `{}` inherits from the requirement it satisfies{within}: {equality}",

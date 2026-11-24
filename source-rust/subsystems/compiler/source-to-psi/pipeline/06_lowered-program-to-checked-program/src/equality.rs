@@ -1133,6 +1133,312 @@ fn rewrite(
     Ok((rewritten, rule.eliminate(arena, conclusion, base)))
 }
 
+/// The operands of a chain of `operation`, left to right, however it nests.
+fn chain(arena: &TermArena, operation: TermHandle, term: TermHandle, out: &mut Vec<TermHandle>) {
+    match operands_of(arena, operation, term) {
+        Some((first, second)) => {
+            chain(arena, operation, first, out);
+            chain(arena, operation, second, out);
+        }
+        None => out.push(term),
+    }
+}
+
+/// The operands joined by `operation`, nested to the right, or `None` for no
+/// operand.
+fn joined(
+    arena: &mut TermArena,
+    operation: TermHandle,
+    operands: &[TermHandle],
+) -> Option<TermHandle> {
+    let (&last, before) = operands.split_last()?;
+    Some(before.iter().rev().fold(last, |rest, &operand| {
+        arena.apply_binary(operation, operand, rest)
+    }))
+}
+
+/// `operands` with one occurrence of each of `taken` removed, or `None` when
+/// some term of `taken` has no occurrence left.
+fn without(
+    arena: &TermArena,
+    operands: &[TermHandle],
+    taken: &[TermHandle],
+) -> Option<Vec<TermHandle>> {
+    let mut rest = operands.to_vec();
+    for &term in taken {
+        let at = rest
+            .iter()
+            .position(|&operand| arena.structurally_equal(operand, term))?;
+        rest.remove(at);
+    }
+    Some(rest)
+}
+
+/// A chain of an operation that both commutes and associates: where it sits
+/// in its term, the operation's license and the chain's operands.
+struct Chain {
+    slots: Vec<usize>,
+    license: License,
+    operands: Vec<TermHandle>,
+}
+
+/// Every such chain in the term outside a binder, the longest at each place:
+/// a chain's operands are searched for chains of other operations only.
+fn chains(
+    arena: &TermArena,
+    licenses: &[License],
+    term: TermHandle,
+    slots: &mut Vec<usize>,
+    within: Option<TermHandle>,
+    out: &mut Vec<Chain>,
+) {
+    if let Some((license, first, second)) = licensed(arena, licenses, term)
+        && license.commutes.is_some()
+        && license.associates.is_some()
+    {
+        let operation = license.operation;
+        if !within.is_some_and(|outer| arena.structurally_equal(outer, operation)) {
+            let mut operands = Vec::new();
+            chain(arena, operation, term, &mut operands);
+            out.push(Chain {
+                slots: slots.clone(),
+                license: *license,
+                operands,
+            });
+        }
+        let depth = slots.len();
+        slots.extend([0, 1]);
+        chains(arena, licenses, first, slots, Some(operation), out);
+        slots.truncate(depth);
+        slots.push(1);
+        chains(arena, licenses, second, slots, Some(operation), out);
+        slots.pop();
+        return;
+    }
+    let node = arena.get(term);
+    if matches!(
+        node,
+        Term::Apply { .. } | Term::Pair { .. } | Term::Fst { .. } | Term::Snd { .. }
+    ) {
+        for (slot, child) in node.children().enumerate() {
+            slots.push(slot);
+            chains(arena, licenses, child, slots, None, out);
+            slots.pop();
+        }
+    }
+}
+
+/// The ways to write a chain so that it contains `stated`, the left side of
+/// a rule, as one operand: each is the rewritten chain and the slots of
+/// `stated` in it. `parts` are the operands of `stated` in canonical form.
+///
+/// The chain may hold the parts as they are: `(x + y) + rest` for a rule
+/// about `x + y`. Or, where another licensed operation distributes over the
+/// chain's, it may hold every part times one common factor:
+/// `(x + y) * c + rest` for operands `x * c` and `y * c`. The caller proves
+/// the chain equal to what is returned before it uses the rule there.
+fn arrangements(
+    arena: &mut TermArena,
+    licenses: &[License],
+    distributions: &[Distribution],
+    found: &Chain,
+    parts: &[TermHandle],
+    stated: TermHandle,
+) -> Vec<(TermHandle, Vec<usize>)> {
+    let operation = found.license.operation;
+    let mut arrangements = Vec::new();
+    if let Some(rest) = without(arena, &found.operands, parts) {
+        arrangements.push(match joined(arena, operation, &rest) {
+            Some(rest) => (arena.apply_binary(operation, stated, rest), vec![0, 1]),
+            None => (stated, Vec::new()),
+        });
+    }
+    let mut products: Vec<License> = Vec::new();
+    for law in distributions {
+        if !arena.structurally_equal(law.inner, operation) {
+            continue;
+        }
+        let Some(product) = licenses.iter().find(|license| {
+            arena.structurally_equal(license.operation, law.outer)
+                && license.commutes.is_some()
+                && license.associates.is_some()
+        }) else {
+            continue;
+        };
+        // Two laws, one from each side, distribute the same product.
+        if products
+            .iter()
+            .any(|known| arena.structurally_equal(known.operation, product.operation))
+        {
+            continue;
+        }
+        products.push(*product);
+        let factors = |arena: &TermArena, term| {
+            let mut factors = Vec::new();
+            chain(arena, product.operation, term, &mut factors);
+            factors
+        };
+        let first = factors(arena, parts[0]);
+        let mut scales: Vec<Vec<TermHandle>> = Vec::new();
+        for &operand in &found.operands {
+            // The factors an operand has beyond the first part's.
+            let Some(mut scale) = without(arena, &factors(arena, operand), &first) else {
+                continue;
+            };
+            scale.sort_by(|&a, &b| order(arena, a, b));
+            let known = |known: &Vec<TermHandle>| {
+                known.len() == scale.len()
+                    && known
+                        .iter()
+                        .zip(&scale)
+                        .all(|(&a, &b)| arena.structurally_equal(a, b))
+            };
+            if scale.is_empty() || scales.iter().any(known) {
+                continue;
+            }
+            // Every part times those factors must be an operand of its own.
+            let mut rest = found.operands.clone();
+            let complete = parts.iter().all(|&part| {
+                let mut wanted = factors(arena, part);
+                wanted.extend(&scale);
+                let at = rest.iter().position(|&candidate| {
+                    let have = factors(arena, candidate);
+                    have.len() == wanted.len()
+                        && without(arena, &have, &wanted).is_some_and(|left| left.is_empty())
+                });
+                at.map(|at| rest.remove(at)).is_some()
+            });
+            if complete && let Some(factor) = joined(arena, product.operation, &scale) {
+                let scaled = arena.apply_binary(product.operation, stated, factor);
+                arrangements.push(match joined(arena, operation, &rest) {
+                    Some(rest) => (
+                        arena.apply_binary(operation, scaled, rest),
+                        vec![0, 1, 0, 1],
+                    ),
+                    None => (scaled, vec![0, 1]),
+                });
+            }
+            scales.push(scale);
+        }
+    }
+    arrangements
+}
+
+/// A term a side of the goal has been rewritten to, and the proof that the
+/// side (`origin`) equals it.
+#[derive(Clone, Copy)]
+struct Rewriting {
+    ty: TermHandle,
+    origin: TermHandle,
+    term: TermHandle,
+    proof: TermHandle,
+}
+
+impl Rewriting {
+    fn step(
+        &mut self,
+        arena: &mut TermArena,
+        slots: &[usize],
+        rule: Equality,
+    ) -> Result<(), SearchError> {
+        (self.term, self.proof) = rewrite(
+            arena,
+            self.ty,
+            self.origin,
+            self.term,
+            self.proof,
+            slots,
+            rule,
+        )?;
+        Ok(())
+    }
+}
+
+/// Each rule used on part of a chain of a licensed operation: a hypothesis
+/// `x + y = z` rewrites `x + w + y` to `z + w`, and under distributivity
+/// `x * c + w + y * c` to `z * c + w`. Matching a rule against a whole
+/// subterm never finds these.
+///
+/// The term is put in canonical form, where a chain's operands are the
+/// summands the licensed laws give it. For each chain that contains a rule's
+/// operands ([`arrangements`]), the chain is rewritten to hold the rule's
+/// left side as one operand, the rule is used there, and the result is put
+/// in canonical form again, so the same sum reached two ways is one term.
+/// Every step is a licensed law or the rule, added to the proof.
+#[allow(clippy::too_many_arguments)]
+fn exchange(
+    arena: &mut TermArena,
+    context: &Context,
+    definitions: &Definitions,
+    licenses: &[License],
+    distributions: &[Distribution],
+    current: Rewriting,
+    rules: &[(Equality, TermHandle)],
+    search_steps: &mut usize,
+    conversion: &mut Budget,
+) -> Result<Vec<(TermHandle, TermHandle)>, SearchError> {
+    let (canonical, forward) =
+        rearrange(arena, licenses, distributions, current.term, search_steps)?;
+    let mut found = Vec::new();
+    chains(
+        arena,
+        licenses,
+        canonical,
+        &mut Vec::new(),
+        None,
+        &mut found,
+    );
+    let mut reached = Vec::new();
+    for &(rule, stated) in rules {
+        for chain_found in &found {
+            let mut parts = Vec::new();
+            chain(arena, chain_found.license.operation, stated, &mut parts);
+            // A rule about one operand already matches it as a whole subterm.
+            if parts.len() < 2 {
+                continue;
+            }
+            for (arrangement, at) in arrangements(
+                arena,
+                licenses,
+                distributions,
+                chain_found,
+                &parts,
+                rule.from,
+            ) {
+                charge(search_steps)?;
+                let path =
+                    path_to(arena, canonical, &chain_found.slots).ok_or(SearchError::NoProof)?;
+                let arranged = plug(arena, &path, arrangement, 0);
+                let (same, backward) =
+                    rearrange(arena, licenses, distributions, arranged, search_steps)?;
+                if !arena.structurally_equal(same, canonical) {
+                    continue;
+                }
+                let mut rewriting = current;
+                for step in &forward {
+                    rewriting.step(arena, &step.slots, step.rule)?;
+                }
+                for step in backward.iter().rev() {
+                    let back = step.rule.reversed(arena);
+                    rewriting.step(arena, &step.slots, back)?;
+                }
+                let mut place = chain_found.slots.clone();
+                place.extend(at);
+                rewriting.step(arena, &place, rule)?;
+                // As after any rewrite, the kernel converts the computed form.
+                rewriting.term = normal(arena, context, definitions, rewriting.term, conversion)?;
+                let (_, settle) =
+                    rearrange(arena, licenses, distributions, rewriting.term, search_steps)?;
+                for step in &settle {
+                    rewriting.step(arena, &step.slots, step.rule)?;
+                }
+                reached.push((rewriting.term, rewriting.proof));
+            }
+        }
+    }
+    Ok(reached)
+}
+
 /// Citations are instantiated terms from the checked signature. Inferring
 /// their types keeps both endpoints tied to the actual evidence supplied.
 pub(crate) fn prove(
@@ -1422,6 +1728,19 @@ fn search(
         .copied()
         .filter(|rule| !occurs(arena, rule.from, rule.to))
         .collect();
+    // Under a licensed operation a rule also applies to some of the operands
+    // of a longer chain ([`exchange`]). Each rule is kept with its left side
+    // in canonical form, whose operands are what a chain must contain.
+    let mut arranged = Vec::new();
+    if licenses
+        .iter()
+        .any(|license| license.commutes.is_some() && license.associates.is_some())
+    {
+        for &rule in &usable {
+            let (stated, _) = rearrange(arena, licenses, distributions, rule.from, search_steps)?;
+            arranged.push((rule, stated));
+        }
+    }
     // The terms reached from the left side and from the right side, each
     // with the proof that its side equals it. The smallest term reached so
     // far, from either side, is rewritten next.
@@ -1435,6 +1754,9 @@ fn search(
         let (_, side, index) = waiting.swap_remove(at);
         let (current, base) = reached[side][index];
         let origin = if side == 0 { left } else { right };
+        // Every term one rewrite of `current` reaches, with the proof that
+        // its side of the goal equals it.
+        let mut found = Vec::new();
         let mut pending = vec![(current, Vec::new(), 0u32)];
         while let Some((focus, path, depth)) = pending.pop() {
             for &rule in &usable {
@@ -1449,17 +1771,6 @@ fn search(
                 // The kernel converts the computed form, so the proof of the
                 // rewritten term is a proof of it too.
                 let rewritten = normal(arena, context, definitions, rewritten, conversion)?;
-                let mut seen = false;
-                for &(known, _) in &reached[side] {
-                    charge(search_steps)?;
-                    if arena.structurally_equal(known, rewritten) {
-                        seen = true;
-                        break;
-                    }
-                }
-                if seen {
-                    continue;
-                }
                 let destination = arena.insert(Term::Variable(depth + 1));
                 let under_binders = plug(arena, &path, destination, 2);
                 let carrier = shift(arena, ty, 0, 2);
@@ -1469,48 +1780,7 @@ fn search(
                     left: start,
                     right: under_binders,
                 });
-                let proof = rule.eliminate(arena, conclusion, base);
-                if side == 0
-                    && let Some(proof) = close(arena, rewritten, proof, search_steps)?
-                {
-                    return Ok(proof);
-                }
-                // The two sides meet at a term both have reached.
-                let mut met = None;
-                for &(known, known_proof) in &reached[1 - side] {
-                    charge(search_steps)?;
-                    if arena.structurally_equal(known, rewritten) {
-                        met = Some(known_proof);
-                        break;
-                    }
-                }
-                if let Some(met) = met {
-                    let (from_left, from_right) = if side == 0 {
-                        (proof, met)
-                    } else {
-                        (met, proof)
-                    };
-                    // `right = term` read backwards, then `left = term`
-                    // carried along it to `left = right`.
-                    let back = Equality {
-                        carrier: ty,
-                        from: right,
-                        to: rewritten,
-                        proof: from_right,
-                    }
-                    .reversed(arena);
-                    let carrier = shift(arena, ty, 0, 2);
-                    let start = shift(arena, left, 0, 2);
-                    let end = arena.insert(Term::Variable(1));
-                    let conclusion = arena.insert(Term::Id {
-                        ty: carrier,
-                        left: start,
-                        right: end,
-                    });
-                    return Ok(back.eliminate(arena, conclusion, from_left));
-                }
-                waiting.push((size(arena, rewritten), side, reached[side].len()));
-                reached[side].push((rewritten, proof));
+                found.push((rewritten, rule.eliminate(arena, conclusion, base)));
             }
             let node = arena.get(focus);
             for (slot, (child, bound)) in node.bound_children().enumerate() {
@@ -1522,6 +1792,79 @@ fn search(
                 });
                 pending.push((child, inner, depth + bound));
             }
+        }
+        if !arranged.is_empty() {
+            let rewriting = Rewriting {
+                ty,
+                origin,
+                term: current,
+                proof: base,
+            };
+            found.extend(exchange(
+                arena,
+                context,
+                definitions,
+                licenses,
+                distributions,
+                rewriting,
+                &arranged,
+                search_steps,
+                conversion,
+            )?);
+        }
+        for (rewritten, proof) in found {
+            let mut seen = false;
+            for &(known, _) in &reached[side] {
+                charge(search_steps)?;
+                if arena.structurally_equal(known, rewritten) {
+                    seen = true;
+                    break;
+                }
+            }
+            if seen {
+                continue;
+            }
+            if side == 0
+                && let Some(proof) = close(arena, rewritten, proof, search_steps)?
+            {
+                return Ok(proof);
+            }
+            // The two sides meet at a term both have reached.
+            let mut met = None;
+            for &(known, known_proof) in &reached[1 - side] {
+                charge(search_steps)?;
+                if arena.structurally_equal(known, rewritten) {
+                    met = Some(known_proof);
+                    break;
+                }
+            }
+            if let Some(met) = met {
+                let (from_left, from_right) = if side == 0 {
+                    (proof, met)
+                } else {
+                    (met, proof)
+                };
+                // `right = term` read backwards, then `left = term`
+                // carried along it to `left = right`.
+                let back = Equality {
+                    carrier: ty,
+                    from: right,
+                    to: rewritten,
+                    proof: from_right,
+                }
+                .reversed(arena);
+                let carrier = shift(arena, ty, 0, 2);
+                let start = shift(arena, left, 0, 2);
+                let end = arena.insert(Term::Variable(1));
+                let conclusion = arena.insert(Term::Id {
+                    ty: carrier,
+                    left: start,
+                    right: end,
+                });
+                return Ok(back.eliminate(arena, conclusion, from_left));
+            }
+            waiting.push((size(arena, rewritten), side, reached[side].len()));
+            reached[side].push((rewritten, proof));
         }
     }
     Err(SearchError::NoProof)

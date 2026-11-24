@@ -53,6 +53,16 @@ without end; the other direction, applied from the other side of the goal,
 covers what that direction would have. A goal no equality proves therefore
 ends as "no proof", not as an exhausted budget.
 
+A hypothesis or citation about some operands of a longer sum is used there
+too. `x + y = z` rewrites `x + w + y` to `z + w` when the conformance in
+scope lets addition regroup and reorder, and `x * c + w + y * c` to
+`z * c + w` when multiplication also distributes over it. The prover puts the
+sum in canonical form, rewrites it to hold the rule's left side as one
+operand, uses the rule and puts the result in canonical form again; each of
+those steps is a law of the conformance or the rule, and all are in the proof
+the kernel checks. Without such a conformance a rule applies only where its
+left side stands as written.
+
 A law about a record of mathematical values is proved inside the record's
 fields: the record is a tuple, each citation rewrites inside one component,
 and a tuple of every field of one value is that value.

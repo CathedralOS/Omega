@@ -22,7 +22,8 @@ argument.
 A record with no cases whose fields are all mathematical data is the product
 of its fields' types. A record written from its fields is a tuple, a field is
 a projection, in a body and in a clause alike, and a `let` in a body is the
-term of its value.
+term of its value. A clause states a field as the field's declaration applied
+to a value, so the value may be a formal, a call or another field.
 
 A law's `requires` equalities are its premises. Its statement takes a proof
 of each after its formals, and stage 06 proves each wherever the law is
@@ -35,8 +36,7 @@ itself through its citations is refused, so no statement can justify itself.
 use arena::IdTable;
 use mathematical_kernel::{Declaration, Level, PlainData, Sort, Term, TermHandle, shift};
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, ClauseCarrier, ClauseIdentity, ClauseOperand, MachineId,
-    Proposition, StructuralTypeId,
+    ClauseCarrier, ClauseIdentity, ClauseOperand, MachineId, Proposition, StructuralTypeId,
 };
 use symbols::SymbolHandle;
 use terminal_check_tables::mathematics::{
@@ -1396,45 +1396,6 @@ impl Converter<'_, '_> {
                     .and_then(|formal| formals.get(usize::try_from(formal).ok()?))
                     .copied()
                     .ok_or_else(|| unserved(id, "law names storage outside its formals"))?,
-                // A field of a formal, or of a field of one.
-                ClauseOperand::Input(subject) => {
-                    let position = usize::try_from(subject.root().get())
-                        .ok()
-                        .and_then(|place| place.checked_sub(1))
-                        .filter(|position| *position < formals.len())
-                        .ok_or_else(|| unserved(id, "law names storage outside its formals"))?;
-                    let mut term = formals[position];
-                    let mut entry = self.formals(id)?[position].1;
-                    for segment in subject.path() {
-                        let CanonicalStructuralPathSegment::Field(field) = segment else {
-                            return Err(unserved(
-                                id,
-                                "law operand path other than the fields of a record",
-                            ));
-                        };
-                        let record = self
-                            .data
-                            .iter()
-                            .find(|(_, known)| *known == entry)
-                            .map(|(record, _)| *record)
-                            .ok_or_else(|| unserved(id, "law operand lost its record"))?;
-                        let at = self
-                            .program
-                            .records
-                            .get(record)
-                            .and_then(|declared| {
-                                declared
-                                    .fields()
-                                    .iter()
-                                    .position(|known| known.id == *field)
-                            })
-                            .ok_or_else(|| {
-                                unserved(id, "law operand names no field of its record")
-                            })?;
-                        (term, entry) = self.component(id, entry, term, at)?;
-                    }
-                    term
-                }
                 ClauseOperand::Application {
                     declaration,
                     arguments,
@@ -1445,9 +1406,31 @@ impl Converter<'_, '_> {
                         .iter()
                         .map(|&argument| terms[argument as usize])
                         .collect();
-                    let head = self.declaration(id, member, satisfaction)?;
-                    let head = self.constant(head);
-                    self.signature.arena.apply_arguments(head, &operands)
+                    // A field applied to a value is that component of it.
+                    let field = match arguments.as_slice() {
+                        &[value] => match clause.values[value as usize].carrier {
+                            ClauseCarrier::Structural(record) => terminal_check_tables::row(
+                                &self.program.record_sources,
+                                record,
+                                id,
+                                Construct::Machine,
+                            )?
+                            .fields
+                            .iter()
+                            .position(|field| *field == member)
+                            .map(|at| (carriers[value as usize], at)),
+                            _ => None,
+                        },
+                        _ => None,
+                    };
+                    match field {
+                        Some((entry, at)) => self.component(id, entry, operands[0], at)?.0,
+                        None => {
+                            let head = self.declaration(id, member, satisfaction)?;
+                            let head = self.constant(head);
+                            self.signature.arena.apply_arguments(head, &operands)
+                        }
+                    }
                 }
                 _ => {
                     return Err(unserved(
