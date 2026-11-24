@@ -783,6 +783,19 @@ impl Program<'_> {
                     // clause.
                     ExpressionNode::Binary(binary) => {
                         let source_left = SourceOrigin::of(table.source_span(binary.left));
+                        // A comparison computes a Boolean from operands of
+                        // their own type, so what the position expects of
+                        // the result says nothing of them.
+                        let comparison = matches!(
+                            binary.operator,
+                            BinaryOperator::Equal
+                                | BinaryOperator::NotEqual
+                                | BinaryOperator::Less
+                                | BinaryOperator::LessOrEqual
+                                | BinaryOperator::Greater
+                                | BinaryOperator::GreaterOrEqual
+                        );
+                        let expected = if comparison { None } else { expected };
                         let suffix = match crate::lowering::policy::suffix(binary.policy) {
                             crate::lowering::policy::Suffix::Unwritten => None,
                             // "An arithmetic operation whose selected meaning
@@ -853,19 +866,87 @@ impl Program<'_> {
                         let operation = operation.ok_or_else(|| {
                             unavailable("short-circuit expression is not a scalar arithmetic term")
                         })?;
-                        let Some(ScalarType::Integer(carrier)) = selected.scalar() else {
-                            return Err(unavailable(
-                                "arithmetic contract term has no selected integer carrier",
-                            ));
+                        // `a < b` is the Boolean value it computes wherever a
+                        // clause writes one, as an operand (`flag == (a < b)`)
+                        // as well as a whole clause. `>` and `>=` are the
+                        // same relations with the operands exchanged, and
+                        // `!=` is the negation of `==`.
+                        let term = if comparison {
+                            if suffix.is_some() || policy.is_some() {
+                                return Err(unavailable(
+                                    "comparison under an arithmetic policy as a Boolean value",
+                                ));
+                            }
+                            let unrelated = |_| {
+                                unavailable(
+                                    "comparison as a Boolean value of operands it does not relate",
+                                )
+                            };
+                            match (left_type.scalar(), right_type.scalar()) {
+                                (Some(ScalarType::Boolean), Some(ScalarType::Boolean)) => {
+                                    let equal = ScalarTerm::boolean_equal(left, right)
+                                        .map_err(unrelated)?;
+                                    match binary.operator {
+                                        BinaryOperator::Equal => equal,
+                                        BinaryOperator::NotEqual => {
+                                            ScalarTerm::boolean_not(equal).map_err(unrelated)?
+                                        }
+                                        _ => {
+                                            return Err(unavailable("order of two Boolean values"));
+                                        }
+                                    }
+                                }
+                                (
+                                    Some(ScalarType::Integer(carrier)),
+                                    Some(ScalarType::Integer(other)),
+                                ) => {
+                                    let (carrier, left, right) = if matches!(
+                                        binary.operator,
+                                        BinaryOperator::Greater | BinaryOperator::GreaterOrEqual
+                                    ) {
+                                        (other, right, left)
+                                    } else {
+                                        (carrier, left, right)
+                                    };
+                                    match binary.operator {
+                                        BinaryOperator::Equal => {
+                                            ScalarTerm::integer_equal(carrier, left, right)
+                                                .map_err(unrelated)?
+                                        }
+                                        BinaryOperator::NotEqual => ScalarTerm::boolean_not(
+                                            ScalarTerm::integer_equal(carrier, left, right)
+                                                .map_err(unrelated)?,
+                                        )
+                                        .map_err(unrelated)?,
+                                        BinaryOperator::Less | BinaryOperator::Greater => {
+                                            ScalarTerm::integer_less_than(carrier, left, right)
+                                                .map_err(unrelated)?
+                                        }
+                                        _ => {
+                                            ScalarTerm::integer_less_or_equal(carrier, left, right)
+                                                .map_err(unrelated)?
+                                        }
+                                    }
+                                }
+                                _ => {
+                                    return Err(unavailable(
+                                        "comparison as a Boolean value of operands that are neither integers nor bool",
+                                    ));
+                                }
+                            }
+                        } else {
+                            let Some(ScalarType::Integer(carrier)) = selected.scalar() else {
+                                return Err(unavailable(
+                                    "arithmetic contract term has no selected integer carrier",
+                                ));
+                            };
+                            crate::lowering::policy::term(operation, policy, carrier, left, right)
+                                .ok_or_else(|| {
+                                unavailable(
+                                    "selected arithmetic operator has no canonical contract term",
+                                )
+                            })?
                         };
-                        let term = crate::lowering::policy::term(
-                            operation, policy, carrier, left, right,
-                        )
-                        .ok_or_else(|| {
-                            unavailable(
-                                "selected arithmetic operator has no canonical contract term",
-                            )
-                        })?;
                         // Source selection must see the operands this reader
                         // actually checked; unknown operands would leave
                         // unrelated overloads eligible.

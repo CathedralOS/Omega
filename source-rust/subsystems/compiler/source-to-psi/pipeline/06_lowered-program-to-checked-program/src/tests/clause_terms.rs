@@ -33,3 +33,32 @@ fn a_negated_boolean_is_an_operand_of_a_comparison() {
         "{unproved:?}",
     );
 }
+
+/// `a < b` was read only as a whole clause, so `requires flag == (a < b)`
+/// was refused. A comparison is the Boolean value it computes as an operand
+/// too: a caller that knows `flag == (a < b)` meets the requirement, and one
+/// that knows only `flag == (a <= b)` does not.
+#[test]
+fn a_comparison_is_an_operand_of_a_boolean_equality() {
+    const SAME: &str =
+        include_str!("../../tests/fixtures/clause_terms/pass/comparison_operand/build.omg");
+    const WEAKER: &str =
+        include_str!("../../tests/fixtures/clause_terms/fail/comparison_operand_weaker/build.omg");
+    match judge_build(SAME) {
+        Ok(RouteVerdict::Accepted(accepted)) => {
+            accepted.publish_invocation().unwrap();
+        }
+        other => panic!("`flag == (a < b)` must meet the same requirement: {other:?}"),
+    }
+    let unproved = match judge_build(WEAKER) {
+        Ok(RouteVerdict::Incomplete(unproved)) | Ok(RouteVerdict::Rejected { unproved, .. }) => {
+            unproved
+        }
+        other => panic!("`flag == (a <= b)` must leave `flag == (a < b)` unproved: {other:?}"),
+    };
+    assert_eq!(unproved.len(), 1, "{unproved:?}");
+    assert!(
+        matches!(unproved[0].kind, ObligationKind::CallRequirement { .. }),
+        "{unproved:?}",
+    );
+}

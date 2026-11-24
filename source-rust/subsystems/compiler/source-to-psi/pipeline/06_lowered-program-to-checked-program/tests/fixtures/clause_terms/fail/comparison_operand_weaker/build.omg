@@ -1,0 +1,3 @@
+// The caller knows only `flag == (a <= b)`, which does not give `flag == (a < b)`.
+machine ordered(flag: bool, a: u32, b: u32) requires flag == (a < b) { }
+machine build_entry(flag: bool, a: u32, b: u32) requires flag == (a <= b) { ordered(flag, a, b); }
