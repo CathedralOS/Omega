@@ -1,44 +1,50 @@
-use omega\language\core\Access;
-use omega\language\core\AccessPlan;
-use omega\language\core\AccessPlan::inaccessible;
-use omega\language\core\AccessPlan::with;
-use omega\language\core\Exposure;
-use omega\language\core\FieldAccess;
-use omega\language\core\LayoutPlan;
-use omega\language\core\Schema;
-use omega\language\core\read;
-use omega\language\core\write;
-// `FieldAccess::Stable { read, take, write, swap, exposure }` — a plain bool-grant
-// access row beside the External materialization kind.
-public data Pair { readable: u32; hidden: u32; }
-data PairAccess {}
-machine PairAccess::plan(schema: Schema, layout: LayoutPlan) -> AccessPlan
-satisfies Access::plan
-{
-    let plan: AccessPlan = AccessPlan::inaccessible(@schema);
-    transition { _ -> expose(schema, plan) }
-    machine expose(schema: Schema, plan: AccessPlan) -> AccessPlan {
-        AccessPlan::with(
-            plan,
-            schema.fields[0].key,
-            FieldAccess::Stable {
-                read: true,
-                take: false,
-                write: false,
-                swap: false,
-                exposure: Exposure::Exported
-            }
-        )
+use {omega}/language/core/access/access.omg as access;
+use {omega}/language/core/layout.omg as layout;
+use {omega}/language/core/reflect/reflect.omg as reflect;
+
+public data Pair {
+    readable: u32;
+    hidden: u32;
+}
+public domain Pair::Restricted access PairAccess;
+
+PairAccess satisfies |layout|::AccessPolicy {
+    machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan
+    reaches none crashes none terminates {
+        let mutable plan = |access|::new_plan(@schema, |layout|::Issuance::Unrestricted);
+        |access|::observe(@mutable plan, |reflect|::field(Pair::readable),
+            |layout|::FieldAccess::Stable {
+                read: true, take: false, write: false, swap: false,
+                exposure: |layout|::Exposure::Exported
+            });
+        |access|::observe(@mutable plan, |reflect|::field(Pair::hidden), |layout|::FieldAccess::Inaccessible);
+        plan
     }
 }
-data Main { pair: Pair; hits: i32 in Wrapping; }
-machine Main::main(main: @mutable Main) {
-    main.pair.readable = 3;
-    main.hits = main.hits + (main.pair.readable as i32 +Wrapping);
+
+machine read_only(field: @|layout|::FieldAccess) -> bool reaches none crashes none terminates {
+    match field {
+        |layout|::FieldAccess::Stable { read, take, write, swap, exposure as _ } ->
+            read && take == false && write == false && swap == false,
+        _ -> false
+    }
 }
 
-// The entry owns ordinary local state; selection supplies no context.
-machine entry_start() {
-    let mutable entry_storage: Main;
-    Main::main(@mutable entry_storage);
+machine inaccessible(field: @|layout|::FieldAccess) -> bool reaches none crashes none terminates {
+    match field { |layout|::FieldAccess::Inaccessible -> true, _ -> false }
+}
+
+const PolicyIsReadOnly: bool = check_policy();
+
+machine check_policy() -> bool {
+    let plan: |layout|::AccessPlan = PairAccess::plan(|reflect|::schema::<Pair>());
+    plan.field_count == 2u64 && read_only(@plan.fields[0].access) && inaccessible(@plan.fields[1].access)
+}
+
+machine entry_start() crashes Trap {
+    transition PolicyIsReadOnly {
+        true -> done(), _ -> fail()
+    }
+    machine done() {}
+    machine fail() { crash Trap; }
 }
