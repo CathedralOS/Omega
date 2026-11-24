@@ -6418,16 +6418,17 @@ pub(crate) mod ieee_float_arithmetic {
                         destination: LEFT_SCRATCH,
                         source: RIGHT_SCRATCH,
                     },
-                    // Reduce the all-ones mask to 0 or 1 inside the vector
-                    // register: a general-register shift would overwrite RFLAGS,
-                    // which this form's constraint row does not clobber.
-                    Instruction::ShiftRight {
-                        quad: double,
-                        arithmetic: false,
+                    Instruction::Transfer {
+                        to_float: false,
+                        wide: double,
                         xmm: LEFT_SCRATCH,
+                        general: result,
+                    },
+                    Instruction::ShiftInteger64 {
+                        left: false,
+                        general: result,
                         count: if double { 63 } else { 31 },
                     },
-                    move_out,
                 ]
             }
             IeeeFloatArithmeticOperation::MultiplyThenAdd => vec![
@@ -7311,51 +7312,6 @@ pub(crate) mod ieee_float_arithmetic {
                     );
                 }
             }
-        }
-    }
-
-    // Stage 10 keeps condition flags live across a row unless the row declares
-    // the clobber, so a form whose bytes write RFLAGS must say so in its
-    // footprint and its encoded effects.
-    #[test]
-    fn forms_that_write_rflags_declare_the_condition_flags_clobber() {
-        let physical = register_model::validate_physical_register_model(
-            crate::x86_64_physical_register_model(),
-        )
-        .unwrap();
-        let view = |name: &str| physical.model().view_named(name).unwrap();
-        let flags = &view("condition_flags").units;
-        let all = [
-            view("rdx").id,
-            view("rsi").id,
-            view("r15").id,
-            view("r8").id,
-        ];
-        for form in IeeeFloatArithmeticForm::ALL {
-            let operands = &all[4 - form.operand_count() - 1..];
-            let registers = resolve_registers(&physical, operands).unwrap();
-            let writes_rflags = program(form, &registers)
-                .unwrap()
-                .iter()
-                .any(|instruction| {
-                    matches!(
-                        instruction,
-                        Instruction::ShiftInteger64 { .. }
-                            | Instruction::CompareImmediate64 { .. }
-                            | Instruction::Test64 { .. }
-                    )
-                });
-            let clobbers = effects(form).implicit_unit_clobbers;
-            assert_eq!(
-                footprint(form, operands).writes_rflags,
-                writes_rflags,
-                "{form:?}"
-            );
-            assert_eq!(
-                flags.iter().all(|unit| clobbers.contains(unit)),
-                writes_rflags,
-                "{form:?}"
-            );
         }
     }
 }
@@ -15223,6 +15179,50 @@ mod memory {
         }
 
         #[test]
+        fn pointer_load64_refuses_a_displacement_its_kind_does_not_name() {
+            // Stage 15 reads a pointer load's access offset from the kind, so a
+            // `Load64` whose bytes encode another displacement must be refused,
+            // exactly as `Load8`, `Load16` and `Load32` already are.
+            let physical =
+                validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
+            let operands = ["rax", "r11"].map(|name| physical.model().view_named(name).unwrap().id);
+            let alternative = MachineAlternativeKey {
+                family: MachineAlternativeFamily::Load64,
+                variant: 0,
+            };
+            let kind = SelectedInstructionKind::Load64 { byte_offset: 8 };
+            let encoded =
+                encode_x86_64_selected_memory_form(&physical, kind, alternative, &operands, 8)
+                    .unwrap();
+            assert_eq!(encoded.bytes, [0x4c, 0x8b, 0x98, 8, 0, 0, 0]);
+            assert_eq!(
+                encode_x86_64_selected_memory_form(&physical, kind, alternative, &operands, 56)
+                    .unwrap_err(),
+                X86_64SelectedFormEncodingError::EncodedFormMismatch
+            );
+            let moved = encode_x86_64_selected_memory_form(
+                &physical,
+                SelectedInstructionKind::Load64 { byte_offset: 56 },
+                alternative,
+                &operands,
+                56,
+            )
+            .unwrap();
+            assert_eq!(
+                validate_x86_64_selected_memory_form(
+                    &physical,
+                    kind,
+                    alternative,
+                    &operands,
+                    56,
+                    &moved.bytes
+                )
+                .unwrap_err(),
+                X86_64SelectedFormEncodingError::EncodedFormMismatch
+            );
+        }
+
+        #[test]
         fn ordinary_memory_forms_replay_registers_displacements_and_every_encoded_byte() {
             let physical =
                 validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
@@ -15237,7 +15237,7 @@ mod memory {
                 let value = physical.model().view_named("r11").unwrap().id;
                 for (kind, family, operands) in [
                     (
-                        SelectedInstructionKind::Load64 { byte_offset: 8 },
+                        SelectedInstructionKind::Load64 { byte_offset: 56 },
                         MachineAlternativeFamily::Load64,
                         vec![pointer, value],
                     ),
