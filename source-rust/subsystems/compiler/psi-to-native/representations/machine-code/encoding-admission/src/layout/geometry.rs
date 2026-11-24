@@ -57,12 +57,15 @@ pub fn select(functions: &[EncodedLayoutFunction]) -> Result<SelectedFunctionLay
         })
     {
         Ok(SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1)
-    } else if functions.iter().all(is_admitted_canonical_shape) {
-        Ok(SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1)
+    } else if let Some(function) = functions
+        .iter()
+        .find(|function| !is_admitted_canonical_shape(function))
+    {
+        // Name the function that has no canonical shape, not whichever
+        // function happens to sit at a counted position.
+        Err(Error::UnsupportedFunctionShape(function.machine))
     } else {
-        Err(Error::UnsupportedFunctionShape(
-            functions[single_entry_count].machine,
-        ))
+        Ok(SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1)
     }
 }
 
