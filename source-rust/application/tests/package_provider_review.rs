@@ -137,6 +137,36 @@ public LocalReader satisfies Reader {
     assert!(report.contains("fresh-analysis complete"), "{report}");
 }
 
+#[test]
+fn review_retains_core_policy_and_nominal_domain_parameters_together() {
+    let project = TemporaryDirectory::create("review-parameter-policy", false).unwrap();
+    fs::write(
+        project.path().join("build.omg"),
+        r#"machine build(builder: @mutable Build) {
+    Build::package(builder, "policy_boundary");
+    Build::select_provider::<Reader, LocalReader>(builder, linux_x86_64);
+}"#,
+    )
+    .unwrap();
+    let source = r#"public domain u64::Km;
+public boundary trait Reader {
+    machine take(first: u64 in Wrapping, second: u64 in Km & Saturating, third: u64 in Trapping) -> u64
+    reaches none crashes none;
+}
+public LocalReader satisfies Reader {
+    machine take(first: u64 in Wrapping, second: u64 in Km & Saturating, third: u64 in Trapping) -> u64 { 17 }
+}"#;
+    let (status, report) = audit_reader(&project, source);
+    assert_eq!(status, Some(0), "{report}");
+    assert!(report.contains("fresh-analysis complete"), "{report}");
+
+    // This declaration shadows core Wrapping; its nominal membership must survive review.
+    let shadow = format!("public domain u64::Wrapping;\n{source}");
+    let (status, report) = audit_reader(&project, &shadow);
+    assert_eq!(status, Some(0), "{report}");
+    assert!(report.contains("domains 2"), "{report}");
+}
+
 fn audit_reader(project: &TemporaryDirectory, source: &str) -> (Option<i32>, String) {
     fs::write(project.path().join("reader.omg"), source).unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))

@@ -1,7 +1,7 @@
 //! Retain public requirement contracts before releasing their checked forms.
 
 use super::Program;
-use crate::lowering::body::Signature;
+use crate::lowering::body::{Policy, Signature};
 use crate::lowering::publication::{
     RequirementInvocation, RequirementReview, RequirementReviewMetadata, RequirementService,
 };
@@ -242,6 +242,7 @@ impl Program<'_> {
             }
         }
         let mut parameter_qualifications = Vec::new();
+        let mut parameter_policies = Vec::new();
         let mut structural_parameter_positions = Vec::new();
         for (position, value) in formals.iter().enumerate() {
             let structural = signature.is_place(position);
@@ -250,7 +251,14 @@ impl Program<'_> {
             if structural {
                 structural_parameter_positions.push(position);
             }
-            for domain in value.qualification().domains.members() {
+            let qualification = value.qualification();
+            if let Some(policy) = qualification.policy {
+                let carrier = value
+                    .scalar()
+                    .ok_or("an arithmetic policy needs a scalar carrier")?;
+                parameter_policies.push((position, carrier, Policy::domain(Some(policy))));
+            }
+            for domain in qualification.domains.members() {
                 if structural {
                     // Public structural preconditions currently carry nominal declarations.
                     let definition = self.typed.domain_definition(domain.declaration).ok_or(
@@ -275,6 +283,7 @@ impl Program<'_> {
             published_crash_routes: signature.declared_crash_routes().map(<[_]>::to_vec),
             returned_parameters,
             parameter_qualifications,
+            parameter_policies,
             suspends: envelope.suspends,
             blocks: envelope.blocks,
             terminates,
