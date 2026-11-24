@@ -10748,6 +10748,68 @@ pub(crate) mod operation_contracts {
             roots
         }
 
+        #[cfg(test)]
+        mod declaration_identity_roots_tests {
+            use super::proposition_structural_roots;
+            use semantic_vocabulary::{
+                CanonicalStructuralPathSegment, ClauseCarrier, ClauseDeclaration, ClauseIdentity,
+                ClauseOperand, ClauseValue, PlaceId, Proposition, ScalarReadProjection, ScalarTerm,
+                ScalarType, StructuralCaseSubject, StructuralFieldId, StructuralTypeId,
+            };
+
+            // Claim-transfer checks read these roots, so a declaration Identity
+            // must report the places its scalar reads and inputs observe.
+            #[test]
+            fn declaration_identity_reports_scalar_and_input_roots() {
+                let place = |id| PlaceId::new(id).unwrap();
+                let read = ScalarTerm::structural_read(
+                    place(1),
+                    vec![ScalarReadProjection::Static(
+                        CanonicalStructuralPathSegment::Field(StructuralFieldId::new(1).unwrap()),
+                    )],
+                    ScalarType::Boolean,
+                )
+                .unwrap();
+                let structural = StructuralTypeId::new(1).unwrap();
+                let clause = ClauseIdentity {
+                    values: vec![
+                        ClauseValue {
+                            carrier: ClauseCarrier::Scalar(ScalarType::Boolean),
+                            operand: ClauseOperand::Scalar(read),
+                        },
+                        ClauseValue {
+                            carrier: ClauseCarrier::Structural(structural),
+                            operand: ClauseOperand::Input(StructuralCaseSubject::new(
+                                place(2),
+                                Vec::new(),
+                            )),
+                        },
+                        ClauseValue {
+                            carrier: ClauseCarrier::Structural(structural),
+                            operand: ClauseOperand::Application {
+                                declaration: ClauseDeclaration {
+                                    supplier: None,
+                                    member: (3, 1),
+                                },
+                                arguments: vec![1],
+                            },
+                        },
+                        ClauseValue {
+                            carrier: ClauseCarrier::Parameter(0),
+                            operand: ClauseOperand::Formal(0),
+                        },
+                    ],
+                    left: 1,
+                    right: 2,
+                };
+                assert_eq!(
+                    proposition_structural_roots(&Proposition::DeclarationIdentity(clause))
+                        .into_iter()
+                        .collect::<Vec<_>>(),
+                    [place(1), place(2)]
+                );
+            }
+        }
     }
     pub(crate) use claim_transfers::{function_entry_claim_paths, validate_slot_claim_transfers};
     mod node_contracts {
