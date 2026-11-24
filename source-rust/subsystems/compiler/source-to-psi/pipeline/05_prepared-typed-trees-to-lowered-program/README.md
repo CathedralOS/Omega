@@ -112,6 +112,7 @@ Both steps are split by construct family. `read.rs` holds the shared `Program`
 and `Slot`, and each family is a module beside it:
 [machine](src/read/machine.rs) (admission, signatures, the body driver),
 [types](src/read/types.rs), [contracts](src/read/contracts.rs),
+[clause terms](src/read/clause_terms.rs),
 [statements](src/read/statements.rs), [expressions](src/read/expressions.rs),
 [calls](src/read/calls.rs), [transitions](src/read/transitions.rs),
 [places](src/read/places.rs) (data declarations, record and case literals,
@@ -122,6 +123,21 @@ returns), [operations](src/lower/operations.rs), [calls](src/lower/calls.rs)
 and [places](src/lower/places.rs) (roots, projections, the write log, record
 and case construction, field and payload reads, whole copies, the dispatch
 terminator).
+
+Every term a clause writes is read by one function, `clause_term` in
+[read/clause_terms.rs](src/read/clause_terms.rs): an operand of a comparison
+in a `requires` or `ensures`, a data or domain predicate, the body of a
+transparent `let` definition, a logical invocation input, an argument of a
+clause call and an operand of Identity. The caller says which sort of term it
+needs (`ClauseUse`: a carrier value, a mathematical integer, an operand of
+Identity or of a clause application, a proposition, a proof-relevant type),
+and the clause's `ClauseScope` says what each name denotes where the clause
+stands: a formal's input value, a logical input (`LogicalScope::input`), a
+value parameter bound to its argument, `result`, or a field of the value a
+data clause is about. So a term form read once is read in every clause; `!b`,
+for example, is a Boolean operand (`a == !b`) as well as a whole clause.
+`tools/ratchets/clause_term_readers.txt` counts the functions in `read/` that
+return a clause term, so the number can only fall.
 
 Evaluating an expression gives either a value or an explicit outcome saying
 the path ended (for example, at a call that never returns). Calls,
@@ -577,7 +593,9 @@ clauses because its operation may crash.
 A comparison is mathematical when an `embed` stands on either side beneath
 binary operators only (`mathematical`). `embed` is the builtin by the symbol
 stage 02 resolved the call to, never by its spelling. Each side is read by
-`mathematical_term`:
+`clause_term` as a mathematical integer (`ClauseUse::Integer`), the same way
+in a machine contract, a data or domain predicate and the body of a
+transparent `let` definition:
 
 - `embed(t)`, where `t` is any term a clause of that kind may already name:
   a formal, a field of a record formal or a borrowed formal in an entry
@@ -600,7 +618,7 @@ arguments.
 | --- | --- |
 | trapping arithmetic in a clause term, `a +! b` | `a trapping operator ... in a contract clause: an operation that can crash forms no proof term` |
 | a cast, or a call other than `embed`, in a clause term | `contract cast in a clause term`, `contract call in a clause term` |
-| `embed` that is not a side of a comparison or beneath its arithmetic, `embed(embed(a))` | `contract embed outside a mathematical comparison` |
+| `embed` that is not a side of a comparison or beneath its arithmetic, `embed(embed(a))` | `contract embed where a carrier value is needed: it is a mathematical integer` |
 | `embed` of a Boolean, or with other than one argument | `contract embed of a value that is not an integer`, `contract embed of other than one value` |
 | `/` or `%` between mathematical integers (rational division, or the named quotient and remainder) | `contract mathematical division in a clause` |
 | a shift or bitwise operator, or a suffixed operator, between mathematical integers | `contract mathematical operator other than add, subtract and multiply`, `contract policy operator in a mathematical term` |
@@ -979,7 +997,7 @@ the slice that serves it:
 | Construct | Refusal detail |
 | --- | --- |
 | a `requires` on a case | `type data requires` |
-| a data `requires` clause that calls a machine, compares Booleans with `!=`, or names something other than `self`, its fields and literals | `contract clause that is not a comparison or conjunction`, `contract ordering of Booleans`, `contract term other than a field of the value or a literal` |
+| a data `requires` clause that calls a machine, compares Booleans with `!=`, or names something other than `self`, its fields and literals | `contract clause that is not a comparison or conjunction`, `contract ordering of Booleans`, `contract name other than the clause's subject, a field of it or a literal` |
 | a field type constrained by a declared domain or by `Trapping` | `type constrained by a domain that is not one arithmetic policy`, `type constrained by Trapping` |
 | linear data, or data with a cleanup selection | `type data with custody` |
 | data with common fields beside its cases | `type mixed data` |
@@ -1400,7 +1418,7 @@ by `PrimitiveScalarRead`; every other scalar local stays an SSA value.
 ([dependent values](../../../../../../wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization):
 "A data declaration's field qualifications and `requires` clauses define its
 default domain"). The reader reads each clause with the clause reader the
-machine contracts use (`read/contracts.rs`), with `self`, its fields named
+machine contracts use (`read/contracts.rs`, whose terms `clause_term` reads), with `self`, its fields named
 bare, and member paths beneath them in scope, and with two forms a machine
 contract does not have: `self in S::C` and `||`. A clause is kept in
 `RecordType::requires` in the form Terminal Psi gives a clause over storage:

@@ -39,6 +39,7 @@ mod calls_visibility_tests;
 mod carriers;
 mod casts;
 mod clause_calls;
+mod clause_terms;
 mod constant_values;
 mod contracts;
 mod expressions;
@@ -801,6 +802,7 @@ fn symbol_kind(kind: SymbolKind) -> &'static str {
 }
 #[cfg(test)]
 mod tests {
+    use super::clause_terms::ClauseUse;
     use super::contracts::{ClauseScope, ResultTerm};
     use super::*;
     use crate::lowering::body::ExpressionKind;
@@ -1653,7 +1655,9 @@ mod tests {
             ..exit
         };
         assert_eq!(
-            program.term(machine(), &exit, mine, None),
+            program
+                .clause_term(machine(), &exit, mine, ClauseUse::Scalar(None))
+                .and_then(|term| term.scalar(machine())),
             Ok((
                 ScalarTerm::Value {
                     id: result,
@@ -1664,7 +1668,8 @@ mod tests {
         );
         let mut detail = |scope: &ClauseScope<'_>, handle| {
             program
-                .term(machine(), scope, handle, None)
+                .clause_term(machine(), scope, handle, ClauseUse::Scalar(None))
+                .and_then(|term| term.scalar(machine()))
                 .unwrap_err()
                 .detail
         };
@@ -1776,7 +1781,11 @@ mod tests {
             },
             ValueType::plain(u32_type),
         ));
-        let mut read = |scope: &ClauseScope<'_>| program.term(machine(), scope, named, None);
+        let mut read = |scope: &ClauseScope<'_>| {
+            program
+                .clause_term(machine(), scope, named, ClauseUse::Scalar(None))
+                .and_then(|term| term.scalar(machine()))
+        };
         assert_eq!(read(&scope(&mutable, true)), term);
         assert_eq!(read(&scope(&mutable, false)), term);
         assert_eq!(read(&scope(&immutable, false)), term);
@@ -1972,7 +1981,9 @@ mod tests {
             ValueType::plain(scalar_type),
         );
         assert_eq!(
-            program.term(machine(), &scope, old, None),
+            program
+                .clause_term(machine(), &scope, old, ClauseUse::Scalar(None))
+                .and_then(|term| term.scalar(machine())),
             Ok(input.clone())
         );
         for entry_fields in [false, true] {
@@ -1982,7 +1993,9 @@ mod tests {
                 ..scope
             };
             assert_eq!(
-                program.term(machine(), &before_result, old, None),
+                program
+                    .clause_term(machine(), &before_result, old, ClauseUse::Scalar(None))
+                    .and_then(|term| term.scalar(machine())),
                 Ok(input.clone())
             );
         }
@@ -1991,15 +2004,17 @@ mod tests {
             ..slot()
         }];
         assert_eq!(
-            program.term(
-                machine(),
-                &ClauseScope {
-                    slots: &immutable,
-                    ..scope
-                },
-                old,
-                None
-            ),
+            program
+                .clause_term(
+                    machine(),
+                    &ClauseScope {
+                        slots: &immutable,
+                        ..scope
+                    },
+                    old,
+                    ClauseUse::Scalar(None)
+                )
+                .and_then(|term| term.scalar(machine())),
             Ok(input)
         );
         let booleans = [Slot {
@@ -2007,15 +2022,17 @@ mod tests {
             ..slot()
         }];
         assert_eq!(
-            program.term(
-                machine(),
-                &ClauseScope {
-                    slots: &booleans,
-                    ..scope
-                },
-                old,
-                None
-            ),
+            program
+                .clause_term(
+                    machine(),
+                    &ClauseScope {
+                        slots: &booleans,
+                        ..scope
+                    },
+                    old,
+                    ClauseUse::Scalar(None)
+                )
+                .and_then(|term| term.scalar(machine())),
             Ok((
                 ScalarTerm::value(value, ScalarType::Boolean),
                 ValueType::plain(ScalarType::Boolean)
@@ -2029,14 +2046,16 @@ mod tests {
         );
         let detail = |program: &mut Program<'_>, scope: &ClauseScope<'_>, expression| {
             program
-                .term(machine(), scope, expression, None)
+                .clause_term(machine(), scope, expression, ClauseUse::Scalar(None))
+                .and_then(|term| term.scalar(machine()))
                 .unwrap_err()
                 .detail
         };
         let invalid_policy_operand =
             |program: &mut Program<'_>, scope: &ClauseScope<'_>, expression| {
                 let refusal = program
-                    .term(machine(), scope, expression, None)
+                    .clause_term(machine(), scope, expression, ClauseUse::Scalar(None))
+                    .and_then(|term| term.scalar(machine()))
                     .unwrap_err();
                 assert!(matches!(
                     refusal.reason,
@@ -2047,7 +2066,13 @@ mod tests {
         let no_input = "contract old of a subject without an admitted invocation input";
         assert_eq!(
             program
-                .term(machine(), &scope, old_literal, Some(scalar_type))
+                .clause_term(
+                    machine(),
+                    &scope,
+                    old_literal,
+                    ClauseUse::Scalar(Some(scalar_type))
+                )
+                .and_then(|term| term.scalar(machine()))
                 .unwrap_err()
                 .detail,
             no_input
@@ -2161,15 +2186,17 @@ mod tests {
             ..slot()
         }];
         assert_eq!(
-            program.term(
-                machine(),
-                &ClauseScope {
-                    slots: &borrowed,
-                    ..scope
-                },
-                old,
-                None
-            ),
+            program
+                .clause_term(
+                    machine(),
+                    &ClauseScope {
+                        slots: &borrowed,
+                        ..scope
+                    },
+                    old,
+                    ClauseUse::Scalar(None)
+                )
+                .and_then(|term| term.scalar(machine())),
             Ok((
                 ScalarTerm::IntegerField {
                     version: semantic_vocabulary::ContentPlaceVersion::Entry,
@@ -2191,7 +2218,7 @@ mod tests {
         )];
         assert!(
             program
-                .term(
+                .clause_term(
                     machine(),
                     &ClauseScope {
                         slots: &borrowed,
@@ -2199,8 +2226,9 @@ mod tests {
                         ..scope
                     },
                     old_foreign,
-                    None
+                    ClauseUse::Scalar(None)
                 )
+                .and_then(|term| term.scalar(machine()))
                 .is_err(),
             "a bound constant cannot impersonate the runtime input's field"
         );
@@ -2224,7 +2252,9 @@ mod tests {
             ..scope
         };
         assert_eq!(
-            program.term(machine(), &domain_scope, old, None),
+            program
+                .clause_term(machine(), &domain_scope, old, ClauseUse::Scalar(None))
+                .and_then(|term| term.scalar(machine())),
             Ok((ScalarTerm::value(value, scalar_type), domain[0].value_type))
         );
         for expression in [using_old, computed] {
@@ -2250,7 +2280,12 @@ mod tests {
             slots: &qualified,
             ..scope
         };
-        assert!(program.term(machine(), &qualified_scope, old, None).is_ok());
+        assert!(
+            program
+                .clause_term(machine(), &qualified_scope, old, ClauseUse::Scalar(None))
+                .and_then(|term| term.scalar(machine()))
+                .is_ok()
+        );
         for expression in [using_old, computed] {
             invalid_policy_operand(&mut program, &qualified_scope, expression);
         }
@@ -2271,7 +2306,14 @@ mod tests {
         };
         for expression in [named, old] {
             assert_eq!(
-                program.term(machine(), &completion_scope, expression, None),
+                program
+                    .clause_term(
+                        machine(),
+                        &completion_scope,
+                        expression,
+                        ClauseUse::Scalar(None)
+                    )
+                    .and_then(|term| term.scalar(machine())),
                 Ok((
                     ScalarTerm::value(value, scalar_type),
                     ValueType::plain(scalar_type)
@@ -2671,7 +2713,8 @@ mod tests {
         };
         let mut term = |handle| {
             program
-                .term(machine(), &scope, handle, None)
+                .clause_term(machine(), &scope, handle, ClauseUse::Scalar(None))
+                .and_then(|term| term.scalar(machine()))
                 .unwrap_err()
                 .detail
         };

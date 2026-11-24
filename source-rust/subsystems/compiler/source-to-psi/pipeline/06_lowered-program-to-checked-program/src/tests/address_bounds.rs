@@ -317,3 +317,30 @@ machine build_entry(base: addr, length: u64) {input_contract} {{ consume(base, l
         "{unproved:?}",
     );
 }
+
+/// A transparent definition's body is a clause like any other, so its
+/// mathematical terms are read by the same reader as a machine's. Anonymous
+/// arithmetic there is the exact integer it computes: `4 * 1024` is 4096.
+/// The twin's caller only knows `length <= 4097`, which leaves the premise
+/// unproved.
+#[test]
+fn a_transparent_definition_reads_anonymous_arithmetic_as_an_exact_integer() {
+    const FITS: &str =
+        include_str!("../../tests/fixtures/transparent_definition/pass/anonymous_bound/build.omg");
+    const EXCEEDS: &str = include_str!(
+        "../../tests/fixtures/transparent_definition/fail/anonymous_bound_exceeded/build.omg"
+    );
+    assert_eq!(verdict(FITS), "accepted");
+    let unproved = match judge_build(EXCEEDS) {
+        Ok(RouteVerdict::Incomplete(unproved)) | Ok(RouteVerdict::Rejected { unproved, .. }) => {
+            unproved
+        }
+        other => panic!("a bound past 4096 must leave the premise unproved: {other:?}"),
+    };
+    assert_eq!(unproved.len(), 1, "{unproved:?}");
+    assert!(
+        matches!(unproved[0].kind, ObligationKind::CallRequirement { .. })
+            && unproved[0].statement.contains("fits(length)"),
+        "{unproved:?}",
+    );
+}

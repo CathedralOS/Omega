@@ -50,6 +50,7 @@ use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 
 use super::authority::has_predicates;
+use super::clause_terms::ClauseUse;
 use super::contracts::{ClauseScope, DataSubject, ResultTerm};
 use super::{Program, Slot};
 use crate::lowering::body::{Qualification, ValueType};
@@ -181,7 +182,9 @@ impl<'t> Program<'t> {
                     clauses,
                 )
             } else {
-                let (subject, actual) = self.term(id, scope, membership.value, None)?;
+                let (subject, actual) = self
+                    .clause_term(id, scope, membership.value, ClauseUse::Scalar(None))?
+                    .scalar(id)?;
                 let plain = actual
                     .qualified(Qualification::NONE)
                     .ok_or_else(|| unavailable("runtime membership of a rigid scalar"))?;

@@ -1,0 +1,4 @@
+// `!b` is a Boolean value as an operand of a comparison, not only as a
+// whole clause. The caller states the same relation it must establish.
+machine opposite(a: bool, b: bool) requires a == !b { }
+machine build_entry(a: bool, b: bool) requires a == !b { opposite(a, b); }
