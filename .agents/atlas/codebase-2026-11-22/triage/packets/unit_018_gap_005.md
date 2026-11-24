@@ -7,8 +7,8 @@ intended behavior, refusals, feature limits, or duplicated code with no wrong re
 and are listed under [Unresolved](#unresolved).
 
 While reproducing, the packet found that `main` did not compile two native crates after #5393 added
-`Proposition::DeclarationIdentity`. #5427 (gap 004) has since repaired the first, `optimization-unit`. This PR repairs the
-second, `optimization-unit-semantics`, which stage 11 and every later native crate depend on; see receipt 0.
+`Proposition::DeclarationIdentity`. #5427 repaired `optimization-unit` and #5449 repaired `optimization-unit-semantics`
+while this packet was in review; see receipt 0.
 
 The packet covers the [unit_018_gap_005 record](../../records/unit_018_gap_005.md) (area 11, native stages 11–15): lines
 13001–19000 of
@@ -24,7 +24,7 @@ same `X64sfe`. Other paths: `S11/` = `11_bound-framed-machine-to-selected-form-e
 
 | # | Original claim | Current source | Contract, test or trace | Outcome |
 | --- | --- | --- | --- | --- |
-| 0 | Not in the record. Found while reproducing receipt 2: `mbx test -p native-encoding` fails on `main` (`cb3e7b71`) with `E0004 non-exhaustive patterns: Proposition::DeclarationIdentity(_) not covered` at `optimization-unit-semantics/src/unit_validation.rs:10668`. The same error in `optimization-unit/src/identity.rs:267` was fixed by #5427. | `unit_validation.rs:10668` (`claim_transfers::…::collect`) gathers the place roots a proposition mentions. | #5393 added the variant and updated the Psi crates but not these two native crates. The new arm collects roots from the identity's `Scalar` and `Input` operands, as the other arms do for their terms; `Formal` and `Application` values name no place. The Psi wire validator refuses this proposition in portable input (`psi/artifact/wire/src/foundation_validation.rs:6080`), so no current native input carries one, and no test can build an admitted unit that does. | Fixed in this PR (main regression; first half is #5427) |
+| 0 | Not in the record. Found while reproducing receipt 2: on `cb3e7b71`, `mbx test -p native-encoding` fails with `E0004 non-exhaustive patterns: Proposition::DeclarationIdentity(_) not covered` at `optimization-unit-semantics/src/unit_validation.rs:10668`, and `optimization-unit/src/identity.rs:267` fails the same way. | Both match sites now have an arm. | #5393 added the variant but did not update these two native crates. #5427 (`identity.rs`) and #5449 (`unit_validation.rs`) added the missing arms. This branch carried an identical `unit_validation.rs` arm until #5449 landed and then dropped it. The Psi wire validator refuses this proposition in portable input (`psi/artifact/wire/src/foundation_validation.rs:6080`), so no current native input carries one. | Fixed (#5427, #5449) |
 | 1 | "memory, tail", *How it decides*, last bullet; [digest 11 line 269](../../digests/11-native-stages-11-15.md?plain=1#L269): an ordinary memory displacement outside `i32` returns `ImmediateOutsideU12`. | `X64sfe:14670-14671` returns `MemoryDisplacementOutsideI32`; test `:15149` pins it. | Merged in #5392 (`59841944`). Already listed as repaired in [the 07–13 ledger](../07-13-psi-and-native.md). | Fixed (duplicate of #5392) |
 | 2 | "memory, tail", *How it decides* bullet 4, *Fail-open risks* bullet 2, *Five things* item 5, *Unsure* item 4: the kind-versus-displacement check at `:14768` omits `Load64`. | `X64sfe:14768`; AArch64 `isa-aarch64/src/selected_form_encoding.rs:12352` checks `Load64 { byte_offset } if byte_offset == displacement`. | Traced the producer: stage 08 copies the kind's `byte_offset` into the address (`08_register-homes-to-post-allocation-machine/src/machine/plan.rs:529`), and `EA/frame_address.rs:404` sets the displacement to it, so current production rows agree. The receivers did not check this. `EA/validation.rs:378` (`admits_address_operation`) compares only the operation family, and stage 15 reads the access offset from the kind (`image-emission/src/function_fragments.rs:5244`). For `Load8/16/32` the ISA validator catches a mismatch. For x86 `Load64` nothing did, and the test at `:15194` encoded `Load64 { byte_offset: 8 }` with displacement 56. Reproduced: the new test `pointer_load64_refuses_a_displacement_its_kind_does_not_name` fails before the fix (see Validation). Fix: add `Load64` to the check. The existing test now uses `byte_offset: 56`. | Fixed in this PR |
 | 3 | Same bullets: `Store64` also differs from the displacement. | `X64sfe:14640-14645` sends `Store64` to `frame`. | `Store64` names a frame slot; `EA/frame_address.rs:418-430` derives its displacement from frame geometry, not from `byte_offset`, and `validate_address` checks that. The difference is intended. | Intended |
@@ -70,7 +70,7 @@ None of these produces a wrong result; each is a code-quality item with a propos
 
 Commands, run on this worktree with only the touched crates built:
 
-- Receipt 0: `mbx test -p optimization-unit-semantics --lib < /dev/null` and `mbx test -p native-encoding --lib --
-  row_encoding < /dev/null`. On `cb3e7b71` both fail to compile (`E0004`); results with the fix are in the PR description.
+- Receipt 0: on `cb3e7b71`, `mbx test -p native-encoding --lib -- row_encoding < /dev/null` fails to compile (`E0004`).
+  With the arm it passed 12 tests and `optimization-unit-semantics` passed 24 tests. #5449 now provides that arm on `main`.
 - Receipt 2: `mbx test -p isa-x86_64 --lib -- memory:: < /dev/null`, first with only the new test, then with the fix.
   Results are in the PR description.
