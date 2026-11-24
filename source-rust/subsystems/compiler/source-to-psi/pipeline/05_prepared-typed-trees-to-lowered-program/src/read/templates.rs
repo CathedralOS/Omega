@@ -70,7 +70,7 @@ impl<'t> Program<'t> {
                     parameter.kind,
                     TypeParameterKind::Machine {
                         contract: MachineParameterContract::Structural(_)
-                    }
+                    } | TypeParameterKind::Value { .. }
                 )
             })
     }
@@ -105,12 +105,17 @@ impl<'t> Program<'t> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
         let mut callables = Vec::new();
         for parameter in typed.machine_type_parameters(machine) {
+            // A value parameter is one more formal of the machine, read with
+            // its signature.
+            if matches!(parameter.kind, TypeParameterKind::Value { .. }) {
+                continue;
+            }
             let TypeParameterKind::Machine {
                 contract: MachineParameterContract::Structural(signature),
             } = &parameter.kind
             else {
                 return Err(unserved(
-                    "generic mathematical machine over something other than machines",
+                    "generic mathematical machine over something other than machines and values",
                 ));
             };
             let formals = typed

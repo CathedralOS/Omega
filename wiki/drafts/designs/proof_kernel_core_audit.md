@@ -1422,6 +1422,55 @@ same_sign> as SameSign;` is read into the mathematical signature when
     nineteen runtime quotient programs under
     `samples/cli/facts/quotient_closed_literal/`.
 
+**Step 6 as built so far (2026-11-24): data indexed by values and theorems
+over it, not yet the machines that run with its evidence.** The three
+`source_indexed_*` sample families now pass stage 03 and stage 04 and are
+refused in stage 05, so the plan row's "evaluated in stage 03 first" no
+longer holds. What is built:
+
+- **Two kernel pieces came back.** The indexed-data builder
+  (`psi/semantics/proofs/mathematical/indexed_data.rs`, ported from the
+  deleted elaborator) turns a description of a declaration into the five
+  functions of an indexed W family, constructor values and the step of an
+  induction. The integer search (`SourceIntegerTheory` in
+  `psi/semantics/proofs/bounded/bounded_denotation.rs`, removed by #2943 as
+  uncalled) declares an integer vocabulary in a caller's signature and finds
+  kernel proofs of integer goals from hypotheses; a later stage can resume it
+  against a vocabulary an earlier stage declared. Its one new trusted law,
+  that a product distributes over a sum, is tested against computed
+  arithmetic.
+- **The family.** `data Vector<Length: u64, Total: u64> requires ..` with an
+  erased field of its own type at other values is read as a family: indices
+  and payload values are integers, each case's label carries a proof of what
+  the `requires` say of that case, and each child sits at the index its
+  field's type names.
+- **The theorem.** `vector_bound` is stated for every index and every value
+  of the family and proved by induction over the value. Each case is a goal
+  about integers that the integer search proves from the case's constraints
+  and the theorem at the children the step cites. The kernel checks the
+  assembled induction once: 1,326 conversion steps for the vector's bound,
+  1,615 for the two-child tree's, with 16 assumptions (the integer
+  vocabulary and the integer laws used).
+- **Refused, each by name:** the bound `9 * Length` (the `Cons` case has no
+  proof); a step that does not cite the theorem at the tail; a step that
+  requires more than the data gives; a citation at another index than the
+  child has.
+- **Not done:**
+  - The machines that run with evidence: `[erased]` locals and formals of
+    the family's type in a machine that returns a value, building evidence
+    with `Vector::Cons { .. }`, passing it to a call, and using a theorem's
+    `ensures` in the caller. The three sample families are still refused
+    there.
+  - A type parameter beside the value parameters
+    (`source_indexed_type_parameter`).
+  - The index a theorem is ranked on is not checked to get smaller. The
+    induction is over the evidence and does not need it; showing it for the
+    tree needs the fact that an unsigned value is not negative, which the
+    integer vocabulary does not carry yet.
+  - A program with both a quotient and indexed data, a case the `requires`
+    say nothing of, and a theorem body of any other shape than one dispatch
+    whose arms call a step.
+
 The first version of this plan started with level binders and value-indexed
 type arguments because they move 66 samples. They move those samples to
 their next failure, the library needs neither, and level binders wait on

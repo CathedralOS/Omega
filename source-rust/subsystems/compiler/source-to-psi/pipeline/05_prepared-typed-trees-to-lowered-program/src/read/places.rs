@@ -311,6 +311,11 @@ impl Program<'_> {
         if self.mathematical && data.quotient.is_some() && self.is_mathematical_data(data) {
             return self.quotient_record(id, symbol, data);
         }
+        // Data indexed by values is one type of the signature at every
+        // application (`families`).
+        if self.mathematical && self.is_family(data) {
+            return self.family_record(id, data);
+        }
         let members = typed.data_members(data);
         // Admission precedes cache reuse: descriptor-only records cannot
         // become executable body types through a shared storage row.

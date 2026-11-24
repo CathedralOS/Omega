@@ -17,8 +17,8 @@ use proof_admission::{
 };
 use terminal_check_tables::UnprovedCause;
 use terminal_check_tables::mathematics::{
-    Evidence, Law, LawCase, LawProof, MathematicalSignature, OperandLaw, OperandLicense,
-    SignatureEntry, SignatureEntryKind, SplitSubject,
+    Evidence, FamilyLawCase, IntegerPositions, Law, LawCase, LawProof, MathematicalSignature,
+    OperandLaw, OperandLicense, SignatureEntry, SignatureEntryKind, SplitSubject,
 };
 
 use super::equality::{
@@ -202,7 +202,13 @@ pub(crate) fn judge(
         entries,
         laws,
         licenses,
+        integers,
+        families,
     } = signature;
+    let extras = Extras {
+        integers,
+        families: &families,
+    };
     let steps = DEFAULT_CONVERSION_STEPS.saturating_mul(declarations.len() as u32 + 1);
     if let Err(refused) =
         check_signature_with_attribution(&mut arena, &declarations, &mut Budget::new(steps))
@@ -231,7 +237,23 @@ pub(crate) fn judge(
     let mut judged = Vec::with_capacity(laws.len());
     let mut unproved = Vec::new();
     for law in &laws {
-        match prove_law(&mut arena, &declarations, &entries, &laws, &licenses, law) {
+        let proved = match &law.proof {
+            LawProof::Family {
+                family,
+                invariant,
+                cases,
+            } => prove_family(
+                &mut arena,
+                &declarations,
+                &extras,
+                law,
+                *family,
+                *invariant,
+                cases,
+            ),
+            _ => prove_law(&mut arena, &declarations, &entries, &laws, &licenses, law),
+        };
+        match proved {
             Ok(judgment) => judged.push(judgment),
             Err(Failure {
                 case,
@@ -240,8 +262,12 @@ pub(crate) fn judge(
             }) => unproved.push(UnprovedLaw {
                 machine: law.machine_name.clone(),
                 site: case
-                    .and_then(|case| script(law, case))
-                    .and_then(|script| script.source)
+                    .and_then(|case| match &law.proof {
+                        LawProof::Family { cases, .. } => {
+                            cases.get(case).and_then(|case| case.source)
+                        }
+                        _ => script(law, case).and_then(|script| script.source),
+                    })
                     .or(law.source),
                 cause,
                 statement: statement(&mut arena, &entries, law, case),
@@ -262,7 +288,7 @@ pub(crate) fn judge(
 
 fn script(law: &Law, case: usize) -> Option<&LawCase> {
     match &law.proof {
-        LawProof::Direct(_) | LawProof::Fuel { .. } => None,
+        LawProof::Direct(_) | LawProof::Fuel { .. } | LawProof::Family { .. } => None,
         LawProof::Cases { cases, .. } => cases.get(case),
     }
 }
@@ -928,6 +954,222 @@ impl Proving<'_> {
     }
 }
 
+/// Proves a theorem over data indexed by values by induction over the
+/// value.
+///
+/// Each case of the data is a goal about integers: for arbitrary indices
+/// and payload values of the case, from what the data's declaration
+/// requires of the case and the theorem at each child the body cites, the
+/// theorem at this index. The integer search finds a proof of each, the
+/// kernel's builder assembles them into the induction, and the kernel
+/// checks the whole once.
+///
+/// The search states a goal about named unknowns, so each case declares its
+/// indices and payload values as unknown integers, proves the goal about
+/// them, and then turns them into the binders of the case's lemma.
+fn prove_family(
+    arena: &mut TermArena,
+    declarations: &[Declaration],
+    extras: &Extras<'_>,
+    law: &Law,
+    family: u32,
+    invariant: TermHandle,
+    cases: &[FamilyLawCase],
+) -> Result<LawJudgment, Failure> {
+    let refused = |case: Option<usize>, detail: String| Failure {
+        case,
+        cause: UnprovedCause::KernelRefused,
+        detail,
+    };
+    let (Some(positions), Some(declared)) = (extras.integers, extras.families.get(family as usize))
+    else {
+        return Err(refused(
+            None,
+            "theorem over indexed data without its declarations".to_owned(),
+        ));
+    };
+    let positions = proof_admission::SourceIntegerPositions {
+        vocabulary: proof_admission::SourceIntegerVocabulary {
+            carrier: positions.carrier,
+            less_than: positions.less_than,
+            less_or_equal: positions.less_or_equal,
+            add: positions.add,
+            subtract: positions.subtract,
+            multiply: positions.multiply,
+        },
+        numeral_zero: positions.numeral_zero,
+        numeral_double: positions.numeral_double,
+        numeral_odd: positions.numeral_odd,
+        numeral_negate: positions.numeral_negate,
+    };
+    let mut local = declarations[..law.statement as usize].to_vec();
+    let statement = declarations[law.statement as usize].ty;
+    let indices = law.formals.len();
+    let instance = declared
+        .at(arena, &[])
+        .map_err(|error| refused(None, format!("indexed data: {error}")))?;
+    let integer = constant(arena, positions.vocabulary.carrier);
+    let mut lemmas = Vec::with_capacity(cases.len());
+    for (position, case) in cases.iter().enumerate() {
+        let here = Some(position);
+        let searched = |error: proof_admission::BoundedDenotationError| {
+            refused(here, format!("integer search: {error:?}"))
+        };
+        // The laws a search appends belong to one case: the unknowns below
+        // are removed again, which renumbers what follows them.
+        let mut theory = proof_admission::SourceIntegerTheory::resume(arena, &mut local, positions)
+            .map_err(searched)?;
+        let first = local.len() as u32;
+        let total = indices + case.payload as usize;
+        let mut unknowns = Vec::with_capacity(total);
+        for unknown in 0..total {
+            local.push(Declaration::assumption(0, integer));
+            unknowns.push(constant(arena, first + unknown as u32));
+        }
+        let constraints: Vec<_> = case
+            .constraints
+            .iter()
+            .map(|&constraint| instantiate(arena, constraint, &unknowns))
+            .collect();
+        for &owed in &case.owed {
+            let goal = instantiate(arena, owed, &unknowns);
+            if theory
+                .predicate_from_assumptions(arena, &mut local, goal, &constraints, 0)
+                .map_err(searched)?
+                .is_none()
+            {
+                return Err(Failure {
+                    case: here,
+                    cause: UnprovedCause::NoDerivation,
+                    detail: "what the step of this case requires does not follow from what the \
+                             data requires of the case"
+                        .to_owned(),
+                });
+            }
+        }
+        // The theorem at each child, and as a hypothesis where it is cited.
+        let mut hypotheses = constraints.clone();
+        let mut held = Vec::with_capacity(case.children.len());
+        for (at, &cited) in case.children.iter().zip(&case.cited) {
+            let at: Vec<_> = at
+                .iter()
+                .map(|&component| instantiate(arena, component, &unknowns))
+                .collect();
+            let theorem = instantiate(arena, law.goal, &at);
+            held.push(theorem);
+            if cited {
+                hypotheses.push(theorem);
+            }
+        }
+        let goal = instantiate(arena, law.goal, &unknowns[..indices]);
+        let Some(proof) = theory
+            .predicate_from_assumptions(arena, &mut local, goal, &hypotheses, 0)
+            .map_err(searched)?
+        else {
+            return Err(Failure {
+                case: here,
+                cause: UnprovedCause::NoDerivation,
+                detail: "no proof of this case from what the data requires of it and the theorem \
+                         at the children the body cites"
+                    .to_owned(),
+            });
+        };
+        // The case's lemma for these unknowns: given one proof of all the
+        // constraints and the theorem at every child, the goal.
+        let children = held.len();
+        let mut arguments = Vec::with_capacity(hypotheses.len());
+        let mut rest = variable(arena, children);
+        for constraint in 0..constraints.len() {
+            if constraint + 1 == constraints.len() {
+                arguments.push(rest);
+            } else {
+                arguments.push(arena.insert(Term::Fst { pair: rest }));
+                rest = arena.insert(Term::Snd { pair: rest });
+            }
+        }
+        for (child, &cited) in case.cited.iter().enumerate() {
+            if cited {
+                arguments.push(variable(arena, children - 1 - child));
+            }
+        }
+        let mut lemma = arena.apply_arguments(proof, &arguments);
+        let mut lemma_type = goal;
+        for &theorem in held.iter().rev() {
+            lemma = arena.insert(Term::Lambda {
+                domain: theorem,
+                body: lemma,
+            });
+            lemma_type = arena.insert(Term::Pi {
+                domain: theorem,
+                codomain: lemma_type,
+            });
+        }
+        let Some((&last, before)) = constraints.split_last() else {
+            return Err(refused(
+                here,
+                "case of indexed data with no constraint".to_owned(),
+            ));
+        };
+        let mut all = last;
+        for &constraint in before.iter().rev() {
+            all = arena.insert(Term::Sigma {
+                domain: constraint,
+                codomain: all,
+            });
+        }
+        lemma = arena.insert(Term::Lambda {
+            domain: all,
+            body: lemma,
+        });
+        lemma_type = arena.insert(Term::Pi {
+            domain: all,
+            codomain: lemma_type,
+        });
+        let certificate =
+            MathematicalCertificate::with_signature(local, Vec::new(), lemma, lemma_type);
+        let selected: Vec<u32> = (first..first + total as u32).collect();
+        let abstracted = mathematical_kernel::abstract_certificate_assumptions(
+            arena,
+            &certificate,
+            &selected,
+            &mut Budget::default(),
+        )
+        .map_err(|error| refused(here, format!("case lemma: {error:?}")))?;
+        local = abstracted.certificate.signature;
+        lemmas.push(abstracted.certificate.term);
+    }
+    let induction = instance
+        .induction(arena, &mut local, invariant, &lemmas)
+        .map_err(|error| refused(None, format!("indexed induction: {error}")))?;
+    let mut check = Budget::default();
+    let certificate =
+        MathematicalCertificate::with_signature(local, Vec::new(), induction.theorem, statement);
+    let receipt =
+        MathematicalJudgmentReceipt::verify(arena, &certificate, &mut check).map_err(kernel)?;
+    let bytes =
+        terminal_codec::encode_mathematical_certificate(arena, &certificate).map_err(|_| {
+            Failure {
+                case: None,
+                cause: UnprovedCause::KernelRefused,
+                detail: "could not encode the judged mathematical term".to_owned(),
+            }
+        })?;
+    Ok(LawJudgment {
+        machine: law.machine_name.clone(),
+        clause: law.clause,
+        decision: MathematicalCoreDecision::Judged(receipt),
+        certificate: bytes,
+        conversion_steps: DEFAULT_CONVERSION_STEPS - check.remaining(),
+    })
+}
+
+/// What a law over indexed data needs beside the declarations: where the
+/// integer vocabulary is, and each indexed family as it was declared.
+struct Extras<'s> {
+    integers: Option<IntegerPositions>,
+    families: &'s [mathematical_kernel::DeclaredIndexedData],
+}
+
 fn prove_law(
     arena: &mut TermArena,
     declarations: &[Declaration],
@@ -973,6 +1215,14 @@ fn prove_law(
         law,
     };
     let body = match &law.proof {
+        // `judge` sends a theorem over indexed data to `prove_family`.
+        LawProof::Family { .. } => {
+            return Err(Failure {
+                case: None,
+                cause: UnprovedCause::KernelRefused,
+                detail: "theorem over indexed data read as a plain law".to_owned(),
+            });
+        }
         LawProof::Direct(direct) => proving.case(frame, direct, None)?,
         LawProof::Cases {
             formal,
@@ -1119,6 +1369,18 @@ fn statement(
     law: &Law,
     case: Option<usize>,
 ) -> String {
+    // A theorem over indexed data states an order of integers, which the
+    // clause as written says best.
+    if let LawProof::Family { cases, .. } = &law.proof {
+        let within = case
+            .and_then(|case| cases.get(case))
+            .map(|case| format!(" in the case `{}`", case.name))
+            .unwrap_or_default();
+        return format!(
+            "cannot prove ensures contract for `{}`{within}: {}",
+            law.machine_name, law.text
+        );
+    }
     let count = law.formals.len();
     let mut names = law.formal_names.clone();
     names.resize(count, "?".to_owned());

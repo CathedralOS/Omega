@@ -24,6 +24,28 @@ pub struct MathematicalSignature {
     /// operation, in the order of their statements. A proof may use the
     /// ones whose statement comes before its own law's.
     pub licenses: Vec<OperandLicense>,
+    /// Where the integer vocabulary is declared, when the program has data
+    /// indexed by integers: the carrier, its relations and operations, and
+    /// the numeral constructors. Stage 06 searches for proofs against it.
+    pub integers: Option<IntegerPositions>,
+    /// Each data declaration indexed by values, as the kernel's builder
+    /// declared it. A law over one names it by its position here.
+    pub families: Vec<mathematical_kernel::DeclaredIndexedData>,
+}
+
+/// The declarations of the integer vocabulary, by position.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IntegerPositions {
+    pub carrier: u32,
+    pub less_than: u32,
+    pub less_or_equal: u32,
+    pub add: u32,
+    pub subtract: u32,
+    pub multiply: u32,
+    pub numeral_zero: u32,
+    pub numeral_double: u32,
+    pub numeral_odd: u32,
+    pub numeral_negate: u32,
 }
 
 /// What a law says about the operands of one binary operation.
@@ -333,6 +355,36 @@ pub enum LawProof {
         goal: TermHandle,
         script: LawCase,
     },
+    /// A theorem over data indexed by values (`families[family]`): an
+    /// induction over the evidence. The law's formals are the indices, and
+    /// its goal, as a function of the index, is the declared `invariant`.
+    /// There is one case per case of the data, in declared order.
+    Family {
+        family: u32,
+        invariant: TermHandle,
+        cases: Vec<FamilyLawCase>,
+    },
+}
+
+/// One case of an induction over data indexed by values. Its terms are
+/// stated under one binder per index, then one per payload value.
+#[derive(Debug, Clone, Default)]
+pub struct FamilyLawCase {
+    /// How many payload values the case holds.
+    pub payload: u32,
+    /// What the data's declaration requires of a value in this case.
+    pub constraints: Vec<TermHandle>,
+    /// For each child, the index it sits at, one term per index.
+    pub children: Vec<Vec<TermHandle>>,
+    /// For each child, whether the body cites the theorem at it: only then
+    /// is the theorem at that child a hypothesis of the case.
+    pub cited: Vec<bool>,
+    /// What the step the case calls requires. Each must follow from
+    /// `constraints`.
+    pub owed: Vec<TermHandle>,
+    /// The case as the source names it. For diagnostics only.
+    pub name: String,
+    pub source: Option<SourceSpan>,
 }
 
 #[derive(Debug, Clone, Default)]

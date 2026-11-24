@@ -32,6 +32,13 @@ impl Program<'_> {
             {
                 Some(*symbol)
             }
+            // A declaration applied at arguments (`Vector<previous,
+            // previous_total>`) names that declaration.
+            TypeReferenceNode::Generic { base_symbol, .. }
+                if base_symbol.is_valid() && self.data_declaration(*base_symbol).is_some() =>
+            {
+                Some(*base_symbol)
+            }
             _ => None,
         }
     }

@@ -1,0 +1,41 @@
+// The twin of `pass/vector_sum_bound` that claims the total is at most nine
+// times the length. An element may be ten, so the claim is false for the
+// list of one ten, and the step of the induction cannot be proved.
+use omega\language\core\ProcessExit;
+
+data Vector<Length: u64, Total: u64>
+    requires ((self in Vector::Nil) && (Length == 0 && Total == 0)) || ((self in Vector::Cons) && (self.head <= 10 && embed(self.previous) + 1 == embed(Length)
+              && embed(self.previous_total) + embed(self.head) == embed(Total)))
+{
+    case Nil;
+    case Cons(previous: u64, previous_total: u64, head: u64,
+              tail [erased]: Vector<previous, previous_total>);
+}
+
+machine vector_bound<Length: u64, Total: u64>(evidence [erased]: Vector<Length, Total>)
+terminates by Length
+ensures embed(Total) <= 9 * embed(Length)
+{
+    transition evidence {
+        Vector::Nil { .. } -> done(),
+        Vector::Cons { previous, previous_total, head, tail, .. } -> step(previous, previous_total, head, tail)
+    }
+    machine done() requires Length == 0 && Total == 0 {}
+    machine step(previous: u64, previous_total: u64, head: u64, tail [erased]: Vector<previous, previous_total>)
+    requires head <= 10 && embed(previous) + 1 == embed(Length)
+             && embed(previous_total) + embed(head) == embed(Total)
+    {
+        vector_bound::<previous, previous_total>(tail);
+    }
+}
+
+data Main { }
+machine exit_with_status(main: @mutable Main) reaches ProcessExit {
+    ProcessExit::exit_process(0);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit {
+    let mutable entry_storage: Main;
+    block exit_with_status(@mutable entry_storage);
+}

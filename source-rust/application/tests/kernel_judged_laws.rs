@@ -350,3 +350,21 @@ fn a_quotient_operation_that_selects_another_theorem_is_refused() {
         "{report}"
     );
 }
+
+#[test]
+fn a_theorem_over_data_indexed_by_values_compiles() {
+    let (output, report) = check("indexed_family/pass/vector_sum_bound");
+    assert_eq!(output.status.code(), Some(0), "{report}");
+}
+
+#[test]
+fn a_theorem_over_indexed_data_with_a_false_bound_is_refused() {
+    let (output, report) = check("indexed_family/fail/vector_sum_bound_too_tight");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains(
+            "cannot prove ensures contract for `vector_bound` in the case `Vector::Cons`"
+        ) && report.contains("embed(Total) <= 9 * embed(Length)"),
+        "{report}"
+    );
+}
