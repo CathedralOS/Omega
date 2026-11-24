@@ -12,6 +12,13 @@ the recursion's result for it. A machine with no result states one law per
 citations, a call of the law itself at a field of the dispatched case as the
 induction hypothesis, and stage 06 builds the proof from them.
 
+A machine that returns a value and states an equality is both: a definition,
+and a law whose statement may name the machine's own result. Its citations
+are every call, anywhere in the value it returns, of a machine that states a
+law. A machine declared inside another that states nothing is read in place
+where it is called, as a step of its parent's value or of its parent's
+argument.
+
 A cited law is read before the law that cites it, and a law that reaches
 itself through its citations is refused, so no statement can justify itself.
 */
@@ -141,8 +148,10 @@ impl Program<'_> {
         satisfactions: &[Satisfaction],
     ) -> Result<MathematicalSignature, Vec<Refusal>> {
         let mut machines = IdTable::default();
+        let mut functions = IdTable::default();
         for _ in self.symbols.iter() {
             machines.push(Read::Unread);
+            functions.push(Read::Unread);
         }
         let mut converter = Converter {
             program: self,
@@ -151,6 +160,7 @@ impl Program<'_> {
             signature: MathematicalSignature::default(),
             data: Vec::new(),
             machines,
+            functions,
         };
         let mut refused = Vec::new();
         let diagnostic = MachineId::new(1).expect("1 is nonzero");
@@ -244,7 +254,7 @@ impl Program<'_> {
                     other.declaring_trait == satisfaction.declaring_trait
                         && other.scope == satisfaction.scope
                         && matches!(
-                            converter.machines.get(other.machine),
+                            converter.functions.get(other.machine),
                             Some(Read::Function(entry)) if *entry == operation
                         )
                 });
@@ -307,7 +317,11 @@ struct Converter<'p, 't> {
     signature: MathematicalSignature,
     /// Each data record with its entry, in the order they were declared.
     data: Vec<(StructuralTypeId, u32)>,
+    /// Each machine as a law, or as a machine that only cites.
     machines: IdTable<MachineId, Read>,
+    /// Each machine with a result as a definition. A machine that returns a
+    /// value and states a law has a row in both tables.
+    functions: IdTable<MachineId, Read>,
 }
 
 fn unserved(id: MachineId, what: &'static str) -> Refusal {
@@ -503,20 +517,68 @@ impl Converter<'_, '_> {
             .ok_or_else(|| unserved(id, "mathematical machine lost its signature"))?
             .result;
         match result {
-            Some(_) => self.function(id).map(|_| ()),
             None => self.laws(id).map(|_| ()),
+            // A machine that returns a value and states a law is both a
+            // definition and a law, in that order: its statement may name
+            // its own result.
+            Some(_) if self.states_law(id) => {
+                self.function(id)?;
+                self.laws(id).map(|_| ())
+            }
+            // A nested machine that states nothing is read where it is
+            // called, whether or not it returns a value.
+            Some(_) if self.helper(id) => self.laws(id).map(|_| ()),
+            Some(_) => self.function(id).map(|_| ()),
         }
     }
 
-    fn begin(&mut self, id: MachineId, cycle: &'static str) -> Checked<Option<Read>> {
+    /// Whether the machine states an equality, its own or its requirement's.
+    fn states_law(&self, id: MachineId) -> bool {
+        self.program
+            .signatures
+            .get(id)
+            .is_some_and(|signature| !signature.ensures.is_empty())
+            || self
+                .satisfactions
+                .iter()
+                .any(|satisfaction| satisfaction.machine == id && !satisfaction.ensures.is_empty())
+    }
+
+    /// Whether the machine is declared inside another and states no law. Such
+    /// a machine is a step of its parent's argument or of its parent's value:
+    /// it is read in place, with its formals standing for the call's
+    /// arguments, so a recursive call it makes is still the parent's.
+    fn helper(&self, id: MachineId) -> bool {
+        !self.states_law(id)
+            && self
+                .program
+                .symbols
+                .get(id)
+                .is_some_and(|symbol| self.program.enclosing_machine(*symbol).is_some())
+    }
+
+    fn track(&mut self, function: bool) -> &mut IdTable<MachineId, Read> {
+        if function {
+            &mut self.functions
+        } else {
+            &mut self.machines
+        }
+    }
+
+    fn begin(
+        &mut self,
+        id: MachineId,
+        function: bool,
+        cycle: &'static str,
+    ) -> Checked<Option<Read>> {
         let state = self
-            .machines
+            .track(function)
             .get(id)
             .cloned()
             .ok_or_else(|| unserved(id, "mathematical machine outside this reader"))?;
         match state {
             Read::Unread => {
-                *self.machines.get_mut(id).expect("row read above") = Read::Reading;
+                *self.track(function).get_mut(id).expect("row read above") = Read::Reading;
                 Ok(None)
             }
             Read::Reading => Err(unserved(id, cycle)),
@@ -528,24 +590,28 @@ impl Converter<'_, '_> {
         }
     }
 
-    fn finish<T>(&mut self, id: MachineId, read: Checked<(T, Read)>) -> Checked<T> {
+    fn finish<T>(&mut self, id: MachineId, function: bool, read: Checked<(T, Read)>) -> Checked<T> {
         let (value, state) = match read {
             Ok((value, state)) => (Ok(value), state),
             Err(refusal) => (Err(refusal), Read::Refused),
         };
-        *self.machines.get_mut(id).expect("row read at begin") = state;
+        *self.track(function).get_mut(id).expect("row read at begin") = state;
         value
     }
 
     /// A machine with a result, as a definition.
     fn function(&mut self, id: MachineId) -> Checked<u32> {
-        match self.begin(id, "mathematical machines that call each other in a cycle")? {
+        match self.begin(
+            id,
+            true,
+            "mathematical machines that call each other in a cycle",
+        )? {
             None => {}
             Some(Read::Function(entry)) => return Ok(entry),
             Some(_) => return Err(unserved(id, "term that calls a machine with no result")),
         }
         let read = self.read_function(id);
-        self.finish(id, read.map(|entry| (entry, Read::Function(entry))))
+        self.finish(id, true, read.map(|entry| (entry, Read::Function(entry))))
     }
 
     fn read_function(&mut self, id: MachineId) -> Checked<u32> {
@@ -554,10 +620,10 @@ impl Converter<'_, '_> {
             .signatures
             .get(id)
             .ok_or_else(|| unserved(id, "mathematical machine lost its signature"))?;
-        if !signature.ensures.is_empty() || !signature.membership_ensures.is_empty() {
+        if !signature.membership_ensures.is_empty() {
             return Err(unserved(
                 id,
-                "mathematical machine with a result and a guarantee",
+                "mathematical machine with a result and a membership guarantee",
             ));
         }
         let formals = self.formals(id)?;
@@ -574,7 +640,19 @@ impl Converter<'_, '_> {
             .ok_or_else(|| unserved(id, "mathematical machine lost its body"))?;
         let (aliases, statements) = spine(body);
         let named = |slot: usize| aliases.get(slot).copied().unwrap_or(slot);
-        let (mut term, cases) = match statements.as_slice() {
+        // A machine that also states a law may cite before it returns. The
+        // law's script reads those calls; the value does not depend on them.
+        let cited = statements
+            .iter()
+            .take_while(|statement| matches!(statement, Statement::Evaluate { .. }))
+            .count();
+        if cited > 0 && !self.states_law(id) {
+            return Err(unserved(
+                id,
+                "mathematical function body with a statement before its value",
+            ));
+        }
+        let (mut term, cases) = match &statements[cited..] {
             [
                 Statement::Arm {
                     guard: ArmGuard::Always,
@@ -844,7 +922,7 @@ impl Converter<'_, '_> {
                                 "recursive call whose ranked argument is not a field of the dispatched case",
                             )
                         })?;
-                    self.ranked_on(id, subject, true)?;
+                    self.ranked_on(machine, subject, true)?;
                     let rest: Vec<_> = operands
                         .iter()
                         .enumerate()
@@ -856,6 +934,44 @@ impl Converter<'_, '_> {
                             .arena
                             .apply_arguments(results[field as usize], &rest),
                     ));
+                }
+                if self.helper(*callee) {
+                    let body = self
+                        .bodies
+                        .get(*callee)
+                        .ok_or_else(|| unserved(id, "mathematical machine lost its body"))?;
+                    let (aliases, statements) = spine(body);
+                    let Some((
+                        Statement::Arm {
+                            guard: ArmGuard::Always,
+                            target: Target::Value(value),
+                            ..
+                        },
+                        before,
+                    )) = statements.split_last()
+                    else {
+                        return Err(unserved(
+                            *callee,
+                            "nested mathematical machine body other than citations and one value",
+                        ));
+                    };
+                    if !before
+                        .iter()
+                        .all(|statement| matches!(statement, Statement::Evaluate { .. }))
+                    {
+                        return Err(unserved(
+                            *callee,
+                            "nested mathematical machine body other than citations and one value",
+                        ));
+                    }
+                    let slots: Vec<_> = operands.iter().copied().map(Some).collect();
+                    let inner = Scope {
+                        slots: &slots,
+                        aliases: &aliases,
+                        case: None,
+                        recursion: scope.recursion,
+                    };
+                    return self.expression(*callee, value, &inner);
                 }
                 let function = self.function(*callee)?;
                 let function = self.constant(function);
@@ -874,7 +990,7 @@ impl Converter<'_, '_> {
     /// The laws a machine with no result states, declaring them the first
     /// time. A machine that states none only cites; it is read at its call.
     fn laws(&mut self, id: MachineId) -> Checked<Vec<u32>> {
-        match self.begin(id, "law that reaches itself through its citations")? {
+        match self.begin(id, false, "law that reaches itself through its citations")? {
             None => {}
             Some(Read::Laws(laws)) => return Ok(laws),
             Some(Read::Cites { .. }) => return Ok(Vec::new()),
@@ -883,6 +999,7 @@ impl Converter<'_, '_> {
         let read = self.read_laws(id);
         self.finish(
             id,
+            false,
             read.map(|laws| {
                 let state = if laws.is_empty() {
                     Read::Cites { called: false }
@@ -1027,6 +1144,16 @@ impl Converter<'_, '_> {
             carriers.push(self.data(id, record)?);
             let term = match &value.operand {
                 // Every formal is data, so the formal at position `k` is place `k + 1`.
+                // The machine's own result is the place after its formals:
+                // the definition it is read as, applied to those formals.
+                ClauseOperand::Input(subject)
+                    if subject.path().is_empty()
+                        && subject.root().get() == formals.len() as u64 + 1 =>
+                {
+                    let function = self.function(id)?;
+                    let function = self.constant(function);
+                    self.signature.arena.apply_arguments(function, formals)
+                }
                 ClauseOperand::Input(subject) if subject.path().is_empty() => subject
                     .root()
                     .get()
@@ -1225,7 +1352,9 @@ impl Converter<'_, '_> {
             self.citations(id, id, before, &scope, &mut script.citations)?;
             match target {
                 Target::Unit => {}
-                Target::Value(value) => self.cite(id, id, value, &scope, &mut script.citations)?,
+                Target::Value(value) => {
+                    self.cite_within(id, id, value, &scope, &mut script.citations, false)?
+                }
                 Target::Crash(_) => return Err(unserved(id, "law case that crashes")),
             }
             cases.push(script);
@@ -1250,7 +1379,7 @@ impl Converter<'_, '_> {
         for statement in statements.iter().copied() {
             match statement {
                 Statement::Evaluate { expression, .. } => {
-                    self.cite(law, machine, expression, scope, citations)?
+                    self.cite_within(law, machine, expression, scope, citations, false)?
                 }
                 Statement::Arm {
                     guard: ArmGuard::Always,
@@ -1261,7 +1390,7 @@ impl Converter<'_, '_> {
                     guard: ArmGuard::Always,
                     target: Target::Value(value),
                     ..
-                } => self.cite(law, machine, value, scope, citations)?,
+                } => self.cite_within(law, machine, value, scope, citations, false)?,
                 _ => {
                     return Err(unserved(
                         machine,
@@ -1273,6 +1402,54 @@ impl Converter<'_, '_> {
         Ok(())
     }
 
+    /// The citations an expression makes: every call in it of a machine
+    /// that states a law, innermost first. `nested` says the expression is an
+    /// operand of another, where a call of an ordinary function is a term
+    /// and cites nothing. The value a law machine returns is such a term too:
+    /// its calls are read here and its value by `read_function`.
+    fn cite_within(
+        &mut self,
+        law: MachineId,
+        machine: MachineId,
+        expression: &Expression,
+        scope: &Scope<'_>,
+        citations: &mut Vec<Citation>,
+        nested: bool,
+    ) -> Checked<()> {
+        let returns = self
+            .program
+            .signatures
+            .get(machine)
+            .is_some_and(|signature| signature.result.is_some());
+        match &expression.kind {
+            ExpressionKind::Call {
+                callee: CallTarget::Machine(_),
+                arguments,
+                ..
+            } => {
+                for argument in arguments {
+                    self.cite_within(law, machine, argument, scope, citations, true)?;
+                }
+                self.cite(
+                    law,
+                    machine,
+                    expression,
+                    scope,
+                    citations,
+                    nested || returns,
+                )
+            }
+            ExpressionKind::Case { fields, .. } if nested || returns => {
+                for (_, operand) in fields {
+                    self.cite_within(law, machine, operand, scope, citations, true)?;
+                }
+                Ok(())
+            }
+            ExpressionKind::Slot(_) | ExpressionKind::Payload { .. } if nested || returns => Ok(()),
+            _ => Err(unserved(machine, "law body statement other than a call")),
+        }
+    }
+
     fn cite(
         &mut self,
         law: MachineId,
@@ -1280,6 +1457,7 @@ impl Converter<'_, '_> {
         call: &Expression,
         scope: &Scope<'_>,
         citations: &mut Vec<Citation>,
+        term: bool,
     ) -> Checked<()> {
         let ExpressionKind::Call {
             callee: CallTarget::Machine(callee),
@@ -1328,8 +1506,17 @@ impl Converter<'_, '_> {
             .signatures
             .get(*callee)
             .ok_or_else(|| unserved(machine, "citation lost its machine"))?;
-        if cited.result.is_some() {
-            return Err(unserved(machine, "law body calls a machine with a result"));
+        if cited.result.is_some() && !self.states_law(*callee) && !self.helper(*callee) {
+            // An ordinary function. As an operand it is a term and cites
+            // nothing; as a statement it would say nothing.
+            return if term {
+                Ok(())
+            } else {
+                Err(unserved(
+                    machine,
+                    "law body calls a machine with a result that states no law",
+                ))
+            };
         }
         let laws = self.laws(*callee)?;
         if !laws.is_empty() {

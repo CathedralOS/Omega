@@ -1055,6 +1055,46 @@ certificate names it.
   a guarantee on one. Step 3 needs a reading of that shape; the Peano
   fixtures state each law as a machine with no result.
 
+**Step 3 as built (2026-11-24): the semiring conformance, not yet the whole
+file.** A program that uses the library's `Nat` now gets
+`core/nat.omg`'s `CommutativeSemiring<Nat>` conformance judged by the
+kernel, from the library file as it stands.
+
+- **Customer.** `nat_semiring/pass/library_conformance` calls only `add` and
+  `mul` and states `add(mul(a, b), add(c, a)) = add(a, add(c, mul(b, a)))`
+  with an empty body. The kernel judges the seven laws `nat.omg` binds to the
+  trait (`add_zero_right`, `add_comm`, `add_assoc`, `mul_comm`, `mul_assoc`,
+  `mul_identity`, `mul_distributes`) and the lemmas they cite, and the
+  program's law rests only on commutativity and associativity laws of `add`
+  and `mul`. Its twin states the same law of an addition the program defines
+  itself, which no conformance covers, and is refused.
+- **The whole conformance is read.** Three of the seven laws are private to
+  the library, so no program can cite them. When a machine that satisfies a
+  requirement of a trait is read, stage 05 reads every other machine over
+  such data that satisfies a requirement of the same trait at the same data
+  (`mathematics.rs`). This is the spec's "consume the complete selected
+  conformance's law slots".
+- **A machine that returns a value and states a law.** `nat.omg` writes most
+  lemmas this way (`mul_succ_right(a, b) -> Nat`). Such a machine is read as
+  a definition and as a law. Its statement may name its own result, and its
+  citations are the calls, anywhere in the value it returns, of machines
+  that state a law; the call of itself at a field of the case is the
+  induction hypothesis. A nested machine that states nothing is read in
+  place where it is called.
+- **Cost.** The twelve library laws that program pulls in take 1,574 to
+  13,358 kernel conversion steps each, about 67,000 together, every time
+  such a program is compiled, because the library is compiled from source
+  with it.
+- **Not done: the rest of `nat.omg`.** Nothing reads these yet: laws with a
+  `requires` premise (`add_cancel`, `le_of_succ_le`), machines that return
+  `bool` or dispatch on a computed value (`<=`, `saturating_sub`), and
+  recursion that is not on a field of the case (`mod`, `div`, `gcd`).
+  Separately, `<=` and `-` are written as machines the `Nat` declaration
+  owns (`machine <= Nat::less_or_equal`). Compiling the file's declarations
+  as a program was rejected there with "a data declaration cannot own a
+  machine; declare an ordinary static machine", before any proof was tried,
+  so that part of the library needs its source migrated first.
+
 The first version of this plan started with level binders and value-indexed
 type arguments because they move 66 samples. They move those samples to
 their next failure, the library needs neither, and level binders wait on
