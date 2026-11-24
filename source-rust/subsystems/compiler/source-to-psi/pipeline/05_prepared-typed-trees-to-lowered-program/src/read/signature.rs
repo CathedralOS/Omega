@@ -34,20 +34,23 @@ itself through its citations is refused, so no statement can justify itself.
 */
 
 use arena::IdTable;
-use mathematical_kernel::{Declaration, Level, PlainData, Sort, Term, TermHandle, shift};
+use mathematical_kernel::{
+    Declaration, Level, PlainData, Sort, Term, TermHandle, instantiate, shift,
+};
 use semantic_vocabulary::{
     ClauseCarrier, ClauseIdentity, ClauseOperand, MachineId, Proposition, StructuralTypeId,
 };
 use symbols::SymbolHandle;
 use terminal_check_tables::mathematics::{
     Citation, Evidence, FunctionCases, Law, LawCase, LawProof, LawSplit, MathematicalSignature,
-    OperandLicense, SignatureEntry, SignatureEntryKind, operand_law,
+    OperandLicense, SignatureEntry, SignatureEntryKind, SplitSubject, operand_law,
 };
 use terminal_check_tables::{Checked, Construct, Refusal};
 
 use super::Program;
 use crate::lowering::body::{
-    ArmGuard, Body, CallTarget, Expression, ExpressionKind, Statement, Target, ValueType,
+    ArmGuard, Body, CallTarget, CaseSelector, Expression, ExpressionKind, Statement, Target,
+    ValueType,
 };
 use crate::lowering::{Unserved, refuse};
 
@@ -171,6 +174,8 @@ impl Program<'_> {
             data: Vec::new(),
             machines,
             functions,
+            fueled: Vec::new(),
+            result_as: None,
         };
         let mut refused = Vec::new();
         let diagnostic = MachineId::new(1).expect("1 is nonzero");
@@ -398,6 +403,47 @@ struct Scope<'s> {
     /// split inside one is not: the law at one of its fields is no
     /// hypothesis.
     induction: bool,
+    /// Set where a body is read for its value.
+    value: Option<&'s Valuing<'s>>,
+}
+
+/// What reading a body for its value needs beyond its names.
+#[derive(Clone, Copy)]
+struct Valuing<'s> {
+    /// The machine being defined.
+    owner: MachineId,
+    /// The type of each variable in scope, outermost first. Each is closed.
+    /// A dispatch is a definition of its own over its subject and all of
+    /// these, so it needs them.
+    context: &'s [TermHandle],
+    /// The closed type of the value.
+    result: TermHandle,
+    /// How the machine being defined calls itself, when it recurses on fuel.
+    fuel: Option<Fuel>,
+    /// The machine's own premises, as terms of this scope.
+    premises: &'s [TermHandle],
+    /// What the bodies read so far have cited.
+    cited: &'s [Citation],
+}
+
+/// A machine defined by recursion on fuel calls itself as the definition
+/// with one unit less: `step` applied to the call's arguments. With no fuel
+/// left there is no such definition and the call is `default`.
+#[derive(Clone, Copy)]
+struct Fuel {
+    machine: MachineId,
+    step: Option<TermHandle>,
+    default: TermHandle,
+}
+
+/// The machine a definition is being read for.
+struct Defining<'d> {
+    id: MachineId,
+    symbol: SymbolHandle,
+    name: &'d str,
+    formals: &'d [(TermHandle, u32)],
+    result: TermHandle,
+    premises: &'d [TermHandle],
 }
 
 struct Converter<'p, 't> {
@@ -412,6 +458,13 @@ struct Converter<'p, 't> {
     /// Each machine with a result as a definition. A machine that returns a
     /// value and states a law has a row in both tables.
     functions: IdTable<MachineId, Read>,
+    /// Each machine defined by recursion on fuel: the entry of the
+    /// definition over the fuel, the entry of the fuel's data and the
+    /// formal the machine takes its fuel from.
+    fueled: Vec<(MachineId, u32, u32, u32)>,
+    /// While a law is read for its induction on fuel: the machine and the
+    /// term its clauses' `result` stands for.
+    result_as: Option<(MachineId, TermHandle)>,
 }
 
 fn unserved(id: MachineId, what: &'static str) -> Refusal {
@@ -653,10 +706,11 @@ impl Converter<'_, '_> {
                 "mathematical machine with an erased or borrowed formal",
             ));
         }
-        // A premise belongs to a law: it is a hypothesis of the proof and
-        // an obligation at each citation. A machine that states nothing has
-        // no reader for one.
-        if !signature.requires.is_empty() && !self.states_law(id) {
+        // A premise of a law is a hypothesis of its proof and an obligation
+        // at each citation. A premise of a definition is an obligation at
+        // each call (`owed`). A machine that states nothing and returns
+        // nothing has no reader for one.
+        if !signature.requires.is_empty() && !self.states_law(id) && signature.result.is_none() {
             return Err(unserved(
                 id,
                 "mathematical machine with a premise that states no law",
@@ -728,6 +782,21 @@ impl Converter<'_, '_> {
                 .satisfactions
                 .iter()
                 .any(|satisfaction| satisfaction.machine == id && !satisfaction.ensures.is_empty())
+    }
+
+    /// Whether one of the machine's own equalities names its result.
+    fn names_result(&self, id: MachineId) -> bool {
+        self.program.signatures.get(id).is_some_and(|signature| {
+            let result = signature.parameters.len() as u64 + 1;
+            signature.ensures.iter().any(|clause| {
+                matches!(clause, Proposition::DeclarationIdentity(identity)
+                if identity.values.iter().any(|value| matches!(
+                    &value.operand,
+                    ClauseOperand::Input(subject)
+                        if subject.path().is_empty() && subject.root().get() == result
+                )))
+            })
+        })
     }
 
     /// Whether the machine is declared inside another and states no law. Such
@@ -813,7 +882,7 @@ impl Converter<'_, '_> {
             ));
         }
         let formals = self.formals(id)?;
-        let (result, _) = self.ty(
+        let (result, result_entry) = self.ty(
             id,
             signature
                 .result
@@ -825,12 +894,44 @@ impl Converter<'_, '_> {
             .get(id)
             .ok_or_else(|| unserved(id, "mathematical machine lost its body"))?;
         let (aliases, statements) = spine(body);
-        let named = |slot: usize| aliases.get(slot).copied().unwrap_or(slot);
-        // A machine that also states a law may cite before it returns. The
-        // law's script reads those calls; the value does not depend on them.
-        // A body may also name a value before it returns: each `let` is the
-        // term of its value wherever the rest of the body reads it.
-        let cited = statements
+        let symbol = *program
+            .symbols
+            .get(id)
+            .ok_or_else(|| unserved(id, "mathematical machine lost its declaration"))?;
+        let name = self.name(symbol);
+        let open: Vec<_> = (0..count)
+            .map(|formal| self.variable((count - 1 - formal) as u32))
+            .collect();
+        let mut premises = Vec::with_capacity(signature.requires.len());
+        for premise in &signature.requires {
+            premises.push(self.equality(id, premise, &open, None)?);
+        }
+        let ranked = match signature
+            .ranking
+            .as_ref()
+            .map(|ranking| ranking.measures.as_slice())
+        {
+            None => None,
+            Some([measure]) => match measure.kind {
+                ExpressionKind::Slot(slot) if slot < count => Some(slot),
+                _ => {
+                    return Err(unserved(
+                        id,
+                        "mathematical machine ranked on something other than one formal",
+                    ));
+                }
+            },
+            Some(_) => {
+                return Err(unserved(
+                    id,
+                    "mathematical machine ranked on something other than one formal",
+                ));
+            }
+        };
+        // A body that is one dispatch on a formal, after any statements a
+        // law's script reads, recurses the kernel's own way when it calls
+        // itself only at a field of the case.
+        let leading = statements
             .iter()
             .take_while(|statement| {
                 matches!(
@@ -839,36 +940,7 @@ impl Converter<'_, '_> {
                 )
             })
             .count();
-        if statements[..cited]
-            .iter()
-            .any(|statement| matches!(statement, Statement::Evaluate { .. }))
-            && !self.states_law(id)
-        {
-            return Err(unserved(
-                id,
-                "mathematical function body with a statement before its value",
-            ));
-        }
-        let (mut term, cases) = match &statements[cited..] {
-            [
-                Statement::Arm {
-                    guard: ArmGuard::Always,
-                    target: Target::Value(value),
-                    ..
-                },
-            ] => {
-                let mut slots = self.formal_slots(count, body.slots.len());
-                self.locals(id, &statements[..cited], &mut slots, &aliases)?;
-                let scope = Scope {
-                    slots: &slots,
-                    aliases: &aliases,
-                    case: None,
-                    recursion: None,
-                    depth: 0,
-                    induction: true,
-                };
-                (self.expression(id, value, &scope)?.term, None)
-            }
+        let by_cases = match &statements[leading..] {
             [
                 Statement::Dispatch {
                     subject,
@@ -876,112 +948,43 @@ impl Converter<'_, '_> {
                     default: None,
                     ..
                 },
-            ] => {
-                let ExpressionKind::Slot(subject) = subject.kind else {
-                    return Err(unserved(id, "mathematical dispatch on a computed subject"));
+            ] => match subject.kind {
+                ExpressionKind::Slot(slot) => {
+                    let slot = aliases.get(slot).copied().unwrap_or(slot);
+                    (slot < count && ranked.is_none_or(|ranked| ranked == slot))
+                        .then_some((slot, arms))
+                }
+                _ => None,
+            },
+            _ => None,
+        };
+        let defining = Defining {
+            id,
+            symbol,
+            name: &name,
+            formals: &formals,
+            result,
+            premises: &premises,
+        };
+        let structural = by_cases.map(|(subject, arms)| self.by_cases(&defining, subject, arms));
+        let (mut term, cases) = match (structural, ranked) {
+            (Some(Ok((term, cases))), _) => (term, Some(cases)),
+            (Some(Err(refusal)), None) => return Err(refusal),
+            // It calls itself somewhere else, or chooses by a computed
+            // value first: the recursion is on fuel taken from its measure.
+            (_, Some(measure)) => (self.by_fuel(&defining, measure, result_entry)?, None),
+            (None, None) => {
+                let types: Vec<_> = formals.iter().map(|(formal, _)| *formal).collect();
+                let valuing = Valuing {
+                    owner: id,
+                    context: &types,
+                    result,
+                    fuel: None,
+                    premises: &premises,
+                    cited: &[],
                 };
-                let subject = named(subject);
-                if subject >= count {
-                    return Err(unserved(id, "mathematical dispatch on a local"));
-                }
-                self.ranked_on(id, subject, false)?;
-                let data = formals[subject].1;
-                let shape = self.shape(data);
-                let others: Vec<usize> = (0..count).filter(|formal| *formal != subject).collect();
-                let rest = others.len() as u32;
-                // The motive returns a function of the other formals, so a
-                // recursive call may pass them different values.
-                let mut landing = result;
-                for &other in others.iter().rev() {
-                    landing = self.signature.arena.insert(Term::Pi {
-                        domain: formals[other].0,
-                        codomain: landing,
-                    });
-                }
-                let motive = self.signature.arena.insert(Term::Lambda {
-                    domain: formals[subject].0,
-                    body: landing,
-                });
-                let mut branches = Vec::with_capacity(shape.cases());
-                for case in 0..shape.cases() {
-                    let mut selected = arms.iter().filter(|(selector, _, _)| selector.case == case);
-                    let (Some((selector, Target::Value(value), _)), None) =
-                        (selected.next(), selected.next())
-                    else {
-                        return Err(unserved(
-                            id,
-                            "mathematical dispatch without exactly one value arm per case",
-                        ));
-                    };
-                    if selector.condition.is_some() {
-                        return Err(unserved(id, "mathematical dispatch on a field value"));
-                    }
-                    let arena = &mut self.signature.arena;
-                    let fields: Vec<_> = (0..shape.arity(case))
-                        .map(|field| shape.field(arena, case, field, rest))
-                        .collect();
-                    let results: Vec<_> = (0..shape.arity(case))
-                        .map(|field| shape.hypothesis(arena, case, field, rest))
-                        .collect();
-                    let mut slots = vec![None; count];
-                    for (position, &other) in others.iter().enumerate() {
-                        slots[other] = Some(Bound {
-                            term: self.variable(rest - 1 - position as u32),
-                            field: None,
-                        });
-                    }
-                    let scope = Scope {
-                        slots: &slots,
-                        aliases: &aliases,
-                        case: Some((subject, case, &fields)),
-                        recursion: Some((id, subject, &results)),
-                        depth: 0,
-                        induction: true,
-                    };
-                    let mut branch = self.expression(id, value, &scope)?.term;
-                    for &other in others.iter().rev() {
-                        branch = self.signature.arena.insert(Term::Lambda {
-                            domain: formals[other].0,
-                            body: branch,
-                        });
-                    }
-                    branches.push(shape.branch(
-                        &mut self.signature.arena,
-                        data,
-                        motive,
-                        case,
-                        branch,
-                    ));
-                }
-                if arms.len() != shape.cases() {
-                    return Err(unserved(
-                        id,
-                        "mathematical dispatch without exactly one value arm per case",
-                    ));
-                }
-                let tree = self.variable((count - 1 - subject) as u32);
-                let induction =
-                    shape.induct(&mut self.signature.arena, data, motive, &branches, tree);
-                let arguments: Vec<_> = others
-                    .iter()
-                    .map(|&other| self.variable((count - 1 - other) as u32))
-                    .collect();
-                (
-                    self.signature.arena.apply_arguments(induction, &arguments),
-                    Some(FunctionCases {
-                        data,
-                        subject: subject as u32,
-                        arity: count as u32,
-                        motive,
-                        branches,
-                    }),
-                )
-            }
-            _ => {
-                return Err(unserved(
-                    id,
-                    "mathematical function body other than one value or one dispatch",
-                ));
+                let slots = self.formal_slots(count, body.slots.len());
+                (self.body_value(id, slots, None, &valuing)?, None)
             }
         };
         let mut ty = result;
@@ -996,11 +999,6 @@ impl Converter<'_, '_> {
             });
         }
         index(id, self.signature.declarations.len() + 1)?;
-        let symbol = *program
-            .symbols
-            .get(id)
-            .ok_or_else(|| unserved(id, "mathematical machine lost its declaration"))?;
-        let name = self.name(symbol);
         Ok(self.push(
             Declaration::definition(0, ty, term),
             SignatureEntryKind::Function {
@@ -1009,6 +1007,692 @@ impl Converter<'_, '_> {
             },
             name,
         ))
+    }
+
+    /// A definition by cases on the formal `subject`, as a term under the
+    /// machine's formals: the kernel's recursion on that formal. A call the
+    /// machine makes of itself must be at a field of the case.
+    fn by_cases(
+        &mut self,
+        defining: &Defining<'_>,
+        subject: usize,
+        arms: &[(CaseSelector, Target, crate::lowering::SourceOrigin)],
+    ) -> Checked<(TermHandle, FunctionCases)> {
+        let id = defining.id;
+        let formals = defining.formals;
+        let count = formals.len();
+        let body = self
+            .bodies
+            .get(id)
+            .ok_or_else(|| unserved(id, "mathematical machine lost its body"))?;
+        let (aliases, _) = spine(body);
+        let data = formals[subject].1;
+        let SignatureEntryKind::Data { shape, .. } = &self.signature.entries[data as usize].kind
+        else {
+            return Err(unserved(
+                id,
+                "mathematical dispatch on a value without cases",
+            ));
+        };
+        let shape = shape.clone();
+        let others: Vec<usize> = (0..count).filter(|formal| *formal != subject).collect();
+        let rest = others.len() as u32;
+        // The motive returns a function of the other formals, so a
+        // recursive call may pass them different values.
+        let mut landing = defining.result;
+        for &other in others.iter().rev() {
+            landing = self.signature.arena.insert(Term::Pi {
+                domain: formals[other].0,
+                codomain: landing,
+            });
+        }
+        let motive = self.signature.arena.insert(Term::Lambda {
+            domain: formals[subject].0,
+            body: landing,
+        });
+        if arms.len() != shape.cases() {
+            return Err(unserved(
+                id,
+                "mathematical dispatch without exactly one value arm per case",
+            ));
+        }
+        let mut branches = Vec::with_capacity(shape.cases());
+        for case in 0..shape.cases() {
+            let mut selected = arms.iter().filter(|(selector, _, _)| selector.case == case);
+            let (Some((selector, Target::Value(value), _)), None) =
+                (selected.next(), selected.next())
+            else {
+                return Err(unserved(
+                    id,
+                    "mathematical dispatch without exactly one value arm per case",
+                ));
+            };
+            if selector.condition.is_some() {
+                return Err(unserved(id, "mathematical dispatch on a field value"));
+            }
+            let arity = shape.arity(case);
+            let arena = &mut self.signature.arena;
+            let fields: Vec<_> = (0..arity)
+                .map(|field| shape.field(arena, case, field, rest))
+                .collect();
+            let results: Vec<_> = (0..arity)
+                .map(|field| shape.hypothesis(arena, case, field, rest))
+                .collect();
+            // Inside the case the dispatched formal is the case's value.
+            let mut slots = vec![None; body.slots.len().max(count)];
+            slots[subject] = Some(Bound {
+                term: shape.case_value(arena, data, case, rest),
+                field: None,
+            });
+            let mut actuals = vec![slots[subject].expect("bound above").term; count];
+            for (position, &other) in others.iter().enumerate() {
+                let term = self.variable(rest - 1 - position as u32);
+                slots[other] = Some(Bound { term, field: None });
+                actuals[other] = term;
+            }
+            // The variables of the branch: the case's fields, the recursion
+            // at each, then the other formals.
+            let mut context = vec![formals[subject].0; arity as usize];
+            context.extend(vec![landing; arity as usize]);
+            context.extend(others.iter().map(|&other| formals[other].0));
+            let premises: Vec<_> = defining
+                .premises
+                .iter()
+                .map(|&premise| instantiate(&mut self.signature.arena, premise, &actuals))
+                .collect();
+            let valuing = Valuing {
+                owner: id,
+                context: &context,
+                result: defining.result,
+                fuel: None,
+                premises: &premises,
+                cited: &[],
+            };
+            let scope = Scope {
+                slots: &slots,
+                aliases: &aliases,
+                case: Some((subject, case, &fields)),
+                recursion: Some((id, subject, &results)),
+                depth: 0,
+                induction: true,
+                value: Some(&valuing),
+            };
+            let mut branch = self.expression(id, value, &scope)?.term;
+            for &other in others.iter().rev() {
+                branch = self.signature.arena.insert(Term::Lambda {
+                    domain: formals[other].0,
+                    body: branch,
+                });
+            }
+            branches.push(shape.branch(&mut self.signature.arena, data, motive, case, branch));
+        }
+        let tree = self.variable((count - 1 - subject) as u32);
+        let induction = shape.induct(&mut self.signature.arena, data, motive, &branches, tree);
+        let arguments: Vec<_> = others
+            .iter()
+            .map(|&other| self.variable((count - 1 - other) as u32))
+            .collect();
+        Ok((
+            self.signature.arena.apply_arguments(induction, &arguments),
+            FunctionCases {
+                data,
+                subject: subject as u32,
+                arity: count as u32,
+                motive,
+                branches,
+            },
+        ))
+    }
+
+    /// A definition whose recursion is not at a field of a case, as a term
+    /// under the machine's formals.
+    ///
+    /// The kernel recurses only on the structure of a value. So the machine
+    /// is first defined over one more argument, the fuel, by recursion on
+    /// it: with a unit of fuel the body is read with each call of the
+    /// machine standing for the definition at one unit less, and with none a
+    /// call is a fixed value of the result type. The machine itself is that
+    /// definition with its ranked formal as the fuel. Nothing is assumed:
+    /// both are total definitions the kernel checks. What the machine's
+    /// `terminates by` promises, that the ranked argument of each call is
+    /// smaller, is what makes the fuel last, and is not checked here
+    /// (`OWNER_QUESTIONS.md`, "decrease of a computed subject"); a law about
+    /// the machine is proved from the definition over fuel alone.
+    fn by_fuel(
+        &mut self,
+        defining: &Defining<'_>,
+        measure: usize,
+        result_entry: u32,
+    ) -> Checked<TermHandle> {
+        let id = defining.id;
+        let formals = defining.formals;
+        let count = formals.len();
+        let body = self
+            .bodies
+            .get(id)
+            .ok_or_else(|| unserved(id, "mathematical machine lost its body"))?;
+        let (fuel, data) = formals[measure];
+        let SignatureEntryKind::Data { shape, .. } = &self.signature.entries[data as usize].kind
+        else {
+            return Err(unserved(
+                id,
+                "mathematical machine ranked on a value without cases",
+            ));
+        };
+        let shape = shape.clone();
+        let default = self.inhabitant(id, result_entry)?;
+        let types: Vec<_> = formals.iter().map(|(formal, _)| *formal).collect();
+        let mut landing = defining.result;
+        for &formal in types.iter().rev() {
+            landing = self.signature.arena.insert(Term::Pi {
+                domain: formal,
+                codomain: landing,
+            });
+        }
+        let motive = self.signature.arena.insert(Term::Lambda {
+            domain: fuel,
+            body: landing,
+        });
+        let all = count as u32;
+        let mut branches = Vec::with_capacity(shape.cases());
+        for case in 0..shape.cases() {
+            let arity = shape.arity(case);
+            let step =
+                (arity > 0).then(|| shape.hypothesis(&mut self.signature.arena, case, 0, all));
+            let mut context = vec![fuel; arity as usize];
+            context.extend(vec![landing; arity as usize]);
+            context.extend(types.iter().copied());
+            let valuing = Valuing {
+                owner: id,
+                context: &context,
+                result: defining.result,
+                fuel: Some(Fuel {
+                    machine: id,
+                    step,
+                    default,
+                }),
+                premises: defining.premises,
+                cited: &[],
+            };
+            let slots = self.formal_slots(count, body.slots.len());
+            let mut branch = self.body_value(id, slots, None, &valuing)?;
+            for &formal in types.iter().rev() {
+                branch = self.signature.arena.insert(Term::Lambda {
+                    domain: formal,
+                    body: branch,
+                });
+            }
+            branches.push(shape.branch(&mut self.signature.arena, data, motive, case, branch));
+        }
+        let tree = self.variable(all);
+        let induction = shape.induct(&mut self.signature.arena, data, motive, &branches, tree);
+        let own: Vec<_> = (0..count)
+            .map(|formal| self.variable((count - 1 - formal) as u32))
+            .collect();
+        let mut term = self.signature.arena.apply_arguments(induction, &own);
+        let mut ty = defining.result;
+        for &formal in types.iter().rev() {
+            term = self.signature.arena.insert(Term::Lambda {
+                domain: formal,
+                body: term,
+            });
+            ty = self.signature.arena.insert(Term::Pi {
+                domain: formal,
+                codomain: ty,
+            });
+        }
+        term = self.signature.arena.insert(Term::Lambda {
+            domain: fuel,
+            body: term,
+        });
+        ty = self.signature.arena.insert(Term::Pi {
+            domain: fuel,
+            codomain: ty,
+        });
+        index(id, self.signature.declarations.len() + 1)?;
+        let over_fuel = self.push(
+            Declaration::definition(0, ty, term),
+            SignatureEntryKind::Function {
+                machine: defining.symbol,
+                cases: Some(FunctionCases {
+                    data,
+                    subject: 0,
+                    arity: all + 1,
+                    motive,
+                    branches,
+                }),
+            },
+            format!("{} over fuel", defining.name),
+        );
+        self.fueled.push((id, over_fuel, data, measure as u32));
+        // The machine is that definition with its ranked formal as the fuel.
+        let head = self.constant(over_fuel);
+        let mut operands = vec![own[measure]];
+        operands.extend(own);
+        Ok(self.signature.arena.apply_arguments(head, &operands))
+    }
+
+    /// A closed value of the type at `entry`: the first case of data that
+    /// has no field, and for a record one such value per field.
+    fn inhabitant(&mut self, id: MachineId, entry: u32) -> Checked<TermHandle> {
+        match &self.signature.entries[entry as usize].kind {
+            SignatureEntryKind::Data { shape, .. } => {
+                let case = (0..shape.cases())
+                    .find(|&case| shape.arity(case) == 0)
+                    .ok_or_else(|| {
+                        unserved(
+                            id,
+                            "mathematical machine recursing on fuel whose result has no case without fields",
+                        )
+                    })?;
+                Ok(self.constant(entry + 1 + case as u32))
+            }
+            SignatureEntryKind::Record { fields, .. } => {
+                let mut values = Vec::with_capacity(fields.len());
+                for field in fields.clone() {
+                    values.push(self.inhabitant(id, field)?);
+                }
+                let (&last, before) = values
+                    .split_last()
+                    .ok_or_else(|| unserved(id, "mathematical record with no field"))?;
+                Ok(before.iter().rev().fold(last, |second, &first| {
+                    self.signature.arena.insert(Term::Pair { first, second })
+                }))
+            }
+            _ => Err(unserved(
+                id,
+                "mathematical machine recursing on fuel with a result that is no data",
+            )),
+        }
+    }
+
+    /// The value of `machine`'s body as a term of `valuing`'s scope. `slots`
+    /// says what each formal stands for. A `let` is the term of its value. A
+    /// call of a machine that states a law is evidence for the calls after
+    /// it and nothing more. The body then ends in one value or one dispatch.
+    fn body_value(
+        &mut self,
+        machine: MachineId,
+        mut slots: Vec<Option<Bound>>,
+        recursion: Option<(MachineId, usize, &[TermHandle])>,
+        valuing: &Valuing<'_>,
+    ) -> Checked<TermHandle> {
+        let body = self
+            .bodies
+            .get(machine)
+            .ok_or_else(|| unserved(machine, "mathematical machine lost its body"))?;
+        let (aliases, statements) = spine(body);
+        slots.resize(slots.len().max(body.slots.len()), None);
+        let Some((last, before)) = statements.split_last() else {
+            return Err(unserved(
+                machine,
+                "mathematical function body with no value",
+            ));
+        };
+        let mut script = LawCase {
+            citations: valuing.cited.to_vec(),
+            ..LawCase::default()
+        };
+        for statement in before {
+            let (slot, expression) = match statement {
+                Statement::Evaluate { expression, .. } => (None, expression),
+                Statement::Bind { slot, value } => (Some(*slot), value),
+                _ => {
+                    return Err(unserved(
+                        machine,
+                        "mathematical function body with a statement before its value",
+                    ));
+                }
+            };
+            // A call of a machine that states a law is evidence. It is a
+            // value as well only when that law is about the machine's own
+            // result: the other laws return a value just so that they can be
+            // called as statements.
+            let (cites, valued) = match &expression.kind {
+                ExpressionKind::Call {
+                    callee: CallTarget::Machine(callee),
+                    ..
+                } if self.states_law(*callee) => (true, self.names_result(*callee)),
+                _ => (false, true),
+            };
+            let cited = script.citations.clone();
+            let here = Valuing {
+                cited: &cited,
+                ..*valuing
+            };
+            let scope = Scope {
+                slots: &slots,
+                aliases: &aliases,
+                case: None,
+                recursion,
+                depth: 0,
+                induction: false,
+                value: Some(&here),
+            };
+            if !cites && slot.is_none() {
+                return Err(unserved(
+                    machine,
+                    "mathematical function body with a statement before its value",
+                ));
+            }
+            let evidence = cites.then(|| {
+                self.cite_within(
+                    valuing.owner,
+                    machine,
+                    expression,
+                    &scope,
+                    &mut script,
+                    true,
+                )
+            });
+            match (slot, valued) {
+                (Some(slot), true) => {
+                    // The value stands whether or not its law could be read.
+                    let bound = self.expression(machine, expression, &scope)?;
+                    *slots.get_mut(slot).ok_or_else(|| {
+                        unserved(machine, "mathematical local outside its body's slots")
+                    })? = Some(bound);
+                }
+                _ => evidence.transpose().map(|_| ())?,
+            }
+        }
+        let here = Valuing {
+            cited: &script.citations,
+            ..*valuing
+        };
+        let scope = Scope {
+            slots: &slots,
+            aliases: &aliases,
+            case: None,
+            recursion,
+            depth: 0,
+            induction: false,
+            value: Some(&here),
+        };
+        match last {
+            Statement::Arm {
+                guard: ArmGuard::Always,
+                target: Target::Value(value),
+                ..
+            } => Ok(self.expression(machine, value, &scope)?.term),
+            Statement::Dispatch {
+                subject,
+                arms,
+                default: None,
+                ..
+            } => self.dispatch_value(machine, subject, arms, &scope, &here),
+            _ => Err(unserved(
+                machine,
+                "mathematical function body other than one value or one dispatch",
+            )),
+        }
+    }
+
+    /// A dispatch read for its value: a definition of its own, by cases on
+    /// its first argument, applied to the dispatch's subject and to every
+    /// variable in scope. Declaring it lets the prover compute with it as
+    /// with any definition by cases: once the subject is known to be a
+    /// case, it is that case's value.
+    fn dispatch_value(
+        &mut self,
+        machine: MachineId,
+        subject: &Expression,
+        arms: &[(CaseSelector, Target, crate::lowering::SourceOrigin)],
+        scope: &Scope<'_>,
+        valuing: &Valuing<'_>,
+    ) -> Checked<TermHandle> {
+        let ExpressionKind::Slot(slot) = subject.kind else {
+            return Err(unserved(
+                machine,
+                "mathematical dispatch on a computed subject",
+            ));
+        };
+        let slot = scope.aliases.get(slot).copied().unwrap_or(slot);
+        let bound = scope
+            .slots
+            .get(slot)
+            .copied()
+            .flatten()
+            .ok_or_else(|| unserved(machine, "mathematical dispatch on an unbound local"))?;
+        let Some(ValueType::Record(record, ..)) = subject.result else {
+            return Err(unserved(
+                machine,
+                "mathematical dispatch on a value without cases",
+            ));
+        };
+        let data = self.data(machine, record)?;
+        let SignatureEntryKind::Data { shape, .. } = &self.signature.entries[data as usize].kind
+        else {
+            return Err(unserved(
+                machine,
+                "mathematical dispatch on a value without cases",
+            ));
+        };
+        let shape = shape.clone();
+        if arms.len() != shape.cases() {
+            return Err(unserved(
+                machine,
+                "mathematical dispatch without exactly one value arm per case",
+            ));
+        }
+        let ty = self.constant(data);
+        let outer = valuing.context.len() as u32;
+        let mut landing = valuing.result;
+        for &variable in valuing.context.iter().rev() {
+            landing = self.signature.arena.insert(Term::Pi {
+                domain: variable,
+                codomain: landing,
+            });
+        }
+        let motive = self.signature.arena.insert(Term::Lambda {
+            domain: ty,
+            body: landing,
+        });
+        let mut branches = Vec::with_capacity(shape.cases());
+        for case in 0..shape.cases() {
+            let mut selected = arms.iter().filter(|(selector, _, _)| selector.case == case);
+            let (Some((selector, Target::Value(value), _)), None) =
+                (selected.next(), selected.next())
+            else {
+                return Err(unserved(
+                    machine,
+                    "mathematical dispatch without exactly one value arm per case",
+                ));
+            };
+            if selector.condition.is_some() {
+                return Err(unserved(machine, "mathematical dispatch on a field value"));
+            }
+            // The branch binds the case's fields, then every variable of the
+            // scope again in the same order, so the scope's terms are terms
+            // of the branch as they stand.
+            let arity = shape.arity(case);
+            let arena = &mut self.signature.arena;
+            let fields: Vec<_> = (0..arity)
+                .map(|field| shape.field(arena, case, field, outer))
+                .collect();
+            let mut slots = scope.slots.to_vec();
+            slots[slot] = Some(Bound {
+                term: shape.case_value(arena, data, case, outer),
+                field: None,
+            });
+            let mut context = vec![ty; arity as usize];
+            context.extend(vec![landing; arity as usize]);
+            context.extend(valuing.context.iter().copied());
+            let inner = Valuing {
+                context: &context,
+                ..*valuing
+            };
+            let branch_scope = Scope {
+                slots: &slots,
+                aliases: scope.aliases,
+                case: Some((slot, case, &fields)),
+                recursion: scope.recursion,
+                depth: 0,
+                induction: false,
+                value: Some(&inner),
+            };
+            let mut branch = self.expression(machine, value, &branch_scope)?.term;
+            for &variable in valuing.context.iter().rev() {
+                branch = self.signature.arena.insert(Term::Lambda {
+                    domain: variable,
+                    body: branch,
+                });
+            }
+            branches.push(shape.branch(&mut self.signature.arena, data, motive, case, branch));
+        }
+        let tree = self.variable(outer);
+        let induction = shape.induct(&mut self.signature.arena, data, motive, &branches, tree);
+        let variables: Vec<_> = (0..outer).map(|at| self.variable(outer - 1 - at)).collect();
+        let mut term = self.signature.arena.apply_arguments(induction, &variables);
+        let mut function = valuing.result;
+        for &variable in valuing.context.iter().rev() {
+            term = self.signature.arena.insert(Term::Lambda {
+                domain: variable,
+                body: term,
+            });
+            function = self.signature.arena.insert(Term::Pi {
+                domain: variable,
+                codomain: function,
+            });
+        }
+        term = self.signature.arena.insert(Term::Lambda {
+            domain: ty,
+            body: term,
+        });
+        function = self.signature.arena.insert(Term::Pi {
+            domain: ty,
+            codomain: function,
+        });
+        index(machine, self.signature.declarations.len() + 1)?;
+        let symbol = *self
+            .program
+            .symbols
+            .get(machine)
+            .ok_or_else(|| unserved(machine, "mathematical machine lost its declaration"))?;
+        let name = format!("{} by cases", self.name(symbol));
+        let entry = self.push(
+            Declaration::definition(0, function, term),
+            SignatureEntryKind::Function {
+                machine: symbol,
+                cases: Some(FunctionCases {
+                    data,
+                    subject: 0,
+                    arity: outer + 1,
+                    motive,
+                    branches,
+                }),
+            },
+            name,
+        );
+        let head = self.constant(entry);
+        let mut operands = vec![bound.term];
+        operands.extend(variables);
+        Ok(self.signature.arena.apply_arguments(head, &operands))
+    }
+
+    /// What a call of `callee` at `operands` owes: each of `callee`'s
+    /// premises at those arguments. One that is a premise of the machine
+    /// being defined is in hand. Any other is a statement of its own, over
+    /// every variable in scope and under the defining machine's premises,
+    /// proved from what the body has cited so far. A term outside a
+    /// definition has nowhere to prove one, so such a call is refused there.
+    fn owed(
+        &mut self,
+        id: MachineId,
+        callee: MachineId,
+        operands: &[Bound],
+        scope: &Scope<'_>,
+    ) -> Checked<()> {
+        let program = self.program;
+        let called = program
+            .signatures
+            .get(callee)
+            .ok_or_else(|| unserved(id, "call lost its machine's signature"))?;
+        if called.requires.is_empty() {
+            return Ok(());
+        }
+        let Some(valuing) = scope.value else {
+            return Err(unserved(
+                id,
+                "term outside a definition calls a machine that has a premise",
+            ));
+        };
+        let actuals: Vec<_> = operands.iter().map(|operand| operand.term).collect();
+        for premise in &called.requires {
+            let goal = self.equality(callee, premise, &actuals, None)?;
+            if valuing
+                .premises
+                .iter()
+                .any(|&held| self.signature.arena.structurally_equal(held, goal))
+            {
+                continue;
+            }
+            let held = valuing.premises.len() as u32;
+            let arena = &mut self.signature.arena;
+            let mut statement = shift(arena, goal, 0, held);
+            for (position, &premise) in valuing.premises.iter().enumerate().rev() {
+                let domain = shift(arena, premise, 0, position as u32);
+                statement = arena.insert(Term::Pi {
+                    domain,
+                    codomain: statement,
+                });
+            }
+            for &variable in valuing.context.iter().rev() {
+                statement = arena.insert(Term::Pi {
+                    domain: variable,
+                    codomain: statement,
+                });
+            }
+            let owner = *program
+                .symbols
+                .get(valuing.owner)
+                .ok_or_else(|| unserved(id, "mathematical machine lost its declaration"))?;
+            // A body read twice, once per way of defining it, owes the
+            // premise once.
+            if self.signature.laws.iter().any(|law| {
+                law.machine == owner
+                    && self.signature.arena.structurally_equal(
+                        self.signature.declarations[law.statement as usize].ty,
+                        statement,
+                    )
+            }) {
+                continue;
+            }
+            let law = index(id, self.signature.laws.len())?;
+            index(id, self.signature.declarations.len() + 1)?;
+            let owner_name = self.name(owner);
+            let callee_name = program
+                .symbols
+                .get(callee)
+                .map(|symbol| self.name(*symbol))
+                .unwrap_or_default();
+            let entry = self.push(
+                Declaration::assumption(0, statement),
+                SignatureEntryKind::Statement { law },
+                owner_name.clone(),
+            );
+            self.signature.laws.push(Law {
+                machine: owner,
+                clause: 0,
+                statement: entry,
+                formals: valuing.context.to_vec(),
+                premises: valuing.premises.to_vec(),
+                goal,
+                declared: None,
+                proof: LawProof::Direct(LawCase {
+                    citations: valuing.cited.to_vec(),
+                    ..LawCase::default()
+                }),
+                formal_names: Vec::new(),
+                machine_name: owner_name,
+                text: format!("the premise of `{callee_name}` at its call"),
+                source: program
+                    .names
+                    .get(valuing.owner)
+                    .and_then(|names| names.declared),
+            });
+        }
+        Ok(())
     }
 
     /// A recursive machine must rank on the formal it dispatches on: the
@@ -1141,9 +1825,20 @@ impl Converter<'_, '_> {
                 for argument in arguments {
                     operands.push(self.expression(id, argument, scope)?);
                 }
+                if let Some(fuel) = scope.value.and_then(|valuing| valuing.fuel)
+                    && fuel.machine == *callee
+                {
+                    self.owed(id, *callee, &operands, scope)?;
+                    let actuals: Vec<_> = operands.iter().map(|operand| operand.term).collect();
+                    return Ok(plain(match fuel.step {
+                        Some(step) => self.signature.arena.apply_arguments(step, &actuals),
+                        None => fuel.default,
+                    }));
+                }
                 if let Some((machine, subject, results)) = scope.recursion
                     && machine == *callee
                 {
+                    self.owed(id, *callee, &operands, scope)?;
                     let field = operands
                         .get(subject)
                         .and_then(|operand| operand.field)
@@ -1165,6 +1860,19 @@ impl Converter<'_, '_> {
                             .arena
                             .apply_arguments(results[field as usize], &rest),
                     ));
+                }
+                if self.helper(*callee)
+                    && let Some(valuing) = scope.value
+                {
+                    // Read in place, whatever its body is, and no longer a
+                    // machine nothing calls.
+                    self.laws(*callee)?;
+                    *self.machines.get_mut(*callee).expect("row read by `laws`") =
+                        Read::Cites { called: true };
+                    let slots: Vec<_> = operands.iter().copied().map(Some).collect();
+                    return self
+                        .body_value(*callee, slots, scope.recursion, valuing)
+                        .map(plain);
                 }
                 if self.helper(*callee) {
                     let body = self
@@ -1203,10 +1911,12 @@ impl Converter<'_, '_> {
                         recursion: scope.recursion,
                         depth: 0,
                         induction: true,
+                        value: None,
                     };
                     return self.expression(*callee, value, &inner);
                 }
                 let function = self.function(*callee)?;
+                self.owed(id, *callee, &operands, scope)?;
                 let function = self.constant(function);
                 let operands: Vec<_> = operands.iter().map(|operand| operand.term).collect();
                 Ok(plain(
@@ -1306,6 +2016,34 @@ impl Converter<'_, '_> {
             .get(id)
             .ok_or_else(|| unserved(id, "mathematical machine lost its body"))?;
         let proof = self.script(id, body, &formals)?;
+        let mut over_fuel = Vec::new();
+        if matches!(proof, LawProof::Fuel { .. }) {
+            if !own {
+                return Err(unserved(
+                    id,
+                    "law of a machine defined on fuel that only its requirement states",
+                ));
+            }
+            let &(_, definition, ..) = self
+                .fueled
+                .iter()
+                .find(|(fueled, ..)| *fueled == id)
+                .expect("`script` found the machine defined on fuel");
+            // The machine's result with `fuel` units: the definition over
+            // fuel at a variable bound outside the formals.
+            let head = self.constant(definition);
+            let mut operands = vec![self.variable(count as u32)];
+            operands.extend(open.iter().copied());
+            let result = self.signature.arena.apply_arguments(head, &operands);
+            self.result_as = Some((id, result));
+            let read: Checked<Vec<_>> = signature
+                .ensures
+                .iter()
+                .map(|proposition| self.equality(id, proposition, &open, None))
+                .collect();
+            self.result_as = None;
+            over_fuel = read?;
+        }
         let symbol = *program
             .symbols
             .get(id)
@@ -1344,7 +2082,20 @@ impl Converter<'_, '_> {
                 premises: premises.clone(),
                 goal,
                 declared: declared.filter(|_| clause == 0),
-                proof: proof.clone(),
+                proof: match &proof {
+                    LawProof::Fuel {
+                        data,
+                        formal,
+                        script,
+                        ..
+                    } => LawProof::Fuel {
+                        data: *data,
+                        formal: *formal,
+                        goal: over_fuel[clause],
+                        script: script.clone(),
+                    },
+                    other => other.clone(),
+                },
                 formal_names: names.formals.clone(),
                 machine_name: names.machine.clone(),
                 text,
@@ -1397,9 +2148,14 @@ impl Converter<'_, '_> {
                     if subject.path().is_empty()
                         && subject.root().get() == formals.len() as u64 + 1 =>
                 {
-                    let function = self.function(id)?;
-                    let function = self.constant(function);
-                    self.signature.arena.apply_arguments(function, formals)
+                    match self.result_as {
+                        Some((machine, result)) if machine == id => result,
+                        _ => {
+                            let function = self.function(id)?;
+                            let function = self.constant(function);
+                            self.signature.arena.apply_arguments(function, formals)
+                        }
+                    }
                 }
                 ClauseOperand::Input(subject) if subject.path().is_empty() => subject
                     .root()
@@ -1471,6 +2227,13 @@ impl Converter<'_, '_> {
     ) -> Checked<u32> {
         let program = self.program;
         if let Some((machine, _)) = program.symbols.iter().find(|(_, known)| **known == member) {
+            if program
+                .signatures
+                .get(machine)
+                .is_some_and(|signature| !signature.requires.is_empty())
+            {
+                return Err(unserved(id, "clause applies a machine that has a premise"));
+            }
             return self.function(machine);
         }
         for &record in &program.self_containing {
@@ -1529,6 +2292,14 @@ impl Converter<'_, '_> {
             let Statement::Bind { slot, value } = statement else {
                 continue;
             };
+            // A law that is not about its own result returns a value only
+            // so that it can be called as a statement.
+            if matches!(&value.kind,
+                ExpressionKind::Call { callee: CallTarget::Machine(callee), .. }
+                    if self.states_law(*callee) && !self.names_result(*callee))
+            {
+                continue;
+            }
             let bound = {
                 let scope = Scope {
                     slots: &*slots,
@@ -1537,6 +2308,7 @@ impl Converter<'_, '_> {
                     recursion: None,
                     depth: 0,
                     induction: true,
+                    value: None,
                 };
                 self.expression(id, value, &scope)?
             };
@@ -1555,6 +2327,38 @@ impl Converter<'_, '_> {
         body: &Body,
         formals: &[(TermHandle, u32)],
     ) -> Checked<LawProof> {
+        let ranked_definition = self
+            .program
+            .signatures
+            .get(id)
+            .is_some_and(|signature| signature.result.is_some() && signature.ranking.is_some());
+        if let Some(&(_, _, data, formal)) = self.fueled.iter().find(|(fueled, ..)| *fueled == id) {
+            return self.script_as(id, body, formals, Some((data, formal)));
+        }
+        match self.script_as(id, body, formals, None) {
+            // A machine with a result and a ranking may be defined on fuel.
+            // Its law is then an induction on the fuel, whatever its body
+            // dispatches on.
+            Err(refusal) if ranked_definition => {
+                self.function(id)?;
+                match self.fueled.iter().find(|(fueled, ..)| *fueled == id) {
+                    Some(&(_, _, data, formal)) => {
+                        self.script_as(id, body, formals, Some((data, formal)))
+                    }
+                    None => Err(refusal),
+                }
+            }
+            read => read,
+        }
+    }
+
+    fn script_as(
+        &mut self,
+        id: MachineId,
+        body: &Body,
+        formals: &[(TermHandle, u32)],
+        fuel: Option<(u32, u32)>,
+    ) -> Checked<LawProof> {
         let count = formals.len();
         let (aliases, statements) = spine(body);
         let (dispatch, before) = match statements.split_last() {
@@ -1569,7 +2373,17 @@ impl Converter<'_, '_> {
             )) => (Some((subject, arms, default)), before),
             _ => (None, statements.as_slice()),
         };
-        let Some((subject, arms, default)) = dispatch else {
+        // A dispatch on a formal is the law's induction. Anything else is
+        // an argument with no induction of its own: the citations, then a
+        // split on what the body dispatches on, if it does.
+        let on_formal = dispatch.as_ref().and_then(|(subject, _, default)| {
+            let ExpressionKind::Slot(slot) = subject.kind else {
+                return None;
+            };
+            let slot = aliases.get(slot).copied().unwrap_or(slot);
+            (slot < count && default.is_none()).then_some(slot)
+        });
+        let (Some(subject), Some((_, arms, _)), None) = (on_formal, dispatch, fuel) else {
             let mut slots = self.formal_slots(count, body.slots.len());
             self.locals(id, before, &mut slots, &aliases)?;
             let scope = Scope {
@@ -1579,21 +2393,33 @@ impl Converter<'_, '_> {
                 recursion: None,
                 depth: 0,
                 induction: true,
+                value: None,
             };
             let mut case = LawCase::default();
-            self.citations(id, id, before, &scope, &mut case)?;
-            return Ok(LawProof::Direct(case));
+            match dispatch {
+                None => self.citations(id, id, before, &scope, &mut case)?,
+                Some((subject, arms, default)) => self.split_case(
+                    id,
+                    id,
+                    subject,
+                    arms,
+                    default.is_some(),
+                    before,
+                    &scope,
+                    &mut case,
+                )?,
+            }
+            return Ok(match fuel {
+                // `read_laws` states the goal over the fuel for each clause.
+                Some((data, formal)) => LawProof::Fuel {
+                    data,
+                    formal,
+                    goal: self.signature.arena.insert(Term::Dummy),
+                    script: case,
+                },
+                None => LawProof::Direct(case),
+            });
         };
-        let ExpressionKind::Slot(subject) = subject.kind else {
-            return Err(unserved(id, "law dispatch on a computed subject"));
-        };
-        let subject = aliases.get(subject).copied().unwrap_or(subject);
-        if subject >= count || default.is_some() {
-            return Err(unserved(
-                id,
-                "law dispatch on a local or with a default arm",
-            ));
-        }
         self.ranked_on(id, subject, false)?;
         let data = formals[subject].1;
         let shape = self.shape(data);
@@ -1647,6 +2473,7 @@ impl Converter<'_, '_> {
                 recursion: Some((id, subject, &[])),
                 depth: arity,
                 induction: true,
+                value: None,
             };
             let mut script = LawCase {
                 citations: Vec::new(),
@@ -1679,42 +2506,43 @@ impl Converter<'_, '_> {
     }
 
     /// Read each case of a split inside a case of `law`. `machine` is the
-    /// helper whose body dispatches and `slot` the formal it dispatches on.
-    /// That formal must stand for a value the proof still holds whole: a
-    /// formal of the law or a field of an enclosing case. `read` is called
-    /// once per case, in declared order, with the scope of that case: the
-    /// helper's formals as before and the case's fields beneath them.
-    /// Returns which value is split and the entry of its data.
+    /// body that dispatches and `subject` what it dispatches on: a slot that
+    /// stands for a formal of the law, for a field of an enclosing case, or
+    /// for a computed value. `read` is called once per case, in declared
+    /// order, with the scope of that case: the names as before and the
+    /// case's fields beneath them. Returns what is split and the entry of
+    /// its data.
     fn split(
         &mut self,
         law: MachineId,
         machine: MachineId,
-        slot: usize,
+        subject: &Expression,
         scope: &Scope<'_>,
         mut read: impl FnMut(&mut Self, usize, &Scope<'_>) -> Checked<()>,
-    ) -> Checked<(u32, u32)> {
+    ) -> Checked<(SplitSubject, u32)> {
+        let ExpressionKind::Slot(slot) = subject.kind else {
+            return Err(unserved(machine, "law dispatch on a computed subject"));
+        };
         let slot = scope.aliases.get(slot).copied().unwrap_or(slot);
         let bound = scope
             .slots
             .get(slot)
             .copied()
             .flatten()
-            .ok_or_else(|| unserved(machine, "law dispatch on a local"))?;
-        let Term::Variable(index) = self.signature.arena.get(bound.term) else {
-            return Err(unserved(
-                machine,
-                "law dispatch on a value that is no formal of the law and no field of a case",
-            ));
-        };
+            .ok_or_else(|| unserved(machine, "law dispatch on an unbound local"))?;
         let formals = self.formals(law)?.len() as u32;
-        let subject = (formals + scope.depth)
-            .checked_sub(index + 1)
-            .ok_or_else(|| unserved(machine, "law dispatch outside the law's names"))?;
-        let data = self
-            .formals(machine)?
-            .get(slot)
-            .ok_or_else(|| unserved(machine, "law dispatch on a local"))?
-            .1;
+        let split = match self.signature.arena.get(bound.term) {
+            Term::Variable(index) => SplitSubject::Name(
+                (formals + scope.depth)
+                    .checked_sub(index + 1)
+                    .ok_or_else(|| unserved(machine, "law dispatch outside the law's names"))?,
+            ),
+            _ => SplitSubject::Value(bound.term),
+        };
+        let Some(ValueType::Record(record, ..)) = subject.result else {
+            return Err(unserved(machine, "law dispatch on a value without cases"));
+        };
+        let data = self.data(machine, record)?;
         let SignatureEntryKind::Data { shape, .. } = &self.signature.entries[data as usize].kind
         else {
             return Err(unserved(machine, "law dispatch on a value without cases"));
@@ -1743,10 +2571,78 @@ impl Converter<'_, '_> {
                 recursion: scope.recursion,
                 depth: scope.depth + arity,
                 induction: false,
+                value: None,
             };
             read(self, case, &inner)?;
         }
-        Ok((subject, data))
+        Ok((split, data))
+    }
+
+    /// The cases of a dispatch in a law's argument, added to `script` as its
+    /// split: per case, the statements before the dispatch read again in
+    /// that case, then the case's own arm.
+    #[allow(clippy::too_many_arguments)]
+    fn split_case(
+        &mut self,
+        law: MachineId,
+        machine: MachineId,
+        subject: &Expression,
+        arms: &[(CaseSelector, Target, crate::lowering::SourceOrigin)],
+        defaulted: bool,
+        before: &[&Statement],
+        scope: &Scope<'_>,
+        script: &mut LawCase,
+    ) -> Checked<()> {
+        if defaulted {
+            return Err(unserved(machine, "law dispatch with a default arm"));
+        }
+        if script.split.is_some() {
+            return Err(unserved(machine, "law case that splits twice"));
+        }
+        let mut cases = Vec::with_capacity(arms.len());
+        let (subject, data) =
+            self.split(law, machine, subject, scope, |converter, case, scope| {
+                let mut selected = arms.iter().filter(|(selector, _, _)| selector.case == case);
+                let (Some((selector, target, origin)), None) = (selected.next(), selected.next())
+                else {
+                    return Err(unserved(
+                        machine,
+                        "law dispatch without exactly one arm per case",
+                    ));
+                };
+                if selector.condition.is_some() {
+                    return Err(unserved(machine, "law dispatch on a field value"));
+                }
+                let mut nested = LawCase {
+                    source: match origin {
+                        crate::lowering::SourceOrigin::Authored(span) => Some(*span),
+                        _ => None,
+                    },
+                    ..LawCase::default()
+                };
+                converter.citations(law, machine, before, scope, &mut nested)?;
+                match target {
+                    Target::Unit => {}
+                    Target::Value(value) => {
+                        converter.cite_within(law, machine, value, scope, &mut nested, false)?
+                    }
+                    Target::Crash(_) => return Err(unserved(machine, "law case that crashes")),
+                }
+                cases.push(nested);
+                Ok(())
+            })?;
+        if arms.len() != cases.len() {
+            return Err(unserved(
+                machine,
+                "law dispatch without exactly one arm per case",
+            ));
+        }
+        script.split = Some(LawSplit {
+            subject,
+            data,
+            cases,
+        });
+        Ok(())
     }
 
     /// The citations a statement list makes. `law` is the law being read and
@@ -1859,6 +2755,16 @@ impl Converter<'_, '_> {
         for argument in arguments {
             operands.push(self.expression(machine, argument, scope)?);
         }
+        if *callee == law && self.fueled.iter().any(|(fueled, ..)| *fueled == law) {
+            // The law of a machine defined on fuel is proved by induction on
+            // the fuel, so it may be cited at any arguments: the citation is
+            // the law with one unit less.
+            script.citations.push(Citation {
+                evidence: Evidence::Fuel,
+                arguments: operands.iter().map(|operand| operand.term).collect(),
+            });
+            return Ok(());
+        }
         if *callee == law {
             // The law at a field of the dispatched case is the induction
             // hypothesis. At any other argument it would be its own evidence.
@@ -1920,12 +2826,17 @@ impl Converter<'_, '_> {
         // A machine that states nothing is read in place, with its formals
         // standing for the arguments of this call.
         *self.machines.get_mut(*callee).expect("row read by `laws`") = Read::Reading;
-        let slots: Vec<_> = operands.iter().copied().map(Some).collect();
+        let mut slots: Vec<_> = operands.iter().copied().map(Some).collect();
         let body = self
             .bodies
             .get(*callee)
             .ok_or_else(|| unserved(machine, "citation lost its body"))?;
         let (aliases, statements) = spine(body);
+        slots.resize(slots.len().max(body.slots.len()), None);
+        if let Err(refusal) = self.locals(*callee, &statements, &mut slots, &aliases) {
+            *self.machines.get_mut(*callee).expect("row read by `laws`") = Read::Refused;
+            return Err(refusal);
+        }
         let inner = Scope {
             slots: &slots,
             aliases: &aliases,
@@ -1933,10 +2844,10 @@ impl Converter<'_, '_> {
             recursion: scope.recursion,
             depth: scope.depth,
             induction: scope.induction,
+            value: None,
         };
-        // Its last statement may dispatch on one of its formals: the case
-        // being read then goes on by cases of the value that formal stands
-        // for.
+        // Its last statement may dispatch: the case being read then goes on
+        // by cases of what that statement dispatches on.
         let read = match statements.split_last() {
             Some((
                 Statement::Dispatch {
@@ -1946,65 +2857,16 @@ impl Converter<'_, '_> {
                     ..
                 },
                 before,
-            )) => {
-                let ExpressionKind::Slot(subject) = subject.kind else {
-                    return Err(unserved(*callee, "law dispatch on a computed subject"));
-                };
-                if default.is_some() {
-                    return Err(unserved(*callee, "law dispatch with a default arm"));
-                }
-                let mut cases = Vec::with_capacity(arms.len());
-                let split = self.split(law, *callee, subject, &inner, |converter, case, scope| {
-                    let mut selected = arms.iter().filter(|(selector, _, _)| selector.case == case);
-                    let (Some((selector, target, origin)), None) =
-                        (selected.next(), selected.next())
-                    else {
-                        return Err(unserved(
-                            *callee,
-                            "law dispatch without exactly one arm per case",
-                        ));
-                    };
-                    if selector.condition.is_some() {
-                        return Err(unserved(*callee, "law dispatch on a field value"));
-                    }
-                    let mut nested = LawCase {
-                        source: match origin {
-                            crate::lowering::SourceOrigin::Authored(span) => Some(*span),
-                            _ => None,
-                        },
-                        ..LawCase::default()
-                    };
-                    converter.citations(law, *callee, before, scope, &mut nested)?;
-                    match target {
-                        Target::Unit => {}
-                        Target::Value(value) => {
-                            converter.cite_within(law, *callee, value, scope, &mut nested, false)?
-                        }
-                        Target::Crash(_) => {
-                            return Err(unserved(*callee, "law case that crashes"));
-                        }
-                    }
-                    cases.push(nested);
-                    Ok(())
-                });
-                split.and_then(|(subject, data)| {
-                    if arms.len() != cases.len() {
-                        return Err(unserved(
-                            *callee,
-                            "law dispatch without exactly one arm per case",
-                        ));
-                    }
-                    if script.split.is_some() {
-                        return Err(unserved(*callee, "law case that splits twice"));
-                    }
-                    script.split = Some(LawSplit {
-                        subject,
-                        data,
-                        cases,
-                    });
-                    Ok(())
-                })
-            }
+            )) => self.split_case(
+                law,
+                *callee,
+                subject,
+                arms,
+                default.is_some(),
+                before,
+                &inner,
+                script,
+            ),
             _ => self.citations(law, *callee, &statements, &inner, script),
         };
         *self.machines.get_mut(*callee).expect("row read by `laws`") = match read {

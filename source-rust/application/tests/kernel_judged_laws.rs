@@ -262,6 +262,22 @@ fn a_law_with_its_innermost_case_uncited_is_refused() {
 }
 
 #[test]
+fn a_law_about_a_machine_that_recurses_on_a_computed_value_compiles() {
+    let (output, report) = check("fuel_recursion/pass/drain_reaches_zero");
+    assert_eq!(output.status.code(), Some(0), "{report}");
+}
+
+#[test]
+fn a_false_law_about_such_a_machine_is_refused() {
+    let (output, report) = check("fuel_recursion/fail/drain_stops_at_one");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains("cannot prove ensures contract for `drain`") && report.contains(UNPROVED),
+        "{report}"
+    );
+}
+
+#[test]
 fn a_satisfier_that_proves_nothing_is_refused_for_the_law_it_inherits() {
     let (output, report) = check("ring_law/fail/ring_law_unproven_rejected");
     assert_eq!(output.status.code(), Some(1), "{report}");

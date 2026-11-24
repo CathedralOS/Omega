@@ -86,6 +86,7 @@ mod representation_views;
 mod result_fields;
 mod result_summaries;
 mod law_premise;
+mod fuel_recursion;
 mod nat_semiring;
 mod nested_cases;
 mod record_law;

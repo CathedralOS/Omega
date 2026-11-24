@@ -1,0 +1,41 @@
+// The twin of `pass/drain_reaches_zero` whose last step returns one, not
+// zero. The law that `drain` is zero is then false and is refused.
+use omega\language\core\ProcessExit;
+
+data Peano {
+    case Zero;
+    case Succ(pred: Peano);
+}
+
+machine before(a: Peano) -> Peano {
+    transition a {
+        Peano::Zero -> Peano::Zero,
+        Peano::Succ { pred } -> (pred)
+    }
+}
+
+machine drain(a: Peano) -> Peano
+terminates by a
+ensures
+    core\Identity::<Peano>(result, Peano::Zero)
+{
+    transition (before(a)) {
+        Peano::Zero -> Peano::Succ { pred: Peano::Zero },
+        Peano::Succ { pred as rest } -> again(a)
+    }
+
+    machine again(a: Peano) -> Peano {
+        transition { _ -> (drain(before(a))) }
+    }
+}
+
+data Main { }
+machine exit_with_status(main: @mutable Main) reaches ProcessExit {
+    ProcessExit::exit_process(0);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit {
+    let mutable entry_storage: Main;
+    block exit_with_status(@mutable entry_storage);
+}

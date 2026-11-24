@@ -110,6 +110,44 @@ fn plug(
     value
 }
 
+/// `term` with every occurrence of `target` replaced by one new variable,
+/// stated under that variable: bound just outside the term, it gives back
+/// `term` when it is `target`. Both terms are in normal form, so an
+/// occurrence is a subterm equal to `target` as written.
+pub(crate) fn abstracted(
+    arena: &mut TermArena,
+    term: TermHandle,
+    target: TermHandle,
+) -> TermHandle {
+    let mut current = shift(arena, term, 0, 1);
+    let target = shift(arena, target, 0, 1);
+    loop {
+        let mut pending = vec![(current, Vec::new(), 0u32)];
+        let mut found = None;
+        while let Some((focus, path, depth)) = pending.pop() {
+            if arena.structurally_equal_shifted(target, focus, depth) {
+                found = Some((path, depth));
+                break;
+            }
+            let node = arena.get(focus);
+            for (slot, (child, bound)) in node.bound_children().enumerate() {
+                let mut inner = path.clone();
+                inner.push(Surrounding {
+                    parent: focus,
+                    slot,
+                    depth,
+                });
+                pending.push((child, inner, depth + bound));
+            }
+        }
+        let Some((path, depth)) = found else {
+            return current;
+        };
+        let hole = arena.insert(Term::Variable(depth));
+        current = plug(arena, &path, hole, 0);
+    }
+}
+
 /// Whether `needle` is a proper subterm of `term`.
 fn occurs(arena: &TermArena, needle: TermHandle, term: TermHandle) -> bool {
     arena
@@ -165,7 +203,13 @@ fn spine(arena: &TermArena, term: TermHandle) -> (TermHandle, Vec<TermHandle>) {
 
 /// What each declaration of a signature is to the normalizer, and the shape
 /// of each data declaration by its entry.
-pub(crate) struct Definitions(Vec<Definition>, Vec<(u32, PlainData)>);
+pub(crate) struct Definitions(
+    Vec<Definition>,
+    Vec<(u32, PlainData)>,
+    /// Whether an abbreviation is for now left as its name: the first
+    /// attempt of [`prove_licensed`].
+    std::cell::Cell<bool>,
+);
 
 impl Definitions {
     /// A signature with no data: every body is an abbreviation.
@@ -181,6 +225,7 @@ impl Definitions {
                 })
                 .collect(),
             Vec::new(),
+            std::cell::Cell::new(false),
         )
     }
 
@@ -227,13 +272,22 @@ impl Definitions {
                     _ => None,
                 })
                 .collect(),
+            std::cell::Cell::new(false),
         )
     }
 
     fn get(&self, declaration: u32) -> &Definition {
+        match self.0.get(declaration as usize) {
+            Some(Definition::Abbreviation) if self.2.get() => &Definition::Opaque,
+            Some(definition) => definition,
+            None => &Definition::Opaque,
+        }
+    }
+
+    fn abbreviates(&self) -> bool {
         self.0
-            .get(declaration as usize)
-            .unwrap_or(&Definition::Opaque)
+            .iter()
+            .any(|definition| matches!(definition, Definition::Abbreviation))
     }
 
     /// The case and fields of a term that is a case of `data` applied to
@@ -445,15 +499,15 @@ impl Definitions {
         derived
     }
 
-    /// An induction applied to a motive, its branches and a subject is the
-    /// function stage 05 built from exactly those: its entry, and the
-    /// function's arguments with the subject back in its place.
-    fn folded(
+    /// The definition by cases an induction's arguments start with: the
+    /// induction applied to exactly the motive and branches stage 05 built
+    /// that definition from, and then at least a subject.
+    fn recursion(
         &self,
         arena: &TermArena,
         induction: u32,
         arguments: &[TermHandle],
-    ) -> Option<(u32, Vec<TermHandle>)> {
+    ) -> Option<(u32, &FunctionCases)> {
         self.0.iter().enumerate().find_map(|(index, definition)| {
             let Definition::Recursion {
                 cases,
@@ -463,22 +517,15 @@ impl Definitions {
                 return None;
             };
             let count = cases.branches.len();
-            if *of != induction || arguments.len() < count + 2 {
-                return None;
-            }
-            let rest = &arguments[count + 2..];
-            (rest.len() + 1 >= cases.arity as usize
+            (*of == induction
+                && arguments.len() >= count + 2
                 && arena.structurally_equal(arguments[0], cases.motive)
                 && cases
                     .branches
                     .iter()
                     .zip(&arguments[1..=count])
                     .all(|(&known, &given)| arena.structurally_equal(known, given)))
-            .then(|| {
-                let mut restored = rest.to_vec();
-                restored.insert(cases.subject as usize, arguments[count + 1]);
-                (index as u32, restored)
-            })
+            .then_some((index as u32, cases))
         })
     }
 }
@@ -492,7 +539,7 @@ impl Definitions {
 /// what, which the search and the reordering below read. The kernel checks
 /// the proof built from these forms against the original goal, so a step the
 /// kernel would not take cannot make a goal provable.
-fn normal(
+pub(crate) fn normal(
     arena: &mut TermArena,
     context: &Context,
     definitions: &Definitions,
@@ -508,20 +555,35 @@ fn normal(
         &|declaration| !matches!(definitions.get(declaration), Definition::Abbreviation),
     )?;
     let (function, arguments) = spine(arena, head);
-    let (function, arguments) = match arena.get(function) {
-        Term::Constant { declaration, .. } => {
-            match definitions.folded(arena, declaration, &arguments) {
-                Some((folded, restored)) => {
-                    let constant = arena.insert(Term::Constant {
-                        declaration: folded,
-                        levels: Vec::new(),
-                    });
-                    (constant, restored)
-                }
-                None => (function, arguments),
-            }
+    // An induction applied to the motive, branches and subject of a
+    // definition by cases is that definition: its entry, and the arguments
+    // with the subject back in its place. With too few arguments for that it
+    // stays an induction, and its motive and branches stay as written, so
+    // that it is still recognized once the rest are supplied.
+    let recursion = match arena.get(function) {
+        Term::Constant { declaration, .. } => definitions
+            .recursion(arena, declaration, &arguments)
+            .map(|(entry, cases)| (entry, cases.branches.len(), cases.subject, cases.arity)),
+        _ => None,
+    };
+    let (function, arguments) = match recursion {
+        Some((entry, count, subject, arity)) if arguments.len() - count > arity as usize => {
+            let constant = arena.insert(Term::Constant {
+                declaration: entry,
+                levels: Vec::new(),
+            });
+            let mut restored = arguments[count + 2..].to_vec();
+            restored.insert(subject as usize, arguments[count + 1]);
+            (constant, restored)
         }
-        _ => (function, arguments),
+        Some((_, count, ..)) => {
+            let mut operands = arguments[..=count].to_vec();
+            for &argument in &arguments[count + 1..] {
+                operands.push(normal(arena, context, definitions, argument, conversion)?);
+            }
+            return Ok(arena.apply_arguments(function, &operands));
+        }
+        None => (function, arguments),
     };
     if let Term::Constant { declaration, .. } = arena.get(function)
         && let Definition::Recursion { cases, induction } = definitions.get(declaration)
@@ -1551,8 +1613,57 @@ fn expansion_attempts(arena: &TermArena, distributions: &[Distribution]) -> Vec<
 /// per entry of [`expansion_attempts`], and only when a product it could
 /// expand appears in the goal or a citation. All attempts share
 /// `search_steps`.
+///
+/// The whole is tried twice. First every definition that is not by cases is
+/// left as its name, so a goal and its citations are compared as they were
+/// written: `rat_gap(p, q)` stays three nodes. A proof that needs what such
+/// a definition is defined as is not found that way, and the second try
+/// unfolds them all.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn prove_licensed(
+    arena: &mut TermArena,
+    context: &Context,
+    definitions: &Definitions,
+    goal: TermHandle,
+    citations: &[TermHandle],
+    licenses: Licenses<'_>,
+    search_steps: usize,
+    conversion: &mut Budget,
+) -> Result<TermHandle, SearchError> {
+    if definitions.abbreviates() {
+        definitions.2.set(true);
+        let as_written = prove_as(
+            arena,
+            context,
+            definitions,
+            goal,
+            citations,
+            licenses,
+            search_steps,
+            conversion,
+        );
+        definitions.2.set(false);
+        match as_written {
+            Err(SearchError::NoProof | SearchError::Budget) => {}
+            found => return found,
+        }
+    }
+    prove_as(
+        arena,
+        context,
+        definitions,
+        goal,
+        citations,
+        licenses,
+        search_steps,
+        conversion,
+    )
+}
+
+/// One try of [`prove_licensed`], with abbreviations as `definitions` has
+/// them.
+#[allow(clippy::too_many_arguments)]
+fn prove_as(
     arena: &mut TermArena,
     context: &Context,
     definitions: &Definitions,
@@ -1579,6 +1690,10 @@ pub(crate) fn prove_licensed(
         reflexivity,
     };
     let mut rules = None;
+    // What the search may spend, kept for the rewriting that takes over when
+    // the search has spent it.
+    let allowance = search_steps;
+    let mut exhausted = false;
     for distributions in expansion_attempts(arena, licenses.distributions) {
         if !distributions.is_empty() {
             let expands = |arena: &TermArena, term| {
@@ -1594,23 +1709,264 @@ pub(crate) fn prove_licensed(
                 continue;
             }
         }
-        match search(
+        if !exhausted {
+            match search(
+                arena,
+                context,
+                definitions,
+                goal,
+                citations,
+                &mut rules,
+                licenses.operations,
+                &distributions,
+                &mut search_steps,
+                conversion,
+            ) {
+                Err(SearchError::NoProof) => continue,
+                Err(SearchError::Budget) => exhausted = true,
+                found => return found,
+            }
+        }
+        // The search tries every order of every rewrite, which a long
+        // argument over large terms outgrows. Rewriting both sides to one
+        // normal form tries one order.
+        let Some(rules) = rules.as_deref() else {
+            return Err(SearchError::Budget);
+        };
+        let stated: Vec<Equality> = rules.iter().copied().step_by(2).collect();
+        let mut steps = allowance;
+        match completed(
             arena,
             context,
             definitions,
             goal,
-            citations,
-            &mut rules,
+            &stated,
             licenses.operations,
             &distributions,
-            &mut search_steps,
+            &mut steps,
             conversion,
         ) {
-            Err(SearchError::NoProof) => {}
-            found => return found,
+            Ok(Some(proof)) => return Ok(proof),
+            Ok(None) | Err(SearchError::NoProof) => {}
+            Err(error) => return Err(error),
         }
     }
-    Err(SearchError::NoProof)
+    Err(if exhausted {
+        SearchError::Budget
+    } else {
+        SearchError::NoProof
+    })
+}
+
+/// Whether `left` is the larger term: more nodes, or as many and later in
+/// [`order`]. A rewrite from the larger of two terms to the smaller cannot go
+/// on for ever.
+fn larger(arena: &TermArena, left: TermHandle, right: TermHandle) -> bool {
+    (size(arena, left), std::cmp::Ordering::Equal)
+        .cmp(&(size(arena, right), order(arena, right, left)))
+        == std::cmp::Ordering::Greater
+}
+
+/// The first subterm outside a binder, outermost first, that is the left
+/// side of a rule: its slots and the rule.
+fn first_rewrite(
+    arena: &TermArena,
+    rules: &[Equality],
+    term: TermHandle,
+) -> Option<(Vec<usize>, Equality)> {
+    let mut pending = vec![(term, Vec::new())];
+    while let Some((focus, slots)) = pending.pop() {
+        if let Some(&rule) = rules
+            .iter()
+            .find(|rule| arena.structurally_equal(rule.from, focus))
+        {
+            return Some((slots, rule));
+        }
+        let node = arena.get(focus);
+        for (slot, (child, bound)) in node.bound_children().enumerate() {
+            if bound == 0 {
+                let mut inner = slots.clone();
+                inner.push(slot);
+                pending.push((child, inner));
+            }
+        }
+    }
+    None
+}
+
+/// Rewrite the term as far as the rules take it: computed, put in canonical
+/// form under the licensed laws, and rewritten by the first rule that
+/// applies, until none does. Each rule goes from a larger term to a smaller.
+#[allow(clippy::too_many_arguments)]
+fn settled(
+    arena: &mut TermArena,
+    context: &Context,
+    definitions: &Definitions,
+    licenses: &[License],
+    distributions: &[Distribution],
+    rules: &[Equality],
+    mut at: Rewriting,
+    steps: &mut usize,
+    conversion: &mut Budget,
+) -> Result<Rewriting, SearchError> {
+    loop {
+        // As after any rewrite, the kernel converts the computed form.
+        at.term = normal(arena, context, definitions, at.term, conversion)?;
+        let (_, arrange) = rearrange(arena, licenses, distributions, at.term, steps)?;
+        for step in &arrange {
+            at.step(arena, &step.slots, step.rule)?;
+        }
+        let Some((slots, rule)) = first_rewrite(arena, rules, at.term) else {
+            return Ok(at);
+        };
+        charge(steps)?;
+        at.step(arena, &slots, rule)?;
+    }
+}
+
+/// A proof of the goal by rewriting both of its sides to one normal form, or
+/// `None` when their normal forms differ.
+///
+/// The cited equalities are between terms with no variable to fill in: each
+/// is a citation at its arguments. Such a set always has rewrite rules that
+/// decide it. Each equality is taken in turn with both sides rewritten by the
+/// rules so far, and becomes a rule from its larger side to its smaller. A
+/// rule whose left side the new rule rewrites is an equality again and is
+/// taken later. The goal holds by these equalities when its two sides then
+/// rewrite to the same term. Every rewrite is one of the cited equalities or
+/// a licensed law, carried in the proof like any other.
+#[allow(clippy::too_many_arguments)]
+fn completed(
+    arena: &mut TermArena,
+    context: &Context,
+    definitions: &Definitions,
+    goal: Goal,
+    stated: &[Equality],
+    licenses: &[License],
+    distributions: &[Distribution],
+    steps: &mut usize,
+    conversion: &mut Budget,
+) -> Result<Option<TermHandle>, SearchError> {
+    let mut waiting: std::collections::VecDeque<Equality> = stated.iter().copied().collect();
+    let mut rules: Vec<Equality> = Vec::new();
+    while let Some(equality) = waiting.pop_front() {
+        charge(steps)?;
+        let carrier = equality.carrier;
+        let forward = settled(
+            arena,
+            context,
+            definitions,
+            licenses,
+            distributions,
+            &rules,
+            Rewriting {
+                ty: carrier,
+                origin: equality.from,
+                term: equality.to,
+                proof: equality.proof,
+            },
+            steps,
+            conversion,
+        )?;
+        let turned = Equality {
+            carrier,
+            from: equality.from,
+            to: forward.term,
+            proof: forward.proof,
+        }
+        .reversed(arena);
+        let both = settled(
+            arena,
+            context,
+            definitions,
+            licenses,
+            distributions,
+            &rules,
+            Rewriting {
+                ty: carrier,
+                origin: turned.from,
+                term: turned.to,
+                proof: turned.proof,
+            },
+            steps,
+            conversion,
+        )?;
+        if arena.structurally_equal(both.origin, both.term) {
+            continue;
+        }
+        let mut rule = Equality {
+            carrier,
+            from: both.origin,
+            to: both.term,
+            proof: both.proof,
+        };
+        if larger(arena, rule.to, rule.from) {
+            rule = rule.reversed(arena);
+        }
+        let (again, kept): (Vec<Equality>, Vec<Equality>) = rules.into_iter().partition(|known| {
+            arena.structurally_equal(known.from, rule.from) || occurs(arena, rule.from, known.from)
+        });
+        waiting.extend(again);
+        rules = kept;
+        rules.push(rule);
+    }
+    let left = settled(
+        arena,
+        context,
+        definitions,
+        licenses,
+        distributions,
+        &rules,
+        Rewriting {
+            ty: goal.ty,
+            origin: goal.left,
+            term: goal.left,
+            proof: goal.reflexivity,
+        },
+        steps,
+        conversion,
+    )?;
+    let reflexivity = arena.insert(Term::Refl {
+        ty: goal.ty,
+        value: goal.right,
+    });
+    let right = settled(
+        arena,
+        context,
+        definitions,
+        licenses,
+        distributions,
+        &rules,
+        Rewriting {
+            ty: goal.ty,
+            origin: goal.right,
+            term: goal.right,
+            proof: reflexivity,
+        },
+        steps,
+        conversion,
+    )?;
+    if !arena.structurally_equal(left.term, right.term) {
+        return Ok(None);
+    }
+    // `right = term` read backwards, then `left = term` carried along it to
+    // `left = right`.
+    let back = Equality {
+        carrier: goal.ty,
+        from: goal.right,
+        to: right.term,
+        proof: right.proof,
+    }
+    .reversed(arena);
+    let carrier = shift(arena, goal.ty, 0, 2);
+    let start = shift(arena, goal.left, 0, 2);
+    let end = arena.insert(Term::Variable(1));
+    let conclusion = arena.insert(Term::Id {
+        ty: carrier,
+        left: start,
+        right: end,
+    });
+    Ok(Some(back.eliminate(arena, conclusion, left.proof)))
 }
 
 /// The goal as stated, its two sides normalized, and the proof that its left

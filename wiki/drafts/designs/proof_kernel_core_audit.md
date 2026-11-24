@@ -1119,10 +1119,9 @@ kernel, from the library file as it stands.
   [owner question 6](../../../OWNER_QUESTIONS.md#recursive-data-as-w-types).
   Each law still re-checks the declarations before it, about 1,000 steps a
   law, which a shared check would remove.
-- **Not done: `mod`, `div` and `gcd`.** Their recursion is on
-  `saturating_sub(a, b)`, not on a field of the dispatched case, so they need
-  recursion justified by a decreasing measure, which the signature does not
-  read.
+- **`mod`, `div` and `gcd`** were not read at this step: their recursion is
+  on `saturating_sub(a, b)`, not on a field of the dispatched case. Step 4
+  defines them by recursion on fuel (below).
 - **Not done: the two operator machines.** `<=` and `-` are written as
   machines the `Nat` declaration owns (`machine <= Nat::less_or_equal`).
   Compiling the file's declarations as a program was rejected there with "a
@@ -1188,7 +1187,7 @@ names it.
   [proof-work policy](../../spec/build/configuration.md#proof-work-policy) yet,
   and the diagnostic does not say which limit stopped the proof.
 
-**Step 4 as built so far (2026-11-24): records, named propositions, hypotheses inside sums and cases inside cases.**
+**Step 4 as built so far (2026-11-24): records, named propositions, hypotheses inside sums, cases inside cases, and the rationals.**
 `core/int.omg` builds the integers as a record of two naturals, so step 4
 starts with records.
 
@@ -1245,22 +1244,45 @@ starts with records.
   definition too refused `le_trans`, whose body is an argument by cases and
   defines nothing. It is now read as a definition only where a term applies
   it or its statement names its result.
-- **Not done, in the order `rat.omg` meets them** (found by compiling
-  `nat.omg`, `nat_metric.omg`, `int.omg` and `rat.omg` as one program, with
-  stand-ins for the three machines of the first item):
-  - `mod`, `div` and `gcd` of `nat.omg`, whose recursion is justified by a
-    decreasing measure and not by a field of the dispatched case. `rat.omg`
-    calls `gcd` and `div`.
-  - A machine with a result and a `requires` that states no law (`mk_rat`,
-    `mk_signed_rat`): refused as "mathematical machine with a premise that
-    states no law".
-  - A definition that dispatches on a computed value (`rat_eq` on
-    `saturating_sub(positive, negative)`): refused as "mathematical dispatch
-    on a local".
+- **Recursion that is not on a field.** `mod`, `div` and `gcd` of `nat.omg`
+  call themselves at `saturating_sub(a, b)` or at `mod(a, b)`. The kernel
+  recurses only on the structure of a value, so such a machine is defined
+  over one more argument, the fuel, by recursion on it, and is that
+  definition with its ranked formal as the fuel. Nothing is assumed. The
+  price: a law about such a machine is provable only if it holds for every
+  amount of fuel, as `mod`'s bound does; a law that needs the fuel to be
+  enough, such as `div(a, b) * b + mod(a, b) = a`, is not provable this way
+  and is refused. Whether the ranked argument really gets smaller at each
+  call is not checked for these machines
+  ([owner question 7](../../../OWNER_QUESTIONS.md#decrease-of-a-computed-subject)).
+- **A choice by a computed value** (`rat_eq`, `mod`) is a definition by
+  cases of its own over its subject and the variables in scope, so the
+  prover computes with it as with any other. In a law, a split on a computed
+  value keeps the equation between the value and the case.
+- **A premise on a definition** (`mk_rat`, `div`, `mod`) is owed at each
+  call. `gcd` calls `mod` with a divisor it shows nonzero by citing
+  `le_one_succ`; that obligation is a law of its own.
+- **The proof search** gained two strategies and one accounting change,
+  which together made `rat.omg`'s two largest proofs fit and every earlier
+  proof cheaper. Each proof is first tried with definitions folded. When the
+  search of every order of rewrites exhausts its steps, the cited equalities
+  are completed into rewrite rules and both sides are rewritten to one form;
+  `rat_gap_triangle_scaled` is thirteen rewrites that the search could not
+  order. And the kernel's check of the finished proof has the law's whole
+  budget, with each search on a budget of its own.
+- **Measured** with all of `nat.omg`, `nat_metric.omg`, `int.omg` and
+  `rat.omg` compiled as one program: 92 laws judged. The largest check is
+  `nat_gap_mul_right` at 11,784 of 65,536 conversion steps;
+  `nat_gap_triangle` fell from 59,947 to 6,553, `mul_int_assoc` is 7,495,
+  `rat_close_triangle_split` 9,327 and `mod`'s bound about 4,300.
+- **Not done:**
   - `cauchy.omg` is refused first on `cauchy_at`, a machine generic over
     two machines, which is step 6.
-  - `extent.omg` is not yet tried. A refused law whose goal names a field
-    inside one case of an induction prints `?` for that field.
+  - `extent.omg` is not yet tried.
+  - The `<=` and `-` machines of `nat.omg` are still left out of every
+    test: the compiler rejects a machine that a data declaration owns.
+  - A refused law whose goal names a field inside one case of an induction
+    prints `?` for that field.
 
 The first version of this plan started with level binders and value-indexed
 type arguments because they move 66 samples. They move those samples to

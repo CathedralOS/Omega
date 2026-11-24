@@ -184,10 +184,11 @@ fn an_operation_outside_the_conformance_gets_no_license_from_it() {
 /// judged through a program that reaches it, and most of these lemmas are
 /// private, so the file's text is compiled as the program's. Left out, each
 /// for a reason of its own: the three ranking primitives only the toolchain
-/// may declare, the `<=` and `-` machines the `Nat` declaration owns (the
-/// compiler rejects a machine owned by a data declaration before any proof),
-/// and `mod`, `div` and `gcd`, whose recursion is not on a field of the case.
-/// Every other declaration is the file's, unchanged.
+/// may declare, and the `<=` and `-` machines the `Nat` declaration owns (the
+/// compiler rejects a machine owned by a data declaration before any proof).
+/// `mod`, `div` and `gcd` are left out here too: `fuel_recursion` judges the
+/// file with them, and the tests that build on this text measure what they
+/// add without them. Every other declaration is the file's, unchanged.
 pub(super) fn library_declarations() -> String {
     let start = NAT.find("public data Nat {").expect("the data declaration");
     let operators = NAT

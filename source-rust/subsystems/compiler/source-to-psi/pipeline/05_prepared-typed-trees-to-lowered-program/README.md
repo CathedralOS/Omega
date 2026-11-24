@@ -33,7 +33,15 @@ laws come after the laws of its fields' type. A case of a law may call a nested 
 dispatches on another of its formals: its cases are read as a split inside
 that case (`LawSplit`), to any depth. A machine that returns a value and
 states a law is read as a definition only where a term applies it or its
-statement names its result. A named proposition declared as
+statement names its result. A body read for its value may also dispatch on a
+computed value: the dispatch becomes a definition by cases of its own, over
+its subject and every variable in scope. A machine that calls itself anywhere
+but at a field of the case it dispatches on is defined by recursion on fuel
+taken from the formal it is ranked on (`by_fuel` in `read/signature.rs`), and
+a law about its own result is read as an induction on that fuel. A call of a
+machine that has a `requires` owes it there: a premise of the defining
+machine is in hand, any other becomes a statement of its own, proved from
+what the body has cited. A named proposition declared as
 one formula is read where a clause of such a machine applies it: the formula,
 with each parameter standing for the argument written for it. Its declaration
 adds nothing to the signature. The ordinary reader refuses the same data and machines when a

@@ -63,7 +63,10 @@ closure in `PreparedCompilation::mathematics`:
 - **Laws**: one per `ensures` equality of a machine over such data. A law's
   proof is its body's citations, read per case when the body dispatches on a
   formal (an induction), and per case of a further value where a case splits
-  again (`LawSplit`). A machine
+  again (`LawSplit`), on a name or on a computed value. A law about a
+  machine defined on fuel is an induction on the fuel (`LawProof::Fuel`).
+  A premise a definition owes at a call is a law too, stated over every
+  variable in scope at that call. A machine
   that also returns a value has a definition entry too, and its statement may
   name that result. The machine's `requires` equalities are the law's
   premises: the statement takes a proof of each after the formals. A law's

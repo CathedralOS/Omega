@@ -63,6 +63,24 @@ hypothesis for every value of them. A case whose premises no value
 satisfies needs no argument: the premise that equates two different
 constructors refutes it.
 
+A case may also split on a computed value. The goal is then stated for any
+value in its place together with a proof that the computed value equals it,
+so each case both computes where the value stood and holds the equation as
+evidence. A law about a machine defined on fuel is proved for every amount
+of fuel by induction on it, the same script in each case, with the law at
+one unit less as what a self-citation names; with no fuel left there is no
+such hypothesis and the goal must follow without it.
+
+Each proof is tried twice: first with every definition that is not by cases
+left as its name, so that a goal and its citations are compared as written,
+then with those definitions unfolded. When the search of every order of
+rewrites runs out of steps, the cited equalities are instead turned into
+rewrite rules from the larger term to the smaller, and both sides of the
+goal are rewritten to one normal form (`completed` in `equality.rs`). The
+kernel checks whatever proof results, once, on the law's own budget of
+65,536 conversion steps; each search has a separate budget for what it
+computes on the way.
+
 A hypothesis or citation about some operands of a longer sum is used there
 too. `x + y = z` rewrites `x + w + y` to `z + w` when the conformance in
 scope lets addition regroup and reorder, and `x * c + w + y * c` to
