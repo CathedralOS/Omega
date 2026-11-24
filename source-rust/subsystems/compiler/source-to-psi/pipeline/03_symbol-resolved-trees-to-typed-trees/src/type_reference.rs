@@ -237,11 +237,14 @@ pub(crate) mod domain_constraints {
                 &domain_constraint.arguments,
             )?;
             if domain.alias.is_none() {
-                normalized.push(TypeConstraintNode::Domain(domain.applied_constraint(
-                    domain_constraint.name,
-                    domain_constraint.arguments,
-                    semantic_id,
-                )));
+                normalized.push(TypeConstraintNode::Domain(DomainConstraint {
+                    product_input: domain_constraint.product_input,
+                    ..domain.applied_constraint(
+                        domain_constraint.name,
+                        domain_constraint.arguments,
+                        semantic_id,
+                    )
+                }));
                 continue;
             }
 
@@ -280,6 +283,7 @@ pub(crate) mod domain_constraints {
                         .map(|domain| domain.establishment_routes.clone())
                         .unwrap_or_default(),
                     source_selection: None,
+                    product_input: None,
                     names_no_visible_domain: false,
                 }));
             }

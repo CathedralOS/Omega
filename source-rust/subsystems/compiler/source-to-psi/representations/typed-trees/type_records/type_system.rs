@@ -2084,7 +2084,7 @@ pub mod types {
         pub reference: source_text::SourceSpan,
     }
 
-    /// A nominal data declaration selected inside one checked Build Product operand.
+    /// A declaration named by the type of one checked Build Product operand.
     /// Copies of the resulting type retain its original selection.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, record_storage::Record)]
     pub struct ProductTypeInput {
@@ -3373,6 +3373,8 @@ pub mod types {
         pub semantic_roles: source_declarations::DomainSemanticRoles,
         pub establishment_routes: Vec<source_declarations::DomainEstablishmentRoute>,
         pub source_selection: Option<DomainConstraintSource>,
+        /// The exact domain name and designated Product operand that formed this constraint.
+        pub product_input: Option<std::sync::Arc<ProductTypeInput>>,
         /// Typing selected no domain for this written name, and no domain
         /// of that name is visible from its source under ordinary
         /// resolution, whatever the carrier: the type is malformed in every

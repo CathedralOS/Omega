@@ -1338,7 +1338,7 @@ pub trait TypedReferences: Extend<SymbolHandle> {
         _: crate::source_state::AuthoredDeclarationSelectionOccurrenceId,
     ) {
     }
-    /// The nominal type retained in an already-formed Product selection.
+    /// A type or domain declaration retained in an already-formed Product selection.
     fn product_type_input(
         &mut self,
         _: crate::source_state::types::ProductTypeInput,
@@ -3483,7 +3483,11 @@ pub fn visit_type_reference(
             for constraint in program.type_reference_table.constraints(*constraints) {
                 match constraint {
                     crate::source_state::types::TypeConstraintNode::Domain(domain) => {
-                        visit_symbol(retained, domain.symbol);
+                        if let Some(input) = domain.product_input.as_deref() {
+                            retained.product_type_input(*input, domain.symbol);
+                        } else {
+                            visit_symbol(retained, domain.symbol);
+                        }
                         for argument in &domain.arguments {
                             visit_type_reference(program, retained, *argument);
                         }

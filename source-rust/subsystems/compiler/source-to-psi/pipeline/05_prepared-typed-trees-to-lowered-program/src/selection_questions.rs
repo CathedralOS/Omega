@@ -382,28 +382,44 @@ struct Capture<'a> {
 }
 
 /// The same live selection that supplied the normalized argument must contain
-/// this nominal occurrence. An unrelated argument, a stale lookup or a type
+/// this type or domain occurrence. An unrelated argument, a stale lookup or a type
 /// merely carrying the same name cannot authorize the rejoined reference.
 fn formed_product_type_inputs(typed: &TypedTrees) -> Membership<ProductTypeInput> {
+    use crate::declaration_selection::product_operands::ProductOperandConstraint;
+    use crate::source_state::types::{TypeConstraintNode, TypeReferenceNode};
+
     let mut inputs = Membership::default();
     for handle in typed.live_product_operand_applications() {
         let selected = typed.product_operand_applications.get(handle);
         let Some(application) = &selected.argument.application else {
             continue;
         };
-        let names = selected
-            .operand
-            .application
-            .iter()
-            .flat_map(|graph| graph.names.iter().map(|(_, name)| name.source_span))
-            .chain(selected.environment.iter().flat_map(|environment| {
-                environment
-                    .graph
-                    .names
-                    .iter()
-                    .map(|(_, name)| name.source_span)
-            }))
-            .collect::<Membership<_>>();
+        let graphs = selected.operand.application.as_deref().into_iter().chain(
+            selected
+                .environment
+                .iter()
+                .map(|environment| &environment.graph),
+        );
+        let mut names = Membership::default();
+        let mut domain_names = Membership::default();
+        for graph in graphs {
+            names.extend(graph.names.iter().map(|(_, name)| name.source_span));
+            for (_, constraint) in graph.constraints.iter() {
+                if let ProductOperandConstraint::Domain { name, .. } = constraint
+                    && graph.names.is_valid(*name)
+                {
+                    domain_names.insert(graph.names.get(*name).source_span);
+                }
+            }
+        }
+        let mut retain = |input: &ProductTypeInput, declaration, written: &Membership<_>| {
+            if input.operand == selected.operand.source_span
+                && input.declaration == declaration
+                && written.contains(&input.occurrence)
+            {
+                inputs.insert(*input);
+            }
+        };
         let parameters = typed
             .data_type_parameters
             .span_or_empty(selected.declaration_parameters);
@@ -419,11 +435,19 @@ fn formed_product_type_inputs(typed: &TypedTrees) -> Membership<ProductTypeInput
             {
                 if let TypeOperandOrigin::ProductInput(input) =
                     typed.type_reference_table.operand_origin(reference)
-                    && input.operand == selected.operand.source_span
-                    && names.contains(&input.occurrence)
-                    && typed.type_reference_symbol(reference) == input.declaration
                 {
-                    inputs.insert(*input);
+                    retain(&input, typed.type_reference_symbol(reference), &names);
+                }
+                if let TypeReferenceNode::Constrained { constraints, .. } =
+                    typed.type_reference_table.type_reference(reference)
+                {
+                    for constraint in typed.type_reference_table.constraints(*constraints) {
+                        if let TypeConstraintNode::Domain(domain) = constraint
+                            && let Some(input) = domain.product_input.as_deref()
+                        {
+                            retain(input, domain.symbol, &domain_names);
+                        }
+                    }
                 }
             }
         }
@@ -1562,6 +1586,8 @@ mod tests {
 
     #[test]
     fn a_marked_product_type_without_a_selecting_operand_is_refused() {
+        use crate::source_state::types::{DomainConstraint, TypeConstraintNode, TypeReferenceNode};
+
         let mut builder = SymbolTableBuilder::default();
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
         let children = builder.insert_children(
@@ -1569,20 +1595,33 @@ mod tests {
             [
                 (SymbolKind::Machine, SymbolNameRef::Static("build")),
                 (SymbolKind::Data, SymbolNameRef::Static("Role")),
+                (SymbolKind::Domain, SymbolNameRef::Static("Qualified")),
             ],
         );
         let owner = children.handle_at(0);
         let role = children.handle_at(1);
+        let domain = children.handle_at(2);
         let mut typed = TypedTrees {
             symbols: builder.finish(),
             ..Default::default()
         };
-        let reference = typed.type_reference_table.insert(
-            crate::source_state::types::TypeReferenceNode::Named {
-                symbol: role,
-                name: Identifier::generated("Role"),
-            },
-        );
+        let carrier = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: role,
+            name: Identifier::generated("Role"),
+        });
+        let constraints =
+            typed
+                .type_reference_table
+                .insert_constraints([TypeConstraintNode::Domain(DomainConstraint {
+                    symbol: domain,
+                    ..Default::default()
+                })]);
+        let reference = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Constrained {
+                base_type: carrier,
+                constraints,
+            });
         typed.push_machine(Machine {
             symbol: owner,
             attached_data_application: reference,
@@ -1591,22 +1630,39 @@ mod tests {
         let admitted = DeclarationSelection::from_symbols([owner]);
         let completed = CompletedOperators::default();
         let lexical = capture(&typed, &admitted, &completed, &[]).unwrap();
-        assert!(lexical.dependencies.iter().any(|row| row.target == role));
-        typed.type_reference_table.set_operand_origin(
-            reference,
-            TypeOperandOrigin::ProductInput(Arc::new(ProductTypeInput {
+        for symbol in [role, domain] {
+            assert!(lexical.dependencies.iter().any(|row| row.target == symbol));
+        }
+        let unselected = |declaration| {
+            Arc::new(ProductTypeInput {
                 operand: Default::default(),
                 occurrence: Default::default(),
-                declaration: role,
-            })),
-        );
-        let refused = capture(&typed, &admitted, &completed, &[]).unwrap_err();
-        assert!(
-            refused
-                .to_string()
-                .contains("does not match its selected operand"),
-            "{refused}"
-        );
+                declaration,
+            })
+        };
+        let assert_refused = |typed: &TypedTrees| {
+            let refused = capture(typed, &admitted, &completed, &[]).unwrap_err();
+            assert!(
+                refused
+                    .to_string()
+                    .contains("does not match its selected operand"),
+                "{refused}"
+            );
+        };
+        typed
+            .type_reference_table
+            .set_operand_origin(carrier, TypeOperandOrigin::ProductInput(unselected(role)));
+        assert_refused(&typed);
+        typed
+            .type_reference_table
+            .set_operand_origin(carrier, TypeOperandOrigin::Lexical);
+        let TypeConstraintNode::Domain(qualification) =
+            &mut typed.type_reference_table.constraints_mut(constraints)[0]
+        else {
+            unreachable!()
+        };
+        qualification.product_input = Some(unselected(domain));
+        assert_refused(&typed);
     }
 
     #[test]
