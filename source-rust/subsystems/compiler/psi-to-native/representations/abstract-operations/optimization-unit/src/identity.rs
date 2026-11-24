@@ -377,6 +377,55 @@ pub(crate) mod proposition_encoding {
                 encode_scalar_term(bytes, source);
                 encode_float_format(bytes, *target);
             }
+            Proposition::DeclarationIdentity(clause) => {
+                use semantic_vocabulary::{ClauseCarrier as Carrier, ClauseOperand as Operand};
+                bytes.u8(23);
+                bytes.slice(&clause.values, |bytes, value| {
+                    match value.carrier {
+                        Carrier::Parameter(index) => {
+                            bytes.u8(0);
+                            bytes.u32(index);
+                        }
+                        Carrier::Scalar(scalar_type) => {
+                            bytes.u8(1);
+                            encode_scalar_type(bytes, scalar_type);
+                        }
+                        Carrier::Structural(structural_type) => {
+                            bytes.u8(2);
+                            bytes.id(structural_type);
+                        }
+                    }
+                    match &value.operand {
+                        Operand::Scalar(term) => {
+                            bytes.u8(0);
+                            encode_scalar_term(bytes, term);
+                        }
+                        Operand::Input(subject) => {
+                            bytes.u8(1);
+                            encode_case_subject(bytes, subject);
+                        }
+                        Operand::Formal(index) => {
+                            bytes.u8(2);
+                            bytes.u32(*index);
+                        }
+                        Operand::Application {
+                            declaration,
+                            arguments,
+                        } => {
+                            bytes.u8(3);
+                            encode_optional(bytes, declaration.supplier.as_ref(), |bytes, slot| {
+                                bytes.u32(slot.0);
+                                bytes.u32(slot.1);
+                            });
+                            bytes.u32(declaration.member.0);
+                            bytes.u32(declaration.member.1);
+                            bytes.slice(arguments, |bytes, argument| bytes.u32(*argument));
+                        }
+                    }
+                });
+                bytes.u32(clause.left);
+                bytes.u32(clause.right);
+            }
             Proposition::FloatMeaningEqual(clause) => {
                 use semantic_vocabulary::{
                     FloatMeaningClauseOperand as Operand, FloatMeaningClauseValue as Value,
@@ -5658,5 +5707,73 @@ mod float_meaning_identity_tests {
             })
             .unwrap();
         assert_ne!(bytes(clause), bytes(changed));
+    }
+}
+
+#[cfg(test)]
+mod declaration_identity_tests {
+    use semantic_vocabulary::{
+        ClauseCarrier, ClauseDeclaration, ClauseIdentity, ClauseOperand, ClauseValue,
+        IntegerSign, IntegerType, Proposition, ScalarTerm, ScalarType, ValueId,
+    };
+
+    fn bytes(clause: &ClauseIdentity) -> Vec<u8> {
+        let mut bytes = super::unit_encoding::CanonicalBytes::collect();
+        super::proposition_encoding::encode_proposition(
+            &mut bytes,
+            &Proposition::DeclarationIdentity(clause.clone()),
+        );
+        bytes.finish()
+    }
+
+    // An identity between `add(a, b)` and `add(b, a)` must keep the cited
+    // declaration, its supplier and the argument order in its identity.
+    #[test]
+    fn declaration_identity_keeps_declarations_carriers_and_argument_order() {
+        let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
+        let scalar = |id| ClauseValue {
+            carrier: ClauseCarrier::Scalar(integer),
+            operand: ClauseOperand::Scalar(ScalarTerm::value(ValueId::new(id).unwrap(), integer)),
+        };
+        let add = |arguments| ClauseValue {
+            carrier: ClauseCarrier::Scalar(integer),
+            operand: ClauseOperand::Application {
+                declaration: ClauseDeclaration {
+                    supplier: Some((1, 0)),
+                    member: (4, 0),
+                },
+                arguments,
+            },
+        };
+        let clause = ClauseIdentity {
+            values: vec![scalar(1), scalar(2), add(vec![0, 1]), add(vec![1, 0])],
+            left: 2,
+            right: 3,
+        };
+        clause.validate().unwrap();
+        let original = bytes(&clause);
+        assert_eq!(original, bytes(&clause.clone()));
+
+        let mut swapped = clause.clone();
+        (swapped.left, swapped.right) = (swapped.right, swapped.left);
+        assert_ne!(original, bytes(&swapped));
+
+        for change in 0..4 {
+            let mut changed = clause.clone();
+            let ClauseOperand::Application {
+                declaration,
+                arguments,
+            } = &mut changed.values[2].operand
+            else {
+                unreachable!()
+            };
+            match change {
+                0 => declaration.supplier = None,
+                1 => declaration.member.1 = 1,
+                2 => arguments.reverse(),
+                _ => changed.values[2].carrier = ClauseCarrier::Parameter(0),
+            }
+            assert_ne!(original, bytes(&changed), "change {change}");
+        }
     }
 }
