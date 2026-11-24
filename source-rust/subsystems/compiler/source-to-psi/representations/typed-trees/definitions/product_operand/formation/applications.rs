@@ -432,11 +432,10 @@ impl Lower<'_> {
             return Err(unserved("a static type its request does not hold"));
         }
         match self.graph.types.get(handle).clone() {
-            ProductOperandType::Unit => Ok(Closed::Type(
-                self.program
-                    .type_reference_table
-                    .insert(TypeReferenceNode::Unit),
-            )),
+            ProductOperandType::Unit => Ok(Closed::Type(self
+                .program
+                .type_reference_table
+                .insert(TypeReferenceNode::Unit))),
             ProductOperandType::Named(name) => {
                 let name = self.graph.names.get(name).clone();
                 self.bare_name(&name, expects_type)
@@ -474,9 +473,7 @@ impl Lower<'_> {
                     }
                 };
                 let Closed::Type(element_type) = self.ty(element, true)? else {
-                    return Err(Stop::Rejected(
-                        "an array element in a Product operand must be a type".into(),
-                    ));
+                    return Err(Stop::Rejected("an array element in a Product operand must be a type".into()));
                 };
                 Ok(Closed::Type(self
                     .program
@@ -484,8 +481,7 @@ impl Lower<'_> {
                     .insert(TypeReferenceNode::FixedArray {
                         element_type,
                         length: FixedArrayLength::Literal(length),
-                    },
-                )))
+                    })))
             }
             ProductOperandType::CanonicalConst(_)
             | ProductOperandType::ConstExpression(_)
@@ -886,8 +882,12 @@ fn prepare_boundary_requirements(
                 &[],
             )
             .map_err(|stop| match stop {
-                crate::static_operand_binding::Stop::Unserved(reason) => Stop::Unserved(reason),
-                crate::static_operand_binding::Stop::Rejected(reason) => Stop::Rejected(reason),
+                crate::static_operand_binding::Stop::Unserved(reason) => {
+                    Stop::Unserved(reason)
+                }
+                crate::static_operand_binding::Stop::Rejected(reason) => {
+                    Stop::Rejected(reason)
+                }
                 crate::static_operand_binding::Stop::Defect(reason) => {
                     Stop::Rejected(reason.into())
                 }

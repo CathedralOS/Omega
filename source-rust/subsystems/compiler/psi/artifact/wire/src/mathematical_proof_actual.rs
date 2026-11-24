@@ -701,6 +701,33 @@ mod type_key_tests {
     }
 
     #[test]
+    fn forwarded_theorem_uses_the_source_calls_exact_proof_dependency() {
+        use terminal_psi::{ErasedProofFormal, ProofFormalSource, TerminalIdentityIndex};
+        let source = [2, 4].map(|header_position| ErasedProofFormal {
+            source: ProofFormalSource::GenericParameter(header_position),
+            type_identity: TerminalIdentityIndex(1),
+        });
+        let first = ProofTerm::InvocationFormal { position: 0 };
+        let second = ProofTerm::InvocationFormal { position: 1 };
+        let block = ProofTerm::Formal { position: 0 };
+        let named = ProofTerm::Mathematical {
+            type_identity: "same-implication".into(),
+            certificate: vec![],
+        };
+        let check = |received: &ProofTerm, trusted: &ProofTerm| {
+            forwarded_proof_formal(&source[0], received, trusted, &source, &source)
+        };
+        assert_eq!(check(&first, &first).unwrap(), &source[0]);
+        assert_eq!(check(&second, &second).unwrap(), &source[1]);
+        for (received, trusted) in [(&first, &second), (&first, &named), (&block, &first)] {
+            assert!(matches!(
+                check(received, trusted),
+                Err(MathematicalProofActualError::SourceCarrierMismatch)
+            ));
+        }
+    }
+
+    #[test]
     fn distinct_opaque_declarations_keep_their_original_positions() {
         let mut arena = TermArena::new();
         let strict = arena.insert(Term::Sort(Sort::Strict(Level::Constant(0))));
@@ -812,6 +839,35 @@ fn theorem_grant_carrier(
         carrier_key: mathematical_carrier_key(&trusted.arena, &trusted.certificate)
             .map_err(Error::Wire)?,
     })
+}
+
+/// A logical forwarding use cites its exact enclosing machine proof slot.
+/// Source and artifact rosters have already matched by declaration and type.
+fn forwarded_proof_formal<'a>(
+    destination: &terminal_psi::ErasedProofFormal,
+    received: &ProofTerm,
+    trusted: &ProofTerm,
+    invocation_formals: &'a [terminal_psi::ErasedProofFormal],
+    block_formals: &'a [terminal_psi::ErasedProofFormal],
+) -> Result<&'a terminal_psi::ErasedProofFormal, MathematicalProofActualError> {
+    use MathematicalProofActualError as Error;
+    use terminal_psi::ProofFormalSource::GenericParameter;
+    let (formals, position) = match received {
+        ProofTerm::InvocationFormal { position } => (invocation_formals, *position),
+        ProofTerm::Formal { position } => (block_formals, *position),
+        _ => return Err(Error::SourceCarrierMismatch),
+    };
+    let source = formals
+        .get(position as usize)
+        .ok_or(Error::SourceCarrierMismatch)?;
+    if matches!(destination.source, GenericParameter(_))
+        && (!matches!(received, ProofTerm::InvocationFormal { .. })
+            || received != trusted
+            || !matches!(source.source, GenericParameter(_)))
+    {
+        return Err(Error::SourceCarrierMismatch);
+    }
+    Ok(source)
 }
 
 pub fn verify_module_mathematical_actuals(
@@ -946,36 +1002,20 @@ pub fn verify_module_mathematical_actuals(
                     )?;
                     pending.push((decoded, grants(carrier)?));
                 }
-                (
-                    ProofTerm::Formal { position } | ProofTerm::InvocationFormal { position },
-                    Some(carrier),
-                ) => {
-                    let _authorized = grants(carrier)?;
-                    let (caller, trusted_caller) =
-                        if matches!(term, ProofTerm::InvocationFormal { .. }) {
-                            (
-                                &actual.owner.contract.erased_proof_formals,
-                                &trusted.owner.contract.erased_proof_formals,
-                            )
-                        } else {
-                            (
-                                &actual.block.erased_proof_formals,
-                                &trusted.block.erased_proof_formals,
-                            )
-                        };
-                    let source = caller
-                        .get(*position as usize)
-                        .ok_or(Error::SourceCarrierMismatch)?;
-                    let trusted_source = trusted_caller
-                        .get(*position as usize)
-                        .ok_or(Error::SourceCarrierMismatch)?;
+                (ProofTerm::Formal { .. } | ProofTerm::InvocationFormal { .. }, Some(carrier)) => {
+                    let source = forwarded_proof_formal(
+                        formal,
+                        term,
+                        source_term,
+                        &actual.owner.contract.erased_proof_formals,
+                        &actual.block.erased_proof_formals,
+                    )?;
                     if module.identities.text(source.type_identity)
                         != expected.identities.text(formal.type_identity)
-                        || expected.identities.text(trusted_source.type_identity)
-                            != expected.identities.text(formal.type_identity)
                     {
                         return Err(Error::SourceCarrierMismatch);
                     }
+                    let _authorized = grants(carrier)?;
                 }
                 (_, Some(_)) => return Err(Error::NotMathematical),
                 (_, None)

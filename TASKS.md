@@ -296,7 +296,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 - **PROOF-KERNEL-CORE.** (covers **PROOF-CONTRACT-MIGRATION**, **QUOTIENT-THEOREM-LIFT**, **PSI-CLAIM-ADMISSION**) Complete [source proofs](wiki/spec/proofs/foundation.md) and [Psi claim admission](wiki/drafts/designs/psi_claim_admission.md). Report [coverage code 36](wiki/spec/build/compiler_request.md) with the obligation identity when the prover lacks a rule for its form.
   - [Proof kernel core audit](wiki/drafts/designs/proof_kernel_core_audit.md): what #2823 removed, the three general rules still needed, the changes to stage 05's clause readers and the build order.
-  - Replace inline theorem hypotheses with explicit, alias-typed generic parameters in the source compiler. Publish proof argument positions in header order, accept named and derived evidence at citations, and reject a missing argument or a proof supplied for an executable callback. [Theorem proof parameters](wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use)
+  - Extend alias-typed theorem parameters to accept instantiated citations, evidence projected from bundles and contracts with their own proof parameters. Check recursive citations against their substituted premises and descent obligation, and extend the logical contract beyond fixed integer and Boolean subjects. [Theorem proof parameters](wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use)
 
 ## Build-level behavior exclusions
 

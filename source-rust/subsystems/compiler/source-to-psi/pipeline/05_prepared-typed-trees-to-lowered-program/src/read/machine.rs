@@ -36,10 +36,7 @@ pub(super) enum RequirementHeaderOrigin {
     Declared(SymbolHandle),
     AppliedService {
         requirement: SymbolHandle,
-        receiver: (
-            SymbolHandle,
-            crate::source_state::type_identity::NormalizedTypeIdentity,
-        ),
+        receiver: (SymbolHandle, crate::source_state::type_identity::NormalizedTypeIdentity),
     },
     CallableParameter(SymbolHandle),
 }
@@ -929,14 +926,11 @@ impl<'t> Program<'t> {
         let typed = self.typed;
         if let Some(closed) = typed.closed_requirement_application(requirement) {
             if closed.declaring_trait != declaring_trait
-                || !typed
-                    .trait_machine_signature(closed.template)
-                    .is_some_and(|(owner, _)| owner.symbol == declaring_trait)
+                || !typed.trait_machine_signature(closed.template).is_some_and(|(owner, _)| {
+                    owner.symbol == declaring_trait
+                })
             {
-                return Err(super::services::unavailable(
-                    id,
-                    "the applied requirement belongs to another trait",
-                ));
+                return Err(super::services::unavailable(id, "the applied requirement belongs to another trait"));
             }
             typed.require_closed_requirement_call_application(requirement, closed.application)
                 .map_err(|reason| super::services::unavailable(id, reason))?;

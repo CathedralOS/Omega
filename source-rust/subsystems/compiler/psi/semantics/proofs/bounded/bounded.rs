@@ -439,11 +439,10 @@ pub use mathematical_kernel::{
     QUOTIENT_TRANSPORT_CONST, QUOTIENT_UNIQUE, QuotientFamily, Signature, SignatureCheckError,
     Sort, Term, TermArena, TermHandle, argument_error_pair_pattern, assumption_closure,
     certificate_assumption_closure, check_signature, check_signature_with_attribution, check_type,
-    convertible, convertible_retaining, identity_substitution,
-    indexed_correctness, indexed_scheme, infer_sort, infer_type, instantiate_levels,
-    judgment_assumption_closure, quotient_scheme, shift, substitute, universe_parameter_arity,
-    verify_mathematical_certificate, verify_mathematical_certificates,
-    weak_head_normalize, weak_head_normalize_retaining,
+    convertible, convertible_retaining, identity_substitution, indexed_correctness, indexed_scheme,
+    infer_sort, infer_type, instantiate_levels, judgment_assumption_closure, quotient_scheme,
+    shift, substitute, universe_parameter_arity, verify_mathematical_certificate,
+    verify_mathematical_certificates, weak_head_normalize, weak_head_normalize_retaining,
 };
 pub use predicate_denotation::{
     CheckedPredicateDenotations, PredicateDenotationError, check_predicate_denotations,

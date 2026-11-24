@@ -477,10 +477,7 @@ fn properties(bounds: crate::source_state::data::DataProperties) -> String {
     // Existing callable identities include the absent source-policy marker.
     record(
         "properties",
-        [
-            scalar("multiplicity", multiplicity),
-            scalar("carry", "omitted"),
-        ],
+        [scalar("multiplicity", multiplicity), scalar("carry", "omitted")],
     )
 }
 
@@ -1093,17 +1090,10 @@ fn reach(
                 .definition(*service)
                 .ok_or(RuntimeCallableIdentityError::UnresolvedServiceReach)?;
             if definition.application.is_some() {
-                Ok(name(
-                    "service-application",
-                    &program
-                        .service_reach_application_identity(*service)
-                        .ok_or(RuntimeCallableIdentityError::UnresolvedServiceReach)?,
-                ))
+                Ok(name("service-application", &program.service_reach_application_identity(*service)
+                    .ok_or(RuntimeCallableIdentityError::UnresolvedServiceReach)?))
             } else {
-                Ok(name(
-                    "service",
-                    &symbol(program, definition.symbol, context)?,
-                ))
+                Ok(name("service", &symbol(program, definition.symbol, context)?))
             }
         })
         .collect::<IdentityResult<Vec<_>>>()?;
@@ -1113,17 +1103,8 @@ fn reach(
                 crate::source_state::signature::ReachSubject::Service(id) => {
                     program.service_reaches.definition(id).ok_or(RuntimeCallableIdentityError::UnresolvedServiceReach)?;
                 }
-                crate::source_state::signature::ReachSubject::Static(symbol)
-                    if symbol.is_valid() =>
-                {
-                    parts.push(index(
-                        "static-dependency",
-                        substitution::index_argument(
-                            program,
-                            IndexIdentityArgument::Subject(symbol),
-                            context,
-                        ),
-                    ));
+                crate::source_state::signature::ReachSubject::Static(symbol) if symbol.is_valid() => {
+                    parts.push(index("static-dependency", substitution::index_argument(program, IndexIdentityArgument::Subject(symbol), context)));
                 }
                 _ => return Err(RuntimeCallableIdentityError::UnresolvedServiceReach),
             }
@@ -1173,12 +1154,7 @@ fn invocations(
                     }
                     name("parameter", &symbol(program, selected, context)?)
                 }
-                AuthoredInvocationTarget::AppliedService(id) => name(
-                    "service-application",
-                    &program
-                        .service_reach_application_identity(id)
-                        .ok_or(RuntimeCallableIdentityError::UnresolvedInvocation)?,
-                ),
+                AuthoredInvocationTarget::AppliedService(id) => name("service-application", &program.service_reach_application_identity(id).ok_or(RuntimeCallableIdentityError::UnresolvedInvocation)?),
                 AuthoredInvocationTarget::Service(selected) => {
                     name("service", &symbol(program, selected, context)?)
                 }
