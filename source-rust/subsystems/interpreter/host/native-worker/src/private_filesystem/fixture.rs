@@ -25,10 +25,7 @@ impl PrivateLinuxFilesystem {
                     Err(super::EEXIST)
                         if fs
                             .existing(LINUX_AT_FDCWD, parent, false)
-                            .is_ok_and(|node| fs.is_directory(node)) =>
-                    {
-                        ()
-                    }
+                            .is_ok_and(|node| fs.is_directory(node)) => {}
                     Err(error) => return Err(errno(error)),
                 }
             }
