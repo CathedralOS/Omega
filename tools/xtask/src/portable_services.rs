@@ -10,8 +10,8 @@
 //!
 //! For each `Build::select_provider::<Service, Provider>(builder, target)` row in
 //! `std/build.omg` that covers all five hosted targets, it reads each target's
-//! provider block, follows the top-level machines each member calls inside
-//! that target's files, and collects four kinds of fact:
+//! provider block and follows each member through local machines and the raw
+//! providers selected for that target. It collects four kinds of fact:
 //! - `refuse K`: an `ErrorKind::K }` the adapter returns itself;
 //! - `limit OP N`: an integer literal or `x.length` compared in a `transition`,
 //!   `requires` or `ensures` clause (`< 255`, `<= buffer.length`);
@@ -35,8 +35,11 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt::Write as _;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::Instant;
+
+mod family;
+use family::Family;
 
 pub const HOSTED_TARGETS: [&str; 5] = [
     "linux_x86_64",
@@ -45,16 +48,9 @@ pub const HOSTED_TARGETS: [&str; 5] = [
     "windows_x86_64",
     "windows_arm64",
 ];
-/// Both Windows targets compile the Windows adapters kept in this directory;
-/// a target's own directory adds only what its ABI changes.
-const SHARED_WINDOWS_ADAPTERS: &str = "windows_x86_64";
 const STD_ROOT: &str = "source/library/std";
 const BASELINE: &str = "tools/ratchets/portable_services.txt";
 const CONCERNS: &str = "OWNER_CODE_CONCERNS.md";
-/// How many call levels a member's closure follows. Eight reaches every raw
-/// host call in the current adapters; deeper calls are helpers.
-const CLOSURE_DEPTH: usize = 8;
-
 pub fn run(args: &[String]) -> Result<(), u8> {
     let mut observe = false;
     let mut list = false;
@@ -236,9 +232,28 @@ pub fn parse_baseline(text: &str, headings: &BTreeSet<&str>) -> Result<Baseline,
                 "line {number}: `known` must name an {CONCERNS} heading; `{note}` is not one"
             ));
         }
-        let key = fields[..3].join(" | ");
-        if rows.insert(key.clone(), (reason, number)).is_some() {
-            errors.push(format!("line {number}: duplicate row `{key}`"));
+        let Some((service, names)) = fields[0].split_once('.') else {
+            errors.push(format!("line {number}: expected a service and member"));
+            continue;
+        };
+        let members = names
+            .strip_prefix('{')
+            .and_then(|members| members.strip_suffix('}'));
+        for member in members.unwrap_or(names).split(',') {
+            if ident(service) != Some(service)
+                || ident(member) != Some(member)
+                || (names.contains(',') && members.is_none())
+            {
+                errors.push(format!(
+                    "line {number}: invalid service member `{}`",
+                    fields[0]
+                ));
+                break;
+            }
+            let key = format!("{service}.{member} | {} | {}", fields[1], fields[2]);
+            if rows.insert(key.clone(), (reason, number)).is_some() {
+                errors.push(format!("line {number}: duplicate row `{key}`"));
+            }
         }
     }
     if errors.is_empty() {
@@ -333,29 +348,29 @@ pub fn collect_rows(std_root: &Path) -> Result<Vec<Row>, String> {
     let selections = provider_selections(&strip_comments(&build));
     let mut families = Vec::with_capacity(HOSTED_TARGETS.len());
     for target in HOSTED_TARGETS {
-        families.push(Family::load(std_root, target)?);
+        let mut family = Family::load(std_root, target)?;
+        for (service, providers) in &selections {
+            if let Some(provider) = providers.get(target) {
+                family
+                    .select(service, provider)
+                    .map_err(|why| format!("{target}: {why}"))?;
+            }
+        }
+        families.push(family);
     }
     let mut rows = Vec::new();
     for (service, providers) in &selections {
-        let Some(providers) = HOSTED_TARGETS
+        if !HOSTED_TARGETS
             .iter()
-            .map(|target| providers.get(*target))
-            .collect::<Option<Vec<_>>>()
-        else {
+            .all(|target| providers.contains_key(*target))
+        {
             continue;
-        };
+        }
         // member -> facts per hosted target.
         let mut table: BTreeMap<String, Vec<BTreeSet<String>>> = BTreeMap::new();
-        for (index, provider) in providers.iter().enumerate() {
-            let family = &families[index];
-            let block = family.provider(provider).ok_or_else(|| {
-                format!(
-                    "{service}: cannot find selected provider `{provider}` in the adapter sources for {}",
-                    HOSTED_TARGETS[index]
-                )
-            })?;
-            for (member, body) in provider_members(block) {
-                let facts = family.member_facts(body);
+        for (index, family) in families.iter().enumerate() {
+            for (member, &body) in &family.selected[service] {
+                let facts = family.member_facts(body)?;
                 table
                     .entry(member.to_string())
                     .or_insert_with(|| vec![BTreeSet::new(); HOSTED_TARGETS.len()])[index] = facts;
@@ -451,173 +466,6 @@ fn provider_selections(build: &str) -> BTreeMap<String, BTreeMap<String, String>
     out
 }
 
-/// The `.omg` files one target compiles from `std`: the shared root files,
-/// minus root files another family owns by prefix, plus the target directory
-/// and, for Windows, the shared Windows adapter directory.
-fn family_files(std_root: &Path, target: &str) -> Result<Vec<PathBuf>, String> {
-    let windows = target.starts_with("windows_");
-    let posix = !windows;
-    let mut files = Vec::new();
-    let entries = fs::read_dir(std_root)
-        .map_err(|error| format!("cannot list {}: {error}", std_root.display()))?;
-    for entry in entries {
-        let path = entry.map_err(|error| error.to_string())?.path();
-        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
-            continue;
-        };
-        if !name.ends_with(".omg") || name == "build.omg" {
-            continue;
-        }
-        let owned_elsewhere = (name.starts_with("posix_") && !posix)
-            || (name.starts_with("windows_") && !windows)
-            || ((name.starts_with("darwin_") || name.starts_with("macos_"))
-                && target != "macos_arm64");
-        if !owned_elsewhere {
-            files.push(path);
-        }
-    }
-    files.sort();
-    let target_dir = std_root.join("targets").join(target);
-    let mut nested = Vec::new();
-    collect_omg(&target_dir, &mut nested)?;
-    if nested.is_empty() {
-        return Err(format!("{} holds no .omg files", target_dir.display()));
-    }
-    if windows && target != SHARED_WINDOWS_ADAPTERS {
-        collect_omg(
-            &std_root.join("targets").join(SHARED_WINDOWS_ADAPTERS),
-            &mut nested,
-        )?;
-    }
-    nested.sort();
-    files.extend(nested);
-    Ok(files)
-}
-
-fn collect_omg(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
-    let entries =
-        fs::read_dir(dir).map_err(|error| format!("cannot list {}: {error}", dir.display()))?;
-    for entry in entries {
-        let path = entry.map_err(|error| error.to_string())?.path();
-        if path.is_dir() {
-            collect_omg(&path, out)?;
-        } else if path.extension().is_some_and(|ext| ext == "omg") {
-            out.push(path);
-        }
-    }
-    Ok(())
-}
-
-/// One target's top-level machines and provider blocks, comments stripped.
-#[derive(Default)]
-struct Family {
-    bodies: Vec<String>,
-    /// Machine name, or `Trait::member` for a machine that satisfies one,
-    /// -> indices into `bodies`. A name defined twice is followed to both.
-    machines: HashMap<String, Vec<usize>>,
-    /// Package-relative module path and declaration name, without the source filename.
-    providers: HashMap<PathBuf, String>,
-}
-
-impl Family {
-    fn load(std_root: &Path, target: &str) -> Result<Self, String> {
-        let mut family = Family::default();
-        for path in family_files(std_root, target)? {
-            let text = strip_comments(&read(&path)?);
-            let relative = path.strip_prefix(std_root).map_err(|_| {
-                format!(
-                    "adapter source {} lies outside {}",
-                    path.display(),
-                    std_root.display()
-                )
-            })?;
-            family.add_source(relative, &text)?;
-        }
-        Ok(family)
-    }
-
-    fn add_source(&mut self, file: &Path, text: &str) -> Result<(), String> {
-        for (kind, body) in split_toplevel(text) {
-            match kind {
-                TopLevel::Machine(name) => {
-                    let index = self.bodies.len();
-                    self.machines
-                        .entry(name.to_string())
-                        .or_default()
-                        .push(index);
-                    if let Some(qualified) = satisfied_member(body) {
-                        self.machines
-                            .entry(qualified.to_string())
-                            .or_default()
-                            .push(index);
-                    }
-                    self.bodies.push(body.to_string());
-                }
-                TopLevel::Provider(name) => {
-                    let qualified = file.with_file_name(name);
-                    if let std::collections::hash_map::Entry::Vacant(entry) =
-                        self.providers.entry(qualified)
-                    {
-                        entry.insert(body.to_string());
-                    } else {
-                        return Err(format!(
-                            "duplicate provider `{name}` in the module containing {}",
-                            file.display()
-                        ));
-                    }
-                }
-                TopLevel::Other => {}
-            }
-        }
-        Ok(())
-    }
-
-    fn provider(&self, name: &str) -> Option<&str> {
-        let mut path = PathBuf::new();
-        for part in name.split('\\') {
-            if ident(part) != Some(part) {
-                return None;
-            }
-            path.push(part);
-        }
-        self.providers.get(&path).map(String::as_str)
-    }
-
-    /// Facts of a provider member and every machine it reaches within
-    /// `CLOSURE_DEPTH` calls, skipping error-translation machines.
-    fn member_facts(&self, member_body: &str) -> BTreeSet<String> {
-        let mut facts = facts(member_body);
-        let mut seen: BTreeSet<&str> = BTreeSet::new();
-        let mut frontier: Vec<&str> = vec![member_body];
-        for _ in 0..CLOSURE_DEPTH {
-            let mut next = Vec::new();
-            for body in frontier {
-                for name in called_names(body) {
-                    let Some((key, indices)) = self.machines.get_key_value(name) else {
-                        continue;
-                    };
-                    if is_translation(name) || !seen.insert(key.as_str()) {
-                        continue;
-                    }
-                    for &index in indices {
-                        let callee = self.bodies[index].as_str();
-                        facts.extend(self::facts(callee));
-                        next.push(callee);
-                    }
-                }
-            }
-            frontier = next;
-        }
-        facts
-    }
-}
-
-enum TopLevel<'a> {
-    Machine(&'a str),
-    Provider(&'a str),
-    Other,
-}
-
 fn strip_comments(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for line in text.split_inclusive('\n') {
@@ -652,150 +500,6 @@ fn ident(text: &str) -> Option<&str> {
         .position(|b| !is_word(*b))
         .unwrap_or(bytes.len());
     Some(&text[..end])
-}
-
-/// Classifies a column-0 line: `[public] machine NAME(`/`<`,
-/// `[public] NAME satisfies TRAIT {`, or another top-level declaration.
-fn classify(line: &str) -> Option<TopLevel<'_>> {
-    let line = line
-        .strip_prefix("public ")
-        .map(str::trim_start)
-        .unwrap_or(line);
-    let first = ident(line)?;
-    let rest = line[first.len()..].trim_start();
-    if first == "machine" {
-        let name = ident(rest)?;
-        let after = rest[name.len()..].trim_start();
-        return (after.starts_with('(') || after.starts_with('<'))
-            .then_some(TopLevel::Machine(name));
-    }
-    if let Some(after) = rest.strip_prefix("satisfies")
-        && after.starts_with(|c: char| c.is_whitespace())
-    {
-        // The trait may be a bare name or a path such as `|alias|::Trait`.
-        let after = after.trim_start();
-        let path_end = after
-            .find(|c: char| c.is_whitespace() || c == '{')
-            .unwrap_or(after.len());
-        if path_end > 0 && after[path_end..].trim_start().starts_with('{') {
-            return Some(TopLevel::Provider(first));
-        }
-        if first.starts_with(|c: char| c.is_ascii_uppercase()) {
-            return Some(TopLevel::Other);
-        }
-    }
-    const OTHER: [&str; 8] = [
-        "data", "use", "boundary", "domain", "trait", "enum", "const", "type",
-    ];
-    OTHER.contains(&first).then_some(TopLevel::Other)
-}
-
-/// Splits a file into its top-level declarations, each running to the next.
-fn split_toplevel(text: &str) -> Vec<(TopLevel<'_>, &str)> {
-    let mut starts: Vec<(usize, TopLevel<'_>)> = Vec::new();
-    let mut offset = 0;
-    for line in text.split_inclusive('\n') {
-        if let Some(kind) = classify(line) {
-            starts.push((offset, kind));
-        }
-        offset += line.len();
-    }
-    let ends: Vec<usize> = starts
-        .iter()
-        .skip(1)
-        .map(|(at, _)| *at)
-        .chain([text.len()])
-        .collect();
-    starts
-        .into_iter()
-        .zip(ends)
-        .map(|((start, kind), end)| (kind, &text[start..end]))
-        .collect()
-}
-
-/// `Trait::member` from a top-level machine declared as
-/// `machine name(...) ... satisfies Trait::member`, on its first line or
-/// starting the next non-blank line.
-fn satisfied_member(body: &str) -> Option<&str> {
-    let (first, rest) = body.split_once('\n').unwrap_or((body, ""));
-    let tail = match first.find("satisfies ") {
-        Some(at) => &first[at..],
-        None => rest.trim_start(),
-    };
-    let tail = tail.strip_prefix("satisfies")?.trim_start();
-    let owner = ident(tail)?;
-    if !owner.starts_with(|c: char| c.is_ascii_uppercase()) {
-        return None;
-    }
-    let member = ident(tail[owner.len()..].strip_prefix("::")?)?;
-    Some(&tail[..owner.len() + 2 + member.len()])
-}
-
-/// Splits a provider block into its members, each from its four-space
-/// `machine` line to the next.
-fn provider_members(block: &str) -> Vec<(&str, &str)> {
-    let mut starts: Vec<(usize, &str)> = Vec::new();
-    let mut offset = 0;
-    for (index, line) in block.split_inclusive('\n').enumerate() {
-        if index > 0
-            && let Some(rest) = line.strip_prefix("    machine ")
-            && let Some(name) = ident(rest.trim_start())
-            && rest.trim_start()[name.len()..]
-                .trim_start()
-                .starts_with('(')
-        {
-            starts.push((offset, name));
-        }
-        offset += line.len();
-    }
-    let ends: Vec<usize> = starts
-        .iter()
-        .skip(1)
-        .map(|(at, _)| *at)
-        .chain([block.len()])
-        .collect();
-    starts
-        .into_iter()
-        .zip(ends)
-        .map(|((start, name), end)| (name, &block[start..end]))
-        .collect()
-}
-
-fn is_translation(name: &str) -> bool {
-    let lower = name.to_ascii_lowercase();
-    if ["error", "errno", "kind_of", "reconstruct"]
-        .iter()
-        .any(|word| lower.contains(word))
-    {
-        return true;
-    }
-    lower.match_indices("_kind").any(|(at, word)| {
-        lower
-            .as_bytes()
-            .get(at + word.len())
-            .is_none_or(|b| !is_word(*b))
-    })
-}
-
-/// Every call in `body`: `name(`, `name<..>(`, and `Owner::name(` (which
-/// yields both `Owner::name` and `name`).
-fn called_names(body: &str) -> Vec<&str> {
-    let mut names = Vec::new();
-    for (start, word) in words(body) {
-        let after = &body[start + word.len()..];
-        if word.starts_with(|c: char| c.is_ascii_uppercase())
-            && let Some(rest) = after.strip_prefix("::")
-            && let Some(member) = ident(rest)
-            && member.starts_with(|c: char| c.is_ascii_lowercase() || c == '_')
-            && opens_call(&rest[member.len()..])
-        {
-            names.push(&body[start..start + word.len() + 2 + member.len()]);
-        }
-        if is_lower_ident(word) && opens_call(after) {
-            names.push(word);
-        }
-    }
-    names
 }
 
 /// Maximal identifier runs that start at a word boundary, with their offsets.
@@ -982,22 +686,6 @@ mod tests {
     }
 
     #[test]
-    fn providers_name_bare_and_aliased_traits() {
-        assert!(matches!(
-            classify("FilesystemPosixProvider satisfies |filesystem|::FilesystemService {"),
-            Some(TopLevel::Provider("FilesystemPosixProvider"))
-        ));
-        assert!(matches!(
-            classify("public WindowsConsole satisfies Console {"),
-            Some(TopLevel::Provider("WindowsConsole"))
-        ));
-        assert!(matches!(
-            classify("Policy satisfies |abi|::CallingPolicy"),
-            Some(TopLevel::Other)
-        ));
-    }
-
-    #[test]
     fn facts_read_refusals_limits_constants_and_clamps() {
         let body = "machine f(path: @[u8], count: u64) -> R\n\
             requires count <= buffer.length\n{\n\
@@ -1028,55 +716,6 @@ mod tests {
     }
 
     #[test]
-    fn closure_follows_calls_but_not_error_translation() {
-        let text = "machine helper(x: u64) -> u64 {\n    transition x < 4096 { _ -> x }\n}\n\
-            machine errno_kind(x: i64) -> K { K { kind: ErrorKind::Other } }\n\
-            machine posix_permission_bits(x: u32) -> u32\n    satisfies Target::bits {\n    x\n}\n\
-            P satisfies S {\n    machine go(x: u64) -> u64 {\n        helper(x) + errno_kind(1) + Target::bits(2)\n    }\n}\n";
-        let mut family = Family::default();
-        family.add_source(Path::new("helpers.omg"), text).unwrap();
-        assert!(family.machines.contains_key("Target::bits"));
-        let members = provider_members(family.provider("P").unwrap());
-        assert_eq!(members.len(), 1);
-        let got: Vec<String> = family.member_facts(members[0].1).into_iter().collect();
-        assert_eq!(got, ["limit < 4096"]);
-    }
-
-    #[test]
-    fn provider_selection_uses_the_module_and_the_local_name() {
-        let mut family = Family::default();
-        for (file, result) in [
-            ("root.omg", "Root"),
-            ("targets/windows/filesystem/provider.omg", "Windows"),
-            ("targets/posix/other_file.omg", "Posix"),
-        ] {
-            let source = format!("Adapter satisfies S {{\n    machine go() {{ {result} }}\n}}\n");
-            family.add_source(Path::new(file), &source).unwrap();
-        }
-        for (selection, result) in [
-            ("Adapter", "Root"),
-            (r"targets\windows\filesystem\Adapter", "Windows"),
-            (r"targets\posix\Adapter", "Posix"),
-        ] {
-            let block = family.provider(selection).unwrap();
-            assert!(
-                provider_members(block)[0].1.contains(result),
-                "{selection}: {block}"
-            );
-        }
-        assert!(family.provider(r"targets\missing\Adapter").is_none());
-        assert!(family.provider("targets/posix/Adapter").is_none());
-        assert!(
-            family
-                .add_source(
-                    Path::new("another_root_file.omg"),
-                    "Adapter satisfies S {\n}\n"
-                )
-                .is_err()
-        );
-    }
-
-    #[test]
     fn baseline_needs_reasons_and_existing_concern_headings() {
         let headings: BTreeSet<&str> = ["A queued divergence"].into_iter().collect();
         let good = "# comment\n\
@@ -1089,6 +728,32 @@ mod tests {
             S.m | limit < 6 | windows_x86_64\n";
         let errors = parse_baseline(bad, &headings).expect_err("three bad rows");
         assert_eq!(errors.len(), 3, "{errors:?}");
+    }
+
+    #[test]
+    fn grouped_reviews_name_every_member_and_reject_overlaps() {
+        let group = "Store.{read,write} | limit < 9 | linux_arm64 | noise | shared buffer";
+        let headings = BTreeSet::new();
+        let baseline = parse_baseline(group, &headings).unwrap();
+        assert_eq!(baseline.rows.len(), 2);
+        assert!(
+            baseline
+                .rows
+                .contains_key("Store.read | limit < 9 | linux_arm64")
+        );
+        assert!(
+            baseline
+                .rows
+                .contains_key("Store.write | limit < 9 | linux_arm64")
+        );
+        assert!(
+            parse_baseline(
+                &format!("{group}\n{}", group.replace("{read,write}", "read")),
+                &headings
+            )
+            .is_err()
+        );
+        assert!(parse_baseline(&group.replace("read,write", "*"), &headings).is_err());
     }
 
     #[test]

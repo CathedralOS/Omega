@@ -75,13 +75,21 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### check-portable-services stops at a selected requirement, so most POSIX filesystem facts went unread
+### Windows canonicalization rejects paths that exceed its private UTF-16 buffer
 
-- Category: Tests that pin the bug
-- Where: [`Family::member_facts`](tools/xtask/src/portable_services.rs) follows only free machines and `machine ... satisfies Trait::member` rows
-- Saw: Since the POSIX adapter moved behind `|raw|::PosixFilesystemHost::...` and `|raw|::PosixFilesystemTarget::...` calls, those calls reach the Build-selected provider block (`LinuxX8664PosixFilesystem` and its siblings), which the closure never enters. The check also crashed on aliased selections (`|clock|::Clock`) and aliased trait headers, so nobody saw the loss; once it ran again, 128 reviewed POSIX `FilesystemService` rows no longer appeared and were deleted. `NativeWindowsFilesystem` behind `WindowsFilesystemHost` is unread the same way.
-- Cost: The check reports far fewer POSIX and Windows refusals and limits than the adapters apply, so a divergence inside a raw host provider passes. Following a `Service::member` call into the provider Build selects for that target would restore them, at the price of reviewing the rows that reappear.
-- Reported: 2026-11-23, Claude Code, while extending the check to `windows_arm64`
+- Category: Knowledge crossing a boundary
+- Where: [Windows path query](source/library/std/targets/windows_x86_64/windows_filesystem_path_query.omg) and the [raw requirement](source/library/std/targets/windows_x86_64/windows_filesystem_path_query_native.omg).
+- Saw: `GetFinalPathNameByHandleW` reports the required extent for the opened handle. The adapter returns error 122 as soon as that extent exceeds its 4,096-unit array, including when the caller has room for the complete UTF-8 result. A short input name can resolve to a longer final name.
+- Cost: A valid resolved name can fail the portable operation solely because of the adapter's temporary storage. Check the required extent, establish sufficient temporary backing and retain the separate caller-buffer check.
+- Reported: 2026-11-24 while following the selected Windows filesystem provider.
+
+### POSIX directory counting assumes that two entries are dot names
+
+- Category: One idea, several implementations
+- Where: [POSIX directory counting and indexed lookup](source/library/std/posix_filesystem_adapter.omg) and [Windows directory emptiness](source/library/std/targets/windows_x86_64/filesystem/directory.omg).
+- Saw: POSIX counts native records in a wrapping `i32`, then subtracts two. Its indexed lookup checks the actual names. Windows counts ordinary names and stops on the first ordinary name when checking emptiness.
+- Cost: POSIX can miscount directories whose records omit a dot entry. Its emptiness query also requests metadata for a child whose name already proves the directory is nonempty. Exercise a stream with missing or interleaved dot entries, a checked count and a failure after the first child.
+- Reported: 2026-11-24 while comparing the selected directory providers.
 
 ### A resumed Build refuses itself whenever it is typed again, because region owners print as symbol slots
 
