@@ -104,6 +104,31 @@ impl Lowering<'_> {
                 Some(ValueType::Scalar(ScalarType::Integer(t), Qualification::NONE)),
             ) => Ok(Witness::Integer(t, *value)),
             (ExpressionKind::Boolean(value), _) => Ok(Witness::Boolean(*value)),
+            (ExpressionKind::ErasedApplication(term), _) => {
+                use semantic_vocabulary::ScalarTerm;
+                let mut term = term.clone();
+                let mut pending = vec![&mut term];
+                while let Some(current) = pending.pop() {
+                    if let ScalarTerm::Value { id, scalar_type } = *current {
+                        let slot = id.get() as usize - 1;
+                        let bound = *self.slot_mut(slot)?;
+                        *current = match bound {
+                            Some(Bound::Scalar(id)) => ScalarTerm::Value { id, scalar_type },
+                            Some(Bound::Erased(witness)) => witness.term(&self.erased_applications),
+                            _ => return Err(refuse(
+                                self.id,
+                                self.current.map_or(Construct::Machine, Construct::Block),
+                                Unserved::Expression("erased term that reads storage"),
+                            )),
+                        };
+                    } else {
+                        pending.extend(current.operands_mut());
+                    }
+                }
+                let index = self.erased_applications.len();
+                self.erased_applications.push(term);
+                Ok(Witness::Application(index))
+            }
             (ExpressionKind::Slot(slot), Some(ValueType::Scalar(scalar_type, _))) => {
                 match *self.slot_mut(*slot)? {
                     Some(Bound::Scalar(value)) => Ok(Witness::Value(value, scalar_type)),
@@ -317,6 +342,9 @@ impl Lowering<'_> {
             }
             ExpressionKind::ByteSequencePredicate { base, predicate } => {
                 self.byte_sequence_predicate(base, *predicate, source)
+            }
+            ExpressionKind::ErasedApplication(_) => {
+                Err(self.internal("an erased application is read as a runtime value"))
             }
             ExpressionKind::ScalarApplication { application } => {
                 let scalar_type = self.result_type(expression)?;

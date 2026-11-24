@@ -530,7 +530,7 @@ impl Lowering<'_> {
             // is that term; it is named, not run.
             if signature.is_erased(position) {
                 let witness = self.witness(argument)?;
-                evaluated.erased.push(witness.term());
+                evaluated.erased.push(witness.term(&self.erased_applications));
                 continue;
             }
             if observes_storage {

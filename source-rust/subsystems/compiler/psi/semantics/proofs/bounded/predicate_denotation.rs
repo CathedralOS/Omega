@@ -225,6 +225,9 @@ mod value_equalities {
                     **left = self.scalar(left, budget, depth + 1, active)?;
                     **right = self.scalar(right, budget, depth + 1, active)?;
                 }
+                ScalarTerm::DeclarationApplication { .. } => {
+                    return Err("a declaration application requires its mathematical signature".into());
+                }
                 ScalarTerm::Application { .. }
                 | ScalarTerm::Value { .. }
                 | semantic_vocabulary::scalar_term_predicate_quint_pattern!(..)

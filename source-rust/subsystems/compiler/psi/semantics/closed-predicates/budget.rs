@@ -155,6 +155,11 @@ impl PredicateBudget {
     pub fn scalar(&mut self, value: &ScalarTerm, depth: usize) -> Result<(), PredicateSizeLimit> {
         self.step(depth)?;
         match value {
+            ScalarTerm::DeclarationApplication { arguments, .. } => {
+                for argument in arguments {
+                    self.scalar(argument, depth + 1)?;
+                }
+            }
             ScalarTerm::Application { .. }
             | ScalarTerm::Value { .. }
             | ScalarTerm::Boolean(_)

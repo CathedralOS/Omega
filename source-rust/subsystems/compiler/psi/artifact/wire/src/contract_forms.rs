@@ -10,6 +10,27 @@ pub enum RepeatedClauses {
 }
 
 pub fn equal(left: ScalarTerm, right: ScalarTerm) -> Result<Proposition, String> {
+    if left.scalar_type() == right.scalar_type()
+        && [&left, &right]
+            .into_iter()
+            .any(|term| matches!(term, ScalarTerm::DeclarationApplication { .. }))
+    {
+        use semantic_vocabulary::{ClauseCarrier, ClauseIdentity, ClauseOperand, ClauseValue};
+        let carrier = ClauseCarrier::Scalar(left.scalar_type());
+        let values = [left, right]
+            .into_iter()
+            .map(|term| ClauseValue {
+                carrier,
+                operand: ClauseOperand::Scalar(term),
+            })
+            .collect();
+        return Ok(Proposition::DeclarationIdentity(ClauseIdentity {
+            values,
+            left: 0,
+            right: 1,
+        }));
+    }
+
     let key = |term: &ScalarTerm| {
         crate::canonical_scalar_term_order_key(term)
             .map_err(|error| format!("unencodable term: {error}"))

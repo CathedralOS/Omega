@@ -4912,6 +4912,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
         | ExpressionKind::Float(_)
+        | ExpressionKind::ErasedApplication(_)
         | ExpressionKind::ScalarApplication { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::MachineValue { .. }
