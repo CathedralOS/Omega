@@ -11,6 +11,8 @@
 //! are therefore dealt into one chunk per available CPU as well, and the
 //! chunks run at the same time.
 
+mod changed;
+
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -19,12 +21,15 @@ use std::process::Command;
 const ARGV_BUDGET: usize = 24_000;
 #[derive(Deserialize)]
 struct Metadata {
+    workspace_root: String,
     workspace_members: Vec<String>,
     packages: Vec<Package>,
 }
 
 #[derive(Deserialize)]
 struct Package {
+    manifest_path: String,
+    edition: String,
     id: String,
     targets: Vec<Target>,
 }
@@ -35,7 +40,7 @@ struct Target {
     src_path: String,
 }
 
-fn workspace_targets(repository: &Path) -> Result<BTreeMap<String, Vec<String>>, String> {
+fn workspace_metadata(repository: &Path) -> Result<Metadata, String> {
     let output = Command::new("cargo")
         .args(["metadata", "--no-deps", "--format-version", "1"])
         .current_dir(repository)
@@ -47,8 +52,11 @@ fn workspace_targets(repository: &Path) -> Result<BTreeMap<String, Vec<String>>,
             String::from_utf8_lossy(&output.stderr).trim()
         ));
     }
-    let metadata: Metadata = serde_json::from_slice(&output.stdout)
-        .map_err(|error| format!("cargo metadata JSON invalid: {error}"))?;
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("cargo metadata JSON invalid: {error}"))
+}
+
+fn workspace_targets(metadata: &Metadata) -> BTreeMap<String, Vec<String>> {
     let members: BTreeSet<&str> = metadata
         .workspace_members
         .iter()
@@ -66,10 +74,10 @@ fn workspace_targets(repository: &Path) -> Result<BTreeMap<String, Vec<String>>,
                 .insert(target.src_path.clone());
         }
     }
-    Ok(groups
+    groups
         .into_iter()
         .map(|(edition, paths)| (edition, paths.into_iter().collect()))
-        .collect())
+        .collect()
 }
 
 /// `rustfmt` invocations covering `files`, each within the command-line
@@ -105,6 +113,7 @@ pub(crate) fn chunked_invocations(
 
 pub fn run(args: &[String]) -> Result<(), u8> {
     let mut check = false;
+    let mut base = None;
     let mut verbose = false;
     let mut repository = PathBuf::from(".");
     let mut passthrough = Vec::new();
@@ -113,6 +122,14 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         match args[index].as_str() {
             "--check" => check = true,
             "--verbose" | "-v" => verbose = true,
+            "--base" => {
+                index += 1;
+                let Some(value) = args.get(index) else {
+                    eprintln!("fmt: --base requires a Git revision");
+                    return Err(2);
+                };
+                base = Some(value.as_str());
+            }
             "--repository" => {
                 index += 1;
                 let Some(value) = args.get(index) else {
@@ -130,8 +147,12 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         index += 1;
     }
 
-    let groups = match workspace_targets(&repository) {
-        Ok(groups) => groups,
+    if base.is_some() && !check {
+        eprintln!("fmt: --base requires --check");
+        return Err(2);
+    }
+    let metadata = match workspace_metadata(&repository) {
+        Ok(metadata) => metadata,
         Err(error) => {
             eprintln!("fmt: {error}");
             return Err(1);
@@ -139,15 +160,24 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     };
 
     let lanes = std::thread::available_parallelism().map_or(1, usize::from);
-    let mut invocations = Vec::new();
-    for (edition, files) in groups {
-        let mut prefix = vec!["rustfmt".to_owned(), "--edition".to_owned(), edition];
-        if check {
-            prefix.push("--check".to_owned());
+    let invocations = if let Some(base) = base {
+        changed::invocations(&metadata, base, &passthrough).map_err(|error| {
+            eprintln!("fmt: {error}");
+            1u8
+        })?
+    } else {
+        let mut invocations = Vec::new();
+        for (edition, files) in workspace_targets(&metadata) {
+            let mut prefix = vec!["rustfmt".to_owned(), "--edition".to_owned(), edition];
+            if check {
+                prefix.push("--check".to_owned());
+            }
+            prefix.extend(passthrough.iter().cloned());
+            invocations.extend(chunked_invocations(&prefix, &files, lanes));
         }
-        prefix.extend(passthrough.iter().cloned());
-        invocations.extend(chunked_invocations(&prefix, &files, lanes));
-    }
+
+        invocations
+    };
 
     // At most `lanes` processes at once; each finished one frees a lane for
     // the next invocation.

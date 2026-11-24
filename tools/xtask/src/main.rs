@@ -1,7 +1,7 @@
 //! Repository developer, testing, and verification tooling in Rust (`cargo xtask`).
 //!
 //! Subcommands:
-//! - `cargo xtask fmt [--check] [--verbose] [--repository <dir>] [-- <rustfmt-args>...]`
+//! - `cargo xtask fmt [--check [--base <rev>]] [--verbose] [--repository <dir>] [-- <rustfmt-args>...]`
 //! - `cargo xtask check-boundary`
 //! - `cargo xtask pipeline-contracts` inventories or checks reviewed pipeline fields and exports.
 //! - `cargo xtask branch-cleanup [--delete] [--min-age-hours <n>] [--max-delete <n>] [--include-unmerged-no-pr]`
