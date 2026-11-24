@@ -7,7 +7,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use crate::{execution, producer, repo_root};
+use crate::{execution, producer, producer::host_target, repo_root};
 
 const REJECTION_FILES: &[&str] = &[
     "expected_diagnostic.txt",
@@ -31,22 +31,6 @@ pub struct SampleProject {
     pub rejection_casefold: bool,
     /// Fragments from [`NATIVE_REJECTION_FILE`]; `None` when it is absent.
     pub native_rejection: Option<Vec<String>>,
-}
-
-fn host_target() -> &'static str {
-    if cfg!(target_os = "windows") {
-        "windows_x86_64"
-    } else if cfg!(target_os = "macos") {
-        if cfg!(target_arch = "aarch64") {
-            "macos_arm64"
-        } else {
-            "macos_x86_64"
-        }
-    } else if cfg!(target_arch = "aarch64") {
-        "linux_arm64"
-    } else {
-        "linux_x86_64"
-    }
 }
 
 fn strip_comments(text: &str) -> String {

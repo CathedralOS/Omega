@@ -233,7 +233,7 @@ pub(super) fn compare(
     input: Option<&Path>,
     oracle: &Oracle,
 ) -> Result<String, String> {
-    if target != host_target() {
+    if target != host_target() || target == "unsupported" {
         return Err(format!(
             "native/Psi execution requires host target {}, requested {target}",
             host_target()
