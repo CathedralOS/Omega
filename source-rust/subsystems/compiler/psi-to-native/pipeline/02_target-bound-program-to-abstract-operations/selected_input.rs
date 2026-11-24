@@ -932,6 +932,191 @@ mod native {
             );
         }
 
+        // The source compiler lowers authored overlays to byte-region observations.
+        // A separately produced Psi artifact can still request a record copy directly.
+        fn byte_record(field: terminal_psi::StructuralFieldType) -> TerminalModule {
+            use semantic_vocabulary::{
+                PlaceId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
+            };
+            use terminal_psi::{
+                ArrayExtent, BindingRelevance, BoundaryParameterKind, StructuralAccess,
+                StructuralFieldDeclaration, StructuralMultiplicity, StructuralOperationResult,
+                StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+                StructuralRecordStorage, StructuralTypeDeclaration, StructuralTypeShape,
+                TerminalIdentityTableBuilder,
+            };
+
+            let mut names = TerminalIdentityTableBuilder::default();
+            let byte = StructuralTypeId::new(1).unwrap();
+            let array = StructuralTypeId::new(2).unwrap();
+            let record = StructuralTypeId::new(3).unwrap();
+            let field = StructuralFieldDeclaration {
+                declaration_identity: Default::default(),
+                inline_carrier: None,
+                id: StructuralFieldId::new(1).unwrap(),
+                identity: names.intern("digit"),
+                relevance: BindingRelevance::Relevant,
+                field_type: field,
+                storage: None,
+            };
+            let mut module = TerminalModule::for_entry(machine_id(1));
+            module.layouts.native_layouts.insert(
+                record,
+                names.intern("Record"),
+                terminal_psi::TerminalIdentityIndex::ABSENT,
+                terminal_psi::TerminalIdentityIndex::ABSENT,
+                [terminal_psi::NativeLayoutFieldIdentity {
+                    field: field.id,
+                    declaration_identity: field.identity,
+                }],
+                [],
+            );
+            let mut declaration = |id, name, shape| StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
+                quotient_carrier: None,
+                id,
+                identity: names.intern(name),
+                owns_linear_claim: false,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                no_code_affine_cleanup: false,
+                descriptor_cleanup: false,
+                nominal_cleanup: None,
+                shape,
+                scalar_restriction: None,
+                requires: Vec::new(),
+            };
+            module.types.structural_types = vec![
+                declaration(
+                    byte,
+                    "u8",
+                    StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+                    )),
+                ),
+                declaration(
+                    array,
+                    "Bytes",
+                    StructuralTypeShape::FixedArray {
+                        element: byte,
+                        length: ArrayExtent::Literal(2),
+                    },
+                ),
+                declaration(
+                    record,
+                    "Record",
+                    StructuralTypeShape::Record {
+                        fields: vec![field],
+                        storage: StructuralRecordStorage::Packed,
+                    },
+                ),
+            ];
+            module.identities = names.build();
+            let mut entry = machine(
+                1,
+                OperationKind::IntegerConstant {
+                    value: IntegerValue::Unsigned(0),
+                },
+            );
+            let source = PlaceId::new(1).unwrap();
+            let copied = PlaceId::new(2).unwrap();
+            let producer = OperationId::new(2).unwrap();
+            entry
+                .parameter_order
+                .push(BoundaryParameterKind::Structural);
+            entry
+                .structural_parameters
+                .push(StructuralParameterDeclaration {
+                    place: source,
+                    position: 0,
+                    structural_type: array,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access: StructuralAccess::SharedBorrow,
+                    qualifications: vec![],
+                    projected_qualifications: vec![],
+                    additional_input_qualifications: vec![],
+                });
+            entry.structural_places = vec![
+                StructuralPlaceDeclaration {
+                    id: source,
+                    kind: StructuralPlaceKind::Parameter { position: 0 },
+                },
+                StructuralPlaceDeclaration {
+                    id: copied,
+                    kind: StructuralPlaceKind::OperationResult {
+                        producer,
+                        structural_type: record,
+                    },
+                },
+            ];
+            entry.blocks[0].operations.push(Operation::unsuspended(
+                producer,
+                OperationResult::Structural(StructuralOperationResult {
+                    place: copied,
+                    structural_type: record,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: vec![],
+                    projected_qualifications: vec![],
+                    additional_input_qualifications: vec![],
+                    qualification_establishments: vec![],
+                    claims: vec![],
+                }),
+                OperationKind::StructuralLeafCopy {
+                    source,
+                    path: vec![StructuralPathSegment::FixedIndex(1)],
+                },
+            ));
+            module.machines.push(entry);
+            module
+        }
+
+        #[test]
+        fn byte_record_requires_every_field_to_accept_arbitrary_bytes() {
+            use semantic_vocabulary::BoundedIntegerType;
+            use terminal_psi::StructuralFieldType;
+
+            let byte = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+            let plain = byte_record(StructuralFieldType::Scalar(ScalarType::Integer(byte)));
+            let input = prepare(plain.clone()).unwrap();
+            assert!(
+                input.plan().functions[0].blocks[0]
+                    .operations
+                    .iter()
+                    .any(|operation| {
+                        matches!(
+                            operation,
+                            abstract_operations::AbstractOperation::StructuralLeafCopy { .. }
+                        )
+                    })
+            );
+            let mut constrained_record = plain;
+            constrained_record.types.structural_types[2]
+                .requires
+                .push(semantic_vocabulary::Proposition::Falsehood);
+            let digit =
+                BoundedIntegerType::new(byte, IntegerValue::Unsigned(0), IntegerValue::Unsigned(9))
+                    .unwrap();
+            for module in [
+                byte_record(StructuralFieldType::BoundedInteger(digit)),
+                byte_record(StructuralFieldType::Scalar(ScalarType::Boolean)),
+                constrained_record,
+            ] {
+                let result = prepare(module);
+                assert!(
+                    matches!(
+                        &result,
+                        Err(ArtifactLoweringError::Lowering(
+                            crate::operations::LoweringError::InvalidStructuralLeafCopy {
+                                reason: "raw bytes do not establish the record's required values",
+                                ..
+                            }
+                        ))
+                    ),
+                    "expected a byte-record validity refusal, got {:?}",
+                    result.err()
+                );
+            }
+        }
+
         #[test]
         fn optimizer_only_facts_do_not_claim_an_empty_native_scope() {
             let mut module = graph();

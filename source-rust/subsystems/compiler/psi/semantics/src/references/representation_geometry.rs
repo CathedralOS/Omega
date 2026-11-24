@@ -91,12 +91,17 @@ pub fn reference_view_compatible(
     if *access == terminal_psi::StructuralAccess::Owned {
         return Err("a reference view cannot own its backing");
     }
-    if !total_representation(module, *referent)? {
+    let total = |ty| {
+        all_bit_patterns_are_valid(
+            &module.types.structural_types,
+            &module.types.scalar_qualifications,
+            ty,
+        )
+    };
+    if !total(*referent)? {
         return Err("reference view requires target validity not established by its source bits");
     }
-    if *access != terminal_psi::StructuralAccess::SharedBorrow
-        && !total_representation(module, source)?
-    {
+    if *access != terminal_psi::StructuralAccess::SharedBorrow && !total(source)? {
         return Err("writable reference view cannot preserve the source's validity");
     }
     let mut pending = vec![source, *referent];
@@ -194,8 +199,10 @@ impl RecordStorageResolver for RetainedLayout<'_> {
             .ok_or(StorageGeometryError::UnresolvedLayout(record))
     }
 }
-fn total_representation(
-    module: &TerminalModule,
+/// Whether arbitrary storage bits establish this declaration and its fields.
+pub fn all_bit_patterns_are_valid(
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+    qualifications: &terminal_psi::ScalarQualificationCatalog,
     root: StructuralTypeId,
 ) -> Result<bool, &'static str> {
     let mut pending = vec![root];
@@ -211,9 +218,8 @@ fn total_representation(
             Ok(_) => continue,
             Err(at) => visited.insert(at, current),
         }
-        let declaration = module
-            .structural_type(current)
-            .ok_or("reference validity lost its declaration")?;
+        let declaration = terminal_psi::find_structural_type(declarations, current)
+            .ok_or("representation validity lost its declaration")?;
         if declaration.owns_linear_claim
             || declaration.scalar_restriction.is_some()
             || !declaration.requires.is_empty()
@@ -238,7 +244,7 @@ fn total_representation(
         }
     }
     fields.sort_unstable();
-    Ok(!module.types.scalar_qualifications.fields.iter().any(|row| {
+    Ok(!qualifications.fields.iter().any(|row| {
         fields.binary_search(&row.field).is_ok()
             && row.value_type.qualifications != semantic_vocabulary::ScalarQualificationSetId::ZERO
     }))
