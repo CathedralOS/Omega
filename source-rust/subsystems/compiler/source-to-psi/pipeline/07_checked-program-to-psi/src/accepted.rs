@@ -650,6 +650,50 @@ impl AcceptedTerminalSource {
         first.metadata.as_ref().map_err(Clone::clone)
     }
 
+    /// The predicate signature for this boundary of the accepted executable
+    /// form. A method's own const and lifetime arguments bind at the call.
+    pub fn boundary_predicate_signature(
+        &self,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        declaration: symbols::SymbolHandle,
+    ) -> Result<Option<&terminal_check_tables::contracts::StaticSignature>, &'static str> {
+        let elaboration = self.closure().elaboration();
+        let original = *elaboration
+            .boundaries
+            .get(boundary)
+            .ok_or("the checked boundary source")?;
+        if let Some(application) = self.source().closed_requirement_application(original) {
+            if application.template != declaration {
+                return Err("the original applied requirement");
+            }
+            let rows = &self.correspondence().applied_boundary_signatures;
+            let index = rows
+                .binary_search_by_key(&boundary, |(id, _)| *id)
+                .map_err(|_| "the checked applied predicate signature")?;
+            return Ok(Some(&rows[index].1));
+        }
+        if original != declaration {
+            return Err("the original boundary declaration");
+        }
+        let (owner, _) = self
+            .source()
+            .trait_machine_signature(declaration)
+            .ok_or("the original declaring trait")?;
+        let key = |symbol: symbols::SymbolHandle| (symbol.arena_index(), symbol.generation());
+        let schemas = &elaboration.static_schemas;
+        Ok(schemas
+            .binary_search_by_key(&key(owner.symbol), |schema| key(schema.declaration))
+            .ok()
+            .and_then(|index| {
+                schemas[index]
+                    .requirements
+                    .iter()
+                    .find(|row| row.declaration == declaration)?
+                    .signature
+                    .as_ref()
+            }))
+    }
+
     /// Source record associations for the accepted executable form.
     pub fn source_records(&self) -> &[crate::source_state::SourceRecordCorrespondence] {
         &self.correspondence().records

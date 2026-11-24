@@ -18,6 +18,13 @@ pub struct SourceFormCorrespondence {
     /// Declaration-owned review facts from this exact form. They become
     /// available only after every form of the source compilation accepts.
     pub review_requirements: Vec<RequirementReview>,
+    /// An open schema cannot state the predicates of a method with its own
+    /// sized formals. Keep the instantiated source signature at each applied
+    /// boundary of this form, in boundary ID order.
+    pub applied_boundary_signatures: Vec<(
+        semantic_vocabulary::BoundaryMachineId,
+        terminal_check_tables::contracts::StaticSignature,
+    )>,
     pub designated: IdTable<MachineId, Vec<(OperationId, DesignatedOperands)>>,
     /// Each requirement a Build awaits a provider for
     /// (`DesignatedOperands::readiness`), with the identity of the trait that
