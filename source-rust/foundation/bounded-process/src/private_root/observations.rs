@@ -83,6 +83,7 @@ impl PrivateFilesystemOutputs {
 
 #[derive(Debug)]
 pub(crate) struct Setup {
+    #[cfg(target_os = "linux")]
     pub(super) scratch: std::path::PathBuf,
     #[cfg(target_os = "linux")]
     pub(super) contents: linux::Contents,
@@ -90,7 +91,7 @@ pub(crate) struct Setup {
 
 impl Setup {
     pub(crate) fn new(
-        scratch: &std::path::Path,
+        _scratch: &std::path::Path,
         files: PrivateFilesystemFiles,
     ) -> io::Result<(Self, PrivateFilesystemOutputs)> {
         for path in files.initial.keys().chain(&files.outputs) {
@@ -110,7 +111,8 @@ impl Setup {
         let (contents, receiver) = linux::Contents::new(files.initial, !files.outputs.is_empty())?;
         Ok((
             Self {
-                scratch: scratch.to_owned(),
+                #[cfg(target_os = "linux")]
+                scratch: _scratch.to_owned(),
                 #[cfg(target_os = "linux")]
                 contents,
             },
@@ -289,7 +291,7 @@ pub(super) mod linux {
 #[cfg(test)]
 mod tests {
     use super::{PrivateFilesystemFiles, Setup};
-    use std::{io, path::Path, sync::Arc};
+    use std::{io, path::Path};
 
     #[test]
     fn observations_require_a_name_relative_to_the_invocation() {
@@ -310,7 +312,7 @@ mod tests {
         let fixture = PrivateFilesystemFiles {
             initial: [b"a".to_vec(), b"a/b".to_vec()]
                 .into_iter()
-                .map(|name| (name, Arc::from([])))
+                .map(|name| (name, std::sync::Arc::from([])))
                 .collect(),
             ..Default::default()
         };
