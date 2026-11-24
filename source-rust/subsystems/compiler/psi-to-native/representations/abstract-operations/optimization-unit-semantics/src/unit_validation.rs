@@ -10747,6 +10747,49 @@ pub(crate) mod operation_contracts {
             collect(proposition, &mut roots);
             roots
         }
+
+        #[cfg(test)]
+        mod tests {
+            use semantic_vocabulary::{
+                ClauseCarrier, ClauseIdentity, ClauseOperand, ClauseValue, IntegerSign,
+                IntegerType, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralCaseSubject,
+                StructuralTypeId, ValueId,
+            };
+
+            #[test]
+            fn declaration_identity_roots_are_its_structural_inputs() {
+                let integer =
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+                let root = PlaceId::new(5).unwrap();
+                let clause = ClauseIdentity {
+                    values: vec![
+                        ClauseValue {
+                            carrier: ClauseCarrier::Structural(StructuralTypeId::new(1).unwrap()),
+                            operand: ClauseOperand::Input(StructuralCaseSubject::new(
+                                root,
+                                Vec::new(),
+                            )),
+                        },
+                        ClauseValue {
+                            carrier: ClauseCarrier::Scalar(integer),
+                            operand: ClauseOperand::Scalar(ScalarTerm::value(
+                                ValueId::new(1).unwrap(),
+                                integer,
+                            )),
+                        },
+                        ClauseValue {
+                            carrier: ClauseCarrier::Scalar(integer),
+                            operand: ClauseOperand::Formal(0),
+                        },
+                    ],
+                    left: 1,
+                    right: 2,
+                };
+                let roots =
+                    super::proposition_structural_roots(&Proposition::DeclarationIdentity(clause));
+                assert_eq!(roots.into_iter().collect::<Vec<_>>(), vec![root]);
+            }
+        }
     }
     pub(crate) use claim_transfers::{function_entry_claim_paths, validate_slot_claim_transfers};
     mod node_contracts {
