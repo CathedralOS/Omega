@@ -30,6 +30,7 @@ pub(crate) fn resolve_machine_domain_homes(
     program: &mut SymbolResolvedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut homes = Vec::new();
+    let mut projections = std::collections::HashMap::<_, Vec<_>>::new();
     let mut diagnostics = Vec::new();
     for (position, machine) in program.machines.iter().enumerate() {
         if !program.symbols.symbol_source_is_selected(machine.symbol) {
@@ -68,7 +69,32 @@ pub(crate) fn resolve_machine_domain_homes(
                 .with_source_span(machine.name.source_span()),
             );
         }
+        if projection && let Some(domain) = home {
+            projections.entry(domain).or_default().push(machine.symbol);
+        }
         homes.push((position, home.unwrap_or_else(SymbolHandle::invalid)));
+    }
+    // A domain without parameters names one exact qualification. Its first
+    // publisher can live in an earlier checked cohort of the same package.
+    // An applied family must instead compare concrete domain applications.
+    for domain in program.domain_definitions.iter() {
+        if !domain.type_parameters.is_empty() || !domain.index_arguments.is_empty() {
+            continue;
+        }
+        let mut first = domain.content_projections.first().copied();
+        for &candidate in projections.get(&domain.symbol).into_iter().flatten() {
+            if first.is_some_and(|prior| prior != candidate) {
+                let mut error = Diagnostic::error(
+                    "an exact qualification may publish only one core Content projection",
+                );
+                if let Some(span) = program.symbols.symbol_source_span(candidate) {
+                    error = error.with_source_span(span);
+                }
+                diagnostics.push(error);
+            } else {
+                first = Some(candidate);
+            }
+        }
     }
     if !diagnostics.is_empty() {
         return Err(diagnostics);
@@ -76,5 +102,14 @@ pub(crate) fn resolve_machine_domain_homes(
     for (position, home) in homes {
         program.machines[position].attached_domain_symbol = home;
     }
+    program.roots.domain_definitions.for_each_mut(|domain| {
+        // Retained source can reactivate the domain without the file that
+        // published its projection. Keep that dependency visible to selection.
+        for projection in projections.remove(&domain.symbol).into_iter().flatten() {
+            if !domain.content_projections.contains(&projection) {
+                domain.content_projections.push(projection);
+            }
+        }
+    });
     Ok(())
 }

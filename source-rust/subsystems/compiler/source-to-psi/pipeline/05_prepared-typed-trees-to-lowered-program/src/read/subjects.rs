@@ -418,6 +418,7 @@ impl Program<'_> {
                     "the mathematical declaration",
                 ));
             }
+            self.projection_subject(entry, machine)?;
             machines.push(machine.symbol);
         }
         let mut data = Vec::new();
@@ -521,6 +522,7 @@ impl Program<'_> {
                 if self.proof_machine(machine) {
                     return Ok(());
                 }
+                self.projection_subject(entry, machine)?;
                 if self.select_native_provider(entry, machine.symbol)? {
                     return Ok(());
                 }

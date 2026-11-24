@@ -1712,6 +1712,20 @@ pub(crate) fn type_resolved_cohort(
         lowerer.typed_trees.begin_declaration_output();
         lowerer.lower_type_alias_declaration(alias)?;
     }
+    // A newly selected machine can publish for an already typed domain in a
+    // sibling file. Its source dependency belongs to the original domain.
+    for domain in source
+        .domain_definitions
+        .iter()
+        .take(cohort.domain_definitions)
+    {
+        if !domain.content_projections.is_empty() {
+            lowerer
+                .typed_trees
+                .extend_retained_domain_projections(domain.symbol, &domain.content_projections)
+                .map_err(Diagnostic::error)?;
+        }
+    }
     for domain_definition in source
         .domain_definitions
         .iter()

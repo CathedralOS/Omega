@@ -1131,6 +1131,8 @@ pub mod domain {
         pub semantic_id: semantic_vocabulary::SemanticDomainId,
         pub semantic_roles: source_declarations::DomainSemanticRoles,
         pub establishment_routes: Vec<source_declarations::DomainEstablishmentRoute>,
+        /// Authored core Content projections must be checked against their applied owner and algebra.
+        pub content_projections: Vec<SymbolHandle>,
         pub access_policy: Option<DomainAccessPolicy>,
     }
 
@@ -1265,6 +1267,7 @@ pub mod domain {
                 semantic_id: semantic_vocabulary::SemanticDomainId::NULL,
                 semantic_roles: source_declarations::DomainSemanticRoles::default(),
                 establishment_routes: Vec::new(),
+                content_projections: Vec::new(),
                 access_policy: None,
             }
         }
@@ -1844,6 +1847,31 @@ pub mod domain {
             }
             self.domain_application(symbol, identity)
                 .map(|application| application.arguments.as_slice())
+        }
+
+        /// Join additional declarations from a later cohort without changing any
+        /// projection already retained on the original domain.
+        pub fn extend_retained_domain_projections(
+            &mut self,
+            domain: SymbolHandle,
+            projections: &[SymbolHandle],
+        ) -> Result<(), &'static str> {
+            let position = self
+                .domain_position_by_symbol(domain)
+                .ok_or("content projection lost its retained declaring domain")?;
+            let previous = &self.domain_definitions().at(position).content_projections;
+            if !projections.starts_with(previous) {
+                return Err(
+                    "content projection changed a retained declaring domain's publications",
+                );
+            }
+            if projections.len() != previous.len() {
+                self.tables
+                    .domain_definitions
+                    .get_mut(self.roots.domain_definitions.handle_at(position as u32))
+                    .content_projections = projections.to_vec();
+            }
+            Ok(())
         }
 
         pub fn domain_definition_for_instance(

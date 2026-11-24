@@ -1376,6 +1376,9 @@ impl Program<'_> {
             )
         })?;
         self.domain_type_bounds(id, declaration, carrier, at)?;
+        for &projection in &declaration.content_projections {
+            self.projection_header(id, declaration, projection)?;
+        }
         if definition.alias.is_some() {
             return unserved("constrained by a domain alias");
         }
