@@ -1,9 +1,10 @@
 //! Execute each Build-registered test as a separately published Product.
+#[path = "registered_tests/native.rs"]
+mod native;
 #[path = "registered_tests/result.rs"]
 mod result;
 use self::result::{EngineError, NativeTermination, Observed, PsiTermination, Run, assess};
 use super::ProductStage;
-use crate::observations::ProcessExitObservation;
 use compiler::{Artifact, CompileRequest, Program};
 use diagnostics::Diagnostic;
 use installation_conditions::InstallationEnvironmentAssumption;
@@ -227,19 +228,12 @@ fn execute_native(report: CompletedProduct, can_exit: bool) -> Run<NativeTermina
             "cannot create the test's private working directory: {error}"
         ))
     })?;
-    let child = std::process::Command::new(executable)
-        .current_dir(working)
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|error| EngineError::Unavailable(format!("cannot start the test: {error}")))?;
-    let output = child.wait_with_output().map_err(|error| {
-        EngineError::Failed(format!("cannot collect the running test's result: {error}"))
-    })?;
+    let mut command = std::process::Command::new(executable);
+    command.current_dir(working).env_clear();
+    let output = native::capture(command, crate::NativeEntryLimits::INSTALLED)?;
     Ok(Observed {
         termination: NativeTermination {
-            status: ProcessExitObservation::observe(&output.status),
+            status: output.status.into(),
             can_exit,
         },
         stdout: output.stdout,
