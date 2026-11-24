@@ -359,7 +359,9 @@ pub(crate) fn assign_symbols(
     runtime_callable_scopes: &mut crate::resolution::names::runtime_callable_scopes::RuntimeCallableScopes,
     integers: &SpelledIntegers,
 ) -> Result<(), Vec<Diagnostic>> {
+    let mut evidence = Vec::new();
     let mut symbols = build_symbol_table(
+        &mut evidence,
         program,
         sources.clone(),
         source_scoped_top_level_bindings,
@@ -368,7 +370,9 @@ pub(crate) fn assign_symbols(
     integers.install(&mut symbols);
     namespace_declarations.install(&mut symbols)?;
     let has_sources = sources.is_some();
-    let mut symbols = insert_selected_machine_children(program, symbols, sources, 0, has_sources);
+    let mut symbols =
+        insert_selected_machine_children(&mut evidence, program, symbols, sources, 0, has_sources);
+    requirement_namespaces::install_evidence(program, &mut symbols, evidence);
     scopes::record_declaration_owners(program, &mut symbols)?;
     program.symbols = symbols;
     let runtime_callable_contracts = symbol_table::append_runtime_callable_symbols(program);
@@ -404,7 +408,9 @@ pub(crate) fn assign_symbols_against_resolved_base(
     runtime_callable_scopes: &mut crate::resolution::names::runtime_callable_scopes::RuntimeCallableScopes,
     integers: &SpelledIntegers,
 ) -> Result<(), Vec<Diagnostic>> {
+    let mut evidence = Vec::new();
     symbol_table::extend_symbol_table(
+        &mut evidence,
         program,
         sources.clone(),
         source_scoped_top_level_bindings,
@@ -414,9 +420,15 @@ pub(crate) fn assign_symbols_against_resolved_base(
     integers.install(&mut program.symbols);
     namespace_declarations.install(&mut program.symbols)?;
     let table = std::mem::take(&mut program.symbols);
-    program.symbols =
-        insert_selected_machine_children(program, table, Some(sources), roots.machines, true);
-    let mut symbols = program.symbols.clone();
+    let mut symbols = insert_selected_machine_children(
+        &mut evidence,
+        program,
+        table,
+        Some(sources),
+        roots.machines,
+        true,
+    );
+    requirement_namespaces::install_evidence(program, &mut symbols, evidence);
     scopes::record_declaration_owners(program, &mut symbols)?;
     program.symbols = symbols;
     let runtime_callable_contracts = symbol_table::append_runtime_callable_symbols(program);

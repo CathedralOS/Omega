@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
 /*
-  Omega Stage 02 (`04_abstract-operations-to-target-operations`): target-aware
+  Native stage 04 (`04_abstract-operations-to-target-operations`): target-aware
   lowering of `AbstractOperationPlan` into `TargetOperationPlan`
   (`lower_native_body`, `NativeBodyPlan`,
   `OptimizedTargetLoweringRequest`).
@@ -23,19 +23,18 @@
   Target operation lowering separates target-wide ABI and byte-layout decisions
   from ISA-specific instruction selection. By resolving structural sizes, field
   offsets, calling-convention placements, and reference descriptor storage on a
-  single block-structured target graph here, Omega Stage 03
+  single block-structured target graph here, native stage 05
   (`05_target-operations-to-selected-instructions`) can legalize operands and
   select machine instructions without re-evaluating source signatures or
   provider settlements.
 */
 
 /*
-  Consumes `StagedOptimizedAbstractOperationPlan` from Omega Stage 01
+  Consumes the `OptimizedAbstractBody` published by native stage 03
   (`03_abstract-operations-to-abstract-operations`) alongside admitted boundary
-  settlements, provider installation receipts, and target selection from Omega
-  Stage 00 (`02_target-bound-program-to-abstract-operations`). Produces
-  a prepared instruction-selection plan for Omega Stage
-  03 (`05_target-operations-to-selected-instructions`).
+  settlements, provider installation evidence and the selected target.
+  Produces a prepared instruction-selection plan for native stage 05
+  (`05_target-operations-to-selected-instructions`).
 */
 
 mod call_result_origins;

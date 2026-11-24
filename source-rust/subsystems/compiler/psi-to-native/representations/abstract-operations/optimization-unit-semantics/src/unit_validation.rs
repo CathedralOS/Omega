@@ -10708,6 +10708,13 @@ pub(crate) mod operation_contracts {
                             scalar_term_roots(source, roots);
                         }
                     }
+                    Proposition::ContentConservation(conservation) => {
+                        content_term_roots(conservation.left(), roots);
+                        content_term_roots(conservation.right(), roots);
+                    }
+                    // A declared Identity names places through its scalar and
+                    // input operands. Formals and applications refer to other
+                    // values in the same table, which this loop also visits.
                     Proposition::DeclarationIdentity(clause) => {
                         for value in &clause.values {
                             match &value.operand {
@@ -10721,10 +10728,6 @@ pub(crate) mod operation_contracts {
                                 | semantic_vocabulary::ClauseOperand::Application { .. } => {}
                             }
                         }
-                    }
-                    Proposition::ContentConservation(conservation) => {
-                        content_term_roots(conservation.left(), roots);
-                        content_term_roots(conservation.right(), roots);
                     }
                     Proposition::Conjunction(propositions)
                     | Proposition::Disjunction(propositions) => {
@@ -10749,64 +10752,54 @@ pub(crate) mod operation_contracts {
         }
 
         #[cfg(test)]
-        mod declaration_identity_roots_tests {
+        mod tests {
             use super::proposition_structural_roots;
             use semantic_vocabulary::{
-                CanonicalStructuralPathSegment, ClauseCarrier, ClauseDeclaration, ClauseIdentity,
-                ClauseOperand, ClauseValue, PlaceId, Proposition, ScalarReadProjection, ScalarTerm,
-                ScalarType, StructuralCaseSubject, StructuralFieldId, StructuralTypeId,
+                ClauseCarrier, ClauseDeclaration, ClauseIdentity, ClauseOperand, ClauseValue,
+                PlaceId, Proposition, ScalarReadProjection, ScalarTerm, ScalarType,
+                StructuralCaseSubject,
             };
+            use std::collections::BTreeSet;
 
-            // Claim-transfer checks read these roots, so a declaration Identity
-            // must report the places its scalar reads and inputs observe.
+            // A payloadless call is accepted only when every ensures root is the
+            // result place, so a declared Identity must report the places it reads.
             #[test]
             fn declaration_identity_reports_scalar_and_input_roots() {
-                let place = |id| PlaceId::new(id).unwrap();
-                let read = ScalarTerm::structural_read(
-                    place(1),
-                    vec![ScalarReadProjection::Static(
-                        CanonicalStructuralPathSegment::Field(StructuralFieldId::new(1).unwrap()),
-                    )],
-                    ScalarType::Boolean,
-                )
-                .unwrap();
-                let structural = StructuralTypeId::new(1).unwrap();
-                let clause = ClauseIdentity {
-                    values: vec![
-                        ClauseValue {
-                            carrier: ClauseCarrier::Scalar(ScalarType::Boolean),
-                            operand: ClauseOperand::Scalar(read),
-                        },
-                        ClauseValue {
-                            carrier: ClauseCarrier::Structural(structural),
-                            operand: ClauseOperand::Input(StructuralCaseSubject::new(
-                                place(2),
-                                Vec::new(),
-                            )),
-                        },
-                        ClauseValue {
-                            carrier: ClauseCarrier::Structural(structural),
-                            operand: ClauseOperand::Application {
-                                declaration: ClauseDeclaration {
-                                    supplier: None,
-                                    member: (3, 1),
-                                },
-                                arguments: vec![1],
-                            },
-                        },
-                        ClauseValue {
-                            carrier: ClauseCarrier::Parameter(0),
-                            operand: ClauseOperand::Formal(0),
-                        },
-                    ],
-                    left: 1,
-                    right: 2,
+                let place = |raw| PlaceId::new(raw).unwrap();
+                let carrier = ClauseCarrier::Parameter(0);
+                let identity = |values: Vec<ClauseOperand>| {
+                    Proposition::DeclarationIdentity(ClauseIdentity {
+                        values: values
+                            .into_iter()
+                            .map(|operand| ClauseValue { carrier, operand })
+                            .collect(),
+                        left: 0,
+                        right: 1,
+                    })
+                };
+                let read = ClauseOperand::Scalar(ScalarTerm::StructuralRead {
+                    root: place(4),
+                    path: vec![ScalarReadProjection::Referent],
+                    scalar_type: ScalarType::Boolean,
+                });
+                let input = ClauseOperand::Input(StructuralCaseSubject::new(place(3), Vec::new()));
+                let application = ClauseOperand::Application {
+                    declaration: ClauseDeclaration {
+                        supplier: None,
+                        member: (1, 1),
+                    },
+                    arguments: vec![0],
                 };
                 assert_eq!(
-                    proposition_structural_roots(&Proposition::DeclarationIdentity(clause))
-                        .into_iter()
-                        .collect::<Vec<_>>(),
-                    [place(1), place(2)]
+                    proposition_structural_roots(&identity(vec![read, input, application.clone()])),
+                    BTreeSet::from([place(3), place(4)])
+                );
+                assert!(
+                    proposition_structural_roots(&identity(vec![
+                        ClauseOperand::Formal(0),
+                        application
+                    ]))
+                    .is_empty()
                 );
             }
         }

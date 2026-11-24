@@ -9,24 +9,10 @@ claim (borrowed byte-descriptor access) was already repaired in #5379. Three
 claims remain open and are listed individually under
 [Unresolved claims](#unresolved-claims). The review changed no stage 05 code.
 
-While running the stage 05 fixtures, I found that `main` no longer compiled
-stage 05 or anything built on it. #5393 added `Proposition::DeclarationIdentity`,
-but two native crates had exhaustive matches without an arm for it. This branch
-adds both arms, each with its own fixture; see
+While running the stage 05 fixtures at `a0152d26`, the build failed: #5393
+added `Proposition::DeclarationIdentity`, and two native crates had no arm for
+it. Those arms have since landed on `main` in #5427, #5434 and #5449; see
 [Build break found during validation](#build-break-found-during-validation).
-
-The unit covers five stage 05 files under
-`source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/`,
-abbreviated `S05/` below. `SG` is `S05/selection_scalar_graph.rs`. No
-second-pass gap range in `second_pass_ranges.tsv` covers these files, so this
-packet owns the whole unit. Line numbers in the "Original location" column are
-the record's and the digest's, at survey commit `4f3c255d`. The "Code path"
-column names the function and its current line where it moved.
-
-Baseline: `24ad2700685e6cc6062026c87ed5fd24ed415265`. Code was read at
-`a0152d26` (two commits later; neither touches stage 05). Open PRs when the
-review started: #5409, #5405, #5368, #5338, #5336, #5307. None of them changes
-these files, and no claim in `cargo xtask claims` covered them.
 
 ## Correctness claims
 
@@ -124,26 +110,16 @@ arrival.
 
 ## Build break found during validation
 
-At `a0152d26`, and still at `origin/main` `9117a5cc`, the focused stage 05 test
-build stopped at E0004 in two crates:
-
-| Crate and match | Fix | Fixture |
-| --- | --- | --- |
-| `optimization-unit`, `identity.rs` `proposition_encoding::encode_proposition` | Encode tag 23 and every field of the clause. Published Psi still refuses a declaration Identity (`psi/artifact/wire/src/foundation_validation.rs:6080`); the arm keeps the optimizer identity total and collision-free. | `declaration_identity_tests::declaration_identity_commits_every_clause_field` changes one clause field at a time and requires different bytes. |
-| `optimization-unit-semantics`, `unit_validation.rs` `claim_transfers::proposition_structural_roots` | Report the root of each scalar read and input subject. Formal parameters and applications name no place. | `declaration_identity_roots_tests::declaration_identity_reports_scalar_and_input_roots` requires exactly the read and input roots. |
-
-Before: `mbx test --locked -p target-operations-to-selected-instructions --lib -- ...`
-failed with `error[E0004]: non-exhaustive patterns: &semantic_vocabulary::Proposition::DeclarationIdentity(_) not covered`,
-first at `optimization-unit/src/identity.rs:267`, then, after that fix, at
-`optimization-unit-semantics/src/unit_validation.rs:10668`. After: the command
-passes. I did not build the whole workspace, so crates outside the stage 05
-dependency tree may still have the same gap.
+At `a0152d26` the focused stage 05 test build stopped with
+`error[E0004]: non-exhaustive patterns: &semantic_vocabulary::Proposition::DeclarationIdentity(_) not covered`,
+first at `optimization-unit/src/identity.rs:267` (`encode_proposition`) and then
+at `optimization-unit-semantics/src/unit_validation.rs:10668`
+(`proposition_structural_roots`). I wrote both arms with fixtures. When I
+merged `main`, the same arms had already landed independently, with their own
+fixtures: #5427 and #5434 for the optimizer identity, and #5449 for the
+claim-transfer roots. This branch keeps `main`'s versions and adds no code.
 
 ## Validation
 
-- `mbx test --locked -p target-operations-to-selected-instructions --lib -- run_supply_checks runtime_profile_ zero_backing malformed_runtime resident_authored_value_codec resident_scalar_decode`: 8 passed. These cover claims 1-5: run relocation supply checks, runtime profile validation and compatibility against the Psi normalizer, malformed profiles, zero backing, and resident scalar codecs.
+- `mbx test --locked -p target-operations-to-selected-instructions --lib -- run_supply_checks runtime_profile_ zero_backing malformed_runtime resident_authored_value_codec resident_scalar_decode`: 8 passed on the tree merged with `main` `d9f21fac`. These cover claims 1-5: run relocation supply checks, runtime profile validation and compatibility against the Psi normalizer, malformed profiles, zero backing, and resident scalar codecs.
 - `mbx check --locked -p target-operations-to-selected-instructions --all-targets`: compiles; one existing dead-code warning at `S05/selection.rs:1523`.
-- `mbx test --locked -p optimization-unit --lib`: 15 passed.
-- `mbx test --locked -p optimization-unit-semantics`: 25 passed.
-- `mbx clippy --locked -p optimization-unit -p optimization-unit-semantics --all-targets -- -D warnings`: clean.
-- `rustfmt --edition 2024 --check` on both edited files: the only diffs are hunks already present on `main`.
