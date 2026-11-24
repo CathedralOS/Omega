@@ -45,7 +45,12 @@ pub use identity_formations::{
     ExpectedIdentityFormation, ExpectedIdentityFormations, verify_identity_formations,
 };
 mod mathematical_proof_actual;
+mod theorem_citations;
 pub(crate) use mathematical_proof_actual::indexed_theorem_roots;
+pub use theorem_citations::{
+    TheoremCitationContext, theorem_citation_actual, theorem_citation_context,
+    validate_theorem_evidence, validate_theorem_parameters, validate_theorem_supply_sites,
+};
 mod module_wire;
 mod obligation_evidence;
 mod sections;
@@ -81,8 +86,8 @@ pub mod sealing {
 
 pub use indexed_theorem_roots::verify_indexed_theorem_roots;
 pub use mathematical_proof_actual::{
-    MathematicalProofActualError, mathematical_carrier_key, verify_mathematical_proof_actual,
-    verify_module_mathematical_actuals,
+    MathematicalProofActualError, mathematical_carrier_key, theorem_implication_key,
+    verify_mathematical_proof_actual, verify_module_mathematical_actuals,
 };
 pub(crate) use psi_declaration_encoding::error as codec_error;
 pub(crate) mod cursor {

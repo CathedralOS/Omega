@@ -11890,7 +11890,16 @@ fn validate_callable_contracts(module: &TerminalModule) -> Result<(), CodecError
         if declaration.parameter_types.len()
             != contract.parameter_order.len()
                 + contract.erased_scalar_formals.len()
-                + contract.erased_proof_formals.len()
+                + contract
+                    .erased_proof_formals
+                    .iter()
+                    .filter(|formal| {
+                        matches!(
+                            formal.source,
+                            terminal_psi::ProofFormalSource::ValueParameter(_)
+                        )
+                    })
+                    .count()
         {
             return malformed("public contract source signature has another formal roster");
         }

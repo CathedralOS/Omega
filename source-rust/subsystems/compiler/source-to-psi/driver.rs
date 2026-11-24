@@ -29,11 +29,11 @@ pub(crate) fn publish_stage(
     entry: ProductEntry<'_>,
     advisories: Option<&mut Vec<Diagnostic>>,
     accounting: &mut crate::compile_time_invocations::SourceCompletionAccounting,
+    timings: &mut CompileTimings,
 ) -> Result<(PublishedPsi, CompletedProductSource), Vec<Diagnostic>> {
-    let mut timings = CompileTimings::default();
-    let (product, continuation) = source.resolve(&mut timings)?;
-    let checked = product.judge(continuation, entry, accounting, &mut timings)?;
-    let psi = product.publish(&checked)?;
+    let (product, continuation) = source.resolve(timings)?;
+    let checked = product.judge(continuation, entry, accounting, timings)?;
+    let psi = product.publish(&checked, timings)?;
     if let Some(advisories) = advisories {
         advisories.extend_from_slice(checked.terminal_publication.advisories());
     }
@@ -76,11 +76,12 @@ impl ProductSourceInputs<'_> {
     pub(crate) fn publish(
         &self,
         checked: &CompletedProductSource,
+        timings: &mut CompileTimings,
     ) -> Result<PublishedPsi, Vec<Diagnostic>> {
         checked.terminal_publication.publish(
             &self.optimizations,
             self.declaration_scope.as_deref().map(|scope| scope as _),
-            &mut CompileTimings::default(),
+            timings,
         )
     }
 }

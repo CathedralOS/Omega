@@ -1534,6 +1534,7 @@ pub(crate) fn projected_arrival(
                 required_contract: None,
                 static_reach_binding: None,
                 static_reach_arguments: Vec::new(),
+                proof_arguments: Vec::new(),
                 arguments,
                 designated: None,
             },

@@ -1437,7 +1437,16 @@ pub(crate) mod structural_encoding {
                 bytes.u64(formal.qualifications.get());
             });
             bytes.slice(&contract.erased_proof_formals, |bytes, formal| {
-                bytes.u32(formal.source_position);
+                match formal.source {
+                    terminal_psi::ProofFormalSource::ValueParameter(position) => {
+                        bytes.u8(1);
+                        bytes.u32(position);
+                    }
+                    terminal_psi::ProofFormalSource::GenericParameter(position) => {
+                        bytes.u8(2);
+                        bytes.u32(position);
+                    }
+                }
                 bytes.u32(formal.type_identity.0);
             });
             bytes.slice(&contract.membership_ensures, encode_runtime_membership);
@@ -5171,7 +5180,10 @@ pub(crate) mod operation_encoding {
                     path,
                 } => {
                     tag!(bytes, 122, psi_operation);
-                    bytes.u8(match query { terminal_psi::StorageLocationQuery::Address => 0, terminal_psi::StorageLocationQuery::Alignment => 1 });
+                    bytes.u8(match query {
+                        terminal_psi::StorageLocationQuery::Address => 0,
+                        terminal_psi::StorageLocationQuery::Alignment => 1,
+                    });
                     encode_abstract_result(bytes, *result);
                     bytes.id(*source);
                     bytes.slice(path, encode_structural_path_segment);

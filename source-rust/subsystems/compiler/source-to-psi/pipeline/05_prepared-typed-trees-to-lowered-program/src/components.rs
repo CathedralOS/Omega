@@ -74,6 +74,7 @@ struct CallSite<'body> {
     terminal: bool,
     required_contract: Option<semantic_vocabulary::ContractId>,
     arguments: &'body [Expression],
+    has_proof_arguments: bool,
 }
 
 pub(crate) fn index(machine: MachineId) -> usize {
@@ -167,6 +168,13 @@ pub(crate) fn components(
                 .any(|site| !site.terminal && table.same_component(this, index(site.callee)))
             {
                 return unserved(Unserved::Call("recursion outside a terminal position"));
+            }
+            // The loop head declares no theorem parameters. Refuse these
+            // calls before replacing them with jumps that would drop proofs.
+            if calls.calls(this).iter().any(|site| {
+                site.has_proof_arguments && table.same_component(this, index(site.callee))
+            }) {
+                return unserved(Unserved::Call("proof argument on a call cycle"));
             }
             // A head's parameters carry the member's runtime formals.
             // An erased binding has no runtime lane to carry around the
@@ -603,6 +611,7 @@ fn call<'body>(
     callee: &'body CallTarget,
     arguments: &'body [Expression],
     required_contract: Option<semantic_vocabulary::ContractId>,
+    has_proof_arguments: bool,
     terminal: bool,
     walk: &mut BodyWalk<'body, '_>,
 ) {
@@ -623,12 +632,14 @@ fn call<'body>(
             terminal,
             required_contract,
             arguments,
+            has_proof_arguments,
         });
     }
 }
 
 fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut BodyWalk<'body, '_>) {
     match &value.kind {
+        ExpressionKind::TheoremApplication { .. } => {}
         ExpressionKind::Atomic(operation) => {
             for operand in operation.inputs() {
                 expression(operand, false, sites);
@@ -744,6 +755,7 @@ fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut BodyW
             callee,
             required_contract,
             arguments,
+            proof_arguments,
             designated,
             ..
         } => {
@@ -754,7 +766,14 @@ fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut BodyW
                 // Build input sites. Do not peel this body until it serves them.
                 *has_designated = true;
             }
-            call(callee, arguments, *required_contract, terminal, sites);
+            call(
+                callee,
+                arguments,
+                *required_contract,
+                !proof_arguments.is_empty(),
+                terminal,
+                sites,
+            );
         }
     }
 }

@@ -654,3 +654,32 @@ fn ranking_observations_keep_the_selected_arithmetic_policy() {
         }
     }
 }
+
+#[test]
+fn a_tail_cycle_cannot_discard_a_supplied_theorem() {
+    let mut recursive = call(1, Vec::new(), None);
+    let ExpressionKind::Call {
+        proof_arguments, ..
+    } = &mut recursive.kind
+    else {
+        panic!("the test starts from a declared call");
+    };
+    proof_arguments.push(terminal_psi::TheoremSource::Formal(0));
+    let body = Body {
+        slots: Vec::new(),
+        statements: vec![Statement::Arm {
+            guard: ArmGuard::Always,
+            target: Target::Value(recursive),
+            source: nowhere(),
+        }],
+    };
+    let refusal = elaborate(vec![(body, signature(Vec::new(), None))]).unwrap_err();
+    assert_eq!(
+        refusal.reason,
+        terminal_check_tables::RefusalReason::Unsupported
+    );
+    assert!(
+        refusal.detail.contains("proof argument on a call cycle"),
+        "{refusal:?}"
+    );
+}

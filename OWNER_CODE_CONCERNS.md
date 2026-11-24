@@ -75,13 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Native admits a byte-array read into a bounded record without checking the decoded range
-- Category: 6
-- Where: `source-rust/subsystems/compiler/psi-to-native/pipeline/02_target-bound-program-to-abstract-operations/operations/storage.rs:1377`, `terminal_semantics::byte_carrier_scalar_layout` (`psi/semantics/src/bytes/byte_carriers.rs:34`)
-- Saw: `byte_carrier_scalar_layout` admits `BoundedInteger` fields, and native admission of a byte-carrier `StructuralLeafCopy` checks only the u8 array, the index and the layout; that check does not consult the field ranges or the result's qualifications (not traced into later native stages). Psi now refuses both at run time, so a program that reads 10 into a `u8 in 0..=9` field runs natively but stops in Psi.
-- Cost: The engines disagree on such a program, and native publishes a field value outside its type. Admission should reject a qualified result. It should also check each bounded leaf, or require the source checker to prove its range.
-- Reported: 2026-11-24, Claude Code, while repairing atlas area 14 digest line 175 in the interpreter
-
 ### check-portable-services stops at a selected requirement, so most POSIX filesystem facts went unread
 
 - Category: Tests that pin the bug

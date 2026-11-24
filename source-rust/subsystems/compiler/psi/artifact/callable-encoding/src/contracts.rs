@@ -10,7 +10,8 @@ use crate::{
 use semantic_vocabulary::Termination as TerminationPromise;
 use terminal_psi::{
     ContractClause, ErasedProofFormal, MachineContract, OutcomeSpecificEnsure,
-    OutcomeSpecificEvidence, OutcomeSpecificGuard, RuntimeDomainMembership, TerminalIdentityIndex,
+    OutcomeSpecificEvidence, OutcomeSpecificGuard, ProofFormalSource, RuntimeDomainMembership,
+    TerminalIdentityIndex,
 };
 type CrashRoutes = List<psi_declaration_encoding::crash_routes::Bucket>;
 wire_record! {
@@ -79,7 +80,16 @@ pub fn encode_proof_formals(
 ) -> Result<(), CodecError> {
     writer.len("erased proof formals", formals.len())?;
     for formal in formals {
-        writer.u32(formal.source_position);
+        match formal.source {
+            ProofFormalSource::ValueParameter(position) => {
+                writer.u8(1);
+                writer.u32(position);
+            }
+            ProofFormalSource::GenericParameter(position) => {
+                writer.u8(2);
+                writer.u32(position);
+            }
+        }
         writer.u32(formal.type_identity.0);
     }
     Ok(())
@@ -87,7 +97,11 @@ pub fn encode_proof_formals(
 
 pub fn decode_proof_formals(reader: &mut Reader<'_>) -> Result<Vec<ErasedProofFormal>, CodecError> {
     decode_counted(reader, |reader| {
-        let source_position = reader.u32()?;
+        let source = match reader.u8()? {
+            1 => ProofFormalSource::ValueParameter(reader.u32()?),
+            2 => ProofFormalSource::GenericParameter(reader.u32()?),
+            tag => return Err(CodecError::InvalidTag("erased proof formal source", tag)),
+        };
         let type_identity = TerminalIdentityIndex(reader.u32()?);
         if type_identity.is_absent() {
             return Err(CodecError::MalformedStructuralFoundation(
@@ -95,7 +109,7 @@ pub fn decode_proof_formals(reader: &mut Reader<'_>) -> Result<Vec<ErasedProofFo
             ));
         }
         Ok(ErasedProofFormal {
-            source_position,
+            source,
             type_identity,
         })
     })
@@ -122,5 +136,46 @@ impl Field<Option<terminal_psi::ClosedReachApplication>> for ReachApplication {
         reader: &mut Reader<'_>,
     ) -> Result<Option<terminal_psi::ClosedReachApplication>, CodecError> {
         crate::reach::decode(reader)
+    }
+}
+
+#[cfg(test)]
+mod proof_formal_sources {
+    use super::*;
+
+    #[test]
+    fn ordinary_and_generic_parameter_positions_remain_distinct() {
+        let formals = vec![
+            ErasedProofFormal {
+                source: ProofFormalSource::ValueParameter(0),
+                type_identity: TerminalIdentityIndex(1),
+            },
+            ErasedProofFormal {
+                source: ProofFormalSource::GenericParameter(0),
+                type_identity: TerminalIdentityIndex(1),
+            },
+        ];
+        let mut writer = Writer::default();
+        encode_proof_formals(&mut writer, &formals).unwrap();
+        let bytes = writer.finish();
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(decode_proof_formals(&mut reader).unwrap(), formals);
+        assert_eq!(reader.remaining(), 0);
+        assert_ne!(formals[0].source, formals[1].source);
+    }
+
+    #[test]
+    fn an_unknown_source_kind_cannot_become_an_ordinary_parameter() {
+        let mut writer = Writer::default();
+        writer.len("erased proof formals", 1).unwrap();
+        writer.u8(3);
+        writer.u32(0);
+        writer.u32(1);
+        let bytes = writer.finish();
+        let refusal = decode_proof_formals(&mut Reader::new(&bytes));
+        assert!(matches!(
+            refusal,
+            Err(CodecError::InvalidTag("erased proof formal source", 3))
+        ));
     }
 }

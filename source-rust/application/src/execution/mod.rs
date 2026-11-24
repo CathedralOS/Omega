@@ -80,15 +80,13 @@ Why `--both` captures `stdin` lazily and distinguishes preflight unavailability:
 */
 
 mod compilation;
-mod output_comparison;
 mod private_observation;
-mod process_exit;
 mod retained_artifacts;
 mod standard_input;
 
-pub use process_exit::ProcessExitObservation;
+pub use project_build::observations::ProcessExitObservation;
 
-use output_comparison::{OutputDivergence, ProgramStreams};
+use project_build::observations::{OutputDivergence, ProgramStreams, first_output_difference};
 
 use diagnostics::Diagnostic;
 use package_compilation::build_execution::BuildSnapshotRequest;
@@ -650,7 +648,7 @@ fn compare_finished_runs(
         InterpreterComparison::AgreesCrash { cause } => AgreedTermination::Crash(cause),
         unresolved => return unresolved,
     };
-    match output_comparison::first_output_difference(native_streams, psi_streams) {
+    match first_output_difference(native_streams, psi_streams) {
         None => termination.agreement(),
         Some(divergence) => InterpreterComparison::OutputDisagrees {
             termination,

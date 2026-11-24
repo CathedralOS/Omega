@@ -129,6 +129,16 @@ exclusive access, or an exclusive reborrow of storage held shared): a resource
 judgment over the lowered form, with no certificate. `Unsupported` means the
 checker does not serve the construct; it says nothing about the program.
 
+## Logical applications
+
+A supplied theorem can establish a fact without executing a machine. Its
+`TheoremApplication` records the fixed subjects and each `TheoremRequirement`
+on an ordinary edge. `Justification::TheoremGuarantee` makes a substituted
+conclusion available only at that edge's unique successor. The source edge
+cannot use the conclusion to prove the premise that enables it. These rows
+use the existing value, edge, obligation and knowledge identities; they create
+no invocation, runtime operand, storage access or effect authority.
+
 ## What the tables cannot say yet
 
 A lane met each, reported it, and read the fact from the lowered form instead.
@@ -170,6 +180,7 @@ A lane met each, reported it, and read the fact from the lowered form instead.
 | `RestorationWindow` | conserved | [language ownership](../../../../../../../../wiki/spec/language/ownership.md#borrowed-storage-invariant-windows): "records a restoration obligation on the original place and loan" |
 | `DomainDebt` | conserved | [dependent values](../../../../../../../../wiki/spec/language/dependent_values.md#invariant-windows): "The domain must be proved again at the next consumption point" |
 | `EstablishmentDebt` | conserved | [dependent values](../../../../../../../../wiki/spec/language/dependent_values.md#invariant-windows): "may open initial target-establishment debt before a valid target value exists" |
+| `TheoremRequirement` | question | [logical hypotheses](../../../../../../../../wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use): "application supplies their proof at the exact substitution." One per aliased premise on the application's ordinary edge, before its unique successor may use the conclusion. |
 | `CallRequirement` | question | [fact validity](../../../../../../../../wiki/spec/terminal-psi/fact_validity.md): "one exact obligation for every callee `requires` clause" |
 | `IntegerWidthPositive` | question | [width-indexed integers](../../../../../../../../wiki/spec/language/numeric_values.md#width-indexed-integers): "Generic formation proves positivity under the declaration's static requirements." One per actual static width input used by the owning machine's declared carriers, at its entry, including unread borrowed storage and zero-length array element types. |
 | `OperationSafety` | question | [control flow](../../../../../../../../wiki/spec/terminal-psi/control_flow.md): "Each partial operation still proves its own safety" |

@@ -60,6 +60,12 @@ fn lower_proposition_binders(
             TypeParameterKind::Const { type_reference } => PropositionBinderKind::Const {
                 type_reference: lower_type_reference_handle(lowerer, syntax_trees, type_reference)?,
             },
+            TypeParameterKind::Proof { .. } => {
+                return Err(Diagnostic::error(format!(
+                    "proposition declaration binder `{}` cannot be a callable proof parameter; use the alias-typed parameter on a machine header",
+                    binder.name.as_str(syntax_trees)
+                )));
+            }
             TypeParameterKind::Value { .. } => {
                 return Err(Diagnostic::error(format!(
                     "proposition declaration binder `{}` cannot be a runtime-capable value binder; value binders are legal only on machine signature generics",

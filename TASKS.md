@@ -24,7 +24,8 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
   - Give an unannotated constant the type of an initializer that only typing can find: a call, another constant or a typed operand, as in `const second = flag();`, `const first = second;` and `const mask = 2u8 + 3;`. The [parser](source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/declarations/constants.rs) writes the type of a suffixed literal, a cast or a Boolean and refuses the rest as unsupported, because name resolution reads every constant's declared type before typing runs.
 
-  - Let a block-valued arm assign a scalar local declared outside it, as in `0 -> { total = total + 1; total }`, and hold a `crash` or `transition` statement. The [reader](source-rust/subsystems/compiler/source-to-psi/pipeline/05_prepared-typed-trees-to-lowered-program/src/read/statements.rs) refuses the assignment ("assignment inside a block value to a scalar local declared outside it") because its new SSA binding would not reach the code after the arm joins; the local needs a storage home from its binding, as a lent local gets one. The [parser](source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/statements/sequence.rs) refuses the statements.
+  - Prove scalar bounds shared by every path into a join. After `let mutable total: u32 = 4;` and a match whose true arm assigns `total = 8;`, the checker refuses `total + 1` for possible overflow. An arm that can leave `total` at the largest `u32` must keep that refusal.
+  - Let a block-valued arm hold a `crash` or `transition` statement. The [parser](source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/statements/sequence.rs) refuses these statements.
 
 - **NESTED-MACHINE-UNIFICATION.** Finish checking calls and returns in nested machines ([machines.md](wiki/spec/language/machines.md#nested-machines-and-identity), [state_contracts.md](wiki/spec/language/state_contracts.md)).
   - Resolve recursive scopes, elaborate flat identities, and reject runtime capture or code after trailing declarations.
@@ -296,7 +297,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 - **PROOF-KERNEL-CORE.** (covers **PROOF-CONTRACT-MIGRATION**, **QUOTIENT-THEOREM-LIFT**, **PSI-CLAIM-ADMISSION**) Complete [source proofs](wiki/spec/proofs/foundation.md) and [Psi claim admission](wiki/drafts/designs/psi_claim_admission.md). Report [coverage code 36](wiki/spec/build/compiler_request.md) with the obligation identity when the prover lacks a rule for its form.
   - [Proof kernel core audit](wiki/drafts/designs/proof_kernel_core_audit.md): what #2823 removed, the three general rules still needed, the changes to stage 05's clause readers and the build order.
-  - Replace inline theorem hypotheses with explicit, alias-typed generic parameters in the source compiler. Publish proof argument positions in header order, accept named and derived evidence at citations, and reject a missing argument or a proof supplied for an executable callback. [Theorem proof parameters](wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use)
+  - Extend alias-typed theorem parameters to accept instantiated citations, evidence projected from bundles and contracts with their own proof parameters. Check recursive citations against their substituted premises and descent obligation, and extend the logical contract beyond fixed integer and Boolean subjects. [Theorem proof parameters](wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use)
 
 ## Build-level behavior exclusions
 
@@ -305,7 +306,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 ## Requirement-based tests
 
-- **BUILD-TEST-COMPARISON.** Implement `omega build --compare-tests` in the [registered test runner](wiki/spec/build/testing.md#comparing-native-and-psi-tests). Report each engine's result and compare termination, stdout, stderr and declared outputs using isolated copies of the same inputs. Exercise equal exits with different output, identical wrong output, and an unavailable comparison. Migrate callers, sample commands and repository-only program comparisons before removing `omega run --both`.
+- **BUILD-TEST-COMPARISON.** Supply each registered test's configured arguments, stdin, service inputs and initial files independently to native and Psi. Check each engine's streams and declared files, values and fields against expectations, and compare those observations with `omega build --compare-tests`. Exercise matching exits with different output, identical wrong stdout, and absent versus empty files through the [registered test runner](wiki/spec/build/testing.md#comparing-native-and-psi-tests). Migrate callers, sample commands and repository-only program comparisons before removing `omega run --both`.
 
 - **TEST-GROUP-FILESYSTEM-TARGETS.** Provide [delegated filesystem backing for test groups](wiki/spec/build/testing.md#test-runner-filesystem-slot) through their ordinary provider selection and [test planning](source-rust/subsystems/compiler/build/planning/registered_tests.rs). Retire `tests.service<Group, Slot>()`, its Build operands and the filesystem-specific switch.
   - Exercise canonicalization, metadata, directories and file I/O on the hosted targets. Include the Linux libc `realpath` case and report unavailable engines explicitly.

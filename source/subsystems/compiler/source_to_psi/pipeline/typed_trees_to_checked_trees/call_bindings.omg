@@ -1,15 +1,18 @@
-use representations\symbol_resolved_trees\NameResolution;
-use representations\syntax_trees\ClauseKind;
-use representations\syntax_trees\Expression;
-use representations\syntax_trees\SyntaxTrees;
-use representations\typed_trees\Typing;
+use pipeline/typed_trees_to_checked_trees/obligations.omg;
+use pipeline/typed_trees_to_checked_trees/checker.omg;
+use pipeline/typed_trees_to_checked_trees/contracts.omg;
+use pipeline/typed_trees_to_checked_trees/evaluation.omg;
+
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/typed_trees/typed_trees.omg;
 
 // A complete positional roster. Missing capacity is not an unbound formal:
 // no fact is admitted from an incomplete substitution.
 public data ArgumentValues [copy] {
     valid: bool;
     count: u64 in Trapping;
-    values: [Value; 64];
+    values: [|evaluation|::Value; 64];
 }
 
 // The live substitution is shared with construction/domain field bindings.
@@ -27,8 +30,8 @@ public machine argument_values_empty(arguments: @mutable ArgumentValues)
 crashes Trap
 {
     arguments.valid = true;
-    arguments.count = 0;
-    transition { _ -> next(arguments, 0) }
+    arguments.count = 0 as +Trapping;
+    transition { _ -> next(arguments, 0 as +Trapping) }
     machine next(arguments: @mutable ArgumentValues, offset: u64 in Trapping) {
         transition offset < 64 {
             true -> clear(arguments, offset),
@@ -38,25 +41,25 @@ crashes Trap
     machine clear(arguments: @mutable ArgumentValues, offset: u64 in Trapping)
     requires offset < 64
     {
-        arguments.values[offset] = value_unknown();
+        arguments.values[offset as -Trapping] = |evaluation|::value_unknown();
         transition { _ -> next(arguments, offset + 1) }
     }
 }
 
-public machine capture_argument_scope(checker: @Checker, scope: @mutable ArgumentScope)
+public machine capture_argument_scope(checker: @|checker|::Checker, scope: @mutable ArgumentScope)
 crashes Trap
 {
     argument_values_empty(@mutable scope.arguments);
     scope.substituting = checker.substituting;
-    scope.first_parameter = 0;
+    scope.first_parameter = 0 as +Trapping;
     scope.field_values = checker.field_values;
-    scope.field_first = 0;
+    scope.field_first = 0 as +Trapping;
     scope.fields_parent = checker.fields_parent;
     transition checker.substituting || checker.field_values {
         true -> active(checker, scope),
         _ -> {}
     }
-    machine active(checker: @Checker, scope: @mutable ArgumentScope) {
+    machine active(checker: @|checker|::Checker, scope: @mutable ArgumentScope) {
         scope.arguments.count = checker.argument_count;
         scope.arguments.valid = checker.argument_count <= 64;
         transition checker.substituting {
@@ -64,35 +67,35 @@ crashes Trap
             _ -> fields(checker, scope)
         }
     }
-    machine parameters(checker: @Checker, scope: @mutable ArgumentScope) {
+    machine parameters(checker: @|checker|::Checker, scope: @mutable ArgumentScope) {
         scope.first_parameter = checker.argument_first;
         transition { _ -> fields(checker, scope) }
     }
-    machine fields(checker: @Checker, scope: @mutable ArgumentScope) {
+    machine fields(checker: @|checker|::Checker, scope: @mutable ArgumentScope) {
         transition checker.field_values {
             true -> field_roster(checker, scope),
-            _ -> next(checker, scope, 0)
+            _ -> next(checker, scope, 0 as +Trapping)
         }
     }
-    machine field_roster(checker: @Checker, scope: @mutable ArgumentScope) {
+    machine field_roster(checker: @|checker|::Checker, scope: @mutable ArgumentScope) {
         scope.field_first = checker.field_first;
-        transition { _ -> next(checker, scope, 0) }
+        transition { _ -> next(checker, scope, 0 as +Trapping) }
     }
-    machine next(checker: @Checker, scope: @mutable ArgumentScope, offset: u64 in Trapping) {
+    machine next(checker: @|checker|::Checker, scope: @mutable ArgumentScope, offset: u64 in Trapping) {
         transition offset < scope.arguments.count && offset < 64 {
             true -> capture(checker, scope, offset),
             _ -> {}
         }
     }
-    machine capture(checker: @Checker, scope: @mutable ArgumentScope, offset: u64 in Trapping)
+    machine capture(checker: @|checker|::Checker, scope: @mutable ArgumentScope, offset: u64 in Trapping)
     requires offset < 64
     {
-        scope.arguments.values[offset] = argument_value(checker, offset);
+        scope.arguments.values[offset as -Trapping] = |contracts|::argument_value(checker, offset);
         transition { _ -> next(checker, scope, offset + 1) }
     }
 }
 
-public machine restore_argument_scope(checker: @mutable Checker, scope: @ArgumentScope)
+public machine restore_argument_scope(checker: @mutable |checker|::Checker, scope: @ArgumentScope)
 crashes Trap
 {
     checker.substituting = scope.substituting;
@@ -101,39 +104,39 @@ crashes Trap
     checker.field_values = scope.field_values;
     checker.field_first = scope.field_first;
     checker.fields_parent = scope.fields_parent;
-    transition { _ -> next(checker, scope, 0) }
-    machine next(checker: @mutable Checker, scope: @ArgumentScope, offset: u64 in Trapping) {
+    transition { _ -> next(checker, scope, 0 as +Trapping) }
+    machine next(checker: @mutable |checker|::Checker, scope: @ArgumentScope, offset: u64 in Trapping) {
         transition offset < 64 {
             true -> restore(checker, scope, offset),
             _ -> {}
         }
     }
-    machine restore(checker: @mutable Checker, scope: @ArgumentScope, offset: u64 in Trapping)
+    machine restore(checker: @mutable |checker|::Checker, scope: @ArgumentScope, offset: u64 in Trapping)
     requires offset < 64
     {
-        checker.arguments[offset] = scope.arguments.values[offset];
+        checker.arguments[offset as -Trapping] = scope.arguments.values[offset as -Trapping];
         transition { _ -> next(checker, scope, offset + 1) }
     }
 }
 
-public machine capture_call_arguments(checker: @Checker, syntax: @SyntaxTrees, call: Expression, arguments: @mutable ArgumentValues)
+public machine capture_call_arguments(checker: @|checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, call: |syntax_trees|::Expression, arguments: @mutable ArgumentValues)
 crashes Trap
 {
     argument_values_empty(arguments);
-    arguments.count = operand_count(call);
+    arguments.count = |obligations|::operand_count(call);
     arguments.valid = arguments.count <= 64;
-    transition { _ -> next(checker, syntax, call, arguments, 0) }
-    machine next(checker: @Checker, syntax: @SyntaxTrees, call: Expression, arguments: @mutable ArgumentValues, offset: u64 in Trapping) {
+    transition { _ -> next(checker, syntax, call, arguments, 0 as +Trapping) }
+    machine next(checker: @|checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, call: |syntax_trees|::Expression, arguments: @mutable ArgumentValues, offset: u64 in Trapping) {
         transition offset < arguments.count && offset < 64 {
             true -> capture(checker, syntax, call, arguments, offset),
             _ -> {}
         }
     }
-    machine capture(checker: @Checker, syntax: @SyntaxTrees, call: Expression, arguments: @mutable ArgumentValues, offset: u64 in Trapping)
+    machine capture(checker: @|checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, call: |syntax_trees|::Expression, arguments: @mutable ArgumentValues, offset: u64 in Trapping)
     requires offset < 64
     {
-        let handle: u64 in Trapping = checker_operand(syntax, call, offset);
-        arguments.values[offset] = value_at(checker, handle);
+        let handle: u64 in Trapping = |obligations|::checker_operand(syntax, call, offset);
+        arguments.values[offset as -Trapping] = |evaluation|::value_at(checker, handle);
         transition { _ -> next(checker, syntax, call, arguments, offset + 1) }
     }
 }
@@ -142,9 +145,9 @@ crashes Trap
 // This is the same fact evaluator for real calls and universal refinement;
 // only the producer of the actual values differs.
 public machine decide_bound_facts(
-    checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution,
-    typing: @Typing, clauses: CallClauses, arguments: @ArgumentValues,
-    kind: ClauseKind, proving: bool
+    checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution,
+    typing: @|typed_trees|::Typing, clauses: |contracts|::CallClauses, arguments: @ArgumentValues,
+    kind: |syntax_trees|::ClauseKind, proving: bool
 ) -> bool
 crashes Trap
 {
@@ -152,7 +155,7 @@ crashes Trap
         true -> scoped(checker, syntax, resolution, typing, clauses, arguments, kind, proving),
         _ -> false
     }
-    machine scoped(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, clauses: CallClauses, arguments: @ArgumentValues, kind: ClauseKind, proving: bool) -> bool {
+    machine scoped(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, clauses: |contracts|::CallClauses, arguments: @ArgumentValues, kind: |syntax_trees|::ClauseKind, proving: bool) -> bool {
         let mutable previous: ArgumentScope;
         capture_argument_scope(checker, @mutable previous);
         transition previous.arguments.valid {
@@ -160,33 +163,33 @@ crashes Trap
             _ -> false
         }
     }
-    machine installed(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, clauses: CallClauses, arguments: @ArgumentValues, kind: ClauseKind, proving: bool, previous: @ArgumentScope) -> bool {
+    machine installed(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, clauses: |contracts|::CallClauses, arguments: @ArgumentValues, kind: |syntax_trees|::ClauseKind, proving: bool, previous: @ArgumentScope) -> bool {
         install_argument_values(checker, clauses.first_parameter, arguments);
-        let held: bool = decide_facts(checker, syntax, resolution, typing, clauses.first_clause, clauses.clause_count, kind, proving);
+        let held: bool = |contracts|::decide_facts(checker, syntax, resolution, typing, clauses.first_clause, clauses.clause_count, kind, proving);
         restore_argument_scope(checker, previous);
         held
     }
 }
 
-public machine install_argument_values(checker: @mutable Checker, first: u64 in Trapping, arguments: @ArgumentValues)
+public machine install_argument_values(checker: @mutable |checker|::Checker, first: u64 in Trapping, arguments: @ArgumentValues)
 crashes Trap
 {
     checker.substituting = true;
     checker.argument_first = first;
     checker.argument_count = arguments.count;
     checker.field_values = false;
-    checker.fields_parent = 0;
-    transition { _ -> next(checker, arguments, 0) }
-    machine next(checker: @mutable Checker, arguments: @ArgumentValues, offset: u64 in Trapping) {
+    checker.fields_parent = 0 as +Trapping;
+    transition { _ -> next(checker, arguments, 0 as +Trapping) }
+    machine next(checker: @mutable |checker|::Checker, arguments: @ArgumentValues, offset: u64 in Trapping) {
         transition offset < arguments.count && offset < 64 {
             true -> install(checker, arguments, offset),
             _ -> {}
         }
     }
-    machine install(checker: @mutable Checker, arguments: @ArgumentValues, offset: u64 in Trapping)
+    machine install(checker: @mutable |checker|::Checker, arguments: @ArgumentValues, offset: u64 in Trapping)
     requires offset < 64
     {
-        checker.arguments[offset] = arguments.values[offset];
+        checker.arguments[offset as -Trapping] = arguments.values[offset as -Trapping];
         transition { _ -> next(checker, arguments, offset + 1) }
     }
 }

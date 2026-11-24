@@ -68,9 +68,11 @@ use crate::source_state::static_applications::{
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use source_text::SourceSpan;
-use typed_trees::static_operand_binding::{self, Identity, Operand, Served, Stop, Value, bind, named_type, unserved};
-use typed_trees::data_applications;
 use symbols::{SymbolHandle, SymbolKind};
+use typed_trees::data_applications;
+use typed_trees::static_operand_binding::{
+    self, Identity, Operand, Served, Stop, Value, bind, named_type, unserved,
+};
 
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use crate::source_state::{
@@ -473,6 +475,24 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines
         return apply_requirement(program, site, &applied, &arguments);
     }
     if arguments.is_empty() {
+        if let Some((callee, _)) = entered_machine(program, applied.target)
+            && let Some(machine) = program.machine_by_symbol(callee)
+            && let Some(proof) =
+                program
+                    .machine_callable_parameters(machine)
+                    .iter()
+                    .find(|parameter| {
+                        matches!(parameter.kind, TypeParameterKind::Proof { .. })
+                            && program.symbols.symbols().nodes().is_valid(parameter.symbol)
+                            && program.symbols.get(parameter.symbol).parent == machine.symbol
+                    })
+        {
+            return Err(Stop::Rejected(format!(
+                "call to `{}` must explicitly supply the proof argument `{}`",
+                machine.name.as_str(),
+                proof.name.as_str()
+            )));
+        }
         return Ok(());
     }
     // Only an application of a declared machine with parameters is a
@@ -596,6 +616,9 @@ fn specialize_application(
         .lexical_owner;
     let mut operands = Vec::with_capacity(parameters.len());
     for (parameter, argument) in parameters.iter().zip(arguments.iter()) {
+        if matches!(parameter.kind, TypeParameterKind::Proof { .. }) {
+            continue;
+        }
         operands.push(Operand::read(
             program,
             parameter,
@@ -613,6 +636,37 @@ fn specialize_application(
         .expression_table
         .static_machine_application_mut(application)
         .binding_declaration = callee;
+    if parameters
+        .iter()
+        .any(|parameter| matches!(parameter.kind, TypeParameterKind::Proof { .. }))
+    {
+        // Evidence keeps its declared position and actual citation. It never
+        // chooses a generated executable body or enters a specialization key.
+        let mut computational = operands.iter();
+        let bindings = parameters
+            .iter()
+            .zip(arguments.iter())
+            .map(|(parameter, argument)| {
+                let value = if matches!(parameter.kind, TypeParameterKind::Proof { .. }) {
+                    StaticMachineBindingValue::Proof(argument.clone())
+                } else {
+                    computational
+                        .next()
+                        .expect("every computational parameter was read above")
+                        .value
+                        .clone()
+                };
+                crate::source_state::static_applications::StaticMachineBinding {
+                    parameter: parameter.symbol,
+                    value,
+                }
+            })
+            .collect::<Vec<_>>();
+        program
+            .expression_table
+            .set_static_machine_application_bindings(application, &bindings);
+        return Ok(None);
+    }
     bind(program, application, &operands);
     // An argument that names a parameter of the enclosing generic machine
     // leaves the application open: it is closed in each machine generated
@@ -1142,7 +1196,12 @@ fn apply_requirement(
             arguments,
         )?
     } else {
-        static_operand_binding::prepare_requirement_application(program, applied.target, applied.application, arguments)?
+        static_operand_binding::prepare_requirement_application(
+            program,
+            applied.target,
+            applied.application,
+            arguments,
+        )?
     };
     if let Some(closed) = selected {
         site.enter(program, closed);

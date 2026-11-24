@@ -143,7 +143,9 @@ impl PolicySource<'_> {
                     } => PackagePolicyTypeParameterKind::Machine(
                         PackagePolicyMachineParameterContract::RequirementIdentity,
                     ),
-                    TypeParameterKind::Machine { .. } | TypeParameterKind::Proposition { .. } => {
+                    TypeParameterKind::Machine { .. }
+                    | TypeParameterKind::Proof { .. }
+                    | TypeParameterKind::Proposition { .. } => {
                         return Err(unavailable(
                             "a higher-order generic parameter's complete contract",
                         ));

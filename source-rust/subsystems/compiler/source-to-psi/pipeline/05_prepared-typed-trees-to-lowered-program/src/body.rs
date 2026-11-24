@@ -613,6 +613,7 @@ pub struct RankRange {
 /// creates a machine body nor selects a provider.
 #[derive(Clone, Copy)]
 pub(crate) struct Signatures<'a> {
+    pub theorems: &'a [terminal_psi::TheoremParameter],
     pub machines: &'a IdTable<MachineId, Signature>,
     pub declarations: &'a IdTable<semantic_vocabulary::ContractId, Signature>,
     pub declaration_aliases:
@@ -988,6 +989,9 @@ pub enum Statement {
     /// their destination place ... They then evaluate the right-hand side".
     /// A destination made of a slot and fields has nothing to evaluate.
     Store {
+        /// The primitive storage identity when this use requires an owned scalar
+        /// slot to occupy one place from its binding through a control-flow join.
+        slot_home: Option<String>,
         destination: Expression,
         value: Expression,
         source: SourceOrigin,
@@ -1139,6 +1143,11 @@ impl AtomicOperation {
 pub enum ExpressionKind {
     /// Operand indices refer to the event's source evaluation order.
     Atomic(AtomicOperation),
+    /// Apply the supplied implication to fixed subjects without executing a call.
+    TheoremApplication {
+        proof_position: u32,
+        arguments: Vec<Expression>,
+    },
     /// The enclosing match's already captured place, never its selector again.
     SavedSubject(arena::Handle<crate::source_state::expression::CompletedValueCapture>),
     Integer(IntegerValue),
@@ -1367,6 +1376,7 @@ pub enum ExpressionKind {
         required_contract: Option<semantic_vocabulary::ContractId>,
         static_reach_binding: Option<u32>,
         static_reach_arguments: Vec<terminal_psi::static_reach::StaticReachArgument>,
+        proof_arguments: Vec<terminal_psi::TheoremSource>,
         arguments: Vec<Expression>,
         designated: Option<DesignatedOperands>,
     },

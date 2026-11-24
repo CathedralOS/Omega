@@ -87,6 +87,7 @@ fn a_no_normal_borrow_keeps_the_callers_affine_owner_suspended() {
                         required_contract: None,
                         static_reach_binding: None,
                         static_reach_arguments: Vec::new(),
+                        proof_arguments: Vec::new(),
                         callee: id::<MachineId>(2).into(),
                         arguments: vec![borrowed],
                         designated: None,

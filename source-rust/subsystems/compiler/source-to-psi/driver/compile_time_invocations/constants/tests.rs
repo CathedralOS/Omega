@@ -140,8 +140,7 @@ fn closed_domain_index_calls_use_their_evaluated_value() {
         }
     }
     let errors = check(fixed, "u32 in At<(identity(KEY))>", "5", "value")
-        .err()
-        .expect("different index values must refuse");
+        .expect_err("different index values must refuse");
     assert!(
         diagnostics::join_messages(&errors)
             .contains("a type gains or loses a domain only through a cast"),

@@ -2215,6 +2215,7 @@ dependencies = [
  "numeric-literals",
  "numerics",
  "prepared-source",
+ "proof-admission",
  "proof-applications",
  "schema-reflection",
  "semantic-vocabulary",

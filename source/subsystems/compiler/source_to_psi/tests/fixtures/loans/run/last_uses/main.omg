@@ -1,3 +1,5 @@
+use loans.omg;
+
 public data Ownership {
     use_count: u64;
     use_locals: [u64; 128];
@@ -37,7 +39,7 @@ machine start() crashes Trap {
     transition { _ -> fill(@mutable checker, @syntax, @resolution, 0 as +Trapping) }
 
     machine fill(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, row: u64 in Trapping) {
-        record_tree_uses(checker, syntax, resolution, row, row);
+        |loans|::record_tree_uses(checker, syntax, resolution, row, row);
         transition row < 127 {
             true -> fill(checker, syntax, resolution, row + 1),
             _ -> repeat(checker, syntax, resolution)
@@ -45,7 +47,7 @@ machine start() crashes Trap {
     }
 
     machine repeat(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution) {
-        record_tree_uses(checker, syntax, resolution, 127 as +Trapping, 150 as +Trapping);
+        |loans|::record_tree_uses(checker, syntax, resolution, 127 as +Trapping, 150 as +Trapping);
         transition checker.output.machine_accepted && checker.ownership.use_count == 128 && checker.ownership.use_last[127] == 150 {
             true -> extra(checker, syntax, resolution),
             _ -> wrong()
@@ -53,7 +55,7 @@ machine start() crashes Trap {
     }
 
     machine extra(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution) {
-        record_tree_uses(checker, syntax, resolution, 128 as +Trapping, 151 as +Trapping);
+        |loans|::record_tree_uses(checker, syntax, resolution, 128 as +Trapping, 151 as +Trapping);
         transition !checker.output.machine_accepted && checker.output.code == CheckDiagnosticCode::CheckCapacityExceeded
             && checker.output.span == 128 && checker.ownership.use_count == 128 {
             true -> done(),

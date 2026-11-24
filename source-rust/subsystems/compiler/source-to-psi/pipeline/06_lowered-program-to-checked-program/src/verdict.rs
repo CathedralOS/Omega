@@ -443,7 +443,10 @@ fn accept_proof_callables(elaboration: &mut Elaboration, discharge: &Discharge) 
             )
         }) {
             if header.supplies_checked_body {
-                return Err(invalid(machine, "an unfinished Build suffix claims to supply a checked callable body"));
+                return Err(invalid(
+                    machine,
+                    "an unfinished Build suffix claims to supply a checked callable body",
+                ));
             }
             continue;
         }
@@ -852,6 +855,9 @@ fn describe_kind(kind: ObligationKind) -> String {
     match kind {
         ObligationKind::IntegerWidthPositive { .. } => String::from("positive integer width"),
         ObligationKind::OperationSafety { .. } => String::from("operation safety"),
+        ObligationKind::TheoremRequirement { clause, .. } => {
+            format!("premise {} of the supplied theorem", u64::from(clause) + 1)
+        }
         ObligationKind::CallRequirement { clause, .. } => {
             format!(
                 "requires clause {} of the called machine",

@@ -1,256 +1,261 @@
-use representations\checks\CheckDiagnosticCode;
-use representations\checks\checks_reject;
-use representations\symbol_resolved_trees\BinderContract;
-use representations\symbol_resolved_trees\NameResolution;
-use representations\symbol_resolved_trees\binder_contract;
-use representations\symbol_resolved_trees\service_trait;
-use representations\syntax_trees\Clause;
-use representations\syntax_trees\ClauseKind;
-use representations\syntax_trees\Expression;
-use representations\syntax_trees\MachineItem;
-use representations\syntax_trees\machine_item;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\syntax_trees_expression;
-use representations\syntax_trees\syntax_trees_clause;
-use representations\typed_trees\Selection;
+use pipeline/typed_trees_to_checked_trees/termination.omg;
+use pipeline/typed_trees_to_checked_trees/checker.omg;
+use pipeline/typed_trees_to_checked_trees/contracts.omg;
+use pipeline/typed_trees_to_checked_trees/invocations.omg;
+
+use representations/checks/checks.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/typed_trees/typed_trees.omg;
 
 // The same selected-call graph answers callable refinement and the service
 // reach of an ordinary call. Inference follows a machine without an authored
 // row; a callee with an authored ceiling publishes exactly that row.
-data RequiredEffects [copy] { clauses: CallClauses; reach_only: bool; }
+data RequiredEffects [copy] { clauses: |contracts|::CallClauses; reach_only: bool; }
 
-public machine callable_markers_refine(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: CallClauses, given: CallClauses, target: Selection) -> bool
+public machine callable_markers_refine(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, required: |contracts|::CallClauses, given: |contracts|::CallClauses, target: |typed_trees|::Selection) -> bool
 crashes Trap
 {
     let effects: RequiredEffects = RequiredEffects { clauses: required, reach_only: false };
     let markers: bool = callable_clause_ceiling(syntax, resolution, effects, given);
-    let progress: bool = !callable_has_clause(syntax, required, ClauseKind::Terminates) || selected_progress(checker, syntax, resolution, target);
+    let progress: bool = !callable_has_clause(syntax, required, |syntax_trees|::ClauseKind::Terminates) || selected_progress(checker, syntax, resolution, target);
     transition markers && progress {
         true -> callable_effects_within(checker, syntax, resolution, effects, target),
         false -> false
     }
 }
 
-public machine check_service_ceilings(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution)
+public machine check_service_ceilings(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution)
 crashes Trap
 {
-    transition { _ -> next(checker, syntax, resolution, 0) }
-    machine next(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, owner: u64 in Trapping) {
+    transition { _ -> next(checker, syntax, resolution, 0 as +Trapping) }
+    machine next(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, owner: u64 in Trapping) {
         transition owner < syntax.machine_count && owner < 10240 && checker.output.accepted {
             true -> check(checker, syntax, resolution, owner),
             _ -> done()
         }
     }
-    machine check(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, owner: u64 in Trapping) {
-        let caller: CallClauses = call_clauses(syntax, resolution, Selection::Machine { handle: owner });
-        transition callable_has_clause(syntax, caller, ClauseKind::Reaches) {
+    machine check(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, owner: u64 in Trapping) {
+        let caller: |contracts|::CallClauses = |contracts|::call_clauses(syntax, resolution, |typed_trees|::Selection::Machine { handle: owner });
+        transition callable_has_clause(syntax, caller, |syntax_trees|::ClauseKind::Reaches) {
             true -> bounded(checker, syntax, resolution, owner, caller),
             _ -> next(checker, syntax, resolution, owner + 1)
         }
     }
-    machine bounded(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, owner: u64 in Trapping, caller: CallClauses) {
+    machine bounded(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, owner: u64 in Trapping, caller: |contracts|::CallClauses) {
         transition checker.invocations.complete && checker.invocations.sealed && owner < checker.invocations.node_count && owner < 10240 {
-            true -> outgoing(checker, syntax, resolution, owner, caller, checker.invocations.first[owner as -Trapping] as +Trapping),
+            true -> first_edge(checker, syntax, resolution, owner, caller),
             _ -> unresolved(checker, syntax, owner)
         }
     }
-    machine outgoing(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, owner: u64 in Trapping, caller: CallClauses, handle: u64 in Trapping) {
+    machine first_edge(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, owner: u64 in Trapping, caller: |contracts|::CallClauses)
+    requires owner < 10240
+    {
+        let handle: u64 in Trapping = checker.invocations.first[owner as -Trapping] as +Trapping;
+        transition { _ -> outgoing(checker, syntax, resolution, owner, caller, handle) }
+    }
+    machine outgoing(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, owner: u64 in Trapping, caller: |contracts|::CallClauses, handle: u64 in Trapping) {
         transition handle {
             0 -> next(checker, syntax, resolution, owner + 1),
             _ -> edge(checker, syntax, resolution, owner, caller, handle)
         }
     }
-    machine edge(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, owner: u64 in Trapping, caller: CallClauses, handle: u64 in Trapping) {
+    machine edge(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, owner: u64 in Trapping, caller: |contracts|::CallClauses, handle: u64 in Trapping) {
         transition handle > 0 && handle <= checker.invocations.edge_count && handle <= 32768 {
-            true -> bound(checker, syntax, resolution, owner, caller, checker.invocations.edges[((handle - 1) as -Trapping)]),
+            true -> bound(checker, syntax, resolution, owner, caller, handle),
             _ -> unresolved(checker, syntax, owner)
         }
     }
-    machine bound(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, owner: u64 in Trapping, caller: CallClauses, edge: InvocationEdge) {
+    machine bound(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, owner: u64 in Trapping, caller: |contracts|::CallClauses, handle: u64 in Trapping)
+    requires handle > 0 && handle <= 32768
+    {
+        let edge: |invocations|::InvocationEdge = checker.invocations.edges[((handle - 1) as -Trapping)];
         let effects: RequiredEffects = RequiredEffects { clauses: caller, reach_only: true };
-        let target: Selection = service_target(edge.target);
+        let target: |typed_trees|::Selection = service_target(edge.target);
         let covered: bool = callable_effects_within(checker, syntax, resolution, effects, target);
         transition covered {
             true -> outgoing(checker, syntax, resolution, owner, caller, edge.next),
             _ -> excess(checker, syntax, edge)
         }
     }
-    machine unresolved(checker: @mutable Checker, syntax: @SyntaxTrees, owner: u64 in Trapping) {
-        let item: MachineItem = machine_item(syntax, owner);
-        checks_reject(@mutable checker.output, CheckDiagnosticCode::UnsupportedCheck, item.source_span);
+    machine unresolved(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, owner: u64 in Trapping) {
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, owner);
+        |checks|::checks_reject(@mutable checker.output, |checks|::CheckDiagnosticCode::UnsupportedCheck, item.source_span);
     }
-    machine excess(checker: @mutable Checker, syntax: @SyntaxTrees, edge: InvocationEdge) {
-        let expression: Expression = syntax_trees_expression(syntax, edge.expression);
-        checks_reject(@mutable checker.output, CheckDiagnosticCode::ServiceOutsideCeiling, expression.source_span);
+    machine excess(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, edge: |invocations|::InvocationEdge) {
+        let expression: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, edge.expression);
+        |checks|::checks_reject(@mutable checker.output, |checks|::CheckDiagnosticCode::ServiceOutsideCeiling, expression.source_span);
     }
     machine done() {}
 }
 
-machine service_target(target: InvocationTarget) -> Selection {
+machine service_target(target: |invocations|::InvocationTarget) -> |typed_trees|::Selection {
     transition target {
-        InvocationTarget::Machine { machine } -> Selection::Machine { handle: machine },
-        InvocationTarget::Binder { parameter } -> Selection::Binder { parameter: parameter }
+        |invocations|::InvocationTarget::Machine { machine } -> |typed_trees|::Selection::Machine { handle: machine },
+        |invocations|::InvocationTarget::Binder { parameter } -> |typed_trees|::Selection::Binder { parameter: parameter }
     }
 }
 
-machine callable_effects_within(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, target: Selection) -> bool
+machine callable_effects_within(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, required: RequiredEffects, target: |typed_trees|::Selection) -> bool
 crashes Trap
 {
     transition target {
-        Selection::Machine { handle } -> clear(checker, syntax, resolution, required, handle, 0),
-        Selection::Binder { parameter } -> bound(syntax, resolution, required, parameter),
+        |typed_trees|::Selection::Machine { handle } -> clear(checker, syntax, resolution, required, handle, 0 as +Trapping),
+        |typed_trees|::Selection::Binder { parameter } -> bound(syntax, resolution, required, parameter),
         _ -> false
     }
-    machine bound(syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, parameter: u64 in Trapping) -> bool {
-        let contract: BinderContract = binder_contract(resolution, parameter);
-        let clauses: CallClauses = call_clauses(syntax, resolution, Selection::Binder { parameter: parameter });
-        contract.present && (!required.reach_only || callable_has_clause(syntax, clauses, ClauseKind::Reaches))
+    machine bound(syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, required: RequiredEffects, parameter: u64 in Trapping) -> bool {
+        let contract: |symbol_resolved_trees|::BinderContract = |symbol_resolved_trees|::binder_contract(resolution, parameter);
+        let clauses: |contracts|::CallClauses = |contracts|::call_clauses(syntax, resolution, |typed_trees|::Selection::Binder { parameter: parameter });
+        contract.present && (!required.reach_only || callable_has_clause(syntax, clauses, |syntax_trees|::ClauseKind::Reaches))
             && callable_clause_ceiling(syntax, resolution, required, clauses)
     }
-    machine clear(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, root: u64 in Trapping, index: u64 in Trapping) -> bool {
+    machine clear(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, required: RequiredEffects, root: u64 in Trapping, index: u64 in Trapping) -> bool {
         transition index < checker.invocations.node_count && index < 10240 {
             true -> cleared(checker, syntax, resolution, required, root, index),
             false -> seed(checker, syntax, resolution, required, root)
         }
     }
-    machine cleared(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, root: u64 in Trapping, index: u64 in Trapping) -> bool
+    machine cleared(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, required: RequiredEffects, root: u64 in Trapping, index: u64 in Trapping) -> bool
     requires index < 10240
     {
-        checker.invocations.visited[index] = false;
+        checker.invocations.visited[index as -Trapping] = false;
         transition { _ -> clear(checker, syntax, resolution, required, root, index + 1) }
     }
-    machine seed(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, root: u64 in Trapping) -> bool {
-        checker.invocations.work_count = 0;
+    machine seed(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, required: RequiredEffects, root: u64 in Trapping) -> bool {
+        checker.invocations.work_count = 0 as +Trapping;
         let queued: bool = queue_callable_effect(checker, root);
         transition checker.invocations.complete && checker.invocations.sealed && queued {
-            true -> next(checker, syntax, resolution, required, 0),
+            true -> next(checker, syntax, resolution, required, 0 as +Trapping),
             false -> false
         }
     }
-    machine next(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping) -> bool {
+    machine next(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, required: RequiredEffects, cursor: u64 in Trapping) -> bool {
         transition cursor < checker.invocations.work_count && cursor < 10240 {
             true -> node(checker, syntax, resolution, required, cursor),
             false -> true
         }
     }
-    machine node(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping) -> bool
+    machine node(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, required: RequiredEffects, cursor: u64 in Trapping) -> bool
     requires cursor < 10240
     {
-        let owner: u64 in Trapping = checker.invocations.work_nodes[cursor] as +Trapping;
+        let owner: u64 in Trapping = checker.invocations.work_nodes[cursor as -Trapping] as +Trapping;
         transition owner < checker.invocations.node_count && owner < 10240 {
             true -> bounded(checker, syntax, resolution, required, cursor, owner),
             false -> false
         }
     }
-    machine bounded(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping, owner: u64 in Trapping) -> bool
+    machine bounded(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, required: RequiredEffects, cursor: u64 in Trapping, owner: u64 in Trapping) -> bool
     requires owner < 10240
     {
-        let clauses: CallClauses = call_clauses(syntax, resolution, Selection::Machine { handle: owner });
+        let clauses: |contracts|::CallClauses = |contracts|::call_clauses(syntax, resolution, |typed_trees|::Selection::Machine { handle: owner });
         transition callable_clause_ceiling(syntax, resolution, required, clauses) {
             true -> published(checker, syntax, resolution, required, cursor, owner, clauses),
             false -> false
         }
     }
-    machine published(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping, owner: u64 in Trapping, clauses: CallClauses) -> bool
+    machine published(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, required: RequiredEffects, cursor: u64 in Trapping, owner: u64 in Trapping, clauses: |contracts|::CallClauses) -> bool
     requires owner < 10240
     {
-        let item: MachineItem = machine_item(syntax, owner);
-        let authored: bool = callable_has_clause(syntax, clauses, ClauseKind::Reaches);
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, owner);
+        let authored: bool = callable_has_clause(syntax, clauses, |syntax_trees|::ClauseKind::Reaches);
         transition required.reach_only && authored {
             true -> next(checker, syntax, resolution, required, cursor + 1),
             false -> examine(checker, syntax, resolution, required, cursor, owner, item)
         }
     }
-    machine examine(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping, owner: u64 in Trapping, item: MachineItem) -> bool
+    machine examine(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, required: RequiredEffects, cursor: u64 in Trapping, owner: u64 in Trapping, item: |syntax_trees|::MachineItem) -> bool
     requires owner < 10240
     {
+        let first: u64 in Trapping = checker.invocations.first[owner as -Trapping] as +Trapping;
         transition !required.reach_only || item.has_body {
-            true -> edge(checker, syntax, resolution, required, cursor, checker.invocations.first[owner] as +Trapping),
+            true -> edge(checker, syntax, resolution, required, cursor, first),
             false -> false
         }
     }
-    machine edge(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping, handle: u64 in Trapping) -> bool {
+    machine edge(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, required: RequiredEffects, cursor: u64 in Trapping, handle: u64 in Trapping) -> bool {
         transition handle > 0 && handle <= checker.invocations.edge_count && handle <= 32768 {
             true -> row(checker, syntax, resolution, required, cursor, handle - 1),
             false -> ended(checker, syntax, resolution, required, cursor, handle)
         }
     }
-    machine ended(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping, handle: u64 in Trapping) -> bool {
+    machine ended(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, required: RequiredEffects, cursor: u64 in Trapping, handle: u64 in Trapping) -> bool {
         transition handle == 0 {
             true -> next(checker, syntax, resolution, required, cursor + 1),
             false -> false
         }
     }
-    machine row(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping, index: u64 in Trapping) -> bool
+    machine row(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, required: RequiredEffects, cursor: u64 in Trapping, index: u64 in Trapping) -> bool
     requires index < 32768
     {
-        let item: InvocationEdge = checker.invocations.edges[index];
+        let item: |invocations|::InvocationEdge = checker.invocations.edges[index as -Trapping];
         transition item.target {
-            InvocationTarget::Machine { machine } -> concrete(checker, syntax, resolution, required, cursor, item.next, machine),
-            InvocationTarget::Binder { parameter } -> opaque(checker, syntax, resolution, required, cursor, item.next, parameter)
+            |invocations|::InvocationTarget::Machine { machine } -> concrete(checker, syntax, resolution, required, cursor, item.next, machine),
+            |invocations|::InvocationTarget::Binder { parameter } -> opaque(checker, syntax, resolution, required, cursor, item.next, parameter)
         }
     }
-    machine concrete(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping, following: u64 in Trapping, machine: u64 in Trapping) -> bool {
+    machine concrete(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, required: RequiredEffects, cursor: u64 in Trapping, following: u64 in Trapping, machine: u64 in Trapping) -> bool {
         transition queue_callable_effect(checker, machine) {
             true -> edge(checker, syntax, resolution, required, cursor, following),
             false -> false
         }
     }
-    machine opaque(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, cursor: u64 in Trapping, following: u64 in Trapping, parameter: u64 in Trapping) -> bool {
-        let contract: BinderContract = binder_contract(resolution, parameter);
-        let clauses: CallClauses = call_clauses(syntax, resolution, Selection::Binder { parameter: parameter });
-        transition contract.present && (!required.reach_only || callable_has_clause(syntax, clauses, ClauseKind::Reaches)) && callable_clause_ceiling(syntax, resolution, required, clauses) {
+    machine opaque(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, required: RequiredEffects, cursor: u64 in Trapping, following: u64 in Trapping, parameter: u64 in Trapping) -> bool {
+        let contract: |symbol_resolved_trees|::BinderContract = |symbol_resolved_trees|::binder_contract(resolution, parameter);
+        let clauses: |contracts|::CallClauses = |contracts|::call_clauses(syntax, resolution, |typed_trees|::Selection::Binder { parameter: parameter });
+        transition contract.present && (!required.reach_only || callable_has_clause(syntax, clauses, |syntax_trees|::ClauseKind::Reaches)) && callable_clause_ceiling(syntax, resolution, required, clauses) {
             true -> edge(checker, syntax, resolution, required, cursor, following),
             false -> false
         }
     }
 }
 
-machine queue_callable_effect(checker: @mutable Checker, node: u64 in Trapping) -> bool
+machine queue_callable_effect(checker: @mutable |checker|::Checker, node: u64 in Trapping) -> bool
 crashes Trap
 {
     transition node < checker.invocations.node_count && node < 10240 {
         true -> bounded(checker, node),
         false -> false
     }
-    machine bounded(checker: @mutable Checker, node: u64 in Trapping) -> bool
+    machine bounded(checker: @mutable |checker|::Checker, node: u64 in Trapping) -> bool
     requires node < 10240
     {
-        transition checker.invocations.visited[node] {
+        let work_count: u64 in Trapping = checker.invocations.work_count;
+        transition checker.invocations.visited[node as -Trapping] {
             true -> true,
-            false -> room(checker, node, checker.invocations.work_count)
+            false -> room(checker, node, work_count)
         }
     }
-    machine room(checker: @mutable Checker, node: u64 in Trapping, index: u64 in Trapping) -> bool {
+    machine room(checker: @mutable |checker|::Checker, node: u64 in Trapping, index: u64 in Trapping) -> bool {
         transition index < 10240 { true -> publish(checker, node, index), false -> false }
     }
-    machine publish(checker: @mutable Checker, node: u64 in Trapping, index: u64 in Trapping) -> bool
+    machine publish(checker: @mutable |checker|::Checker, node: u64 in Trapping, index: u64 in Trapping) -> bool
     requires node < 10240 && index < 10240
     {
-        checker.invocations.visited[node] = true;
-        checker.invocations.work_nodes[index] = node as u64;
+        checker.invocations.visited[node as -Trapping] = true;
+        checker.invocations.work_nodes[index as -Trapping] = node as u64;
         checker.invocations.work_count = index + 1;
         true
     }
 }
 
-machine callable_clause_ceiling(syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, given: CallClauses) -> bool
+machine callable_clause_ceiling(syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, required: RequiredEffects, given: |contracts|::CallClauses) -> bool
 crashes Trap
 {
-    let suspends: bool = required.reach_only || callable_has_clause(syntax, required.clauses, ClauseKind::Suspends);
-    let blocks: bool = required.reach_only || callable_has_clause(syntax, required.clauses, ClauseKind::Blocks);
-    transition { _ -> next(syntax, resolution, required, given, suspends, blocks, 0) }
-    machine next(syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, given: CallClauses, suspends: bool, blocks: bool, offset: u64 in Trapping) -> bool {
+    let suspends: bool = required.reach_only || callable_has_clause(syntax, required.clauses, |syntax_trees|::ClauseKind::Suspends);
+    let blocks: bool = required.reach_only || callable_has_clause(syntax, required.clauses, |syntax_trees|::ClauseKind::Blocks);
+    transition { _ -> next(syntax, resolution, required, given, suspends, blocks, 0 as +Trapping) }
+    machine next(syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, required: RequiredEffects, given: |contracts|::CallClauses, suspends: bool, blocks: bool, offset: u64 in Trapping) -> bool {
         transition offset < given.clause_count {
             true -> clause(syntax, resolution, required, given, suspends, blocks, offset),
             false -> true
         }
     }
-    machine clause(syntax: @SyntaxTrees, resolution: @NameResolution, required: RequiredEffects, given: CallClauses, suspends: bool, blocks: bool, offset: u64 in Trapping) -> bool {
-        let row: Clause = syntax_trees_clause(syntax, given.first_clause + offset);
-        let markers: bool = (row.kind != ClauseKind::Suspends || suspends) && (row.kind != ClauseKind::Blocks || blocks)
-            && (row.kind != ClauseKind::Invokes || row.member_count == 0);
-        let services: bool = row.kind != ClauseKind::Reaches || service_row_within(syntax, resolution, required.clauses, row);
+    machine clause(syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, required: RequiredEffects, given: |contracts|::CallClauses, suspends: bool, blocks: bool, offset: u64 in Trapping) -> bool {
+        let row: |syntax_trees|::Clause = |syntax_trees|::syntax_trees_clause(syntax, given.first_clause + offset);
+        let markers: bool = (row.kind != |syntax_trees|::ClauseKind::Suspends || suspends) && (row.kind != |syntax_trees|::ClauseKind::Blocks || blocks)
+            && (row.kind != |syntax_trees|::ClauseKind::Invokes || row.member_count == 0);
+        let services: bool = row.kind != |syntax_trees|::ClauseKind::Reaches || service_row_within(syntax, resolution, required.clauses, row);
         transition markers && services {
             true -> next(syntax, resolution, required, given, suspends, blocks, offset + 1),
             false -> false
@@ -258,18 +263,18 @@ crashes Trap
     }
 }
 
-machine service_row_within(syntax: @SyntaxTrees, resolution: @NameResolution, allowed: CallClauses, row: Clause) -> bool
+machine service_row_within(syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, allowed: |contracts|::CallClauses, row: |syntax_trees|::Clause) -> bool
 crashes Trap
 {
     transition { _ -> next(syntax, resolution, allowed, row.first_member, row.first_member + row.member_count) }
-    machine next(syntax: @SyntaxTrees, resolution: @NameResolution, allowed: CallClauses, member: u64 in Trapping, end: u64 in Trapping) -> bool {
+    machine next(syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, allowed: |contracts|::CallClauses, member: u64 in Trapping, end: u64 in Trapping) -> bool {
         transition member < end {
             true -> covered(syntax, resolution, allowed, member, end),
             false -> true
         }
     }
-    machine covered(syntax: @SyntaxTrees, resolution: @NameResolution, allowed: CallClauses, member: u64 in Trapping, end: u64 in Trapping) -> bool {
-        let identity: u16 = service_trait(resolution, member);
+    machine covered(syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, allowed: |contracts|::CallClauses, member: u64 in Trapping, end: u64 in Trapping) -> bool {
+        let identity: u16 = |symbol_resolved_trees|::service_trait(resolution, member);
         transition identity > 0 && permits_service(syntax, resolution, allowed, identity) {
             true -> next(syntax, resolution, allowed, member + 1, end),
             false -> false
@@ -277,59 +282,59 @@ crashes Trap
     }
 }
 
-machine permits_service(syntax: @SyntaxTrees, resolution: @NameResolution, allowed: CallClauses, identity: u16) -> bool
+machine permits_service(syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, allowed: |contracts|::CallClauses, identity: u16) -> bool
 crashes Trap
 {
     transition { _ -> clauses(syntax, resolution, allowed.first_clause, allowed.first_clause + allowed.clause_count, identity) }
-    machine clauses(syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, end: u64 in Trapping, identity: u16) -> bool {
+    machine clauses(syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, index: u64 in Trapping, end: u64 in Trapping, identity: u16) -> bool {
         transition index < end {
             true -> row(syntax, resolution, index, end, identity),
             false -> false
         }
     }
-    machine row(syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, end: u64 in Trapping, identity: u16) -> bool {
-        let allowed: Clause = syntax_trees_clause(syntax, index);
-        transition allowed.kind == ClauseKind::Reaches && contains(resolution, allowed.first_member, allowed.first_member + allowed.member_count, identity) {
+    machine row(syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, index: u64 in Trapping, end: u64 in Trapping, identity: u16) -> bool {
+        let allowed: |syntax_trees|::Clause = |syntax_trees|::syntax_trees_clause(syntax, index);
+        transition allowed.kind == |syntax_trees|::ClauseKind::Reaches && contains(resolution, allowed.first_member, allowed.first_member + allowed.member_count, identity) {
             true -> true,
             false -> clauses(syntax, resolution, index + 1, end, identity)
         }
     }
-    machine contains(resolution: @NameResolution, member: u64 in Trapping, end: u64 in Trapping, identity: u16) -> bool {
+    machine contains(resolution: @|symbol_resolved_trees|::NameResolution, member: u64 in Trapping, end: u64 in Trapping, identity: u16) -> bool {
         transition member < end {
             true -> matches(resolution, member, end, identity),
             false -> false
         }
     }
-    machine matches(resolution: @NameResolution, member: u64 in Trapping, end: u64 in Trapping, identity: u16) -> bool {
-        transition service_trait(resolution, member) == identity {
+    machine matches(resolution: @|symbol_resolved_trees|::NameResolution, member: u64 in Trapping, end: u64 in Trapping, identity: u16) -> bool {
+        transition |symbol_resolved_trees|::service_trait(resolution, member) == identity {
             true -> true,
             false -> contains(resolution, member + 1, end, identity)
         }
     }
 }
 
-public machine callable_has_clause(syntax: @SyntaxTrees, clauses: CallClauses, kind: ClauseKind) -> bool
+public machine callable_has_clause(syntax: @|syntax_trees|::SyntaxTrees, clauses: |contracts|::CallClauses, kind: |syntax_trees|::ClauseKind) -> bool
 crashes Trap
 {
-    transition { _ -> next(syntax, clauses, kind, 0) }
-    machine next(syntax: @SyntaxTrees, clauses: CallClauses, kind: ClauseKind, offset: u64 in Trapping) -> bool {
+    transition { _ -> next(syntax, clauses, kind, 0 as +Trapping) }
+    machine next(syntax: @|syntax_trees|::SyntaxTrees, clauses: |contracts|::CallClauses, kind: |syntax_trees|::ClauseKind, offset: u64 in Trapping) -> bool {
         transition offset < clauses.clause_count {
             true -> row(syntax, clauses, kind, offset),
             false -> false
         }
     }
-    machine row(syntax: @SyntaxTrees, clauses: CallClauses, kind: ClauseKind, offset: u64 in Trapping) -> bool {
-        let clause: Clause = syntax_trees_clause(syntax, clauses.first_clause + offset);
+    machine row(syntax: @|syntax_trees|::SyntaxTrees, clauses: |contracts|::CallClauses, kind: |syntax_trees|::ClauseKind, offset: u64 in Trapping) -> bool {
+        let clause: |syntax_trees|::Clause = |syntax_trees|::syntax_trees_clause(syntax, clauses.first_clause + offset);
         transition clause.kind == kind { true -> true, false -> next(syntax, clauses, kind, offset + 1) }
     }
 }
 
-machine selected_progress(checker: @Checker, syntax: @SyntaxTrees, resolution: @NameResolution, target: Selection) -> bool
+machine selected_progress(checker: @|checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, target: |typed_trees|::Selection) -> bool
 crashes Trap
 {
     transition target {
-        Selection::Machine { handle } -> settled_termination(checker, handle),
-        Selection::Binder { parameter } -> binder_terminates(syntax, resolution, parameter),
+        |typed_trees|::Selection::Machine { handle } -> |termination|::settled_termination(checker, handle),
+        |typed_trees|::Selection::Binder { parameter } -> |termination|::binder_terminates(syntax, resolution, parameter),
         _ -> false
     }
 }

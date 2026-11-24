@@ -22,7 +22,7 @@ use terminal_psi::StructuralAccess;
 use super::authority::Access;
 use super::references::reference_access_violation;
 use super::{Program, Slot};
-use crate::lowering::body::{ExpressionKind, Statement, ValueType};
+use crate::lowering::body::{ExpressionKind, Qualification, Statement, ValueType};
 use crate::lowering::{SourceOrigin, Unserved, refuse, reject};
 
 impl Program<'_> {
@@ -155,6 +155,7 @@ impl Program<'_> {
                         return Err(assigned(self, &value, referent));
                     }
                     return Ok(Statement::Store {
+                        slot_home: None,
                         destination,
                         value,
                         source,
@@ -180,20 +181,33 @@ impl Program<'_> {
                 // through the same captured-place store as a field
                 // (structural_access.md: "Root, field, and indexed
                 // destinations do not change construction semantics"), so
-                // the checker sees the write. Only an unhomed scalar takes a
-                // new SSA binding.
+                // the checker sees the write.
                 let stored = slots[slot].homed
                     || slots[slot].borrowed.is_some()
                     || matches!(value_type, ValueType::Record(..));
-                // A new SSA binding made inside a block would not reach the
-                // code after the block's arm joins its siblings.
-                if !stored && self.block_floor.is_some_and(|floor| slot < floor) {
-                    return Err(unserved(
-                        "assignment inside a block value to a scalar local declared outside it",
-                    ));
-                }
-                Ok(if stored {
+                // An outer scalar written by an arm needs one place visible to
+                // every incoming edge, including the edge which skips the write.
+                let slot_home = if !stored && self.block_floor.is_some_and(|floor| slot < floor) {
+                    let owner =
+                        *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
+                    let (_, state) = self.declaration(id, owner)?;
+                    let declared = self
+                        .typed
+                        .declared_binding_type_by_symbol(state, slots[slot].symbol);
+                    let storage = match (declared, value_type) {
+                        (Some(reference), _) => self.storage_type(id, reference, value_type)?,
+                        (None, ValueType::Scalar(scalar, Qualification::NONE)) => {
+                            self.plain_scalar_storage(id, scalar)?
+                        }
+                        _ => return Err(typing()),
+                    };
+                    Some(self.data_type(id, storage)?.identity.clone())
+                } else {
+                    None
+                };
+                Ok(if stored || slot_home.is_some() {
                     Statement::Store {
+                        slot_home,
                         destination: crate::lowering::Expression {
                             call_context: None,
                             kind: ExpressionKind::Slot(slot),
@@ -296,6 +310,7 @@ impl Program<'_> {
                 }
                 self.authorized(id, stored, Access::Replace)?;
                 Ok(Statement::Store {
+                    slot_home: None,
                     destination: place,
                     value,
                     source,

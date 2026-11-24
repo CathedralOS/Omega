@@ -780,8 +780,17 @@ impl<'t> Program<'t> {
         let expected = self.expected.take();
         // A layout query names no declaration; typing kept its operand.
         if let Some(query) = &call.layout_query {
-            if matches!(query, crate::source_state::expression::DataLayoutQueryRequest::LocationAlignment) {
-                return self.storage_location(id, slots, call, source, terminal_psi::StorageLocationQuery::Alignment);
+            if matches!(
+                query,
+                crate::source_state::expression::DataLayoutQueryRequest::LocationAlignment
+            ) {
+                return self.storage_location(
+                    id,
+                    slots,
+                    call,
+                    source,
+                    terminal_psi::StorageLocationQuery::Alignment,
+                );
             }
             return self.layout_query(id, call, query, source);
         }
@@ -792,7 +801,13 @@ impl<'t> Program<'t> {
             && call.machine_arguments.is_empty()
             && call.evidence_arguments.is_empty()
         {
-            return self.storage_location(id, slots, call, source, terminal_psi::StorageLocationQuery::Address);
+            return self.storage_location(
+                id,
+                slots,
+                call,
+                source,
+                terminal_psi::StorageLocationQuery::Address,
+            );
         }
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         if let Some(runtime) = call.runtime_call {
@@ -950,7 +965,14 @@ impl<'t> Program<'t> {
             .expression_table
             .expression_handles(call.arguments);
         let mut read = if let Some(header) = abstract_service {
-            self.call_of(id, slots, (header.into(), None), arguments, source, expected)?
+            self.call_of(
+                id,
+                slots,
+                (header.into(), None),
+                arguments,
+                source,
+                expected,
+            )?
         } else if let Some(selected) = named {
             self.named_call(
                 id,
@@ -995,8 +1017,12 @@ impl<'t> Program<'t> {
                 id,
                 source,
                 match query {
-                    StorageLocationQuery::Address => "address_of needs an ordinary reference to addressable storage",
-                    StorageLocationQuery::Alignment => "location alignment needs an accessible place, reference or nonempty borrowed slice",
+                    StorageLocationQuery::Address => {
+                        "address_of needs an ordinary reference to addressable storage"
+                    }
+                    StorageLocationQuery::Alignment => {
+                        "location alignment needs an accessible place, reference or nonempty borrowed slice"
+                    }
                 },
             )
         };
@@ -1078,10 +1104,14 @@ impl<'t> Program<'t> {
             _ => None,
         };
         let result = match query {
-            StorageLocationQuery::Address => semantic_vocabulary::IntegerType::supported_address_representation(),
-            StorageLocationQuery::Alignment =>
-                semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
-                    .expect("u64 is valid"),
+            StorageLocationQuery::Address => {
+                semantic_vocabulary::IntegerType::supported_address_representation()
+            }
+            StorageLocationQuery::Alignment => semantic_vocabulary::IntegerType::new(
+                semantic_vocabulary::IntegerSign::Unsigned,
+                64,
+            )
+            .expect("u64 is valid"),
         };
         Ok(Expression {
             call_context: None,
@@ -2075,6 +2105,7 @@ impl<'t> Program<'t> {
                             | TypeParameterKind::Const { .. }
                             | TypeParameterKind::Value { .. }
                             | TypeParameterKind::Machine { .. }
+                            | TypeParameterKind::Proof { .. }
                     )
                 })
             {
@@ -2150,6 +2181,7 @@ impl<'t> Program<'t> {
         )?;
         let ExpressionKind::Call {
             static_reach_arguments,
+            proof_arguments,
             ..
         } = &mut read.kind
         else {
@@ -2160,6 +2192,7 @@ impl<'t> Program<'t> {
             ));
         };
         *static_reach_arguments = callbacks;
+        *proof_arguments = arguments.proofs;
         Ok(Some(read))
     }
 
@@ -2234,19 +2267,30 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
     ) -> Checked<CallBinding<'t>> {
         let invocation = self.static_invocation(call);
+        if let Some(application) = self.theorem_application(id, slots, call, invocation, source)? {
+            return Ok(CallBinding::Generic(application));
+        }
         let build_selection = matches!(call, StaticArgumentCall::Expression(_, expression)
             if expression.build_selection.is_valid());
-        if self.checking_generic_entry(id) && !build_selection {
+        let logical_header = self
+            .entered_machine(invocation.target)
+            .and_then(|target| self.typed.machine_by_symbol(target))
+            .is_some_and(|machine| {
+                self.typed
+                    .machine_type_parameters(machine)
+                    .iter()
+                    .any(|parameter| {
+                        matches!(
+                            parameter.kind,
+                            crate::source_state::data::TypeParameterKind::Proof { .. }
+                        )
+                    })
+            });
+        if (self.checking_generic_entry(id) || logical_header) && !build_selection {
             if let Some(read) = self.read_rigid_call(id, slots, invocation, source)? {
                 return Ok(CallBinding::Generic(read));
             }
-            let application_source = match call {
-                StaticArgumentCall::Expression(_, _) => source,
-                StaticArgumentCall::Statement(call) => SourceOrigin::of(call.source_span),
-            };
-            if let Some(read) =
-                self.generic_application_call(id, slots, &invocation, application_source)?
-            {
+            if let Some(read) = self.generic_application_call(id, slots, &invocation, source)? {
                 return Ok(CallBinding::Generic(read));
             }
         }
@@ -2274,6 +2318,140 @@ impl<'t> Program<'t> {
             reach: binding,
             named,
         })
+    }
+
+    fn theorem_application(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        call: StaticArgumentCall<'_>,
+        invocation: StaticInvocation<'_>,
+        source: SourceOrigin,
+    ) -> Checked<Option<Expression>> {
+        if self
+            .typed
+            .proof_parameter_contract(invocation.target)
+            .is_none()
+        {
+            return Ok(None);
+        }
+        let unavailable = |reason| refuse(id, Construct::Machine, Unserved::Call(reason));
+        if self.theorem_parameters.len() != self.theorem_parameter_sources.len() {
+            return Err(unavailable(
+                "logical application lost its complete header correspondence",
+            ));
+        }
+        let mut parameters = self
+            .theorem_parameters
+            .iter()
+            .zip(&self.theorem_parameter_sources)
+            .filter(|(parameter, source)| {
+                parameter.machine == id && source.binder == invocation.target
+            });
+        let (parameter, _) = parameters.next().ok_or_else(|| {
+            unavailable("logical parameter is outside the current declaration's exact header")
+        })?;
+        if parameters.next().is_some() {
+            return Err(unavailable(
+                "logical parameter has ambiguous header correspondence",
+            ));
+        }
+        let proof_position = parameter.proof_position;
+        let types: Vec<_> = parameter
+            .contract
+            .parameters
+            .iter()
+            .map(|parameter| parameter.scalar_type)
+            .collect();
+        let acknowledgement = match call {
+            StaticArgumentCall::Statement(call) => call.operational_acknowledgement,
+            StaticArgumentCall::Expression(_, call) => call.operational_acknowledgement,
+        };
+        if invocation.unsupported
+            || invocation.runtime_receiver
+            || !invocation.authored_arguments.is_empty()
+            || acknowledgement != Default::default()
+            || invocation.arguments.len() != types.len()
+        {
+            return Err(unavailable(
+                "logical application carries an executable feature or another argument telescope",
+            ));
+        }
+        if invocation.selection.is_none() && invocation.binding.is_none() {
+            return Err(unavailable(
+                "logical application has no exact authored selection",
+            ));
+        }
+        self.direct_selection(
+            id,
+            invocation.target,
+            invocation.selection,
+            invocation.binding,
+        )?;
+        if invocation.application.is_valid() {
+            let table = &self.typed.expression_table;
+            if !table.static_machine_application_is_valid(invocation.application) {
+                return Err(unavailable(
+                    "logical application has a stale source application",
+                ));
+            }
+            let application = table.static_machine_application(invocation.application);
+            let caller = self
+                .symbols
+                .get(id)
+                .copied()
+                .ok_or_else(|| unavailable("logical application has no exact source caller"))?;
+            if (caller != application.lexical_owner
+                && self
+                    .typed
+                    .machine_by_own_or_state_symbol(application.lexical_owner)
+                    .map(|machine| machine.symbol)
+                    != Some(caller))
+                || application.registration_operation != invocation.target
+                || !application.arguments.is_empty()
+                || !application.selected_machine_arguments.is_empty()
+                || !application.input_selections.is_empty()
+                || !application.bindings.is_empty()
+                || !application.lifetime_bindings.is_empty()
+                || application.conformance_selection.is_some()
+                || application.callable_contract_source.is_valid()
+            {
+                return Err(unavailable(
+                    "logical application retains another owner, selection or static argument",
+                ));
+            }
+        }
+        let arguments = invocation
+            .arguments
+            .iter()
+            .zip(types)
+            .map(|(argument, scalar)| {
+                let expression =
+                    self.expression(id, slots, *argument, Some(ValueType::plain(scalar)))?;
+                if expression.result != Some(ValueType::plain(scalar))
+                    || !matches!(
+                        expression.kind,
+                        ExpressionKind::Integer(_)
+                            | ExpressionKind::Boolean(_)
+                            | ExpressionKind::Slot(_)
+                    )
+                {
+                    return Err(unavailable(
+                        "logical subject has another fixed scalar carrier",
+                    ));
+                }
+                Ok(expression)
+            })
+            .collect::<Checked<Vec<_>>>()?;
+        Ok(Some(Expression {
+            call_context: None,
+            kind: ExpressionKind::TheoremApplication {
+                proof_position,
+                arguments,
+            },
+            result: None,
+            source,
+        }))
     }
 
     /// Both source call forms expose one retained static application and the
@@ -3332,6 +3510,7 @@ impl<'t> Program<'t> {
                 required_contract,
                 static_reach_binding: None,
                 static_reach_arguments: Vec::new(),
+                proof_arguments: Vec::new(),
                 arguments: read,
                 designated: None,
             },
@@ -4055,6 +4234,7 @@ impl Touches<'_> {
         captures: &mut SavedSubjects<'a>,
     ) -> Checked<bool> {
         match &expression.kind {
+            ExpressionKind::TheoremApplication { .. } => Ok(false),
             ExpressionKind::Atomic(operation) => {
                 for operand in operation.inputs() {
                     if self.expression(operand, false, captures)? {

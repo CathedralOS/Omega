@@ -95,6 +95,8 @@ pub(crate) struct Lowered {
     pub sources: MachineSources,
     pub designated: Vec<(OperationId, crate::lowering::DesignatedOperands)>,
     pub source_calls: Vec<crate::source_state::SourceCallCorrespondence>,
+    pub theorem_applications: Vec<terminal_psi::TheoremApplication>,
+    pub theorem_citations: Vec<terminal_psi::TheoremCitation>,
     pub static_reach_applications: Vec<terminal_psi::static_reach::StaticReachApplication>,
     pub source_constructions: Vec<(
         MachineId,
@@ -270,6 +272,7 @@ fn callable_header(
         context,
         signature,
         Signatures {
+            theorems: &[],
             machines: signatures,
             declarations: &declarations,
             declaration_aliases: None,
@@ -500,6 +503,8 @@ impl<'a> Lowering<'a> {
             static_reach_applications: Vec::new(),
             source_constructions: Vec::new(),
             source_folded_calls: Vec::new(),
+            theorem_applications: Vec::new(),
+            theorem_citations: Vec::new(),
             call_formations: Vec::new(),
             blocks: IdTable::default(),
             operation_locations: IdTable::default(),
@@ -512,7 +517,7 @@ impl<'a> Lowering<'a> {
             observed: Vec::new(),
             scalar_subjects: Vec::new(),
             slot_types,
-            lender_homes: &[],
+            slot_homes: &[],
             qualifications,
             coercions_start,
             value_qualifications: Vec::new(),
@@ -809,6 +814,8 @@ struct Lowering<'a> {
     sources: MachineSources,
     designated: Vec<(OperationId, crate::lowering::DesignatedOperands)>,
     source_calls: Vec<crate::source_state::SourceCallCorrespondence>,
+    theorem_applications: Vec<terminal_psi::TheoremApplication>,
+    theorem_citations: Vec<terminal_psi::TheoremCitation>,
     static_reach_applications: Vec<terminal_psi::static_reach::StaticReachApplication>,
     source_constructions: Vec<(
         MachineId,
@@ -845,7 +852,7 @@ struct Lowering<'a> {
     )>,
     /// The declared type of each slot, as the body states it.
     slot_types: &'a [ValueType],
-    lender_homes: &'a [Option<StructuralTypeId>],
+    slot_homes: &'a [Option<StructuralTypeId>],
     /// The `PublishedGuarantee` of each `ensures` clause, by position: the
     /// identity Terminal Psi's `ContractClause` holds.
     published: Vec<ObligationId>,
@@ -1038,7 +1045,7 @@ impl<'a> Lowering<'a> {
     fn body(&mut self, member: MachineId, body: &Body) -> Checked<()> {
         self.owns_body = member == self.id;
         self.fallthrough = None;
-        self.lender_homes = self.records.lender_homes(member, self.id)?;
+        self.slot_homes = self.records.slot_homes(member, self.id)?;
         let entry = self.current()?;
         let source = self
             .sources
@@ -1055,9 +1062,9 @@ impl<'a> Lowering<'a> {
             }
         };
         // By-value formals are already bound here. Place them in their
-        // homes before any path may lend one. Local initializers establish
-        // theirs where the binding actually becomes live.
-        for (slot, home) in self.lender_homes.iter().copied().enumerate() {
+        // homes before a branch can borrow or write them. A local gets its
+        // home at its initializer.
+        for (slot, home) in self.slot_homes.iter().copied().enumerate() {
             if let (Some(home), Some(Bound::Scalar(value))) = (home, *self.slot_mut(slot)?) {
                 let place = self.establish_home(value, home, source)?;
                 *self.slot_mut(slot)? = Some(Bound::Home(place));
@@ -1077,7 +1084,9 @@ impl<'a> Lowering<'a> {
             }
             let lowered = self.statement(statement)?;
             if self.pending_build.take().is_some() {
-                return Err(self.internal("a projected Build statement did not reach its selected suspending call"));
+                return Err(self.internal(
+                    "a projected Build statement did not reach its selected suspending call",
+                ));
             }
             let Reached::Ended(call) = lowered else {
                 continue;
@@ -1524,6 +1533,8 @@ impl<'a> Lowering<'a> {
             sources: self.sources,
             designated: self.designated,
             source_calls: self.source_calls,
+            theorem_applications: self.theorem_applications,
+            theorem_citations: self.theorem_citations,
             static_reach_applications: self.static_reach_applications,
             source_constructions: self.source_constructions,
             source_folded_calls: self.source_folded_calls,

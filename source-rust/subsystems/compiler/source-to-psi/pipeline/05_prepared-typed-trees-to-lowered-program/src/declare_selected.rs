@@ -152,6 +152,9 @@ pub(super) fn publish(
                 TypeParameterKind::Proposition { .. } => {
                     return Err("selected map needs its complete proposition parameter contract");
                 }
+                TypeParameterKind::Proof { .. } => {
+                    return Err("logical evidence is not an executable map argument");
+                }
             };
             let argument = typed
                 .declared_static_operand_identity(

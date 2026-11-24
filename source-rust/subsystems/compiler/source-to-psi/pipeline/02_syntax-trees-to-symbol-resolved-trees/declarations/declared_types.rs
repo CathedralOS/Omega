@@ -1246,6 +1246,7 @@ impl Expansion<'_, '_> {
         syntax: &mut SyntaxTrees,
         parameters: HandleSpan<syntax_trees::item::TypeParameter>,
         inherited: &[String],
+        callable_header: bool,
     ) -> Result<Vec<String>, Diagnostic> {
         let parameter_span = parameters;
         let parameters = syntax.items.type_parameters(parameters).to_vec();
@@ -1282,11 +1283,27 @@ impl Expansion<'_, '_> {
                     }
                 }
                 TypeParameterKind::Value { type_reference } => {
-                    self.reference(syntax, type_reference, &bound)?
+                    self.reference(syntax, type_reference, &bound)?;
+                    if callable_header
+                        && let TypeReferenceNode::Callable { signature } =
+                            syntax.type_references.type_reference(type_reference)
+                    {
+                        // A theorem asks for the alias's evidence, while `const`
+                        // above asks for an executable selection. Retain the
+                        // whole contract; its logical interpretation still owes
+                        // checking and grants no operational authority.
+                        let mut contract = syntax.items.state_signature(*signature).clone();
+                        contract.name = parameter.name;
+                        syntax.items.type_parameters_mut(parameter_span)[index].kind =
+                            TypeParameterKind::Proof { contract };
+                    }
                 }
                 TypeParameterKind::Machine {
                     contract:
                         Some(syntax_trees::item::MachineParameterContract::Structural(signature)),
+                }
+                | TypeParameterKind::Proof {
+                    contract: signature,
                 } => self.signature(syntax, &signature, &bound)?,
                 _ => {}
             }
@@ -1300,7 +1317,7 @@ impl Expansion<'_, '_> {
         signature: &syntax_trees::item::StateSignature,
         inherited: &[String],
     ) -> Result<(), Diagnostic> {
-        let bound = self.parameters(syntax, signature.type_parameters, inherited)?;
+        let bound = self.parameters(syntax, signature.type_parameters, inherited, true)?;
         self.reference(syntax, signature.return_type, &bound)?;
         let parameters = syntax.items.state_parameters(signature.parameters).to_vec();
         for parameter in parameters {
@@ -1392,7 +1409,7 @@ impl Expansion<'_, '_> {
         machine: &syntax_trees::item::Machine,
         inherited: &[String],
     ) -> Result<(), Diagnostic> {
-        let mut bound = self.parameters(syntax, machine.type_parameters, inherited)?;
+        let mut bound = self.parameters(syntax, machine.type_parameters, inherited, true)?;
         Self::retain_contract_bindings(syntax, machine.contracts, &mut bound);
         let states = syntax.items.state_handles(machine.states).to_vec();
         let mut entry_bound = bound.clone();
@@ -1465,14 +1482,14 @@ impl Expansion<'_, '_> {
         use syntax_trees::item::{ConformanceMember, DataMember};
         match item {
             Item::TypeAlias(alias) => {
-                let bound = self.parameters(syntax, alias.type_parameters, inherited)?;
+                let bound = self.parameters(syntax, alias.type_parameters, inherited, false)?;
                 self.active.push(alias.name.source_span());
                 let result = self.reference(syntax, alias.expansion, &bound);
                 self.active.pop();
                 result?;
             }
             Item::Data(data) => {
-                let bound = self.parameters(syntax, data.type_parameters, inherited)?;
+                let bound = self.parameters(syntax, data.type_parameters, inherited, false)?;
                 let members = syntax.items.data_members(data.members).to_vec();
                 for member in members {
                     match member {
@@ -1491,7 +1508,8 @@ impl Expansion<'_, '_> {
             }
             Item::Machine(machine) => self.machine(syntax, machine, inherited)?,
             Item::Trait(definition) => {
-                let bound = self.parameters(syntax, definition.type_parameters, inherited)?;
+                let bound =
+                    self.parameters(syntax, definition.type_parameters, inherited, false)?;
                 let parents = syntax
                     .type_references
                     .type_reference_handles(definition.parents)
@@ -1509,7 +1527,8 @@ impl Expansion<'_, '_> {
                 }
             }
             Item::Conformance(definition) => {
-                let bound = self.parameters(syntax, definition.type_parameters, inherited)?;
+                let bound =
+                    self.parameters(syntax, definition.type_parameters, inherited, false)?;
                 let arguments = syntax
                     .type_references
                     .type_reference_handles(definition.trait_arguments)
@@ -1598,6 +1617,139 @@ mod type_alias_tests {
             panic!("the applied predicate has a concrete input");
         };
         assert_eq!(name.as_str(&syntax), "u32");
+    }
+
+    #[test]
+    fn alias_typed_proofs_keep_the_contract_without_selecting_code() {
+        let syntax = normalized(
+            "data NonzeroIsPositive = machine(n: u8) requires n != 0u8 ensures n > 0u8;
+             machine accepts<Step: NonzeroIsPositive, const Run: NonzeroIsPositive>(n: u8) {}",
+        )
+        .unwrap();
+        let machine = syntax
+            .root_items()
+            .find_map(|item| match item {
+                Item::Machine(machine) => Some(machine),
+                _ => None,
+            })
+            .unwrap();
+        let parameters = syntax.items.type_parameters(machine.type_parameters);
+        let TypeParameterKind::Proof { contract } = &parameters[0].kind else {
+            panic!("an alias-typed header parameter requests proof");
+        };
+        assert_eq!(contract.name.as_str(&syntax), "Step");
+        assert_eq!(
+            syntax.items.capability_contracts(contract.contracts).len(),
+            2
+        );
+        assert_eq!(syntax.items.state_parameters(contract.parameters).len(), 1);
+        assert!(matches!(
+            parameters[1].kind,
+            TypeParameterKind::Machine { .. }
+        ));
+    }
+
+    #[test]
+    fn proof_header_resolution_retains_distinct_formal_namespaces() {
+        use crate::resolution::resolve;
+        use crate::source_resolved::data::TypeParameterKind as ResolvedKind;
+        use crate::source_resolved::domain::ProofFact;
+        use crate::source_resolved::expression::ExpressionNode as ResolvedExpression;
+        let source = "data Positive = machine(n: u8) requires n != 0u8 ensures n > 0u8;
+            machine positive(n: u8) requires n != 0u8 ensures n > 0u8 {}
+            machine accepts<First: Positive, Second: Positive>(n: u8) { First(n); Second(n); }
+            machine entry() -> u8 { accepts::<positive, positive>(7u8); 0u8 }";
+        let program = resolve(crate::resolution::tests::source_request(source)).unwrap();
+        let machine = program
+            .machines
+            .iter()
+            .find(|machine| machine.name.as_str() == "accepts")
+            .unwrap();
+        let parameters = program.data_type_parameters(machine.type_parameters);
+        let formals = parameters
+            .iter()
+            .map(|parameter| {
+                let ResolvedKind::Proof { contract } = &parameter.kind else {
+                    panic!("the declared proof must keep its kind");
+                };
+                assert_eq!(contract.symbol, parameter.symbol);
+                let formal = program.state_parameters(contract.parameters)[0].symbol;
+                assert_eq!(program.symbols.get(formal).parent, parameter.symbol);
+                let expressions = &program.tables.bodies.expressions;
+                let declarations = &program.tables.declarations;
+                for clause in declarations
+                    .signature_contracts
+                    .span_or_empty(contract.contracts)
+                {
+                    for fact in declarations.proof_facts.span_or_empty(clause.facts) {
+                        let ProofFact::Expression(expression) = fact else {
+                            panic!("the fixture uses scalar clauses");
+                        };
+                        let ResolvedExpression::Binary(binary) =
+                            expressions.expression(*expression)
+                        else {
+                            panic!("each clause compares its formal with zero");
+                        };
+                        let ResolvedExpression::Name(name) = expressions.expression(binary.left)
+                        else {
+                            panic!("the left operand names the alias formal");
+                        };
+                        assert_eq!(
+                            name.symbol, formal,
+                            "each alias use owns its value references"
+                        );
+                    }
+                }
+                formal
+            })
+            .collect::<Vec<_>>();
+        assert_ne!(formals[0], formals[1]);
+        let calls = program
+            .tables
+            .declarations
+            .state_statements
+            .iter()
+            .filter_map(|(_, statement)| match statement {
+                crate::source_resolved::statement::Statement::Call(call) => {
+                    matches!(call.target.as_str(), "First" | "Second").then_some(call.target_symbol)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            calls,
+            parameters
+                .iter()
+                .map(|parameter| parameter.symbol)
+                .collect::<Vec<_>>(),
+            "logical applications retain their exact proof binders, not executable targets"
+        );
+        let positive = program
+            .machines
+            .iter()
+            .find(|machine| machine.name.as_str() == "positive")
+            .unwrap();
+        let call = program
+            .tables
+            .declarations
+            .state_statements
+            .iter()
+            .find_map(|(_, statement)| match statement {
+                crate::source_resolved::statement::Statement::Call(call)
+                    if call.target.as_str() == "accepts" =>
+                {
+                    Some(call)
+                }
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(call.machine_arguments.len(), 2);
+        for argument in &call.machine_arguments {
+            assert!(program.symbols.symbols().nodes().is_valid(argument.symbol));
+            let selected = program.symbols.get(argument.symbol);
+            assert_eq!(selected.kind, symbols::SymbolKind::State);
+            assert_eq!(selected.parent, positive.symbol);
+        }
     }
 
     /// lifetimes.md: "Duplicate binders and undeclared tags reject." An

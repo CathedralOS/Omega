@@ -340,6 +340,7 @@ impl BinderRole {
             TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => Self::Value,
             TypeParameterKind::Implementation
             | TypeParameterKind::Machine { .. }
+            | TypeParameterKind::Proof { .. }
             | TypeParameterKind::Proposition { .. } => Self::Declaration,
         }
     }

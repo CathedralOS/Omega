@@ -9,10 +9,20 @@ import tempfile
 
 
 PACKAGE = Path(__file__).resolve().parents[1]
-MACHINES = (
-    "path_root", "field_place", "index_steps", "place_depth", "place_ancestor",
-    "same_field_path", "distinct_indexes", "skip_indexes", "selected_field",
-    "path_relation", "through_write_only", "borrowed_place",
+DECLARATIONS = (
+    "data PlaceRelation",
+    "machine path_root",
+    "machine field_place",
+    "machine index_steps",
+    "machine place_depth",
+    "machine place_ancestor",
+    "machine same_field_path",
+    "machine distinct_indexes",
+    "machine skip_indexes",
+    "machine selected_field",
+    "machine path_relation",
+    "machine through_write_only",
+    "machine borrowed_place",
 )
 
 
@@ -23,16 +33,26 @@ def main():
     fixture = PACKAGE / "tests/fixtures/ownership/run/deep_projections"
     places = (PACKAGE / "pipeline/typed_trees_to_checked_trees/owned_places.omg").read_text()
     declarations = []
-    for name in MACHINES:
-        match = re.search(rf"^(?:public )?machine {name}\b.*?^}}", places, re.M | re.S)
+    for name in DECLARATIONS:
+        match = re.search(rf"^(?:public )?{name}\b.*?^}}", places, re.M | re.S)
         if not match:
             raise ValueError(f"missing product declaration {name}")
         declarations.append(match[0])
     with tempfile.TemporaryDirectory(prefix="omega-deep-projections-") as directory:
         root = Path(directory)
         shutil.copyfile(fixture / "build.omg", root / "build.omg")
-        (root / "main.omg").write_text("\n\n".join([*declarations, (fixture / "main.omg").read_text()]))
-        subprocess.run([cli, "run", "--both", "build.omg"], cwd=root, check=True)
+        shutil.copyfile(fixture / "main.omg", root / "main.omg")
+        # The fixture supplies the small tables that the product machines read.
+        imports = [
+            f"use main.omg as {alias};"
+            for alias in ("integers", "symbol_resolved_trees", "syntax_trees", "typed_trees")
+        ]
+        (root / "owned_places.omg").write_text(
+            "\n".join(imports) + "\n\n" + "\n\n".join(declarations) + "\n"
+        )
+        subprocess.run(
+            [cli, "run", "--both", "build.omg"], cwd=root, stdin=subprocess.DEVNULL, check=True
+        )
 
 
 if __name__ == "__main__":

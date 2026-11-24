@@ -614,11 +614,24 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
             },
         },
         Item::Use(crate::item::UseItem::Namespace { path }) => ItemSnapshot::Use {
-            path: snapshot_identifier_slice(syntax_trees, syntax_trees.items.identifier_path_members(*path)),
+            path: snapshot_identifier_slice(
+                syntax_trees,
+                syntax_trees.items.identifier_path_members(*path),
+            ),
         },
-        Item::Use(crate::item::UseItem::File { root, components, alias, .. }) => ItemSnapshot::FileImport {
-            root: root.as_ref().map(|name| snapshot_identifier(syntax_trees, name)),
-            components: snapshot_identifier_slice(syntax_trees, syntax_trees.items.identifier_path_members(*components)),
+        Item::Use(crate::item::UseItem::File {
+            root,
+            components,
+            alias,
+            ..
+        }) => ItemSnapshot::FileImport {
+            root: root
+                .as_ref()
+                .map(|name| snapshot_identifier(syntax_trees, name)),
+            components: snapshot_identifier_slice(
+                syntax_trees,
+                syntax_trees.items.identifier_path_members(*components),
+            ),
             alias: snapshot_identifier(syntax_trees, alias),
         },
         Item::Machine(value) => ItemSnapshot::Machine {
@@ -774,6 +787,13 @@ pub(crate) fn snapshot_type_parameter(
                     *type_reference,
                 )),
                 None,
+                None,
+                None,
+            ),
+            TypeParameterKind::Proof { contract } => (
+                "proof",
+                None,
+                Some(snapshot_state_signature(syntax_trees, contract)),
                 None,
                 None,
             ),

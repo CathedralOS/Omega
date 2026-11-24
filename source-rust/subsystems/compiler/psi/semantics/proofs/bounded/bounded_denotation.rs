@@ -18,14 +18,6 @@ use semantic_vocabulary::{
 
 use crate::ClosedIntegerEvaluator;
 use crate::kernel::{KernelError, decide_primitive};
-use mathematical_kernel::{
-    MathematicalCertificate, certificate_assumption_closure, verify_mathematical_certificate,
-};
-use mathematical_kernel::Budget;
-use mathematical_kernel::scheme_dsl::{self, Syntax};
-use mathematical_kernel::Declaration;
-use mathematical_kernel::{Level, Sort, Term, TermArena, TermHandle};
-use mathematical_kernel::CoreError;
 use crate::proof::integer_math_normalization::{
     lift_fixed_integer_relation, propositions_match_under_integer_math_normalization,
 };
@@ -34,8 +26,22 @@ use crate::proof::{
     ProofNode, ProofRule, add_order, equality_rules, integer_bound_rules, integer_order_rules,
     order_discreteness, strict_order_transitivity, subtract_antitone, subtract_order,
 };
+use mathematical_kernel::Budget;
+use mathematical_kernel::CoreError;
+use mathematical_kernel::Declaration;
+use mathematical_kernel::scheme_dsl::{self, Syntax};
+use mathematical_kernel::{Level, Sort, Term, TermArena, TermHandle};
+use mathematical_kernel::{
+    MathematicalCertificate, certificate_assumption_closure, verify_mathematical_certificate,
+};
 
 const MAX_ELABORATION_NODES: u64 = 1 << 16;
+
+mod theorems;
+pub use theorems::{
+    BoundedImplicationType, BoundedTheorem, BoundedTheoremError, denote_bounded_implication_type,
+    verify_bounded_theorem,
+};
 
 mod addition {
     use std::cmp::Ordering;
@@ -54,9 +60,9 @@ mod addition {
         affine_carrier_endpoint_equality, affine_root_premise, affine_witness_root_expression,
         unbounded_integer,
     };
-    use mathematical_kernel::scheme_dsl::{self, apps, id, pi, pis, scheme_at, v};
     use crate::term_matchers::is_math_add;
     use crate::{ClosedIntegerEvaluator, kernel::KernelError, proof::ProofError};
+    use mathematical_kernel::scheme_dsl::{self, apps, id, pi, pis, scheme_at, v};
 
     #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
     enum Law {
@@ -8737,15 +8743,15 @@ mod forbidden_roots {
     use super::{
         BoundedDenotationError, Denotation, IntegerLaw, IntegerRelation, Term, TermHandle,
     };
-    use mathematical_kernel::scheme_dsl::{
-        self, apps, case_two, id, lam, pi, pis, scheme_at, sigma, sort, two, v,
-    };
-    use mathematical_kernel::shift;
-    use mathematical_kernel::Level;
     use crate::{
         CheckedIntegerCorrelatedForbiddenRoots, CorrelatedAffineBranchWitness,
         IntegerCorrelatedForbiddenRootWitness,
     };
+    use mathematical_kernel::Level;
+    use mathematical_kernel::scheme_dsl::{
+        self, apps, case_two, id, lam, pi, pis, scheme_at, sigma, sort, two, v,
+    };
+    use mathematical_kernel::shift;
 
     mod chains {
         use super::*;
@@ -10243,11 +10249,11 @@ mod forbidden_roots {
 
         use super::super::{Elaboration, verify_bounded_certificate_with_machine_parameters};
         use super::Law;
-        use mathematical_kernel::Term;
         use crate::{
             Budget, CorrelatedAffineBranchWitness, IntegerCorrelatedForbiddenRootWitness,
             ProofError, ProofNode, ProofRule, correlated_step, proof_node, value_context,
         };
+        use mathematical_kernel::Term;
         use semantic_vocabulary::{
             IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
             ScalarType, ValueId,
@@ -11643,12 +11649,12 @@ mod multiplication {
         use super::super::Elaboration;
         use super::super::test_utilities::{assert_refused, mathematical};
         use super::Law;
-        use mathematical_kernel::Term;
         use crate::proof::assumption_proof;
         use crate::{
             Budget, IntegerAffineWitness, ProofNode, ProofRule, value_context,
             verify_bounded_certificate,
         };
+        use mathematical_kernel::Term;
         use semantic_vocabulary::{
             IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition,
             PropositionContext, ScalarTerm, ScalarType, ValueId,
@@ -12442,8 +12448,8 @@ mod subtraction {
         BoundedDenotationError, Denotation, IntegerLaw, Term, TermHandle,
         affine_carrier_endpoint_equality, affine_root_premise, affine_witness_root_expression,
     };
-    use mathematical_kernel::scheme_dsl::{self, apps, id, pi, pis, scheme_at, v};
     use crate::{ClosedIntegerEvaluator, kernel::KernelError, proof::ProofError};
+    use mathematical_kernel::scheme_dsl::{self, apps, id, pi, pis, scheme_at, v};
 
     #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
     enum Law {
@@ -16848,8 +16854,8 @@ mod tests {
     }
     mod content_algebra {
         use super::*;
-        use mathematical_kernel::{Level, Sort};
         use crate::proof_node;
+        use mathematical_kernel::{Level, Sort};
 
         fn content_algebra() -> ContentAlgebra {
             ContentAlgebra {

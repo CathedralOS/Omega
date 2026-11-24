@@ -422,8 +422,7 @@ pub(crate) fn declare(
                     parameters: definition.parameters.clone(),
                     type_parameters: definition.type_parameters.clone(),
                     body: definition.body.clone(),
-                },
-            );
+                });
             elaboration
                 .predicate_sources
                 .push(crate::lowering::PredicateSource {
@@ -1084,46 +1083,45 @@ fn application(
             "a generated machine's application binds other than one argument per parameter",
         );
     }
-    let (parameters, enclosing_capture) = match row {
-        MachineInstantiation::Specialization(specialization) => {
-            // An enclosing application binds the inherited prefix of a nested
-            // helper. The helper's own binders survive under fresh symbols;
-            // authenticate both parts rather than inventing bindings for them.
-            let parameters = typed
-                .data_type_parameters
-                .span(specialization.template_parameters)
-                .ok_or("a specialization lost its retained binder roster")?;
-            let source = typed.machine_type_parameters(declared);
-            let remaining = typed
-                .machine_by_symbol(instance)
-                .map(|machine| typed.machine_type_parameters(machine))
-                .ok_or("a specialization lost its instance declaration")?;
-            if source.len() != parameters.len() + remaining.len()
-                || !source.iter().take(parameters.len()).eq(parameters.iter())
-                || !source
-                    .iter()
-                    .skip(parameters.len())
-                    .zip(remaining)
-                    .all(|(original, copied)| {
-                        typed.symbols.get(copied.symbol).generated_from == original.symbol
-                            && original.kind == copied.kind
-                            && original.bounds == copied.bounds
-                    })
-            {
-                return Err("a specialization changed its bound or remaining binder roster");
+    let (parameters, enclosing_capture) =
+        match row {
+            MachineInstantiation::Specialization(specialization) => {
+                // An enclosing application binds the inherited prefix of a nested
+                // helper. The helper's own binders survive under fresh symbols;
+                // authenticate both parts rather than inventing bindings for them.
+                let parameters = typed
+                    .data_type_parameters
+                    .span(specialization.template_parameters)
+                    .ok_or("a specialization lost its retained binder roster")?;
+                let source = typed.machine_type_parameters(declared);
+                let remaining = typed
+                    .machine_by_symbol(instance)
+                    .map(|machine| typed.machine_type_parameters(machine))
+                    .ok_or("a specialization lost its instance declaration")?;
+                if source.len() != parameters.len() + remaining.len()
+                    || !source.iter().take(parameters.len()).eq(parameters.iter())
+                    || !source.iter().skip(parameters.len()).zip(remaining).all(
+                        |(original, copied)| {
+                            typed.symbols.get(copied.symbol).generated_from == original.symbol
+                                && original.kind == copied.kind
+                                && original.bounds == copied.bounds
+                        },
+                    )
+                {
+                    return Err("a specialization changed its bound or remaining binder roster");
+                }
+                (parameters, false)
             }
-            (parameters, false)
-        }
-        MachineInstantiation::Capture(selection, capture) => {
-            let owner = typed.captured_conformance_owner(selection, capture)
-                .ok_or("a captured application lost its exact enclosing map")?;
-            if capture.normalized_template_identity != callable
-            {
-                return Err("a captured application lost its exact source template");
+            MachineInstantiation::Capture(selection, capture) => {
+                let owner = typed
+                    .captured_conformance_owner(selection, capture)
+                    .ok_or("a captured application lost its exact enclosing map")?;
+                if capture.normalized_template_identity != callable {
+                    return Err("a captured application lost its exact source template");
+                }
+                (typed.conformance_type_parameters(owner), true)
             }
-            (typed.conformance_type_parameters(owner), true)
-        }
-    };
+        };
     let mut prepared = (declared.conformance_bounds.is_empty()
         && parameters.iter().all(|parameter| {
             matches!(
@@ -1291,6 +1289,9 @@ fn application_bindings_commitment(
             }
             StaticMachineBindingValue::RuntimeValue { .. } => {
                 return Err("a generated machine's application binds a runtime value");
+            }
+            StaticMachineBindingValue::Proof(_) => {
+                return Err("logical evidence is not an executable application commitment");
             }
         }
     }
@@ -2323,7 +2324,8 @@ impl RequirementApplicationSource {
                 }
                 StaticMachineBindingValue::Conformance(_)
                 | StaticMachineBindingValue::RuntimeValue { .. }
-                | StaticMachineBindingValue::Machine(_) => {
+                | StaticMachineBindingValue::Machine(_)
+                | StaticMachineBindingValue::Proof(_) => {
                     return Err(
                         "a closed requirement's application binds something other than a type or a value",
                     );
