@@ -2,6 +2,9 @@
 //! and target settings. Package acceptance separately identifies the loaded
 //! Omega library, which may come from outside the checkout.
 
+mod cargo_outputs;
+
+use cargo_outputs::CargoOutputs;
 use std::error::Error;
 use std::fs;
 use std::io;
@@ -23,22 +26,17 @@ fn main() -> Result<(), Box<dyn Error>> {
         std::env::var_os("OUT_DIR")
             .ok_or_else(|| io::Error::other("Cargo did not provide OUT_DIR"))?,
     );
-    let configured_target = std::env::var_os("CARGO_TARGET_DIR")
-        .map(|directory| root.join(directory))
-        .filter(|directory| {
-            output.starts_with(directory) && !directory.join("Cargo.toml").is_file()
-        });
-    let target_directory = configured_target.as_deref().or_else(|| {
-        output
-            .ancestors()
-            .find(|directory| directory.join("CACHEDIR.TAG").is_file())
-    });
+    let cargo_outputs = CargoOutputs::new(
+        &output,
+        std::env::var_os("CARGO_TARGET_DIR").map(|directory| root.join(directory)),
+        std::env::var_os("TARGET").as_deref(),
+    );
     let mut paths = ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml"]
         .map(|file| root.join(file))
         .to_vec();
     collect_inputs(
         &root.join("source-rust"),
-        target_directory,
+        &cargo_outputs,
         InputTree::Rust,
         &mut paths,
     )?;
@@ -46,7 +44,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // also include declarations embedded directly into the Rust executable.
     for directory in [root.join("source/library"), root.join(".cargo")] {
         if directory.is_dir() {
-            collect_inputs(&directory, target_directory, InputTree::Other, &mut paths)?;
+            collect_inputs(&directory, &cargo_outputs, InputTree::Other, &mut paths)?;
         }
     }
     paths.sort_unstable();
@@ -105,7 +103,7 @@ enum InputTree {
 
 fn collect_inputs(
     directory: &Path,
-    target_directory: Option<&Path>,
+    cargo_outputs: &CargoOutputs<'_>,
     tree: InputTree,
     paths: &mut Vec<PathBuf>,
 ) -> io::Result<()> {
@@ -122,7 +120,7 @@ fn collect_inputs(
             || (!matches!(tree, InputTree::Other)
                 && kind.is_dir()
                 && entry.file_name() == "_recycling")
-            || Some(path.as_path()) == target_directory
+            || cargo_outputs.contains(&path)
         {
             continue;
         }
@@ -141,7 +139,7 @@ fn collect_inputs(
             } else {
                 tree
             };
-            collect_inputs(&path, target_directory, child, paths)?;
+            collect_inputs(&path, cargo_outputs, child, paths)?;
         } else if kind.is_file()
             && !(matches!(tree, InputTree::IntegrationTests)
                 && path.extension().is_some_and(|extension| extension == "rs"))
