@@ -6,8 +6,35 @@
 mod values;
 use diagnostics::Diagnostic;
 use prepared_source_issuer::PreparationIssuer;
+use symbols::SymbolHandle;
+use typed_trees::source_state::static_applications::StaticMachineApplicationHandle;
 use typed_trees::source_state::{self, FrozenTypedTrees, TypedTrees};
 pub use values::{PreparedTarget, PreparedValue, TargetInputs, ValueInputs};
+
+/// A static application selected as an entry in this typed source. Its arena
+/// coordinates belong to this program, including when its trees are cloned.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EntryApplication {
+    source: u64,
+    application: StaticMachineApplicationHandle,
+}
+
+impl EntryApplication {
+    pub fn new(program: &TypedTrees, application: StaticMachineApplicationHandle) -> Self {
+        Self {
+            source: program.identity.get(),
+            application,
+        }
+    }
+
+    pub fn in_source(self, program: &TypedTrees) -> Option<StaticMachineApplicationHandle> {
+        (self.source == program.identity.get()
+            && program
+                .expression_table
+                .static_machine_application_is_valid(self.application))
+        .then_some(self.application)
+    }
+}
 
 /// A frozen source snapshot with checked computation-input correspondence.
 /// Cloning retains the same source owner. Only stage 04 links the issuer
@@ -17,7 +44,7 @@ pub use values::{PreparedTarget, PreparedValue, TargetInputs, ValueInputs};
 /// use prepared_source::PreparedTypedTrees;
 /// use prepared_source_issuer::PREPARATION;
 /// use typed_trees::source_state::TypedTrees;
-/// let prepared = PreparedTypedTrees::new(PREPARATION, TypedTrees::default(), &[]).unwrap();
+/// let prepared = PreparedTypedTrees::new(PREPARATION, TypedTrees::default(), &[], Vec::new()).unwrap();
 /// assert!(std::sync::Arc::ptr_eq(prepared.trees(), prepared.clone().trees()));
 /// ```
 ///
@@ -33,6 +60,7 @@ pub struct PreparedTypedTrees {
     typed: std::sync::Arc<FrozenTypedTrees>,
     values: std::sync::Arc<[ValueInputs]>,
     constants: std::sync::Arc<[arena::Handle<source_state::constant::ConstDeclaration>]>,
+    entries: std::sync::Arc<[(EntryApplication, SymbolHandle)]>,
 }
 
 impl PreparedTypedTrees {
@@ -46,18 +74,28 @@ impl PreparedTypedTrees {
         _issuer: PreparationIssuer,
         program: TypedTrees,
         values: &[ValueInputs],
+        entries: Vec<(EntryApplication, SymbolHandle)>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let constants = values::constant_inputs(&program, values)?;
         Ok(Self {
             typed: std::sync::Arc::new(program.into()),
             values: values.into(),
             constants: constants.into(),
+            entries: entries.into(),
         })
     }
 
     /// Read the exact source snapshot used to prepare this program.
     pub fn trees(&self) -> &std::sync::Arc<FrozenTypedTrees> {
         &self.typed
+    }
+
+    /// The exact executable specialization produced for this root request.
+    pub fn entry_for_application(&self, application: EntryApplication) -> Option<SymbolHandle> {
+        self.entries
+            .iter()
+            .find(|(selected, _)| *selected == application)
+            .map(|(_, machine)| *machine)
     }
 
     /// The source computations demanded during this preparation.
@@ -89,7 +127,7 @@ mod tests {
         let program = TypedTrees::default();
         let identity = program.identity.get();
         let expected = program.clone();
-        let prepared = PreparedTypedTrees::new(PREPARATION, program, &[]).unwrap();
+        let prepared = PreparedTypedTrees::new(PREPARATION, program, &[], Vec::new()).unwrap();
         let cloned = prepared.clone();
         assert!(std::sync::Arc::ptr_eq(prepared.trees(), cloned.trees()));
         assert_eq!(prepared.trees().identity.get(), identity);
@@ -107,7 +145,8 @@ mod tests {
             Vec::new(),
             TargetInputs::None,
         );
-        let refusal = PreparedTypedTrees::new(PREPARATION, other, &[input]).unwrap_err();
+        let refusal =
+            PreparedTypedTrees::new(PREPARATION, other, &[input], Vec::new()).unwrap_err();
         assert_eq!(refusal.len(), 1);
         assert_eq!(
             refusal[0].message,
@@ -124,7 +163,8 @@ mod tests {
             Vec::new(),
             TargetInputs::None,
         );
-        let refusal = PreparedTypedTrees::new(PREPARATION, program, &[input]).unwrap_err();
+        let refusal =
+            PreparedTypedTrees::new(PREPARATION, program, &[input], Vec::new()).unwrap_err();
         assert_eq!(refusal.len(), 1);
         assert_eq!(
             refusal[0].message,
@@ -146,7 +186,8 @@ mod tests {
             Vec::new(),
             TargetInputs::None,
         );
-        let refusal = PreparedTypedTrees::new(PREPARATION, program, &[input]).unwrap_err();
+        let refusal =
+            PreparedTypedTrees::new(PREPARATION, program, &[input], Vec::new()).unwrap_err();
         assert_eq!(refusal.len(), 1);
         assert_eq!(
             refusal[0].message,

@@ -9,11 +9,13 @@ use crate::driver::judge_lowered_source::{FrozenSource, JudgedSource, SettledSou
 use crate::source_state::opaque_representations::OpaqueRepresentationSelection;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
+use typed_trees_to_prepared_typed_trees::{EntryApplication, SelectedDeclaration, SelectedProvider};
 
 #[derive(Default)]
 pub struct SourceAdmission<'request> {
     pub invocation_sources:
         Option<Arc<dyn crate::compile_time_invocations::InvocationSourceConsent>>,
+    pub entry_applications: &'request [EntryApplication],
     pub external_roots: &'request [symbols::SymbolHandle],
     pub representations: ProductRepresentationInput<'request>,
     pub layout_scopes: &'request [crate::compile_time_invocations::FixedLayoutTargetScope],
@@ -119,22 +121,29 @@ impl<'request> SourcePreparationRequest<'request> {
             Ok((program, values)) => Ok(SettledSource {
                 program,
                 accounting,
-                selected_providers: self
+                selected_declarations: self
                     .admission
                     .layout_scopes
                     .iter()
                     .flat_map(|scope| scope.provider_declarations.iter())
                     .map(|selection| {
                         let provider = &selection.provider_type;
-                        typed_trees_to_prepared_typed_trees::SelectedProvider {
+                        SelectedDeclaration::Provider(SelectedProvider {
                             declaration: provider.symbol,
                             application: provider.applied.then(|| {
                                 checked_program_to_psi::provider_choice_inputs::source_application(
                                     provider.application,
                                 )
                             }),
-                        }
+                        })
                     })
+                    .chain(
+                        self.admission
+                            .entry_applications
+                            .iter()
+                            .copied()
+                            .map(SelectedDeclaration::MachineApplication),
+                    )
                     .collect(),
                 values,
             }),
