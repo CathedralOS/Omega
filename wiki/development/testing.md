@@ -499,16 +499,19 @@ scoped, never as a verified full baseline.
 the same refusals and limits on every hosted target, as
 [three layers](../spec/build/platform_services.md#three-layers)
 requires. It reads `std`'s source, not a build, and takes well under a second.
-For each provider `std/build.omg` selects on all five targets, it collects the
-refusals, guard limits, constant arguments and clamps each member reaches, and
-lists every one that some targets have and others lack.
+For each service that `std/build.omg` supplies on all five targets, the check
+follows each member through the raw providers selected for that target,
+including members mapped to a machine in a named file. It reports refusals,
+guard limits, constant arguments and clamps that only some targets reach.
 
 Most of those rows are not divergences: layout offsets, OS flag words and OS
 limits differ by nature. Each reviewed row sits in
 `tools/ratchets/portable_services.txt` with a reason (`noise`, `allowed`, or
 `known` plus the `OWNER_CODE_CONCERNS.md` heading that queues it). The check
 fails on a row the baseline lacks and on a baseline row that no longer
-appears. When it reports a new row, read the call in both adapter families,
+appears. A review may list exact members together, as in
+`FilesystemService.{read,write}`. Each member still has its own comparison row.
+When the check reports a new row, read the call in both adapter families,
 then fix the divergence or record the row with its reason. `--list` prints
 every current row.
 
