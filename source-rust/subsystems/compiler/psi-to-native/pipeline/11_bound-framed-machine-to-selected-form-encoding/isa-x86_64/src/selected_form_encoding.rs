@@ -6418,17 +6418,16 @@ pub(crate) mod ieee_float_arithmetic {
                         destination: LEFT_SCRATCH,
                         source: RIGHT_SCRATCH,
                     },
-                    Instruction::Transfer {
-                        to_float: false,
-                        wide: double,
+                    // Reduce the all-ones mask to 0 or 1 inside the vector
+                    // register: a general-register shift would overwrite RFLAGS,
+                    // which this form's constraint row does not clobber.
+                    Instruction::ShiftRight {
+                        quad: double,
+                        arithmetic: false,
                         xmm: LEFT_SCRATCH,
-                        general: result,
-                    },
-                    Instruction::ShiftInteger64 {
-                        left: false,
-                        general: result,
                         count: if double { 63 } else { 31 },
                     },
+                    move_out,
                 ]
             }
             IeeeFloatArithmeticOperation::MultiplyThenAdd => vec![
@@ -7312,6 +7311,51 @@ pub(crate) mod ieee_float_arithmetic {
                     );
                 }
             }
+        }
+    }
+
+    // Stage 10 keeps condition flags live across a row unless the row declares
+    // the clobber, so a form whose bytes write RFLAGS must say so in its
+    // footprint and its encoded effects.
+    #[test]
+    fn forms_that_write_rflags_declare_the_condition_flags_clobber() {
+        let physical = register_model::validate_physical_register_model(
+            crate::x86_64_physical_register_model(),
+        )
+        .unwrap();
+        let view = |name: &str| physical.model().view_named(name).unwrap();
+        let flags = &view("condition_flags").units;
+        let all = [
+            view("rdx").id,
+            view("rsi").id,
+            view("r15").id,
+            view("r8").id,
+        ];
+        for form in IeeeFloatArithmeticForm::ALL {
+            let operands = &all[4 - form.operand_count() - 1..];
+            let registers = resolve_registers(&physical, operands).unwrap();
+            let writes_rflags = program(form, &registers)
+                .unwrap()
+                .iter()
+                .any(|instruction| {
+                    matches!(
+                        instruction,
+                        Instruction::ShiftInteger64 { .. }
+                            | Instruction::CompareImmediate64 { .. }
+                            | Instruction::Test64 { .. }
+                    )
+                });
+            let clobbers = effects(form).implicit_unit_clobbers;
+            assert_eq!(
+                footprint(form, operands).writes_rflags,
+                writes_rflags,
+                "{form:?}"
+            );
+            assert_eq!(
+                flags.iter().all(|unit| clobbers.contains(unit)),
+                writes_rflags,
+                "{form:?}"
+            );
         }
     }
 }
