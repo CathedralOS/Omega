@@ -87,34 +87,48 @@ mod reflected_fields;
 
 #[cfg(test)]
 fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    prepare_with_providers(program, &[])
+    prepare_selected(program, &[]).map(|_| ())
 }
 
-pub(crate) fn prepare_with_providers(
+pub(crate) fn prepare_selected(
     program: &mut TypedTrees,
-    selected_providers: &[crate::SelectedProvider],
-) -> Result<(), Vec<Diagnostic>> {
+    selected: &[crate::SelectedDeclaration],
+) -> Result<Vec<(crate::EntryApplication, SymbolHandle)>, Vec<Diagnostic>> {
     let first_type = program.type_reference_table.type_reference_count();
     let mut generated = GeneratedMachines::default();
     // Reflection creates one potential callback branch per declared case. Lowering
     // decides which branches exist on the exact applied record. Keep a rejection
     // with its branch, including machines specialized solely for that branch.
     let mut case_branches = std::collections::HashSet::new();
-    for selection in selected_providers {
-        named_conformances::prepare_selected(program, *selection).map_err(|reason| {
+    let mut roots = Vec::new();
+    let mut selected_providers = Vec::new();
+    for &selection in selected {
+        let result = match selection {
+            crate::SelectedDeclaration::Provider(provider) => {
+                selected_providers.push(provider);
+                named_conformances::prepare_selected(program, provider)
+                    .map_err(|reason| ("provider", reason))
+            }
+            crate::SelectedDeclaration::MachineApplication(root) => {
+                close_entry(program, root, &mut generated)
+                    .map(|machine| roots.push((root, machine)))
+                    .map_err(|reason| ("entry application", reason))
+            }
+        };
+        result.map_err(|(kind, reason)| {
             let detail = match reason {
                 Stop::Unserved(reason) => reason.into_owned(),
                 Stop::Rejected(reason) => reason,
                 Stop::Defect(reason) => reason.to_owned(),
             };
             vec![Diagnostic::error(format!(
-                "cannot prepare the selected provider: {detail}"
+                "cannot prepare the selected {kind}: {detail}"
             ))]
         })?;
     }
     let mut captures = crate::source_state::NamedConformanceCaptureIndex::new(program);
     // A generated machine is appended to the machines and read in its turn.
-    let mut selected_methods = provider_methods::SelectedMethods::new(program, selected_providers);
+    let mut selected_methods = provider_methods::SelectedMethods::new(program, &selected_providers);
     let mut position = 0;
     loop {
         if position == program.machines().len() {
@@ -219,7 +233,61 @@ pub(crate) fn prepare_with_providers(
     // pass, so later readers see the same exact application and field types.
     data_applications::prepare_from(program, first_type)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    Ok(())
+    Ok(roots)
+}
+
+/// Enter the same specialization as an ordinary call without inventing a call
+/// site in the authored body. The product later checks the closed entry shape.
+fn close_entry(
+    program: &mut TypedTrees,
+    root: crate::EntryApplication,
+    generated: &mut GeneratedMachines,
+) -> Served<SymbolHandle> {
+    let application = root.in_source(program).ok_or(unserved(
+        "the selected static application belongs to another typed source or is missing",
+    ))?;
+    let row = program
+        .expression_table
+        .static_machine_application(application);
+    if !program
+        .symbols
+        .symbols()
+        .nodes()
+        .is_valid(row.lexical_owner)
+    {
+        return Err(unserved(
+            "the selected entry application lost its supplying source scope",
+        ));
+    }
+    let callee = row.registration_operation;
+    let machine = program
+        .machine_by_symbol(callee)
+        .filter(|machine| machine.body_is_present)
+        .ok_or(unserved(
+            "the selected entry application has no ordinary machine body",
+        ))?;
+    let parameters = program.machine_callable_parameters(machine);
+    let mut arguments = program
+        .expression_table
+        .static_machine_application_arguments(application)
+        .to_vec();
+    if parameters.is_empty() || parameters.len() != arguments.len() {
+        return Err(unserved(
+            "the selected entry application must supply every declared static parameter",
+        ));
+    }
+    specialize_application(
+        program,
+        callee,
+        &parameters,
+        application,
+        &mut arguments,
+        generated,
+    )?
+    .map(|(machine, _)| machine)
+    .ok_or(unserved(
+        "the selected entry application must have a closed executable specialization",
+    ))
 }
 
 // Newer slots sort first so ascending applications need fewer comparisons within each tree node.

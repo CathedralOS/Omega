@@ -77,6 +77,7 @@ pub(super) fn prepare_and_judge(
 
     let source_admission = prepare_typed_source::SourceAdmission {
         invocation_sources: None,
+        entry_applications: &[],
         // Roots belong to structural judgment below, rather than to a deleted
         // source-checking admission or projection.
         external_roots: &[],
