@@ -230,8 +230,9 @@ fn the_kernel_judges_peano_addition_associative_by_induction() {
     else {
         panic!("the proof must be an induction")
     };
-    // Zero and Succ follow the data; the induction principle follows them.
-    assert_eq!(induction, data + 3);
+    // Zero and Succ follow the data, then the induction's step over raw
+    // trees, then the induction principle.
+    assert_eq!(induction, data + 4);
     let [_motive, _zero, _successor, subject, b, c] = arguments.as_slice() else {
         panic!("a motive, two branches, the subject and two formals: {arguments:?}")
     };

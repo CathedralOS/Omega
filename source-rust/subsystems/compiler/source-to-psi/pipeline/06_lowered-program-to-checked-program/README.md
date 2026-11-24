@@ -58,9 +58,10 @@ Distributivity of Peano multiplication is the customer. From the right, its
 successor case is the cited law at `pred` and one regrouping. From the left
 it is four addends in another order, which needs commutativity too, and
 commutativity needs `plus(a, Zero) = a`, a law that returns its own argument.
-The kernel checks each law's proof once, as its certificate: 11,817
-conversion steps of a 65,536 budget for associativity, 7,317 and 7,324 for the
-two distributivity laws, 3,529 for commutativity.
+The kernel checks each law's proof once, as its certificate: 2,176
+conversion steps of a 65,536 budget for associativity, 1,660 and 1,659 for the
+two distributivity laws, 1,105 for commutativity. The largest law of
+`core/nat.omg` takes 5,628.
 
 When every part is accepted, publication writes one Psi mathematical carrier
 row per data declaration into the root module
