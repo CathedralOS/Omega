@@ -210,7 +210,11 @@ fn uefi_nominates_only_the_two_qualified_entry_occurrences() {
     let mut shared = module.clone();
     let entry_body = shared.machines.iter_mut().find(|row| row.id == entry).unwrap();
     entry_body.entry_claims[1].claim = entry_body.entry_claims[0].claim;
-    assert!(nominate(&shared).unwrap_err()[0].message.contains("substituted parameters or claims"));
+    let errors = nominate(&shared).expect_err("each entry argument needs its own claim");
+    assert!(
+        errors[0].message.contains("a distinct whole claim for each argument"),
+        "{errors:?}"
+    );
 
     let mut changed_type = module.clone();
     let checked = changed_type.machines.iter_mut().find(|row| row.id == entry)
