@@ -1,40 +1,50 @@
-/*
-This crate provides dense arenas, handles, paged arenas, and revision-indexed storage.
-
-Our storage layer is organized into six modules:
-- `arena`: `Handle`, `HandleSpan`, `SpanHandles`, `unique_handles_in_order`, the contiguous
-  node-kind `Arena` (`ArenaIter`, `ArenaSlotStorage`, `ArenaSpanInserter`, `ArenaStorageView`),
-  `HierarchyArena` (`HierarchyNode`), and `OrderedRootArena` (`OrderedRootArenaIter`).
-- `paged`: multi-page and concurrent arena structures (`PagedArenaSet`, `PagedArenaFrontier`,
-  `ConcurrentPagedArena`, `ConcurrentArenaPage`, `PublishedArenaPage`, `SealedPagedArena`,
-  `IncompletePagePublication`, `GenerationalPagedArena`, `SlotRef`, `OwnedInterner`, and
-  `OwnedTextInterner`).
-- `owned_index`: the revision-guarded lazy derived index owned by the arena-bearing
-  table it summarizes.
-- `retained`: absolute-slot `RetainedArena` tables with shared immutable pages
-  and continuation-owned append output.
-- `retained_rows`: ordered side records over rooted batches and a private logical roster.
-- `rooted`: logical declaration versions over shared immutable record batches,
-  with borrowed root views and record-local writes.
-*/
-
-/*
-Compiler representations link syntax, symbol, type, proof, and flow nodes through dense
-32-bit `(arena_index, generation)` coordinates rather than heap pointers or hash tables.
-Handle zero is the shared null entry so absence requires no `Option` wrapper, and
-append-only pages keep uniform slot identity without allocating per-row generation or
-occupancy vectors until the first retirement occurs. Grouping contiguous single-page
-arenas in `arena.rs`, paged and concurrent worker arenas in `paged.rs`, and revision-keyed
-derived indexes in `owned_index.rs` keeps every storage primitive discoverable behind a
-flat module surface.
-*/
-
-/*
-We consolidated the seven subdirectories (`arena/`, `handle/`, `hierarchy_arena/`,
-`ordered_root_arena/`, `paged_arena_set/`, `concurrent_paged_arena/`, and
-`generational_paged_arena/`) and `owned_interner.rs` into `arena.rs` and `paged.rs`,
-retaining `owned_index.rs` alongside `lib.rs`.
-*/
+//! We link compiler rows with typed handles. The two 32-bit coordinates name a
+//! slot and its generation in the issuing arena, so the backing buffer can grow
+//! without invalidating those links. A dense `Arena` starts with one generation
+//! for all its rows. When we retire a row, we track its occupancy and advance
+//! its generation. Reusing the slot then gives the new row a different handle.
+//!
+//! Slot zero names absence. `Arena::get` reads the shared default at zero and
+//! rejects an unresolved nonzero handle. Use `Arena::try_get` when a handle may
+//! be stale. A `GenerationalPagedArena` returns a marked dummy for every
+//! unresolved handle. Check `SlotRef::is_dummy` when that distinction matters.
+//!
+//! `HierarchyArena` stores a parent's children as a contiguous handle span.
+//! `OrderedRootArena` maintains a root order over its backing arena.
+//! `RetainedArena` lets a continuation append rows while sharing published
+//! pages. `RootedArena` lets different declaration rosters share record
+//! batches, which `RetainedRows` can expose in logical order.
+//!
+//! We keep indexes beside the owners they summarize. An `OwnedIndex` reuses
+//! its data when the supplied revision matches. An arena issues a fresh
+//! revision after mutation or storage replacement. For an index over several
+//! inputs, the caller supplies a key that accounts for every input it reads.
+//! The unit tests in `arena.rs`, `paged.rs` and `owned_index.rs` cover handle
+//! reuse, stale lookups and index refresh.
+//!
+//! Build an index from a live row, refresh it after editing the row, then
+//! retire the row before reusing its slot.
+//!
+//! ```
+//! use arena::{Arena, OwnedIndex};
+//!
+//! let mut rows = Arena::new();
+//! let first = rows.insert(7u64);
+//! let index = OwnedIndex::default();
+//! let read_index = |rows: &Arena<u64>| {
+//!     index.with(rows.revision(), || *rows.get(first) * 2, |doubled| *doubled)
+//! };
+//! assert_eq!(read_index(&rows), 14);
+//!
+//! *rows.get_mut(first) = 11;
+//! assert_eq!(read_index(&rows), 22);
+//!
+//! assert!(rows.free(first));
+//! let next = rows.insert(9);
+//! assert_eq!(next.arena_index(), first.arena_index());
+//! assert!(rows.try_get(first).is_none());
+//! assert_eq!(*rows.get(next), 9);
+//! ```
 
 #![forbid(unsafe_code)]
 

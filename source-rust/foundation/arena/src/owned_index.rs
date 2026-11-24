@@ -1,23 +1,4 @@
-/*
-We implement the revision-keyed lazy index owned directly by the arena-bearing value
-it summarizes.
-
-`Arena::revision()` is a process-unique stamp of one storage at one mutation epoch: a
-clone keeps it, and any mutation-capable call or replacement storage yields a stamp never
-seen before. A tuple of the stamps and complete rosters an index reads is therefore its
-exact freshness key; a sum or a lossy roster marker is not. Pairing
-the cached value with the revision it was built against inside the owning struct ensures
-a dropped owner takes its index with it and a mutated owner rebuilds on the next query.
-Composite arenas keep their own stamp: root selection, page membership and mutable row
-access invalidate that owner's epoch. Reading it does not scan or add child epochs.
-When an owner finishes mutating, `seal` moves the built index out of the mutex slot so
-parallel workers read the frozen copy without locking.
-
-Clones share the immutable index data, not the mutex or its revision slot.
-All index updates must use `with_mut` or `seal_with`; those detach shared data
-before handing out mutable access. Read callbacks must not mutate the index
-through interior mutability.
-*/
+//! Revision-keyed derived indexes for arena owners.
 
 use std::sync::{Arc, Mutex};
 
@@ -54,6 +35,8 @@ impl<T, Revision: Clone> Clone for OwnedIndex<T, Revision> {
     }
 }
 
+// Owner equality depends on stored rows, independent of which queries built
+// the index.
 impl<T, Revision> PartialEq for OwnedIndex<T, Revision> {
     fn eq(&self, _: &Self) -> bool {
         true
@@ -69,6 +52,10 @@ impl<T, Revision> std::fmt::Debug for OwnedIndex<T, Revision> {
 }
 
 impl<T, Revision: PartialEq> OwnedIndex<T, Revision> {
+    /// Reuses a matching index or builds it from the current owner.
+    ///
+    /// The revision must identify all inputs read by the builder. Treat the
+    /// index as immutable in the read callback because clones share it.
     pub fn with<R>(
         &self,
         revision: Revision,
@@ -87,6 +74,8 @@ impl<T, Revision: PartialEq> OwnedIndex<T, Revision> {
         run(&slot.as_ref().expect("index just built").1)
     }
 
+    /// Moves the built index out of the mutex so readers with the same
+    /// revision can use it without locking.
     pub fn seal(&mut self) {
         if let Some(built) = self
             .slot
@@ -98,6 +87,7 @@ impl<T, Revision: PartialEq> OwnedIndex<T, Revision> {
         }
     }
 
+    /// Seals the built index and detaches any shared copy before finishing it.
     pub fn seal_with(&mut self, finish: impl FnOnce(&mut T))
     where
         T: Clone,
@@ -117,6 +107,8 @@ impl<T, Revision: PartialEq> OwnedIndex<T, Revision> {
         }
     }
 
+    /// Updates the mutable index slot, detaching shared data before writing.
+    /// Unseal first when readers of the same revision must see the update.
     pub fn with_mut<R>(
         &self,
         revision: Revision,
@@ -144,6 +136,7 @@ impl<T, Revision: PartialEq> OwnedIndex<T, Revision> {
     }
 }
 
+// The owning rows can rebuild the index, so decoders start with an empty one.
 impl<T, Revision> record_storage::Record for OwnedIndex<T, Revision> {
     fn write(
         &self,
