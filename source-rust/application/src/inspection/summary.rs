@@ -15,7 +15,7 @@ pub fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> Stri
     let mut output = String::new();
     let _ = writeln!(
         output,
-        "terminal selected_machine={} entry={:?}",
+        "psi selected_machine={} entry={:?}",
         selected_machine, module.entry
     );
     for candidate in &module.interfaces.provider_candidates {

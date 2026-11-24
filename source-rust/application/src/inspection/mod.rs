@@ -30,7 +30,7 @@ impl std::fmt::Display for InspectTerminalError {
             Self::Diagnostics(diagnostics) => {
                 diagnostics::write_diagnostics(formatter, diagnostics)
             }
-            Self::Artifact(error) => write!(formatter, "cannot inspect Terminal artifact: {error}"),
+            Self::Artifact(error) => write!(formatter, "cannot inspect Psi artifact: {error}"),
         }
     }
 }
