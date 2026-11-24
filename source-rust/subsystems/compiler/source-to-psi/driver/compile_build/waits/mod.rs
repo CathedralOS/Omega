@@ -35,7 +35,6 @@ pub struct BuildPreparationSite {
 pub struct BuildStage {
     incoming: Vec<BuildPreparationSite>,
     outgoing: Vec<Vec<BuildPreparationSite>>,
-    advisories: Vec<Diagnostic>,
     can_return: bool,
 }
 
@@ -45,35 +44,33 @@ impl BuildStage {
         self.can_return
     }
 
-    pub fn unused_import_advisories(&self) -> &[Diagnostic] {
-        &self.advisories
-    }
-
-    pub(super) fn report_unused_imports(
-        &mut self,
+    /// An import used only to designate a Product operand is resolved when
+    /// the Product is opened. Other imports must resolve in the Build itself.
+    pub(super) fn check_imports(
+        &self,
         typed: &crate::source_state::TypedTrees,
         imports: &[PendingBuildImport],
-    ) {
+    ) -> Result<(), Vec<Diagnostic>> {
         if !self.outgoing.is_empty() || imports.is_empty() {
-            return;
+            return Ok(());
         }
-        // An admitted final stage used only declarations in its selected scope.
-        // An unchecked use in a dormant declaration still needs its import.
-        let mut incomplete_files = typed
-            .deferred_refusals
+        let used_by_product = PendingBuildImport::used_by_product(imports, typed);
+        let missing: Vec<_> = imports
             .iter()
-            .map(|row| row.source_span.source_id.0)
-            .collect::<Vec<_>>();
-        incomplete_files.sort_unstable();
-        incomplete_files.dedup();
-        let product_uses = PendingBuildImport::used_by_product(imports, typed);
-        for (import, used) in imports.iter().zip(product_uses) {
-            if !used && incomplete_files.binary_search(&import.source.0).is_err() {
-                let diagnostic =
-                    Diagnostic::warning(format!("unused deferred Build import `{}`", import.target))
-                        .with_source_span(SourceSpan::new(import.source, import.span));
-                self.advisories.push(diagnostic);
-            }
+            .zip(used_by_product)
+            .filter(|(_, used)| !used)
+            .map(|(import, _)| {
+                Diagnostic::error(format!(
+                    "Build import `{}` has no supplied source",
+                    import.target
+                ))
+                .with_source_span(SourceSpan::new(import.source, import.span))
+            })
+            .collect();
+        if missing.is_empty() {
+            Ok(())
+        } else {
+            Err(missing)
         }
     }
 
@@ -213,7 +210,6 @@ impl EntryPlan {
             stage: BuildStage {
                 incoming,
                 outgoing: Vec::new(),
-                advisories: Vec::new(),
                 can_return: false,
             },
         })

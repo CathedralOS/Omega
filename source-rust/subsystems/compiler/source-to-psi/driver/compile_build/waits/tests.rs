@@ -262,35 +262,28 @@ machine unused() -> u32 { kit\seven() }";
 }
 
 #[test]
-fn an_unused_deferred_import_warns_at_its_own_source_occurrence() {
-    use crate::source_state::deferred_refusals::DeferredRequest;
-    let mut program = crate::source_state::TypedTrees::default();
-    program.record_missing_name(
-        symbols::SymbolHandle::invalid(),
-        DeferredRequest::UndeclaredCallName,
-        SourceSpan::new(SourceId(8), Span::new(30, 36)),
-        Some("kit::value".into()),
-    );
+fn missing_imports_point_to_each_authored_occurrence() {
+    let program = crate::source_state::TypedTrees::default();
     let import = |source| PendingBuildImport {
         source,
         span: Span::new(4, 7),
         target: crate::SourceImportTarget::Namespace(vec!["kit".into()]),
     };
     let imports = [import(SOURCE), import(SourceId(8))];
-    let (_, mut finished, _) = select(&PROGRAM.replace("TEST()", "7"), &imports);
-    finished.stage.report_unused_imports(&program, &imports);
-    let [warning] = finished.stage.unused_import_advisories() else {
-        panic!("only the fully resolved source can report the unused import")
-    };
-    assert_eq!(warning.severity, diagnostics::DiagnosticSeverity::Warning);
-    assert_eq!(
-        warning.source_span,
-        Some(SourceSpan::new(SOURCE, Span::new(4, 7)))
-    );
-    assert_eq!(warning.message, "unused deferred Build import `kit`");
-    let (_, mut parked, _) = select(&PROGRAM.replace("TEST", r"kit\seven"), &imports);
-    parked.stage.report_unused_imports(&program, &imports);
-    assert!(parked.stage.unused_import_advisories().is_empty());
+    let (_, finished, _) = select(&PROGRAM.replace("TEST()", "7"), &imports);
+    let errors = finished
+        .stage
+        .check_imports(&program, &imports)
+        .unwrap_err();
+    assert_eq!(errors.len(), imports.len());
+    for (error, import) in errors.iter().zip(&imports) {
+        assert_eq!(error.severity, diagnostics::DiagnosticSeverity::Error);
+        assert_eq!(
+            error.source_span,
+            Some(SourceSpan::new(import.source, import.span))
+        );
+        assert_eq!(error.message, "Build import `kit` has no supplied source");
+    }
 }
 
 #[test]
