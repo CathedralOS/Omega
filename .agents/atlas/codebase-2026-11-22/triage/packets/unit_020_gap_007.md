@@ -5,9 +5,10 @@ validator gap and is fixed in this PR: the resolved procedure-linkage replay nev
 bytes with their upstream row. A changed `r_info` or `r_addend`, or an appended byte, passed replay and would
 have reached the assembled file unchanged. No claim stays open.
 
-The same PR repairs a `main` build break found while testing: #5393 added `Proposition::DeclarationIdentity`,
-and the native `optimization-unit` crate's identity encoder did not handle it, so `image-elf` and every other
-crate that depends on `optimization-unit` failed to compile.
+While testing, `image-elf` did not compile on `main`: #5393 added `Proposition::DeclarationIdentity` and the
+native `optimization-unit` identity encoder had no arm for it. This branch first carried its own arm, but
+#5427 and #5443 landed the same repair on `main`. After merging `main`, the branch keeps `main`'s encoder and no
+longer touches `optimization-unit`.
 
 Evidence baseline: `main` at `24ad2700685e6cc6062026c87ed5fd24ed415265`; the branch started at `a0152d26`.
 `units/gap_007.tsv` assigns ten ranges in `image-elf`; the record read all of them. Paths: `E` =
@@ -41,17 +42,17 @@ Evidence baseline: `main` at `24ad2700685e6cc6062026c87ed5fd24ed415265`; the bra
 | 11 | `R` §1a item 7, §2 item 7, §3a item 7, §10 item 7: getters such as `descriptor_count` and helpers such as `copy_fragment` have one caller or test-only callers. | Cited lines | Usage observation only. | **Intended**; no wrong result. |
 | 12 | `R` "Unsure about" item 2: `plan_stage!`, `seal_stage!` and `Candidate` were read only by use. | `E/dynamic_executable.rs:292-349` | `seal_stage!` builds `validate_candidate` from the stage's `validate_contents` and the fingerprint comparison (nonzero where declared). It does not re-derive contents, so each stage's `validate_contents` must cover every field. That is why claim 1 was a real gap. | **Intended**; the macro does what the record inferred. |
 
-## Main build break repaired in the same PR
+## Main build break found during testing
 
 | Cause | Source | Trace | Outcome |
 | --- | --- | --- | --- |
-| #5393 (`4045f5ea`) added `Proposition::DeclarationIdentity(ClauseIdentity)`. The native optimization-unit identity encoder's `match` had no arm for it. | `source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit/src/identity.rs` `proposition_encoding::encode_proposition` | `mbx test -p image-elf` on `a0152d26` failed with `error[E0004]: non-exhaustive patterns: Proposition::DeclarationIdentity(_) not covered` at `identity.rs:267`. No open PR addressed it. | **Fixed.** The new arm encodes every field of the clause (carrier, operand, supplier, member, arguments, left and right) under tag 23, the same tag the Psi wire uses. |
+| #5393 (`4045f5ea`) added `Proposition::DeclarationIdentity(ClauseIdentity)`. The native optimization-unit identity encoder's `match` had no arm for it. | `source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit/src/identity.rs` `proposition_encoding::encode_proposition` | `mbx test -p image-elf` on `a0152d26` failed with `error[E0004]: non-exhaustive patterns: Proposition::DeclarationIdentity(_) not covered` at `identity.rs:267`. | **Duplicate**: fixed on `main` by #5427 and #5443 while this branch was open. The branch dropped its own arm when it merged `main`. |
 
 ## Validation
 
 - `mbx test -p image-elf --lib general_relocation_bytes_outside` before the fix: 1 failed (replay accepted the
   flipped `r_info`). After: `mbx test -p image-elf --lib`: 139 passed, 0 failed.
-- `mbx clippy -p image-elf -p optimization-unit --all-targets -- -D warnings`: clean. `mbx test -p
-  optimization-unit -p image-elf`: 139 and 14 unit tests passed.
+- After merging `main` at `5ade6b32` or later: `mbx test -p image-elf`: 139 passed; `mbx clippy -p image-elf
+  --all-targets -- -D warnings`: clean.
 - I searched open PRs (`gh api search/issues`, `image-elf`, `rela.dyn`, `DeclarationIdentity`,
   `optimization-unit`). The only related one, #5412 (unit 021), adds a different packet file and changes no code.
