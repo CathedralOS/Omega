@@ -82,7 +82,7 @@ impl BuildStageSource {
                         "Build import `{}` has no supplied source",
                         import.target
                     ))
-                    .with_source_span(SourceSpan::new(import.source, import.span))
+                    .with_source_span(source_text::SourceSpan::new(import.source, import.span))
                 })
                 .collect());
         }
