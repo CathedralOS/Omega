@@ -12,7 +12,7 @@ PACKAGE = Path(__file__).resolve().parents[1]
 CHECKER = PACKAGE / "pipeline/typed_trees_to_checked_trees"
 DECLARATIONS = {
     "holds.omg": ["Hold", "called_binary", "check_holds", "pair_hold", "retained_holds", "outlives_calls", "scan_accesses"],
-    "ownership.omg": ["pass_binary_operand_roles", "set_adapted_role"],
+    "ownership.omg": ["pass_binary_operand_roles", "set_adapted_role", "check_discarded_temporary"],
     "obligations.omg": ["selects_machine", "operand_count", "checker_operand"],
 }
 
