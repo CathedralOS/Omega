@@ -1,5 +1,8 @@
 //! A root Build selects an entryless dependency as a separate native supplier.
-#![cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#![cfg(any(
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "windows", target_arch = "aarch64"),
+))]
 
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::{fs, path::Path, process::Command};
@@ -54,6 +57,7 @@ machine main() reaches Reading crashes Trap {
     consumer
 }
 
+#[cfg(target_os = "linux")]
 #[test]
 fn native_loads_the_separately_compiled_supplier() {
     let scratch = TemporaryDirectory::create("entryless-component", false).unwrap();
@@ -125,8 +129,26 @@ fn a_windows_arm64_consumer_imports_the_slot_exported_by_its_component() {
                 .any(|window| window == export.as_bytes())
         );
     }
+
+    #[cfg(target_os = "windows")]
+    {
+        // The source traps if the imported supplier returns the wrong value.
+        let native = Command::new(output.join("omega-program.exe"))
+            .output()
+            .unwrap();
+        assert!(native.status.success(), "{native:?}");
+        let psi = Command::new(env!("CARGO_BIN_EXE_omega"))
+            .args(["run", "--engine", "psi", "--target", "windows_arm64"])
+            .arg(consumer.join("build.omg"))
+            .output()
+            .unwrap();
+        assert!(psi.status.success(), "{psi:?}");
+        assert_eq!(native.stdout, psi.stdout);
+        assert_eq!(native.stderr, psi.stderr);
+    }
 }
 
+#[cfg(target_os = "linux")]
 fn require_native_suppliers(consumer: &Path, output: &Path, expected: usize) {
     let build = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args(["--target", "linux_x86_64", "--build-dir"])
@@ -180,6 +202,7 @@ fn require_native_suppliers(consumer: &Path, output: &Path, expected: usize) {
     }
 }
 
+#[cfg(target_os = "linux")]
 #[test]
 fn a_fused_dependency_can_select_its_own_independent_supplier() {
     let scratch = TemporaryDirectory::create("nested-component", false).unwrap();
@@ -188,6 +211,7 @@ fn a_fused_dependency_can_select_its_own_independent_supplier() {
     require_native_suppliers(&root.join("application"), &root.join("out"), 1);
 }
 
+#[cfg(target_os = "linux")]
 #[test]
 fn independent_packages_can_call_an_independently_compiled_supplier() {
     let scratch = TemporaryDirectory::create("nested-independent-supplier", false).unwrap();
@@ -226,6 +250,7 @@ fn independent_packages_can_call_an_independently_compiled_supplier() {
     );
 }
 
+#[cfg(target_os = "linux")]
 fn nested_sources(root: &Path, mode: &str) {
     for package in ["leaf", "supplier", "application"] {
         fs::create_dir(root.join(package)).unwrap();
