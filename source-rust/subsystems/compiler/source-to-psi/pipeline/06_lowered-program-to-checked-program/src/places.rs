@@ -8605,6 +8605,48 @@ mod observation_tests {
     }
 
     #[test]
+    fn borrowed_block_places_must_belong_to_their_parameter_position() {
+        let original = storage_fixture(
+            "data Point { x: u32; }
+             machine entry(point: @Point, again: bool) -> u32 {
+                 transition again { true -> entry(point, false), false -> point.x }
+             }",
+        );
+        assert!(matches!(
+            crate::checking::judge(Ok(original.clone())).unwrap(),
+            crate::checking::RouteVerdict::Accepted(_)
+        ));
+        for change_block in [false, true] {
+            let mut input = original.clone();
+            let machine = &mut input.module.machines[0];
+            let place = machine
+                .structural_places
+                .iter_mut()
+                .find(|row| matches!(row.kind, StructuralPlaceKind::BlockParameter { .. }))
+                .expect("loop entry has a borrowed structural block argument");
+            let StructuralPlaceKind::BlockParameter { block, position } = &mut place.kind else {
+                unreachable!()
+            };
+            if change_block {
+                *block = BlockId::new(u64::from(u32::MAX)).unwrap();
+            } else {
+                *position = u32::MAX;
+            }
+            let crate::checking::RouteVerdict::FallBack(refusal) =
+                crate::checking::judge(Ok(input)).unwrap()
+            else {
+                panic!("a borrowed place outside its block header must refuse");
+            };
+            assert!(
+                refusal
+                    .detail
+                    .contains("descriptor storage flow cannot be reconstructed"),
+                "{refusal:?}"
+            );
+        }
+    }
+
+    #[test]
     fn whole_array_initialization_preserves_partial_vacancies_and_aliasing() {
         check_partial_array_storage(
             "machine entry(cells: @mutable [u64; 4], spare: @mutable [u64; 4], index: u64) -> u64 requires index < 4 {
