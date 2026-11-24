@@ -4,7 +4,7 @@ mod build_entry;
 mod checkpoint;
 mod generated;
 mod imports;
-mod resumed;
+mod scoped_sources;
 #[cfg(test)]
 mod tests;
 mod toolchain;
@@ -25,7 +25,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use toolchain::{append_build_prelude, seed_core_vocabulary, sources_mention_floats};
 
-/// The immutable acquisition and source map a resumed Build stage was assembled from.
+/// The root capture, selected Build libraries and source map used to check this Build.
 #[derive(Clone)]
 pub struct BuildStageAcquisition {
     capture: crate::CapturedLocalSource,
@@ -44,7 +44,7 @@ impl BuildStageAcquisition {
             .then(|| Arc::clone(&self.supplied_libraries))
     }
 
-    pub fn retains(
+    fn retains(
         &self,
         capture: &crate::CapturedLocalSource,
         typed: &source_compiler::representations::source_state::TypedTrees,
