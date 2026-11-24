@@ -431,10 +431,14 @@ pub(crate) mod proposition_encoding {
     ) {
         use semantic_vocabulary::{ClauseCarrier, ClauseDeclaration, ClauseOperand};
         fn encode_declaration(bytes: &mut CanonicalBytes, declaration: &ClauseDeclaration) {
-            encode_optional(bytes, declaration.supplier.as_ref(), |bytes, (slot, generation)| {
-                bytes.u32(*slot);
-                bytes.u32(*generation);
-            });
+            encode_optional(
+                bytes,
+                declaration.supplier.as_ref(),
+                |bytes, (slot, generation)| {
+                    bytes.u32(*slot);
+                    bytes.u32(*generation);
+                },
+            );
             bytes.u32(declaration.member.0);
             bytes.u32(declaration.member.1);
         }
@@ -5726,8 +5730,8 @@ mod float_meaning_identity_tests {
 #[cfg(test)]
 mod declaration_identity_tests {
     use semantic_vocabulary::{
-        ClauseCarrier, ClauseDeclaration, ClauseIdentity, ClauseOperand, ClauseValue,
-        IntegerSign, IntegerType, Proposition, ScalarType,
+        ClauseCarrier, ClauseDeclaration, ClauseIdentity, ClauseOperand, ClauseValue, IntegerSign,
+        IntegerType, Proposition, ScalarType,
     };
 
     fn bytes(clause: ClauseIdentity) -> Vec<u8> {
