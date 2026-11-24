@@ -10,7 +10,16 @@
       "include": "#strings"
     },
     {
+      "include": "#lifetimes"
+    },
+    {
+      "include": "#import-aliases"
+    },
+    {
       "include": "#declarations"
+    },
+    {
+      "include": "#clause-values"
     },
     {
       "include": "#keywords"
@@ -76,6 +85,34 @@
         }
       ]
     },
+    "lifetimes": {
+      "comment": "Lifetime binders and reference lifetimes: <'a>, @'a mutable T.",
+      "match": "(')([A-Za-z_][A-Za-z_0-9]*)\\b",
+      "captures": {
+        "1": {
+          "name": "punctuation.definition.lifetime.omega"
+        },
+        "2": {
+          "name": "entity.name.type.lifetime.omega"
+        }
+      },
+      "name": "storage.modifier.lifetime.omega"
+    },
+    "import-aliases": {
+      "comment": "A file import alias selects a declaration as |alias|::name. `flags||wire|::MASK` lexes as logical OR, so a preceding bar is not an alias.",
+      "match": "(?<!\\|)(\\|)([A-Za-z_][A-Za-z_0-9]*)(\\|)(?=::)",
+      "captures": {
+        "1": {
+          "name": "punctuation.definition.namespace.begin.omega"
+        },
+        "2": {
+          "name": "entity.name.namespace.omega"
+        },
+        "3": {
+          "name": "punctuation.definition.namespace.end.omega"
+        }
+      }
+    },
     "declarations": {
       "patterns": [
         {
@@ -90,13 +127,24 @@
           }
         },
         {
-          "match": "\\b(data|struct|trait|domain|type)\\s+([A-Za-z_][A-Za-z_0-9]*)",
+          "match": "\\b(data|trait|domain|proposition)\\s+([A-Za-z_][A-Za-z_0-9]*)",
           "captures": {
             "1": {
               "name": "storage.type.omega"
             },
             "2": {
               "name": "entity.name.type.omega"
+            }
+          }
+        },
+        {
+          "match": "\\b(measure)\\s+([A-Za-z_][A-Za-z_0-9]*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.omega"
+            },
+            "2": {
+              "name": "entity.name.function.omega"
             }
           }
         },
@@ -124,59 +172,99 @@
         }
       ]
     },
+    "clause-values": {
+      "comment": "`none` is a value only after the clauses that accept it: `crashes none`, `clobbers none`.",
+      "match": "\\b(crashes|clobbers)\\s+(none)\\b",
+      "captures": {
+        "1": {
+          "name": "keyword.other.contract.omega"
+        },
+        "2": {
+          "name": "constant.language.none.omega"
+        }
+      }
+    },
     "keywords": {
+      "comment": "The lexer reserves only a few words; most clause words are contextual, so a word followed by a call `(`, a field `:`, an assignment `=` or a member `.` is a name, not a keyword.",
       "patterns": [
         {
           "name": "constant.language.boolean.omega",
           "match": "\\b(?:true|false)\\b"
         },
         {
+          "comment": "Builtin type names: bool, addr, f32, f64 and the open-ended integer family i/u followed by digits. Bare i/u are left uncolored because value bindings commonly use those spellings.",
           "name": "entity.name.type.primitive.omega",
-          "match": "\\b(?:bool|[ui](?:8|16|32|64|128|size)|f(?:16|32|64|128))\\b"
-        },
-        {
-          "name": "storage.modifier.visibility.omega",
-          "match": "\\bpublic\\b"
-        },
-        {
-          "name": "storage.modifier.mutability.omega",
-          "match": "\\bmut\\b"
+          "match": "\\b(?:bool|addr|f32|f64|[ui][0-9]+)\\b"
         },
         {
           "name": "variable.language.self.omega",
           "match": "\\bself\\b"
         },
         {
+          "comment": "The retired dyn type spelling; the parser rejects it.",
+          "name": "invalid.deprecated.omega",
+          "match": "\\bdyn\\b(?=\\s+[A-Za-z_|@])"
+        },
+        {
+          "comment": "A machine value type, as in `data Step = machine() -> u64;`.",
+          "name": "storage.type.function.omega",
+          "match": "\\bmachine\\b"
+        },
+        {
+          "name": "storage.modifier.visibility.omega",
+          "match": "\\bpublic\\b(?![(]|\\s*:(?!:)|\\s*=(?![=>])|\\.(?!\\.))"
+        },
+        {
+          "comment": "Borrow access modes: @mutable T, @write T, and `let mutable`.",
+          "name": "storage.modifier.mutability.omega",
+          "match": "\\b(?:mutable|write)\\b(?![(]|\\s*:(?!:)|\\s*=(?![=>])|\\.(?!\\.))"
+        },
+        {
+          "name": "storage.type.omega",
+          "match": "\\b(?:data|state|struct|trait|domain|proposition|measure)\\b(?![(]|\\s*:(?!:)|\\s*=(?![=>])|\\.(?!\\.))"
+        },
+        {
           "name": "keyword.control.omega",
-          "match": "\\b(?:as|block|blocks|boundary|by|calling_convention|capability|case|const|contains|crash|data|decreases|discharges|dispatches|domain|dyn|else|ensures|exists|exports|foreign|forall|host|if|implements|imports|in|invariant|invokes|layout|let|library|loop|machine|match|on|operator|owns|platform|proof|proposition|reaches|requires|return|satisfies|state|static|struct|suspend|suspends|target|terminates|theorem|then|trait|transition|type|use|via|when|where|while|witness|write)\\b"
+          "match": "\\b(?:if|else|loop|match|return|transition|when|while|suspend|block|crash)\\b(?![(]|\\s*:(?!:)|\\s*=(?![=>])|\\.(?!\\.))"
+        },
+        {
+          "comment": "Contract and effect clauses on machines and machine types.",
+          "name": "keyword.other.contract.omega",
+          "match": "\\b(?:requires|ensures|satisfies|crashes|reaches|terminates|decreases|increases|suspends|blocks|invokes|invariant|established|lexicographic|clobbers)\\b(?![(]|\\s*:(?!:)|\\s*=(?![=>])|\\.(?!\\.))"
+        },
+        {
+          "name": "keyword.other.omega",
+          "match": "\\b(?:as|asm|boundary|by|calling_convention|capability|case|const|contains|foreign|host|in|let|library|operator|owns|platform|retired|some|target|use|via)\\b(?![(]|\\s*:(?!:)|\\s*=(?![=>])|\\.(?!\\.))"
         }
       ]
     },
     "numbers": {
+      "comment": "Integer suffixes take any decimal width (17u13, 41u257) or none (bare i/u); floats take f32 or f64.",
       "patterns": [
         {
           "name": "constant.numeric.omega",
-          "match": "\\b0(?:[xX][0-9a-fA-F][0-9a-fA-F_]*|[bB][01][01_]*|[oO][0-7][0-7_]*)(?:[ui](?:8|16|32|64|128|size))?\\b"
+          "match": "\\b0(?:[xX][0-9a-fA-F][0-9a-fA-F_]*|[bB][01][01_]*|[oO][0-7][0-7_]*)(?:[ui][0-9]*)?\\b"
         },
         {
           "name": "constant.numeric.omega",
-          "match": "(?<![\\w.])\\.[0-9][0-9_]*(?:[eE][+-]?[0-9][0-9_]*)?(?:f(?:16|32|64|128))?\\b"
+          "match": "(?<![\\w.])\\.[0-9][0-9_]*(?:[eE][+-]?[0-9][0-9_]*)?(?:f(?:32|64))?\\b"
         },
         {
           "name": "constant.numeric.omega",
-          "match": "\\b[0-9][0-9_]*(?:\\.(?!\\.|[A-Za-z_])[0-9_]*)?(?:[eE][+-]?[0-9][0-9_]*)?(?:(?:[ui](?:8|16|32|64|128|size))|(?:f(?:16|32|64|128)))?\\b"
+          "match": "\\b[0-9][0-9_]*(?:\\.(?!\\.|[A-Za-z_])[0-9_]*)?(?:[eE][+-]?[0-9][0-9_]*)?(?:[ui][0-9]*|f(?:32|64))?\\b"
         }
       ]
     },
     "names": {
       "patterns": [
         {
+          "comment": "Compiler-known layout queries, called as size_of::<T>().",
           "name": "support.function.omega",
-          "match": "\\b(?:size_of|align_of|address_of|offset_of|bit_offset_of|code_layout)\\b"
+          "match": "\\b(?:size_of|align_of|address_of|code_layout)\\b"
         },
         {
           "name": "entity.name.function.omega",
-          "match": "\\b[A-Za-z_][A-Za-z_0-9]*(?=\\s*(?:<[^<>\\n]*>\\s*)?\\()"
+          "match": "\\b[A-Za-z_][A-Za-z_0-9]*(?=\\s*(?:::)?(?:<[^<>\\n]*>\\s*)?\\()"
         },
         {
           "name": "constant.other.omega",
@@ -191,12 +279,18 @@
     "punctuation": {
       "patterns": [
         {
+          "comment": "`::` selects a member; `\\` selects a provider or measure, as in windows_arm64\\ProgramEntry or Nat\\Descending.",
           "name": "punctuation.accessor.omega",
-          "match": "::"
+          "match": "::|\\\\"
+        },
+        {
+          "comment": "Each @ adds one reference or borrow layer.",
+          "name": "keyword.operator.borrow.omega",
+          "match": "@"
         },
         {
           "name": "keyword.operator.omega",
-          "match": "->|=>|\\.\\.=|\\.\\.|&&|\\|\\||<<|>>|[+*/%=!<>|&~^?-]"
+          "match": "->|=>|\\.\\.=|\\.\\.|==|!=|<=|>=|&&|\\|\\||<<|>>|[+*/%=!<>|&~^?-]"
         },
         {
           "name": "punctuation.section.omega",
@@ -204,7 +298,7 @@
         },
         {
           "name": "punctuation.separator.omega",
-          "match": "[,;:.]"
+          "match": "[,;:.#]"
         }
       ]
     }
