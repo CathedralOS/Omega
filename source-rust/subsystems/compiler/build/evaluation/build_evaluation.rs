@@ -50,8 +50,8 @@ pub struct BuildEvaluationRequest<'request> {
     pub execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose, // Measurement only; source custody and admission independently establish authority.
     pub root_path: &'request Path,
     pub interval: &'request TypedBuildInterval,
-    /// The same complete Build stage typed with the root's own files under the
-    /// anonymous capture's check-only owner (`AssembledSyntax::check_only_build_stage_source`).
+    /// The complete Build typed with the root's own files under the
+    /// anonymous capture's check-only owner.
     /// Judged once before Build runs, then dropped.
     pub check_only_subject: Option<&'request TypedBuildInterval>,
     pub build_source: Option<package_compilation::BuildSourceSelection>,
@@ -64,19 +64,6 @@ pub struct BuildEvaluationRequest<'request> {
         Option<&'request package_compilation::source_assembly::BuildStageAcquisition>,
     pub execution: BuildExecutionInputs,
     pub artifact_only: bool,
-}
-
-/// The typed frontier of one later stage of a Build that is already running
-/// to be judged and admitted under the
-/// activation its first stage began.
-pub struct BuildStageRequest<'request> {
-    /// Capture and source map rejoined by the preceding staged Build.
-    pub source_acquisition:
-        Option<&'request package_compilation::source_assembly::BuildStageAcquisition>,
-    pub interval: &'request TypedBuildInterval,
-    pub build_source: Option<package_compilation::BuildSourceSelection>,
-    pub package_inputs: Option<&'request PackageCompilationInputs>,
-    pub anonymous_source: Option<&'request package_compilation::AnonymousSourceCapture>,
 }
 
 use build_evaluation_result::BuildSubjectValidation;
@@ -97,86 +84,6 @@ mod catalog_declaration;
 pub use catalog_declaration::SourceBuildDeclaration;
 
 impl PreparedBuildEvaluation {
-    /// Admit the continuation in the newly prepared package scope. Its checks and
-    /// constant reads belong to this interval. Its filesystem grants and work
-    /// account belong to the activation that reached the preparation.
-    pub fn continue_stage(
-        &mut self,
-        request: BuildStageRequest<'_>,
-        timings: &mut CompileTimings,
-    ) -> Result<(), CompileFailure> {
-        let BuildStageRequest {
-            source_acquisition,
-            interval,
-            build_source,
-            package_inputs,
-            anonymous_source,
-        } = request;
-        let typed = interval.program.as_ref();
-        let acquisition = self
-            .execution
-            .original_sources
-            .as_ref()
-            .filter(|capture| match source_acquisition {
-                Some(stage) => stage.retains(&capture.capture, typed),
-                None if package_inputs.is_none() => {
-                    anonymous_source.and_then(|owner| owner.acquired_for(typed))
-                        == Some(&capture.capture)
-                }
-                None => false,
-            })
-            .cloned();
-        let build_source = build_source.ok_or_else(|| {
-            vec![Diagnostic::error(
-                "Build execution requires its source-owned selection",
-            )]
-        })?;
-        let selected_machine = select_build_machine(typed, build_source)?.symbol;
-        let (prepared, providers, constants, accounting) =
-            crate::admission::checking::prepare_admitted_build(
-                typed,
-                selected_machine,
-                package_inputs,
-                anonymous_source,
-                self.subject_validation == BuildSubjectValidation::Checked,
-                timings,
-            )
-            .map_err(|failure| {
-                failure.with_source_completion_accounting(self.source_completion_accounting.clone())
-            })?;
-        self.source_completion_accounting.append(accounting);
-        self.constants.read.extend(constants.read);
-        self.constants.folded_under_providers |= constants.folded_under_providers;
-        let spent = self.source_completion_accounting.clone();
-        let result = (|| {
-            let admitted = self.execution.admit_stage(
-                prepared,
-                providers,
-                selected_machine,
-                build_source,
-                package_inputs,
-            )?;
-            for request in admitted.restricted_build_requests() {
-                if self.restricted_build_requests.contains(&request) {
-                    continue;
-                }
-                match self.restricted_build_grants.as_mut() {
-                    Some(grants) => grants.admit(&request)?,
-                    None => {
-                        return Err(CompileFailure::BuildConsentRequired {
-                            requests: vec![request],
-                            accounting: spent.clone(),
-                        });
-                    }
-                }
-                self.restricted_build_requests.push(request);
-            }
-            self.execution = self.execution.continue_with(admitted, acquisition)?;
-            Ok(())
-        })();
-        result.map_err(|failure: CompileFailure| failure.with_source_completion_accounting(spent))
-    }
-
     pub fn source_completion_accounting(
         &self,
     ) -> &source_compiler::compile_time_invocations::SourceCompletionAccounting {
@@ -326,6 +233,12 @@ pub fn prepare_build_evaluation(
         artifact_only,
     } = request;
     let typed = interval.program.as_ref();
+    if typed.roots.partial_build_entry.is_some() {
+        return Err(vec![Diagnostic::error(
+            "Build evaluation requires a complete checked program",
+        )]
+        .into());
+    }
     let BuildExecutionInputs {
         profile: execution_profile,
         directory: build_directory,
@@ -368,14 +281,15 @@ pub fn prepare_build_evaluation(
         .transpose()?;
     // A complete Build with no package owner yet is checked whole under a
     // check-only owner before it runs, and again under its real owner after it
-    // returns. A staged Build checks the available declarations in their
-    // original interval, so it keeps the ordinary whole-subject check.
+    // returns.
     let check_only = match (check_only_subject, anonymous_source) {
         (Some(subject), Some(capture))
             if !dependency_activation
-                && package_inputs.is_none()
-                && typed.roots.partial_build_entry.is_none() =>
+                && package_inputs.is_none() =>
         {
+            if subject.program.roots.partial_build_entry.is_some() {
+                return Err(vec![Diagnostic::error("Build subject validation requires a complete checked program")].into());
+            }
             Some((subject.program.as_ref(), capture))
         }
         _ => None,

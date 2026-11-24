@@ -71,26 +71,11 @@ struct BindingState {
     installed_providers: Vec<InstalledBuildProvider>,
     query: Option<product_queries::PendingQuery>,
     descriptions: Vec<product_queries::IssuedDescription>,
-    /// The selections and native formations the modules of earlier stages
-    /// of this activation declared (`source-to-psi/driver/compile_build/waits`).
-    carried_declarations: Vec<Arc<ProductDeclarationRequest>>,
-    carried_formations: Vec<NativeBindingFormation>,
 }
 
-/// Issued selections, descriptions, and exact installed providers follow the activation.
-pub(crate) struct CarriedBindings {
-    pending: Vec<Option<source_compiler::publication::TerminalBuildSelectionRequest>>,
-    descriptions: Vec<product_queries::IssuedDescription>,
-    pub(crate) installed_providers: Vec<InstalledBuildProvider>,
-    executed: Vec<ActivationSelection>,
-    native_storage: Vec<evaluation_accounting::EvaluationStorageLease>,
-    declarations: Vec<Arc<ProductDeclarationRequest>>,
-    native_formations: Vec<NativeBindingFormation>,
-}
-
-pub(crate) struct InstalledBuildProvider {
-    pub(crate) request: BuildProviderRequest,
-    pub(crate) provider: source_compiler::publication::ProducedBuildProvider,
+struct InstalledBuildProvider {
+    request: BuildProviderRequest,
+    provider: source_compiler::publication::ProducedBuildProvider,
 }
 
 pub type BuildProviderRequest =
@@ -200,71 +185,24 @@ impl TerminalBuildBindingHost {
         }))
     }
 
-    /// The native formations of every stage of this activation, earliest
-    /// first.
-    pub(crate) fn native_formations(&self) -> Result<Vec<NativeBindingFormation>, String> {
-        let mut formations = lock_state(&self.state)?.carried_formations.clone();
+    pub(crate) fn native_formations(&self) -> Vec<NativeBindingFormation> {
+        let mut formations = Vec::new();
         for formation in self.native_formations.iter() {
             if !formations.contains(formation) {
                 formations.push(formation.clone());
             }
         }
-        Ok(formations)
+        formations
     }
 
-    /// The selections the modules of every stage of this activation
-    /// declare, earliest first.
-    pub(crate) fn declared(&self) -> Result<Vec<Arc<ProductDeclarationRequest>>, String> {
-        let mut declarations = lock_state(&self.state)?.carried_declarations.clone();
+    pub(crate) fn declared(&self) -> Vec<Arc<ProductDeclarationRequest>> {
+        let mut declarations = Vec::new();
         for declaration in self.declarations.iter() {
             if !declarations.contains(declaration) {
                 declarations.push(Arc::clone(declaration));
             }
         }
-        Ok(declarations)
-    }
-
-    pub(crate) fn carry(&self) -> Result<CarriedBindings, String> {
-        let declarations = self.declared()?;
-        let native_formations = self.native_formations()?;
-        let mut state = lock_state(&self.state)?;
-        if state.pending.iter().any(Option::is_some)
-            || state.query.is_some()
-            || state.awaiting_provider.is_some()
-        {
-            return Err("a Build stage ended with an uncommitted request".to_owned());
-        }
-        Ok(CarriedBindings {
-            pending: std::mem::take(&mut state.pending),
-            descriptions: std::mem::take(&mut state.descriptions),
-            installed_providers: std::mem::take(&mut state.installed_providers),
-            executed: std::mem::take(&mut state.executed),
-            native_storage: std::mem::take(&mut state.native_storage),
-            declarations,
-            native_formations,
-        })
-    }
-
-    pub(crate) fn adopt(
-        &self,
-        mut carried: CarriedBindings,
-        prefix: &terminal_semantics::continuation::CheckedPrefix<'_>,
-    ) -> Result<(), String> {
-        for description in &mut carried.descriptions {
-            super::rebind_issued_marker(prefix, &mut description.value)?;
-        }
-        let mut state = lock_state(&self.state)?;
-        if !state.executed.is_empty() || !state.pending.is_empty() {
-            return Err("a Build stage adopts earlier selections before it runs".to_owned());
-        }
-        state.pending = carried.pending;
-        state.descriptions = carried.descriptions;
-        state.installed_providers = carried.installed_providers;
-        state.executed = carried.executed;
-        state.native_storage = carried.native_storage;
-        state.carried_declarations = carried.declarations;
-        state.carried_formations = carried.native_formations;
-        Ok(())
+        declarations
     }
 
     pub(crate) fn awaiting_provider(&self) -> Result<Option<BuildProviderRequest>, String> {
