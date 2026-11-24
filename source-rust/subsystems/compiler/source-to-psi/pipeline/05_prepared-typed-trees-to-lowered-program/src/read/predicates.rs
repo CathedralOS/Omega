@@ -57,16 +57,13 @@ use crate::lowering::{ClauseText, Unserved, refuse};
 
 /// One predicate of a declared domain: the symbol its `self` resolved to
 /// and the clause's expression.
-struct Predicate {
+struct Predicate<'t> {
     instance: crate::lowering::body::DomainInstance,
-    owner: SymbolHandle,
-    subject: SymbolHandle,
+    domain: &'t crate::source_state::domain::DomainDefinition,
     expression: ExpressionHandle,
-    /// The declaring domain's name.
-    domain: String,
 }
 
-impl Program<'_> {
+impl<'t> Program<'t> {
     /// Predicate-only readers cannot discard nominal evidence obligations.
     pub(super) fn runtime_membership_clause(
         &mut self,
@@ -266,7 +263,11 @@ impl Program<'_> {
     /// The predicates of every declared domain in `qualification`, in the
     /// domains' order and each domain's authored order. A clause that says
     /// nothing (`requires true`) is left out.
-    fn predicates(&self, id: MachineId, qualification: Qualification) -> Checked<Vec<Predicate>> {
+    fn predicates(
+        &self,
+        id: MachineId,
+        qualification: Qualification,
+    ) -> Checked<Vec<Predicate<'t>>> {
         let mut predicates = Vec::new();
         for domain in qualification.domains.members() {
             let definition = self.domain_theory(id, domain)?;
@@ -284,10 +285,8 @@ impl Program<'_> {
                 if !self.states_nothing(id, expression, false)? {
                     predicates.push(Predicate {
                         instance: domain,
-                        owner: definition.symbol,
-                        subject: definition.subject_symbol,
+                        domain: definition,
                         expression,
-                        domain: definition.name.as_str().to_owned(),
                     });
                 }
             }
@@ -306,7 +305,7 @@ impl Program<'_> {
     ) -> Checked<Vec<(Proposition, ExpressionHandle)>> {
         let mut clauses = Vec::new();
         for predicate in self.predicates(id, qualification)? {
-            if !predicate.subject.is_valid() {
+            if !predicate.domain.subject_symbol.is_valid() {
                 return Err(refuse(
                     id,
                     Construct::Machine,
@@ -314,16 +313,20 @@ impl Program<'_> {
                 ));
             }
             let mut bound = scope.bound.to_vec();
-            bound.push((predicate.subject, subject.clone()));
+            bound.push((predicate.domain.subject_symbol, subject.clone()));
             let scope = ClauseScope {
                 bound: &bound,
-                owner: predicate.owner,
+                owner: predicate.domain.symbol,
                 ..*scope
             };
             clauses.push((
                 self.clause(id, &scope, predicate.expression)
                     .map_err(|refusal| {
-                        self.read_failure_at(refusal, predicate.owner, "the domain predicate")
+                        self.read_failure_at(
+                            refusal,
+                            predicate.domain.symbol,
+                            "the domain predicate",
+                        )
                     })?,
                 predicate.expression,
             ));
@@ -630,9 +633,19 @@ impl Program<'_> {
             .predicates(id, added)?
             .iter()
             .map(|predicate| {
+                let name = predicate.domain.name.as_str();
+                // A bracketed domain's lookup name abstracts its carrier. The
+                // diagnostic can print the selected target's element and extent.
+                let domain = match name.split_once("]::") {
+                    Some((_, path)) => format!(
+                        "{}::{path}",
+                        self.typed
+                            .display_type_reference(predicate.domain.target_type)
+                    ),
+                    None => name.to_owned(),
+                };
                 format!(
-                    "domain `{}` requires `{}`",
-                    predicate.domain,
+                    "domain `{domain}` requires `{}`",
                     self.typed
                         .expression_table
                         .display_name(predicate.expression)
@@ -749,7 +762,7 @@ impl Program<'_> {
             if let Some((expression, _)) =
                 crate::source_state::byte_predicates::byte_slice_domain_predicate(
                     self.typed,
-                    self.domain_theory(id, predicate.instance)?,
+                    predicate.domain,
                 )
                 && expression == predicate.expression
             {
@@ -789,7 +802,7 @@ impl Program<'_> {
                     },
                 )?;
             }
-            if !predicate.subject.is_valid() {
+            if !predicate.domain.subject_symbol.is_valid() {
                 return Err(refuse(
                     id,
                     Construct::Machine,
@@ -797,11 +810,11 @@ impl Program<'_> {
                 ));
             }
             let scope = ClauseScope {
-                owner: predicate.owner,
+                owner: predicate.domain.symbol,
                 result: ResultTerm::Absent("result in a domain predicate"),
                 subject: Some(DataSubject {
                     value_type: plain,
-                    symbol: predicate.subject,
+                    symbol: predicate.domain.subject_symbol,
                     root,
                     path,
                     bare_fields: false,
@@ -811,7 +824,11 @@ impl Program<'_> {
             clauses.push((
                 self.clause(id, &scope, predicate.expression)
                     .map_err(|refusal| {
-                        self.read_failure_at(refusal, predicate.owner, "the domain predicate")
+                        self.read_failure_at(
+                            refusal,
+                            predicate.domain.symbol,
+                            "the domain predicate",
+                        )
                     })?,
                 predicate.expression,
             ));
