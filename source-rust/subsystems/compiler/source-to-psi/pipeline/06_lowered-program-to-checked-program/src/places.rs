@@ -3825,8 +3825,10 @@ impl<'a> Storage<'a> {
         let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
             return Ok(false);
         };
+        // Lending plain affine data never copies its owner. A linear claim
+        // or executable cleanup still needs the ordinary storage account.
         if !whole_record
-            || !declaration.is_copyable()
+            || declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
             || declaration.owns_linear_claim
             || declaration.nominal_cleanup.is_some()
             || !declaration.requires.is_empty()
