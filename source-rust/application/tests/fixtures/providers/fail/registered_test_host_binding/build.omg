@@ -1,0 +1,10 @@
+use omega\language\core\ForeignBinding;
+machine build(builder: @mutable Build) {
+    Build::application(builder, "registered_test_host_binding");
+    Build::bind(builder, linux_x86_64\ProgramEntry, main);
+    Build::bind::<HostProcessId::get>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 39 });
+    Build::bind::<HostFile::resize>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 77 });
+    _ = builder.tests.group::<Tests::host>();
+}

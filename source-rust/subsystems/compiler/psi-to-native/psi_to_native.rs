@@ -48,6 +48,7 @@ pub struct NativeProgram {
     terminal: RetainedTerminalArtifact,
     suppliers: driver::inputs::components::VerifiedSuppliers,
     permissions: provider_admission::TerminalAuthorityPermissionPolicy,
+    isolated_execution_grant: Option<semantic_vocabulary::TerminalAuthorityDisposition>,
     installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
 }
 
@@ -115,6 +116,7 @@ impl NativeProgram {
             terminal,
             suppliers,
             permissions,
+            isolated_execution_grant,
             installation_assumptions,
         } = self;
         let mut receipts = Vec::new();
@@ -123,6 +125,7 @@ impl NativeProgram {
             retain_native_stage_inputs,
             installation_assumptions: &installation_assumptions,
             private_entry_ram,
+            isolated_execution_grant: isolated_execution_grant.as_ref(),
             terminal_authority_policy: current_terminal_authority_policy(),
             accepted_package_terminal_authority_permission_policy: permissions,
             terminal_authority_permission_policy: None,

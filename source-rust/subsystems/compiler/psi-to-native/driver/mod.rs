@@ -82,6 +82,7 @@ fn produce(
     let mut components = image::components::Emission {
         suppliers: request.suppliers,
         authority: &request.terminal_authority_policy,
+        isolated_execution_grant: request.isolated_execution_grant,
         permissions: &request.terminal_authority_permission_policy,
         scalar_receipts: request.scalar_receipts,
         retain_stage_inputs: request.retain_native_stage_inputs,
@@ -114,6 +115,7 @@ fn produce(
         &native_settlements,
         &request.terminal_authority_policy,
         &request.terminal_authority_permission_policy,
+        request.isolated_execution_grant,
         request.installation_assumptions,
     );
     let realization = admit_realization(artifact, input, proposal, &execution, &admission)?;

@@ -217,21 +217,25 @@ pub(crate) fn prepare_lower_and_check(
             machine.purpose == crate::source_state::machine::MachinePurpose::ProviderDefaults
         });
     let unprepared = has_defaults.then(|| typed.clone());
-    let root_bindings = match entry {
-        ProductEntry::RegisteredTest { root, target } => {
-            vec![root.bind(&typed, &admitted.declarations.test_groups, target)?]
-        }
+    // A registered test has its own entry and provider choices. Its harness
+    // currently uses the ordinary target defaults.
+    let (root_bindings, explicit_providers) = match entry {
+        ProductEntry::RegisteredTest { root, target } => (
+            vec![root.bind(&typed, &admitted.declarations.test_groups, target)?],
+            Vec::new(),
+        ),
         ProductEntry::BuildBindings | ProductEntry::PackageReview | ProductEntry::Inspection(_) => {
-            crate::compile_product::declaration_lookup::collect_root_bindings(
+            let bindings = crate::compile_product::declaration_lookup::collect_root_bindings(
                 &typed,
                 inputs.root_binding_requests,
-            )?
+            )?;
+            (bindings, admitted.providers)
         }
     };
     let mut pass = ProductSourcePass {
         inputs,
         activation,
-        explicit_providers: admitted.providers,
+        explicit_providers,
         representations: admitted.representations,
         declarations: admitted.declarations,
         native_supplies,

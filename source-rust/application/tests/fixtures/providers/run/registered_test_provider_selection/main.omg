@@ -1,0 +1,27 @@
+use test_provider_kit\Reading;
+
+trait Tests {
+    machine reading() reaches none crashes Trap;
+}
+
+machine test_uses_default()
+satisfies Tests::reading
+reaches none
+crashes Trap
+{
+    expect(17u8);
+}
+
+machine main() crashes Trap {
+    expect(29u8);
+}
+
+machine expect(expected: u8) reaches none crashes Trap {
+    let actual: u8 = Reading::value();
+    transition actual == expected {
+        true -> passed(),
+        false -> wrong()
+    }
+    machine passed() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

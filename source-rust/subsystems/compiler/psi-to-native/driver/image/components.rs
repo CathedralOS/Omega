@@ -85,6 +85,7 @@ pub(crate) fn bind<'a>(
 /// Physical images and optional replay inputs from all reached exports in this construction.
 pub(crate) struct Emission<'request> {
     pub suppliers: &'request VerifiedSuppliers,
+    pub isolated_execution_grant: Option<&'request semantic_vocabulary::TerminalAuthorityDisposition>,
     pub authority: &'request provider_admission::TerminalAuthorityPolicy,
     pub permissions: &'request Option<provider_admission::TerminalAuthorityPermissionPolicy>,
     pub scalar_receipts: &'request mut Vec<native_scalar_inputs::EvaluationReceipt>,
@@ -184,8 +185,13 @@ pub(crate) fn emit<'a>(
         let children = emit(emission, proposal, &dependencies)?;
         let mut settlements = prepared.program_settlements();
         settlements.extend(children.iter().map(ComponentCall::settlement));
-        let admission =
-            prepared.admission_request(&settlements, emission.authority, emission.permissions, &[]);
+        let admission = prepared.admission_request(
+            &settlements,
+            emission.authority,
+            emission.permissions,
+            emission.isolated_execution_grant,
+            &[],
+        );
         let admitted = artifact_lowering::admit_prepared_native_realization(
             abstract_input,
             artifact,

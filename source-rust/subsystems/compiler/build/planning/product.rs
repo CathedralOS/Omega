@@ -259,6 +259,7 @@ impl ProductStage<'_> {
                     .admit_for(Some(profile))
                     .map_err(|reason| vec![Diagnostic::error(reason)])?,
             },
+            isolated_execution_grant: None,
             package_permissions: self.scope.as_deref().cloned(),
             semantic_bindings: self
                 .product

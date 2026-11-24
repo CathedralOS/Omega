@@ -461,6 +461,7 @@ fn check_callback_publication(retain_body_source: bool) {
         private_entry_ram: &[],
         boundary_application_coverage: Some(&coverage),
         behavior_exclusions: &exclusions,
+        isolated_execution_grant: None,
         providers: ProviderAdmissionRequest {
             native_bindings: &Default::default(),
             profile: target::TargetProfile::WindowsX64,
