@@ -1372,7 +1372,7 @@ pub(super) fn require(
                     .and_then(|position| old.get(position))
                     .cloned()
                     .unwrap_or_else(|| {
-                        terminal_check_tables::names::ClauseText(vec![
+                        terminal_check_tables::names::ClauseText::from(vec![
                             terminal_check_tables::names::Piece::Text(String::from(
                                 "inferred input condition",
                             )),

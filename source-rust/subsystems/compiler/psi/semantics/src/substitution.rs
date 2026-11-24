@@ -110,6 +110,15 @@ pub fn substitute_proposition_values_with<'input>(
             left: left.clone(),
             right: right.clone(),
         },
+        Proposition::DeclarationIdentity(clause) => {
+            let mut mapped = clause.clone();
+            for value in &mut mapped.values {
+                if let semantic_vocabulary::ClauseOperand::Scalar(term) = &mut value.operand {
+                    *term = substitute_scalar_term_values_with(term, substitutions);
+                }
+            }
+            Proposition::DeclarationIdentity(mapped)
+        }
         Proposition::StructuralIdentity { left, right } => Proposition::StructuralIdentity {
             left: left.clone(),
             right: right.clone(),
@@ -268,6 +277,23 @@ pub fn substitute_proposition_structural_places_with<'input>(
                     .unwrap_or_else(|| subject.clone()),
                 case: *case,
             }
+        }
+        Proposition::DeclarationIdentity(clause) => {
+            let mut mapped = clause.clone();
+            for value in &mut mapped.values {
+                match &mut value.operand {
+                    semantic_vocabulary::ClauseOperand::Scalar(term) => *term = substitute_scalar_term_places(term, substitutions),
+                    semantic_vocabulary::ClauseOperand::Input(subject) => {
+                        if let Some((next, prefix)) = substitutions(subject.root()) {
+                            let mut path = prefix.to_vec();
+                            path.extend_from_slice(subject.path());
+                            *subject = semantic_vocabulary::StructuralCaseSubject::new(*next, path);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            Proposition::DeclarationIdentity(mapped)
         }
         Proposition::StructuralIdentity { left, right } => {
             let rebase = |subject: &semantic_vocabulary::StructuralIdentitySubject| {

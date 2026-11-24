@@ -84,6 +84,7 @@ mod references;
 mod representation_views;
 mod result_fields;
 mod result_summaries;
+mod semiring_identity;
 mod returned_views;
 mod routed_domain_writes;
 mod rule_violations;

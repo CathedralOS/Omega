@@ -72,7 +72,7 @@ fn interior_state_scan_reports_an_unreadable_configured_root() {
 fn missing_source_roots_cannot_produce_an_empty_count_baseline() {
     let repo = ScratchRepository::new();
     let ids = Default::default();
-    for index in [0, 2, 3, 4] {
+    for index in [0, 2, 3, 4, 5] {
         let error = compute_ratchet_counts(&repo.root, index, &ids).unwrap_err();
         assert!(
             error.contains("source-rust") && error.contains("cannot read directory"),
@@ -126,6 +126,19 @@ fn dense_id_scan_requires_a_populated_catalog() {
     assert_eq!(ids.len(), 2);
     assert!(ids.contains("ServiceReachId"));
     assert!(ids.contains("MachineId"));
+}
+
+#[test]
+fn clause_term_readers_count_new_names_and_multiline_return_types() {
+    let source = r#"
+pub(crate) fn expression(
+    input: ExpressionHandle,
+) -> Checked<(ScalarTerm, ValueType)> { todo!() }
+fn another(input: ExpressionHandle) -> Option<ClauseTerm> { todo!() }
+fn consumes(input: ScalarTerm) -> bool { true }
+// fn retired() -> ScalarTerm { todo!() }
+"#;
+    assert_eq!(super::ratchets::count_clause_term_readers(source), 2);
 }
 
 #[test]
