@@ -185,7 +185,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
                     201
                 }
                 InterpreterComparison::Failed(diagnostics) => {
-                    eprintln!("Terminal interpretation FAILED:");
+                    eprintln!("Psi interpretation FAILED:");
                     for diagnostic in diagnostics {
                         eprintln!("  {diagnostic}");
                     }
@@ -330,7 +330,7 @@ fn run_cases(
                     .iter()
                     .map(ToString::to_string)
                     .collect::<Vec<_>>();
-                format!("; Terminal interpretation FAILED: {}", reasons.join("; "))
+                format!("; Psi interpretation FAILED: {}", reasons.join("; "))
             }
         };
         eprintln!(

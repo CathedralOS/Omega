@@ -182,7 +182,7 @@ pub fn compile(
         CompileRequest::Psi(source) => {
             let validations = validators.stages_not_produced(
                 source.product.calling_targets,
-                |_| "this product stops at Terminal Psi before target operations",
+                |_| "this product emits Psi before target operations",
             )?;
             let artifact = source_to_psi::compile(source, options.advisories)?;
             Ok(CompileOutput {

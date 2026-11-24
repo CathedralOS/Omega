@@ -31,7 +31,7 @@ pub(crate) fn open_trusted_program(
     let artifact =
         terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).map_err(|error| {
             vec![Diagnostic::error(format!(
-                "cannot inspect Terminal artifact: {error}"
+                "cannot inspect Psi artifact: {error}"
             ))]
         })?;
     if artifact.manifest().identity().to_string() != expected {

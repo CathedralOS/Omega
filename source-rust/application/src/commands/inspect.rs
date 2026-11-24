@@ -62,14 +62,14 @@ pub(crate) fn run(arguments: InspectTerminalArguments, diagnostics: DiagnosticOu
     if let Some(path) = output
         && let Err(error) = std::fs::write(path, inspection.artifact.to_bytes())
     {
-        eprintln!("cannot write Terminal artifact: {error}");
+        eprintln!("cannot write Psi artifact: {error}");
         std::process::exit(1);
     }
     print!(
         "{}",
         terminal_summary(&selected, inspection.artifact.semantic_module())
     );
-    print!("terminal program_fingerprint=");
+    print!("psi program_fingerprint=");
     for byte in inspection
         .artifact
         .view()
