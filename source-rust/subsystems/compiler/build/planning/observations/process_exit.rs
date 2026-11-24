@@ -54,7 +54,7 @@ impl ProcessExitObservation {
     /// `Some(true)` when the host shows the whole semantic status and it
     /// matches, `Some(false)` when what the host shows differs, and `None`
     /// when the host truncated the status and the visible bits match.
-    pub(super) fn matches_host_presentation(self, semantic_status: i32) -> Option<bool> {
+    pub fn matches_host_presentation(self, semantic_status: i32) -> Option<bool> {
         let presented_status = if cfg!(unix) {
             semantic_status & 255
         } else {
@@ -66,7 +66,7 @@ impl ProcessExitObservation {
         (presented_status == semantic_status).then_some(true)
     }
 
-    pub(super) fn matches_crash_presentation(self, cause: CrashCause) -> Option<bool> {
+    pub fn matches_crash_presentation(self, cause: CrashCause) -> Option<bool> {
         if cause != CrashCause::Trap {
             return None;
         }

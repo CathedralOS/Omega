@@ -305,7 +305,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 ## Requirement-based tests
 
-- **BUILD-TEST-COMPARISON.** Implement `omega build --compare-tests` in the [registered test runner](wiki/spec/build/testing.md#comparing-native-and-psi-tests). Report each engine's result and compare termination, stdout, stderr and declared outputs using isolated copies of the same inputs. Exercise equal exits with different output, identical wrong output, and an unavailable comparison. Migrate callers, sample commands and repository-only program comparisons before removing `omega run --both`.
+- **BUILD-TEST-COMPARISON.** Supply each registered test's configured arguments, stdin, service inputs and initial files independently to native and Psi. Check each engine's streams and declared files, values and fields against expectations, and compare those observations with `omega build --compare-tests`. Exercise matching exits with different output, identical wrong stdout, and absent versus empty files through the [registered test runner](wiki/spec/build/testing.md#comparing-native-and-psi-tests). Migrate callers, sample commands and repository-only program comparisons before removing `omega run --both`.
 
 - **TEST-GROUP-FILESYSTEM-TARGETS.** Provide [delegated filesystem backing for test groups](wiki/spec/build/testing.md#test-runner-filesystem-slot) through their ordinary provider selection and [test planning](source-rust/subsystems/compiler/build/planning/registered_tests.rs). Retire `tests.service<Group, Slot>()`, its Build operands and the filesystem-specific switch.
   - Exercise canonicalization, metadata, directories and file I/O on the hosted targets. Include the Linux libc `realpath` case and report unavailable engines explicitly.

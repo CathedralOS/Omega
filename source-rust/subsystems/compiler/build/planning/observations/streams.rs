@@ -1,17 +1,6 @@
-// `omega run --both` counts a program as agreeing only when the native and Psi
-// runs wrote the same bytes to stdout and to stderr, as well as finishing the
-// same way. A runnable program's result is its exit status and its output
-// (wiki/spec/build/testing.md, "Compiler tests"), so a run whose engines print
-// different text is a native/Psi divergence even when both exit 0.
-//
-// We compare each stream separately and report the first line that differs, so
-// the person reading the report sees where the two runs parted. Lines keep their
-// terminating `\n`: "a\n" and "a" differ at line 1, which shows a missing final
-// newline instead of hiding it. Program output is raw bytes, not UTF-8; the
-// report shows each line through a lossy, quoted rendering.
-
+//! Compare native and Psi streams as bytes. Retain the line for human-readable diagnostics.
 #[derive(Clone, Copy, Debug)]
-pub(super) struct ProgramStreams<'a> {
+pub struct ProgramStreams<'a> {
     pub stdout: &'a [u8],
     pub stderr: &'a [u8],
 }
@@ -36,7 +25,8 @@ impl ProgramStream {
 #[derive(Debug, PartialEq, Eq)]
 pub struct OutputDivergence {
     pub stream: ProgramStream,
-    pub line: usize, // 1-based
+    pub line: usize,   // 1-based
+    pub offset: usize, // 0-based byte offset within the selected stream
     pub native: Option<Vec<u8>>,
     pub psi: Option<Vec<u8>>,
 }
@@ -67,7 +57,7 @@ impl std::fmt::Display for Rendered<'_> {
 
 // Stdout is checked first, so a run that differs on both streams reports its
 // stdout difference.
-pub(super) fn first_output_difference(
+pub fn first_output_difference(
     native: ProgramStreams<'_>,
     psi: ProgramStreams<'_>,
 ) -> Option<OutputDivergence> {
@@ -86,15 +76,26 @@ fn first_line_difference(
     let mut native_lines = native.split_inclusive(|byte| *byte == b'\n');
     let mut psi_lines = psi.split_inclusive(|byte| *byte == b'\n');
     let mut line = 1;
+    let mut offset = 0;
     loop {
         match (native_lines.next(), psi_lines.next()) {
-            (Some(left), Some(right)) if left == right => line += 1,
+            (Some(left), Some(right)) if left == right => {
+                line += 1;
+                offset += left.len();
+            }
             (left, right) => {
                 // Unequal streams always part at some line, so both sides
                 // cannot end together here.
                 return Some(OutputDivergence {
                     stream,
                     line,
+                    offset: offset
+                        + left
+                            .unwrap_or_default()
+                            .iter()
+                            .zip(right.unwrap_or_default())
+                            .take_while(|(a, b)| a == b)
+                            .count(),
                     native: left.map(<[u8]>::to_vec),
                     psi: right.map(<[u8]>::to_vec),
                 });
@@ -129,6 +130,7 @@ mod tests {
         .expect("different stdout diverges");
         assert_eq!(divergence.stream, ProgramStream::Stdout);
         assert_eq!(divergence.line, 2);
+        assert_eq!(divergence.offset, 4);
         assert_eq!(
             divergence.to_string(),
             r#"stdout line 2: native "two\n" vs Psi "TWO\n""#
