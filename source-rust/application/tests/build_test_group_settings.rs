@@ -86,3 +86,55 @@ fn a_disabled_group_still_checks_its_test_source() {
         "{output}"
     );
 }
+
+#[test]
+fn trait_arguments_select_the_exact_satisfaction_edges() {
+    let product = r#"data ScanFixture { value: u8; }
+data WriteFixture { value: u8; }
+trait Checks<T> { machine memory() crashes Trap; }
+machine scan() satisfies Checks<ScanFixture>::memory crashes Trap {}
+machine write() satisfies Checks<WriteFixture>::memory crashes Trap { crash Trap; }
+machine main() {}"#;
+    let configuration = r#"machine build(builder: @mutable Build) {
+    Build::application(builder, "applied_groups");
+    Build::bind(builder, linux_x86_64\ProgramEntry, main);
+    _ = builder.tests.group::<Checks<ScanFixture>::memory>();
+    let writes = builder.tests.group::<Checks<WriteFixture>::memory>();
+    writes.disabled = true;
+}"#;
+    let (success, output) = build(product, configuration);
+    assert!(success, "{output}");
+    assert!(
+        output.contains("test `scan` in group `Checks<ScanFixture>::memory`"),
+        "{output}"
+    );
+    assert!(
+        output.contains("group `Checks<WriteFixture>::memory` (target `linux_x86_64`): disabled"),
+        "{output}"
+    );
+
+    let (success, output) = build(
+        product,
+        &configuration.replace("writes.disabled = true;", ""),
+    );
+    assert!(!success, "{output}");
+    assert!(
+        output.contains("test `write` in group `Checks<WriteFixture>::memory`"),
+        "{output}"
+    );
+    assert!(output.contains("crashed with Trap"), "{output}");
+    assert!(
+        !output.contains("test `write` in group `Checks<ScanFixture>::memory`"),
+        "{output}"
+    );
+
+    let (success, output) = build(
+        product,
+        &configuration.replace("Checks<WriteFixture>", "Checks<ScanFixture>"),
+    );
+    assert!(!success, "{output}");
+    assert!(
+        output.contains("test group registration repeats the same requirement"),
+        "{output}"
+    );
+}

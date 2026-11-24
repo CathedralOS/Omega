@@ -2,7 +2,9 @@
 //! The application and every test start from the same captured source.
 use crate::compile_product::ProductSourceInputs;
 use crate::driver::published_target;
-use crate::source_state::{TypedTrees, machine::resolve_satisfied_declaration};
+use crate::source_state::{
+    TypedTrees, machine::resolve_satisfied_declaration, trait_definition::AppliedTraitScope,
+};
 use crate::*;
 use diagnostics::Diagnostic;
 use source_admission::RetainedDeclaration;
@@ -14,7 +16,7 @@ pub struct TestRoot {
     pub name: String,
     pub inputs: TestInvocationInputs,
     group_declaration: RetainedDeclaration,
-    selecting_machine: RetainedDeclaration,
+    registration: crate::declaration_selection::BuildSelectionOrigin,
     declaration: RetainedDeclaration,
 }
 
@@ -25,29 +27,20 @@ impl TestRoot {
         groups: &[TestGroupRegistration],
         target: &str,
     ) -> Result<RootBinding, Vec<Diagnostic>> {
-        let group = source_symbols::rejoin_declaration(
-            &self.group_declaration,
-            &typed.symbols,
-            groups.iter().map(|g| g.requirement),
-        )
-        .map_err(|why| vec![Diagnostic::error(why)])?;
-        let owner = source_symbols::rejoin_declaration(
-            &self.selecting_machine,
-            &typed.symbols,
-            groups
-                .iter()
-                .filter(|g| g.requirement == group)
-                .map(|g| g.selecting_machine),
-        )
-        .map_err(|why| vec![Diagnostic::error(why)])?;
         let registration = groups
             .iter()
-            .find(|g| g.requirement == group && g.selecting_machine == owner)
+            .find(|group| group.origin == self.registration)
             .ok_or_else(|| {
                 vec![Diagnostic::error(
                     "registered test lost its Build selection",
                 )]
             })?;
+        source_symbols::rejoin_declaration(
+            &self.group_declaration,
+            &typed.symbols,
+            [registration.requirement],
+        )
+        .map_err(|why| vec![Diagnostic::error(why)])?;
         let implementation = source_symbols::rejoin_declaration(
             &self.declaration,
             &typed.symbols,
@@ -75,8 +68,16 @@ fn satisfiers<'a>(
             && typed
                 .machine_trait_conformances(machine)
                 .iter()
-                .filter_map(|edge| resolve_satisfied_declaration(typed, machine, edge))
-                .any(|declaration| declaration.symbol() == group.requirement)
+                .any(|edge| {
+                    resolve_satisfied_declaration(typed, machine, edge)
+                        .is_some_and(|declaration| declaration.symbol() == group.requirement)
+                        && group.closed_requirement.is_none_or(|closed| {
+                            AppliedTraitScope::from_machine_conformance(typed, machine, edge)
+                                .is_some_and(|scope| {
+                                    typed.requirement_application_matches_scope(closed, &scope)
+                                })
+                        })
+                })
     })
 }
 
@@ -120,7 +121,29 @@ impl<'a> RegisteredTests<'a> {
         let mut notes = Vec::new();
         let mut refusals = Vec::new();
         for group in &checked.declarations.test_groups {
-            let path = typed.symbols.display_path(group.requirement, "::");
+            let path = if let Some(closed) = group.closed_requirement {
+                let application =
+                    typed
+                        .closed_requirement_application(closed)
+                        .ok_or_else(|| {
+                            vec![Diagnostic::error("test group lost its closed requirement")]
+                        })?;
+                let owner = typed
+                    .symbols
+                    .display_path(application.declaring_trait, "::");
+                let arguments = application
+                    .trait_arguments
+                    .iter()
+                    .map(|&reference| typed.display_type_reference(reference))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!(
+                    "{owner}<{arguments}>::{}",
+                    typed.symbols.name(group.requirement)
+                )
+            } else {
+                typed.symbols.display_path(group.requirement, "::")
+            };
             if disabled || group.configuration.disabled {
                 notes.push(format!(
                     "group `{path}` (target `{target}`): disabled; its tests were not run"
@@ -169,7 +192,7 @@ impl<'a> RegisteredTests<'a> {
                     name,
                     inputs: group.configuration.inputs.clone(),
                     group_declaration: retain(group.requirement)?,
-                    selecting_machine: retain(group.selecting_machine)?,
+                    registration: group.origin.clone(),
                     declaration: retain(machine.symbol)?,
                 });
             }
