@@ -71,7 +71,7 @@ its operation commutes. Each expansion is an application of the law in the
 proof term. A product may expand to at most 64 summands (`MAX_SUMMANDS`),
 counted before anything is built; a larger one stops the proof as out of
 budget, never as wrong. The customer is `mul(add(a, b), add(c, d))` equal to
-its four-term expansion over the library's `Nat`, judged in 1,170 conversion
+its four-term expansion over the library's `Nat`, judged in 993 conversion
 steps on `mul_distributes`, `mul_comm`, `add_comm` and `add_assoc`
 ([polynomial_expansion.rs](src/tests/polynomial_expansion.rs)).
 

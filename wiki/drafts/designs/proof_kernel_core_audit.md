@@ -1145,11 +1145,11 @@ names it.
 - **Customers.** The recovered `polynomial/pass/ring_full_polynomial_compile`
   states `mul(add(a, b), add(c, d))` equal to its four-term expansion over the
   library's `Nat` and cites nothing. It used to be refused with "no available
-  equality proves the stated Identity". The kernel now judges it in 1,170
+  equality proves the stated Identity". The kernel now judges it in 993
   conversion steps, resting on exactly four laws of `core/nat.omg`'s
   conformance: `mul_distributes`, `mul_comm`, `add_comm` and `add_assoc`.
   A Peano twin pair adds a law needing two expansions to the
-  `peano_left_distributivity` program: judged in 1,024 steps with
+  `peano_left_distributivity` program: judged in 847 steps with
   `times_distributes` declared as the trait's `mul_distributes`, and refused
   once that `satisfies` line is removed.
 - **One mechanism.** `operand_law` also reads distributivity
@@ -1169,7 +1169,7 @@ names it.
   one stops the proof with `SearchError::Budget`, reported as "ran out of
   proof budget" with no claim that the program is wrong. Every rewrite is also
   charged to the existing 65,536-step search budget. A product of 64 summands
-  over Peano is judged in 56,126 conversion steps; one of 128 is refused as
+  over Peano is judged in 55,949 conversion steps; one of 128 is refused as
   out of budget.
 - **Mutual distributivity.** When two operations each distribute over the
   other, the search tries one direction at a time, so neither law disables
