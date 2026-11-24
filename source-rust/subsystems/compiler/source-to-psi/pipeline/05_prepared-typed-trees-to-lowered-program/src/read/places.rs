@@ -306,6 +306,11 @@ impl Program<'_> {
                         }
                     }
             };
+        // A quotient of mathematical data is a type of the mathematical
+        // signature, with no members to read (`quotients`).
+        if self.mathematical && data.quotient.is_some() && self.is_mathematical_data(data) {
+            return self.quotient_record(id, symbol, data);
+        }
         let members = typed.data_members(data);
         // Admission precedes cache reuse: descriptor-only records cannot
         // become executable body types through a shared storage row.
@@ -541,8 +546,7 @@ impl Program<'_> {
             }
             return Ok(ValueType::record(record));
         }
-        let copyable =
-            data.properties.multiplicity == language_core::Multiplicity::Unrestricted;
+        let copyable = data.properties.multiplicity == language_core::Multiplicity::Unrestricted;
         if copyable
             && !declared
                 .iter()
@@ -1977,9 +1981,7 @@ fn record_shape_for<'m>(
     payload: impl Fn(&'m crate::source_state::data::DataVariant) -> arena::RootRows<'m, DataField>,
 ) -> Checked<()> {
     let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
-    if data.supply_mode == language_core::DataSupplyMode::BoundaryOpaque
-        && !members.is_empty()
-    {
+    if data.supply_mode == language_core::DataSupplyMode::BoundaryOpaque && !members.is_empty() {
         return unserved("opaque data with declared members");
     }
     if data.supply_mode == language_core::DataSupplyMode::BoundaryOpaque {

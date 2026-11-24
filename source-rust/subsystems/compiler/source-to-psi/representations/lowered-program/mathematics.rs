@@ -229,6 +229,22 @@ pub enum SignatureEntryKind {
     /// a proof that cites the law depends on it as an assumption, and the
     /// law's own proof is judged separately.
     Statement { law: u32 },
+    /// One declaration of the kernel's quotient scheme
+    /// (`mathematical_kernel::quotient_scheme`). The kernel numbers those
+    /// declarations from zero, so a signature that has a quotient starts
+    /// with them, in the kernel's order.
+    Scheme,
+    /// A quotient of the data at entry `carrier` by the relation defined at
+    /// entry `relation`: the kernel's quotient of the two. A value's class
+    /// is the kernel's projection of it. The quotient, its projection and
+    /// its soundness law are assumptions of the scheme, so a proof that
+    /// uses them reports them in its closure.
+    Quotient {
+        declaration: SymbolHandle,
+        carrier: u32,
+        relation: u32,
+        type_identity: String,
+    },
 }
 
 /// A function defined by cases on one parameter: the induction over the data

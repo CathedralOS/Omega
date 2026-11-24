@@ -314,3 +314,20 @@ fn a_satisfier_that_proves_nothing_is_refused_for_the_law_it_inherits() {
         "{report}"
     );
 }
+
+#[test]
+fn related_representatives_of_a_quotient_have_one_class() {
+    let (output, report) = check("quotient/pass/equivalence_class");
+    assert_eq!(output.status.code(), Some(0), "{report}");
+}
+
+#[test]
+fn a_quotient_whose_symmetry_row_asks_for_more_is_refused() {
+    let (output, report) = check("quotient/fail/symmetry_of_equal_values_only");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains("cannot prove ensures contract for `SameSign::symmetric`")
+            && report.contains("the proved equality is not the law its requirement declares"),
+        "{report}"
+    );
+}

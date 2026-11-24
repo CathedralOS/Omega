@@ -602,6 +602,30 @@ impl Program<'_> {
                         ))
                     }
                 }
+                // A value enters a quotient by `as`: its class is the
+                // quotient's declaration applied to it.
+                (ExpressionNode::Cast(cast), Some(expected))
+                    if self.mathematical && self.quotient_of(expected).is_some() =>
+                {
+                    let quotient = self.quotient_of(expected).expect("the guard found it");
+                    let (declaration, carrier) =
+                        (quotient.declaration, ValueType::record(quotient.carrier));
+                    if self.value_type(id, cast.target_type)? != expected {
+                        return Err(unavailable(
+                            "Identity operand differs from the written carrier",
+                        ));
+                    }
+                    let value = self
+                        .clause_term(id, scope, cast.value, ClauseUse::Operand(carrier, values))?
+                        .operand(id)?;
+                    ClauseOperand::Application {
+                        declaration: ClauseDeclaration {
+                            member: (declaration.arena_index(), declaration.generation()),
+                            supplier: None,
+                        },
+                        arguments: vec![value],
+                    }
+                }
                 // A field of a value is the field's declaration applied to
                 // that value, whatever the value is: a formal, a call or
                 // another field.

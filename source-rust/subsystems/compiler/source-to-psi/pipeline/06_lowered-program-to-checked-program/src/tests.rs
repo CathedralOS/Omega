@@ -51,12 +51,15 @@ mod entry_inputs;
 mod entryless;
 mod every_refusal;
 mod floats;
+mod fuel_recursion;
+mod generic_machine;
 mod guard_contradiction;
 mod handoffs;
 mod hosted_primitives;
 mod indexed_contracts;
 mod inferred_bounds;
 mod inferred_locals;
+mod law_premise;
 mod layout_queries;
 mod lifetime_elision;
 mod lifetime_generics;
@@ -66,6 +69,8 @@ mod machine_inputs;
 mod machine_lifetimes;
 mod mathematical_clauses;
 mod mutable_formals;
+mod nat_semiring;
+mod nested_cases;
 mod operational_effects;
 mod optimization;
 mod owned_cleanup;
@@ -78,34 +83,30 @@ mod proof_scope;
 mod provider_supplies;
 mod published_no_return;
 mod qualified_terms;
+mod quotient;
 mod ranges;
 pub(crate) mod rankings;
 mod reach;
+mod record_law;
 mod references;
 mod representation_views;
 mod result_fields;
 mod result_summaries;
-mod law_premise;
-mod fuel_recursion;
-mod generic_machine;
-mod nat_semiring;
-mod nested_cases;
-mod record_law;
-mod sum_hypothesis;
+mod returned_views;
 mod ring_law;
 mod ring_law_publication;
-mod semiring_identity;
-mod returned_views;
 mod routed_domain_writes;
 mod rule_violations;
 mod runtime_indexed_elements;
 mod scalar_joins;
+mod semiring_identity;
 mod sequence_regions;
 mod source_operators;
 mod stored_references;
 mod stored_views;
 mod structural_domains;
 mod successor_loans;
+mod sum_hypothesis;
 mod termination;
 mod type_parameters;
 mod uninhabited_results;
@@ -2043,7 +2044,8 @@ fn declare_body_models(
             specialization: None,
         });
         module
-            .execution.callables
+            .execution
+            .callables
             .machine_envelopes
             .push(Some(TerminalMachineEnvelope {
                 machine: machine.id,
