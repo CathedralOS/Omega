@@ -1367,6 +1367,19 @@ type), and the clause's `ClauseScope` says what each name denotes there.
     predicate, where the value the clause is about is the subject. Serving
     it in a machine clause needs the case of a formal's value at entry and
     of the result at return as a proposition the caller proves or learns.
+    A trial that only removed stage 05's refusal (the reader can already
+    name a formal's or a structural result's place, and forms
+    `Proposition::StructuralCaseMembership`) moved the refusal into stage 06,
+    which shows what is missing there (`InputPlaces::case` in `places.rs`).
+    Stage 06 decides a case test to true or false from what structure shows
+    while it substitutes a clause, and never carries one as a fact. So an
+    entry clause is refused outright ("a case test in an entry clause"),
+    and a caller importing `ensures result in Outcome::Good` is asked to
+    decide the result's case itself and cannot ("the case the data requires
+    clause tests is not established by structure here"). The work is a way
+    to assume a case test: record the case of the formal's place at entry
+    and of the result's place after a call, including under `||` and `==`,
+    where one test alone decides nothing.
   - "Identity operand has no term at its written carrier" for a field of a
     record formal outside the mathematical signature: the field arm serves
     data that contains itself only.
