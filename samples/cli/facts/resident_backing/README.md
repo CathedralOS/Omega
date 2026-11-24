@@ -14,6 +14,10 @@ access each requires separate authority. The existing allocation, profile,
 geometry, qualification, lifecycle, cleanup, and neighbor-canary checks remain
 part of the example.
 
+The local grant and vacancy providers return a bare `Extent`. Their result
+guarantees supply the evidence for the named domain casts. The local control
+keeps its grant and attempts to add vacancy without the transfer.
+
 The local example and its control parsed after their migration to the public
 owned lifecycle. All nine pairs still need optimized checking, native/Psi
 agreement for the positives, the intended vacancy refusals for the controls,
