@@ -620,6 +620,34 @@ fn typed_build(
 }
 
 #[test]
+fn stored_complete_parses_reopen_and_partial_build_parses_are_refused() {
+    let id = SourceId(5);
+    let entry = SourceSpan::new(id, Span::new(8, 13));
+    let limits = record_storage::RecordLimits::default();
+    let old_parse = |entry: Option<SourceSpan>, can_return: bool| {
+        record_storage::encode(
+            &(
+                syntax_trees::SyntaxTrees::new(id),
+                entry,
+                can_return,
+                Vec::<()>::new(),
+            ),
+            limits,
+        )
+        .unwrap()
+    };
+    let clean = old_parse(None, false);
+    let reopened = record_storage::decode::<source_compiler::SourceSyntax>(&clean, limits).unwrap();
+    assert_eq!(reopened, source_compiler::SourceSyntax::new(id));
+    assert_eq!(record_storage::encode(&reopened, limits).unwrap(), clean);
+    for partial in [old_parse(Some(entry), false), old_parse(None, true)] {
+        let error =
+            record_storage::decode::<source_compiler::SourceSyntax>(&partial, limits).unwrap_err();
+        assert!(error.reason.contains("only part of its source"), "{error}");
+    }
+}
+
+#[test]
 fn a_projected_snapshot_cannot_supply_a_complete_build_invocation() {
     let text = "machine build() {}";
     let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
