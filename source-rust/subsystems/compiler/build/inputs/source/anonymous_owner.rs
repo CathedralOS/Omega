@@ -85,7 +85,10 @@ impl AnonymousSourceCapture {
 
     pub fn complete_without_dependencies(
         self,
-    ) -> Result<Arc<source_compiler::representations::source_inputs::SourceMap>, Vec<diagnostics::Diagnostic>> {
+    ) -> Result<
+        Arc<source_compiler::representations::source_inputs::SourceMap>,
+        Vec<diagnostics::Diagnostic>,
+    > {
         let identity = derive(&self.capture, self.semantic_dependencies)
             .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
         let mut sources = Arc::unwrap_or_clone(self.sources);
@@ -206,7 +209,10 @@ mod tests {
     #[test]
     fn build_source_consent_keeps_the_actual_capture_purpose_and_root() {
         use source_compiler::compile_time_invocations::InvocationSourceConsent;
-        let root = PathBuf::from("/anonymous");
+        let root = std::env::temp_dir()
+            .canonicalize()
+            .unwrap()
+            .join("anonymous");
         let text = "machine local() {}";
         let tree = Arc::new(snapshot("build.omg", text.as_bytes()));
         let mut filesystem = source_capture::SourceFileSystem::default();
