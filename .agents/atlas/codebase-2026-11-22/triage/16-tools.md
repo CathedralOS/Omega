@@ -20,6 +20,13 @@
 
 Other area 16 findings still need individual dispositions.
 
+## Benchmark records
+
+| Digest line | Disposition | Evidence |
+| --- | --- | --- |
+| 166. Compiler samples summarize the first process's resources. | The plan selects `compiler_process_wall_ns`. The first observation measures that compiler. The second runs its output against the authored exit code and streams. Its resources remain available in the journal. | The [runner](../../../../tools/benchmark/src/experiment.rs) stores both processes. The [validator](../../../../tools/benchmark/src/records.rs) checks the runtime against the retained executable and recomputes the report. The [compiler fixture](../../../../tools/benchmark/tests/runner.rs) checks both observations and the compiler stage timing. |
+| 169. Replaying a completed run does not rehash the current checkout. | The runner hashes the declared inputs at measurement time. Historical comparison uses the recorded hashes. A separate replay defect allowed a missing compiler source hash, malformed hashes, and disagreement between copies of the compiler input that were required to match. Validation now rejects each case from the journal itself. | The [CLI fixture](../../../../tools/benchmark/tests/runner.rs) starts with a valid two-source comparison and alters its retained identities. On the parent, removing the source identity still passed validation. The history fixture also compares records after the live input changes. |
+
 ## Original findings still under review
 
 Sections 5 and 6 contain 67 top-level observations. The linked ranges cover each observation once in this table. Individual dispositions above apply only to their stated conditions.
