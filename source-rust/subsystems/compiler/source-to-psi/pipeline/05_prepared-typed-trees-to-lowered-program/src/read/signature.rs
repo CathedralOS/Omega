@@ -43,12 +43,14 @@ use semantic_vocabulary::{
 };
 use symbols::SymbolHandle;
 use terminal_check_tables::mathematics::{
-    Citation, Evidence, FunctionCases, Law, LawCase, LawProof, LawSplit, MathematicalSignature,
-    OperandLicense, SignatureEntry, SignatureEntryKind, SplitSubject, operand_law,
+    Citation, DeclaredLaw, Evidence, FunctionCases, Law, LawCase, LawProof, LawSplit,
+    MathematicalSignature, OperandLicense, SignatureEntry, SignatureEntryKind, SplitSubject,
+    operand_law,
 };
 use terminal_check_tables::{Checked, Construct, Refusal};
 
 use super::Program;
+use super::quotients::LiftedOperation;
 use crate::lowering::body::{
     ArmGuard, Body, CallTarget, CaseSelector, Expression, ExpressionKind, Statement, Target,
     ValueType,
@@ -405,6 +407,8 @@ enum Read {
     Cites {
         called: bool,
     },
+    /// An operation on a quotient, judged and not defined (`lifted`).
+    Lifted,
     Refused,
 }
 
@@ -744,41 +748,477 @@ impl<'p> Converter<'p, '_> {
                 ));
             }
             let related = self.constant(relation);
-            let value = |converter: &mut Self, formal: u32| converter.variable(count - 1 - formal);
-            let holds = |converter: &mut Self, left: u32, right: u32, under: u32| {
-                let (left, right) = (value(converter, left), value(converter, right));
-                let applied = converter
+            let holds = |converter: &mut Self, left: u32, right: u32| {
+                let left = converter.variable(count - 1 - left);
+                let right = converter.variable(count - 1 - right);
+                converter
                     .signature
                     .arena
-                    .apply_arguments(related, &[left, right]);
-                shift(&mut converter.signature.arena, applied, 0, under)
+                    .apply_arguments(related, &[left, right])
             };
-            let sealed = match count {
-                1 => holds(self, 0, 0, 0),
-                2 => {
-                    let (given, shown) = (holds(self, 0, 1, 0), holds(self, 1, 0, 1));
-                    self.signature.arena.insert(Term::Pi {
-                        domain: given,
-                        codomain: shown,
-                    })
-                }
-                _ => {
-                    let first = holds(self, 0, 1, 0);
-                    let second = holds(self, 1, 2, 1);
-                    let shown = holds(self, 0, 2, 2);
-                    let rest = self.signature.arena.insert(Term::Pi {
-                        domain: second,
-                        codomain: shown,
-                    });
-                    self.signature.arena.insert(Term::Pi {
-                        domain: first,
-                        codomain: rest,
-                    })
-                }
+            let (premises, goal) = match count {
+                1 => (Vec::new(), holds(self, 0, 0)),
+                2 => (vec![holds(self, 0, 1)], holds(self, 1, 0)),
+                _ => (
+                    vec![holds(self, 0, 1), holds(self, 1, 2)],
+                    holds(self, 0, 2),
+                ),
             };
-            self.signature.laws[law as usize].declared = Some(sealed);
+            let refusal = format!(
+                "the proved equality is not the `{name}` law that the quotient `{}` needs of `{}`",
+                self.name(quotient.declaration),
+                quotient.relation_name,
+            );
+            self.signature.laws[law as usize].declared = Some(DeclaredLaw {
+                premises,
+                goal,
+                refusal,
+            });
         }
         Ok(())
+    }
+
+    /// Judges a machine whose body is one `Quotient::lift` or
+    /// `Quotient::define`: an operation on a quotient given by an operation
+    /// on its representatives.
+    ///
+    /// The operation has one answer per class only if it takes related
+    /// representatives to related results, and it may be applied to a class
+    /// only if what this machine requires gives what the operation requires
+    /// of every representative. Each selected theorem must have proved
+    /// exactly the statement that says so, which is recorded on its law for
+    /// stage 06 to compare. Where `Quotient::lift` selects no transport
+    /// theorem, and for `Quotient::define`, the second statement is owed
+    /// here as a law of this machine, proved with no citation.
+    ///
+    /// Nothing is defined: a term that applies the machine is refused.
+    fn lifted(&mut self, id: MachineId, lifted: &LiftedOperation) -> Checked<()> {
+        if self
+            .begin(
+                id,
+                false,
+                "quotient operation that reaches itself through its theorems",
+            )?
+            .is_some()
+        {
+            return Ok(());
+        }
+        let outer = (
+            std::mem::take(&mut self.callable_scope),
+            std::mem::take(&mut self.held),
+        );
+        let read = self.read_lifted(id, lifted);
+        (self.callable_scope, self.held) = outer;
+        self.finish(id, false, read.map(|()| ((), Read::Lifted)))
+    }
+
+    fn lifted_operation(&self, id: MachineId) -> Option<&'p LiftedOperation> {
+        let program = self.program;
+        program
+            .lifted_operations
+            .iter()
+            .find(|(machine, _)| *machine == id)
+            .map(|(_, lifted)| lifted)
+    }
+
+    fn read_lifted(&mut self, id: MachineId, lifted: &LiftedOperation) -> Checked<()> {
+        let program = self.program;
+        let machine_of = |symbol: SymbolHandle| {
+            program
+                .symbols
+                .iter()
+                .find(|(_, known)| **known == symbol)
+                .map(|(machine, _)| machine)
+                .ok_or_else(|| {
+                    unserved(id, "quotient operation selects a machine that was not read")
+                })
+        };
+        let operation = machine_of(lifted.representative)?;
+        let lost = || unserved(id, "mathematical machine lost its signature");
+        let public = program.signatures.get(id).ok_or_else(lost)?;
+        let private = program.signatures.get(operation).ok_or_else(lost)?;
+        if !public.ensures.is_empty() || !public.membership_ensures.is_empty() {
+            return Err(unserved(
+                id,
+                "quotient operation that states a guarantee of its own",
+            ));
+        }
+        let formals = self.formals(id)?;
+        let parameters = self.formals(operation)?;
+        if lifted.arguments.len() != parameters.len() {
+            return Err(unserved(
+                id,
+                "quotient operation with the wrong number of arguments",
+            ));
+        }
+        // Each formal goes to exactly one parameter of the operation, so
+        // that every clause of either machine can be stated for the other.
+        let mut receives = vec![None; formals.len()];
+        for (parameter, &formal) in lifted.arguments.iter().enumerate() {
+            let received = receives
+                .get_mut(formal as usize)
+                .ok_or_else(|| unserved(id, "quotient operation lost one of its formals"))?;
+            if received.replace(parameter).is_some() {
+                return Err(unserved(
+                    id,
+                    "quotient operation that passes one formal twice",
+                ));
+            }
+        }
+        if receives.iter().any(Option::is_none) {
+            return Err(unserved(
+                id,
+                "quotient operation that leaves out one of the machine's formals",
+            ));
+        }
+        if lifted.define
+            && lifted
+                .arguments
+                .iter()
+                .enumerate()
+                .any(|(parameter, &formal)| parameter as u32 != formal)
+        {
+            return Err(unserved(
+                id,
+                "`Quotient::define` that reorders the machine's formals",
+            ));
+        }
+        // What a type of this machine is to the type the operation has in
+        // its place: the same type, or a quotient of it by this relation.
+        let class = |converter: &Self, outer: u32, inner: u32| -> Checked<Option<(u32, u32)>> {
+            if outer == inner {
+                return Ok(None);
+            }
+            match converter.signature.entries[outer as usize].kind {
+                SignatureEntryKind::Quotient {
+                    carrier, relation, ..
+                } if carrier == inner => Ok(Some((carrier, relation))),
+                _ => Err(unserved(
+                    id,
+                    "quotient operation whose representative takes or returns another type",
+                )),
+            }
+        };
+        let mut classes = Vec::with_capacity(parameters.len());
+        for (parameter, &formal) in lifted.arguments.iter().enumerate() {
+            classes.push(class(
+                self,
+                formals[formal as usize].1,
+                parameters[parameter].1,
+            )?);
+        }
+        let (result, result_entry) = self.ty(
+            id,
+            public
+                .result
+                .ok_or_else(|| unserved(id, "quotient operation without a result"))?,
+        )?;
+        let (_, value_entry) = self.ty(
+            operation,
+            private
+                .result
+                .ok_or_else(|| unserved(id, "quotient operation over a machine with no result"))?,
+        )?;
+        let result_class = class(self, result_entry, value_entry)?;
+        let defined = self.function(operation)?;
+        let name = self.name(lifted.representative);
+
+        // The theorems are stated for two representatives of every class
+        // and one value of every other argument, in the operation's order.
+        let paired = classes.iter().any(Option::is_some);
+        let count: u32 = classes
+            .iter()
+            .map(|class| if class.is_some() { 2 } else { 1 })
+            .sum();
+        let mut binders = Vec::with_capacity(count as usize);
+        let (mut left, mut right) = (Vec::new(), Vec::new());
+        for (class, &(ty, _)) in classes.iter().zip(&parameters) {
+            let first = self.variable(count - 1 - binders.len() as u32);
+            binders.push(ty);
+            left.push(first);
+            if class.is_some() {
+                let second = self.variable(count - 1 - binders.len() as u32);
+                binders.push(ty);
+                right.push(second);
+            } else {
+                right.push(first);
+            }
+        }
+        let sides: &[&[TermHandle]] = if paired { &[&left, &right] } else { &[&left] };
+        // What the operation requires of each side's representatives.
+        self.held.clear();
+        let mut legal = Vec::new();
+        for side in sides {
+            for clause in &private.requires {
+                let premise = self.equality(operation, clause, side, None)?;
+                legal.push(premise);
+                self.held.push(premise);
+            }
+        }
+        // Congruence: related arguments, both calls legal, related results.
+        let mut premises = Vec::new();
+        for (parameter, class) in classes.iter().enumerate() {
+            if let &Some((_, relation)) = class {
+                let related = self.constant(relation);
+                premises.push(
+                    self.signature
+                        .arena
+                        .apply_arguments(related, &[left[parameter], right[parameter]]),
+                );
+            }
+        }
+        premises.extend(&legal);
+        let function = self.constant(defined);
+        let values: Vec<_> = [&left, &right]
+            .into_iter()
+            .map(|side| self.signature.arena.apply_arguments(function, side))
+            .collect();
+        let goal = match result_class {
+            Some((_, relation)) => {
+                let related = self.constant(relation);
+                self.signature.arena.apply_arguments(related, &values)
+            }
+            None => self.signature.arena.insert(Term::Id {
+                ty: result,
+                left: values[0],
+                right: values[1],
+            }),
+        };
+        let own = self.name(*program.symbols.get(id).ok_or_else(lost)?);
+        let congruence = machine_of(lifted.congruence)?;
+        let &[law] = self.theorem(id, congruence)?.as_slice() else {
+            return Err(unserved(
+                congruence,
+                "congruence theorem of a quotient operation that states other than one law",
+            ));
+        };
+        self.seal(
+            congruence,
+            law,
+            &binders,
+            &premises,
+            goal,
+            format!(
+                "the proved equality is not the congruence `{own}` needs: from related \
+                 arguments and what `{name}` requires of each, related results of `{name}`"
+            ),
+        )?;
+
+        // What this machine requires, stated of the classes of one side.
+        let required = |converter: &mut Self, side: &[TermHandle]| -> Checked<Vec<TermHandle>> {
+            let mut actuals = Vec::with_capacity(formals.len());
+            for received in &receives {
+                let parameter = received.expect("every formal is passed, checked above");
+                actuals.push(match classes[parameter] {
+                    Some((carrier, relation)) => {
+                        let family = converter.family(carrier, relation);
+                        family.project(&mut converter.signature.arena, side[parameter])
+                    }
+                    None => side[parameter],
+                });
+            }
+            let mut clauses = Vec::with_capacity(public.requires.len());
+            for clause in &public.requires {
+                let premise = converter.equality(id, clause, &actuals, None)?;
+                clauses.push(premise);
+                converter.held.push(premise);
+            }
+            Ok(clauses)
+        };
+        if let Some(transport) = lifted.transport {
+            // Transport: what this machine requires of both sides gives
+            // each thing the operation requires, in the same order.
+            self.held.clear();
+            let mut premises = Vec::new();
+            for side in sides {
+                premises.extend(required(self, side)?);
+            }
+            let transport = machine_of(transport)?;
+            let laws = self.theorem(id, transport)?;
+            if laws.len() != legal.len() {
+                return Err(unserved(
+                    transport,
+                    "transport theorem of a quotient operation that does not state each thing its representative requires, for each side",
+                ));
+            }
+            for (law, &goal) in laws.into_iter().zip(&legal) {
+                self.seal(
+                    transport,
+                    law,
+                    &binders,
+                    &premises,
+                    goal,
+                    format!(
+                        "the proved equality is not the transport `{own}` needs: from what \
+                         `{own}` requires of each class, what `{name}` requires of its \
+                         representative"
+                    ),
+                )?;
+            }
+            return Ok(());
+        }
+        // No transport theorem: the same, for one representative of each
+        // class, owed here. `Quotient::define` owes the converse too.
+        let count = parameters.len() as u32;
+        let one: Vec<_> = (0..count)
+            .map(|parameter| self.variable(count - 1 - parameter))
+            .collect();
+        let context: Vec<_> = parameters.iter().map(|&(ty, _)| ty).collect();
+        self.held.clear();
+        let asked = required(self, &one)?;
+        let mut needed = Vec::with_capacity(private.requires.len());
+        for clause in &private.requires {
+            let premise = self.equality(operation, clause, &one, None)?;
+            needed.push(premise);
+            self.held.push(premise);
+        }
+        for &goal in &needed {
+            self.owe(
+                id,
+                &context,
+                &asked,
+                goal,
+                format!("what `{name}` requires of a representative"),
+            )?;
+        }
+        if lifted.define {
+            for &goal in &asked {
+                self.owe(
+                    id,
+                    &context,
+                    &needed,
+                    goal,
+                    format!("what `{own}` requires, from what `{name}` requires"),
+                )?;
+            }
+        }
+        Ok(())
+    }
+
+    /// The laws of a theorem a quotient operation selects: a machine with
+    /// no result.
+    fn theorem(&mut self, id: MachineId, theorem: MachineId) -> Checked<Vec<u32>> {
+        if self
+            .program
+            .signatures
+            .get(theorem)
+            .is_none_or(|signature| signature.result.is_some())
+        {
+            return Err(unserved(
+                id,
+                "quotient operation that selects a theorem with a result",
+            ));
+        }
+        self.laws(theorem)
+    }
+
+    /// Records the statement law `law` of `machine` must have proved: for
+    /// exactly `binders`, from `premises`, `goal`.
+    fn seal(
+        &mut self,
+        machine: MachineId,
+        law: u32,
+        binders: &[TermHandle],
+        premises: &[TermHandle],
+        goal: TermHandle,
+        refusal: String,
+    ) -> Checked<()> {
+        let stated = &self.signature.laws[law as usize];
+        if stated.formals.len() != binders.len()
+            || !stated
+                .formals
+                .iter()
+                .zip(binders)
+                .all(|(&formal, &binder)| self.signature.arena.structurally_equal(formal, binder))
+        {
+            return Err(unserved(
+                machine,
+                "theorem of a quotient operation over other than two representatives of each class and one value of each other argument",
+            ));
+        }
+        let arena = &self.signature.arena;
+        if stated.declared.as_ref().is_some_and(|known| {
+            known.premises.len() != premises.len()
+                || !arena.structurally_equal(known.goal, goal)
+                || !known
+                    .premises
+                    .iter()
+                    .zip(premises)
+                    .all(|(&known, &premise)| arena.structurally_equal(known, premise))
+        }) {
+            return Err(unserved(
+                machine,
+                "theorem of a quotient operation that already owes another statement",
+            ));
+        }
+        self.signature.laws[law as usize].declared = Some(DeclaredLaw {
+            premises: premises.to_vec(),
+            goal,
+            refusal,
+        });
+        Ok(())
+    }
+
+    /// A law machine `id` owes without having written it: for all
+    /// `context`, from `premises`, `goal`, proved with no citation.
+    fn owe(
+        &mut self,
+        id: MachineId,
+        context: &[TermHandle],
+        premises: &[TermHandle],
+        goal: TermHandle,
+        text: String,
+    ) -> Checked<()> {
+        let program = self.program;
+        let owner = *program
+            .symbols
+            .get(id)
+            .ok_or_else(|| unserved(id, "mathematical machine lost its declaration"))?;
+        let mut statement = self.implication(premises, goal);
+        for &variable in context.iter().rev() {
+            statement = self.signature.arena.insert(Term::Pi {
+                domain: variable,
+                codomain: statement,
+            });
+        }
+        let law = index(id, self.signature.laws.len())?;
+        index(id, self.signature.declarations.len() + 1)?;
+        let owner_name = self.name(owner);
+        let entry = self.push(
+            Declaration::assumption(0, statement),
+            SignatureEntryKind::Statement { law },
+            owner_name.clone(),
+        );
+        self.signature.laws.push(Law {
+            machine: owner,
+            clause: 0,
+            statement: entry,
+            formals: context.to_vec(),
+            premises: premises.to_vec(),
+            goal,
+            declared: None,
+            proof: LawProof::Direct(LawCase::default()),
+            formal_names: Vec::new(),
+            machine_name: owner_name,
+            text,
+            source: program.names.get(id).and_then(|names| names.declared),
+        });
+        Ok(())
+    }
+
+    /// `premises` then `goal`, each premise stated under the ones before
+    /// it. All are given under one context.
+    fn implication(&mut self, premises: &[TermHandle], goal: TermHandle) -> TermHandle {
+        let arena = &mut self.signature.arena;
+        let mut statement = shift(arena, goal, 0, premises.len() as u32);
+        for (position, &premise) in premises.iter().enumerate().rev() {
+            let domain = shift(arena, premise, 0, position as u32);
+            statement = arena.insert(Term::Pi {
+                domain,
+                codomain: statement,
+            });
+        }
+        statement
     }
 
     /// A record with no cases whose fields are all mathematical data, as the
@@ -947,6 +1387,9 @@ impl<'p> Converter<'p, '_> {
     }
 
     fn declare(&mut self, id: MachineId) -> Checked<()> {
+        if let Some(lifted) = self.lifted_operation(id) {
+            return self.lifted(id, lifted);
+        }
         let result = self
             .program
             .signatures
@@ -1052,6 +1495,12 @@ impl<'p> Converter<'p, '_> {
 
     /// A machine with a result, as a definition.
     fn function(&mut self, id: MachineId) -> Checked<u32> {
+        if self.lifted_operation(id).is_some() {
+            return Err(unserved(
+                id,
+                "term that applies an operation lifted to a quotient",
+            ));
+        }
         match self.begin(
             id,
             true,
@@ -1866,18 +2315,9 @@ impl<'p> Converter<'p, '_> {
             {
                 continue;
             }
-            let held = valuing.premises.len() as u32;
-            let arena = &mut self.signature.arena;
-            let mut statement = shift(arena, goal, 0, held);
-            for (position, &premise) in valuing.premises.iter().enumerate().rev() {
-                let domain = shift(arena, premise, 0, position as u32);
-                statement = arena.insert(Term::Pi {
-                    domain,
-                    codomain: statement,
-                });
-            }
+            let mut statement = self.implication(valuing.premises, goal);
             for &variable in valuing.context.iter().rev() {
-                statement = arena.insert(Term::Pi {
+                statement = self.signature.arena.insert(Term::Pi {
                     domain: variable,
                     codomain: statement,
                 });
@@ -2172,6 +2612,12 @@ impl<'p> Converter<'p, '_> {
     /// The laws a machine with no result states, declaring them the first
     /// time. A machine that states none only cites; it is read at its call.
     fn laws(&mut self, id: MachineId) -> Checked<Vec<u32>> {
+        if self.lifted_operation(id).is_some() {
+            return Err(unserved(
+                id,
+                "citation of an operation lifted to a quotient",
+            ));
+        }
         match self.begin(id, false, "law that reaches itself through its citations")? {
             None => {}
             Some(Read::Laws(laws)) => return Ok(laws),
@@ -2340,15 +2786,7 @@ impl<'p> Converter<'p, '_> {
             let law = index(id, self.signature.laws.len())?;
             index(id, self.signature.declarations.len() + 1)?;
             // For all formals, given a proof of each premise, the equality.
-            let arena = &mut self.signature.arena;
-            let mut statement = shift(arena, goal, 0, premises.len() as u32);
-            for (position, &premise) in premises.iter().enumerate().rev() {
-                let domain = shift(arena, premise, 0, position as u32);
-                statement = arena.insert(Term::Pi {
-                    domain,
-                    codomain: statement,
-                });
-            }
+            let mut statement = self.implication(&premises, goal);
             for &domain in formals
                 .iter()
                 .map(|(formal, _)| formal)
@@ -2379,7 +2817,12 @@ impl<'p> Converter<'p, '_> {
                     .collect(),
                 premises: premises.clone(),
                 goal,
-                declared: declared.filter(|_| clause == 0),
+                declared: declared.filter(|_| clause == 0).map(|goal| DeclaredLaw {
+                    premises: Vec::new(),
+                    goal,
+                    refusal: "the proved equality is not the law its requirement declares"
+                        .to_owned(),
+                }),
                 proof: match &proof {
                     LawProof::Fuel {
                         data,

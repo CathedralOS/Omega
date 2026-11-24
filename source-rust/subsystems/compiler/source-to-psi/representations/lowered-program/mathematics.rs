@@ -281,15 +281,33 @@ pub struct Law {
     pub premises: Vec<TermHandle>,
     /// The equality, under one binder per formal.
     pub goal: TermHandle,
-    /// The same formals' equality declared by the trait requirement this
-    /// machine satisfies, with each operation resolved to its satisfier.
-    pub declared: Option<TermHandle>,
+    /// The statement this law must be, when something other than its own
+    /// machine decides it.
+    pub declared: Option<DeclaredLaw>,
     pub proof: LawProof,
     /// For diagnostics only.
     pub formal_names: Vec<String>,
     pub machine_name: String,
     pub text: String,
     pub source: Option<SourceSpan>,
+}
+
+/// The statement a law must be: the one the trait requirement its machine
+/// satisfies declares, with each operation resolved to its satisfier, or
+/// the one owed by the declaration that selects the machine as its
+/// evidence (an equivalence of a quotient, a theorem of a quotient
+/// operation).
+#[derive(Debug, Clone)]
+pub struct DeclaredLaw {
+    /// Each premise, under one binder per formal. The law must have exactly
+    /// these and no other. Their order is not compared: a machine's
+    /// `requires` clauses are kept in canonical order, not as written.
+    pub premises: Vec<TermHandle>,
+    /// The equality, under one binder per formal.
+    pub goal: TermHandle,
+    /// What to tell the author when the law is another statement: who
+    /// needs this one. For diagnostics only.
+    pub refusal: String,
 }
 
 #[derive(Debug, Clone)]

@@ -1046,27 +1046,52 @@ fn prove_law(
     let certificate = MathematicalCertificate::with_signature(prefix, Vec::new(), proof, statement);
     let receipt =
         MathematicalJudgmentReceipt::verify(arena, &certificate, &mut check).map_err(kernel)?;
-    if let Some(declared) = law.declared {
-        // The machine satisfies a requirement: the statement it proved must
-        // be the law that requirement declares, up to the kernel's own
-        // computation.
-        let mut required = declared;
-        for &formal in law.formals.iter().rev() {
-            required = arena.insert(Term::Pi {
-                domain: formal,
-                codomain: required,
-            });
+    if let Some(declared) = &law.declared {
+        // Something other than the machine decides what it must prove: the
+        // requirement it satisfies, or the declaration that selects it. The
+        // statement it proved must be that one, up to the kernel's own
+        // computation: the same equality from the same premises, in any
+        // order.
+        let mut under = closed.clone();
+        for &formal in &law.formals {
+            under = under.extend(formal);
         }
         let universe = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
         let differs = |cause| Failure {
             case: None,
             cause,
-            detail: "the proved equality is not the law its requirement declares".to_owned(),
+            detail: declared.refusal.clone(),
         };
-        match convertible(arena, &closed, statement, required, universe, &mut check) {
-            Ok(true) => {}
-            Err(CoreError::StepCeiling) => return Err(differs(UnprovedCause::BudgetExhausted)),
-            Ok(false) | Err(_) => return Err(differs(UnprovedCause::NoDerivation)),
+        let mut same = |arena: &mut TermArena, proved, required| match convertible(
+            arena, &under, proved, required, universe, &mut check,
+        ) {
+            Ok(same) => Ok(same),
+            Err(CoreError::StepCeiling) => Err(differs(UnprovedCause::BudgetExhausted)),
+            Err(_) => Ok(false),
+        };
+        let mut unmatched = law.premises.clone();
+        let mut agrees =
+            unmatched.len() == declared.premises.len() && same(arena, law.goal, declared.goal)?;
+        for &required in &declared.premises {
+            if !agrees {
+                break;
+            }
+            let mut found = None;
+            for (position, &proved) in unmatched.iter().enumerate() {
+                if same(arena, proved, required)? {
+                    found = Some(position);
+                    break;
+                }
+            }
+            match found {
+                Some(position) => {
+                    unmatched.swap_remove(position);
+                }
+                None => agrees = false,
+            }
+        }
+        if !agrees {
+            return Err(differs(UnprovedCause::NoDerivation));
         }
     }
     let bytes =

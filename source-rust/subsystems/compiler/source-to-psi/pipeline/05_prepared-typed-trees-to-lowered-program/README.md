@@ -66,8 +66,31 @@ selects must have proved exactly the law an equivalence owes for this
 relation, so the signature records that sealed statement on the row's law
 for stage 06 to compare. A conformance whose every row is proved by a
 machine over mathematical data states laws only, and the ordinary reader
-skips it. A quotient of data that has storage is still refused, and so are
-`Quotient::lift` and `Quotient::define`. The ordinary reader refuses the same data and machines when a
+skips it. A quotient of data that has storage is still refused.
+
+An operation on a quotient is a machine whose whole body is
+`Quotient::lift::<op, respects>(..)`, `Quotient::lift::<op, respects,
+transports>(..)` or `Quotient::define::<op, respects>(..)`, with the
+machine's own formals as arguments. Its body is not lowered
+(`lifted_operation` in `read/quotients.rs`), and the signature defines
+nothing for it: a clause that applies it is refused. The signature instead
+states what makes the operation well defined and records each statement on
+the law that must have proved it (`lifted` in `read/signature.rs`):
+
+- **Congruence.** The theorem's formals are two representatives of every
+  argument that is a class and one value of every other argument, in the
+  order `op` takes them. From the relation between each pair and what `op`
+  requires of each side, the results of the two calls are related, or equal
+  when the result is not a class.
+- **Transport.** From what the operation's machine requires, stated of the
+  class of each side, each thing `op` requires of that side, one law per
+  clause. With no transport theorem the same statement is owed as a law of
+  the operation's machine, for one representative of each class and with no
+  citation; `Quotient::define` owes the converse as well.
+
+`Quotient::define` passes its formals in order. `Quotient::lift` may reorder
+them. A formal passed twice, a formal left out and an argument that is not a
+formal are refused. The ordinary reader refuses the same data and machines when a
 runtime machine reaches them. A field of any other type in such data, a
 premise on such a machine and a result together with a guarantee are refused
 as not supported yet.

@@ -4339,6 +4339,18 @@ impl<'t> Program<'t> {
             });
         }
         let (machine, state) = self.declaration(id, symbol)?;
+        // An operation on a quotient given by an operation on its
+        // representatives has nothing to lower: the signature judges the
+        // theorems it selects (`quotients`).
+        if self.mathematical
+            && let Some(lifted) = self.lifted_operation(id, state)?
+        {
+            self.lifted_operations.push((id, lifted));
+            return Ok(Body {
+                slots: signature.parameters,
+                statements: Vec::new(),
+            });
+        }
         self.scope = self.scopes.get(id).cloned().unwrap_or_default();
         self.source_scope = self.source_scopes.get(id).cloned().unwrap_or_default();
         self.const_scope = self.const_scopes.get(id).cloned().unwrap_or_default();

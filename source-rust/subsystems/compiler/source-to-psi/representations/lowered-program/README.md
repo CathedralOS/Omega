@@ -65,7 +65,9 @@ closure in `PreparedCompilation::mathematics`:
   positions the kernel fixes. The quotient itself is two entries: its
   relation as a definition over two values of the carrier, and the quotient
   type as the kernel's quotient of the carrier by that relation
-  (`Quotient`, naming both entries).
+  (`Quotient`, naming both entries). An operation on a quotient
+  (`Quotient::lift`, `Quotient::define`) has no entry; it adds the
+  statements its theorems owe.
 - **Laws**: one per `ensures` equality of a machine over such data. A law's
   proof is its body's citations, read per case when the body dispatches on a
   formal (an induction), and per case of a further value where a case splits
@@ -78,7 +80,11 @@ closure in `PreparedCompilation::mathematics`:
   premises: the statement takes a proof of each after the formals. A law's
   statement is an entry with no body. The entries before it are everything
   its proof is checked against, so a law is never its own evidence, and a law
-  another law cites comes earlier.
+  another law cites comes earlier. A law that owes a statement to something
+  else (the requirement its machine satisfies, the quotient or quotient
+  operation that selects it) carries that statement as `DeclaredLaw`: its
+  premises, its equality and the reason to give when the law states
+  something else.
 - **A law's script**: the calls its body makes, per case when it dispatches.
   A call of another law is a citation of that law's statement entry. A call
   of the law itself at a field of the dispatched case is the induction
