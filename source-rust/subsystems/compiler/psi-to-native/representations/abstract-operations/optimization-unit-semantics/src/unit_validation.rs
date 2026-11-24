@@ -6302,6 +6302,111 @@ pub(crate) mod function_structure {
             }
             expected
         }
+
+        /// Unit construction indexes every operation-owned obligation. The
+        /// validator must rebuild the same index, or a valid unit is refused
+        /// with `FactIndexMismatch` and a rewrite drops the obligation's fact.
+        #[cfg(test)]
+        mod tests {
+            use abstract_operations::{
+                AbstractBlock, AbstractFunction, AbstractFunctionResult, AbstractOperation as O,
+                AbstractResult, StructuralScalarStoreDestination,
+            };
+            use optimization_unit::{OptimizationFact, reconstruct_psi_optimization_function_seed};
+            use semantic_vocabulary::{
+                BlockId, EdgeId, IntegerSign, IntegerType, MachineId, ObligationId, OperationId,
+                PlaceId, ScalarType, StructuralTypeId, ValueId,
+            };
+            use terminal_psi::{
+                StructuralAccess, StructuralMultiplicity, StructuralOperationResult,
+                StructuralParameterDeclaration,
+            };
+
+            fn byte() -> ScalarType {
+                ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap())
+            }
+
+            #[test]
+            fn primitive_store_range_obligations_stay_in_the_rebuilt_fact_index() {
+                let destination = StructuralParameterDeclaration {
+                    place: PlaceId::new(1).unwrap(),
+                    position: 0,
+                    structural_type: StructuralTypeId::new(1).unwrap(),
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access: StructuralAccess::WriteOnlyBorrow,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                };
+                let value = AbstractResult {
+                    value: ValueId::new(1).unwrap(),
+                    scalar_type: byte(),
+                };
+                let function = AbstractFunction {
+                    machine: MachineId::new(1).unwrap(),
+                    attachment: None,
+                    entry: BlockId::new(1).unwrap(),
+                    parameters: Vec::new(),
+                    structural_parameters: vec![destination.clone()],
+                    result: AbstractFunctionResult::Unit,
+                    entry_claims: Vec::new(),
+                    block_entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    blocks: vec![AbstractBlock {
+                        block: BlockId::new(1).unwrap(),
+                        structural_parameters: Vec::new(),
+                        parameters: Vec::new(),
+                        operations: vec![
+                            O::IntegerConstant {
+                                psi_operation: OperationId::new(1).unwrap(),
+                                result: value.value,
+                                scalar_type: value.scalar_type,
+                                value: semantic_vocabulary::IntegerValue::Unsigned(7),
+                            },
+                            O::EstablishPrimitiveLocal {
+                                psi_operation: OperationId::new(2).unwrap(),
+                                result: StructuralOperationResult {
+                                    place: PlaceId::new(2).unwrap(),
+                                    structural_type: StructuralTypeId::new(2).unwrap(),
+                                    multiplicity: StructuralMultiplicity::Unrestricted,
+                                    qualifications: Vec::new(),
+                                    projected_qualifications: Vec::new(),
+                                    additional_input_qualifications: Vec::new(),
+                                    qualification_establishments: Vec::new(),
+                                    claims: Vec::new(),
+                                },
+                                value,
+                                range_obligation: Some(ObligationId::new(1).unwrap()),
+                            },
+                            O::WriteOnlyPrimitiveStore {
+                                psi_operation: OperationId::new(3).unwrap(),
+                                destination: StructuralScalarStoreDestination::Parameter(
+                                    destination,
+                                ),
+                                path: Vec::new(),
+                                value,
+                                range_obligation: Some(ObligationId::new(2).unwrap()),
+                            },
+                            O::ReturnUnit {
+                                psi_edge: EdgeId::new(1).unwrap(),
+                                cleanup_actions: Vec::new(),
+                            },
+                        ],
+                    }],
+                };
+                let function = reconstruct_psi_optimization_function_seed(&function).unwrap();
+                for (obligation, support) in [(1, 2), (2, 3)] {
+                    assert!(function.facts.contains(
+                        &OptimizationFact::OperationObligationReference {
+                            obligation: ObligationId::new(obligation).unwrap(),
+                            support: OperationId::new(support).unwrap(),
+                        }
+                    ));
+                }
+                assert_eq!(super::reconstruct_fact_index(&function), function.facts);
+                assert!(super::validate_fact_index(&function).is_ok());
+            }
+        }
     }
     mod mutable_views {
         use crate::unit_validation::structural_catalog::shared_view_declaration;
