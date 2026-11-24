@@ -214,3 +214,20 @@ contract.
 - The `routes()` widening to `[Truth]` that the same digest line reports is
   intended, as `crash_routes_are_canonical` requires
   (`declaration-encoding/src/crash_routes.rs:36`).
+
+## Validation
+
+The commands ran on branch `claude/omega-unit-038-triage-gcn9h3`, on top of
+`24ad2700685`, in a Linux x86_64 cloud container with no warm build.
+
+| Command | Result |
+| --- | --- |
+| `mbx test -p terminal-wire --lib contract_forms` with the test and no fix (`20f2a05299a`) | 1 failed: `NonCanonicalOrder("equality operands")` |
+| `mbx test -p terminal-wire --lib contract_forms` with the fix | 1 passed |
+| `mbx test -p prepared-typed-trees-to-lowered-program --lib canonical` | 4 passed |
+| `mbx clippy -p terminal-wire -p prepared-typed-trees-to-lowered-program --all-targets -- -D warnings` | clean |
+| `mbx xtask fmt --check` | exit 1. It reports 3,214 differences in files this change does not touch. `rustfmt --check` reports none in the two changed Rust files. |
+
+No end-to-end program was compiled. I found no source program whose
+crash-route guard contains an implication, and the packet rules excluded a
+global compiler rebuild.
