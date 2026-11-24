@@ -786,6 +786,7 @@ mod tests {
                 predicate_presence: language_core::DomainPredicatePresence::Absent,
                 facts: arena::HandleSpan::empty(),
                 operators: arena::HandleSpan::empty(),
+                content_projections: Vec::new(),
                 semantic_id: Default::default(),
                 semantic_roles: Default::default(),
                 establishment_routes: Vec::new(),
