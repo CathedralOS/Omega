@@ -312,13 +312,23 @@ impl Capture<'_> {
         reference: types::TypeReferenceHandle,
     ) -> Result<Handle<ProductOperandType>, String> {
         let program = self.program;
-        if program
-            .type_reference_table
-            .type_alias_applications(reference)
-            .next()
-            .is_some()
-        {
-            return Err("captured Build helper static type cannot yet retain transparent alias application obligations".into());
+        for alias in program.type_reference_table.type_alias_applications(reference) {
+            // A helper environment receives the value of an ordinary Build call.
+            // Its checked specialization owns the alias use and every supplied
+            // argument, including arguments absent from the expanded type.
+            // A closed Product snapshot has no such Build application owner.
+            if self.environment.lexical_owner.is_none() {
+                return Err("a retained Product application cannot yet carry transparent alias obligations".into());
+            }
+            if alias.instance == alias.application
+                || !program.type_reference_table.contains_type_reference(alias.application)
+                || matches!(
+                    program.type_reference_table.operand_origin(alias.application),
+                    types::TypeOperandOrigin::ProductInput(_)
+                )
+            {
+                return Err("a Build helper type alias lost its ordinary source application".into());
+            }
         }
         if let Some((_, value)) = self.types.iter().find(|(source, _)| *source == reference)
         {
