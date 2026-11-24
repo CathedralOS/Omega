@@ -400,11 +400,18 @@ pub(super) fn same_application(
     left: &SourceTypeApplication,
     right: &SourceTypeApplication,
 ) -> bool {
+    left.type_identity(typed) == right.type_identity(typed)
+        && same_substitutions(typed, left, right)
+}
+
+fn same_substitutions(
+    typed: &crate::source_state::TypedTrees,
+    left: &SourceTypeApplication,
+    right: &SourceTypeApplication,
+) -> bool {
     use crate::source_state::data::TypeParameterKind;
 
-    if left.type_identity(typed) != right.type_identity(typed)
-        || left.substitutions.len() != right.substitutions.len()
-    {
+    if left.substitutions.len() != right.substitutions.len() {
         return false;
     }
     let Some((first, _)) = left.substitutions.first() else {
@@ -706,7 +713,19 @@ impl Program<'_> {
             })?;
         let actual = self.source_record_application(data, subject, machine)?;
         let same = match &source.application {
-            Some(retained) => same_application(self.typed, retained, &actual),
+            Some(retained) => {
+                // A policy on T describes T's fields in any representation.
+                // A policy on a specific storage application still names it
+                // exactly. Paths below always use this actual record's field IDs.
+                let reference = if semantic == subject {
+                    semantic_reference(self.typed, retained.reference, machine)?
+                } else {
+                    retained.reference
+                };
+                retained.scope.type_identity(self.typed, reference)
+                    == actual.type_identity(self.typed)
+                    && same_substitutions(self.typed, retained, &actual)
+            }
             None => {
                 actual.substitutions.is_empty()
                     && self
