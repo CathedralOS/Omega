@@ -1730,6 +1730,22 @@ fn open_callback_reach_keeps_known_invocation_limits() {
         };
         let form = callback_form(&source).expect("the invocation contracts must lower");
         if permits_entry {
+            let mut foreign_ordinal = form.clone();
+            let declaration = foreign_ordinal
+                .generic_callable_declarations
+                .iter_mut()
+                .find(|row| !row.envelope.invocations.is_empty())
+                .unwrap();
+            declaration.envelope.invocations.push(
+                terminal_psi::TerminalCallableInvocation::Parameter(u32::MAX),
+            );
+            declaration.envelope.invocations.sort();
+            let refusal = judge(Ok(foreign_ordinal)).unwrap_err();
+            assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
+            assert_eq!(
+                refusal.detail,
+                "generic callable contract does not commit its complete reach dependency"
+            );
             let mut changed = form.clone();
             changed
                 .generic_callable_declarations

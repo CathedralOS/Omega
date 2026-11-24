@@ -86,3 +86,48 @@ fn selection_cannot_hide_invalid_source_or_claim_an_unimplemented_pass() {
         ],
     );
 }
+
+#[test]
+fn boolean_operands_cannot_reach_integer_ordering_in_the_optimizer() {
+    let typed = super::boundary_calls::typed(
+        "machine entry(left: bool, right: bool) -> bool { left == right }",
+    );
+    let entry = typed.machines().at(0).symbol;
+    let mut lowered = crate::lowering::elaborate_for(
+        &typed,
+        crate::lowering::Compilation {
+            declaration_metadata: &[],
+            entries: &[entry],
+            subjects: &[],
+            purpose: source_provenance::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            calling: None,
+            providers: None,
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Portable,
+    )
+    .unwrap();
+    let operation = lowered
+        .module
+        .machines
+        .iter_mut()
+        .flat_map(|m| &mut m.blocks)
+        .flat_map(|b| &mut b.operations)
+        .find(|op| matches!(op.kind, OperationKind::BooleanEqual { .. }))
+        .unwrap();
+    let OperationKind::BooleanEqual { left, right } = operation.kind else {
+        unreachable!()
+    };
+    operation.kind = OperationKind::IntegerLessThan { left, right };
+    let super::RouteVerdict::FallBack(refusal) = super::judge(Ok(lowered)).unwrap() else {
+        panic!("the original judgment must refuse integer ordering on Boolean operands");
+    };
+    assert!(
+        refusal
+            .detail
+            .contains("OperandShapeMismatch(IntegerLessThan)"),
+        "{refusal:?}"
+    );
+}
