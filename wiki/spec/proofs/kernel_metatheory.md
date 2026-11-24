@@ -487,6 +487,54 @@ exact shared-integer closure, universally quantified order laws and
 fixed-to-mathematical equality citations. Changed endpoints, forged evidence,
 mismatched conclusions and malformed wire data reject.
 
+### Assumed laws of the integer model
+
+The integer model's laws are assumptions with exact statements: believed,
+not derived. A proof that uses one lists it in its assumption closure, and
+`source_safety_roster` in `bounded_denotation.rs` returns the whole set the
+integer model declared. The bounded checker's certificates and the source
+integer search, which proves goals about data indexed by values, share
+them. The [rule for admitting an arithmetic rule](foundation.md#admitting-an-arithmetic-rule)
+governs adding one. Every variable ranges over `Int`. In the division rows
+`/` is the exact truncating quotient of the named fixed carrier, and each
+such law is declared once per carrier.
+
+| Operation | Law (code name) | Statement |
+| --- | --- | --- |
+| Order | `EqualityToLessOrEqual`, `LessThanToLessOrEqual` | `x = y → x ≤ y`; `x < y → x ≤ y` |
+| Order | the four transitivity laws | `x ≤ y → y ≤ z → x ≤ z`, and the same with `<` in either or both premises (a strict premise gives a strict conclusion) |
+| Order | the four substitution laws | an equality replaces either side of a `<` or `≤` |
+| Order | `LessOrEqualAntisymmetry` | `a ≤ b → b ≤ a → a = b` |
+| Numerals | `DoubleZero`, `NegateZero` | `double(0) = 0`; `negate(0) = 0` |
+| Numerals | `EvenBeforeOdd`, `OddBeforeNextEven`, `NegateOrder` | `double(x) < odd(x)`; `x < y → odd(x) < double(y)`; `x < y → negate(y) < negate(x)` |
+| Addition | `Monotone`, `MonotoneBoth` | `a ≤ b → a + c ≤ b + c`; `a ≤ b → c ≤ d → a + c ≤ b + d` |
+| Addition | `CancelSubtract` | `(b − c) + c = b` |
+| Addition | `ZeroRight`, `ZeroLeft` | `a + 0 = a`; `0 + a = a` |
+| Subtraction | `Zero`, `SelfZero` | `x − 0 = x`; `x − x = 0` |
+| Subtraction | `Antitone`, `LessOrEqualAntitone` | `a < b → x − b < x − a`; `a ≤ b → x − b ≤ x − a` |
+| Subtraction | `MonotoneAntitone` | `a ≤ b → d ≤ c → a − c ≤ b − d` |
+| Subtraction | `CancelAddLeft`, `CancelAddRight` | `a + c ≤ b → a ≤ b − c`; `b ≤ a + c → b − c ≤ a` |
+| Subtraction | `AddRightInverse`, `SubtractRightInverse` | `a + k = m → a = m − k`; `a − k = m → a = m + k` |
+| Multiplication | `DistributeAdd` | `s · (a + b) = s · a + s · b` |
+| Multiplication | `MonotonePositive`, `AntitoneNegative` | `a ≤ b → 1 ≤ r → a · r ≤ b · r`; `a ≤ b → r ≤ −1 → b · r ≤ a · r` |
+| Division | `DivideUpperPositive`, `DivideLowerPositive` | `0 ≤ n → 1 ≤ d → (n / d) · d ≤ n`; `n ≤ 0 → 1 ≤ d → n ≤ (n / d) · d` |
+| Division | `DivideUpperNegative`, `DivideLowerNegative` | `0 ≤ n → d ≤ −1 → (n / d) · d ≤ n`; `n ≤ 0 → d ≤ −1 → n ≤ (n / d) · d` |
+| Division | `QuotientUpperPositive`, `QuotientLowerPositive` | `1 ≤ k → a · k ≤ m → a ≤ m / k`; `1 ≤ k → m ≤ a · k → m / k ≤ a` |
+| Division | `QuotientUpperNegative`, `QuotientLowerNegative` | `k ≤ −1 → m ≤ a · k → a ≤ m / k`; `k ≤ −1 → a · k ≤ m → m / k ≤ a` |
+| Division | `DivisorCaseSplit` | every `d` satisfies one of `d ≤ −2`, `d = −1`, `d = 0`, `1 ≤ d` |
+
+Three of these were added for data indexed by values: `DistributeAdd` in
+pull request #5554, and `ZeroRight` and `ZeroLeft` in pull request #5587.
+Each names the program that needs it (`vector_bound`'s induction step
+rewrites `10 * (previous + 1)` to `10 * previous + 10`, and a tree's rank
+check bounds `left + right + 1` below by `left + 1`). Each has a test that
+evaluates its statement against computed arithmetic
+(`distribute_add_statement_agrees_with_computed_arithmetic` for every triple
+in −4..=4, `add_zero_statements_agree_with_computed_arithmetic` for every `a`
+in −8..=8), and a wrong statement beside it that must fail. They landed with
+the change that needed them, not one per pull request as the admission rule
+asks. The other laws have no such test yet.
+
 What the kernel does *not* discharge: faithfulness of the encoding to a
 *source* declaration — positivity, nominal identity and statement fidelity
 are elaboration-side obligations owned by `PROOF-CONTRACT-MIGRATION`. The
