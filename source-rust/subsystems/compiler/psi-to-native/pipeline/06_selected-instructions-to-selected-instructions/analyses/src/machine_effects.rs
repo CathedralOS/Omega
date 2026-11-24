@@ -1014,7 +1014,7 @@ mod catalog_handoff_tests {
 }
 
 #[cfg(test)]
-mod indirect_call_tests {
+pub(crate) mod indirect_call_tests {
     use std::sync::Arc;
 
     use register_environment::{
@@ -1037,7 +1037,7 @@ mod indirect_call_tests {
 
     use super::{MachineEffectError, prepared_machine_effect_catalog};
 
-    fn selected_call(
+    pub(crate) fn selected_call(
         environment: &ValidatedTargetRegisterEnvironment,
         target: NativeTarget,
         callee: NativeCallTarget,
