@@ -360,7 +360,7 @@ mod tests {
     }
 
     #[test]
-    fn a_suspending_call_retires_its_argument_home_in_the_complete_program() {
+    fn a_suspending_call_keeps_the_normal_successor_for_owned_and_copied_arguments() {
         let source = "data Ticket MARK { code: i32; } machine entry() suspends { suspend pause(Ticket { code: 3 }); } machine pause(ticket: Ticket) suspends {}";
         for marker in ["", "[copy]"] {
             let source = source.replace("MARK", marker);
@@ -373,11 +373,42 @@ mod tests {
             let view = invocation.artifact.view();
             assert!(view.pending_normal_completions().is_empty());
             let entry = &view.module().machines[0];
-            assert!(entry.blocks.iter().any(|block| {
-                block.operations.last().is_some_and(|op| op.suspension_crossing.is_some())
-                    && matches!(&block.terminator, terminal_psi::Terminator::Jump { cleanup_actions, .. }
-                        if matches!(cleanup_actions.as_slice(), [terminal_psi::TerminalAffineCleanupAction::RetireHome(_)]))
-            }));
+            let (block, call) = entry
+                .blocks
+                .iter()
+                .find_map(|block| {
+                    let call = block.operations.last()?;
+                    call.suspension_crossing.map(|_| (block, call))
+                })
+                .expect("the complete entry has one suspending call");
+            let [argument] = call.kind.structural_arguments() else {
+                panic!("the call passes the temporary Ticket");
+            };
+            let terminal_psi::Terminator::Jump {
+                target,
+                cleanup_actions,
+                ..
+            } = &block.terminator
+            else {
+                panic!("the call must reach its normal successor");
+            };
+            if marker == "[copy]" {
+                assert!(
+                    cleanup_actions.contains(
+                        &terminal_psi::TerminalAffineCleanupAction::RetireHome(argument.place)
+                    ),
+                    "{cleanup_actions:?}"
+                );
+            }
+            assert!(entry.blocks.iter().any(|next| next.id == *target
+                && matches!(next.terminator, terminal_psi::Terminator::ReturnUnit { .. })));
+            terminal_semantics::continuation::CheckedPrefix::check(
+                view.module(),
+                (entry.id, call.id),
+                view.module(),
+                (entry.id, call.id),
+            )
+            .expect("the ordinary successor agrees with the checked ownership at the call");
         }
     }
 
