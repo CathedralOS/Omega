@@ -342,8 +342,16 @@ pub(crate) fn connective(mut parts: Vec<Proposition>, conjunction: bool) -> Prop
     match parts.len() {
         0 => unit,
         1 => parts.pop().unwrap_or(unit),
-        _ if conjunction => Proposition::Conjunction(parts),
-        _ => Proposition::Disjunction(parts),
+        _ => {
+            // Arrivals retain this list. Discard storage for projections that
+            // became unit facts or duplicates before publishing its operands.
+            parts.shrink_to_fit();
+            if conjunction {
+                Proposition::Conjunction(parts)
+            } else {
+                Proposition::Disjunction(parts)
+            }
+        }
     }
 }
 
@@ -1158,6 +1166,24 @@ pub(crate) fn check<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn retained_connectives_store_their_distinct_operands() {
+        let first = Proposition::Equal(ScalarTerm::Boolean(false), ScalarTerm::Boolean(true));
+        let second = Proposition::Equal(ScalarTerm::Boolean(true), ScalarTerm::Boolean(false));
+        for conjunction in [true, false] {
+            let unit = if conjunction { Proposition::Truth } else { Proposition::Falsehood };
+            let candidates = [second.clone(), unit, first.clone(), second.clone()];
+            let parts = candidates.iter().cycle().take(4096).cloned().collect();
+            let result = connective(parts, conjunction);
+            let retained = match (conjunction, result) {
+                (true, Proposition::Conjunction(parts)) | (false, Proposition::Disjunction(parts)) => parts,
+                _ => panic!("two distinct operands must retain their connective"),
+            };
+            assert_eq!(retained, [first.clone(), second.clone()]);
+            assert!(retained.capacity() <= 2 * retained.len());
+        }
+    }
 
     #[test]
     fn structural_only_join_snapshots_keep_every_distinct_arrival() {
