@@ -138,11 +138,7 @@ fn a_read_after_distinct_bounded_writes_preserves_their_common_range() {
             "cell.value = 4294967295;",
             "main.omg:44:7",
         ),
-        (
-            "stored = 10;",
-            "stored = 4294967295;",
-            "main.omg:72:28",
-        ),
+        ("stored = 10;", "stored = 4294967295;", "main.omg:72:28"),
     ] {
         assert_eq!(source.matches(old).count(), 1, "{old}");
         let (output, report) = invoke(&source.replace(old, new), &["--check"]);
