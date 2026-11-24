@@ -268,9 +268,14 @@ pub(super) fn source_application_in_scope(
             if !crate::source_state::domain::index_argument_is_closed(typed, *argument)
                 && !scope.admits_argument(typed, *argument)
             {
-                return Err(unavailable(
-                    "record application with an unresolved argument",
+                let mut refusal = unavailable("record application with an unresolved argument");
+                refusal.detail.push_str(&format!(
+                    " `{}` for parameter `{}` of `{}`",
+                    typed.display_type_reference_with_constraints(*argument),
+                    parameter.name.as_str(),
+                    template.name.as_str(),
                 ));
+                return Err(refusal);
             }
             // Ordinary nominal identities erase regions. Do not let a new
             // byte/reference reader turn that storage key into lifetime
@@ -1817,7 +1822,9 @@ mod tests {
         ));
         let refusal = program.record_at(machine(), open).unwrap_err();
         assert!(
-            refusal.detail.contains("unresolved argument"),
+            refusal
+                .detail
+                .contains("unresolved argument `T` for parameter `T` of `Container`"),
             "{refusal:?}"
         );
     }
