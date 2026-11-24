@@ -1,0 +1,42 @@
+use windows_filesystem_paths.omg as codec;
+
+machine main() crashes Trap {
+    let mutable input: [u8; 32770];
+    input[0] = 92;
+    input[1] = 92;
+    input[2] = 63;
+    input[3] = 92;
+    input[4] = 67;
+    input[5] = 58;
+    input[6] = 92;
+    fill(@mutable input, 7);
+    input[32765] = 240;
+    input[32766] = 159;
+    input[32767] = 153;
+    input[32768] = 130;
+    input[32769] = 97;
+    let mutable output: [u16; 32768];
+    let encoded: i64 = |codec|::windows_wide_path(@input[0..32769], @mutable output);
+    transition encoded == 32768 && output[0] == 92 && output[2] == 63
+        && output[4096] == 92 && output[4097] == 97
+        && output[32765] == 55357 && output[32766] == 56898 && output[32767] == 0 {
+        true -> extra(@input, @mutable output),
+        false -> bad()
+    }
+    machine fill(input: @mutable [u8; 32770], position: u64) {
+        transition position < 32765 { true -> byte(input, position), false -> done() }
+    }
+    machine byte(input: @mutable [u8; 32770], position: u64) requires position < 32765 {
+        input[position] = component(position);
+        transition { _ -> fill(input, position + 1) }
+    }
+    machine component(position: u64) -> u8 {
+        transition position % 64 == 0 { true -> 92, false -> 97 }
+    }
+    machine extra(input: @[u8; 32770], output: @mutable [u16; 32768]) crashes Trap {
+        let too_long: i64 = |codec|::windows_wide_path(@input[..], output);
+        transition too_long == -1 { true -> done(), false -> bad() }
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

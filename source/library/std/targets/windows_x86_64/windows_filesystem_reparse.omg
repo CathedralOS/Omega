@@ -18,12 +18,12 @@ use omega\language\core\narrow_u64_to_i64_exact;
 use omega\language\core\narrow_i32_to_u64_exact;
 use omega\language\core\narrow_i64_to_u64_wrapping;
 
-machine windows_open_reparse(path: @[u16; 4096] in WindowsNativePath) -> i64 in WindowsPrivateNonalertFileOrAbsent
+machine windows_open_reparse(path: @[u16; 32768] in WindowsNativePath) -> i64 in WindowsPrivateNonalertFileOrAbsent
 reaches FilesystemMetadataQuery {
     let handle: i64 = block windows_open_reparse_handle(path);
     handle as +WindowsPrivateNonalertFileOrAbsent
 }
-machine windows_open_reparse_handle(path: @[u16; 4096] in WindowsNativePath) -> i64
+machine windows_open_reparse_handle(path: @[u16; 32768] in WindowsNativePath) -> i64
 ensures result != -1
 reaches FilesystemMetadataQuery {
     let handle: i64 = block |metadata_io|::WindowsFilesystemMetadataIo::open_attributes(path, 128, 7, 0, 3, 36700160, 0);
@@ -34,12 +34,12 @@ machine windows_filesystem_native_read_link(path: @[u8] in |paths|::Path, output
 reaches FilesystemMetadataQuery {
     transition count > 0 && count <= output.length { true -> block convert_path(path, output, count), false -> (-87) }
     machine convert_path(path: @[u8] in |paths|::Path, output: @mutable [u8], count: u64) -> i64 {
-        let mutable wide: [u16; 4096];
+        let mutable wide: [u16; 32768];
         let units: i64 = |windows_filesystem_paths|::windows_wide_path(path as - |paths|::Path, @mutable wide);
-        wide[4095] = 0;
+        wide[32767] = 0;
         transition units > 0 { true -> block open(wide as +WindowsNativePath, output, count), false -> (-87) }
     }
-    machine open(path: [u16; 4096] in WindowsNativePath, output: @mutable [u8], count: u64) -> i64 {
+    machine open(path: [u16; 32768] in WindowsNativePath, output: @mutable [u8], count: u64) -> i64 {
         let handle: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_open_reparse(@path);
         transition (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 {
             true -> block query(handle, output, count),

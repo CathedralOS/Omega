@@ -241,6 +241,25 @@ fn windows_canonicalize_preserves_a_long_resolved_path_and_short_buffers() {
 }
 
 #[test]
+fn windows_input_paths_preserve_a_surrogate_pair_at_the_native_limit() {
+    let project = Project::new("windows-input-path");
+    let library = support::repository_root().join("source/library/std/targets/windows_x86_64");
+    project.write(
+        "windows_filesystem_paths.omg",
+        &std::fs::read_to_string(library.join("windows_filesystem_paths.omg")).unwrap(),
+    );
+    project.write(
+        "main.omg",
+        include_str!("fixtures/filesystem/run/windows_input_path/main.omg"),
+    );
+    project.write("build.omg", &build());
+    both_zero(project.observe(
+        &["run", "--both", "--psi-work-budget", "80000000"],
+        "build.omg",
+    ));
+}
+
+#[test]
 fn portable_filesystem_public_calls_preserve_neighboring_bytes() {
     // The fixture's own Build declares its standard-library edge. The program
     // runs in a scratch directory, where it creates and removes its files.

@@ -51,7 +51,7 @@ data WindowsNativeFileAttributeTagInfo { attributes: u32; reparse_tag: u32; }
 
 boundary trait WindowsFilesystemMetadataIo {
     machine file_type(handle: i64) -> u32 reaches FilesystemMetadataQuery blocks crashes none;
-    machine open_attributes(path: @[u16; 4096] in |win_io|::WindowsNativePath, desired_access: u32, sharing: u32, security: u64, disposition: u32, flags: u32, template: u64) -> i64
+    machine open_attributes(path: @[u16; 32768] in |win_io|::WindowsNativePath, desired_access: u32, sharing: u32, security: u64, disposition: u32, flags: u32, template: u64) -> i64
     requires desired_access == 128 && sharing == 7 && security == 0 && disposition == 3
         && (flags == 34603008 || flags == 36700160) && template == 0
     reaches FilesystemMetadataQuery blocks

@@ -16,11 +16,11 @@ use omega\language\core\narrow_i64_to_u64_wrapping;
 
 machine windows_filesystem_native_canonicalize(path: @[u8] in |paths|::Path, output: @mutable [u8]) -> i32
 reaches FilesystemMetadataQuery {
-    let mutable wide: [u16; 4096];
+    let mutable wide: [u16; 32768];
     let count: i64 = |windows_filesystem_paths|::windows_wide_path(path as - |paths|::Path, @mutable wide);
-    wide[4095] = 0;
+    wide[32767] = 0;
     transition count > 0 { true -> block open(wide as +WindowsNativePath, output), false -> (-87) }
-    machine open(path: [u16; 4096] in WindowsNativePath, output: @mutable [u8]) -> i32 {
+    machine open(path: [u16; 32768] in WindowsNativePath, output: @mutable [u8]) -> i32 {
         let handle: i64 = block |metadata_io|::WindowsFilesystemMetadataIo::open_attributes(@path, 128, 7, 0, 3, 34603008, 0);
         transition handle != 0 && handle != -1 {
             true -> block query(handle, output),
