@@ -1,0 +1,36 @@
+trait Checks { machine modify(view: @mutable Registers) crashes Trap; }
+data Registers { status: u32; transmit: u8; }
+
+machine edit(view: @mutable Registers) satisfies Checks::modify {
+    transition view.status == 41u32 && view.transmit == 3u8 {
+        true -> write_value(view),
+        _ -> fail()
+    }
+    machine write_value(view: @mutable Registers) { view.transmit = 9u8; }
+    machine fail() crashes Trap { crash Trap; }
+}
+
+machine second(view: @mutable Registers) satisfies Checks::modify {
+    transition view.status == 41u32 && view.transmit == 3u8 {
+        true -> write_value(view),
+        _ -> fail()
+    }
+    machine write_value(view: @mutable Registers) { view.transmit = 10u8; }
+    machine fail() crashes Trap { crash Trap; }
+}
+
+machine registers_fixture<machine Test>()
+requires machine Test(view: @mutable Registers) crashes Trap;
+crashes Trap
+{
+    let mutable fixture: Registers = Registers { status: 41u32, transmit: 3u8 };
+    Test(@mutable fixture);
+    transition fixture.transmit == 9u8 || fixture.transmit == 10u8 {
+        true -> done(),
+        _ -> fail()
+    }
+    machine done() {}
+    machine fail() crashes Trap { crash Trap; }
+}
+
+machine main() {}

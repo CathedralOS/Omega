@@ -28,7 +28,7 @@ pub(super) fn prepare_and_judge(
     chosen_defaults: &[crate::compile_product::provider_settlement::ChosenDefaultLayout],
 ) -> Result<JudgedSource, Vec<Diagnostic>> {
     let build = &pass.inputs;
-    let root_bindings = &pass.root_bindings;
+    let nominees = pass.roots.layout_origins(&typed)?;
     // A library is judged where it is demanded, not wholesale. Every native
     // supply this package's own Build declares needs its exact boundary and
     // signature for calling-policy validation and trust disclosure, even
@@ -49,16 +49,17 @@ pub(super) fn prepare_and_judge(
         .collect::<Vec<_>>();
     let layout_scopes = layout_target_scopes(
         &typed,
-        root_bindings,
+        &nominees,
         &pass.explicit_providers,
         chosen_defaults,
         &claimed_selections,
         build.targets,
     )?;
-    let external_roots = program_roots(root_bindings);
+    let direct = pass.roots.direct();
+    let external_roots = program_roots(direct);
     let bindings = crate::compile_product::entry_shapes::bound_program_entry_shapes(
         &typed,
-        root_bindings,
+        direct,
         build.targets,
         build.calling_targets,
     )?;
@@ -68,16 +69,17 @@ pub(super) fn prepare_and_judge(
         selected.extend(scope.entry_declarations.iter().copied());
     }
     let subject = pass.inputs.subject;
-    selected.extend(
+    let claimed_declarations = || {
         claimed
             .iter()
-            .flat_map(|supply| [supply.selection.subject, supply.selection.requirement]),
-    );
+            .flat_map(|supply| [supply.selection.subject, supply.selection.requirement])
+    };
+    selected.extend(claimed_declarations());
     // Opaque representations enter the source frontier when a value requires them.
 
     let source_admission = prepare_typed_source::SourceAdmission {
         invocation_sources: None,
-        entry_applications: &[],
+        entry_applications: pass.roots.applications(),
         // Roots belong to structural judgment below, rather than to a deleted
         // source-checking admission or projection.
         external_roots: &[],
@@ -111,10 +113,7 @@ pub(super) fn prepare_and_judge(
         let profile = crate::compile_product::source_targets::target_named(build.targets, name)
             .map_err(|error| vec![error])?;
         let slot_name = format!("{}::ProgramEntry", profile.entry.owner);
-        if !root_bindings
-            .iter()
-            .any(|binding| binding.slot == slot_name)
-        {
+        if !nominees.iter().any(|binding| binding.slot == slot_name) {
             continue;
         }
         let catalog = entry_catalog.get_or_insert_with(|| {
@@ -174,6 +173,24 @@ pub(super) fn prepare_and_judge(
         }
     };
     let program = prepared.trees();
+    let specialized = pass.roots.specialized(&prepared)?;
+    let root_bindings = if let Some(entry) = &specialized {
+        // Preparation needs both authored bodies' constants and layouts. The
+        // executable closure follows the closed entry's actual calls.
+        roster.selected.clear();
+        roster.selected.extend(claimed_declarations());
+        let bindings = std::slice::from_ref(entry);
+        roster.entries = program_roots(bindings);
+        roster.bindings = crate::compile_product::entry_shapes::bound_program_entry_shapes(
+            program,
+            bindings,
+            build.targets,
+            build.calling_targets,
+        )?;
+        bindings
+    } else {
+        direct
+    };
     let mut provider_defaults = crate::compile_product::provider_choices::retain_provider_defaults(
         ProviderPlanningContext::new(program, source_provenance::DependencyScope::Product),
     )?;

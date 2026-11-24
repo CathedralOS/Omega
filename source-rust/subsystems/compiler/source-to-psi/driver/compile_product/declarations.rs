@@ -220,16 +220,27 @@ fn admit_test_groups(
     if formations.of(operation).next().is_none() && events.peek().is_none() {
         return Ok(Vec::new());
     }
-    let declarations = ProductDeclarationLookup::new(typed, &[ProductOperandRole::TestRequirement]);
+    let roles: &[_] = if formations
+        .of(operation)
+        .any(|formation| formation.request.operands.len() == 2)
+    {
+        &[
+            ProductOperandRole::TestRequirement,
+            ProductOperandRole::CheckedMachine,
+        ]
+    } else {
+        &[ProductOperandRole::TestRequirement]
+    };
+    let declarations = ProductDeclarationLookup::new(typed, roles);
     for formation in formations.of(operation) {
-        test_group_requirement(typed, &declarations, formation.request)?;
+        test_group_operands(typed, &declarations, formation.request)?;
     }
     let authors = ProductRequestAuthors::new(typed);
     let mut groups = Vec::<TestGroupRegistration>::new();
     for (ordinal, event) in events.enumerate() {
         let formation = formations.executed(typed, &authors, activation, event, "test group")?;
         let request = formation.request;
-        let requirement = test_group_requirement(typed, &declarations, request)?;
+        let (requirement, adapter) = test_group_operands(typed, &declarations, request)?;
         let operand = &event.request.operands[0];
         let closed_requirement = if operand.application.is_some() {
             let application = typed
@@ -267,6 +278,7 @@ fn admit_test_groups(
             })?,
             requirement,
             closed_requirement,
+            adapter,
             selecting_machine: formation.author,
             source_span: typed.symbols.rejoin_product_occurrence(request.source_span),
             origin: super::declaration_lookup::capture_build_selection_origin(
@@ -286,16 +298,20 @@ fn admit_test_groups(
     Ok(groups)
 }
 
-fn test_group_requirement(
+fn test_group_operands(
     typed: &TypedTrees,
     declarations: &ProductDeclarationLookup<'_>,
     request: &ProductDeclarationRequest,
-) -> Result<SymbolHandle, Vec<Diagnostic>> {
-    let [operand] = request.operands.as_ref() else {
-        return Err(refuse(
-            request,
-            "test group registration requires one requirement operand",
-        ));
+) -> Result<(SymbolHandle, Option<SymbolHandle>), Vec<Diagnostic>> {
+    let (operand, adapter) = match request.operands.as_ref() {
+        [requirement] => (requirement, None),
+        [requirement, adapter] => (requirement, Some(adapter)),
+        _ => {
+            return Err(refuse(
+                request,
+                "test group registration requires a requirement and an optional adapter machine",
+            ));
+        }
     };
     let Some(requirement) = declarations.resolve(
         &operand.path,
@@ -325,7 +341,27 @@ fn test_group_requirement(
             "a test group must name its complete concrete trait requirement application",
         ));
     }
-    Ok(requirement)
+    let adapter = adapter
+        .map(|operand| {
+            if operand.application.is_none()
+                && let Some(machine) = declarations.resolve(
+                    &operand.path,
+                    operand.source_span,
+                    ProductOperandRole::CheckedMachine,
+                )
+            {
+                return Ok(machine);
+            }
+            Err(refuse(
+                request,
+                format!(
+                    "test group operand `{}` must name one visible adapter machine with a body",
+                    operand.path
+                ),
+            ))
+        })
+        .transpose()?;
+    Ok((requirement, adapter))
 }
 
 fn audit_service(
