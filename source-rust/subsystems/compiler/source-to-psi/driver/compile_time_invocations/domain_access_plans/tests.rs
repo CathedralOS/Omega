@@ -976,11 +976,16 @@ fn actual_access_plan_normalization_preserves_rules_and_authenticates_descriptio
             .observations
             .iter()
             .any(|(region, demand)| *region == member
-                && demand.is_some_and(|(model, permissions, exposure)| model
-                    == access_vocabulary::ObservationModel::Stable
-                    && permissions.read
-                    && !permissions.write
-                    && exposure == access_vocabulary::AccessExposure::Exported))
+                && *demand
+                    == Some((
+                        access_vocabulary::ObservationDemand::Stable {
+                            read: true,
+                            take: true,
+                            write: false,
+                            swap: true,
+                        },
+                        access_vocabulary::AccessExposure::Exported,
+                    )))
     );
 
     let transport = typed

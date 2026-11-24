@@ -1,5 +1,5 @@
-use access_vocabulary::AccessPermissions;
 use access_vocabulary::AtomicPermissions as DomainAtomicPermissions;
+use access_vocabulary::{AccessPermissions, ObservationDemand};
 
 use crate::CodecError;
 use crate::fields::{
@@ -50,11 +50,7 @@ type Caller = (
     schema_reflection::CallableDescription,
     StructuralEstablishmentRoute,
 );
-type Observation = Option<(
-    access_vocabulary::ObservationModel,
-    access_vocabulary::AccessPermissions,
-    access_vocabulary::AccessExposure,
-)>;
+type Observation = Option<(ObservationDemand, access_vocabulary::AccessExposure)>;
 
 wire_record! {
     Permissions: AccessPermissions {
@@ -103,13 +99,10 @@ struct DomainObservation;
 impl Field<Observation> for DomainObservation {
     fn write(writer: &mut Writer, value: &Observation) -> Result<(), CodecError> {
         writer.boolean(value.is_some());
-        if let Some((model, permissions, exposure)) = value {
-            writer.u8(match model {
-                access_vocabulary::ObservationModel::Stable => 0,
-                access_vocabulary::ObservationModel::External => 1,
-                access_vocabulary::ObservationModel::Atomic => 2,
-            });
-            Permissions::write(writer, permissions)?;
+        if let Some((demand, exposure)) = value {
+            let (family, permissions) = demand.stored_permissions();
+            writer.u8(family);
+            Permissions::write(writer, &permissions)?;
             writer.u8(match exposure {
                 access_vocabulary::AccessExposure::Exported => 0,
                 access_vocabulary::AccessExposure::BindingPrivate => 1,
@@ -121,19 +114,19 @@ impl Field<Observation> for DomainObservation {
         if !reader.boolean()? {
             return Ok(None);
         }
-        let model = match reader.u8()? {
-            0 => access_vocabulary::ObservationModel::Stable,
-            1 => access_vocabulary::ObservationModel::External,
-            2 => access_vocabulary::ObservationModel::Atomic,
-            tag => return Err(CodecError::InvalidTag("domain observation", tag)),
-        };
-        let permissions = Permissions::read(reader)?;
+        let family = reader.u8()?;
+        let demand = ObservationDemand::from_stored_permissions(family, Permissions::read(reader)?)
+            .ok_or_else(|| {
+                CodecError::AccessPlan(
+                    "operations do not belong to the field observation family".into(),
+                )
+            })?;
         let exposure = match reader.u8()? {
             0 => access_vocabulary::AccessExposure::Exported,
             1 => access_vocabulary::AccessExposure::BindingPrivate,
             tag => return Err(CodecError::InvalidTag("domain observation exposure", tag)),
         };
-        Ok(Some((model, permissions, exposure)))
+        Ok(Some((demand, exposure)))
     }
 }
 struct DomainAccess;
@@ -248,4 +241,48 @@ pub fn encode_structural_domain_declaration(
     let mut writer = Writer::default();
     Domain::write(&mut writer, declaration)?;
     Ok(writer.finish())
+}
+
+#[cfg(test)]
+mod observation_tests {
+    use super::*;
+    use access_vocabulary::AccessExposure;
+
+    #[test]
+    fn stable_operations_round_trip_independently_in_psi() {
+        for mask in 0u8..16 {
+            let observation = Some((
+                ObservationDemand::Stable {
+                    read: mask & 1 != 0,
+                    take: mask & 2 != 0,
+                    write: mask & 4 != 0,
+                    swap: mask & 8 != 0,
+                },
+                AccessExposure::BindingPrivate,
+            ));
+            let mut writer = Writer::default();
+            DomainObservation::write(&mut writer, &observation).unwrap();
+            let bytes = writer.finish();
+            assert_eq!(
+                DomainObservation::read(&mut Reader::new(&bytes)).unwrap(),
+                observation
+            );
+        }
+
+        // The existing Stable read encoding remains valid. Its ordinary
+        // read flag cannot be interpreted as an atomic operation.
+        let mut original = [0u8; 18];
+        original[0] = 1;
+        original[2] = 1;
+        let observation = DomainObservation::read(&mut Reader::new(&original)).unwrap();
+        let mut writer = Writer::default();
+        DomainObservation::write(&mut writer, &observation).unwrap();
+        assert_eq!(writer.finish(), original);
+
+        original[1] = 2;
+        assert!(DomainObservation::read(&mut Reader::new(&original)).is_err());
+        original[1] = 1;
+        original[3] = 1;
+        assert!(DomainObservation::read(&mut Reader::new(&original)).is_err());
+    }
 }

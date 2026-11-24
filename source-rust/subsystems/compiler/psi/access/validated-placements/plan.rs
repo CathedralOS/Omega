@@ -23,11 +23,7 @@ pub struct AccessPlan<
     /// Inaccessible, Stable, External or Atomic supply.
     pub observations: Vec<(
         Region,
-        Option<(
-            crate::ObservationModel,
-            crate::AccessPermissions,
-            crate::AccessExposure,
-        )>,
+        Option<(crate::ObservationDemand, crate::AccessExposure)>,
     )>,
     pub reach: BoundaryReach,
 }
@@ -164,7 +160,7 @@ pub fn normalize_access_plan(mut plan: AccessPlan) -> Result<AccessPlan, AccessP
                 AccessPlanDiagnostic("an observation demand has no exact semantic field".into())
             })?;
         let field = fields[index].1;
-        if field.erased && demand.is_some_and(|(_, permissions, _)| permissions.any()) {
+        if field.erased && demand.is_some_and(|(operations, _)| operations.any()) {
             return Err(AccessPlanDiagnostic(
                 "an erased field has no physical observation or operation".into(),
             ));

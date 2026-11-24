@@ -6,6 +6,7 @@ mod boundary_reach;
 mod diagnostic;
 mod fields;
 mod normalized_identity;
+mod observation;
 mod resources;
 pub use access_operations::{AccessOperation, AtomicAccessOperation, BorrowPolarity};
 pub use boundary_reach::{BoundaryReach, BoundaryServiceReachId};
@@ -15,6 +16,7 @@ pub use fields::{
     ObservationModel,
 };
 pub(crate) use normalized_identity::normalized_identity;
+pub use observation::ObservationDemand;
 pub use resources::{
     AtomicCapability, AtomicTransferRule, ExternalCapability, ExternalReadBehavior,
     PeerWritability, ResourceProfile, ResourceRegion, StableCapability, TransferRule,

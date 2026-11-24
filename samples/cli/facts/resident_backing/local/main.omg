@@ -46,11 +46,11 @@ machine WordPlacement::plan(schema: Schema) -> AccessPlan {
     entries[2] = FieldEntry { key: schema.fields[2].key, representation: FieldPlan::At { offset: 16 } };
     let layout: LayoutPlan = LayoutPlan { entries: entries, entry_count: 3, size_fixed: 24, size_is_dynamic: false, align: 8 };
     let first: AccessPlan = AccessPlan::with(AccessPlan::inaccessible(layout), schema.fields[0].key,
-        FieldAccess::Stable { read: true, write: true, exposure: Exposure::Exported });
+        FieldAccess::Stable { read: true, take: false, write: true, swap: false, exposure: Exposure::Exported });
     let second: AccessPlan = AccessPlan::with(first, schema.fields[1].key,
-        FieldAccess::Stable { read: true, write: true, exposure: Exposure::Exported });
+        FieldAccess::Stable { read: true, take: false, write: true, swap: false, exposure: Exposure::Exported });
     AccessPlan::with(second, schema.fields[2].key,
-        FieldAccess::Stable { read: true, write: true, exposure: Exposure::Exported })
+        FieldAccess::Stable { read: true, take: false, write: true, swap: false, exposure: Exposure::Exported })
 }
 
 MemorySupply satisfies ResourceProfileSupply<TestMemory> {

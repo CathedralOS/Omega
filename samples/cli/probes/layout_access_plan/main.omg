@@ -1,6 +1,6 @@
 // Layout access plans: `AccessPlan::inaccessible(layout)` seeds a deny-all
 // plan per distinct layout field key; `AccessPlan::with(plan, key,
-// FieldAccess::Stable { read, write, exposure })` functionally replaces
+// FieldAccess::Stable { read, take, write, swap, exposure })` functionally replaces
 // only the permissions meant to be exposed.
 //
 //   * `use omega\language\core\layout` imports depend-free.
@@ -50,7 +50,9 @@ satisfies AccessPolicy::plan
             schema.fields[0].key,
             FieldAccess::Stable {
                 read: true,
+                take: false,
                 write: false,
+                swap: false,
                 exposure: Exposure::Exported
             }
         )

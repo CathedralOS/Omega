@@ -56,7 +56,7 @@ machine construct_observed_plan<'text>(
     access\allow_writers(@mutable plan,
         AccessRegion::Field { field: reflect\field(RuleCell::value) }, []);
     access\observe(@mutable plan, reflect\field(RuleCell::value),
-        FieldAccess::Stable { read: true, write: false, exposure: Exposure::Exported });
+        FieldAccess::Stable { read: true, take: true, write: false, swap: true, exposure: Exposure::Exported });
     access\observe(@mutable plan, reflect\field(RuleCell::value), FieldAccess::Inaccessible);
     plan
 }

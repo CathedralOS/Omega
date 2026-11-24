@@ -29,7 +29,7 @@ machine StablePlacement::plan(schema: Schema) -> AccessPlan {
                        size_is_dynamic: false, align: 8 };
     let access: AccessPlan = AccessPlan::with(
         AccessPlan::inaccessible(layout), schema.fields[0].key,
-        FieldAccess::Stable { read: true, write: PermitWrite, exposure: Exposure::Exported }
+        FieldAccess::Stable { read: true, take: false, write: PermitWrite, swap: false, exposure: Exposure::Exported }
     );
     let mutable services: [u64; 32];
     AccessPlan::with_reach(
