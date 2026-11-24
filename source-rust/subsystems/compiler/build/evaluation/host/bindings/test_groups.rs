@@ -12,17 +12,36 @@ use terminal_interpreter::{
 
 pub(super) struct RegisteredTestGroup {
     selection: ExecutedProductSelection,
+    providers: Vec<ExecutedProductSelection>,
     disabled: TerminalInvocationScalar,
     _storage: Option<evaluation_accounting::EvaluationStorageLease>,
 }
 
 impl RegisteredTestGroup {
+    pub(super) fn owns_settings(&self, backing: &dyn TerminalScalarBacking) -> bool {
+        self.disabled.shares_storage(backing)
+    }
+
+    pub(super) fn select_provider(
+        &mut self,
+        provider: ExecutedProductSelection,
+    ) -> Result<(), TerminalEffectRejection> {
+        self.providers.try_reserve(1).map_err(|_| {
+            TerminalEffectRejection::new("cannot retain test group provider selection")
+        })?;
+        self.providers.push(provider);
+        Ok(())
+    }
+
     pub(super) fn finish(mut self) -> Result<ExecutedBuildSelection, String> {
         let TerminalScalarValue::Boolean(disabled) = self.disabled.read().map_err(|e| e.reason)?
         else {
             return Err("test group lost its boolean setting".into());
         };
-        self.selection.test_group = Some(TestGroupConfiguration { disabled });
+        self.selection.test_group = Some(TestGroupConfiguration {
+            disabled,
+            providers: self.providers,
+        });
         Ok(ExecutedBuildSelection::Declaration(self.selection))
     }
 }
@@ -60,11 +79,15 @@ impl GroupShape {
         })
     }
 
+    pub(super) fn disabled_path(&self) -> [CanonicalStructuralPathSegment; 1] {
+        [CanonicalStructuralPathSegment::Field(self.disabled)]
+    }
+
     fn issue(
         &self,
         disabled: TerminalInvocationScalar,
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        let path = vec![CanonicalStructuralPathSegment::Field(self.disabled)];
+        let path = self.disabled_path().to_vec();
         Ok(TerminalEffectResult::Reference(TerminalReferenceResult {
             referent: TerminalReferencePayload::Resident {
                 aggregate: TerminalAggregateValue::from_scalars(
@@ -134,6 +157,7 @@ impl TerminalBuildBindingHost {
                     target: None,
                     composition: None,
                 },
+                providers: Vec::new(),
                 disabled,
                 _storage: storage,
             }));

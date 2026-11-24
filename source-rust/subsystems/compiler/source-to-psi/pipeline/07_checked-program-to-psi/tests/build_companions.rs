@@ -1315,7 +1315,7 @@ fn a_case_value_pattern_cannot_discard_its_applied_type() {
 fn provider_selection_prelude() -> String {
     native_binding_prelude().replace(
         "machine bind(activation: u64) reaches none crashes none;",
-        "machine bind(activation: u64) reaches none crashes none;\n    machine select_provider(activation: u64, target: u64, independent: bool) reaches none crashes none;\n    machine select_provider_option<Value>(activation: u64, option: Value) reaches none crashes none;",
+        "machine bind(activation: u64) reaches none crashes none;\n    machine select_provider<Value>(activation: u64, target: u64, option: Value) reaches none crashes none;\n    machine select_provider_option<Value>(activation: u64, option: Value) reaches none crashes none;",
     )
 }
 

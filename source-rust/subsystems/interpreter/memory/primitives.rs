@@ -5558,6 +5558,13 @@ pub(crate) mod scalar_storage {
     pub struct TerminalInvocationScalar(std::sync::Arc<std::sync::Mutex<TerminalScalarValue>>);
 
     impl TerminalInvocationScalar {
+        /// Check the original cell lent by this invocation after guest reborrows.
+        pub fn shares_storage(&self, backing: &dyn TerminalScalarBacking) -> bool {
+            (backing as &dyn std::any::Any)
+                .downcast_ref::<Self>()
+                .is_some_and(|other| std::sync::Arc::ptr_eq(&self.0, &other.0))
+        }
+
         pub fn new(value: TerminalScalarValue) -> Result<Self, TerminalEffectRejection> {
             if value.literal().is_none() || !terminal_scalar_belongs_to_type(value) {
                 return Err(TerminalEffectRejection::new(

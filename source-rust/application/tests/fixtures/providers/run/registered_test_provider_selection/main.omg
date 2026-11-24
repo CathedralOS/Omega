@@ -2,10 +2,19 @@ use test_provider_kit\Reading;
 
 trait Tests {
     machine reading() reaches none crashes Trap;
+    machine sibling() reaches none crashes Trap;
 }
 
-machine test_uses_default()
+machine selected_group_uses_override()
 satisfies Tests::reading
+reaches none
+crashes Trap
+{
+    expect(41u8);
+}
+
+machine sibling_uses_default()
+satisfies Tests::sibling
 reaches none
 crashes Trap
 {

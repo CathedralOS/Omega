@@ -24,13 +24,14 @@ fn compare_registered_tests(fixture: &str) -> (TemporaryDirectory, Output) {
 }
 
 #[test]
-fn the_registered_test_uses_the_default_and_the_application_uses_its_override() {
+fn a_group_override_applies_only_to_that_group() {
     let (outputs, build) = compare_registered_tests("run/registered_test_provider_selection");
     let stderr = String::from_utf8_lossy(&build.stderr);
     assert!(build.status.success(), "{stderr}");
     assert!(
-        stderr.contains("test `test_uses_default` in group `Tests::reading`")
-            && stderr.contains("native/Psi comparison agrees"),
+        stderr.contains("test `selected_group_uses_override` in group `Tests::reading`")
+            && stderr.contains("test `sibling_uses_default` in group `Tests::sibling`")
+            && stderr.matches("native/Psi comparison agrees").count() == 2,
         "{stderr}"
     );
     let application = Command::new(outputs.path().join("omega-program"))
@@ -58,6 +59,18 @@ fn ungranted_host_bindings_are_refused_before_the_registered_tests_run() {
         stderr.contains("test `test_needs_file_write` in group `Tests::host` cannot be produced")
             && stderr.contains("isolated execution has no FilesystemContentWrite grant")
             && stderr.contains("HostFile"),
+        "{stderr}"
+    );
+    assert!(!outputs.path().join("omega-program").exists());
+}
+
+#[test]
+fn provider_selection_requires_the_group_issued_by_this_build() {
+    let (outputs, build) = compare_registered_tests("fail/unissued_test_group_provider");
+    let stderr = String::from_utf8_lossy(&build.stderr);
+    assert!(!build.status.success(), "{stderr}");
+    assert!(
+        stderr.contains("provider selection requires a TestGroup issued by this Build activation"),
         "{stderr}"
     );
     assert!(!outputs.path().join("omega-program").exists());

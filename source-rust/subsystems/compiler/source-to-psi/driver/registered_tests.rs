@@ -17,12 +17,11 @@ pub struct TestRoot {
 }
 
 impl TestRoot {
-    pub(super) fn bind(
+    pub(super) fn registration<'a>(
         &self,
         typed: &TypedTrees,
-        groups: &[TestGroupRegistration],
-        target: &str,
-    ) -> Result<RootBinding, Vec<Diagnostic>> {
+        groups: &'a [TestGroupRegistration],
+    ) -> Result<&'a TestGroupRegistration, Vec<Diagnostic>> {
         let group = source_symbols::rejoin_declaration(
             &self.group_declaration,
             &typed.symbols,
@@ -38,14 +37,23 @@ impl TestRoot {
                 .map(|g| g.selecting_machine),
         )
         .map_err(|why| vec![Diagnostic::error(why)])?;
-        let registration = groups
+        groups
             .iter()
             .find(|g| g.requirement == group && g.selecting_machine == owner)
             .ok_or_else(|| {
                 vec![Diagnostic::error(
                     "registered test lost its Build selection",
                 )]
-            })?;
+            })
+    }
+
+    pub(super) fn bind(
+        &self,
+        typed: &TypedTrees,
+        groups: &[TestGroupRegistration],
+        target: &str,
+    ) -> Result<RootBinding, Vec<Diagnostic>> {
+        let registration = self.registration(typed, groups)?;
         let implementation = source_symbols::rejoin_declaration(
             &self.declaration,
             &typed.symbols,

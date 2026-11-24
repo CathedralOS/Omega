@@ -456,9 +456,13 @@ fn binding(
                 shapes,
             )?))
         }
-        TerminalBuildBindingOperation::SelectProviderOption => {
-            Some(provider_option(accepted, call.site.boundary, module)?)
-        }
+        TerminalBuildBindingOperation::SelectProviderOption
+        | TerminalBuildBindingOperation::SelectProvider => Some(provider_option(
+            accepted,
+            call.site.boundary,
+            module,
+            action == TerminalBuildBindingOperation::SelectProvider,
+        )?),
         _ => None,
     };
     Ok(TerminalBuildBindingCall {
@@ -621,25 +625,53 @@ fn capture_declared_inputs(
     Ok(())
 }
 
-/// The two-argument source call accepts exactly these two nominal prelude enums.
-/// Read the concrete signature after ordinary expression typing and retain its checked case IDs.
+/// Resolve the evaluated option from its concrete prelude declaration. A named
+/// target may be followed by a composition mode or an issued group loan.
 fn provider_option(
     accepted: &AcceptedTerminalSource,
     boundary: BoundaryMachineId,
     module: &TerminalModule,
+    targeted: bool,
 ) -> Result<TerminalBuildBindingOperand, Diagnostic> {
     use semantic_vocabulary::source_selections::{CompositionMode, ProductTarget};
 
-    const EXPECTED: &str =
-        "a provider selection option must be the toolchain BuildTarget or CompositionMode";
-    let record = owned_binding_operand(accepted, boundary, module, EXPECTED)?;
+    let expected = if targeted {
+        "a targeted provider selection requires CompositionMode or an issued TestGroup"
+    } else {
+        "a provider selection option must be the toolchain BuildTarget or CompositionMode"
+    };
+    if targeted {
+        let signature = module
+            .boundary_machine(boundary)
+            .ok_or_else(|| refused("targeted provider selection lost its checked signature"))?;
+        if let [parameter] = signature.structural_parameters.as_slice()
+            && parameter.access != terminal_psi::StructuralAccess::Owned
+        {
+            let referent = parameter.structural_type;
+            let mut owners = accepted
+                .correspondence()
+                .records
+                .iter()
+                .filter(|row| row.record == referent);
+            let symbols = &accepted.source().symbols;
+            if owners.next().is_some_and(|owner| {
+                symbols.is_build_prelude_symbol(owner.declaration)
+                    && symbols.name(owner.declaration) == "TestGroupSettings"
+            }) && owners.next().is_none()
+            {
+                return Ok(TerminalBuildBindingOperand::TestGroup { referent });
+            }
+            return Err(refused(expected));
+        }
+    }
+    let record = owned_binding_operand(accepted, boundary, module, expected)?;
     let structural_type = record.record;
     let symbols = &accepted.source().symbols;
     let name = symbols.name(record.declaration);
     if !symbols.is_build_prelude_symbol(record.declaration)
-        || !matches!(name, "BuildTarget" | "CompositionMode")
+        || !(name == "CompositionMode" || (!targeted && name == "BuildTarget"))
     {
-        return Err(Diagnostic::error(EXPECTED));
+        return Err(Diagnostic::error(expected));
     }
     let Some(StructuralTypeShape::Sum { cases }) = module
         .structural_type(structural_type)

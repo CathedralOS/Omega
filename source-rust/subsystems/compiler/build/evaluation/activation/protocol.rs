@@ -213,6 +213,10 @@ pub(super) fn check(
                 use source_compiler::publication::TerminalBuildBindingOperand as Operand;
                 let operand = match (&a.operand, &b.operand) {
                     (None, None) => true,
+                    (
+                        Some(Operand::TestGroup { referent: old }),
+                        Some(Operand::TestGroup { referent: new }),
+                    ) => prefix.structural_type(*old) == Some(*new),
                     (Some(Operand::NativeLocator(l)), Some(Operand::NativeLocator(r))) => {
                         prefix.structural_type(l.structural_type) == Some(r.structural_type)
                             && l.widths == r.widths
