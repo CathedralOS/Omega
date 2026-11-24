@@ -460,12 +460,12 @@ public boundary trait AccessLifecycle<P, T> {
         AccessReturn<Extent in Granted & Vacant, T>,
         AccessInitializationFailure
     >
-    reaches ResourceProfileSupply
+    reaches none
     crashes none;
 
     machine move_out(storage: Extent in Granted & Resident<P, T>)
         -> AccessExtraction<Extent in Granted & Vacant, T>
-    reaches ResourceProfileSupply
+    reaches none
     crashes none;
 }
 
@@ -488,7 +488,6 @@ public NativeAccess<P, T, Storage, Role> satisfies AccessLifecycle<P, T> {
         AccessReturn<Extent in Granted & Vacant, T>,
         AccessInitializationFailure
     >
-    reaches ResourceProfileSupply
     {
         let profile: ResourceProfile = ResourceProfileSupply::<Role>::profile(
             @storage as @Extent in Granted
@@ -498,7 +497,6 @@ public NativeAccess<P, T, Storage, Role> satisfies AccessLifecycle<P, T> {
 
     machine move_out(storage: Extent in Granted & Resident<P, T>)
         -> AccessExtraction<Extent in Granted & Vacant, T>
-    reaches ResourceProfileSupply
     {
         // Resident preserves the value and backing, not permission to read
         // every byte. Reobserve the same grant's admitted supply before decode.

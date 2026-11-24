@@ -147,8 +147,6 @@ public machine view_extent<'storage, View, Role>(
 ) -> AccessOutcome<
     @'storage View, AccessBorrowReturn, AccessInitializationFailure
 >
-reaches ResourceProfileSupply
-invokes ResourceProfileSupply
 {
     let profile: ResourceProfile = ResourceProfileSupply::<Role>::profile(storage);
     view_from_profile::<View, Role>(storage, @profile)
@@ -169,8 +167,6 @@ public machine view_extent_mut<'storage, View, Role>(
 ) -> AccessOutcome<
     @'storage mutable View, AccessBorrowReturn, AccessInitializationFailure
 >
-reaches ResourceProfileSupply
-invokes ResourceProfileSupply
 {
     let profile: ResourceProfile = ResourceProfileSupply::<Role>::profile(storage);
     view_mut_from_profile::<View, Role>(storage, @profile)
@@ -215,8 +211,6 @@ public machine initialize_owned<P, T>(
     AccessReturn<Extent in Granted & Vacant, T>,
     AccessInitializationFailure
 >
-reaches AccessLifecycle + ResourceProfileSupply
-invokes AccessLifecycle
 {
     AccessLifecycle::<P, T>::initialize(storage, value)
 }
@@ -228,8 +222,6 @@ public machine move_out_owned<P, T>(
     storage: Extent in Granted & Resident<P, T>
 )
     -> AccessReturn<Extent in Granted & Vacant, T>
-reaches AccessLifecycle + ResourceProfileSupply
-invokes AccessLifecycle
 {
     transition AccessLifecycle::<P, T>::move_out(storage) {
         AccessExtraction::Moved { storage as vacant, value } ->
