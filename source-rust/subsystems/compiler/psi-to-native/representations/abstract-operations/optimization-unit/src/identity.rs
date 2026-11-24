@@ -415,6 +415,61 @@ pub(crate) mod proposition_encoding {
                 bytes.u32(clause.left.0);
                 bytes.u32(clause.right.0);
             }
+            // Published Psi refuses a declaration Identity, but the optimizer
+            // identity still commits every field so two clauses never share bytes.
+            Proposition::DeclarationIdentity(clause) => {
+                use semantic_vocabulary::{ClauseCarrier, ClauseOperand};
+                bytes.u8(23);
+                bytes.slice(&clause.values, |bytes, value| {
+                    match value.carrier {
+                        ClauseCarrier::Parameter(index) => {
+                            bytes.u8(0);
+                            bytes.u32(index);
+                        }
+                        ClauseCarrier::Scalar(scalar_type) => {
+                            bytes.u8(1);
+                            encode_scalar_type(bytes, scalar_type);
+                        }
+                        ClauseCarrier::Structural(structural_type) => {
+                            bytes.u8(2);
+                            bytes.id(structural_type);
+                        }
+                    }
+                    match &value.operand {
+                        ClauseOperand::Scalar(term) => {
+                            bytes.u8(0);
+                            encode_scalar_term(bytes, term);
+                        }
+                        ClauseOperand::Input(subject) => {
+                            bytes.u8(1);
+                            encode_case_subject(bytes, subject);
+                        }
+                        ClauseOperand::Formal(index) => {
+                            bytes.u8(2);
+                            bytes.u32(*index);
+                        }
+                        ClauseOperand::Application {
+                            declaration,
+                            arguments,
+                        } => {
+                            bytes.u8(3);
+                            match declaration.supplier {
+                                Some((slot, generation)) => {
+                                    bytes.u8(1);
+                                    bytes.u32(slot);
+                                    bytes.u32(generation);
+                                }
+                                None => bytes.u8(0),
+                            }
+                            bytes.u32(declaration.member.0);
+                            bytes.u32(declaration.member.1);
+                            bytes.slice(arguments, |bytes, argument| bytes.u32(*argument));
+                        }
+                    }
+                });
+                bytes.u32(clause.left);
+                bytes.u32(clause.right);
+            }
         }
     }
 
