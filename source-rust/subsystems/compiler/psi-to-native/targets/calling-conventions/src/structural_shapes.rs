@@ -30,7 +30,7 @@ pub fn classified_boundary_shape(
         terminal_psi::record_or_fixed_array_shape_pattern!() => {
             let mut leaves = Vec::new();
             collect_scalar_leaves(structural_type, 0, layouts, &mut leaves, 0, None)?;
-            classify_scalar_leaves(&leaves, referent, policy)?
+            classify_scalar_leaves(&leaves, referent, policy).map_err(|_| InvalidStructuralShape)?
         }
         StructuralTypeShape::PrimitiveScalar(_)
         | StructuralTypeShape::Reference { .. }
@@ -197,7 +197,7 @@ pub(crate) fn classify_scalar_leaves(
     leaves: &[(u32, u32, bool)],
     referent: ValueShape,
     policy: CallingPolicy,
-) -> Result<ValueClass, InvalidStructuralShape> {
+) -> Result<ValueClass, &'static str> {
     if policy == CallingPolicy::MicrosoftX64 {
         return Ok(ValueClass::Integer);
     }
@@ -219,24 +219,23 @@ pub(crate) fn classify_scalar_leaves(
     }
     let mut classes = [None, None];
     for &(offset, byte_size, is_float) in leaves {
-        let eightbyte = usize::try_from(offset / 8).map_err(|_| InvalidStructuralShape)?;
+        let eightbyte = offset / 8;
         let last = offset
             .checked_add(byte_size)
             .and_then(|end| end.checked_sub(1))
-            .ok_or(InvalidStructuralShape)?;
-        if eightbyte > 1
-            || usize::try_from(last / 8).map_err(|_| InvalidStructuralShape)? != eightbyte
-        {
-            return Err(InvalidStructuralShape);
+            .ok_or("aggregate contains a zero-width scalar leaf")?;
+        if eightbyte > 1 || last / 8 != eightbyte {
+            return Err("aggregate has a scalar leaf crossing a SysV eightbyte boundary");
         }
+        let eightbyte = eightbyte as usize;
         classes[eightbyte] = Some(match classes[eightbyte] {
             Some(existing_is_sse) => existing_is_sse && is_float,
             None => is_float,
         });
     }
-    let first = classes[0].ok_or(InvalidStructuralShape)?;
+    let first = classes[0].ok_or("aggregate has no scalar leaves")?;
     let second = if referent.byte_size > 8 {
-        classes[1].ok_or(InvalidStructuralShape)?
+        classes[1].ok_or("aggregate leaves do not cover its second eightbyte")?
     } else {
         false
     };
@@ -244,7 +243,9 @@ pub(crate) fn classify_scalar_leaves(
         return Ok(ValueClass::Integer);
     }
     if referent.byte_size <= 8 {
-        return Err(InvalidStructuralShape);
+        return Err(
+            "one-eightbyte non-homogeneous SSE aggregates are not representable in the closed ABI vocabulary",
+        );
     }
     Ok(ValueClass::SystemVAggregate {
         first: if first {
