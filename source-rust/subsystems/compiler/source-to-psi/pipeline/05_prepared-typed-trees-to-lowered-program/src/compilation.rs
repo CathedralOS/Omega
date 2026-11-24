@@ -732,7 +732,16 @@ fn prepare_generic_forms(
                     .collect::<terminal_check_tables::Checked<Vec<_>>>()?;
                 Ok(forms
                     .into_iter()
-                    .map(|prepared| {
+                    .map(|mut prepared| {
+                        use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
+                        prepared.source.generic_callable = typed
+                            .machine_by_symbol(generic.template)
+                            .filter(|machine| {
+                                machine.supplies_checked_body()
+                                    && machine.interface_exposure
+                                        == AuthoredDeclarationSelectionExposure::PublicInterface
+                            })
+                            .map(|machine| machine.symbol);
                         source.forms.push(Some(prepared.source));
                         prepared.program
                     })

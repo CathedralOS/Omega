@@ -363,6 +363,64 @@ public data ReviewedCounters requires used <= 64, self.used <= 64 { used: u64; }
     assert!(!invariants.contains("OtherCounters"));
 }
 
+#[test]
+fn public_generic_callables_review_their_own_checked_bodies() {
+    let project = TemporaryDirectory::create("review-public-generic", false).unwrap();
+    fs::write(
+        project.path().join("build.omg"),
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "review_scope"); }"#,
+    )
+    .unwrap();
+    let source = r#"boundary trait Reader { machine read() -> u32 reaches none crashes none; }
+boundary trait Idle { machine idle() reaches none crashes none; }
+public machine uncalled<const Count: u64>(bytes: @[u8; Count]) -> u32
+reaches Reader + Idle { Reader::read() }
+public machine used<const Count: u64>(bytes: @[u8; Count]) -> u32 { 0u32 }
+public machine use_two(a: @[u8; 2], b: @[u8; 4]) -> bool { used(a) == used(b) }"#;
+    let (status, report) = audit_reader_with_options(&project, source, &["--details"]);
+    assert_eq!(status, Some(0), "{report}");
+    let row = |name: &str| {
+        let heading = format!(
+            r#"callable "review_scope"::"reader.omg::{name}" role Public supply CheckedBody"#
+        );
+        assert_eq!(report.matches(&heading).count(), 1, "{report}");
+        report
+            .split_once(&heading)
+            .unwrap()
+            .1
+            .split("\n  callable ")
+            .next()
+            .unwrap()
+    };
+    let uncalled = row("uncalled");
+    let effect = |prefix: &str| {
+        uncalled
+            .lines()
+            .find_map(|line| line.trim().strip_prefix(prefix))
+            .unwrap()
+    };
+    assert!(effect("declared-reach ").contains("Idle"), "{uncalled}");
+    let checked = effect("checked-reach ");
+    assert!(
+        checked.contains("Reader") && !checked.contains("Idle"),
+        "{uncalled}"
+    );
+    assert!(row("used").contains("checked-reach []"), "{report}");
+    let (_, schema) = report
+        .split_once(r#"string "reader.omg::uncalled""#)
+        .unwrap();
+    let type_parameters = schema.split_once("field type_parameters {").unwrap().1;
+    assert!(
+        type_parameters.trim_start().starts_with("sequence 1 {"),
+        "{schema}"
+    );
+    let parameters = type_parameters.split_once("field parameters {").unwrap().1;
+    assert!(
+        parameters.trim_start().starts_with("sequence 1 {"),
+        "{schema}"
+    );
+}
+
 fn audit_reader(project: &TemporaryDirectory, source: &str) -> (Option<i32>, String) {
     audit_reader_with_options(project, source, &[])
 }

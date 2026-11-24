@@ -5,6 +5,7 @@ use crate::checking::verdict::AcceptedProgram;
 use checked_program::CheckedProgram;
 use diagnostics::Diagnostic;
 use std::sync::{Arc, Mutex, OnceLock};
+use terminal_check_tables::program::Elaboration;
 
 /// The advisories of an accepted compilation: warnings and their notes, none
 /// of which is an error. They are data for whoever reports the compilation;
@@ -27,7 +28,7 @@ struct AdvisoryParts {
     // A transformation may expose new constants. Source warnings must still
     // describe the program as written, from its first judgment.
     original: Option<Box<AcceptedClosure>>,
-    additional: Vec<Box<AcceptedClosure>>,
+    additional: Vec<(Arc<Elaboration>, Discharge)>,
 }
 
 impl std::fmt::Debug for AcceptedAdvisories {
@@ -44,7 +45,7 @@ impl AcceptedAdvisories {
         root: Arc<CheckedProgram>,
         discharge: Discharge,
         original: Option<Box<AcceptedClosure>>,
-        additional: Vec<Box<AcceptedClosure>>,
+        additional: Vec<(Arc<Elaboration>, Discharge)>,
     ) -> Self {
         Self {
             pending: Mutex::new(AdvisoryParts {
@@ -75,10 +76,15 @@ impl AcceptedAdvisories {
                 .advisories(),
                 (None, None) => Vec::new(),
             };
-            let result = aggregate(
-                std::iter::once(first)
-                    .chain(pending.additional.iter().map(|part| part.advisories())),
-            );
+            let result = aggregate(std::iter::once(first).chain(pending.additional.iter().map(
+                |(elaboration, discharge)| {
+                    AcceptedProgram {
+                        elaboration,
+                        discharge,
+                    }
+                    .advisories()
+                },
+            )));
             *pending = AdvisoryParts::default();
             result
         })

@@ -32,6 +32,7 @@ struct CallableInventory<'a> {
     module: &'a TerminalModule,
     exact_sources: &'a [(source_text::SourceId, [u8; 32])],
     service_names: &'a [ReviewedService],
+    rigid_value_parameters: usize,
 }
 
 impl PolicySource<'_> {
@@ -79,6 +80,7 @@ impl PolicySource<'_> {
                 module,
                 exact_sources: self.sources().exact_toolchain_sources(),
                 service_names: &names,
+                rigid_value_parameters: 0,
             },
             symbol,
             identity,
@@ -97,7 +99,13 @@ impl PolicySource<'_> {
         let mut rows: Vec<_> = self.build_callable(package)?.into_iter().collect();
         let accepted = self.accepted();
         let exact_sources = self.sources().exact_toolchain_sources();
-        let mut inventory = None;
+        let inventory = CallableInventory {
+            module: accepted.module(),
+            source: accepted.source(),
+            exact_sources,
+            service_names,
+            rigid_value_parameters: 0,
+        };
         let mut effects_validated = false;
         let mut bodies: Vec<_> = accepted
             .closure()
@@ -112,6 +120,16 @@ impl PolicySource<'_> {
             if !self.owns(declaration.symbol, package)?
                 || (!exposes_machine_interface(declaration) && declaration.supplies_checked_body())
             {
+                continue;
+            }
+            if self
+                .typed()
+                .machine_instantiation(declaration.symbol)
+                .map_err(|_| unavailable("a callable's authenticated generic application"))?
+                .is_some()
+            {
+                // The public declaration is reviewed once. A closed use cannot
+                // replace the check of its template under arbitrary arguments.
                 continue;
             }
             let (role, supply) = match declaration.supply_mode {
@@ -130,6 +148,10 @@ impl PolicySource<'_> {
                 _ => return Err(unavailable("this callable's supply and authority contract")),
             };
             let identity = self.nominal(declaration.symbol)?;
+            if let Some(generic) = self.generic_callable(declaration.symbol, &identity)? {
+                rows.push(generic);
+                continue;
+            }
             let body = if declaration.supplies_checked_body() {
                 let first = bodies
                     .partition_point(|(original, _)| key(*original) < key(declaration.symbol));
@@ -152,20 +174,12 @@ impl PolicySource<'_> {
             } else {
                 None
             };
-            if inventory.is_none() {
-                inventory = Some(CallableInventory {
-                    module: accepted.module(),
-                    source: accepted.source(),
-                    exact_sources,
-                    service_names,
-                });
-            }
             if body.is_some() && !effects_validated {
                 validate_body_effect_inventory(accepted.module())?;
                 effects_validated = true;
             }
             rows.push(self.callable(
-                inventory.as_ref().expect("prepared callable inventory"),
+                &inventory,
                 declaration.symbol,
                 identity,
                 role,
@@ -175,6 +189,65 @@ impl PolicySource<'_> {
         }
         rows.sort_by(|a, b| a.identity.cmp(&b.identity));
         Ok(rows)
+    }
+
+    fn generic_callable(
+        &self,
+        declaration: symbols::SymbolHandle,
+        identity: &PackageReviewNominalIdentity,
+    ) -> Result<Option<PackagePolicyCallable>, Vec<Diagnostic>> {
+        let exact_sources = self.sources().exact_toolchain_sources();
+        let mut reviewed = None;
+        for elaboration in self.accepted().generic_callable_forms(declaration) {
+            let module = &elaboration.module;
+            let Some(TargetMachineCallable::Machine(entry)) = module.entry else {
+                return Err(unavailable("the generic declaration's checked entry"));
+            };
+            if elaboration.machines.get(entry) != Some(&declaration) {
+                return Err(unavailable("the generic check form's exact source owner"));
+            }
+            if elaboration
+                .static_reach_summaries
+                .iter()
+                .any(|row| row.machine == entry && !row.term.parameters.is_empty())
+            {
+                return Err(unavailable(
+                    "the generic callable's static reach projections",
+                ));
+            }
+            validate_body_effect_inventory(module)?;
+            let services = services::identities(
+                self.typed(),
+                module,
+                exact_sources,
+                source_provenance::DependencyScope::Product,
+            )?;
+            let rigid_value_parameters = *elaboration
+                .value_parameters
+                .get(entry)
+                .ok_or_else(|| unavailable("the generic callable's checked value telescope"))?;
+            let row = self.callable(
+                &CallableInventory {
+                    source: self.typed(),
+                    module,
+                    exact_sources,
+                    service_names: &services,
+                    rigid_value_parameters,
+                },
+                declaration,
+                identity.clone(),
+                PackagePolicyCallableRole::Public,
+                PackageReviewCallableSupply::CheckedBody,
+                Some(entry),
+            )?;
+            if reviewed.as_ref().is_some_and(|known| *known != row) {
+                return Err(unavailable(
+                    "the generic callable's differing static alternatives",
+                ));
+            }
+            reviewed = Some(row);
+        }
+        Ok(reviewed)
     }
 
     fn callable(
@@ -252,7 +325,15 @@ impl PolicySource<'_> {
                 header
             }
         };
-        if source.state_parameters(state).len() != header.parameter_order.len() {
+        let hidden = header
+            .parameter_order
+            .get(source.state_parameters(state).len()..);
+        if !hidden.is_some_and(|parameters| {
+            parameters.len() == inventory.rigid_value_parameters
+                && parameters
+                    .iter()
+                    .all(|kind| *kind == terminal_psi::BoundaryParameterKind::Scalar)
+        }) {
             return Err(unavailable(
                 "the callable's complete checked parameter/contract clauses",
             ));
