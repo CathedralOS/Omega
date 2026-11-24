@@ -10726,6 +10726,23 @@ pub(crate) mod operation_contracts {
                         content_term_roots(conservation.left(), roots);
                         content_term_roots(conservation.right(), roots);
                     }
+                    // A declared Identity names places through its scalar and
+                    // input operands. Formals and applications refer to other
+                    // values in the same table, which this loop also visits.
+                    Proposition::DeclarationIdentity(clause) => {
+                        for value in &clause.values {
+                            match &value.operand {
+                                semantic_vocabulary::ClauseOperand::Scalar(term) => {
+                                    scalar_term_roots(term, roots)
+                                }
+                                semantic_vocabulary::ClauseOperand::Input(subject) => {
+                                    roots.insert(subject.root());
+                                }
+                                semantic_vocabulary::ClauseOperand::Formal(_)
+                                | semantic_vocabulary::ClauseOperand::Application { .. } => {}
+                            }
+                        }
+                    }
                     Proposition::Conjunction(propositions)
                     | Proposition::Disjunction(propositions) => {
                         for proposition in propositions {
@@ -10746,6 +10763,59 @@ pub(crate) mod operation_contracts {
             let mut roots = BTreeSet::new();
             collect(proposition, &mut roots);
             roots
+        }
+
+        #[cfg(test)]
+        mod tests {
+            use super::proposition_structural_roots;
+            use semantic_vocabulary::{
+                ClauseCarrier, ClauseDeclaration, ClauseIdentity, ClauseOperand, ClauseValue,
+                PlaceId, Proposition, ScalarReadProjection, ScalarTerm, ScalarType,
+                StructuralCaseSubject,
+            };
+            use std::collections::BTreeSet;
+
+            // A payloadless call is accepted only when every ensures root is the
+            // result place, so a declared Identity must report the places it reads.
+            #[test]
+            fn declaration_identity_reports_scalar_and_input_roots() {
+                let place = |raw| PlaceId::new(raw).unwrap();
+                let carrier = ClauseCarrier::Parameter(0);
+                let identity = |values: Vec<ClauseOperand>| {
+                    Proposition::DeclarationIdentity(ClauseIdentity {
+                        values: values
+                            .into_iter()
+                            .map(|operand| ClauseValue { carrier, operand })
+                            .collect(),
+                        left: 0,
+                        right: 1,
+                    })
+                };
+                let read = ClauseOperand::Scalar(ScalarTerm::StructuralRead {
+                    root: place(4),
+                    path: vec![ScalarReadProjection::Referent],
+                    scalar_type: ScalarType::Boolean,
+                });
+                let input = ClauseOperand::Input(StructuralCaseSubject::new(place(3), Vec::new()));
+                let application = ClauseOperand::Application {
+                    declaration: ClauseDeclaration {
+                        supplier: None,
+                        member: (1, 1),
+                    },
+                    arguments: vec![0],
+                };
+                assert_eq!(
+                    proposition_structural_roots(&identity(vec![read, input, application.clone()])),
+                    BTreeSet::from([place(3), place(4)])
+                );
+                assert!(
+                    proposition_structural_roots(&identity(vec![
+                        ClauseOperand::Formal(0),
+                        application
+                    ]))
+                    .is_empty()
+                );
+            }
         }
     }
     pub(crate) use claim_transfers::{function_entry_claim_paths, validate_slot_claim_transfers};
