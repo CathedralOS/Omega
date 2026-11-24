@@ -1,7 +1,7 @@
 //! Execute each Build-registered test as a separately published Product.
 #[path = "registered_tests/result.rs"]
 mod result;
-use self::result::{EngineError, Observed, PsiTermination, Run, assess};
+use self::result::{EngineError, NativeTermination, Observed, PsiTermination, Run, assess};
 use super::ProductStage;
 use crate::observations::ProcessExitObservation;
 use compiler::{Artifact, CompileRequest, Program};
@@ -120,17 +120,11 @@ fn run_test(
             let program = report
                 .retained_native_program()
                 .ok_or("the native test lost its Psi artifact")?;
-            let native = if program
+            let can_exit = program
                 .psi_artifact()
                 .semantic_module()
-                .can_end_the_process()
-            {
-                Err(EngineError::Unavailable(
-                    "the test can end the process, so its exit status cannot show that it returned to the runner".into()
-                ))
-            } else {
-                execute_native(report)
-            };
+                .can_end_the_process();
+            let native = execute_native(report, can_exit);
             (interpreted, native)
         }
         Artifact::Psi(_) => return Err("the test lacks an admitted execution product".into()),
@@ -206,7 +200,7 @@ fn interpret(report: &CompletedProduct, target: TargetProfile) -> Run<PsiTermina
     })
 }
 
-fn execute_native(report: CompletedProduct) -> Run<ProcessExitObservation> {
+fn execute_native(report: CompletedProduct, can_exit: bool) -> Run<NativeTermination> {
     let directory =
         platform_custody::temporary_directory::TemporaryDirectory::create("test", false).map_err(
             |error| EngineError::Unavailable(format!("cannot create a test directory: {error}")),
@@ -237,7 +231,10 @@ fn execute_native(report: CompletedProduct) -> Run<ProcessExitObservation> {
         EngineError::Failed(format!("cannot collect the running test's result: {error}"))
     })?;
     Ok(Observed {
-        termination: ProcessExitObservation::observe(&output.status),
+        termination: NativeTermination {
+            status: ProcessExitObservation::observe(&output.status),
+            can_exit,
+        },
         stdout: output.stdout,
         stderr: output.stderr,
     })

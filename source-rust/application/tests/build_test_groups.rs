@@ -261,3 +261,59 @@ fn a_required_native_engine_on_another_target_leaves_the_build_incomplete() {
         "{output}"
     );
 }
+
+#[test]
+fn explicit_process_exit_is_observed_on_both_engines_and_never_passes_the_test() {
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        return;
+    };
+    let scratch =
+        platform_custody::temporary_directory::TemporaryDirectory::create("exit-test", false)
+            .unwrap();
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/build/run/registered_process_exit/build.omg");
+    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .args([
+            "build",
+            "--compare-tests",
+            "--target",
+            host.target_name(),
+            "--build-dir",
+        ])
+        .arg(scratch.path())
+        .arg(fixture)
+        .current_dir(scratch.path())
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let report = String::from_utf8_lossy(&output.stderr);
+    for (name, code, agreed) in [
+        ("exits_with_23", 23, cfg!(windows)),
+        ("exits_with_zero", 0, false),
+        ("exits_with_256", 256, cfg!(windows)),
+    ] {
+        let row = report
+            .lines()
+            .find(|row| row.contains(&format!("test `{name}`")))
+            .unwrap_or_else(|| panic!("{report}"));
+        assert!(
+            row.contains(&format!("exited the process with status {code}")),
+            "{row}"
+        );
+        if code == 0 || (cfg!(unix) && (code & 255) == 0) {
+            assert!(row.contains("exit 0 cannot distinguish"), "{row}");
+        } else {
+            assert!(
+                row.contains(&format!("terminated with status {code}")),
+                "{row}"
+            );
+        }
+        let expected = if agreed {
+            "native/Psi comparison agrees"
+        } else {
+            "native/Psi comparison unavailable because the host"
+        };
+        assert!(row.contains(expected), "{row}");
+    }
+}

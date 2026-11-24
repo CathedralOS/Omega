@@ -33,54 +33,85 @@ pub(super) enum PsiTermination {
     Exited(i32),
 }
 
+pub(super) struct NativeTermination {
+    pub status: ProcessExitObservation,
+    pub can_exit: bool,
+}
+
 impl PsiTermination {
-    fn expect_return(&self) -> Result<(), String> {
+    fn expect_return(&self) -> Result<(), EngineError> {
         match self {
             Self::Returned => Ok(()),
-            Self::Exited(code) => Err(format!(
+            Self::Exited(code) => Err(EngineError::Failed(format!(
                 "exited the process with status {code} instead of returning to the runner"
+            ))),
+            Self::Crashed(cause) => Err(EngineError::Failed(format!("crashed with {cause:?}"))),
+        }
+    }
+}
+
+impl NativeTermination {
+    /// A unit return, an explicit exit and (on Windows) a trap can share a numeric status.
+    /// If the program can explicitly exit, a matching number alone cannot distinguish them.
+    fn matches(&self, psi: &PsiTermination) -> Option<bool> {
+        let returned = self.status == ProcessExitObservation::Exited(0);
+        let (matches, ambiguous) = match psi {
+            PsiTermination::Returned => (Some(returned), self.can_exit),
+            PsiTermination::Crashed(cause) => (
+                self.status.matches_crash_presentation(*cause),
+                self.can_exit && self.status.code().is_some(),
+            ),
+            PsiTermination::Exited(code) if self.can_exit => (
+                self.status.matches_host_presentation(*code),
+                // Another native i32 can have the same low byte even when Psi's status fits in it.
+                cfg!(unix)
+                    || returned
+                    || self.status.matches_crash_presentation(CrashCause::Trap) == Some(true),
+            ),
+            PsiTermination::Exited(_) => return Some(false),
+        };
+        match matches {
+            Some(true) if ambiguous => None,
+            decided => decided,
+        }
+    }
+
+    fn expect_return(&self) -> Result<(), EngineError> {
+        match self.status {
+            ProcessExitObservation::Exited(0) if self.can_exit => Err(EngineError::Incomplete(
+                "exit 0 cannot distinguish a normal return from explicit process exit".into(),
             )),
-            Self::Crashed(cause) => Err(format!("crashed with {cause:?}")),
-        }
-    }
-
-    fn matches(&self, native: ProcessExitObservation) -> Option<bool> {
-        match self {
-            // The runner only starts native images that cannot call process exit.
-            Self::Returned => Some(native == ProcessExitObservation::Exited(0)),
-            Self::Crashed(cause) => native.matches_crash_presentation(*cause),
-            Self::Exited(code) => native.matches_host_presentation(*code),
+            ProcessExitObservation::Exited(0) => Ok(()),
+            ProcessExitObservation::Exited(code) => Err(EngineError::Failed(format!(
+                "terminated with status {code} instead of returning normally"
+            ))),
+            other => Err(EngineError::Failed(format!(
+                "terminated abnormally: {}",
+                other.describe()
+            ))),
         }
     }
 }
 
-fn expect_native_return(exit: &ProcessExitObservation) -> Result<(), String> {
-    match exit {
-        ProcessExitObservation::Exited(0) => Ok(()),
-        ProcessExitObservation::Exited(code) => Err(format!(
-            "terminated with status {code} instead of returning normally"
-        )),
-        other => Err(format!("terminated abnormally: {}", other.describe())),
-    }
-}
-
-fn verdict<T>(run: &Run<T>, expected: fn(&T) -> Result<(), String>) -> Result<(), EngineError> {
+fn verdict<T>(
+    run: &Run<T>,
+    expected: fn(&T) -> Result<(), EngineError>,
+) -> Result<(), EngineError> {
     match run {
-        Ok(observed) => expected(&observed.termination).map_err(EngineError::Failed),
+        Ok(observed) => expected(&observed.termination),
         Err(error) => Err(error.clone()),
     }
 }
 
-fn compare(psi: &Run<PsiTermination>, native: &Run<ProcessExitObservation>) -> Result<(), String> {
+fn compare(psi: &Run<PsiTermination>, native: &Run<NativeTermination>) -> Result<(), String> {
     let (Ok(psi), Ok(native)) = (psi, native) else {
         return Err(
             "native/Psi comparison unavailable because both observations are required".into(),
         );
     };
-    match psi.termination.matches(native.termination) {
-        Some(true) => {}
-        Some(false) => return Err("native/Psi comparison differs in termination".into()),
-        None => return Err("native/Psi comparison unavailable because the host cannot distinguish the exact termination".into()),
+    let termination = native.termination.matches(&psi.termination);
+    if termination == Some(false) {
+        return Err("native/Psi comparison differs in termination".into());
     }
     if let Some(difference) = first_output_difference(native.streams(), psi.streams()) {
         return Err(format!(
@@ -89,12 +120,15 @@ fn compare(psi: &Run<PsiTermination>, native: &Run<ProcessExitObservation>) -> R
             difference.offset
         ));
     }
+    if termination.is_none() {
+        return Err("native/Psi comparison unavailable because the host cannot distinguish the exact termination".into());
+    }
     Ok(())
 }
 
 pub(super) fn assess(
     psi: Run<PsiTermination>,
-    native: Run<ProcessExitObservation>,
+    native: Run<NativeTermination>,
     execution: TestExecution,
 ) -> Result<String, String> {
     let mut passed = Vec::new();
@@ -105,7 +139,7 @@ pub(super) fn assess(
             "Psi interpreter",
             verdict(&psi, PsiTermination::expect_return),
         ),
-        ("native", verdict(&native, expect_native_return)),
+        ("native", verdict(&native, NativeTermination::expect_return)),
     ] {
         match result {
             Ok(()) => passed.push(engine),
@@ -113,7 +147,7 @@ pub(super) fn assess(
                 failures.push(format!("failed on the {engine} engine: {reason}"))
             }
             Err(EngineError::Incomplete(reason)) => failures.push(format!(
-                "ran on the {engine} engine but did not complete: {reason}"
+                "has an incomplete result on the {engine} engine: {reason}"
             )),
             Err(EngineError::Unavailable(reason)) => {
                 unavailable.push(format!("{engine}: {reason}"))
@@ -163,13 +197,45 @@ mod tests {
     #[test]
     fn equal_returns_cannot_hide_binary_stream_differences() {
         let psi = observed(PsiTermination::Returned, &[4, 0, 255], &[9]);
-        let native = observed(ProcessExitObservation::Exited(0), &[4, 0, 254], &[8]);
+        let native = observed(
+            NativeTermination {
+                status: ProcessExitObservation::Exited(0),
+                can_exit: false,
+            },
+            &[4, 0, 254],
+            &[8],
+        );
         let error = assess(psi, native, TestExecution::Compare).unwrap_err();
         assert!(
             error.contains("passed on Psi interpreter, native"),
             "{error}"
         );
         assert!(error.contains("differs at stdout byte 2"), "{error}");
+    }
+
+    #[test]
+    fn a_different_visible_exit_status_proves_disagreement() {
+        let native = NativeTermination {
+            status: ProcessExitObservation::Exited(7),
+            can_exit: true,
+        };
+        assert_eq!(native.matches(&PsiTermination::Exited(23)), Some(false));
+        assert_eq!(native.matches(&PsiTermination::Returned), Some(false));
+    }
+
+    #[test]
+    fn an_ambiguous_exit_cannot_hide_a_known_stream_difference() {
+        let native = observed(
+            NativeTermination {
+                status: ProcessExitObservation::Exited(0),
+                can_exit: true,
+            },
+            &[],
+            b"1",
+        );
+        let psi = observed(PsiTermination::Returned, &[], b"2");
+        let error = assess(psi, native, TestExecution::Compare).unwrap_err();
+        assert!(error.contains("differs at stderr byte 0"), "{error}");
     }
 
     #[test]
