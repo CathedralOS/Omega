@@ -1058,7 +1058,7 @@ machine main() {}
     assert!(
         wrong_type
             .iter()
-            .any(|error| error.message.contains("type")),
+            .any(|error| error.message.contains("Identity operand has no exact input observation")),
         "{wrong_type:?}"
     );
 
