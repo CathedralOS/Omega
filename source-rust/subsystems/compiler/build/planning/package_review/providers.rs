@@ -334,32 +334,16 @@ impl<'module> AcceptedDeclarations<'module> {
         signature: &StateSignature,
         requirement: &PackageReviewNominalIdentity,
         boundary: &BoundaryMachineDeclaration,
-        contracts: &[review_evidence::record::PackageReviewCallableContract],
     ) -> Result<(), Vec<Diagnostic>> {
-        let missing = |part: &str| {
-            unavailable(format!(
-                "{part} of boundary requirement `{}`",
-                requirement.path()
-            ))
-        };
-        let original = self
-            .accepted
+        self.accepted
             .boundary_predicate_signature(boundary.id, signature.symbol)
-            .map_err(missing)?;
-        match original {
-            Some(original) => original
-                .validate_boundary_predicates(boundary)
-                .map_err(missing),
-            // An open template may have no concrete predicate signature in this
-            // form. An empty account is complete only if neither side has a fact.
-            None if boundary.scalar_requires.is_empty()
-                && boundary.scalar_ensures.is_empty()
-                && contracts.is_empty() =>
-            {
-                Ok(())
-            }
-            None => Err(missing("the checked declaration predicate signature")),
-        }
+            .and_then(|source| source.validate_boundary_predicates(boundary))
+            .map_err(|part| {
+                unavailable(format!(
+                    "{part} of boundary requirement `{}`",
+                    requirement.path()
+                ))
+            })
     }
 
     fn has_authored_reach(&self, owner: SymbolHandle) -> bool {
@@ -1490,7 +1474,7 @@ impl PolicySource<'_> {
             matches!(clause.kind, source_compiler::representations::source_state::signature::SignatureContractKind::Crashes { .. })
         });
         declarations.validate_parameter_domains(signature, &requirement, boundary, &contracts)?;
-        declarations.validate_boundary_predicates(signature, &requirement, boundary, &contracts)?;
+        declarations.validate_boundary_predicates(signature, &requirement, boundary)?;
         let mut fields = Vec::new();
         macro_rules! unretained {
             ($field:expr, $when:expr) => {

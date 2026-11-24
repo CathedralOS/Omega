@@ -194,6 +194,32 @@ public machine eight<'a>(bytes: @'a [u8; 8]) -> u64 reaches Reader { Reader::rea
     assert!(report.contains("cannot prove requires clause"), "{report}");
 }
 
+#[test]
+fn review_checks_predicates_of_a_lifetime_bound_requirement() {
+    let project = TemporaryDirectory::create("review-lifetime-predicates", false).unwrap();
+    fs::write(
+        project.path().join("build.omg"),
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "borrowed_boundary"); }"#,
+    )
+    .unwrap();
+    let source = r#"data Name<'scope> { bytes: @'scope [u8; 4]; }
+boundary trait Reader {
+    machine open<'scope>(name: @Name<'scope>, mode: u32) -> i32
+    requires mode == 2 reaches none crashes none;
+}
+public machine read(bytes: @[u8; 4]) -> i32 reaches Reader {
+    let name: Name = Name { bytes: bytes };
+    Reader::open(@name, 2)
+}"#;
+    let (status, report) = audit_reader(&project, source);
+    assert_eq!(status, Some(0), "{report}");
+    assert!(report.contains("fresh-analysis complete"), "{report}");
+
+    let (status, report) = audit_reader(&project, &source.replace("(@name, 2)", "(@name, 4)"));
+    assert_eq!(status, Some(1), "{report}");
+    assert!(report.contains("cannot prove requires clause"), "{report}");
+}
+
 fn audit_reader(project: &TemporaryDirectory, source: &str) -> (Option<i32>, String) {
     fs::write(project.path().join("reader.omg"), source).unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
