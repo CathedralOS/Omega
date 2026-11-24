@@ -52,8 +52,20 @@ fn fixture() -> (
 }
 
 fn setup(
+    types: Vec<StructuralTypeDeclaration>,
+    referent: u64,
+) -> (
+    TerminalExecution<'static>,
+    BoundaryMachineDeclaration,
+    StructuralOperationResult,
+) {
+    setup_with_access(types, referent, StructuralAccess::SharedBorrow)
+}
+
+fn setup_with_access(
     mut types: Vec<StructuralTypeDeclaration>,
     referent: u64,
+    access: StructuralAccess,
 ) -> (
     TerminalExecution<'static>,
     BoundaryMachineDeclaration,
@@ -61,21 +73,27 @@ fn setup(
 ) {
     let mut program = empty_program();
     let reference = types.iter().map(|ty| ty.id.get()).max().unwrap() + 1;
-    types.push(ty(
+    let mut descriptor = ty(
         reference,
         StructuralTypeShape::Reference {
             referent: StructuralTypeId::new(referent).unwrap(),
-            access: StructuralAccess::SharedBorrow,
+            access,
         },
-    ));
+    );
+    if access == StructuralAccess::MutableBorrow {
+        descriptor.multiplicity = StructuralMultiplicity::Affine;
+    }
+    let multiplicity = descriptor.multiplicity;
+    types.push(descriptor);
     Arc::get_mut(&mut program)
         .unwrap()
         .fixture_module_mut()
-        .types.structural_types = types;
+        .types
+        .structural_types = types;
     let result = StructuralOperationResult {
         place: PlaceId::new(1).unwrap(),
         structural_type: StructuralTypeId::new(reference).unwrap(),
-        multiplicity: StructuralMultiplicity::Unrestricted,
+        multiplicity,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
         additional_input_qualifications: Vec::new(),
@@ -113,7 +131,7 @@ fn setup(
                 source: StructuralArgument {
                     place: result.place,
                     path: vec![StructuralPathSegment::Referent],
-                    access: StructuralAccess::SharedBorrow,
+                    access,
                 },
                 storage: None,
             }
@@ -312,6 +330,35 @@ fn resident_reference_reads_live_contents_and_refuses_shared_writes_and_stale_re
     assert!(read(&execution, &result, &[], scalar()).is_err());
     home.stale.set(true);
     assert!(read(&execution, &result, &[], scalar()).is_err());
+}
+
+#[test]
+fn mutable_provider_reference_writes_only_valid_values_to_its_backing() {
+    let mut declared = ty(1, StructuralTypeShape::PrimitiveScalar(scalar()));
+    declared.scalar_restriction = Some(bounded());
+    let (mut execution, boundary, result) =
+        setup_with_access(vec![declared], 1, StructuralAccess::MutableBorrow);
+    let home = backing(word(scalar(), 37));
+    commit(
+        &mut execution,
+        &boundary,
+        &result,
+        resident(
+            1,
+            vec![(vec![], word(scalar(), 37), scalar(), home.clone())],
+        ),
+    )
+    .unwrap();
+    let owner = reference_owner(&execution, result.place);
+    let mut cell = execution
+        .structural_primitive_storage
+        .get(&(&owner).into())
+        .unwrap()
+        .clone();
+    cell.write(word(scalar(), 91)).unwrap();
+    assert_eq!(*home.value.borrow(), word(scalar(), 91));
+    assert!(cell.write(word(scalar(), 128)).is_err());
+    assert_eq!(*home.value.borrow(), word(scalar(), 91));
 }
 
 fn bounded() -> StructuralFieldType {
