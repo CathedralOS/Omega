@@ -6,4 +6,5 @@ machine build(builder: @mutable Build) {
     Build::bind::<Streams::write>(builder, linux_x86_64, ForeignBinding::Syscall { number: 1 });
     Build::bind::<Streams::read>(builder, linux_arm64, ForeignBinding::Syscall { number: 63 });
     Build::bind::<Streams::write>(builder, linux_arm64, ForeignBinding::Syscall { number: 64 });
+    _ = builder.tests.group::<Checks::ready>();
 }

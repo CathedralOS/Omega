@@ -109,6 +109,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
             psi_work_budget: arguments.psi_work_budget,
             keep_artifacts: arguments.keep,
         },
+        |row| eprintln!("{row}"),
     ) {
         Ok(outcome) => outcome,
         Err(error) => {
@@ -124,9 +125,6 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
             std::process::exit(compile_failure_status(&error));
         }
     };
-    for entry in &outcome.test_roster {
-        eprintln!("{entry}");
-    }
     if let Some(directory) = arguments.outputs {
         if arguments.keep {
             eprintln!("build dir kept: {}", outcome.build_dir.display());
@@ -310,6 +308,7 @@ fn run_cases(
             output_directory: outputs.clone(),
             keep_artifacts: arguments.keep,
         },
+        |row| eprintln!("{row}"),
     ) {
         Ok(outcome) => outcome,
         Err(error) => {

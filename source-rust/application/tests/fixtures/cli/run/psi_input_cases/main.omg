@@ -22,3 +22,7 @@ machine main() reaches StandardInput + StandardOutput crashes Trap {
     machine passed() {}
     machine failed() crashes Trap { crash Trap; }
 }
+
+trait Checks { machine ready(); }
+machine first() satisfies Checks::ready {}
+machine second() satisfies Checks::ready {}

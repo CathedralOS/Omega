@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 pub(super) struct RunProduct {
     root: PathBuf,
     product: CompletedProduct,
-    test_roster: Vec<String>,
+    pub(super) target: target::TargetProfile,
 }
 
 pub(super) struct RunArtifact<'product> {
@@ -42,10 +42,6 @@ impl RunProduct {
             .unwrap_or_default()
     }
 
-    pub(super) fn test_roster(&self) -> Vec<String> {
-        self.test_roster.clone()
-    }
-
     pub(super) fn publish(self, directory: &Path) -> Result<(Self, PathBuf), String> {
         let product = self.product.publish(&self.root, directory)?;
         let path = product
@@ -71,16 +67,16 @@ pub(super) struct ProjectInput {
     pub build_snapshot: Option<BuildSnapshotRequest>,
 }
 
-pub(super) struct ProbeCompilation {
-    pub report: RunProduct,
-    pub target_name: &'static str,
+pub(super) struct CompiledRun {
+    pub product: RunProduct,
+    pub tests: Option<project_build::RegisteredTestPlan>,
 }
 
 pub(super) fn compile(
     artifact: Option<psi_authorization::AuthorizedTerminalArtifact>,
     input: ProjectInput,
     requested: ExecutionProduct,
-) -> Result<ProbeCompilation, Vec<Diagnostic>> {
+) -> Result<CompiledRun, Vec<Diagnostic>> {
     let ProjectInput {
         root_path,
         build_directory,
@@ -88,7 +84,7 @@ pub(super) fn compile(
         private_entry_ram,
         build_snapshot,
     } = input;
-    let (report, target_name) = if let Some(artifact) = artifact {
+    let (product, target, tests) = if let Some(artifact) = artifact {
         if build_snapshot.is_some() {
             return Err(vec![Diagnostic::error(
                 "a saved Psi program cannot accept source build inputs",
@@ -109,14 +105,7 @@ pub(super) fn compile(
             SavedProgramError::Diagnostics(diagnostics) => diagnostics,
             other => vec![Diagnostic::error(other.to_string())],
         })?;
-        (
-            RunProduct {
-                test_roster: Vec::new(),
-                root: root_path,
-                product,
-            },
-            profile.target_name(),
-        )
+        (product, profile, None)
     } else {
         if root_path
             .extension()
@@ -164,21 +153,14 @@ pub(super) fn compile(
         };
         let plan =
             stage.plan_registered_tests(profile, &[], project_build::TestExecution::Available)?;
-        for row in plan.rows() {
-            eprintln!("{row}");
-        }
-        let test_roster = plan.execute()?;
-        (
-            RunProduct {
-                root: root_path,
-                product,
-                test_roster,
-            },
-            profile.target_name(),
-        )
+        (product, profile, Some(plan))
     };
-    Ok(ProbeCompilation {
-        report,
-        target_name,
+    Ok(CompiledRun {
+        product: RunProduct {
+            root: root_path,
+            product,
+            target,
+        },
+        tests,
     })
 }

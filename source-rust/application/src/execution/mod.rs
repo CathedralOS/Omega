@@ -121,7 +121,6 @@ pub struct RunRequest {
 
 pub struct RunOutcome {
     pub build_dir: PathBuf, // Removed on return unless keep_artifacts was requested.
-    pub test_roster: Vec<String>, // Display rows from the registered tests that ran before the program.
     pub execution: ExecutionOutcome,
 }
 
@@ -226,9 +225,36 @@ impl std::fmt::Display for RunError {
 
 impl std::error::Error for RunError {}
 
+/// Admit the selected product, present its registered plan and run its tests
+/// before handing it to the application engine.
+fn prepare_program(
+    artifact: Option<psi_authorization::AuthorizedTerminalArtifact>,
+    input: compilation::ProjectInput,
+    selection: ExecutionSelection,
+    mut present_test: impl FnMut(&str),
+) -> Result<compilation::RunProduct, RunError> {
+    use crate::saved_program::ExecutionProduct;
+    let requested = match selection {
+        ExecutionSelection::Terminal => ExecutionProduct::Runtime,
+        ExecutionSelection::Native | ExecutionSelection::Both => ExecutionProduct::Native,
+    };
+    let prepared =
+        compilation::compile(artifact, input, requested).map_err(RunError::Compilation)?;
+    if let Some(plan) = prepared.tests {
+        for row in plan.rows() {
+            present_test(&row);
+        }
+        for verdict in plan.execute().map_err(RunError::Compilation)? {
+            present_test(&verdict);
+        }
+    }
+    Ok(prepared.product)
+}
+
 pub fn run_project(
     artifact: Option<psi_authorization::AuthorizedTerminalArtifact>,
     request: RunRequest,
+    present_test: impl FnMut(&str),
 ) -> Result<RunOutcome, RunError> {
     let psi_work_budget = request
         .psi_work_budget
@@ -236,13 +262,7 @@ pub fn run_project(
     let output_directory = TemporaryDirectory::create("probe", request.keep_artifacts)
         .map_err(RunError::TemporaryStorage)?;
     let build_dir = output_directory.path().to_path_buf();
-    if request.selection == ExecutionSelection::Terminal {
-        return run_terminal(request, artifact, build_dir, psi_work_budget);
-    }
-    let compilation::ProbeCompilation {
-        report,
-        target_name,
-    } = compilation::compile(
+    let report = prepare_program(
         artifact,
         compilation::ProjectInput {
             root_path: request.root_path,
@@ -251,13 +271,15 @@ pub fn run_project(
             build_snapshot: request.build_snapshot,
             target_name: request.target_name.clone(),
         },
-        crate::saved_program::ExecutionProduct::Native,
-    )
-    .map_err(RunError::Compilation)?;
-    let test_roster = report.test_roster();
+        request.selection,
+        present_test,
+    )?;
+    if request.selection == ExecutionSelection::Terminal {
+        return run_terminal(report, request.keep_artifacts, build_dir, psi_work_budget);
+    }
     let (replay_input, interpretation) =
         if request.selection == ExecutionSelection::Both && request.target_name.is_none() {
-            match psi::execute(&report, None, target_name, psi_work_budget) {
+            match psi::execute(&report, None, psi_work_budget) {
                 Err(terminal_runtime::TerminalRuntimeError::MissingProvision {
                     capability: "runtime-standard-input",
                     ..
@@ -265,8 +287,7 @@ pub fn run_project(
                     let captured = standard_input::ReplayInput::capture(std::io::stdin().lock())
                         .map_err(RunError::StandardInput)?;
                     let input = captured.open_input().map_err(RunError::StandardInput)?;
-                    let retry =
-                        psi::execute(&report, Some(Box::new(input)), target_name, psi_work_budget);
+                    let retry = psi::execute(&report, Some(Box::new(input)), psi_work_budget);
                     (Some(captured), Some(retry))
                 }
                 outcome => (None, Some(outcome)),
@@ -345,50 +366,29 @@ pub fn run_project(
     };
     Ok(RunOutcome {
         build_dir,
-        test_roster,
         execution,
     })
 }
 
 fn run_terminal(
-    request: RunRequest,
-    artifact: Option<psi_authorization::AuthorizedTerminalArtifact>,
+    report: compilation::RunProduct,
+    keep_artifacts: bool,
     build_dir: PathBuf,
     psi_work_budget: u64,
 ) -> Result<RunOutcome, RunError> {
-    let compilation::ProbeCompilation {
-        report,
-        target_name,
-    } = compilation::compile(
-        artifact,
-        compilation::ProjectInput {
-            root_path: request.root_path,
-            build_directory: build_dir.clone(),
-            private_entry_ram: request.private_entry_ram,
-            build_snapshot: request.build_snapshot,
-            target_name: request.target_name,
-        },
-        crate::saved_program::ExecutionProduct::Runtime,
-    )
-    .map_err(RunError::Compilation)?;
-    if request.keep_artifacts {
+    if keep_artifacts {
         retained_artifacts::retain(&report, &build_dir)?;
     }
-    let test_roster = report.test_roster();
     let outcome = TerminalOutcome::from(psi::execute(
         &report,
         Some(Box::new(std::io::stdin())),
-        target_name,
         psi_work_budget,
     ));
-    if request.keep_artifacts
-        && let TerminalOutcome::Completed(observation) = &outcome
-    {
+    if keep_artifacts && let TerminalOutcome::Completed(observation) = &outcome {
         retain_terminal_observation(&build_dir, observation, psi_work_budget)?;
     }
     Ok(RunOutcome {
         build_dir,
-        test_roster,
         execution: ExecutionOutcome::Terminal(outcome),
     })
 }
