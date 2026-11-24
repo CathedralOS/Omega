@@ -54,7 +54,7 @@ expire after formation without retargeting an already-captured loan.
 
 These are source-language obligations, not a requirement to serialize successful
 comparisons and replay them inside the same compile. Under
-[verification placement](../../../omega-rust/pipeline.md#verification-placement),
+[verification placement](../../../source-rust/subsystems/compiler/README.md#verification-placement),
 the lowered-form checker judges these facts once, on Terminal Psi. Authored
 mathematics and refinement reasoning establish them there.
 

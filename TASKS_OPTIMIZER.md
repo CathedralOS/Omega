@@ -21,7 +21,7 @@ Select rules by exact name. Do not add `O1`/`O2`/`O3`,
 proof, ownership, effect and target facts it reads. Rules may read checked
 facts in-process; no item here requires shipped proofs, independent replay of
 the compiler's own rewrites, or custody-mutation matrices; follow
-[verification placement](omega-rust/pipeline.md#verification-placement). Optimizer crates have no
+[verification placement](source-rust/subsystems/compiler/README.md#verification-placement). Optimizer crates have no
 Rust tests. An acceptance below that names a corpus fixture, a `tests/omega/`
 path or a corpus command means a program of the former corpus
 ([tests/README.md](_recycling/tests/README.md#the-former-corpus)), kept under

@@ -2,7 +2,7 @@
 
 A compiler stage consumes its predecessor's declared output instead of rebuilding
 its decisions. That does not make the compiler infallible or a digest a proof.
-[Verification placement](../../../omega-rust/pipeline.md#verification-placement)
+[Verification placement](../../../source-rust/subsystems/compiler/README.md#verification-placement)
 owns the current checks; this note explains the distinctions at their handoffs.
 
 ## The decision

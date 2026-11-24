@@ -21,3 +21,14 @@ For a Product, planning turns the returned declaration and package graph into a 
 Source preparation occasionally needs the value of a constant or a compile-time call. The source driver checks that smaller invocation, executes it in the Build interpreter and returns the value and evaluation record to the requesting stage. [Compile-time source work](source-to-psi/driver/compile_time_invocations/)
 
 Native image production compiles the entry body and any selected private or component bodies with one body driver. An explicit validator request retains the originals needed to verify the emitted objects. [Native body stages](psi-to-native/driver/compile_body.rs) · [Stage validators](psi-to-native/verification/stage_validators.rs)
+
+## Verification placement
+
+During a compilation, each stage trusts its predecessor’s output contract. The compiler checks source proofs, external inputs and installation requirements at the boundaries below. Focused tests and explicit validator requests check the compiler's own output. [Compiler rules](../../../AGENTS.md#conventions-and-workflow) · [Validator selection](../../../wiki/spec/build/command_line.md#independent-stage-validators)
+
+| Boundary | What is checked |
+| --- | --- |
+| Source to published Psi | The lowered-form checker judges the obligations of the lowered program. Publication ties that verdict to the program it publishes. Correctness also depends on lowering preserving the source program's meaning. [Source stages](source-to-psi/README.md) |
+| Saved Psi and installed providers | The receiver decodes the artifact and applies host authorization to the exact bytes and producer. Installation checks the selected providers against the host's grants. The interpreter enforces bounds, access and liveness as it executes. [Psi admission](../../../wiki/spec/terminal-psi/product.md#publication-and-separate-consumption) |
+| Psi to a native image | The backend enforces target constraints during emission. Independent format checks run in backend tests. A requested validator checks its documented property against retained inputs. Native/Psi agreement covers the executions and observations compared. [Native emission](../../../wiki/spec/build/machine_state_evidence.md#final-artifact-validation-placement) |
+| Foreign packages and Build execution | The package host checks the source custody and acceptance records of foreign dependencies and confines Build services to their grants. [Package trust](../../../wiki/spec/packages/resolver_security.md#package-and-build-separation) |

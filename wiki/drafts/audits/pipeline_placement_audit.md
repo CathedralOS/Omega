@@ -2,7 +2,7 @@
 
 Historical record of the cited revisions. Superseded gates, artifact formats
 and checker names below are not current requirements or work to resume.
-Use [verification placement](../../../omega-rust/pipeline.md#verification-placement)
+Use [verification placement](../../../source-rust/subsystems/compiler/README.md#verification-placement)
 and the [current task board](../../../TASKS.md) for the maintained model.
 
 Mechanical sweep at `37d18e2104`, re-swept at `be496d9a90`, of code placement
