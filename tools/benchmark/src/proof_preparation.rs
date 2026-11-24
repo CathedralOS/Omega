@@ -9,7 +9,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-const PLAN_USAGE: &str = "proof-plan <source|prepare|prove> <baseline> <candidate> <main.omg> <new-plan.json> [--pairs N] (--target <hosted-target> | --repeats N --work-units N --checksum VALUE)";
+const PLAN_USAGE: &str = "proof-plan source <baseline> <candidate> <main.omg> <new-plan.json> --target <hosted-target> [--pairs N]";
 const SQUARE_BASE: &str = "9b4898865ecd5789bea4def6c2da078192a4ab82";
 const SQUARE_MAIN_SHA: &str = "f069e526d1da8440718195f266437c92345f5d9ace8b8461dad1bbad2968253d";
 const SQUARE_BUILD_SHA: &str = "9813449ec4cd31761ff0dfe63aa76b1a050d9985e279f56a80414a02795faa87";
@@ -35,8 +35,7 @@ fn make_plan(arguments: &[String], working_directory: &Path) -> Result<(Plan, Pa
     if arguments.len() < 5 {
         return Err(PLAN_USAGE.into());
     }
-    let mode = arguments[0].as_str();
-    if !matches!(mode, "source" | "prepare" | "prove") {
+    if arguments[0] != "source" {
         return Err(PLAN_USAGE.into());
     }
     let (pairs, trailing) = arguments[5..].as_chunks::<2>();
@@ -45,10 +44,7 @@ fn make_plan(arguments: &[String], working_directory: &Path) -> Result<(Plan, Pa
     }
     let mut options = BTreeMap::new();
     for [name, value] in pairs {
-        if !matches!(
-            name.as_str(),
-            "--target" | "--repeats" | "--work-units" | "--checksum" | "--pairs"
-        ) {
+        if !matches!(name.as_str(), "--target" | "--pairs") {
             return Err(format!("unknown proof-plan option: {name}"));
         }
         if options.insert(name.as_str(), value.as_str()).is_some() {
@@ -67,66 +63,31 @@ fn make_plan(arguments: &[String], working_directory: &Path) -> Result<(Plan, Pa
     if !library.is_dir() {
         return Err("run proof-plan from the checkout root containing source/library".into());
     }
+    let target = options
+        .get("--target")
+        .ok_or("source mode requires an explicit --target")?;
+    if !matches!(
+        *target,
+        "windows_x86_64" | "linux_x86_64" | "linux_arm64" | "macos_arm64"
+    ) {
+        return Err("--target must name one of the four hosted targets".into());
+    }
     let mut environment = BTreeMap::new();
-    let (command_arguments, measurement) = if mode == "source" {
-        if options
-            .keys()
-            .any(|name| !matches!(*name, "--target" | "--pairs"))
-        {
-            return Err(
-                "source mode accepts --target and --pairs; timer options require prepare or prove"
-                    .into(),
-            );
-        }
-        let target = options
-            .get("--target")
-            .ok_or("source mode requires an explicit --target")?;
-        if !matches!(
-            *target,
-            "windows_x86_64" | "linux_x86_64" | "linux_arm64" | "macos_arm64"
-        ) {
-            return Err("--target must name one of the four hosted targets".into());
-        }
-        environment.insert("OMEGA_LIBRARY_ROOT".into(), path_text(&library)?.into());
-        (
-            vec![
-                source_name.into(),
-                "--entry".into(),
-                "main".into(),
-                "--target".into(),
-                (*target).into(),
-            ],
-            Measurement::Process {
-                stdin: String::new(),
-                expected: ExpectedOutput {
-                    exit_code: 0,
-                    stdout: format!(
-                        "{source_name}\n  part 0: accepted\n{source_name}\troute=accepted\n"
-                    ),
-                    stderr: String::new(),
-                },
-            },
-        )
-    } else {
-        if options.contains_key("--target") {
-            return Err(
-                "prepare/prove replay is target-neutral and does not accept --target".into(),
-            );
-        }
-        let repeats = positive_option(&options, "--repeats")?;
-        let work_units = positive_option(&options, "--work-units")?;
-        let checksum = options
-            .get("--checksum")
-            .filter(|value| !value.is_empty())
-            .ok_or("timer mode requires --checksum")?;
-        (
-            vec![source_name.into(), repeats.to_string(), mode.into()],
-            Measurement::ReportedWork {
-                stdin: String::new(),
-                work_units,
-                checksum: (*checksum).into(),
-            },
-        )
+    environment.insert("OMEGA_LIBRARY_ROOT".into(), path_text(&library)?.into());
+    let command_arguments = vec![
+        source_name.into(),
+        "--entry".into(),
+        "main".into(),
+        "--target".into(),
+        (*target).into(),
+    ];
+    let measurement = Measurement::Process {
+        stdin: String::new(),
+        expected: ExpectedOutput {
+            exit_code: 0,
+            stdout: format!("{source_name}\n  part 0: accepted\n{source_name}\troute=accepted\n"),
+            stderr: String::new(),
+        },
     };
     let pairs = options.get("--pairs").map_or(Ok(8), |value| {
         value
@@ -135,7 +96,7 @@ fn make_plan(arguments: &[String], working_directory: &Path) -> Result<(Plan, Pa
     })?;
     let plan = Plan {
         schema: "omega-performance-plan/1".into(),
-        name: format!("Proof {mode} comparison: {}", source.display()),
+        name: format!("Proof source comparison: {}", source.display()),
         working_directory: working_directory.clone(),
         inputs: vec![source_directory.into(), library],
         baseline: CommandSpec {
@@ -155,14 +116,6 @@ fn make_plan(arguments: &[String], working_directory: &Path) -> Result<(Plan, Pa
     };
     plan.validate()?;
     Ok((plan, working_directory.join(&arguments[4])))
-}
-
-fn positive_option(options: &BTreeMap<&str, &str>, name: &str) -> Result<u64, String> {
-    options
-        .get(name)
-        .and_then(|value| value.parse().ok())
-        .filter(|value| *value != 0)
-        .ok_or_else(|| format!("timer mode requires positive {name}"))
 }
 
 fn existing_file(path: &Path) -> Result<PathBuf, String> {
@@ -377,38 +330,18 @@ mod tests {
     }
 
     #[test]
-    fn proof_search_plan_keeps_count_checksum_and_mode_without_target() {
-        let directory = Directory::new();
-        let mut arguments = directory.arguments("prove");
-        arguments.extend(
-            [
-                "--repeats",
-                "100",
-                "--work-units",
-                "1200",
-                "--checksum",
-                "1200",
-            ]
-            .map(str::to_owned),
-        );
-        let (plan, _) = make_plan(&arguments, &directory.0).unwrap();
-        assert_eq!(&plan.baseline.arguments[1..], ["100", "prove"]);
-        assert!(
-            matches!(plan.measurement, Measurement::ReportedWork { work_units: 1200, ref checksum, .. } if checksum == "1200")
-        );
-        arguments.extend(["--target", "windows_x86_64"].map(str::to_owned));
-        assert!(make_plan(&arguments, &directory.0).is_err());
-    }
-
-    #[test]
     fn invalid_or_duplicate_options_and_existing_outputs_refuse() {
         let directory = Directory::new();
         let arguments = directory.arguments("source");
+        let mut retired_mode = directory.arguments("prove");
+        retired_mode.extend(["--target", "linux_x86_64"].map(str::to_owned));
+        assert!(make_plan(&retired_mode, &directory.0).is_err());
         for tail in [
             vec!["--target", "uefi_x86_64"],
             vec!["--target", "linux_x86_64", "--target", "linux_arm64"],
             vec!["--target", "linux_x86_64", "--pairs", "1"],
             vec!["--unknown", "x"],
+            vec!["--target", "linux_x86_64", "--repeats", "100"],
         ] {
             let mut invalid = arguments.clone();
             invalid.extend(tail.into_iter().map(str::to_owned));

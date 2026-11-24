@@ -100,7 +100,7 @@ impl BuildStageSource {
             }
         }
         let source = request.prepare_build_projection(&mut timings, resolved, parked)?;
-        plan.stage.report_unused_imports(source.typed(), &imports);
+        plan.stage.check_imports(source.typed(), &imports)?;
         Ok(TypedBuildInterval {
             program: source.shared_typed(),
             plan: plan.stage,

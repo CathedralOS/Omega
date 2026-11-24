@@ -7,9 +7,6 @@ autotests = false
 autoexamples = false
 autobenches = false
 
-[lib]
-path = "prepare.rs"
-
 [dependencies]
 prepared-source = { path = "../../representations/prepared-source" }
 prepared-source-issuer = { path = "../../representations/prepared-source/issuer" }

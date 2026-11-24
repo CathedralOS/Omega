@@ -4,9 +4,6 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
-[lib]
-path = "lower.rs"
-
 [features]
 test-support = []
 

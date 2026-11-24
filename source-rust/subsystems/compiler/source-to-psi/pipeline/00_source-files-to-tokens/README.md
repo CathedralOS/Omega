@@ -1,20 +1,20 @@
 # Lexical scanning
 
-Start at [lexer.rs](lexer.rs). It turns loaded UTF-8 source into ordered token
+Start at [src/lib.rs](src/lib.rs). It turns loaded UTF-8 source into ordered token
 streams. The [streaming parser](../../driver/parse_source_batch.rs) calls
 `lex_file` for each file and recycles token buffers between files.
 `lex(LoadedSources)` returns a complete token batch for consumers that retain it.
 The [source-files representation](../../representations/source-files/source_files.rs) carries the captured text, origin and scope.
 
 Run the scanner and batch tests with `mbx test --locked -p source-lexer`.
-Inside `lexer.rs`, `ByteScanner::scan_token` dispatches on the first byte.
+Inside `src/lib.rs`, `ByteScanner::scan_token` dispatches on the first byte.
 The scanner writes each token directly into the parser’s reusable stream. Its
 offsets refer to the original UTF-8 file.
 
 Follow the two substantial spelling domains under `literals/`:
 
-- [numbers.rs](literals/numbers.rs) recognizes radix, fractional, exponent and suffix boundaries.
-- [quoted_bytes.rs](literals/quoted_bytes.rs) validates quoting and escapes, then decodes bytes.
+- [numbers.rs](src/literals/numbers.rs) recognizes radix, fractional, exponent and suffix boundaries.
+- [quoted_bytes.rs](src/literals/quoted_bytes.rs) validates quoting and escapes, then decodes bytes.
 
 [Token vocabulary](../../representations/tokens/lexemes/kinds.rs)
 owns the shared keyword and punctuation definitions. Ordinary tokens borrow the

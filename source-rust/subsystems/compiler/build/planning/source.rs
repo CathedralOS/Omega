@@ -56,7 +56,6 @@ pub(super) struct PlanningSource {
 
 /// The opened Product and the exact Build and package graph that admitted it.
 pub struct PlannedProduct {
-    build_advisories: Vec<Diagnostic>,
     pub(crate) evaluated: EvaluatedBuild,
     pub(crate) build_profile: TargetProfile,
     pub(super) runtime_consents: Option<Vec<TerminalPermissionAcceptance>>,
@@ -148,10 +147,6 @@ impl PlannedProduct {
                 build.config.native_binding_evaluation.clone(),
             )
             .map_err(refusal)
-    }
-
-    pub fn build_advisories(&self) -> &[Diagnostic] {
-        &self.build_advisories
     }
 
     pub fn attribute_diagnostics(&self, rows: &mut [Diagnostic]) {
@@ -365,7 +360,7 @@ impl PlanningSource {
                             && !authority.as_ref().is_some_and(|graph| graph.dependency_target_for_purpose(
                                 graph.root(), build_declarations::DependencyPurpose::Build, alias).is_some())
                         {
-                            row.message.push_str(&format!(". Alias `{alias}` was prepared as a Product dependency. To call it from Build, register it with `Build::build_dependency(builder, description)` and prepare that registration."));
+                            row.message.push_str(&format!(". Alias `{alias}` was prepared as a Product dependency. To call it from this Build, the invoker must supply `{alias}` as a Build library before entry."));
                         }
                     }
                 }
@@ -502,16 +497,7 @@ impl PlanningSource {
             )?;
             Some(extension.prepare_source_request(&source.parsed.files, inputs, &mut self.timings)?)
         };
-        let mut build_advisories = self.stage.unused_import_advisories().to_vec();
-        if !build_advisories.is_empty() {
-            let sources = self
-                .query_authors
-                .as_deref()
-                .ok_or_else(|| refusal("Build diagnostic lost its source map".into()))?;
-            package_compilation::attribute_diagnostics(&mut build_advisories, sources, inputs);
-        }
         Ok(PlannedProduct {
-            build_advisories,
             generated,
             evaluated,
             build_profile: self.profile,

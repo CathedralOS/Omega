@@ -3,7 +3,7 @@
 The public contracts cover the [Terminal product](../../../../../../wiki/spec/terminal-psi/product.md)
 and [boundary realization](../../../../../../wiki/spec/terminal-psi/boundary_calls.md).
 
-The [stage entry](lower.rs) lowers checked Psi for native execution. The build's checked
+The [stage entry](src/lib.rs) lowers checked Psi for native execution. The build's checked
 selection names the functions that need target support. Test fixtures can exercise whole-module lowering through the opt-in test support API. Unused library helpers thus demand no
 unavailable target operations.
 
@@ -17,7 +17,7 @@ retires it.
 The build's starting function, implementations and callbacks are joined before
 lowering. The [shared input owner](../../representations/abstract-operations/verified-optimization-input/src/lib.rs)
 keeps that checked record with the lowered program, so later stages read it
-without depending on this stage. The [stage entry](lower.rs) exposes selected
+without depending on this stage. The [stage entry](src/lib.rs) exposes selected
 execution and callable lowering, provider preparation and entry admission.
 Callers obtain retained programs, proposals and entry settlements directly from
 the shared input owner.
@@ -34,17 +34,17 @@ the shared input owner.
   without reopening a typed or checked program or a source resolver.
 - The [shared execution owner](../../representations/abstract-operations/verified-optimization-input/src/native_execution.rs)
   follows calls from the proposal's entry, implementations and callbacks. It
-  validates component replacements before excluding their local implementations. The [scope walk](admit_providers.rs)
+  validates component replacements before excluding their local implementations. The [scope walk](src/admit_providers.rs)
   also keeps cleanup, installed-interrupt and code-layout requirements, and
   functions that dynamic dispatch tables reference. Reached calls can need more
   direct or Build-selected provider implementations; demand completion checks
   them, then binds the final choices. Original build choices stay
   separate from it.
-- [Selected execution](selected_execution.rs) lowers the program entry or a
-  component callable. [Provider admission](admit_providers.rs) uses that execution's
+- [Selected execution](src/selected_execution.rs) lowers the program entry or a
+  component callable. [Provider admission](src/admit_providers.rs) uses that execution's
   demands to prepare callbacks, imports and builtins and check package permissions. Derived import evidence stays invocation-owned through admission
   and emission. The native driver passes the target inputs directly to this stage in memory. A receiver opening a saved Psi program supplies its authorized publication and reviewed provider installation.
-- [Provider admission](admit_providers.rs) checks the canonical inputs, installations,
+- [Provider admission](src/admit_providers.rs) checks the canonical inputs, installations,
   mechanisms and exclusions that stage 02 needs to lower this body. The
   [native driver](../../driver/mod.rs) coordinates all stages for the program.
   [Provider admission](../../verification/provider-admission/src/lib.rs)
@@ -52,12 +52,12 @@ the shared input owner.
   receiving policy and target catalog; it reads the bindings the proposal
   derived instead of joining them again. stage 04 consumes these facts; neither
   it nor the compiler repeats admission.
-- [Selected input admission](selected_input.rs) does canonical
+- [Selected input admission](src/selected_input.rs) does canonical
   preparation, optional obligation-ledger replay, and separate ordinary,
   optimizer and native admission. Every admitted result keeps the exact
   access-view input roster. Extracting into a consumer without the roster
   rejects nonempty inputs, after verification and lowering, not at decode.
-  [Native preparation](selected_input.rs) receives the complete checked
+  [Native preparation](src/selected_input.rs) receives the complete checked
   selection from the shared owner, verifies its artifact, entry, target and
   original choices, applies the selected geometry, then lowers those functions.
   Raw requests without it check the whole module and keep no selected scope. No partly lowered native input is pruned by a later public step.
@@ -98,14 +98,14 @@ the shared input owner.
   Builtin integer comparisons need no provider row.
 - `lowering` walks operations in order for scalar, Unit and structural
   results. Optimization selection does not change this projection.
-- [Entry admission](entry_receiver.rs) compares the lowered entry with its
+- [Entry admission](src/entry_receiver.rs) compares the lowered entry with its
   exact selected Psi member, receiver and parameter declarations before object
   construction. It retains the checked receiver settlement for publication.
 
-[Module lowering](operations.rs) checks the entry and structural block
-bindings, then calls [machine lowering](operations.rs) directly. It
+[Module lowering](src/operations.rs) checks the entry and structural block
+bindings, then calls [machine lowering](src/operations.rs) directly. It
 prepares block and value rosters, visits blocks in order, dispatches
-[operations](operations.rs) and [terminators](operations.rs), and assembles
+[operations](src/operations.rs) and [terminators](src/operations.rs), and assembles
 the abstract function. Each abstract block owns its operations and its final
 control transfer; there is no flat body with a separate table of block offsets.
 Scalar, Unit and structural results share this walk; there is no separate
@@ -119,7 +119,7 @@ Native lowering returns `VerifiedNativeArtifactInput`. It carries the authorized
 optimizer input, checked access establishments and private entry memory for
 this selection. The optimizer consumes the retained input. Tests can lower
 a whole module with the same authorization and optional evidence for its
-exact identity through the [fixture helpers](test_support.rs).
+exact identity through the [fixture helpers](src/test_support.rs).
 
 Image-writer storage must not be relabeled as compiler-written object data. For example, Mach-O replay derives aligned eight-byte
 lazy-binding pointer slots from the exact imports and relocations.
@@ -180,7 +180,7 @@ successful optimization do not claim native publication.
 ## Ranked native admission
 
 Contract: [control flow and ranking](../../../../../../wiki/spec/terminal-psi/control_flow.md).
-[Selected input admission](selected_input.rs) sends natural-ranked
+[Selected input admission](src/selected_input.rs) sends natural-ranked
 modules through ordinary Terminal verification and abstract lowering.
 That verifier checks the exact grouped control-cycle evidence, including
 slice-decrease proofs; the route neither requires nor invents a fixed-work

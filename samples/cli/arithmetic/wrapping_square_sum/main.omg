@@ -17,7 +17,7 @@
 // checked, so dropping the arithmetic cannot masquerade as a successful run.
 // Inputs are constants: this remains an optimizer subject, not a guarantee of
 // sustained arithmetic throughput. Runtime-input reference kernels live in
-// tools/benchmark/src/workloads.rs.
+// tools/benchmark/src/bin/omega-bench-workload.rs.
 //
 // Expected exit: 0
 

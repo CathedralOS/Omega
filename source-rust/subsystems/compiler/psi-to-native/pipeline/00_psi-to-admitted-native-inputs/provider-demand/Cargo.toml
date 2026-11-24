@@ -4,9 +4,6 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
-[lib]
-path = "demand.rs"
-
 [dependencies]
 psi-provider-selections = { path = "../../../../psi/execution-inputs/providers" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }

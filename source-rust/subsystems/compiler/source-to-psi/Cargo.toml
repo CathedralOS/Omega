@@ -89,17 +89,11 @@ lowered-program-to-checked-program = { path = "pipeline/06_lowered-program-to-ch
 prepared-typed-trees-to-lowered-program = { path = "pipeline/05_prepared-typed-trees-to-lowered-program", features = ["test-support"] }
 symbol-resolved-trees-to-typed-trees = { path = "pipeline/03_symbol-resolved-trees-to-typed-trees", features = ["test-support"] }
 syntax-trees-to-symbol-resolved-trees = { path = "pipeline/02_syntax-trees-to-symbol-resolved-trees", features = ["test-support"] }
-mimalloc = { version = "0.1", default-features = false }
 
 [[bench]]
 name = "lexing_lexer_timing"
 path = "pipeline/00_source-files-to-tokens/benchmarks/lexer_timing.rs"
 harness = false
-required-features = ["test-support"]
-
-[[example]]
-name = "typing_declaration_shapes"
-path = "pipeline/03_symbol-resolved-trees-to-typed-trees/examples/declaration_shapes.rs"
 required-features = ["test-support"]
 
 [[test]]
@@ -322,39 +316,9 @@ name = "checking_requirement_interfaces"
 path = "pipeline/06_lowered-program-to-checked-program/tests/requirement_interfaces.rs"
 required-features = ["test-support"]
 
-[[example]]
-name = "checking_machine_checks"
-path = "pipeline/06_lowered-program-to-checked-program/examples/machine_checks.rs"
-required-features = ["test-support"]
-
-[[example]]
-name = "checking_machine_checks_mimalloc"
-path = "pipeline/06_lowered-program-to-checked-program/examples/machine_checks_mimalloc.rs"
-required-features = ["test-support"]
-
-[[example]]
-name = "checking_proof_preparation"
-path = "pipeline/06_lowered-program-to-checked-program/examples/proof_preparation.rs"
-required-features = ["test-support"]
-
-[[example]]
-name = "checking_proof_preparation_timing"
-path = "pipeline/06_lowered-program-to-checked-program/examples/proof_preparation_timing.rs"
-required-features = ["test-support"]
-
 [[test]]
 name = "production_build_companions"
 path = "pipeline/07_checked-program-to-psi/tests/build_companions.rs"
-required-features = ["test-support"]
-
-[[example]]
-name = "source_state_declaration_lookups"
-path = "representations/typed-trees/examples/declaration_lookups.rs"
-required-features = ["test-support"]
-
-[[example]]
-name = "source_state_declaration_owner"
-path = "representations/typed-trees/examples/declaration_owner.rs"
 required-features = ["test-support"]
 
 [[test]]
@@ -362,25 +326,10 @@ name = "source_resolved_authored_declaration_selection_ledger"
 path = "representations/symbol-resolved-trees/tests/authored_declaration_selection_ledger.rs"
 required-features = ["test-support"]
 
-[[example]]
-name = "source_resolved_diagnostic_name_allocations"
-path = "representations/symbol-resolved-trees/examples/diagnostic_name_allocations.rs"
-required-features = ["test-support"]
-
 [[bench]]
 name = "parsing_parser_timing"
 path = "pipeline/01_tokens-to-syntax-trees/benchmarks/parser_timing.rs"
 harness = false
-required-features = ["test-support"]
-
-[[example]]
-name = "checking_service_correspondence"
-path = "pipeline/06_lowered-program-to-checked-program/examples/service_correspondence.rs"
-required-features = ["test-support"]
-
-[[example]]
-name = "checking_service_correspondence_allocations"
-path = "pipeline/06_lowered-program-to-checked-program/examples/service_correspondence_allocations.rs"
 required-features = ["test-support"]
 
 [[bench]]

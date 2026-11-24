@@ -3,7 +3,7 @@
   "name": "compute native runtime",
   "working_directory": "../../../..",
   "inputs": [
-    "tools/benchmark/src/workloads.rs"
+    "tools/benchmark/src/bin/omega-bench-workload.rs"
   ],
   "baseline": {
     "program": "target/debug/omega-bench-workload.exe",

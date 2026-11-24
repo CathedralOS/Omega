@@ -146,7 +146,7 @@ assertion. Neither failed run contributes final measurements.
 
 ## Reproduction and identities
 
-[Portable commands and boundary definitions](../../../tools/benchmark/selected-bodies/README.md)
+[Portable commands and boundary definitions](../../../_recycling/tools/benchmark/selected-bodies/README.md)
 cover preserving the producer, freezing inputs, applying the opt-in capture patch,
 building via mbx, generating plans, capture/replay, and same-executable controls.
 No PowerShell or Python reproduction artifact is required. The patch is pinned
@@ -374,7 +374,7 @@ append, sorted insertion, point writes, predicate unwinding, stale/reused
 handles, legacy bytes and tighter allocation budgets. The cache's new-key
 pointer regression likewise fails before its repair and passes afterward.
 
-[Portable follow-up commands](../../../tools/benchmark/selected-bodies/README.md#retained-side-record-measurements)
+[Portable follow-up commands](../../../_recycling/tools/benchmark/selected-bodies/README.md#retained-side-record-measurements)
 retain the shared Rust driver and opt-in observer patches. Default dependencies,
 allocators, stage APIs and runtime execution contain no observer hooks. The
 portable driver adapts formatting and its module path, so rebuilt executables

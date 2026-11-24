@@ -1529,7 +1529,7 @@ machine wrong() crashes Trap { crash Trap; }
     assert!(
         !output.status.success()
             && report.contains("Alias `kit` was prepared as a Product dependency")
-            && report.contains("Build::build_dependency(builder, description)")
+            && report.contains("the invoker must supply `kit` as a Build library before entry")
             && report.contains("build.omg:6:"),
         "{report}"
     );
@@ -1548,13 +1548,8 @@ machine wrong() crashes Trap { crash Trap; }
 }
 
 #[test]
-fn an_unused_deferred_import_warns_at_the_authored_name() {
-    let (compiled, report) = check("unused-import", "", &after("kit\\v"), 7);
-    assert!(
-        compiled && !report.contains("unused deferred Build import"),
-        "{report}"
-    );
-    let build = "use nowhere;\nmachine build(builder: @mutable Build) { Build::application(builder, \"never_used\"); Build::bind(builder, linux_x86_64\\ProgramEntry, main); }\n";
+fn an_unused_unbound_import_is_refused_at_the_authored_name() {
+    let build = "use {absent}/helper.omg as missing;\nmachine build(builder: @mutable Build) { Build::application(builder, \"never_used\"); Build::bind(builder, linux_x86_64\\ProgramEntry, main); }\n";
     let (compiled, report) = check_project(
         "unused-deferred",
         build,
@@ -1563,8 +1558,8 @@ fn an_unused_deferred_import_warns_at_the_authored_name() {
         &["--check", "main.omg", "--target", "linux_x86_64"],
     );
     assert!(
-        compiled
-            && report.contains("unused deferred Build import `nowhere`")
+        !compiled
+            && report.contains("Build import `{absent}/helper.omg as missing` has no supplied source")
             && report.contains("build.omg:1:5"),
         "{report}"
     );
@@ -1659,8 +1654,8 @@ machine build(builder: @mutable Build) suspends {
     let with_unused = format!("use {{absent}}/other.omg as unused;\n{build}");
     let (ok, report) = invoke(&with_unused, &["--check", "build.omg"]);
     assert!(
-        ok && report.contains("unused deferred Build import `{absent}/other.omg as unused`")
-            && !report.contains("unused deferred Build import `{kit}/entry.omg as selected`"),
+        !ok && report.contains("Build import `{absent}/other.omg as unused` has no supplied source")
+            && !report.contains("Build import `{kit}/entry.omg as selected` has no supplied source"),
         "{report}"
     );
     let called = build.replace(

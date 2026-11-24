@@ -107,6 +107,73 @@ pub(crate) fn validate_relation(
     Ok(())
 }
 
+fn target_claims_match(
+    term: &ContentTerm,
+    bindings: &[terminal_psi::ContentClaimProjection],
+    accepts: &mut impl FnMut(semantic_vocabulary::ClaimId) -> bool,
+) -> bool {
+    match term {
+        ContentTerm::Projection {
+            projection,
+            subject,
+        } => bindings.iter().any(|binding| {
+            binding.projection == *projection
+                && binding.subject == *subject
+                && accepts(binding.claim)
+        }),
+        ContentTerm::Separate(children) => {
+            !children.is_empty()
+                && children
+                    .iter()
+                    .all(|child| target_claims_match(child, bindings, accepts))
+        }
+    }
+}
+
+fn input_corresponds(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    parameter: &terminal_psi::StructuralParameterDeclaration,
+    substitution: &terminal_psi::ContentBodyProjectionSubstitution,
+    derived: &ContentTransformationDerivation,
+    traversal: &mut super::ancestry::OriginTraversal,
+) -> bool {
+    let ContentTerm::Projection {
+        projection,
+        subject,
+    } = &substitution.source
+    else {
+        return false;
+    };
+    if parameter.access != terminal_psi::StructuralAccess::Owned
+        || subject.version != ContentPlaceVersion::Entry
+    {
+        return false;
+    }
+    let mut entries = machine.content_entry_claims.iter().filter(|entry| {
+        entry.input.version == ContentPlaceVersion::Entry
+            && entry.input.root == parameter.place
+            && entry.input.segments == subject.segments
+            && derived.lineage_roots.contains(&entry.claim)
+            && entry.projections.iter().any(|row| {
+                row.projection == *projection && row.algebra == *derived.conservation.algebra()
+            })
+    });
+    let Some(entry) = entries.next() else {
+        return false;
+    };
+    if entries.next().is_some() {
+        return false;
+    }
+
+    // The producer can return one input while settling a sibling. Replay each
+    // target claim's own origin before substituting it for this public input.
+    target_claims_match(&substitution.target, &derived.inputs, &mut |claim| {
+        super::ancestry::local_roots(module, machine, claim, *projection, traversal)
+            .is_ok_and(|roots| roots == [entry.claim])
+    })
+}
+
 pub(crate) fn validate_authority(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -115,9 +182,11 @@ pub(crate) fn validate_authority(
     let ContentTransformationCustody::Boundary { requirements, .. } = &derived.custody else {
         return Ok(());
     };
+    let mut traversal = super::ancestry::OriginTraversal::new();
     for requirement in requirements {
         let boundary = module
-            .interfaces.boundary_machines
+            .interfaces
+            .boundary_machines
             .iter()
             .find(|boundary| boundary.id == requirement.boundary)
             .ok_or("boundary body custody requirement is absent")?;
@@ -132,11 +201,7 @@ pub(crate) fn validate_authority(
             );
         }
         for substitution in &requirement.substitutions {
-            let ContentTerm::Projection {
-                projection,
-                subject,
-            } = &substitution.source
-            else {
+            let ContentTerm::Projection { subject, .. } = &substitution.source else {
                 return Err("boundary body substitution source is not one public projection");
             };
             let root = requirement
@@ -145,7 +210,7 @@ pub(crate) fn validate_authority(
                 .iter()
                 .find(|place| place.id == subject.root)
                 .ok_or("boundary body public subject has no declaration")?;
-            let roster = match root.kind {
+            match root.kind {
                 StructuralPlaceKind::Parameter { position }
                     if subject.version == ContentPlaceVersion::Entry =>
                 {
@@ -155,11 +220,11 @@ pub(crate) fn validate_authority(
                         .position(|parameter| parameter.position == position)
                         .ok_or("boundary body public subject is not a structural formal")?;
                     let anchored = module
-                        .interfaces.provider_candidates
+                        .interfaces
+                        .provider_candidates
                         .iter()
                         .filter(|candidate| {
-                            candidate.boundary == boundary.id
-                                && candidate.candidate == machine.id
+                            candidate.boundary == boundary.id && candidate.candidate == machine.id
                         })
                         .any(|candidate| {
                             candidate
@@ -172,14 +237,14 @@ pub(crate) fn validate_authority(
                                         .structural_parameters
                                         .get(row.candidate_index as usize)
                                         .is_some_and(|parameter| {
-                                            machine.content_entry_claims.iter().any(|entry| {
-                                                derived.lineage_roots.contains(&entry.claim)
-                                                    && entry.input.root == parameter.place
-                                                    && entry.input.segments == subject.segments
-                                                    && entry.projections.iter().any(|entry| {
-                                                        entry.projection == *projection
-                                                    })
-                                            })
+                                            input_corresponds(
+                                                module,
+                                                machine,
+                                                parameter,
+                                                substitution,
+                                                derived,
+                                                &mut traversal,
+                                            )
                                         })
                                 })
                         });
@@ -188,40 +253,18 @@ pub(crate) fn validate_authority(
                             "boundary body input law is not anchored to its exact public formal and entry claim",
                         );
                     }
-                    &derived.inputs
                 }
-                StructuralPlaceKind::Result
-                    if subject.version == ContentPlaceVersion::Current =>
-                {
-                    &derived.outputs
-                }
-                _ => {
-                    return Err(
-                        "boundary body law does not bind an entry input or current result",
-                    );
-                }
-            };
-            fn in_roster(
-                term: &ContentTerm,
-                roster: &[terminal_psi::ContentClaimProjection],
-            ) -> bool {
-                match term {
-                    ContentTerm::Projection {
-                        projection,
-                        subject,
-                    } => roster.iter().any(|binding| {
-                        binding.projection == *projection && binding.subject == *subject
-                    }),
-                    ContentTerm::Separate(children) => {
-                        children.iter().all(|child| in_roster(child, roster))
+                StructuralPlaceKind::Result if subject.version == ContentPlaceVersion::Current => {
+                    if !target_claims_match(&substitution.target, &derived.outputs, &mut |_| true) {
+                        return Err(
+                            "boundary body public result is substituted into another custody occurrence",
+                        );
                     }
                 }
-            }
-            if !in_roster(&substitution.target, roster) {
-                return Err(
-                    "boundary body public subject is substituted into another custody occurrence",
-                );
-            }
+                _ => {
+                    return Err("boundary body law does not bind an entry input or current result");
+                }
+            };
         }
         for output in &derived.outputs {
             let domain = module
@@ -498,3 +541,6 @@ fn owned_addresses(
     )?;
     Ok(output)
 }
+
+#[cfg(test)]
+mod tests;

@@ -11,7 +11,6 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[path = "../selected-bodies/snapshot_limits.rs"]
 mod snapshot_limits;
 
 struct OwnedWpr {

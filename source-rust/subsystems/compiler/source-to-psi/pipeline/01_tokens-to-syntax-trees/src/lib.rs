@@ -294,7 +294,7 @@ mod contracts {
 mod parameters {
     pub(crate) mod callable;
     #[cfg(test)]
-    #[path = "../tests/unit/generic_parameters.rs"]
+    #[path = "../../tests/unit/generic_parameters.rs"]
     mod generic_parameters_tests;
     pub(crate) mod generics;
     pub(crate) mod relevance;
@@ -326,7 +326,7 @@ mod expressions {
     pub(crate) mod proof_facts;
     pub(crate) mod static_arguments;
     #[cfg(test)]
-    #[path = "../tests/unit/static_targets.rs"]
+    #[path = "../../tests/unit/static_targets.rs"]
     mod static_targets_tests;
 }
 mod assembly {
@@ -352,23 +352,23 @@ mod patterns {
 mod types {
     pub(crate) mod properties;
     #[cfg(test)]
-    #[path = "../tests/unit/qualified_types.rs"]
+    #[path = "../../tests/unit/qualified_types.rs"]
     mod qualified_names;
     pub(crate) mod references;
     #[cfg(test)]
-    #[path = "../tests/unit/type_remainders.rs"]
+    #[path = "../../tests/unit/type_remainders.rs"]
     mod remainder_tests;
     #[cfg(test)]
-    #[path = "../tests/unit/static_argument_delimiters.rs"]
+    #[path = "../../tests/unit/static_argument_delimiters.rs"]
     mod static_argument_delimiters_tests;
 }
 
 #[cfg(test)]
-#[path = "tests/unit/mod.rs"]
+#[path = "../tests/unit/mod.rs"]
 mod tests;
 
 #[cfg(test)]
-#[path = "tests/support/internal.rs"]
+#[path = "../tests/support/internal.rs"]
 mod test_support;
 #[cfg(test)]
 use test_support::{
@@ -382,5 +382,5 @@ use source_lexer as lexing;
 #[cfg(test)]
 use source_files::LoadedSource;
 #[cfg(test)]
-#[path = "../../../../../../tests/support/frontend_operations.rs"]
+#[path = "../../../../../../../tests/support/frontend_operations.rs"]
 mod frontend_fixture;

@@ -1,7 +1,7 @@
 # Typed preparation (Psi 04)
 
 Every program's typed trees cross this stage on their way to the checker, by
-one path: [`prepare_typed_trees`](prepare.rs) runs an explicit, ordered
+one path: [`prepare_typed_trees`](src/lib.rs) runs an explicit, ordered
 list of passes over the typed trees, then returns
 [`PreparedTypedTrees`](../../representations/prepared-source/lib.rs). That
 representation checks that computation inputs belong to this source and retain
@@ -18,8 +18,8 @@ and field identities to the trees. Stage 06 checks the resulting lowered form.
 
 | Pass | What it writes | Who reads it |
 | --- | --- | --- |
-| [specialization](passes/specialization.rs) | For a call that applies static arguments (`relay::<u8>(..)`, `advance::<Hold>(..)`): which parameter each argument is for, on the call's application; and, when the arguments are closed, the machine the application selects, generated from the generic machine with each parameter replaced, which the call then enters | Structural elaboration: an open application in a generic machine is read from its bindings (`read/calls.rs`, `type_arguments`), a generated machine as any closed machine, and its declaration states the generic machine and the application (`declare.rs`, `application`) |
-| [domain applications](passes/domain_applications.rs) | The declaration’s carrier, proof facts and cleanup selection with its retained type and value arguments substituted, or a refusal on that application | Structural elaboration reads the theory for the exact declaration and semantic domain identity |
+| [specialization](src/passes/specialization.rs) | For a call that applies static arguments (`relay::<u8>(..)`, `advance::<Hold>(..)`): which parameter each argument is for, on the call's application; and, when the arguments are closed, the machine the application selects, generated from the generic machine with each parameter replaced, which the call then enters | Structural elaboration: an open application in a generic machine is read from its bindings (`read/calls.rs`, `type_arguments`), a generated machine as any closed machine, and its declaration states the generic machine and the application (`declare.rs`, `application`) |
+| [domain applications](src/passes/domain_applications.rs) | The declaration’s carrier, proof facts and cleanup selection with its retained type and value arguments substituted, or a refusal on that application | Structural elaboration reads the theory for the exact declaration and semantic domain identity |
 
 Record patterns already carry their record and field identities from typing.
 Preparation preserves those selections; lowering checks the actual subject,
@@ -29,7 +29,7 @@ For a reflected sum visitor, specialization checks both callback interfaces and
 creates a candidate helper for each declared case. When stage 05 reads the
 dispatch, it tests the applied sum's type contracts and admits callback
 applications only for cases that can still occur. The generated helpers enter
-through that dispatch. [Active-case expansion](passes/specialization/reflected_fields/active_cases.rs) · [Dispatch lowering](../05_prepared-typed-trees-to-lowered-program/src/read/transitions.rs)
+through that dispatch. [Active-case expansion](src/passes/specialization/reflected_fields/active_cases.rs) · [Dispatch lowering](../05_prepared-typed-trees-to-lowered-program/src/read/transitions.rs)
 
 Specialization serves type parameters given plain named types (a builtin
 type, a data declaration with no parameters, a type parameter in scope) and
@@ -82,7 +82,7 @@ parameters remain available for its own calls. Runtime values pass through
 ordinary arguments.
 
 A fully applied named map with a default type-only telescope uses the same
-[copier](passes/specialization/named_conformances.rs). The call identifies
+[copier](src/passes/specialization/named_conformances.rs). The call identifies
 the public requirement. One `CapturedMachineApplication` retains the map's
 constructor bindings, complete argument tuple and supplying owner. It names
 the selected member as its root and records the source and entry of each

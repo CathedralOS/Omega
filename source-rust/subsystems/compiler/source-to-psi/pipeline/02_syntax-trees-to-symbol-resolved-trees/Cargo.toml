@@ -10,9 +10,6 @@ autobenches = false
 [features]
 test-support = ["symbol-resolved-trees/test-support"]
 
-[lib]
-path = "lib.rs"
-
 [dependencies]
 source-provenance = { path = "../../../foundation/source-provenance" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }

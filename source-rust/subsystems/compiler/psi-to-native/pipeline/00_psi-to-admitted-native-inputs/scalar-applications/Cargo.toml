@@ -4,9 +4,6 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
-[lib]
-path = "scalar_applications.rs"
-
 [dependencies]
 numeric-intrinsic-admission = { path = "../../../verification/numeric-intrinsics" }
 target-provider-admission = { path = "../../../verification/target-providers" }

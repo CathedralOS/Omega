@@ -687,5 +687,5 @@ impl syntax_trees::SyntaxTextContext for Input<'_, '_> {
 }
 
 #[cfg(test)]
-#[path = "../tests/unit/retained_source.rs"]
+#[path = "../../tests/unit/retained_source.rs"]
 mod storage_tests;
