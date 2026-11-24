@@ -21,7 +21,7 @@ Per machine it does five things:
   the same walk a copy's leaves are resolved by), each `requires` clause of
   a data type that a read of established storage can state on its value,
   and each callee `ensures` clause, under the call's actuals, after the call.
-  Nothing comes from source shapes, names or any Psi 05 or validation fact.
+  The checker derives this knowledge from the lowered program it judges.
 - Judges initialization: every operation and terminator that reads storage
   gets one verdict, `Unestablished` when some path to it supplies no
   established value for a scalar leaf it reads (`places`). It is a

@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
 /*
-Target-legal operation plan representation for the Omega native backend (`Psi 06–08 -> Native`).
+Target-legal execution plans consumed by native instruction selection.
 
 After target operations (`target-operations`) resolve calling policies, boundary bindings, and
 structural storage shapes, legalization lowers abstract operations into target-legal scalar and
@@ -24,14 +24,11 @@ re-running the legalization solver.
 */
 
 /*
-We group the target-legal representation into four subordinate owners beneath
-`LegalizedOperationPlan`:
-1. `legality` — checked exact arithmetic operators that retain their semantic integer carrier.
-2. `calls` — re-exports shared structural signatures, boundary settlements, and call-origin errors.
-3. `control_flow` — scalar instruction graphs, shared arithmetic forms, and case
-   dispatch edges.
-4. `identity` and `validation` — canonical SHA-256 identity digests (`LegalizedOperationPlanIdentity`)
-   and representation-owned call/instruction shape checks.
+Start with `LegalizedOperationPlan`, then follow its function graphs through
+`control_flow`, its call contracts through `calls`, and exact integer
+arithmetic through `legality`. Function ABI, structural inputs, native
+geometry and interrupt geometry have their own modules. `identity` computes
+the plan digest, and `validation` checks call and instruction shapes.
 */
 
 pub(crate) use ::wire::codec_bytes;
@@ -72,7 +69,7 @@ pub struct LegalizedOperationPlan {
     pub function_abis: std::sync::Arc<[LegalizedFunctionAbi]>,
     /// Native storage geometry of borrowed boundary inputs and owned roots
     /// reached by foreign calls. The host bridge reads it to borrow guest
-    /// values; the plan carries it so nothing reads stage 02's working form.
+    /// values. The plan carries it so selection can read it directly.
     pub borrowed_storage_layouts: runtime_abi::NativeBorrowedStorageLayouts,
     pub publication: target_vocabulary::NativePublicationFacts,
     /// Preparation fills this before sealing. A partial, unsealed operation
@@ -89,7 +86,7 @@ impl LegalizedOperationPlan {
             .find(|function| function.machine == self.entry)
     }
 
-    /// The target calling contract stage 02 chose for `machine`.
+    /// The target calling contract preparation chose for `machine`.
     pub fn function_abi(&self, machine: MachineId) -> Option<&LegalizedFunctionAbi> {
         self.function_abis
             .binary_search_by_key(&machine, |row| row.machine)
@@ -98,7 +95,7 @@ impl LegalizedOperationPlan {
     }
 }
 
-/// The execution plan stage 02 publishes for instruction selection.
+/// The execution plan native stage 04 publishes for instruction selection.
 ///
 /// A prepared plan says what must execute: concrete types, placements, proof
 /// identities at the operations they license, and ownership evidence per

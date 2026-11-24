@@ -2,15 +2,15 @@
 
 /*
 We assign physical register homes and execute admitted register-pressure
-recovery over the selected instruction program (`Omega 05`). Our entry point,
-`stage_register_allocation` in `register_allocation.rs`, consumes the one
-`SelectedAllocationInput` Omega 04 hands over (the current program, the
-analyses Omega 04 established for it, and its `SelectedOptimizationRecord`),
+recovery over the selected instruction program. `stage_register_allocation`
+in `register_allocation.rs` consumes the `SelectedAllocationInput` from
+selected instruction optimization. It carries the current program, its
+validated analyses and its `SelectedOptimizationRecord`. The entry point
 runs the allocation procedure the selected allocation-recovery catalog entry
 names (or plain assignment), falls back to runtime spilling under remaining
 pressure, and publishes one validated `RetainedAllocation` carrying the
-current allocated program and its checked facts. Which Omega 04 phase ran is
-evidence in the manifest, never a choice of procedure.
+current allocated program and its checked facts. The manifest records the
+preceding optimization phase for validation.
 */
 
 /*
@@ -25,8 +25,8 @@ fresh liveness, live-range, and legality checks before its homes are accepted.
 */
 
 /*
-- Input: `SelectedAllocationInput` from `Omega 04` (`selected-instructions-to-selected-instructions`).
-- Output: `RetainedAllocation` (`output.rs`) and `ValidatedAllocatedCalleeSavedRequirements` (`preservation.rs`) consumed by `Omega 06` (`register-homes-to-machine-plan`).
+- Native stage 06 (`selected-instructions-to-selected-instructions`) supplies `SelectedAllocationInput`.
+- Native stage 08 (`register-homes-to-post-allocation-machine`) consumes `RetainedAllocation` (`output.rs`) and `ValidatedAllocatedCalleeSavedRequirements` (`preservation.rs`).
 - Flat module layout:
   - `register_allocation.rs`: the stage entrance: select the recovery catalog entry, take the legality analysis, run the procedure the entry names, admit the result.
   - `assignment.rs`: baseline homes, the three allocation procedures, runtime-spill recovery, and post-allocation manifest staging.

@@ -10,10 +10,9 @@
    instead report an explicitly timed region with a checked checksum and work
    count; those values are labelled child-reported, never process timings.
 
-   README.md shows every subcommand with examples. experiment.rs owns the
-   prepare -> alternate -> validate -> summarize lifecycle; process.rs reuses
-   Omega's bounded child runner. A comparison never builds a compiler or
-   settles package decisions while it measures.
+   `omega-bench --help` lists the subcommands. `experiment.rs` prepares
+   the workload, alternates the two executables, validates their results,
+   and summarizes them. `process.rs` uses Omega's bounded child runner.
 */
 
 mod dominance_summary;

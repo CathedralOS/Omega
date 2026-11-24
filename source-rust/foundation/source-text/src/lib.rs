@@ -1,4 +1,32 @@
-//! Immutable byte views and coordinates over text, without loading or compiler state.
+/*!
+We keep source locations as byte offsets so the parser can point into its
+original input and recover the exact spelling. When we render a location,
+`SourcePosition::of` scans the UTF-8 characters whose starting byte is before
+the offset. Lines and columns start at one. A newline starts a new line and
+each other Unicode scalar advances the column by one.
+*/
+
+/*!
+
+A `SourceBytes` view keeps the original allocation alive with an `Arc`, so
+taking a range needs no copy. Equality and hashing use the bytes in the range.
+The test below compares a shared view with the same bytes in a separate
+allocation.
+
+```
+use source_text::{SourceBytes, SourcePosition};
+use std::sync::Arc;
+
+let text = "é\nx";
+let bytes = Arc::new(text.as_bytes().to_vec());
+let spelling = SourceBytes::from_shared(Arc::clone(&bytes), 0..2);
+drop(bytes);
+assert_eq!(spelling.as_ref(), "é".as_bytes());
+assert_eq!(SourcePosition::of(text, 2).column, 2);
+assert_eq!(SourcePosition::of(text, 3).line, 2);
+```
+*/
+
 #![forbid(unsafe_code)]
 
 use std::fmt;

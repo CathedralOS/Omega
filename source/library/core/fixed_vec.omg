@@ -1,40 +1,11 @@
-// Core FixedVec surface — ALLOCATOR STORY STAGE 1 (heap-free).
+// We store a fixed-capacity vector as an inline array `[T; N]` and a `u64`
+// length. The array moves with the value and needs no allocator. Capacity
+// is part of the type, so a caller proves spare room before calling `push`.
+// A growable vector uses a separate allocation contract.
 //
-// `FixedVec<T, const N: u64>` is the fixed-capacity vector: a value type
-// whose backing store is an inline fixed array `[T; N]` plus a `u64` length.
-// There is NO heap and NO allocator anywhere in this type — capacity is part
-// of the type, storage lives wherever the value lives, and running out of
-// room is a PROOF failure at compile time, never a runtime reallocation or
-// trap (allocator story stage 1: every operation that needs room carries a
-// `requires` obligation the caller must discharge). `Arena` service reach
-// and the `Arena` boundary (core/arena.omg) are untouched by this
-// type; they only enter the story at stage 2 (`Vec<'r, T>` borrowing a
-// Arena).
-//
-// GENERIC INSTANTIATION: the generic `data`
-// declaration below compiles structurally (chapter 12 const value
-// parameters), and so do the boundary-trait contracts. A machine
-// attached to a template with no type parameters of its own now
-// lays out through its concrete clones, which the layout builder names for
-// exactly this case, and both halves are canaried —
-// `tests/omega/pass/generics/runtime_container_setter_matrix_exit`
-// (`Cell<T>` with `Cell::touch_count(cell: @Cell<T>)`) and
-// `.../runtime_const_container_methods_exit` (`FixedBuffer<const N: u64>`
-// with attached accessors). What is still unproven is this file's own shape:
-// a field that binds BOTH a type and a const extent, `[T; N]`, carrying an
-// attached machine. The three `[T; N]` canaries
-// (`const_data_param`, `runtime_const_data_array_length_exit`,
-// `runtime_const_data_multiple_instances_exit`) reach those fields only from
-// `Main::main`; none attaches a machine to the container. A generic TEMPLATE
-// machine also still has no layout of its own — only its concrete clones do —
-// so a declaration-only surface like this one, with no concrete
-// `FixedVec<i32, 4>` in the program, still emits nothing. The
-// machine-shaped implementation pattern (real bodies, real proofs, real
-// runtime) is therefore pinned CONCRETELY in
-// tests/omega/pass/collections/runtime_fixed_vec_round_trip_exit (i32, N = 4):
-// a hand instantiation of exactly the contracts declared here. When generic
-// machine instantiation lands, those machine bodies move into this file
-// verbatim (modulo `i32` -> `T`, `4` -> `N`).
+// The boundary trait below declares the generic operations. The historical
+// `runtime_fixed_vec_round_trip_exit` fixture at 71f9c8fe859 exercised
+// concrete implementations for `i32` with capacity four.
 //
 // Contract vocabulary notes (why the obligations are spelled as they are):
 //
@@ -57,11 +28,8 @@ public data FixedVec<T, const N: u64> {
     length: u64;
 }
 
-// Operation contracts, vec.omg-style boundary-trait surface. These carry the
-// proof-facing requires/ensures; the machine-shaped implementations are
-// blocked on the generic-machine frontier above and live concretely in the
-// runtime canary until instantiation lands. The vector is an ordinary explicit
-// argument of every row.
+// Each operation takes the vector explicitly and states the facts the caller
+// must establish at the call site.
 boundary trait FixedVecAccess {
     // Length in LIVE elements (`length`, not the static capacity `N`).
     // Cheap O(1) measure for `requires`/`ensures`.

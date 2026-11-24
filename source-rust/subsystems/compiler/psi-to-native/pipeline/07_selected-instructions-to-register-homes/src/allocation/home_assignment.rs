@@ -3,12 +3,10 @@ We solve transition-free, spill-free virtual-to-physical register home
 assignment over live ranges, allocation legality, tied-operand components,
 directional early clobbers, and target register-unit interference.
 
-Nothing replays the resulting `RegisterHomePlan`: following the compiler's
-verification placement (`omega-rust/pipeline.md#verification-placement`), the
-default compile trusts this solver. `RegisterHomeReceipt` only binds the plan's
-identity to the identities and counts of the inputs it was computed from, so a
-consumer can tell which inputs a set of `AssignedRegisterHomes` belongs to; it
-is not evidence that a second check accepted the homes.
+The solver produces a `RegisterHomePlan` and a `RegisterHomeReceipt`. The
+receipt binds the plan to the live ranges, allocation rules and register
+environment used to assign its homes. Consumers can identify which inputs
+produced a set of `AssignedRegisterHomes` without running the solver again.
 */
 
 use register_environment::ValidatedTargetRegisterEnvironment;

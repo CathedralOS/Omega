@@ -933,11 +933,9 @@ crashes Trap
         }
     }
 
-    // A field store into a value whose data carries `requires` facts would
-    // open an invariant window this slice does not close.
-    // Storing a field of a value whose data carries `requires` facts opens an
-    // invariant window; the statement must close it again: the facts hold
-    // of the value's fields as they now are
+    // We check the data's `requires` facts again after the field store.
+    // During checking, the store is refused if those facts cannot be proved
+    // for the updated fields
     // (wiki/spec/language/dependent_values.md#invariant-windows).
     machine window(
         checker: @mutable |checker|::Checker,

@@ -1,7 +1,9 @@
 /*
-The expression grammar runs as a loop over an explicit frame stack, so a
-deeply nested or long expression costs heap memory rather than host stack
-(compiler_request.md, "Omega source has no expression or type depth limit").
+The expression grammar runs as a loop over an explicit frame stack. We keep
+pending expression work in heap-backed frames. Nested expression and
+constant-integer entries still charge the parser's nesting budget through
+`Input::deepen`. The token cursor's `MAX_NESTING_DEPTH` also applies to type
+references.
 
 Each grammar rule that used to call back into the expression grammar now
 pushes a frame recording where it stopped and asks the loop to parse the

@@ -1,16 +1,13 @@
 #![forbid(unsafe_code)]
 
 /*
-We finish `Omega 02`: turn the target operations it lowered into the execution
-plan instruction selection consumes.
+We finish native stage 04 by preparing the execution plan that instruction
+selection consumes. `prepare_execution_plan` joins the lowered target
+operations with the optimized program's accepted obligations and ownership
+facts, the admitted boundary origins and interrupt installations, and the
+sealed module. Native stage 05 receives that `PreparedExecutionPlan`.
 
-Stage 02 already holds everything this needs: the target operations, the
-accepted obligation and ownership-frontier facts of the optimized program, the
-admitted boundary origins and interrupt installations, and the sealed module.
-`prepare_execution_plan` joins them once into a `PreparedExecutionPlan`
-(`legalized-operations`), so `Omega 03` reads that plan and none of its sources.
-
-The same crate holds stage 02's validator. `verify_execution_plan`
+The same crate holds the plan validator. `verify_execution_plan`
 derives the plan a second way, from the abstract program and the optimization
 unit, and compares it with the plan preparation published. Ordinary
 compilation never calls it; it runs on an explicit validator request and in
@@ -77,7 +74,7 @@ pub(crate) mod native_geometry {
             .then(|| ModuleTypes(closed.closed_types().clone()))
     }
 
-    /// A stage 02 input: its prepared layouts and the module's types.
+    /// Prepared layouts and module types used to close the execution plan.
     pub(crate) struct NativeInput<'a, T> {
         input: legalized_operations::native_geometry::NativeInput<'a, T>,
         types: &'a ModuleTypes,

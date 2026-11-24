@@ -1,6 +1,7 @@
 /*
-Canonical encoding, decoding, and structural validation for `MathematicalProofActual` carrier keys,
-applications, and slots, along with `IndexedTheoremRootTable` theorem-root lookup tables.
+We bind mathematical proof arguments to the source carriers and invocation
+slots expected by the receiver. We then replay the decoded certificates and
+check their used assumptions against the receiver's grants.
 */
 
 pub(crate) mod applications {

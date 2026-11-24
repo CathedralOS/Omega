@@ -4,10 +4,9 @@ authenticated precolored segment transitions, producing a transformed selected
 CFG, while re-exporting `pressure_rematerialization` for the shared
 allocation-recovery surface.
 
-Nothing replays the transformed CFG (see
-`omega-rust/pipeline.md#verification-placement`): `FixedViewCopyReceipt` binds
-the copy plan's identity to the identities and counts of its inputs and of the
-transformed program, and records no second check.
+`FixedViewCopyReceipt` records the copy plan identity, its input identities,
+the transformed program identity and the work it took. Consumers use those
+fields to associate one transformation with its inputs and result.
 */
 
 pub(crate) mod fixed_view_copy {
