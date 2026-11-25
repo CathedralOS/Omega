@@ -38,8 +38,18 @@ impl PartialEq for CallingProgram {
 impl Eq for CallingProgram {}
 
 impl CallingProgram {
+    /// The interpreter's view of this artifact. Build one view and one
+    /// [`terminal_interpreter::TerminalCallableAnalysis`] per provider
+    /// selection, and pass that analysis to every [`Self::evaluate`] under
+    /// those providers, so the whole-program callable projection is built once
+    /// rather than twice per policy.
+    pub fn terminal_program(&self) -> terminal_interpreter::TerminalProgram<'_> {
+        terminal_interpreter::TerminalProgram::borrow(self.artifact.view())
+    }
+
     pub fn evaluate(
         &self,
+        analysis: &terminal_interpreter::TerminalCallableAnalysis<'_, '_>,
         policy: &terminal_psi::CallingPolicyInstance,
         target: target::TargetProfile,
         declaration: semantic_vocabulary::CallingSignatureId,
@@ -102,6 +112,7 @@ impl CallingProgram {
         let (plan, _) =
             super::execution::evaluate_terminal_calling_policy(TerminalCallingPolicyInvocation {
                 artifact: &self.artifact,
+                analysis,
                 entry: policy,
                 target,
                 signature: &canonical.policy,

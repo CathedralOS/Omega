@@ -213,6 +213,11 @@ pub(crate) fn plan_inputs_and_review(
     let calling = CallingProgram {
         artifact: Arc::clone(&artifact),
     };
+    // Every provider policy runs under the same selection, admitted from no
+    // provider plans, so the first one builds the callable projection that
+    // the rest reuse.
+    let terminal = calling.terminal_program();
+    let mut provider_analysis = None;
     let custody = artifact.publication_metadata().ok_or_else(|| {
         refuse("saved Psi lacks calling declaration owners; recompile it to publish them".into())
     })?;
@@ -278,6 +283,8 @@ pub(crate) fn plan_inputs_and_review(
                 let providers =
                     psi_provider_selections::admit_provider_installation(artifact.view(), &[], &[])
                         .map_err(|error| refuse(format!("{error:?}")))?;
+                let analysis = &*provider_analysis
+                    .get_or_insert_with(|| terminal.callable_analysis(Some(&providers)));
                 let admission = evaluation_admission::admit_compiler_evaluation(
                     artifact.view(),
                     profile.target_name(),
@@ -291,7 +298,7 @@ pub(crate) fn plan_inputs_and_review(
                 )
                 .map_err(refuse)?;
                 let (signature, plan) = calling
-                    .evaluate(instance, profile, signature, &[], admission)
+                    .evaluate(analysis, instance, profile, signature, &[], admission)
                     .map_err(refuse)?;
                 let application = signature
                     .native_application_with_owner(&plan, None, owner)

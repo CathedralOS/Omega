@@ -8,7 +8,7 @@ use super::{
 };
 use calling_conventions::ValidatedBoundaryEntryPlan;
 use terminal_interpreter::{
-    TerminalExecutionResult, TerminalExecutionStatus, TerminalInstantiation, TerminalProgram,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalInstantiation,
     TerminalRuntimeSupplyRequest, TerminalStructuralInputs, TerminalStructuralValue,
 };
 use terminal_psi::TargetMachineCallable;
@@ -19,6 +19,7 @@ pub(super) fn evaluate_terminal_calling_policy(
 ) -> Result<(ValidatedBoundaryEntryPlan, WorkUsage), String> {
     let TerminalCallingPolicyInvocation {
         artifact,
+        analysis,
         entry,
         target,
         signature,
@@ -44,7 +45,7 @@ pub(super) fn evaluate_terminal_calling_policy(
         TargetMachineCallable::Machine(selected_entry),
     )?;
     let providers = admission.providers();
-    let program = TerminalProgram::borrow(artifact.view());
+    let program = analysis.program();
     let installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             native_code_layouts: None,
@@ -59,7 +60,7 @@ pub(super) fn evaluate_terminal_calling_policy(
         })
         .map_err(|error| format!("calling policy selection: {error:?}"))?;
     let requirements = program
-        .execution_requirements(Some(&installation))
+        .execution_requirements_with_callable_analysis(Some(&installation), analysis)
         .map_err(|error| format!("calling policy demands: {error:?}"))?;
     if let Some(boundary) = requirements.missing_providers.first() {
         let declaration = artifact
@@ -130,7 +131,7 @@ pub(super) fn evaluate_terminal_calling_policy(
         .structural_type;
     let argument = encode_calling_policy_signature(signature)?;
     let contents = [signature_contents(
-        &program,
+        program,
         parameter.structural_type,
         &argument,
     )?];
@@ -140,7 +141,7 @@ pub(super) fn evaluate_terminal_calling_policy(
         Vec::new(),
     )];
     let mut instance = program
-        .instantiate(TerminalInstantiation {
+        .instantiate_with_callable_analysis(TerminalInstantiation {
             float_evaluation:
                 terminal_interpreter::float_result_policy::FloatEvaluation::CompileTime,
             structural_inputs: TerminalStructuralInputs {
@@ -152,7 +153,7 @@ pub(super) fn evaluate_terminal_calling_policy(
             account: Some(&account),
             scalar_admission: Some(&scalars),
             ..Default::default()
-        })
+        }, analysis)
         .map_err(|error| format!("calling policy arguments: {error:?}"))?;
     let result = instance
         .invoke(&mut meter)

@@ -3257,6 +3257,40 @@ pub(crate) mod program {
             self.program.validate_layout_selection(installation)?;
             crate::engine::capabilities::check(&self.program, installation)
         }
+
+        /// Build this program's callable projection once for `providers`, so
+        /// several checks and instances of its entries under the same
+        /// providers reuse it. Every check that receives it refuses a
+        /// projection built for another program or provider selection.
+        pub fn callable_analysis(
+            &self,
+            providers: Option<&psi_provider_selections::AdmittedProviderSelections>,
+        ) -> crate::engine::capabilities::TerminalCallableAnalysis<'_, 'artifact> {
+            let installation =
+                providers.map(crate::boundary::effects::TerminalRuntimeSupplies::from);
+            crate::engine::capabilities::TerminalCallableAnalysis::new(self, installation.as_ref())
+        }
+
+        /// [`Self::execution_requirements`] over a projection prepared by
+        /// [`Self::callable_analysis`].
+        pub fn execution_requirements_with_callable_analysis(
+            &self,
+            installation: Option<&crate::boundary::effects::TerminalRuntimeSupplies>,
+            analysis: &crate::engine::capabilities::TerminalCallableAnalysis<'_, '_>,
+        ) -> Result<
+            crate::engine::capabilities::TerminalExecutionRequirements,
+            TerminalInterpretError,
+        > {
+            self.program.validate_layout_selection(installation)?;
+            crate::engine::capabilities::check_with_private_entry_ram(
+                &self.program,
+                installation,
+                &[],
+                None,
+                Some(analysis),
+            )
+        }
+
         pub fn execution_requirements_with_private_entry_ram(
             &self,
             installation: Option<&crate::boundary::effects::TerminalRuntimeSupplies>,
@@ -3270,6 +3304,7 @@ pub(crate) mod program {
                 &self.execution_program(installation, None),
                 installation,
                 recipes,
+                None,
                 None,
             )
         }
@@ -3544,7 +3579,22 @@ pub(crate) mod program {
             &self,
             request: TerminalInstantiation<'_>,
         ) -> Result<TerminalInstance<'host, 'artifact>, TerminalArtifactInterpretError> {
-            let (execution, requirements) = self.prepare_execution(request)?;
+            let (execution, requirements) = self.prepare_execution(request, None)?;
+            Ok(TerminalInstance::new(
+                self.clone(),
+                execution,
+                requirements.imports,
+            ))
+        }
+
+        /// [`Self::instantiate`] over a projection prepared by
+        /// [`Self::callable_analysis`].
+        pub fn instantiate_with_callable_analysis<'host>(
+            &self,
+            request: TerminalInstantiation<'_>,
+            analysis: &crate::engine::capabilities::TerminalCallableAnalysis<'_, '_>,
+        ) -> Result<TerminalInstance<'host, 'artifact>, TerminalArtifactInterpretError> {
+            let (execution, requirements) = self.prepare_execution(request, Some(analysis))?;
             Ok(TerminalInstance::new(
                 self.clone(),
                 execution,
@@ -3659,7 +3709,7 @@ pub(crate) mod program {
                 entry_results: None,
                 scalar_application: None,
                 scalar_admission: None,
-            })
+            }, None)
             .map(|(execution, _)| execution)
         }
 
@@ -3683,6 +3733,7 @@ pub(crate) mod program {
         fn prepare_execution(
             &self,
             request: TerminalInstantiation<'_>,
+            analysis: Option<&crate::engine::capabilities::TerminalCallableAnalysis<'_, '_>>,
         ) -> Result<
             (
                 crate::engine::execution::TerminalExecution<'artifact>,
@@ -3752,6 +3803,7 @@ pub(crate) mod program {
                 installation,
                 structural_inputs.private_entry_ram,
                 scalar_admission.map(|admission| admission.primary()),
+                analysis,
             )
             .map_err(TerminalArtifactInterpretError::Execution)?;
             for application in &requirements.scalar_applications {

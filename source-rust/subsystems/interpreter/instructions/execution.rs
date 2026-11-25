@@ -238,11 +238,127 @@ pub(crate) mod capabilities {
         pub kind: ExternalCompletionKind,
     }
 
+    /// The whole-module callable projection for one provider selection.
+    ///
+    /// Building it walks the storage flow of every machine in the module,
+    /// which dominates a capability check on a large program. A caller that
+    /// checks or starts several entries of one program under the same
+    /// providers, such as native preparation evaluating calling policies,
+    /// builds it once and passes it to each check. The projection keeps the
+    /// result it reached, failures included, so a check that reuses it
+    /// refuses the same programs with the same errors as one that rebuilds it.
+    pub struct TerminalCallableAnalysis<'program, 'artifact> {
+        pub(crate) program: &'program crate::TerminalProgram<'artifact>,
+        module: &'program terminal_psi::TerminalModule,
+        selection: CallableSelection<'program>,
+    }
+
+    /// The projection result, split at the points where a check that builds
+    /// its own projection could fail. Only the provider step depends on the
+    /// installation, so a reusing check recomputes that step, which raises
+    /// its own error, and confirms that it matches before relying on the
+    /// projection.
+    enum CallableSelection<'program> {
+        Unprojected(TerminalInterpretError),
+        UnselectedProviders,
+        Selected {
+            implementations:
+                Vec<terminal_semantics::callable_values::CallableBoundaryImplementation>,
+            values: Result<
+                terminal_semantics::callable_values::CallableValueProgram<'program>,
+                TerminalInterpretError,
+            >,
+        },
+    }
+
+    impl<'program, 'artifact> TerminalCallableAnalysis<'program, 'artifact> {
+        pub(crate) fn new(
+            program: &'program crate::TerminalProgram<'artifact>,
+            installation: Option<&TerminalRuntimeSupplies>,
+        ) -> Self {
+            let module = program.program.catalogs.as_ref().as_ref();
+            let selection = match project_callable_values(module) {
+                Err(error) => CallableSelection::Unprojected(error),
+                Ok(values) => match boundary_implementations(&program.program, installation) {
+                    Err(_) => CallableSelection::UnselectedProviders,
+                    Ok(implementations) => {
+                        let values = select_implementations(values, &implementations);
+                        CallableSelection::Selected {
+                            implementations,
+                            values,
+                        }
+                    }
+                },
+            };
+            Self {
+                program,
+                module,
+                selection,
+            }
+        }
+
+        /// The program this projection was built from.
+        pub fn program(&self) -> &'program crate::TerminalProgram<'artifact> {
+            self.program
+        }
+    }
+
+    fn project_callable_values(
+        module: &terminal_psi::TerminalModule,
+    ) -> Result<terminal_semantics::callable_values::CallableValueProgram<'_>, TerminalInterpretError>
+    {
+        terminal_semantics::callable_values::terminal_callable_values_with_error_context(module)
+            .map_err(|error| {
+                if let Some(boundary) = error.missing_boundary(module) {
+                    TerminalInterpretError::VerifiedBoundaryMachineMissing(boundary)
+                } else {
+                    TerminalInterpretError::ScalarApplicationEvaluation(error.in_module(module))
+                }
+            })
+    }
+
+    fn boundary_implementations(
+        program: &AdmittedTerminalProgram,
+        installation: Option<&TerminalRuntimeSupplies>,
+    ) -> Result<
+        Vec<terminal_semantics::callable_values::CallableBoundaryImplementation>,
+        TerminalInterpretError,
+    > {
+        let mut implementations = Vec::new();
+        for (&boundary, supply) in installation.into_iter().flat_map(|value| &value.supplies) {
+            let AdmittedBoundarySupply::CheckedProvider(machine) = *supply else {
+                continue;
+            };
+            let declaration = program.verified_boundary_machine(&boundary)?;
+            if !crate::embedding::program::interpreter_owns_boundary_execution(declaration) {
+                implementations.push(
+                    terminal_semantics::callable_values::CallableBoundaryImplementation {
+                        boundary,
+                        machine,
+                    },
+                );
+            }
+        }
+        Ok(implementations)
+    }
+
+    fn select_implementations<'module>(
+        values: terminal_semantics::callable_values::CallableValueProgram<'module>,
+        implementations: &[terminal_semantics::callable_values::CallableBoundaryImplementation],
+    ) -> Result<
+        terminal_semantics::callable_values::CallableValueProgram<'module>,
+        TerminalInterpretError,
+    > {
+        values
+            .with_boundary_implementations(implementations)
+            .map_err(|reason| TerminalInterpretError::ScalarApplicationEvaluation(reason.into()))
+    }
+
     pub(crate) fn check(
         program: &AdmittedTerminalProgram,
         installation: Option<&TerminalRuntimeSupplies>,
     ) -> Result<TerminalExecutionRequirements, TerminalInterpretError> {
-        check_with_private_entry_ram(program, installation, &[], None)
+        check_with_private_entry_ram(program, installation, &[], None, None)
     }
 
     pub(crate) fn check_with_private_entry_ram(
@@ -250,6 +366,7 @@ pub(crate) mod capabilities {
         installation: Option<&TerminalRuntimeSupplies>,
         private_entry_ram: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
         scalar_scope: Option<&psi_scalar_applications::ScalarScopeInputs>,
+        analysis: Option<&TerminalCallableAnalysis<'_, '_>>,
     ) -> Result<TerminalExecutionRequirements, TerminalInterpretError> {
         let entry = program.resolve_entry(installation)?;
         if private_entry_ram.iter().any(|recipe| {
@@ -284,35 +401,38 @@ pub(crate) mod capabilities {
             .collect::<std::collections::BTreeMap<_, _>>();
         let mut storage_roots = BTreeSet::new();
         let module = program.catalogs.as_ref().as_ref();
-        let callable_values =
-            terminal_semantics::callable_values::terminal_callable_values_with_error_context(
-                module,
-            )
-            .map_err(|error| {
-                if let Some(boundary) = error.missing_boundary(module) {
-                    TerminalInterpretError::VerifiedBoundaryMachineMissing(boundary)
-                } else {
-                    TerminalInterpretError::ScalarApplicationEvaluation(error.in_module(module))
-                }
-            })?;
-        let mut implementations = Vec::new();
-        for (&boundary, supply) in installation.into_iter().flat_map(|value| &value.supplies) {
-            let AdmittedBoundarySupply::CheckedProvider(machine) = *supply else {
-                continue;
-            };
-            let declaration = program.verified_boundary_machine(&boundary)?;
-            if !crate::embedding::program::interpreter_owns_boundary_execution(declaration) {
-                implementations.push(
-                    terminal_semantics::callable_values::CallableBoundaryImplementation {
-                        boundary,
-                        machine,
-                    },
-                );
+        let projected;
+        let callable_values = match analysis {
+            None => {
+                let values = project_callable_values(module)?;
+                let implementations = boundary_implementations(program, installation)?;
+                projected = select_implementations(values, &implementations)?;
+                &projected
             }
-        }
-        let callable_values = callable_values
-            .with_boundary_implementations(&implementations)
-            .map_err(|reason| TerminalInterpretError::ScalarApplicationEvaluation(reason.into()))?;
+            // Replay the prepared result in the order a fresh projection
+            // fails: the module projection, this installation's providers,
+            // then their application to the projection.
+            Some(analysis) => {
+                if !std::ptr::eq(analysis.module, module) {
+                    return Err(malformed());
+                }
+                if let CallableSelection::Unprojected(error) = &analysis.selection {
+                    return Err(error.clone());
+                }
+                let implementations = boundary_implementations(program, installation)?;
+                let CallableSelection::Selected {
+                    implementations: prepared,
+                    values,
+                } = &analysis.selection
+                else {
+                    return Err(malformed());
+                };
+                if *prepared != implementations {
+                    return Err(malformed());
+                }
+                values.as_ref().map_err(Clone::clone)?
+            }
+        };
         let mut callable_roots = BTreeSet::from([entry]);
         let mut callable_invocations = None;
         let mut pending = vec![entry];
@@ -466,7 +586,7 @@ pub(crate) mod capabilities {
                             if callable_invocations.is_none() {
                                 callable_invocations = Some(
                                     terminal_semantics::callable_values::reachable_callable_invocations(
-                                        &callable_values, callable_roots.iter().copied(),
+                                        callable_values, callable_roots.iter().copied(),
                                     ).map_err(|reason| TerminalInterpretError::ScalarApplicationEvaluation(reason.into()))?,
                                 );
                             }
@@ -2033,6 +2153,138 @@ pub(crate) mod capabilities {
                 check(&program, Some(&installation)),
                 Err(TerminalInterpretError::ProviderInstallationIdentityMismatch)
             );
+        }
+
+        /// Native preparation builds one callable analysis per program and
+        /// provider selection and passes it to every calling-policy check.
+        /// Such a check must answer exactly as a check that builds its own
+        /// projection, including refusing a malformed machine the entry never
+        /// reaches, and must refuse an analysis built for another module or
+        /// another provider selection.
+        #[test]
+        fn capability_check_over_a_prepared_callable_analysis_answers_as_a_fresh_one() {
+            let boundary = BoundaryMachineId::new(1).unwrap();
+            let provider_program = || {
+                let mut program = program();
+                set!(&mut program => MachineId::new(1).unwrap() => machine(0, vec![boundary_call(boundary)]));
+                add_provider(&mut program, boundary);
+                set_machine(
+                    &mut program,
+                    MachineId::new(2).unwrap(),
+                    machine(2, Vec::new()),
+                );
+                program
+            };
+            let supplies = |program: &AdmittedTerminalProgram<'_>, provided: BoundaryMachineId| {
+                TerminalRuntimeSupplies {
+                    provider_selections: None,
+                    x86_flags: None,
+                    memory_ordering: None,
+                    code_identity: program.identity.clone(),
+                    entry: None,
+                    supplies: BTreeMap::from([(
+                        provided,
+                        AdmittedBoundarySupply::CheckedProvider(MachineId::new(2).unwrap()),
+                    )]),
+                    assumed_bindings: Vec::new(),
+                    folded_constant_target: None,
+                    target_machines: None,
+                    target_layouts: None,
+                    native_code_layouts: None,
+                }
+            };
+            let reused = |terminal: &crate::TerminalProgram<'_>,
+                          analysis: &TerminalCallableAnalysis<'_, '_>,
+                          installation: Option<&TerminalRuntimeSupplies>| {
+                check_with_private_entry_ram(
+                    &terminal.program,
+                    installation,
+                    &[],
+                    None,
+                    Some(analysis),
+                )
+            };
+            let agrees = |terminal: &crate::TerminalProgram<'_>,
+                          installation: Option<&TerminalRuntimeSupplies>| {
+                let fresh = check(&terminal.program, installation);
+                let analysis = TerminalCallableAnalysis::new(terminal, installation);
+                for _ in 0..2 {
+                    assert_eq!(reused(terminal, &analysis, installation), fresh);
+                }
+                fresh
+            };
+            let is_malformed = |result: Result<TerminalExecutionRequirements, _>| {
+                matches!(
+                    result,
+                    Err(TerminalInterpretError::VerifiedOperationMalformed { .. })
+                )
+            };
+
+            let terminal = crate::TerminalProgram::from_admitted(provider_program());
+            let installation = supplies(&terminal.program, boundary);
+            assert!(
+                agrees(&terminal, Some(&installation))
+                    .unwrap()
+                    .missing_providers
+                    .is_empty()
+            );
+            assert_eq!(
+                agrees(&terminal, None).unwrap().missing_providers,
+                vec![boundary]
+            );
+
+            // A provider the module never declares fails while the
+            // installation's providers are read, after the projection.
+            let undeclared = BoundaryMachineId::new(9).unwrap();
+            let unknown = supplies(&terminal.program, undeclared);
+            assert_eq!(
+                agrees(&terminal, Some(&unknown)),
+                Err(TerminalInterpretError::VerifiedBoundaryMachineMissing(
+                    undeclared
+                ))
+            );
+
+            // An analysis prepared for other providers, or for another module
+            // with the same rows, cannot stand in for this check's own.
+            let unselected = TerminalCallableAnalysis::new(&terminal, None);
+            assert!(is_malformed(reused(
+                &terminal,
+                &unselected,
+                Some(&installation)
+            )));
+            let failed_selection = TerminalCallableAnalysis::new(&terminal, Some(&unknown));
+            assert!(is_malformed(reused(
+                &terminal,
+                &failed_selection,
+                Some(&installation)
+            )));
+            let twin = crate::TerminalProgram::from_admitted(provider_program());
+            let foreign = TerminalCallableAnalysis::new(&twin, Some(&installation));
+            assert!(is_malformed(reused(
+                &terminal,
+                &foreign,
+                Some(&installation)
+            )));
+
+            // The projection covers every machine, so a call to an undeclared
+            // boundary is refused whether or not the entry reaches it.
+            for caller in [1, 3] {
+                let mut program = program();
+                let missing = BoundaryMachineId::new(2).unwrap();
+                set_machine(
+                    &mut program,
+                    MachineId::new(caller).unwrap(),
+                    machine(0, vec![boundary_call(missing)]),
+                );
+                let terminal = crate::TerminalProgram::from_admitted(program);
+                assert_eq!(
+                    agrees(&terminal, None),
+                    Err(TerminalInterpretError::VerifiedBoundaryMachineMissing(
+                        missing
+                    )),
+                    "caller {caller}"
+                );
+            }
         }
     }
 }

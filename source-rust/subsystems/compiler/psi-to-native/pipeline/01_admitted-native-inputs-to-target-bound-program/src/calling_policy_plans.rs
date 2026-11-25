@@ -40,6 +40,9 @@ pub type TerminalCallingPolicyAdmission = evaluation_admission::AdmittedCompiler
 
 pub struct TerminalCallingPolicyInvocation<'input> {
     pub artifact: &'input CanonicalTerminalArtifact,
+    /// The artifact's callable projection for the admission's providers,
+    /// shared by every policy evaluated under them.
+    pub analysis: &'input terminal_interpreter::TerminalCallableAnalysis<'input, 'input>,
     pub entry: TargetMachineCallable,
     pub target: target::TargetProfile,
     pub signature: &'input CallingPolicySignature,

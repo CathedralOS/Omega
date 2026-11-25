@@ -129,10 +129,18 @@ impl SelectedProgramEntryCallingPlans {
             return Err("semantic and physical entry signatures must be distinct".into());
         }
         let target = slot.owner;
-        let (semantic_signature, semantic_plan) =
-            program.evaluate(policy, target, semantic, providers, admission.clone())?;
+        let terminal = program.terminal_program();
+        let analysis = terminal.callable_analysis(Some(admission.providers()));
+        let (semantic_signature, semantic_plan) = program.evaluate(
+            &analysis,
+            policy,
+            target,
+            semantic,
+            providers,
+            admission.clone(),
+        )?;
         let (physical_signature, physical_plan) =
-            program.evaluate(policy, target, physical, providers, admission)?;
+            program.evaluate(&analysis, policy, target, physical, providers, admission)?;
         let semantic_calling_application =
             semantic_signature.native_application_with_owner(&semantic_plan, None, &owner)?;
         let physical_calling_application =

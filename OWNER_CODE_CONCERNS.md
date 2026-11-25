@@ -83,14 +83,6 @@ framework or a list of unimplemented features.
 - Cost: every Build typing scans its candidates for nothing, and wiring more requests into the mechanism slows them down until activation and extension cost less than a fresh typing.
 - Reported: 2026-11-25, Claude Code, while making retained-source reuse fire for popcount's `std` typings.
 
-<a id="the-interpreter-rebuilds-the-whole-module-callable-projection-on-every-capability-check"></a>
-### The interpreter rebuilds the whole-module callable projection on every capability check
-- Category: 4. Re-deriving
-- Where: [source-rust/subsystems/interpreter/instructions/execution.rs:287](source-rust/subsystems/interpreter/instructions/execution.rs#L287) (`capabilities::check_with_private_entry_ram`)
-- Saw: Each check calls `terminal_callable_values_with_error_context(module)`, which builds the storage-flow graph for every machine in the module, even when the entry's walk reaches no `CallMachine` and never reads it. A calling-policy evaluation (`calling_policy_plans/execution.rs`) checks twice on the same artifact, once in `execution_requirements` and again in `instantiate`, and native preparation evaluates 4–6 policies per target.
-- Cost: On `samples/cli/arithmetic/popcount` (296 machines with `std`), each rebuild takes ~45 ms, and `omega --check` does it ~36 times across four targets, about 1.6 s of CPU. Computing it once per artifact and passing it to both checks would remove most of that, and the same cost applies to every native build.
-- Reported: 2026-11-25, Claude Code (Opus 5.5), while profiling native preparation for `omega --check`
-
 <a id="every-machine-check-replays-the-summaries-of-all-its-callees-again"></a>
 ### Every affine check replays the summaries of all its callees again
 - Category: 4. Re-deriving
