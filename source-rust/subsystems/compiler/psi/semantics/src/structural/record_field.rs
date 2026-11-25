@@ -164,7 +164,7 @@ pub fn projected_field_declaration<'types>(
 }
 
 pub fn runtime_structural_field<'types>(
-    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    types: impl crate::StructuralDeclarations<'types>,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<&'types StructuralFieldDeclaration> {
@@ -180,7 +180,7 @@ pub fn runtime_structural_field<'types>(
 /// other step as it is. The lowered form and the checker both intern a
 /// place from an operation's path through this one reading.
 pub fn resolved_structural_path<'types>(
-    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    types: impl crate::StructuralDeclarations<'types>,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Result<Vec<terminal_psi::ResolvedStructuralPathSegment>, &'static str> {
@@ -220,7 +220,7 @@ pub fn resolved_structural_path<'types>(
 }
 
 fn projected_fields<'types>(
-    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    types: impl crate::StructuralDeclarations<'types>,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<&'types [StructuralFieldDeclaration]> {

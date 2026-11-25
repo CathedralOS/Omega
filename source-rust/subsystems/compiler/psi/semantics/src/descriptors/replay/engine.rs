@@ -880,9 +880,9 @@ impl<'a> Replay<'a> {
             if let Some(path) = path {
                 // A byte view's selected element has a stored address
                 // without a separate structural declaration.
-                let tip = crate::runtime_read_projection_tip(self.types.iter(), ty, &path);
+                let tip = crate::runtime_read_projection_tip(&self.type_index, ty, &path);
                 if tip.is_none()
-                    && crate::runtime_structural_field(self.types.iter(), ty, &path).is_none()
+                    && crate::runtime_structural_field(&self.type_index, ty, &path).is_none()
                 {
                     return Err("captured storage source has no exact declared path");
                 }

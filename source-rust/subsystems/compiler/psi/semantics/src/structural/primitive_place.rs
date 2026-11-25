@@ -412,7 +412,7 @@ pub enum Position<Scalar = ScalarType> {
 /// carrier row. Use the same primitive reader grammar as static paths;
 /// callers still distinguish byte elements and enforce their own access.
 pub fn runtime_read_projection_tip<'a>(
-    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    declarations: impl StructuralDeclarations<'a>,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<Position> {
@@ -431,7 +431,7 @@ pub fn runtime_read_projection_tip<'a>(
 }
 
 pub fn runtime_structural_path_tip<'a>(
-    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    declarations: impl StructuralDeclarations<'a>,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<&'a StructuralTypeDeclaration> {
@@ -445,9 +445,107 @@ pub fn runtime_structural_path_tip<'a>(
         ProjectionTip::Declared(tip) => Some(tip),
         ProjectionTip::ScalarField(_) => {
             let field = crate::runtime_structural_field(declarations.clone(), root, path)?;
-            crate::inline_carrier_declaration(declarations, field)
+            declarations.inline_carrier(field)
         }
         ProjectionTip::ByteElement => None,
+    }
+}
+
+/// Where a projection walk reads declarations. Each answer equals the one a
+/// scan of the module's whole declaration list gives when it accepts exactly
+/// one row with the identity, so an index changes the cost of a walk and
+/// never its result. Any declaration iterator is such a scan; a hot caller
+/// passes the module's `StructuralTypeIndex` instead.
+pub trait StructuralDeclarations<'a>: Clone {
+    /// The one declaration with this identity; none when it is absent or
+    /// declared twice.
+    fn unique(&self, id: StructuralTypeId) -> Option<&'a StructuralTypeDeclaration>;
+    /// `representation_views::declaration` over the same list.
+    fn representation_view(
+        &self,
+        view: StructuralTypeId,
+        stored: Option<ScalarType>,
+    ) -> Option<&'a StructuralTypeDeclaration>;
+    /// `inline_carrier_declaration` over the same list.
+    fn inline_carrier(
+        &self,
+        field: &StructuralFieldDeclaration,
+    ) -> Option<&'a StructuralTypeDeclaration>;
+    /// `StructuralFieldType::leaf_declaration` over the same list.
+    fn leaf_declaration(
+        &self,
+        field_type: &StructuralFieldType,
+    ) -> Option<&'a StructuralTypeDeclaration>;
+}
+
+impl<'a, I> StructuralDeclarations<'a> for I
+where
+    I: Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+{
+    fn unique(&self, id: StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> {
+        exactly_one(self.clone(), |row| row.id == id)
+    }
+
+    fn representation_view(
+        &self,
+        view: StructuralTypeId,
+        stored: Option<ScalarType>,
+    ) -> Option<&'a StructuralTypeDeclaration> {
+        terminal_psi::types::representation_views::declaration(self.clone(), view, stored)
+    }
+
+    fn inline_carrier(
+        &self,
+        field: &StructuralFieldDeclaration,
+    ) -> Option<&'a StructuralTypeDeclaration> {
+        crate::inline_carrier_declaration(self.clone(), field)
+    }
+
+    fn leaf_declaration(
+        &self,
+        field_type: &StructuralFieldType,
+    ) -> Option<&'a StructuralTypeDeclaration> {
+        field_type.leaf_declaration(self.clone())
+    }
+}
+
+/// A caller's own identity lookup, with view and inline-carrier rows still
+/// read from its declaration list.
+#[derive(Clone)]
+struct LookupWithList<I, F> {
+    declarations: I,
+    declaration: F,
+}
+
+impl<'a, I, F> StructuralDeclarations<'a> for LookupWithList<I, F>
+where
+    I: Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    F: Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> + Clone,
+{
+    fn unique(&self, id: StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> {
+        (self.declaration)(id)
+    }
+
+    fn representation_view(
+        &self,
+        view: StructuralTypeId,
+        stored: Option<ScalarType>,
+    ) -> Option<&'a StructuralTypeDeclaration> {
+        self.declarations.representation_view(view, stored)
+    }
+
+    fn inline_carrier(
+        &self,
+        field: &StructuralFieldDeclaration,
+    ) -> Option<&'a StructuralTypeDeclaration> {
+        self.declarations.inline_carrier(field)
+    }
+
+    fn leaf_declaration(
+        &self,
+        field_type: &StructuralFieldType,
+    ) -> Option<&'a StructuralTypeDeclaration> {
+        self.declarations.leaf_declaration(field_type)
     }
 }
 
@@ -757,7 +855,7 @@ impl ProjectionTip<'_> {
 }
 
 fn walk_primitive_projection<'a>(
-    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    declarations: impl StructuralDeclarations<'a>,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     scalar_field: impl Fn(&StructuralFieldType) -> Option<ScalarType>,
@@ -803,31 +901,7 @@ pub fn projection_storage_dependencies<'a>(
 type TypeDependencies = std::collections::BTreeSet<StructuralTypeId>;
 
 fn walk_primitive_projection_with_policy<'a>(
-    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
-    root: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    scalar_field: impl Fn(&StructuralFieldType) -> Option<ScalarType>,
-    step: impl FnMut(Option<CanonicalStructuralPathSegment>),
-    may_step: impl FnMut(Option<StructuralTypeId>, &StructuralPathSegment) -> bool,
-    dependencies: Option<(bool, &mut TypeDependencies)>,
-) -> Option<ProjectionTip<'a>> {
-    let unique = |id| exactly_one(declarations.clone(), |row| row.id == id);
-    walk_primitive_projection_with_lookup(
-        (declarations.clone(), unique),
-        root,
-        path,
-        scalar_field,
-        step,
-        may_step,
-        dependencies,
-    )
-}
-
-fn walk_primitive_projection_with_lookup<'a>(
-    (declarations, unique): (
-        impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
-        impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration>,
-    ),
+    declarations: impl StructuralDeclarations<'a>,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     scalar_field: impl Fn(&StructuralFieldType) -> Option<ScalarType>,
@@ -859,16 +933,12 @@ fn walk_primitive_projection_with_lookup<'a>(
         {
             if payload_fields.is_some()
                 || matches!(position, Position::Declared(root)
-                    if matches!(unique(root)?.shape,
+                    if matches!(declarations.unique(root)?.shape,
                         StructuralTypeShape::Opaque | StructuralTypeShape::Reference { .. }))
             {
                 return None;
             }
-            let view = terminal_psi::types::representation_views::declaration(
-                declarations.clone(),
-                *structural_type,
-                *stored_scalar,
-            )?;
+            let view = declarations.representation_view(*structural_type, *stored_scalar)?;
             step(None);
             position = Position::Declared(view.id);
             continue;
@@ -876,7 +946,7 @@ fn walk_primitive_projection_with_lookup<'a>(
         let Position::Declared(root) = position else {
             return None;
         };
-        let declaration = unique(root)?;
+        let declaration = declarations.unique(root)?;
         if let StructuralPathSegment::FixedRange { start, end } = segment {
             let StructuralTypeShape::FixedArray {
                 length: terminal_psi::ArrayExtent::Literal(length),
@@ -936,19 +1006,14 @@ fn walk_primitive_projection_with_lookup<'a>(
                     _ if field.field_type.atomic_cell_type().is_some()
                         && field.inline_carrier.is_some() =>
                     {
-                        Position::Declared(
-                            crate::inline_carrier_declaration(declarations.clone(), field)?.id,
-                        )
+                        Position::Declared(declarations.inline_carrier(field)?.id)
                     }
                     _ => match field.field_type.byte_sequence_carrier() {
                         Some(carrier) => {
                             if !matches!(carrier, ByteSequenceCarrier::BoundedOwned { .. }) {
                                 step(None);
                             }
-                            Position::Declared(
-                                crate::inline_carrier_declaration(declarations.clone(), field)?
-                                    .id,
-                            )
+                            Position::Declared(declarations.inline_carrier(field)?.id)
                         }
                         None => Position::ScalarField((
                             &field.field_type,
@@ -1015,7 +1080,7 @@ fn walk_primitive_projection_with_lookup<'a>(
     }
     match position {
         Position::Declared(root) => {
-            let declaration = unique(root)?;
+            let declaration = declarations.unique(root)?;
             if let Some((include_root, dependencies)) = dependencies
                 && (include_root || !path.is_empty())
             {
@@ -1115,9 +1180,7 @@ pub fn visit_runtime_index_goals<'a>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     values: &impl crate::ValueTypes,
-    mut measured_extent: impl FnMut(
-        &[StructuralPathSegment],
-    ) -> Option<semantic_vocabulary::ValueId>,
+    mut measured_extent: impl FnMut(&[StructuralPathSegment]) -> Option<semantic_vocabulary::ValueId>,
     mut visit: impl FnMut(ObligationId, Proposition),
 ) -> Result<(), RuntimeIndexGoalError> {
     let Some(last_index) = path.iter().rposition(|step| step.runtime_index().is_some()) else {
@@ -1125,8 +1188,11 @@ pub fn visit_runtime_index_goals<'a>(
     };
     let mut error = RuntimeIndexGoalError::InvalidPath;
     let mut position = 0;
-    let walked = walk_primitive_projection_with_lookup(
-        (declarations, &declaration),
+    let walked = walk_primitive_projection_with_policy(
+        LookupWithList {
+            declarations,
+            declaration: &declaration,
+        },
         root,
         &path[..=last_index],
         plain_scalar_field,
@@ -1223,5 +1289,200 @@ pub(crate) fn projection_tip_with_policy<'a>(
     )? {
         ProjectionTip::Declared(tip) => Some(Some(tip.id)),
         ProjectionTip::ScalarField(_) | ProjectionTip::ByteElement => Some(None),
+    }
+}
+
+#[cfg(test)]
+mod declaration_lookup_tests {
+    use super::*;
+    use crate::descriptor_lifetimes::StructuralTypeIndex;
+    use semantic_vocabulary::StructuralFieldId;
+    use terminal_psi::{BindingRelevance, StructuralRecordStorage, TerminalIdentityIndex};
+
+    fn declaration(raw: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
+        StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
+            requires: Vec::new(),
+            id: StructuralTypeId::new(raw).unwrap(),
+            identity: TerminalIdentityIndex(raw as u32),
+            owns_linear_claim: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+            no_code_affine_cleanup: true,
+            descriptor_cleanup: true,
+            nominal_cleanup: None,
+            quotient_carrier: None,
+            scalar_restriction: None,
+            shape,
+        }
+    }
+
+    fn field(
+        raw: u64,
+        field_type: StructuralFieldType,
+        inline_carrier: Option<u64>,
+    ) -> StructuralFieldDeclaration {
+        StructuralFieldDeclaration {
+            declaration_identity: Default::default(),
+            id: StructuralFieldId::new(raw).unwrap(),
+            identity: TerminalIdentityIndex(raw as u32),
+            relevance: BindingRelevance::Relevant,
+            storage: None,
+            field_type,
+            inline_carrier: inline_carrier.map(id),
+        }
+    }
+
+    fn id(raw: u64) -> StructuralTypeId {
+        StructuralTypeId::new(raw).unwrap()
+    }
+
+    fn byte() -> ScalarType {
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap())
+    }
+
+    /// A record whose fields reach an inline scalar carrier, a fixed array,
+    /// a scalar without a carrier, a type declared twice, an absent type and
+    /// carriers that do not fit, plus representation views.
+    fn declarations() -> Vec<StructuralTypeDeclaration> {
+        let record = StructuralTypeShape::Record {
+            storage: StructuralRecordStorage::Packed,
+            fields: vec![
+                field(1, StructuralFieldType::Scalar(ScalarType::Boolean), Some(2)),
+                field(2, StructuralFieldType::Structural(id(3)), None),
+                field(3, StructuralFieldType::Scalar(byte()), None),
+                field(4, StructuralFieldType::Structural(id(5)), None),
+                field(5, StructuralFieldType::Structural(id(42)), None),
+                field(6, StructuralFieldType::Scalar(byte()), Some(2)),
+                field(7, StructuralFieldType::Scalar(ScalarType::Boolean), Some(5)),
+            ],
+        };
+        vec![
+            declaration(1, record),
+            declaration(2, StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)),
+            declaration(
+                3,
+                StructuralTypeShape::FixedArray {
+                    element: id(2),
+                    length: terminal_psi::ArrayExtent::Literal(4),
+                },
+            ),
+            declaration(4, StructuralTypeShape::PrimitiveScalar(byte())),
+            declaration(5, StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)),
+            declaration(5, StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)),
+        ]
+    }
+
+    fn field_step(raw: u32) -> StructuralPathSegment {
+        StructuralPathSegment::Field(TerminalIdentityIndex(raw))
+    }
+
+    fn view(raw: u64, stored_scalar: Option<ScalarType>) -> StructuralPathSegment {
+        StructuralPathSegment::RepresentationView {
+            structural_type: id(raw),
+            stored_scalar,
+        }
+    }
+
+    fn paths() -> Vec<Vec<StructuralPathSegment>> {
+        vec![
+            vec![],
+            vec![field_step(1)],
+            vec![field_step(2)],
+            vec![field_step(2), StructuralPathSegment::FixedIndex(1)],
+            vec![field_step(2), StructuralPathSegment::FixedIndex(9)],
+            vec![field_step(3)],
+            vec![field_step(4)],
+            vec![field_step(5)],
+            vec![field_step(6)],
+            vec![field_step(7)],
+            vec![field_step(99)],
+            vec![view(3, None), StructuralPathSegment::FixedIndex(0)],
+            vec![view(5, None)],
+            vec![view(2, Some(ScalarType::Boolean))],
+        ]
+    }
+
+    fn read_tip(position: Option<Position>) -> Option<String> {
+        position.map(|position| match position {
+            Position::Declared(id) => format!("declared {}", id.get()),
+            Position::ScalarField(scalar) => format!("scalar {scalar:?}"),
+            Position::ByteElement => "byte".to_owned(),
+        })
+    }
+
+    #[test]
+    fn the_type_index_walks_every_path_as_the_declaration_list_does() {
+        let types = declarations();
+        let index = StructuralTypeIndex::new(&types);
+        for root in [1, 3, 5, 42].map(id) {
+            for path in paths() {
+                assert_eq!(
+                    runtime_structural_path_tip(types.iter(), root, &path).map(std::ptr::from_ref),
+                    runtime_structural_path_tip(&index, root, &path).map(std::ptr::from_ref),
+                    "structural tip of {root:?} {path:?}"
+                );
+                assert_eq!(
+                    read_tip(runtime_read_projection_tip(types.iter(), root, &path)),
+                    read_tip(runtime_read_projection_tip(&index, root, &path)),
+                    "read tip of {root:?} {path:?}"
+                );
+                assert_eq!(
+                    crate::resolved_structural_path(types.iter(), root, &path),
+                    crate::resolved_structural_path(&index, root, &path),
+                    "resolved path of {root:?} {path:?}"
+                );
+                assert_eq!(
+                    crate::runtime_structural_field(types.iter(), root, &path)
+                        .map(std::ptr::from_ref),
+                    crate::runtime_structural_field(&index, root, &path).map(std::ptr::from_ref),
+                    "field of {root:?} {path:?}"
+                );
+            }
+        }
+    }
+
+    // The comparison above means something only if the fixture reaches each
+    // lookup, both where it resolves and where it refuses.
+    #[test]
+    fn the_fixture_reaches_carriers_views_duplicates_and_absences() {
+        let types = declarations();
+        let index = StructuralTypeIndex::new(&types);
+        let tip = |path: &[StructuralPathSegment]| {
+            runtime_structural_path_tip(&index, id(1), path).map(|declaration| declaration.id)
+        };
+        assert_eq!(tip(&[]), Some(id(1)));
+        assert_eq!(
+            tip(&[field_step(1)]),
+            Some(id(2)),
+            "an inline scalar carrier"
+        );
+        assert_eq!(
+            tip(&[field_step(2), StructuralPathSegment::FixedIndex(1)]),
+            Some(id(2))
+        );
+        assert_eq!(
+            tip(&[field_step(2), StructuralPathSegment::FixedIndex(9)]),
+            None
+        );
+        assert_eq!(
+            tip(&[field_step(3)]),
+            None,
+            "a scalar field without a carrier"
+        );
+        assert_eq!(tip(&[field_step(4)]), None, "a type declared twice");
+        assert_eq!(tip(&[field_step(5)]), None, "an absent type");
+        assert_eq!(tip(&[field_step(6)]), None, "a carrier of another scalar");
+        assert_eq!(tip(&[field_step(7)]), None, "a carrier declared twice");
+        assert_eq!(
+            tip(&[view(3, None), StructuralPathSegment::FixedIndex(0)]),
+            Some(id(2)),
+            "a representation view"
+        );
+        assert_eq!(tip(&[view(5, None)]), None, "a view declared twice");
+        assert_eq!(
+            read_tip(runtime_read_projection_tip(&index, id(1), &[field_step(3)])),
+            Some(format!("scalar {:?}", byte()))
+        );
+        assert_eq!(runtime_structural_path_tip(&index, id(5), &[]), None);
     }
 }

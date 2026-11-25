@@ -192,15 +192,18 @@ pub use calls::call_composition::{
     fixed_collection_storage_window, fixed_element_array_extent, shared_boundary_buffer_capacity,
     stored_view_field_presentation, validate_call_composition_semantic_rows,
 };
+pub use operations::{
+    OperationSemanticCustody, OperationSemanticError, OperationSemanticRow, OperationSemanticTag,
+    exact_operation_semantic_row_in, operation_semantic_row,
+};
 pub use references::reference_views::{
     borrowed_field_presentation, descriptor_geometry_matches, descriptor_reborrow_matches,
     descriptor_reborrow_shapes_match, descriptor_source_projection_accessible,
     descriptor_value_transfer_matches, is_copyable_carrier, is_shared_reference_carrier,
     reference_byte_field_compatible, reference_source_compatible,
     reference_source_projection_accessible, reference_source_projection_compatible,
-    reference_source_storage_path,
-    reference_storage_export_byte_width, reference_storage_region_source_compatible,
-    reference_storage_source_compatible,
+    reference_source_storage_path, reference_storage_export_byte_width,
+    reference_storage_region_source_compatible, reference_storage_source_compatible,
     scalar_reference_view_admits, shared_byte_descriptor_storage_matches,
     shared_descriptor_copy_matches, shared_direct_byte_descriptor_source, stored_reference_access,
 };
@@ -232,15 +235,6 @@ pub use scalars::scalar_leaf_semantics::{
     GoalFreeScalarLeafSemantics, ScalarLeafLiteral, SortedValueTypes, ValueTypes,
     constant_goal_free_scalar_leaf, goal_free_scalar_leaf_semantics,
 };
-pub use terminal_psi::types::representation_views::{
-    ScalarRepresentationViewPair, ScalarViewValue, declaration as representation_view_declaration,
-    reference_storage_byte_width, reference_storage_view_is_compatible, scalar_reference_view_is_total,
-    scalar_reference_view_value,
-};
-pub use operations::{
-    OperationSemanticCustody, OperationSemanticError, OperationSemanticRow, OperationSemanticTag,
-    exact_operation_semantic_row_in, operation_semantic_row,
-};
 pub use storage::arrival_storage::{
     StorageNames, arrival_parameter, borrowed_storage_parameter,
     borrowed_storage_reference_ceiling, borrowed_view_payload_parameter,
@@ -262,7 +256,7 @@ pub use structural::partial_affine::{
     partial_affine_residuals, partial_affine_residuals_in_regions, structural_region_is_vacant,
 };
 pub use structural::primitive_place::{
-    Position, RuntimeIndexGoalError, StructuralStorageSelection,
+    Position, RuntimeIndexGoalError, StructuralDeclarations, StructuralStorageSelection,
     borrowed_primitive_projection_declaration, borrowed_projection_type,
     borrowed_storage_field_type, byte_carrier_geometry_matches, canonical_inline_region,
     canonical_primitive_path, canonical_primitive_read_path, canonical_primitive_read_type,
@@ -311,6 +305,11 @@ pub use structural::zeroed_structural::{
     zeroed_structural_leaves_modulo_references,
     zeroed_structural_leaves_with_established_erased_fields, zeroed_structural_shape,
     zeroed_structural_storage, zeroed_structural_types_and_fields_satisfy,
+};
+pub use terminal_psi::types::representation_views::{
+    ScalarRepresentationViewPair, ScalarViewValue, declaration as representation_view_declaration,
+    reference_storage_byte_width, reference_storage_view_is_compatible,
+    scalar_reference_view_is_total, scalar_reference_view_value,
 };
 
 pub use descriptors::descriptor_lifetimes;
