@@ -1440,6 +1440,21 @@ impl<'t> Program<'t> {
                     "resident loan and source parameter have different referent types",
                 ));
             }
+            // A layout may change the view's representation. Its qualification
+            // must still include the domains of the original placement.
+            let placement = self.local_type(id, placement)?.qualification();
+            let view = self.local_type(id, view_type)?.qualification();
+            if !placement.domains.is_subset_of(&view.domains) {
+                return Err(crate::reject(
+                    id,
+                    source,
+                    format!(
+                        "the resident placement carries {}, but the requested view carries {}",
+                        self.domains_named(placement),
+                        self.domains_named(view),
+                    ),
+                ));
+            }
             return Err(unavailable(
                 "resident view needs evaluated layout, content, profile and policy custody",
             ));
