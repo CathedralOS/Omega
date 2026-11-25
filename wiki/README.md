@@ -183,5 +183,8 @@ Bootstrap contracts live beside the chain; start at
 [minimization](../bootstrap/MINIMIZATION.md). Alternative-chain tradeoffs are
 [reference notes](drafts/reference/bootstrap_chain_alternatives.md), not a replacement proposal.
 
+For AI researchers curating corpora, designing RL verifiers, or evaluating
+models on Omega, see the [AI training guide](development/ai_training_guide.md).
+
 [Execution tasks](../TASKS.md) track implementation;
 [owner questions](../OWNER_QUESTIONS.md) hold unresolved decisions.
