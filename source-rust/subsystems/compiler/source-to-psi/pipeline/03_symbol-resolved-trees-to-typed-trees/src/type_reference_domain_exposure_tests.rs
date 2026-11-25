@@ -182,3 +182,39 @@ fn domain_exposure_typed_pool_keeps_the_local_domain_competing_with_an_import() 
     assert_eq!(candidates(&["two"]), symbols);
     assert_eq!(candidates(&[]), symbols[..1]);
 }
+
+#[test]
+fn an_indexed_domain_matches_the_qualification_on_its_declared_carrier() {
+    use crate::source_state::domain::domain_accepts_carrier;
+
+    let resolved = crate::resolve_fixture(
+        "data Word {}
+         data Segment<T> { value: T; }
+         domain<T> Segment<T>::Stored<T>;
+         data Kept = Segment<Word> in Stored<Word>;
+         domain<T> Kept::Side<T>;",
+    );
+    let typed = crate::lower_symbol_resolved_trees(&resolved).unwrap();
+    let family = typed
+        .domain_definitions()
+        .iter()
+        .find(|d| d.name.as_str() == "Kept::Side")
+        .unwrap();
+    let target = family.target_type;
+    let bare = typed
+        .type_reference_table
+        .unconstrained_type_reference(target);
+    assert_ne!(target, bare, "the alias expansion retains Stored");
+    assert!(domain_accepts_carrier(
+        &typed,
+        family,
+        target,
+        &family.index_arguments
+    ));
+    assert!(!domain_accepts_carrier(
+        &typed,
+        family,
+        bare,
+        &family.index_arguments
+    ));
+}

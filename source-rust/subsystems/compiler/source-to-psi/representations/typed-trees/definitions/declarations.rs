@@ -1423,11 +1423,6 @@ pub mod domain {
         if has_generic_carrier(program, domain) {
             return true;
         }
-        // A qualification on the entire value leaves its carrier unchanged.
-        // Qualifications inside a type argument still identify that argument.
-        let carrier = program
-            .type_reference_table
-            .unconstrained_type_reference(carrier);
         let substitutions = index_parameters(program, domain)
             .iter()
             .zip(arguments)
@@ -1437,17 +1432,29 @@ pub mod domain {
             substitutions: &substitutions,
             ..TypeIdentityRequest::package_qualified(domain.target_type)
         });
+        // An additional qualification can apply to an already qualified
+        // value. A qualification on the declared target is still required.
+        let matches = |supplied| {
+            let underlying = program
+                .type_reference_table
+                .unconstrained_type_reference(supplied);
+            program.package_qualified_type_identity(supplied) == target
+                || (underlying != supplied
+                    && program.package_qualified_type_identity(underlying) == target)
+        };
         // `LayoutStorage<T, L>` is T's value in L's geometry, not a wrapper
         // around a stored T (plans.md, "Representation applications"), so
         // its data carrier is T: `RegisterStorage in Registers::Placed`
         // qualifies the laid `Registers`. The layout selection stays on the
         // application; nothing else about T is erased to match.
-        program.package_qualified_type_identity(carrier) == target
+        matches(carrier)
             || program
-                .layout_storage_arguments(carrier)
-                .is_some_and(|laid| {
-                    program.package_qualified_type_identity(laid.semantic_type) == target
-                })
+                .layout_storage_arguments(
+                    program
+                        .type_reference_table
+                        .unconstrained_type_reference(carrier),
+                )
+                .is_some_and(|laid| matches(laid.semantic_type))
     }
 
     pub fn domain_by_symbol(
