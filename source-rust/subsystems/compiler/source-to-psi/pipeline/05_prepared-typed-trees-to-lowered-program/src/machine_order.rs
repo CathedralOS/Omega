@@ -7,9 +7,15 @@
 //! for, and most applications leave that machine as it was. A plan made in
 //! advance against the starting module is the plan the loop would make as long
 //! as no machine it read has changed by the time its turn comes.
+//!
+//! Both plans are affine ownership walks, and each walk replays the summaries
+//! of the callees its machine reaches. Walks over one unchanged module share
+//! those replays through one `AffineSummaries` table; the first application
+//! that changes a machine ends that table, and later walks start another.
 
 use semantic_vocabulary::MachineId;
 use terminal_psi::{TerminalMachine, TerminalModule};
+use terminal_semantics::plain_affine::AffineSummaries;
 
 /// Plan every machine of `module` and apply each plan to its machine in
 /// machine order, with the result of the loop that plans machine `k` only
@@ -22,50 +28,77 @@ use terminal_psi::{TerminalMachine, TerminalModule};
 /// changed before the plan's turn, the machine is planned again against the
 /// module as it is then. `apply` may change only the machine it is given. The
 /// first error `apply` returns ends the loop, as it would in order.
+///
+/// `plan` receives the callee-summary table of the module it is given, which
+/// every plan against that same unchanged module shares.
 pub(crate) fn plan_then_apply<Plan: Send, Error>(
     module: &mut TerminalModule,
-    plan: impl Fn(&TerminalModule, &TerminalMachine) -> Plan + Sync,
+    plan: impl Fn(&TerminalModule, &AffineSummaries<'_>, &TerminalMachine) -> Plan + Sync,
     reads: impl Fn(&Plan) -> Option<&[MachineId]>,
     mut apply: impl FnMut(&mut TerminalMachine, Plan) -> Result<(), Error>,
 ) -> Result<(), Error> {
-    if worker_budget::current_workers() == 1 || module.machines.len() < 2 {
-        for ordinal in 0..module.machines.len() {
-            let next = plan(module, &module.machines[ordinal]);
-            apply(&mut module.machines[ordinal], next)?;
-        }
-        return Ok(());
-    }
-    let planned = {
+    let count = module.machines.len();
+    let mut advance: Vec<Option<Plan>> = if worker_budget::current_workers() == 1 || count < 2 {
+        std::iter::repeat_with(|| None).take(count).collect()
+    } else {
         use rayon::prelude::*;
         let module = &*module;
+        let summaries = AffineSummaries::new(module);
         module
             .machines
             .par_iter()
             .with_max_len(1)
-            .map(|machine| plan(module, machine))
-            .collect::<Vec<_>>()
+            .map(|machine| Some(plan(module, &summaries, machine)))
+            .collect()
     };
     // The machines an application changed so far, sorted.
     let mut changed: Vec<MachineId> = Vec::new();
-    for (ordinal, advance) in planned.into_iter().enumerate() {
-        // A plan finds its own machine by identity too, so that identity
-        // counts among what it read.
-        let unchanged = |machine: &MachineId| changed.binary_search(machine).is_err();
-        let current = changed.is_empty()
-            || unchanged(&module.machines[ordinal].id)
-                && reads(&advance).is_some_and(|read| read.iter().all(unchanged));
-        let next = if current {
-            advance
-        } else {
-            plan(module, &module.machines[ordinal])
+    let mut ordinal = 0;
+    while ordinal < count {
+        // Until an application changes a machine, the module stays as it is
+        // here, so the walks planned again until then share one table. It is
+        // built only when one of them is.
+        let edit = {
+            let module = &*module;
+            let summaries = std::cell::OnceCell::new();
+            loop {
+                let Some(machine) = module.machines.get(ordinal) else {
+                    break None;
+                };
+                // A plan finds its own machine by identity too, so that
+                // identity counts among what it read.
+                let unchanged = |machine: &MachineId| changed.binary_search(machine).is_err();
+                let next = match advance[ordinal].take() {
+                    Some(advance)
+                        if changed.is_empty()
+                            || unchanged(&machine.id)
+                                && reads(&advance)
+                                    .is_some_and(|read| read.iter().all(unchanged)) =>
+                    {
+                        advance
+                    }
+                    _ => plan(
+                        module,
+                        summaries.get_or_init(|| AffineSummaries::new(module)),
+                        machine,
+                    ),
+                };
+                let mut applied = machine.clone();
+                let outcome = apply(&mut applied, next);
+                ordinal += 1;
+                if applied != *machine {
+                    break Some((applied, outcome));
+                }
+                outcome?;
+            }
         };
-        let before = module.machines[ordinal].clone();
-        apply(&mut module.machines[ordinal], next)?;
-        let machine = &module.machines[ordinal];
-        if *machine != before
-            && let Err(position) = changed.binary_search(&machine.id)
-        {
-            changed.insert(position, machine.id);
+        if let Some((applied, outcome)) = edit {
+            let id = applied.id;
+            module.machines[ordinal - 1] = applied;
+            if let Err(position) = changed.binary_search(&id) {
+                changed.insert(position, id);
+            }
+            outcome?;
         }
     }
     Ok(())

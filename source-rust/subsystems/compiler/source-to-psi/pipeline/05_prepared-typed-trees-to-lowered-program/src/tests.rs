@@ -4551,6 +4551,8 @@ fn a_scalar_match_evaluates_its_subject_once_and_tests_each_value_in_authored_or
     assert!(matches!(join.terminator, Terminator::Return { value, .. } if value == result.id));
 }
 
+#[path = "tests/affine_sharing.rs"]
+mod affine_sharing;
 #[path = "tests/array_views.rs"]
 mod array_views;
 
@@ -4699,7 +4701,7 @@ fn machines_planned_on_workers_apply_what_planning_in_order_yields() {
         let result = budget.run(|| {
             crate::machine_order::plan_then_apply(
                 &mut module,
-                |module, machine| {
+                |module, _, machine| {
                     let copied = COPIES[machine.id.get() as usize - 1];
                     Copied {
                         read: vec![id(copied)],

@@ -11,7 +11,7 @@ use terminal_check_tables::{
     CheckTables, Checked, Construct, ProgramPoint, Refusal, RefusalReason,
 };
 use terminal_psi::{Operation, OperationKind, OperationResult, TerminalModule};
-use terminal_semantics::plain_affine::{Error, Site};
+use terminal_semantics::plain_affine::{AffineSummaries, Error, MachineAffine, Site};
 
 fn planning_refusal(machine: MachineId, error: Error, sources: Option<&MachineSources>) -> Refusal {
     let (concerns, origin) = match error.site() {
@@ -43,38 +43,46 @@ fn planning_refusal(machine: MachineId, error: Error, sources: Option<&MachineSo
     }
 }
 
-/// A machine whose reference ends cannot be planned yet is refused on its
-/// own: the first such refusal is returned once every machine was tried,
-/// and each later one is put in `further`.
-pub(crate) fn install(
-    module: &mut TerminalModule,
-    tables: &mut CheckTables,
-    sources: &mut IdTable<MachineId, MachineSources>,
-    further: &mut Vec<terminal_check_tables::Refusal>,
-) -> Checked<()> {
-    let mut unsupported: Vec<terminal_check_tables::Refusal> = Vec::new();
-    let candidates = terminal_semantics::reference_ends::candidates(module).map_err(|error| {
-        terminal_check_tables::Refusal {
-            source_span: error.operation.and_then(|operation| {
-                sources
-                    .get(error.machine)?
-                    .operations
-                    .get(operation)?
-                    .authored_span()
-            }),
-            reason: terminal_check_tables::RefusalReason::Unsupported,
-            site: terminal_check_tables::RefusalSite::Machine(
-                error.machine,
-                error
-                    .operation
-                    .map(Construct::Operation)
-                    .unwrap_or(Construct::Machine),
-            ),
-            detail: error.detail,
-        }
-    })?;
-    for ordinal in 0..module.machines.len() {
-        let owner = module.machines[ordinal].id;
+fn candidates_refusal(
+    error: terminal_semantics::reference_ends::Error,
+    sources: &IdTable<MachineId, MachineSources>,
+) -> Refusal {
+    Refusal {
+        source_span: error.operation.and_then(|operation| {
+            sources
+                .get(error.machine)?
+                .operations
+                .get(operation)?
+                .authored_span()
+        }),
+        reason: RefusalReason::Unsupported,
+        site: terminal_check_tables::RefusalSite::Machine(
+            error.machine,
+            error
+                .operation
+                .map(Construct::Operation)
+                .unwrap_or(Construct::Machine),
+        ),
+        detail: error.detail,
+    }
+}
+
+/// Plan the reference ends of the machines from `*ordinal` on, in order,
+/// until one has ends to install, which is returned with `*ordinal` just
+/// past it. A machine whose plan has no ends keeps its body, so the walks
+/// before it and after it read the same module and share `summaries`.
+fn next_reference_ends<'m>(
+    module: &'m TerminalModule,
+    summaries: &std::cell::OnceCell<AffineSummaries<'m>>,
+    candidates: &IdTable<MachineId, terminal_semantics::reference_ends::Candidates>,
+    tables: &CheckTables,
+    sources: &IdTable<MachineId, MachineSources>,
+    ordinal: &mut usize,
+    unsupported: &mut Vec<Refusal>,
+) -> Checked<Option<(MachineId, terminal_semantics::plain_affine::Plan)>> {
+    while let Some(machine) = module.machines.get(*ordinal) {
+        *ordinal += 1;
+        let owner = machine.id;
         let candidates = candidates.get(owner).ok_or_else(|| {
             refuse(
                 owner,
@@ -85,17 +93,87 @@ pub(crate) fn install(
         if candidates.is_empty() {
             continue;
         }
-        let plan = terminal_semantics::plain_affine::plan_reference_ends(module, owner, candidates)
-            .map_err(|error| planning_refusal(owner, error, sources.get(owner)));
+        let plan = MachineAffine::new(
+            module,
+            owner,
+            Some(summaries.get_or_init(|| AffineSummaries::new(module))),
+        )
+        .and_then(|walks| walks.plan_reference_ends(candidates))
+        .map_err(|error| planning_refusal(owner, error, sources.get(owner)));
         let plan = match plan {
             Ok(plan) => plan,
-            Err(refused) if refused.reason == terminal_check_tables::RefusalReason::Unsupported => {
+            Err(refused) if refused.reason == RefusalReason::Unsupported => {
                 unsupported.push(refused);
                 continue;
             }
             Err(refused) => return Err(refused),
         };
-        let machine = &mut module.machines[ordinal];
+        if !plan.reference_ends.is_empty() {
+            return Ok(Some((owner, plan)));
+        }
+        // Installing no ends leaves the machine as it is, but installing
+        // them would still have needed these rows.
+        if sources.get(owner).is_none() {
+            return Err(refuse(
+                owner,
+                Construct::Machine,
+                Unserved::Machine("reference disposition lost its source correspondence"),
+            ));
+        }
+        if tables.machines.get(owner).is_none() {
+            return Err(refuse(
+                owner,
+                Construct::Machine,
+                Unserved::Machine("reference disposition lost its storage tables"),
+            ));
+        }
+    }
+    Ok(None)
+}
+
+/// A machine whose reference ends cannot be planned yet is refused on its
+/// own: the first such refusal is returned once every machine was tried,
+/// and each later one is put in `further`.
+pub(crate) fn install(
+    module: &mut TerminalModule,
+    tables: &mut CheckTables,
+    sources: &mut IdTable<MachineId, MachineSources>,
+    further: &mut Vec<terminal_check_tables::Refusal>,
+) -> Checked<()> {
+    let mut unsupported: Vec<terminal_check_tables::Refusal> = Vec::new();
+    let mut candidates = None;
+    let mut ordinal = 0;
+    loop {
+        // Until a machine gains reference ends, every walk reads the module
+        // as it stands here, so the walks until then, and the candidates
+        // before the first edit, share one table of callee summaries.
+        let next = {
+            let module = &*module;
+            let summaries = std::cell::OnceCell::new();
+            let current = match candidates.take() {
+                Some(current) => current,
+                None => terminal_semantics::reference_ends::candidates_sharing(
+                    module,
+                    summaries.get_or_init(|| AffineSummaries::new(module)),
+                )
+                .map_err(|error| candidates_refusal(error, sources))?,
+            };
+            let next = next_reference_ends(
+                module,
+                &summaries,
+                &current,
+                tables,
+                sources,
+                &mut ordinal,
+                &mut unsupported,
+            );
+            candidates = Some(current);
+            next?
+        };
+        let Some((owner, plan)) = next else {
+            break;
+        };
+        let machine = &mut module.machines[ordinal - 1];
         let source = sources.get_mut(owner).ok_or_else(|| {
             refuse(
                 owner,

@@ -15,6 +15,7 @@ use semantic_vocabulary::{BlockId, MachineId, OperationId, PlaceId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{OperationKind, StructuralAccess, StructuralArgument, TerminalModule};
 
+#[derive(Debug, PartialEq)]
 pub struct Candidate {
     pub argument: StructuralArgument,
     pub unproved_case: Option<crate::descriptor_results::DescriptorCasePredicate>,
@@ -54,6 +55,24 @@ impl Error {
 }
 
 pub fn candidates(module: &TerminalModule) -> Result<IdTable<MachineId, Candidates>, Error> {
+    candidates_with(module, None)
+}
+
+/// `candidates`, taking and publishing callee summaries through the table
+/// that the affine walks of this same module share. Its graph is built
+/// without nominal calls, as each walk's is, so a summary from the table is
+/// the one its own replay would produce.
+pub fn candidates_sharing(
+    module: &TerminalModule,
+    summaries: &crate::plain_affine::AffineSummaries<'_>,
+) -> Result<IdTable<MachineId, Candidates>, Error> {
+    candidates_with(module, Some(summaries))
+}
+
+fn candidates_with(
+    module: &TerminalModule,
+    summaries: Option<&crate::plain_affine::AffineSummaries<'_>>,
+) -> Result<IdTable<MachineId, Candidates>, Error> {
     let has_borrowed_storage = |machine: &terminal_psi::TerminalMachine| {
         machine
             .structural_parameters
@@ -85,6 +104,9 @@ pub fn candidates(module: &TerminalModule) -> Result<IdTable<MachineId, Candidat
     graph.sort_unstable_by_key(|machine| machine.id);
     let mut analysis =
         DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, &graph);
+    if let Some(summaries) = summaries {
+        summaries.share_with(&mut analysis);
+    }
     let mut result = IdTable::default();
     for machine in &module.machines {
         let candidates = if machine.blocks.is_empty() || !has_borrowed_storage(machine) {

@@ -1071,6 +1071,16 @@ impl<'m> AffineSummaries<'m> {
     pub fn holds(&self, machine: semantic_vocabulary::MachineId) -> bool {
         self.summaries.get(machine).is_some()
     }
+
+    /// Let a fresh analysis over rows built from this table's module without
+    /// nominal calls take and publish summaries here. `ModuleSummaries`
+    /// refuses rows it cannot serve, and that analysis then replays alone.
+    pub(crate) fn share_with<'a>(
+        &'a self,
+        analysis: &mut crate::descriptor_results::DescriptorAnalysis<'a>,
+    ) {
+        analysis.share_summaries(&self.summaries, &NO_NOMINAL_CALLS);
+    }
 }
 
 /// The affine walks of one machine in one module. Every walk that needs
@@ -1135,7 +1145,7 @@ impl<'s> MachineAffine<'s> {
                 graph,
             );
         if let Some(summaries) = self.summaries {
-            references.share_summaries(&summaries.summaries, &NO_NOMINAL_CALLS);
+            summaries.share_with(&mut references);
         }
         references
     }

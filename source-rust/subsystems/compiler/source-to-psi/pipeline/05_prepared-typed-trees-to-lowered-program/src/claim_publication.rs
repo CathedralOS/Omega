@@ -77,7 +77,10 @@ pub(crate) fn publish(diagnostic: MachineId, module: &mut TerminalModule) -> Che
     // walk may read, so a claim plan counts as reading every machine.
     crate::machine_order::plan_then_apply(
         module,
-        |module, machine| terminal_semantics::plain_affine::plan_claims_in(module, machine.id),
+        |module, summaries, machine| {
+            terminal_semantics::plain_affine::MachineAffine::new(module, machine.id, Some(summaries))
+                .and_then(|walks| walks.plan_claims())
+        },
         |_| None,
         |machine, plan| {
             plan.and_then(|plan| plan.install(machine))
