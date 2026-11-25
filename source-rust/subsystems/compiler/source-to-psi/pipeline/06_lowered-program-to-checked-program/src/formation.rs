@@ -72,7 +72,13 @@ pub fn prepare_replay<'source>(
         .filter(|machine| !requirements.contains(&machine.id))
         .map(|machine| machine.id)
         .collect::<Vec<_>>();
-    terminal_semantics::scalar_qualifications::validate_for_bodies(&elaboration.module, &bodies)
+    // The structural judgment below reads the membership facts this scalar
+    // judgment proves for the same unedited module and bodies.
+    let memberships =
+        terminal_semantics::scalar_qualifications::validate_for_bodies_keeping_memberships(
+            &elaboration.module,
+            &bodies,
+        )
         .map_err(|error| {
             let fallback = || elaboration.module.machines.first().map(|machine| machine.id)
                 .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity"));
@@ -112,10 +118,7 @@ pub fn prepare_replay<'source>(
     })?;
     // A record formal, result or field in a domain is a contract of the
     // lowered form, judged here before anything is inferred from it.
-    terminal_semantics::structural_qualifications::validate_shape_for_bodies(
-        &elaboration.module,
-        &bodies,
-    )
+    terminal_semantics::structural_qualifications::validate_shape_with_memberships(&memberships)
     .map_err(|error| {
         use terminal_semantics::structural_qualifications::QualificationViolation;
         if let Some(violation) = error.violation {

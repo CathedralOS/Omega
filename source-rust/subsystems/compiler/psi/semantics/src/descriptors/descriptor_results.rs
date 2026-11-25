@@ -880,18 +880,16 @@ pub fn zeroed_case_predicates(
     let Some(leaves) = crate::zeroed_structural_leaves(types.iter(), structural_type) else {
         return Vec::new();
     };
+    // The index answers each declaration lookup as the full list does
+    // (`StructuralTypeIndex`), without rescanning the list for every step
+    // of every selected path.
+    let index = descriptor_lifetimes::locations::StructuralTypeIndex::new(types);
     let mut predicates = Vec::new();
     for leaf in leaves {
         let crate::ZeroedStructuralLeaf::SumSelection { path, case, .. } = leaf else {
             continue;
         };
-        let Some(subject) = descriptor_lifetimes::descriptor_location(
-            types,
-            root,
-            structural_type,
-            &path,
-            None,
-        ) else {
+        let Some(subject) = index.descriptor_location(root, structural_type, &path, None) else {
             return Vec::new();
         };
         predicates.push(DescriptorCasePredicate {
@@ -901,6 +899,9 @@ pub fn zeroed_case_predicates(
     }
     predicates
 }
+
+#[cfg(test)]
+mod zeroed_case_tests;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FlowFeasibility {

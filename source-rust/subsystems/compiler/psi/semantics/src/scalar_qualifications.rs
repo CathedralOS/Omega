@@ -977,6 +977,30 @@ pub fn validate_for_bodies(
     module: &TerminalModule,
     bodies: &[MachineId],
 ) -> Result<(), ScalarQualificationError> {
+    validate_bodies_into(module, bodies, &mut None)
+}
+
+/// `validate_for_bodies`, keeping the membership facts it proved so the
+/// structural judgment of the same module and bodies reads them instead of
+/// replaying every body again
+/// (`structural_qualifications::validate_shape_with_memberships`).
+pub fn validate_for_bodies_keeping_memberships<'m>(
+    module: &'m TerminalModule,
+    bodies: &[MachineId],
+) -> Result<crate::membership_facts::BodyMemberships<'m>, ScalarQualificationError> {
+    let mut facts = None;
+    validate_bodies_into(module, bodies, &mut facts)?;
+    let facts = facts.ok_or(ScalarQualificationError::MalformedStructuralFoundation(
+        "scalar qualification check kept no membership facts",
+    ))?;
+    Ok(crate::membership_facts::BodyMemberships::new(module, facts))
+}
+
+fn validate_bodies_into(
+    module: &TerminalModule,
+    bodies: &[MachineId],
+    kept: &mut Option<crate::membership_facts::MembershipFacts>,
+) -> Result<(), ScalarQualificationError> {
     let catalog = &module.types.scalar_qualifications;
     if catalog
         .domains
@@ -1079,13 +1103,14 @@ pub fn validate_for_bodies(
             return malformed("scalar qualification set names an absent domain");
         }
     }
-    let membership_facts =
+    let membership_facts = &*kept.insert(
         crate::membership_facts::analyze_bodies(module, bodies).map_err(|error| {
             ScalarQualificationError::NormalResultMembership {
                 machine: error.machine,
                 detail: error.detail,
             }
-        })?;
+        })?,
+    );
     for coercion in &catalog.coercions {
         let machine = module
             .machines

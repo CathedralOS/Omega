@@ -1038,8 +1038,12 @@ fn examine(
     // goes on with the next machine, and the first such refusal becomes the
     // verdict with the rest beside it.
     let mut unsupported = Unsupported::default();
-    let reference_ends = terminal_semantics::reference_ends::candidates(&elaboration.module)
-        .map_err(|error| {
+    // The candidate search and every machine's walks replay the same
+    // callees; the module replays each of them once for all of them.
+    let summaries = terminal_semantics::plain_affine::AffineSummaries::new(&elaboration.module);
+    let reference_ends =
+        terminal_semantics::reference_ends::candidates_sharing(&elaboration.module, &summaries)
+            .map_err(|error| {
             fall_back_or_defect(
                 Roster::of(&elaboration).locate(refusal(
                     RefusalReason::Unsupported,
@@ -1054,7 +1058,9 @@ fn examine(
         })?;
     // Plans are computed on the workers, then read in machine order: the
     // first deciding refusal and the noted machines are those one pass meets.
-    for (machine, planned) in plan_affine_machines(&elaboration.module, &reference_ends) {
+    let plans = plan_affine_machines(&elaboration.module, &summaries, &reference_ends);
+    drop(summaries);
+    for (machine, planned) in plans {
         let plan = match planned {
             Some(Ok(plan)) => plan,
             Some(Err(AffineRefusal::Unsupported(refused))) => {
@@ -1166,16 +1172,14 @@ impl AffineRefusal {
 /// machine order returns at that refusal before it reaches a skipped machine.
 fn plan_affine_machines(
     module: &terminal_psi::TerminalModule,
+    summaries: &terminal_semantics::plain_affine::AffineSummaries<'_>,
     reference_ends: &arena::IdTable<MachineId, terminal_semantics::reference_ends::Candidates>,
 ) -> Vec<(
     MachineId,
     Option<Result<terminal_semantics::plain_affine::Plan, AffineRefusal>>,
 )> {
-    // Every machine's walks replay the same callees; the module replays each
-    // of them once for all its machines.
-    let summaries = terminal_semantics::plain_affine::AffineSummaries::new(module);
     let plan =
-        |machine: MachineId| affine_plan(module, &summaries, machine, reference_ends.get(machine));
+        |machine: MachineId| affine_plan(module, summaries, machine, reference_ends.get(machine));
     let machines = &module.machines;
     if worker_budget::current_workers() == 1 || machines.len() < 2 {
         let mut plans = Vec::with_capacity(machines.len());
