@@ -138,6 +138,49 @@ fn domain_index_names_resolve_in_their_declared_type_or_const_role() {
 }
 
 #[test]
+fn a_refinement_supplies_its_own_binders_in_its_parents_declared_roles() {
+    use crate::source_resolved::types::TypeReference;
+
+    let source = "data N {} data OnlyAType {}
+         domain<Frame, const N: u8> u32::At<Frame, N>;
+         domain<Frame, const N: u8> u32::At<Frame, N>::Child<Frame, N>;";
+    for (source, valid_const) in [
+        (source.to_owned(), true),
+        (
+            source.replace("At<Frame, N>::Child", "At<Frame, OnlyAType>::Child"),
+            false,
+        ),
+    ] {
+        let program = resolve_source(&source);
+        let mut domains = program.domain_definitions.iter();
+        let parent = domains.next().unwrap();
+        let child = domains.next().unwrap();
+        let [ProofFact::Membership(fact)] = program.proof_facts(child.facts) else {
+            panic!("a refinement has one parent fact");
+        };
+        assert_eq!(fact.domain_symbol, parent.symbol);
+        let child_binders = program.data_type_parameters(child.type_parameters);
+        let [
+            TypeReference::Named { symbol: frame, .. },
+            TypeReference::Named { symbol: index, .. },
+        ] = program.child_type_references(fact.domain_arguments)
+        else {
+            panic!("the parent application takes a type and a const");
+        };
+        assert_eq!(*frame, child_binders[0].symbol);
+        if valid_const {
+            assert_eq!(*index, child_binders[1].symbol);
+            assert_ne!(
+                *index,
+                program.data_type_parameters(parent.type_parameters)[1].symbol
+            );
+        } else {
+            assert!(!index.is_valid());
+        }
+    }
+}
+
+#[test]
 fn a_domain_application_selects_its_const_in_signatures_and_casts() {
     use crate::source_resolved::expression::ExpressionNode;
     use crate::source_resolved::types::{TypeConstraint, TypeReference};

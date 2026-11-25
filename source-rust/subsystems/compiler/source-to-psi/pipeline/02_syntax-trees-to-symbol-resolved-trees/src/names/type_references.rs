@@ -1235,7 +1235,7 @@ mod assignment {
         machine's complete lexical scope, so a parameter or local still hides a
         same-spelled constant.
     */
-    pub(super) fn resolve_value_in_type_symbol(
+    pub(in crate::resolution::names) fn resolve_value_in_type_symbol(
         symbols: &SymbolTable,
         local_type_parameters: &[TypeParameter],
         name: &DiagnosticName,
@@ -1728,7 +1728,7 @@ mod value_expressions {
 
     /// The selected declaration determines which operands are values. Resolve a
     /// bare name in one of those positions in the scope that supplied the operand.
-    pub(super) fn bind_named_value_arguments(
+    pub(in crate::resolution::names) fn bind_named_value_arguments(
         parameters: &[crate::source_resolved::data::TypeParameter],
         child_types: &mut crate::source_resolved::types::TypeReferenceArena,
         arguments: arena::HandleSpan<TypeReference>,
@@ -2430,7 +2430,7 @@ mod value_expressions {
 pub(super) use value_expressions::{
     assign_declaration_type_value_expression_symbols, assign_domain_index_values,
     assign_type_argument_value_expression_symbols, assign_type_value_expression_symbols,
-    bind_binder_value_arguments, reassign_type_reference_symbols,
+    bind_binder_value_arguments, bind_named_value_arguments, reassign_type_reference_symbols,
     reassign_type_reference_symbols_and_values,
 };
 
@@ -2441,7 +2441,7 @@ pub(super) use assignment::{
     assign_trait_implementation_argument_symbols,
     assign_type_reference_argument_symbols_with_constraints,
     assign_type_reference_symbol_with_locals_and_constraints, assign_type_reference_symbols,
-    assign_type_reference_with_definitions,
+    assign_type_reference_with_definitions, resolve_value_in_type_symbol,
 };
 pub(super) use queries::call_target_for_type_reference;
 
