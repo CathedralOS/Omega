@@ -229,3 +229,108 @@ fn a_content_guarantee_cannot_borrow_an_unqualified_input_or_an_entry_result() {
     assert!(!output.status.success(), "{report}");
     assert!(report.contains("has no entry content"), "{report}");
 }
+
+#[test]
+fn a_boundary_call_composes_the_declared_interval_law_at_its_normal_result() {
+    use semantic_vocabulary::{ContentPlaceVersion, ContentTerm};
+    use terminal_psi::{BoundaryContentGuarantee, OperationKind};
+    use terminal_semantics::content_transformations::boundary_calls;
+
+    let source = r#"use {omega}/language/core/extent.omg as extent;
+        machine forward(input: |extent|::Extent in |extent|::Extent::Granted) -> |extent|::Extent
+            crashes Trap crashes Abort { |extent|::VacantContentTransfer::transfer(input) }
+        machine main() {}"#;
+    let scratch = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "boundary-content-call",
+        false,
+    )
+    .unwrap();
+    let artifact = scratch.path().join("forward.psi");
+    let (out, report) = program::invoke(
+        source,
+        &[
+            "psi",
+            "inspect",
+            "--machine",
+            "forward",
+            "--output",
+            artifact.to_str().unwrap(),
+        ],
+    );
+    assert!(out.status.success(), "{report}");
+    let saved =
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(&std::fs::read(artifact).unwrap())
+            .unwrap();
+    let module = saved.semantic_module();
+    let ordinal = module
+        .machines
+        .iter()
+        .position(|machine| !machine.content_partition_compositions.is_empty())
+        .unwrap();
+    let machine = &module.machines[ordinal];
+    let [row] = machine.content_partition_compositions.as_slice() else {
+        panic!("one authored normal equation")
+    };
+    let operation = machine.operation(row.producer_operation).unwrap();
+    let OperationKind::BoundaryCall {
+        boundary,
+        structural_arguments,
+        completion_receipts,
+        ..
+    } = &operation.kind
+    else {
+        panic!("ordinary boundary call")
+    };
+    let declaration = module.boundary_machine(*boundary).unwrap();
+    let [BoundaryContentGuarantee::Conservation(law)] = declaration.content_guarantees.as_slice()
+    else {
+        panic!("declared interval law")
+    };
+    let [receipt] = completion_receipts.as_slice() else {
+        panic!("one consumed input")
+    };
+    let [input] = structural_arguments.as_slice() else {
+        panic!("one owned argument")
+    };
+    let result = operation.result.as_structural().unwrap();
+    assert_eq!(row.source_report_fingerprint, law.report_fingerprint);
+    assert_eq!(row.source, law.conservation);
+    assert_eq!(row.input_claims, [receipt.claim]);
+    assert_eq!(result.claims.len(), 1);
+    let [
+        ContentTerm::Projection {
+            projection: left,
+            subject: a,
+        },
+        ContentTerm::Projection {
+            projection: right,
+            subject: b,
+        },
+    ] = [row.derived.left(), row.derived.right()]
+    else {
+        panic!("two projections")
+    };
+    assert_eq!(left, right);
+    assert_eq!(
+        (a.version, b.version),
+        (ContentPlaceVersion::Current, ContentPlaceVersion::Current)
+    );
+    let mut roots = [input.place, result.place];
+    roots.sort_unstable();
+    assert_eq!([a.root, b.root], roots);
+    assert!(boundary_calls::verify_machine(&module, machine).is_ok());
+
+    let mut forged = module.clone();
+    forged.machines[ordinal].content_partition_compositions[0].input_claims =
+        vec![result.claims[0].claim];
+    assert!(boundary_calls::verify_machine(&forged, &forged.machines[ordinal]).is_err());
+    forged.machines[ordinal].content_partition_compositions[0] = row.clone();
+    forged.machines[ordinal].content_partition_compositions[0].substitutions[0]
+        .target
+        .root = result.place;
+    assert!(boundary_calls::verify_machine(&forged, &forged.machines[ordinal]).is_err());
+    forged.machines[ordinal]
+        .content_partition_compositions
+        .clear();
+    assert!(boundary_calls::verify_machine(&forged, &forged.machines[ordinal]).is_err());
+}

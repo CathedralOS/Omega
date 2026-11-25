@@ -17,7 +17,9 @@ use terminal_psi::{
 };
 
 pub(crate) mod ancestry;
+pub mod boundary_calls;
 pub(crate) mod boundary_correspondence;
+pub mod declarations;
 pub mod entry_claims;
 
 pub fn structural_path<'a>(

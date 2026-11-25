@@ -9,8 +9,8 @@ use terminal_psi::{
     RuntimeDomainMembership, StructuralParameterDeclaration, StructuralPathQualification,
     TerminalModule,
 };
-use terminal_semantics::canonical_static_projection;
-use terminal_semantics::content_transformations::structural_path;
+use crate::canonical_static_projection;
+use super::structural_path;
 
 #[derive(Clone, Copy)]
 struct Subject<'a> {
@@ -27,7 +27,7 @@ struct Header<'a> {
     normal_memberships: &'a [RuntimeDomainMembership],
 }
 
-pub(super) fn contract(
+pub fn contract(
     module: &TerminalModule,
     contract: &MachineContract,
 ) -> Result<(), &'static str> {
@@ -50,7 +50,7 @@ pub(super) fn contract(
     Ok(())
 }
 
-pub(super) fn boundary(
+pub fn boundary(
     module: &TerminalModule,
     boundary: &BoundaryMachineDeclaration,
 ) -> Result<(), &'static str> {

@@ -78,5 +78,45 @@ pub(crate) fn publish(diagnostic: MachineId, module: &mut TerminalModule) -> Che
         plan.install(&mut module.machines[ordinal])
             .map_err(|error| preparation_error(identity, error))?;
     }
+    if !terminal_semantics::content_transformations::boundary_calls::has_declared_conservation(
+        module,
+    ) {
+        return Ok(());
+    }
+    for ordinal in 0..module.machines.len() {
+        let caller = &module.machines[ordinal];
+        let mut rows = Vec::new();
+        for operation in caller.operations() {
+            // An affine value may carry a declared mathematical law without owning
+            // any resource claim. That case still lowers for declaration checking.
+            // Stage 06 independently requires evidence at each actual invocation.
+            if !matches!(&operation.kind, terminal_psi::OperationKind::BoundaryCall { completion_receipts, .. } if !completion_receipts.is_empty())
+                || !operation
+                    .result
+                    .as_structural()
+                    .is_some_and(|result| !result.claims.is_empty())
+            {
+                continue;
+            }
+            rows.extend(
+                terminal_semantics::content_transformations::boundary_calls::compositions(
+                    module, caller, operation,
+                )
+                .map_err(|detail| Refusal {
+                    reason: RefusalReason::Unsupported,
+                    site: terminal_check_tables::RefusalSite::Machine(
+                        caller.id,
+                        Construct::Operation(operation.id),
+                    ),
+                    source_span: None,
+                    detail: detail.into(),
+                })?,
+            );
+        }
+        rows.sort_unstable();
+        module.machines[ordinal]
+            .content_partition_compositions
+            .extend(rows);
+    }
     Ok(())
 }
