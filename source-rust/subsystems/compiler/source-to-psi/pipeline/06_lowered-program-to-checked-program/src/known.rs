@@ -94,8 +94,8 @@ enum Origin {
 
 /// One hypothesis or conjunct, with enough origin to reconstruct its proof.
 #[derive(Debug)]
-pub(crate) struct Fact {
-    pub(crate) proposition: Proposition,
+pub(crate) struct Fact<'source> {
+    proposition: Cow<'source, Proposition>,
     origin: Origin,
     /// Conjuncts in this scope may cite the same proof of their whole premise.
     conjunction_proof: OnceCell<Arc<ProofNode>>,
@@ -125,7 +125,11 @@ impl FactProofWork {
     }
 }
 
-impl Fact {
+impl Fact<'_> {
+    pub(crate) fn proposition(&self) -> &Proposition {
+        &self.proposition
+    }
+
     /// The same premise can have several transported disjunctions. A branch
     /// already selects one alternative of that premise, regardless of its
     /// current value names. Authored sibling conjuncts remain separate cuts.
@@ -159,8 +163,8 @@ impl Fact {
                     // Denotation sorts and flattens conjunctions. A child of
                     // the transformed conjunction has no authored ordinal.
                     if crossed_conjunction
-                        || !matches!(selected.proposition, Proposition::Disjunction(_))
-                        || !matches!(original.proposition, Proposition::Disjunction(_))
+                        || !matches!(selected.proposition(), Proposition::Disjunction(_))
+                        || !matches!(original.proposition(), Proposition::Disjunction(_))
                     {
                         return None;
                     }
@@ -192,7 +196,7 @@ impl Fact {
                 conjunct: *conjunct,
             },
             Origin::IntegerEquality { premise } => {
-                let Proposition::Equal(_, right) = &facts[*premise].proposition else {
+                let Proposition::Equal(_, right) = facts[*premise].proposition() else {
                     unreachable!("integer equality originates in a scalar equality");
                 };
                 work.record_node();
@@ -220,17 +224,17 @@ impl Fact {
         };
         work.record_node();
         ProofNode {
-            conclusion: self.proposition.clone(),
+            conclusion: self.proposition().clone(),
             rule,
         }
     }
 }
 
 #[derive(Debug)]
-pub(crate) struct Known {
+pub(crate) struct Known<'source> {
     #[cfg(test)]
     pub(crate) normalization_checks: usize,
-    pub(crate) facts: Vec<Fact>,
+    pub(crate) facts: Vec<Fact<'source>>,
     /// Fact positions, in the original selected equation order.
     pub(crate) equations: Vec<usize>,
     /// The first checked definition of each value, retained from normalization
@@ -287,24 +291,27 @@ impl TransportInputs {
     }
 }
 
-fn flatten(
-    proposition: &Proposition,
+/// Premise rows borrow the input tree. A transport result has a shorter lifetime
+/// and supplies owned propositions for its new derivation.
+fn flatten<'input, 'source>(
+    proposition: &'input Proposition,
+    retain: impl Fn(&'input Proposition) -> Cow<'source, Proposition> + Copy,
     origin: Origin,
     axiom: Option<usize>,
-    facts: &mut Vec<Fact>,
+    facts: &mut Vec<Fact<'source>>,
     conjuncts: &mut Vec<usize>,
 ) -> usize {
     let first = conjuncts.len();
     if let Proposition::Conjunction(parts) = proposition {
         for part in parts {
-            let child = flatten(part, Origin::PendingConjunct, None, facts, conjuncts);
+            let child = flatten(part, retain, Origin::PendingConjunct, None, facts, conjuncts);
             conjuncts.push(child);
         }
     }
     let parent = facts.len();
     facts.push(Fact {
         conjunction_proof: OnceCell::new(),
-        proposition: proposition.clone(),
+        proposition: retain(proposition),
         origin,
         axiom,
     });
@@ -351,20 +358,20 @@ pub(crate) fn is_branch_fact(proposition: &Proposition) -> bool {
     )
 }
 
-impl Known {
-    pub(crate) fn new<'a>(
+impl<'source> Known<'source> {
+    pub(crate) fn new(
         context: &PropositionContext,
-        assumptions: impl IntoIterator<Item = &'a Proposition>,
-        axioms: impl IntoIterator<Item = &'a Proposition>,
+        assumptions: impl IntoIterator<Item = &'source Proposition>,
+        axioms: impl IntoIterator<Item = &'source Proposition>,
         values: &dyn ProofValues,
     ) -> Self {
         Self::prepare(context, assumptions.into_iter(), axioms, values, None)
     }
 
-    pub(crate) fn prepare<'a>(
+    pub(crate) fn prepare(
         context: &PropositionContext,
-        assumptions: impl Iterator<Item = &'a Proposition>,
-        axioms: impl IntoIterator<Item = &'a Proposition>,
+        assumptions: impl Iterator<Item = &'source Proposition>,
+        axioms: impl IntoIterator<Item = &'source Proposition>,
         values: &dyn ProofValues,
         mut branch: Option<&mut BranchPreparation<'_>>,
     ) -> Self {
@@ -373,6 +380,7 @@ impl Known {
         for (index, assumption) in assumptions.enumerate() {
             flatten(
                 assumption,
+                Cow::Borrowed,
                 Origin::Assumption(index),
                 None,
                 &mut facts,
@@ -383,6 +391,7 @@ impl Known {
         for (index, axiom) in axioms.into_iter().enumerate() {
             flatten(
                 axiom,
+                Cow::Borrowed,
                 Origin::SemanticAxiom(index),
                 Some(index),
                 &mut facts,
@@ -396,7 +405,7 @@ impl Known {
         for index in 0..facts.len() {
             let fact = &facts[index];
             let Proposition::Equal(left, right @ ScalarTerm::Application { .. }) =
-                &fact.proposition
+                fact.proposition()
             else {
                 continue;
             };
@@ -405,7 +414,7 @@ impl Known {
             }
             facts.push(Fact {
                 conjunction_proof: OnceCell::new(),
-                proposition: Proposition::Equal(right.clone(), left.clone()),
+                proposition: Cow::Owned(Proposition::Equal(right.clone(), left.clone())),
                 origin: Origin::EqualitySymmetry { premise: index },
                 axiom: None,
             });
@@ -414,7 +423,7 @@ impl Known {
         let equations: Vec<_> = facts
             .iter()
             .enumerate()
-            .filter(|(index, fact)| match &fact.proposition {
+            .filter(|(index, fact)| match fact.proposition() {
                 Proposition::Equal(subject @ ScalarTerm::Value { .. }, definition) => {
                     match definition {
                         ScalarTerm::Boolean(_) => fact.axiom.is_some(),
@@ -468,11 +477,11 @@ impl Known {
         // Rows for the values these facts name; every other value of the
         // namespace reads as undefined (`ValueRows`).
         let mut defined =
-            ValueFamily::of(values, result.facts.iter().map(|fact| &fact.proposition))
+            ValueFamily::of(values, result.facts.iter().map(|fact| fact.proposition()))
                 .rows(None::<usize>);
         for (index, &fact) in result.equations.iter().enumerate() {
             let fact = &result.facts[fact];
-            let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = &fact.proposition else {
+            let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = fact.proposition() else {
                 continue;
             };
             let Some(definition) = defined.get_mut(*id) else {
@@ -482,7 +491,7 @@ impl Known {
                 let previous = &result.facts[result.equations[previous]];
                 if fact.axiom.is_some()
                     && previous.axiom.is_none()
-                    && fact.proposition != previous.proposition
+                    && fact.proposition() != previous.proposition()
                 {
                     *definition = Some(index);
                 }
@@ -500,7 +509,7 @@ impl Known {
             let Proposition::Equal(
                 left @ ScalarTerm::Value { id: left_id, .. },
                 right @ ScalarTerm::Value { id: right_id, .. },
-            ) = result.facts[index].proposition.clone()
+            ) = result.facts[index].proposition().clone()
             else {
                 continue;
             };
@@ -508,7 +517,7 @@ impl Known {
                 let symmetric = result.facts.len();
                 result.facts.push(Fact {
                     conjunction_proof: OnceCell::new(),
-                    proposition: Proposition::Equal(right, left),
+                    proposition: Cow::Owned(Proposition::Equal(right, left)),
                     origin: Origin::EqualitySymmetry { premise: index },
                     axiom: None,
                 });
@@ -550,7 +559,7 @@ impl Known {
                     scalar_type: ScalarType::Integer(_),
                 },
                 definition,
-            ) = &fact.proposition
+            ) = fact.proposition()
             else {
                 continue;
             };
@@ -595,16 +604,16 @@ impl Known {
         let end = self.facts.len();
         for index in first..end {
             let fact = &self.facts[index];
-            if let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = &fact.proposition
+            if let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = fact.proposition()
                 && let Some(Some(definition)) = defined.get(*id)
-                && self.facts[self.equations[*definition]].proposition == fact.proposition
+                && self.facts[self.equations[*definition]].proposition() == fact.proposition()
             {
                 continue;
             }
-            if let Some(proposition) = integer_equality(&fact.proposition) {
+            if let Some(proposition) = integer_equality(fact.proposition()) {
                 self.facts.push(Fact {
                     conjunction_proof: OnceCell::new(),
-                    proposition,
+                    proposition: Cow::Owned(proposition),
                     origin: Origin::IntegerEquality { premise: index },
                     axiom: None,
                 });
@@ -618,10 +627,10 @@ impl Known {
         defined: &mut ValueRows<Option<usize>>,
     ) -> Option<ValueId> {
         let fact = &self.facts[index];
-        if !is_branch_fact(&fact.proposition) {
+        if !is_branch_fact(fact.proposition()) {
             return None;
         }
-        let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = &fact.proposition else {
+        let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = fact.proposition() else {
             return None;
         };
         let definition = defined.get_mut(*id)?;
@@ -651,7 +660,7 @@ impl Known {
                 id: right_id,
                 scalar_type: ScalarType::Integer(_),
             },
-        ) = &self.facts[index].proposition
+        ) = self.facts[index].proposition()
         else {
             return None;
         };
@@ -669,7 +678,7 @@ impl Known {
             let fact = self.facts.len();
             self.facts.push(Fact {
                 conjunction_proof: OnceCell::new(),
-                proposition: Proposition::Equal(right.clone(), left.clone()),
+                proposition: Cow::Owned(Proposition::Equal(right.clone(), left.clone())),
                 origin: Origin::EqualitySymmetry { premise: index },
                 axiom: None,
             });
@@ -707,7 +716,7 @@ impl Known {
             transport
                 .selected
                 .iter()
-                .map(|&index| &self.facts[self.equations[index]].proposition),
+                .map(|&index| self.facts[self.equations[index]].proposition()),
         ) {
             Ok(Proposition::Equal(definition, _)) => definition,
             _ => actual,
@@ -739,7 +748,7 @@ impl Known {
             transport
                 .selected
                 .iter()
-                .map(|&index| &self.facts[self.equations[index]].proposition),
+                .map(|&index| self.facts[self.equations[index]].proposition()),
         ) {
             Ok(Proposition::Equal(left, right)) => left == right,
             Ok(Proposition::Truth) => true,
@@ -777,7 +786,7 @@ impl Known {
                     scalar_type,
                 },
                 _,
-            ) = &facts[equations[index]].proposition
+            ) = facts[equations[index]].proposition()
             {
                 applications.push((*application, *scalar_type, index));
             }
@@ -808,7 +817,7 @@ impl Known {
                 continue;
             }
             inputs.push(index);
-            if let Proposition::Equal(_, definition) = &facts[equations[index]].proposition {
+            if let Proposition::Equal(_, definition) = facts[equations[index]].proposition() {
                 definition.visit_terms(|term| pending.extend(DefinitionSubject::of(term)));
             }
         }
@@ -848,7 +857,7 @@ impl Known {
             Self::transport_inputs(
                 &self.facts,
                 &self.equations,
-                &fact.proposition,
+                fact.proposition(),
                 defined,
                 &mut transport,
             );
@@ -864,11 +873,11 @@ impl Known {
                     }
                     let Ok(result) = check_value_equality_denotation(
                         context,
-                        &fact.proposition,
+                        fact.proposition(),
                         transport
                             .selected
                             .iter()
-                            .map(|&i| &self.facts[self.equations[i]].proposition),
+                            .map(|&i| self.facts[self.equations[i]].proposition()),
                     ) else {
                         continue;
                     };
@@ -885,7 +894,7 @@ impl Known {
                     users.push(index);
                 }
             });
-            if transported.as_ref() == &fact.proposition {
+            if transported.as_ref() == fact.proposition() {
                 if let Some(scope) = branch.as_deref_mut() {
                     scope.record(index, index, &self.equations, &transport.selected);
                 }
@@ -902,7 +911,14 @@ impl Known {
                     .collect(),
             };
             let first = self.facts.len();
-            let result = flatten(&transported, origin, None, &mut self.facts, conjuncts);
+            let result = flatten(
+                &transported,
+                |derived| Cow::Owned(derived.clone()),
+                origin,
+                None,
+                &mut self.facts,
+                conjuncts,
+            );
             if let Some(scope) = branch.as_deref_mut() {
                 scope.record(index, result, &self.equations, &transport.selected);
             }

@@ -149,12 +149,12 @@ impl Prover<'_> {
             .facts
             .iter()
             .enumerate()
-            .map(|(index, fact)| (&fact.proposition, index))
+            .map(|(index, fact)| (fact.proposition(), index))
             .collect();
         let formats: BTreeSet<_> = self
             .facts
             .iter()
-            .filter_map(|fact| match &fact.proposition {
+            .filter_map(|fact| match fact.proposition() {
                 Proposition::ScalarIeeeFloatComparison { format, .. } => Some(*format),
                 Proposition::Implication { premise, .. } => match premise.as_ref() {
                     Proposition::ScalarIeeeFloatComparison { format, .. } => Some(*format),
@@ -184,7 +184,7 @@ impl Prover<'_> {
             if self.facts[index].axiom.is_some() {
                 continue;
             }
-            let fact = self.facts[index].proposition.clone();
+            let fact = self.facts[index].proposition().clone();
             if let Proposition::Implication {
                 premise,
                 conclusion,
@@ -306,7 +306,7 @@ impl Prover<'_> {
             record_literal(term);
         }
         for (index, fact) in self.facts.iter().enumerate() {
-            let Some(edge) = order(&fact.proposition, format) else {
+            let Some(edge) = order(fact.proposition(), format) else {
                 continue;
             };
             record_literal(edge.left);

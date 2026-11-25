@@ -111,7 +111,7 @@ impl Prover<'_> {
         direction: Direction,
     ) -> Option<ProofNode> {
         let fact = &self.facts[index];
-        let (left, right, strict) = match &fact.proposition {
+        let (left, right, strict) = match fact.proposition() {
             Proposition::IntegerMathLessOrEqual(left, right) => (left, right, false),
             Proposition::IntegerMathLessThan(left, right) => (left, right, true),
             _ => return None,
@@ -175,7 +175,7 @@ impl Prover<'_> {
     ) -> Option<ProofNode> {
         let mut fallback = None;
         for index in 0..self.facts.len() {
-            let actual = match (&self.facts[index].proposition, direction) {
+            let actual = match (self.facts[index].proposition(), direction) {
                 (
                     Proposition::IntegerMathLessOrEqual(left, _)
                     | Proposition::IntegerMathLessThan(left, _),

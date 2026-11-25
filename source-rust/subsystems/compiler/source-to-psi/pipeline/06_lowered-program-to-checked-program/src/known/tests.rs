@@ -25,7 +25,7 @@ fn check_all(
         assert!(!matches!(fact.origin, Origin::PendingConjunct));
         proof_admission::accept_certificate(
             context,
-            &fact.proposition,
+            fact.proposition(),
             assumptions,
             axioms,
             &fact.proof(&known.facts),
@@ -53,7 +53,7 @@ fn nested_conjunctions_keep_postorder_and_exact_positional_evidence() {
             .facts
             .iter()
             .take(6)
-            .map(|fact| fact.proposition.clone())
+            .map(|fact| fact.proposition().clone())
             .collect::<Vec<_>>(),
         [
             first.clone(),
@@ -276,7 +276,7 @@ fn integer_equality_lifts_keep_the_original_right_reflexive_child_in_both_orient
             },
         );
         assert_eq!(known.facts[1].proof(&known.facts), expected);
-        check_all(&known, &context, &[equation], &[]);
+        check_all(&known, &context, std::slice::from_ref(&equation), &[]);
     }
 }
 
@@ -310,11 +310,11 @@ fn transported_branch_literals_capture_only_equations_available_before_the_conse
     let index = known
         .facts
         .iter()
-        .position(|fact| fact.proposition == yes(0))
+        .position(|fact| fact.proposition() == &yes(0))
         .unwrap();
     assert_eq!(
-        known.facts[known.equations[known.definitions.get(ids[0]).unwrap().unwrap()]].proposition,
-        yes(0)
+        known.facts[known.equations[known.definitions.get(ids[0]).unwrap().unwrap()]].proposition(),
+        &yes(0)
     );
     let Origin::Transport {
         premise,
@@ -402,7 +402,7 @@ fn application_transport_keeps_the_available_equation_prefix_and_carrier() {
     );
     let facts = [Fact {
         conjunction_proof: OnceCell::new(),
-        proposition: proposition.clone(),
+        proposition: Cow::Borrowed(&proposition),
         origin: Origin::Assumption(0),
         axiom: None,
     }];
@@ -439,9 +439,68 @@ fn application_transport_keeps_the_available_equation_prefix_and_carrier() {
             scratch
                 .selected
                 .iter()
-                .map(|index| &facts[*index].proposition),
+                .map(|index| facts[*index].proposition()),
         )
         .unwrap(),
         wrong_carrier,
     );
+}
+
+#[test]
+fn branch_preparations_borrow_the_authored_disjunctions_and_nested_conjuncts() {
+    let wide = Proposition::Disjunction(vec![Proposition::Truth; 512]);
+    let assumptions = [wide.clone()];
+    let axioms = [Proposition::Conjunction(vec![
+        Proposition::Truth,
+        Proposition::Conjunction(vec![Proposition::Falsehood, wide]),
+    ])];
+    let Proposition::Conjunction(outer) = &axioms[0] else {
+        unreachable!()
+    };
+    let Proposition::Conjunction(inner) = &outer[1] else {
+        unreachable!()
+    };
+    let original_parts = [&outer[0], &inner[0], &inner[1], &outer[1], &axioms[0]];
+    let context = PropositionContext::default();
+    let values = IdTable::default();
+    let mut root = BranchPreparation::new(None);
+    let parent = Known::prepare(
+        &context,
+        assumptions.iter(),
+        &axioms,
+        &values,
+        Some(&mut root),
+    );
+    let mut branch = BranchPreparation::new(Some((&parent.facts, &root.prepared)));
+    let selected = Proposition::Truth;
+    let child = Known::prepare(
+        &context,
+        assumptions.iter().chain(std::iter::once(&selected)),
+        &axioms,
+        &values,
+        Some(&mut branch),
+    );
+    assert!(std::ptr::eq(child.facts[1].proposition(), &selected));
+    for (known, first_axiom) in [(&parent, 1), (&child, 2)] {
+        assert!(std::ptr::eq(known.facts[0].proposition(), &assumptions[0]));
+        let axiom_facts = &known.facts[first_axiom..];
+        assert_eq!(axiom_facts.len(), original_parts.len());
+        for (fact, original) in axiom_facts.iter().zip(original_parts) {
+            assert!(std::ptr::eq(fact.proposition(), original));
+        }
+        // The equal disjunction under the nested axiom must cite that axiom.
+        let certificate = axiom_facts[2].proof(&known.facts);
+        proof_admission::accept_certificate(&context, &inner[1], &[], &axioms, &certificate)
+            .unwrap();
+        assert!(
+            proof_admission::accept_certificate(
+                &context,
+                &inner[1],
+                &assumptions,
+                &[],
+                &certificate,
+            )
+            .is_err()
+        );
+    }
 }

@@ -16,12 +16,12 @@ pub(crate) struct NormalizedPremises {
 }
 
 pub(crate) struct BranchPreparation<'parent> {
-    parent: Option<(&'parent [Fact], &'parent NormalizedPremises)>,
+    parent: Option<(&'parent [Fact<'parent>], &'parent NormalizedPremises)>,
     pub(crate) prepared: NormalizedPremises,
 }
 
 impl<'parent> BranchPreparation<'parent> {
-    pub(crate) fn new(parent: Option<(&'parent [Fact], &'parent NormalizedPremises)>) -> Self {
+    pub(crate) fn new(parent: Option<(&'parent [Fact<'parent>], &'parent NormalizedPremises)>) -> Self {
         Self {
             parent,
             prepared: NormalizedPremises::default(),
@@ -62,9 +62,9 @@ impl<'parent> BranchPreparation<'parent> {
         let same_equations = previous.iter().zip(selected).all(|(&old, &i)| {
             let current = equations[i];
             self.parent_declaration(current, prepared) == Some(old)
-                || parent[old].proposition == facts[current].proposition
+                || parent[old].proposition() == facts[current].proposition()
         });
-        same_equations.then(|| &parent[row.result].proposition)
+        same_equations.then(|| parent[row.result].proposition())
     }
 
     pub(super) fn record(

@@ -16,7 +16,7 @@ impl Equalities {
         let mut subjects = BTreeMap::new();
         let mut preconditions = BTreeMap::new();
         for (index, fact) in facts.iter().enumerate() {
-            if let Proposition::IeeeFloatIntegerExact { source, target } = &fact.proposition
+            if let Proposition::IeeeFloatIntegerExact { source, target } = fact.proposition()
                 && let Ok(carrier) = semantic_vocabulary::fixed_integer_type(*target)
                 && let Ok(rows) =
                     semantic_vocabulary::float_integer_preconditions(source.clone(), carrier)
@@ -25,7 +25,7 @@ impl Equalities {
                     preconditions.entry(row).or_insert(index);
                 }
             }
-            if let Some(subject) = float_integer_equality_subject(&fact.proposition) {
+            if let Some(subject) = float_integer_equality_subject(fact.proposition()) {
                 subjects.entry(subject.clone()).or_insert(index);
             }
         }
@@ -61,7 +61,7 @@ impl Prover<'_> {
             _ => return None,
         };
         for index in candidates.into_iter().flatten() {
-            let equality = self.facts[index].proposition.clone();
+            let equality = self.facts[index].proposition().clone();
             let Ok(computed) = float_integer_conversion_substitution(self.context, goal, &equality)
             else {
                 continue;

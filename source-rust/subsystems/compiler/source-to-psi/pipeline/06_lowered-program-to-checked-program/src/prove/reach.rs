@@ -66,7 +66,7 @@ impl Prover<'_> {
         let mut propositions: Vec<_> = self
             .facts
             .iter()
-            .map(|fact| (&fact.proposition, fact.axiom))
+            .map(|fact| (fact.proposition(), fact.axiom))
             .collect();
         let mut definitions = Vec::new();
         while let Some((proposition, axiom)) = propositions.pop() {
