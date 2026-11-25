@@ -8,12 +8,6 @@ pub(crate) struct BuildRequestOutput {
     pub(crate) sources: BuildSourcePublications,
 }
 
-impl BuildRequestOutput {
-    pub(super) fn is_empty(&self) -> bool {
-        self.log.bytes.is_empty() && self.sources.is_empty()
-    }
-}
-
 #[derive(Default)]
 pub(crate) struct BuildLog {
     bytes: Vec<u8>,

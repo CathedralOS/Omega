@@ -22,6 +22,16 @@ pub trait InvocationSelectionConsent {
         artifact: terminal_codec::TerminalExecutionView<'_>,
         question: SelectionQuestionId,
     ) -> bool;
+
+    /// Ordinary capture consent covers no foreign package declaration.
+    fn allows_supplied_library(
+        &self,
+        _artifact: terminal_codec::TerminalExecutionView<'_>,
+        _packet: &SelectionQuestions,
+        _question: SelectionQuestionId,
+    ) -> bool {
+        false
+    }
 }
 
 /// The Product declaration that owns each requested entry or calling policy.
@@ -942,8 +952,10 @@ fn admit_questions(
                                 owner.purpose == SelectionPurpose::Build
                             }
                             DeclarationCustody::Toolchain => true,
-                            DeclarationCustody::Package(_)
-                            | DeclarationCustody::Missing
+                            DeclarationCustody::Package(_) => consent.is_some_and(|(artifact, consent)| {
+                                consent.allows_supplied_library(artifact, packet, id)
+                            }),
+                            DeclarationCustody::Missing
                             | DeclarationCustody::ToolchainContract => false,
                         };
                     if !selected_consented {

@@ -66,6 +66,15 @@ pub trait InvocationSourceSelection {
         requester: Option<ProofDeclarationId>,
         declaration: ProofDeclarationId,
     ) -> bool;
+
+    fn allows_supplied_library(
+        &self,
+        _artifact: terminal_codec::TerminalExecutionView<'_>,
+        _requester: Option<ProofDeclarationId>,
+        _declaration: ProofDeclarationId,
+    ) -> bool {
+        false
+    }
 }
 
 pub fn admit_compiler_evaluation<'code, 'target>(
@@ -282,7 +291,9 @@ pub fn admit_declaration_selections(
                 && from.0 == DeclarationCustody::UnownedUser
                 && matches!(
                     to.0,
-                    DeclarationCustody::UnownedUser | DeclarationCustody::Toolchain
+                    DeclarationCustody::UnownedUser
+                        | DeclarationCustody::Toolchain
+                        | DeclarationCustody::Package(_)
                 )
             {
                 if let Some(caller) = from.1 {
@@ -799,10 +810,17 @@ fn require_invocation_selection(
     )>,
 ) -> Result<(), String> {
     if requester.0 == DeclarationCustody::UnownedUser
-        && owner.0 == DeclarationCustody::UnownedUser
         && source_consent.is_some_and(|(artifact, consent)| {
             artifact.module().identities.invocation_scope().is_some()
-                && consent.allows_selection(artifact, requester.1, owner.1)
+                && match owner.0 {
+                    DeclarationCustody::UnownedUser => {
+                        consent.allows_selection(artifact, requester.1, owner.1)
+                    }
+                    DeclarationCustody::Package(_) => {
+                        consent.allows_supplied_library(artifact, requester.1, owner.1)
+                    }
+                    _ => false,
+                }
         })
     {
         return Ok(());

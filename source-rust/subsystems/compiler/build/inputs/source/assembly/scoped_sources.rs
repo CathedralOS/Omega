@@ -1,4 +1,4 @@
-//! Reselect one captured checkpoint for a Build continuation or a Product declaration query.
+//! Select from one capture using the libraries supplied for Build or requested for Product.
 
 use super::generated::append_stage_generated_sources;
 use super::imports::{SourceRouting, load_source_frontiers, parse_admitted};
@@ -16,14 +16,14 @@ struct ReselectedSources {
     build_source: Option<BuildSourceSelection>,
 }
 
-impl DeferredProductSources {
+impl super::ImmutableSourceParseCheckpoint {
     fn reselect(
         &self,
         inputs: &crate::source::source_imports::ProductQueryInputs,
         timings: &mut CompileTimings,
         catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
     ) -> Result<ReselectedSources, Vec<Diagnostic>> {
-        let checkpoint = &self.checkpoint;
+        let checkpoint = self;
         checkpoint.validate_child(inputs.original())?;
         let mut storage = checkpoint.source_storage.as_ref().clone();
         inputs.admit_source_owner(&mut storage)?;
@@ -76,7 +76,7 @@ impl DeferredProductSources {
             mut imports,
             build_source,
             generated: _,
-        } = self.reselect(inputs, timings, catalogue)?;
+        } = checkpoint.reselect(inputs, timings, catalogue)?;
         for root in checkpoint
             .product_roots
             .iter()
@@ -136,7 +136,9 @@ impl DeferredProductSources {
             timings,
             catalogue,
         )?;
-        bindings.extend(crate::source::source_imports::retain_import_bindings(&storage)?);
+        bindings.extend(crate::source::source_imports::retain_import_bindings(
+            &storage,
+        )?);
         let root_sources = storage.root_sources();
         let build_scope_sources = storage
             .sources
@@ -164,35 +166,57 @@ impl DeferredProductSources {
             },
         ))
     }
+}
 
-    /// The Build sources of one stage of a staged Build after its first
-    /// (`wiki/spec/build/scoped_execution.md`, "Checked Build stages"), with
-    /// the build dependencies earlier stages prepared mounted under their
-    /// aliases. A Build is checked before it runs, so its first assembly
-    /// knows no dependency; this is that assembly made again once a
-    /// preparation completed, and it is the only thing a preparation changes
-    /// about how the Build's sources are read.
-    ///
-    /// The Build's own sources are selected afresh, as a Product query
-    /// selects them, so the names this stage resolves cannot reach back into
-    /// the frontier an earlier stage was checked on. Product roots stay
-    /// closed. The returned syntax carries the deferred Product continuation
-    /// rejoined to this stage's sources: the Product that follows the Build,
-    /// and any Product query this stage makes, continue from the stage that
-    /// ran last.
-    pub fn assemble_build_stage(
+impl super::ImmutableSourceParseCheckpoint {
+    pub fn assemble_supplied_build_libraries(
+        &self,
+        libraries: Arc<[crate::source_imports::SuppliedBuildLibrary]>,
+        timings: &mut CompileTimings,
+        catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
+    ) -> Result<AssembledSyntax, Vec<Diagnostic>> {
+        let root = self.source_storage.default_package_root();
+        for library in libraries.iter() {
+            if library
+                .dependency()
+                .inputs
+                .packages()
+                .any(|(_, package)| package == root)
+            {
+                return Err(vec![Diagnostic::error(
+                    "a Build library cannot supply an owner for the receiving source",
+                )]);
+            }
+        }
+        let mounted = libraries
+            .iter()
+            .map(|library| library.dependency().clone())
+            .collect();
+        let inputs = crate::source_imports::ProductQueryInputs::for_build_stage(None, mounted)
+            .map_err(|why| vec![Diagnostic::error(why)])?;
+        let mut assembled = self.assemble_build_stage(&inputs, timings, catalogue)?.1;
+        let acquisition = assembled.build_source_acquisition.as_mut().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "a supplied Build library requires its receiving source capture",
+            )]
+        })?;
+        acquisition.supplied_libraries = libraries;
+        Ok(assembled)
+    }
+
+    fn assemble_build_stage(
         &self,
         inputs: &crate::source::source_imports::ProductQueryInputs,
         timings: &mut CompileTimings,
         catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
-        let checkpoint = &self.checkpoint;
+        let checkpoint = self;
         let ReselectedSources {
             mut storage,
             mut imports,
             build_source,
             generated: generated_source_custody,
-        } = self.reselect(inputs, timings, catalogue)?;
+        } = checkpoint.reselect(inputs, timings, catalogue)?;
         load_source_frontiers(
             &mut storage,
             &mut imports,
@@ -230,7 +254,9 @@ impl DeferredProductSources {
             timings,
             catalogue,
         )?;
-        bindings.extend(crate::source::source_imports::retain_import_bindings(&storage)?);
+        bindings.extend(crate::source::source_imports::retain_import_bindings(
+            &storage,
+        )?);
         let root_sources = storage.root_sources();
         let source_file_count = storage.file_count();
         let pending_build_imports = crate::source::source_imports::pending_build_imports(&storage);
@@ -252,6 +278,7 @@ impl DeferredProductSources {
             AssembledSyntax {
                 build_source_acquisition: acquisition.map(|capture| BuildStageAcquisition {
                     capture,
+                    supplied_libraries: Arc::default(),
                     sources: Arc::clone(&sources),
                 }),
                 parsed: source_compiler::ParsedStageSources {

@@ -117,12 +117,9 @@ impl ReconciledPackageImportRequest {
         Ok(resolved)
     }
 
-/// Whether this import names the importing package's own sources and
-    /// was written in a Build source. Such an import selects only what
-    /// declares its name, and may select nothing: a Build import of a
-    /// dependency stays deferred until a stage prepares that dependency
-    /// (`wiki/spec/language/modules.md`, "Names and imports").
-    pub(super) fn defers_in(&self, importer: DependencyScope) -> bool {
+    /// Leave an unresolved Build name with its source occurrence so admission can
+    /// report it at the import. Known foreign packages report their missing edge here.
+    pub(super) fn is_unbound_build_import(&self, importer: DependencyScope) -> bool {
         importer == DependencyScope::Build
             && !self.dependency_build_forbidden
             && self.missing_edge.is_none()

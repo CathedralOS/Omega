@@ -20,7 +20,8 @@ use symbols::SymbolHandle;
 pub struct TypedTrees {
     pub identity: ProgramIdentity,
     pub excluded_authored_selection_occurrences: AuthoredSelectionExclusions,
-    /// Locals observed by the successor of this particular Build entry.
+    /// Retained for decoding snapshots written before Build imports were fixed.
+    #[doc(hidden)]
     pub parked_build_locals: Vec<ParkedBuildLocals>,
     pub roots: TypedTreeRoots,
     pub tables: TypedTreeTables,
@@ -73,6 +74,8 @@ pub struct TypedTrees {
     pub type_identities: crate::source_state::type_identity::TypeIdentityTable,
 }
 
+/// The stored layout of an older, incomplete Build frontend.
+#[doc(hidden)]
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 pub struct ParkedBuildLocals {
     pub entry: source_text::SourceSpan,
@@ -86,19 +89,11 @@ pub struct ParkedBuildLocals {
 }
 
 impl TypedTrees {
-    pub fn deferred_build_subject(&self, symbol: symbols::SymbolHandle) -> bool {
-        let Some(span) = self.symbols.symbol_source_span(symbol) else {
-            return false;
-        };
-        let key = (span.source_id.0, span.span.start, span.span.end);
-        self.parked_build_locals.iter().any(|frame| {
-            frame
-                .deferred_subjects
-                .binary_search_by_key(&key, |span| {
-                    (span.source_id.0, span.span.start, span.span.end)
-                })
-                .is_ok()
-        })
+    /// Older compilers could save only a prefix under the complete source's identity.
+    pub fn is_legacy_build_prefix(&self) -> bool {
+        self.roots.partial_build_entry.is_some()
+            || self.roots.partial_build_can_return
+            || !self.parked_build_locals.is_empty()
     }
 }
 

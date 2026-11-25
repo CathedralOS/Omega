@@ -74,14 +74,3 @@ framework or a list of unimplemented features.
 10. **Verifying costs more than writing.** You waited longer than you worked.
 
 ## Entries
-
-### A resumed Build refuses itself whenever it is typed again, because region owners print as symbol slots
-
-- Category: Knowledge crossing a boundary
-- Where: [`encode_signature_region`](source-rust/subsystems/compiler/source-to-psi/representations/typed-trees/type_records/type_identity.rs#L2420), compared by [`types_match`](source-rust/subsystems/compiler/psi/semantics/src/continuation/declarations.rs#L208)
-- Saw: With ordinary (not package-qualified) identity, a declaration-owned region prints as the owner's symbol arena slot, for example `ref(slice(named(name(u8))),region(owner(177:1),ordinal(0)))` for `Build<'storage>`'s `identifier: @'storage [u8]`. When a Build waits for a dependency and its source is typed again instead of reused, the dependency's symbols shift that slot to `178:1`, and the continuation check refuses with "successor changed a reached machine's entry contract". Reuse after preparation avoids this today, but any other reuse miss after a wait (a changed import, a new lookup contributor) still refuses an unchanged Build.
-- Cost: The refusal is safe, but it reports a changed contract that did not change, and it ties staged Build execution to source reuse. The owner's portable identity (`portable_lifetime_parameter_identity`, which already names data, machine and trait owners) would make the comparison independent of symbol numbering.
-- Repair scope: Retire cross-program Build resumption under [fixed Build imports](wiki/spec/build/scoped_execution.md#checked-build-stages). Check other consumers of portable region identities independently before removing shared identity checks.
-- Reported: 2026-11-22, Claude Code, while repairing `build_staged_dependency_calls`
-
-<a id="a-build-wide-flag-admits-machine-control-for-every-output"></a>

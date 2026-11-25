@@ -530,7 +530,6 @@ impl<'a> Lowering<'a> {
             exclusive_roots: Vec::new(),
             owns_body: true,
             fallthrough: None,
-            pending_build: None,
             block_ranks: IdTable::default(),
             active_rank: None,
             member_rank_bound: None,
@@ -878,7 +877,6 @@ struct Lowering<'a> {
     /// lowered into it yet: an unguarded arm that begins there is taken
     /// only on that edge and is an authored branch too.
     fallthrough: Option<crate::Branch>,
-    pending_build: Option<PendingBuildCall>,
     /// A state-head measure remains the same observation in its implementation
     /// blocks. Tail transfers separately measure the successor's actual values.
     block_ranks: IdTable<BlockId, Option<Vec<terminal_psi::TerminalIntegerRankValue>>>,
@@ -889,14 +887,6 @@ struct Lowering<'a> {
         MachineId,
         Vec<terminal_psi::TerminalIntegerRankValue>,
     )>,
-}
-
-/// A projected Build keeps the actual call and postpones the rest of its
-/// statement, including the ordinary retirement of temporary argument homes.
-struct PendingBuildCall {
-    site: source_text::SourceSpan,
-    retained: Vec<usize>,
-    result_slot: Option<usize>,
 }
 
 /// What lowering an evaluation reached: its result, or the expression with
@@ -1073,31 +1063,16 @@ impl<'a> Lowering<'a> {
                 *self.slot_mut(slot)? = Some(Bound::Home(place));
             }
         }
-        let mut statements = body.statements.iter().peekable();
+        let mut statements = body.statements.iter();
         while let Some(statement) = statements.next() {
-            if let Some(Statement::ParkedBuildLocals(slots, site)) = statements.peek() {
-                self.pending_build = Some(PendingBuildCall {
-                    site: *site,
-                    retained: slots.clone(),
-                    result_slot: match statement {
-                        Statement::Bind { slot, .. } => Some(*slot),
-                        _ => None,
-                    },
-                });
-            }
             let lowered = self.statement(statement)?;
-            if self.pending_build.take().is_some() {
-                return Err(self.internal(
-                    "a projected Build statement did not reach its selected suspending call",
-                ));
-            }
             let Reached::Ended(call) = lowered else {
                 continue;
             };
             // An erased binding evaluates nothing, so it is no executable
             // statement and none is reported for it.
             let first = statements.find_map(|statement| match statement {
-                Statement::Witness { .. } | Statement::ParkedBuildLocals(..) => None,
+                Statement::Witness { .. } => None,
                 Statement::Observe { value, .. }
                 | Statement::Bind { value, .. }
                 | Statement::Decompose { subject: value }

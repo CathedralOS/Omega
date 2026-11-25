@@ -1,23 +1,6 @@
-/*
-Join the activation's complete dependency-request ledger to the package
-manager's acquired source graph (`BuildDependencySelection`,
-`join_preacquired_sources`, `join_dependency_sources`, `validate_source_join`).
-
-Why an alias graph alone never discharges the `Build` request ledger:
-1. Every `BuildRequest::Dependency` issued during `Build` execution is assigned a
-   purpose-local ordinal (`Product` or `Build`). `validate_dependency_sources`
-   checks that the root package name and role match the executed
-   `BuildDeclaration`, that every issued dependency request matches its exact
-   `BuildDependencySelection` and `dependency_acquisitions` record in ordinal
-   order, that the joined graph contains no unrequested direct dependencies, and
-   that every dependency actually consumed during `Build` (`demanded_sources`)
-   is present in the joined selections.
-2. Before Product compilation begins, `validate_source_join` verifies that the
-   `PackageCompilationInputs` passed to Product preparation carry the exact
-   `PackageCompilationSourceInputs` that were joined on `ReturnedBuild` (and
-   rejects unbound contexts that attempt to adopt a multi-package dependency
-   graph without executed-request settlement).
-*/
+//! The package manager joins the sources supplied before Build entry and the dependencies the
+//! guest registered while running. Each source request must match its exact acquisition,
+//! purpose-local ordinal and alias. Product compilation consumes the graph that passed this join.
 
 use super::ReturnedBuild;
 use build_declarations::{BuildDeclaration, BuildRequest, DependencyPurpose};
@@ -32,6 +15,22 @@ pub struct BuildDependencySelection {
 }
 
 impl ReturnedBuild {
+    fn supplied_libraries(&self) -> &[package_compilation::source_imports::SuppliedBuildLibrary] {
+        self.original_sources
+            .as_ref()
+            .map_or(&[], |sources| sources.libraries.as_ref())
+    }
+
+    /// Only the source coordinator combines these two sets of inputs. The guest's
+    /// request log remains the record of just the operations it performed.
+    pub fn source_requests(&self) -> impl Iterator<Item = &BuildRequest> {
+        self.requests.iter().map(|issued| issued.request()).chain(
+            self.supplied_libraries()
+                .iter()
+                .map(|library| library.request()),
+        )
+    }
+
     pub fn join_preacquired_sources(
         &mut self,
         inputs: &PackageCompilationInputs,
@@ -81,9 +80,12 @@ impl ReturnedBuild {
         if self.source_join.is_some() {
             return Err("Build source requests were already joined".into());
         }
+        for library in self.supplied_libraries() {
+            library.validate_join(inputs)?;
+        }
         validate_dependency_sources(
             self.declaration.as_ref(),
-            self.requests.iter().map(|issued| issued.request()),
+            self.source_requests(),
             &self.demanded_sources,
             inputs,
             selections,
@@ -97,6 +99,11 @@ impl ReturnedBuild {
         inputs: Option<&PackageCompilationInputs>,
         initially_unbound: bool,
     ) -> Result<(), String> {
+        if !self.supplied_libraries().is_empty() && self.source_join.is_none() {
+            return Err(
+                "Build completion requires the source join for its supplied libraries".into(),
+            );
+        }
         validate_source_join(
             self.declaration.as_ref(),
             self.source_join.as_ref(),

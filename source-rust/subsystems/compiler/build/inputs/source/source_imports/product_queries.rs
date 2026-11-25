@@ -290,13 +290,8 @@ impl ProductQueryInputs {
         .with_consistent_sources()
     }
 
-    /// The source routing of one stage of a staged Build after its first:
-    /// the Build's own sources, with each build dependency an earlier stage
-    /// prepared selectable from them under its alias
-    /// (`wiki/spec/build/scoped_execution.md`, "Dependency declarations and
-    /// binding": "After preparation, the compiler resolves and checks the
-    /// dependent continuation before it executes"). No Product dependency is
-    /// mounted: "Product dependencies supply no callable Build authority".
+    /// Select the Build sources with the libraries supplied for this invocation. During
+    /// migration a staged caller can also select a library its earlier interval prepared.
     pub fn for_build_stage(
         original: Option<PackageCompilationInputs>,
         build_dependencies: Vec<ProductQueryDependency>,
@@ -480,9 +475,11 @@ impl ProductQueryInputs {
     ) -> Result<Vec<(PathBuf, source_provenance::DependencyScope)>, Vec<Diagnostic>> {
         let mut imports = Vec::new();
         for authored in parsed.sources.span_or_empty(parsed.batch) {
-            let owner = self
-                .graphs()
-                .find(|inputs| inputs.package_for_source(&authored.path).is_some());
+            let owner = storage.sources.get(authored.source_id)
+                .and_then(|source| source.package_identity)
+                .and_then(|owner| self.graphs().find(|inputs| {
+                    inputs.package_for_source(&authored.path) == Some(owner)
+                }));
             for import in &authored.imports {
                 let ordinal = import.ordinal;
                 let contract = storage.toolchain_contract_custody.root_for(&authored.path);
@@ -506,7 +503,7 @@ impl ProductQueryInputs {
                     let selected = match selected {
                         super::files::FileSelection::Selected(file) => vec![file],
                         super::files::FileSelection::Package(pending) => pending.resolve_with_prepared_build(owner.or(mounted).expect("a package import has an admitted graph"), &mut storage.package_roots, mount.and_then(|dependency| dependency.generated.as_ref()))?,
-                        super::files::FileSelection::Unprepared => continue,
+                        super::files::FileSelection::Unbound => continue,
                     };
                     for resolved in selected {
                         imports.push((resolved.path.clone(), authored.scope));
@@ -544,7 +541,7 @@ impl ProductQueryInputs {
                                 &mut storage.package_roots,
                                 importer,
                             )?;
-                            if paths.is_empty() && request.defers_in(importer) {
+                            if paths.is_empty() && request.is_unbound_build_import(importer) {
                                 continue;
                             }
                             (request.expected_root, paths, prefix)

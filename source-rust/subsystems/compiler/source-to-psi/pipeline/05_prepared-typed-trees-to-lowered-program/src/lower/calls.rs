@@ -315,21 +315,6 @@ fn carried_referent_writes(
     Ok(())
 }
 
-/// Staged storage ends after the call, whether its value was transferred or
-/// its captured descriptor was lent. The argument lanes keep those distinct.
-enum ArgumentHome {
-    Transferred(PlaceId),
-    BorrowedDescriptor(PlaceId),
-}
-
-impl ArgumentHome {
-    fn place(&self) -> PlaceId {
-        match self {
-            Self::Transferred(place) | Self::BorrowedDescriptor(place) => *place,
-        }
-    }
-}
-
 /// One loan a call forms. `formation` is the access the program wrote and
 /// the loan's occurrence records; `lent` is the formal's access, the one the
 /// callee receives (`ReferenceAccess::forms`).
@@ -351,7 +336,7 @@ pub(super) struct Arguments {
     pub(super) structural: Vec<(PlaceId, Vec<super::places::Step>, StructuralAccess)>,
     /// Homes staged for owned values or captured borrowed descriptors. A
     /// normal continuation retires them only after its call loans end.
-    homes: Vec<ArgumentHome>,
+    homes: Vec<PlaceId>,
     /// One per loan, in formal order, retaining formation and callee access.
     pub(super) loans: Vec<CallLoan>,
     /// The erased lane: the term each `[erased]` formal stands for, in
@@ -570,9 +555,7 @@ impl Lowering<'_> {
                     lent: *access,
                     lender: lent.lender,
                 });
-                evaluated
-                    .homes
-                    .extend(lent.temporary.map(ArgumentHome::BorrowedDescriptor));
+                evaluated.homes.extend(lent.temporary);
                 continue;
             }
             match argument.result {
@@ -584,7 +567,7 @@ impl Lowering<'_> {
                     evaluated
                         .structural
                         .push((root, Vec::new(), StructuralAccess::Owned));
-                    evaluated.homes.push(ArgumentHome::Transferred(root));
+                    evaluated.homes.push(root);
                 }
                 Some(ValueType::Scalar(..) | ValueType::Rigid(_)) | None => {
                     let value = continuing!(self.scalar(argument));
@@ -645,8 +628,8 @@ impl Lowering<'_> {
         )?;
         let cleanup = captured
             .homes
-            .iter()
-            .map(|home| terminal_psi::TerminalAffineCleanupAction::RetireHome(home.place()))
+            .into_iter()
+            .map(terminal_psi::TerminalAffineCleanupAction::RetireHome)
             .collect();
         Ok(Reached::Value((captured.scalars, structural, cleanup)))
     }
@@ -1302,83 +1285,10 @@ impl Lowering<'_> {
             );
         }
         self.returned_loans(&arguments.loans, operation)?;
-        if acknowledgement.acknowledges_suspend
-            && self.pending_build.as_ref().is_some_and(|pending| {
-                source.span().is_some_and(|origin| {
-                    origin.source_id == pending.site.source_id
-                        && origin.span.start <= pending.site.span.start
-                        && pending.site.span.end <= origin.span.end
-                })
-            })
-        {
-            self.park_build_call(operation, &value, &arguments.homes)?;
-            return Ok(Reached::Ended(source));
-        }
         if !arguments.homes.is_empty() {
-            let homes: Vec<_> = arguments.homes.iter().map(ArgumentHome::place).collect();
-            self.retire_homes(&homes, source)?;
+            self.retire_homes(&arguments.homes, source)?;
         }
         Ok(Reached::Value(value))
-    }
-
-    fn park_build_call(
-        &mut self,
-        call: OperationId,
-        result: &Value,
-        homes: &[ArgumentHome],
-    ) -> Checked<()> {
-        let pending = self
-            .pending_build
-            .take()
-            .ok_or_else(|| self.internal("missing pending Build call"))?;
-        let mut scalars = Vec::new();
-        let mut storage = Vec::new();
-        for slot in pending.retained {
-            // The complete successor binds a local initialized by this call
-            // after it returns. At the cut only its actual result lane exists.
-            let bound = if pending.result_slot == Some(slot) {
-                match result {
-                    Value::Scalar(value) => Some(super::Bound::Scalar(*value)),
-                    Value::Record(place) => Some(super::Bound::Record(*place)),
-                    Value::Unit => None,
-                }
-            } else {
-                *self.slot_mut(slot)?
-            };
-            match bound {
-                Some(super::Bound::Scalar(value)) => scalars.push(value),
-                Some(super::Bound::Home(place) | super::Bound::Record(place)) => {
-                    storage.push(place)
-                }
-                Some(super::Bound::Observed(index)) => {
-                    self.observed[index].retain_operands(&mut storage, &mut scalars);
-                }
-                Some(super::Bound::Erased(_)) => {}
-                None => return Err(self.internal("a projected Build body lost a retained binding")),
-            }
-        }
-        // The successor retires lent descriptors and the caller's copies.
-        // An owned move already vacated its temporary before this cut.
-        for home in homes {
-            let place = home.place();
-            if let ArgumentHome::Transferred(_) = home {
-                let (_, ty) =
-                    terminal_check_tables::row(&self.roots, place, self.id, Construct::Machine)?;
-                if !self.record_type(*ty)?.is_copyable() {
-                    continue;
-                }
-            }
-            storage.push(place);
-        }
-        scalars.sort_unstable();
-        scalars.dedup();
-        storage.sort_unstable();
-        storage.dedup();
-        self.terminate(Terminator::PendingNormalCompletion {
-            call,
-            scalars,
-            storage,
-        })
     }
 }
 
