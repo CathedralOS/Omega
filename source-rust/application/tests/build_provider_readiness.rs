@@ -99,8 +99,8 @@ fn a_backing_that_is_private_or_absent_is_refused() {
 #[test]
 fn the_installed_provider_survives_a_product_dependency_wait() {
     let read = "    let observed: addr = |image|::ProgramImage::retained_suffix_start();";
-    let wait = r#"    let request = dependency\from_source(Source::Path { location: "product" });
-    let registration = Build::dependency(builder, request);
+    let wait = r#"    let request: DependencyDescription = dependency\from_source(Source::Path { location: "product" });
+    let registration: DependencyRegistration = Build::dependency(builder, request);
     suspend Build::prepare_dependency(builder, registration);"#;
     for read_first in [false, true] {
         let (prior, guard) = if read_first {
