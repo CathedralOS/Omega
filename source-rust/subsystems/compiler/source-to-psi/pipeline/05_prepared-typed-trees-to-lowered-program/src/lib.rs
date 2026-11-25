@@ -64,6 +64,7 @@ mod canonical;
 #[cfg(any(test, feature = "test-support"))]
 pub use canonical::substituted_routes as substituted_call_routes;
 mod components;
+mod declaration_references;
 mod declare;
 mod default_obligations;
 mod external_providers;
@@ -96,6 +97,7 @@ fn shared_reading(typed: &TypedTrees) -> SharedReading {
         captures: crate::source_state::NamedConformanceCaptureIndex::new(typed),
         exact_toolchain_sources: Default::default(),
         calling_catalogs: Default::default(),
+        declaration_references: Default::default(),
     })
 }
 
@@ -109,6 +111,11 @@ pub(crate) struct SharedProgram {
     /// boundary metadata prepares it and every later reading of the same
     /// program and purpose borrows the same one.
     calling_catalogs: [std::sync::OnceLock<CallingCatalog>; 2],
+    /// Which declarations refer to each symbol. The closure and every
+    /// conformance witness check their private helpers' input boundary
+    /// against the same program (`Program::private_input_contracts`), so the
+    /// first reading that asks walks the program and the rest borrow it.
+    declaration_references: std::sync::OnceLock<declaration_references::DeclarationReferences>,
 }
 
 type CallingCatalog = Result<
@@ -155,6 +162,14 @@ impl SharedProgram {
                 ),
             ))
         })
+    }
+
+    pub(crate) fn declaration_references(
+        &self,
+        typed: &TypedTrees,
+    ) -> &declaration_references::DeclarationReferences {
+        self.declaration_references
+            .get_or_init(|| declaration_references::DeclarationReferences::new(typed))
     }
 
     /// How many purposes have prepared a calling catalog, for tests that pin
