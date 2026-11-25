@@ -212,7 +212,7 @@ pub enum Discharged {
     /// A typed source Identity checked against its actual mathematical term.
     Identity(equality::Judgment),
     /// The declared closed projection follows this unchanged owned entry claim on every normal return.
-    ForwardedContent(semantic_vocabulary::ClaimId),
+    ConservedContent(semantic_vocabulary::ClaimId),
     /// A certificate the kernel accepted.
     Certificate(Evidence),
     /// A `NormalGuarantee` of a theorem over data indexed by values. The
@@ -282,7 +282,7 @@ impl Discharged {
     pub const fn certificate(&self) -> Option<&Evidence> {
         match self {
             Self::Certificate(evidence) => Some(evidence),
-            Self::Identity(_) | Self::Law(_) | Self::ForwardedContent(_) | Self::TargetCondition(_)
+            Self::Identity(_) | Self::Law(_) | Self::ConservedContent(_) | Self::TargetCondition(_)
             | Self::PendingNormalGuarantee(_)
             | Self::EveryExit(_)
             | Self::Window(_)
@@ -975,7 +975,7 @@ fn check_prepared_machine(
         if let ObligationKind::NormalGuarantee { clause, .. } = row.kind
             && let Ok(index_in_returns) = content_returns.binary_search_by_key(&(clause as usize), |&(ordinal, _)| ordinal)
         {
-            decided[index] = Some(Ok(Discharged::ForwardedContent(content_returns[index_in_returns].1)));
+            decided[index] = Some(Ok(Discharged::ConservedContent(content_returns[index_in_returns].1)));
             continue;
         }
         // A theorem over indexed data: the signature proved this clause.
@@ -1742,7 +1742,7 @@ fn published(
         let position = usize::try_from(obligation.get() - 1).unwrap_or(usize::MAX);
         match decided.get(position) {
             Some(Some(Ok(
-                Discharged::Certificate(_) | Discharged::Identity(_) | Discharged::Law(_) | Discharged::ForwardedContent(_),
+                Discharged::Certificate(_) | Discharged::Identity(_) | Discharged::Law(_) | Discharged::ConservedContent(_),
             ))) => exits.push(obligation),
             _ => return Err(unproved("a normal return does not establish this clause")),
         }

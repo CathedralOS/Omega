@@ -153,6 +153,8 @@ pub fn formal_domains_cover_requirements(
 
 struct Declared<'a> {
     machine: &'a TerminalMachine,
+    partition_casts:
+        std::cell::OnceCell<Result<crate::content_transformations::partition::Casts, &'static str>>,
     /// Every root place that declares memberships, by place identity.
     declared: Vec<(PlaceId, StructuralTypeId, Memberships)>,
 }
@@ -240,6 +242,7 @@ impl<'a> Declared<'a> {
             }
         }
         Ok(Self {
+            partition_casts: std::cell::OnceCell::new(),
             machine,
             declared: merged,
         })
@@ -1874,12 +1877,25 @@ fn validate_change(
                 "a structural qualification change adds an absent domain",
             );
         };
-        if declared.content_projection.is_some() {
-            return malformed(
+        let partitioned = if declared.content_projection.is_some() {
+            let casts = places.partition_casts.get_or_init(|| {
+                crate::content_transformations::partition::checked_casts(module, places.machine)
+            });
+            let casts = casts.as_ref().map_err(|detail| StructuralQualificationError {
                 machine,
-                "a structural cast cannot prove a byte predicate or content projection",
-            );
-        }
+                detail,
+                violation: None,
+            })?;
+            if *referent || !casts.contains(&(change.edge, change.destination, *id)) {
+                return malformed(machine, "a structural cast needs a proved transfer of this exact content projection");
+            }
+            if change.establishments.iter().any(|row| row.domain == *id) {
+                return malformed(machine, "transferring conserved content cannot also introduce it");
+            }
+            true
+        } else {
+            false
+        };
         // `value as +D` proves the predicates of `D` of the operand on the
         // edge into the block the cast continues in: that block's invariant
         // states them of its parameter, as a scalar coercion's does
@@ -1918,7 +1934,7 @@ fn validate_change(
             }
         }
         let membership = facts.structural_on_edge(module, change, *referent, *id);
-        let forwarded = membership == Some(true);
+        let forwarded = membership == Some(true) || partitioned;
         let establishment = change.establishments.iter().find(|row| row.domain == *id);
         match (&declared.establishment_routes, establishment) {
             (None, None) => {}

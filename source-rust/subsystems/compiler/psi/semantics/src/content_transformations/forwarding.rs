@@ -20,10 +20,12 @@ pub fn checked_returns(
     let mut origins = ancestry::OriginTraversal::unchanged_content();
     for (ordinal, clause) in machine.ensures.iter().enumerate() {
         if let Proposition::ContentConservation(law) = &clause.proposition {
-            proved.push((
-                ordinal,
-                forwarded_projection(module, machine, law, &mut origins)?,
-            ));
+            let input = if super::partition::is_interval_partition(law) {
+                super::partition::checked_return(module, machine, law)?.input
+            } else {
+                forwarded_projection(module, machine, law, &mut origins)?
+            };
+            proved.push((ordinal, input));
         }
     }
     if !proved.is_empty() {
@@ -32,7 +34,7 @@ pub fn checked_returns(
     Ok(proved)
 }
 
-fn validate_claims(module: &TerminalModule, machine: &TerminalMachine) -> Result<(), &'static str> {
+pub(super) fn validate_claims(module: &TerminalModule, machine: &TerminalMachine) -> Result<(), &'static str> {
     declarations::contract(module, &machine.contract)?;
     entry_claims::validate_declared_entry_contents(
         &module.types.structural_types,
