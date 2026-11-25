@@ -482,6 +482,23 @@ fn indexed_membership_keeps_the_generic_machines_const_in_scope() {
 }
 
 #[test]
+fn a_machine_contract_uses_its_lexical_const_as_the_domain_index() {
+    let domain = "domain<const N: u64> u64::AtMost<N> requires self <= N;";
+    for application in ["AtMost::<K>", "AtMost<K>"] {
+        let source = format!(
+            "{domain}
+            machine checked<const K: u64>(x: u64) -> u64
+                requires x in {application} ensures result <= K {{ x }}
+            machine call() -> u64 {{ checked::<8>(8u64) }}"
+        );
+        Program::of(&source).judged(|_| {}).accepted();
+        let wrong = source.replace("checked::<8>", "checked::<7>");
+        let rejection = Program::of(&wrong).judged(|_| {}).rejected();
+        assert_eq!(rejection.unproved.len(), 1);
+    }
+}
+
+#[test]
 fn scalar_domain_predicates_bind_each_const_index_in_the_declaration() {
     const DOMAIN: &str = "domain<const Lo: u8, const Hi: u8> u8::Between<Lo, Hi>
         requires self >= Lo && self < Hi;";

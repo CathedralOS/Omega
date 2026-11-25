@@ -1,6 +1,6 @@
 use crate::source_resolved::SymbolResolvedTrees;
 use crate::source_resolved::signature::SignatureContractKind;
-use crate::source_symbols::SymbolTable;
+use crate::source_symbols::{JoinedPath, SymbolTable};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
@@ -68,6 +68,7 @@ pub(super) fn assign_contract_reference_symbols(
     let state_parameters = &tables.declarations.state_parameters;
     let signature_contracts = &tables.declarations.signature_contracts;
     let proof_facts = &tables.declarations.proof_facts;
+    let domain_paths = &tables.declarations.domain_path_members;
     let expression_table = &mut tables.bodies.expressions;
     let child_type_references = &mut tables.declarations.child_type_references;
     let declared_type_equations = &mut tables.declarations.declared_type_equations;
@@ -140,6 +141,7 @@ pub(super) fn assign_contract_reference_symbols(
             machine.contracts,
             signature_contracts,
             proof_facts,
+            domain_paths,
             expression_table,
             child_type_references,
         );
@@ -156,6 +158,7 @@ pub(super) fn assign_contract_reference_symbols(
                 state.contracts,
                 signature_contracts,
                 proof_facts,
+                domain_paths,
                 expression_table,
                 child_type_references,
             );
@@ -191,6 +194,7 @@ pub(super) fn assign_contract_reference_symbols(
                 signature.contracts,
                 signature_contracts,
                 proof_facts,
+                domain_paths,
                 expression_table,
                 child_type_references,
             );
@@ -225,6 +229,7 @@ pub(super) fn assign_contract_reference_symbols(
             operator.contracts,
             signature_contracts,
             proof_facts,
+            domain_paths,
             expression_table,
             child_type_references,
         );
@@ -265,6 +270,7 @@ pub(super) fn assign_contract_reference_symbols(
             signature.contracts,
             signature_contracts,
             proof_facts,
+            domain_paths,
             expression_table,
             child_type_references,
         );
@@ -290,6 +296,7 @@ pub(super) fn assign_contract_reference_symbols(
             signature.contracts,
             signature_contracts,
             proof_facts,
+            domain_paths,
             expression_table,
             child_type_references,
         );
@@ -308,6 +315,7 @@ fn assign_callable_value_symbols(
     contracts: arena::HandleSpan<crate::source_resolved::signature::SignatureContract>,
     signature_contracts: &arena::Arena<crate::source_resolved::signature::SignatureContract>,
     proof_facts: &arena::Arena<crate::source_resolved::domain::ProofFact>,
+    domain_paths: &arena::Arena<DiagnosticName>,
     expression_table: &mut crate::source_resolved::expression::ExpressionTable,
     child_type_references: &mut crate::source_resolved::types::TypeReferenceArena,
 ) {
@@ -346,13 +354,14 @@ fn assign_callable_value_symbols(
             let expression = match fact {
                 crate::source_resolved::domain::ProofFact::Expression(expression) => *expression,
                 crate::source_resolved::domain::ProofFact::Membership(membership) => {
-                    crate::resolution::names::type_references::assign_type_reference_argument_symbols_with_constraints(
-                    symbols,
-                    child_type_references,
-                    machine.type_constraints,
-                    contract_scope.type_parameters,
-                    membership.domain_arguments,
-                );
+                    assign_contract_domain_arguments(
+                        symbols,
+                        contract_scope,
+                        parameters,
+                        domain_paths.span_or_empty(membership.domain),
+                        membership.domain_arguments,
+                        child_type_references,
+                    );
                     membership.value
                 }
             };
@@ -366,6 +375,39 @@ fn assign_callable_value_symbols(
                 expression
             );
         }
+    }
+}
+
+/// A contract uses the declaration's slot kind to select a const binder or
+/// a value after resolving its ordinary type arguments in the callable scope.
+fn assign_contract_domain_arguments(
+    symbols: &SymbolTable,
+    machine: &MachineScope<'_>,
+    parameters: &[crate::source_resolved::signature::StateParameter],
+    path: &[DiagnosticName],
+    arguments: arena::HandleSpan<crate::source_resolved::types::TypeReference>,
+    child_types: &mut crate::source_resolved::types::TypeReferenceArena,
+) {
+    if arguments.is_empty() {
+        return;
+    }
+    super::type_references::assign_type_reference_argument_symbols_with_constraints(
+        symbols,
+        child_types,
+        machine.type_constraints,
+        machine.type_parameters,
+        arguments,
+    );
+    if let Some(last) = path.last() {
+        super::type_references::assign_domain_index_values(
+            symbols,
+            machine,
+            parameters,
+            &DiagnosticName::from_str(&path.joined_path(), last.source_span()),
+            arguments,
+            child_types,
+            &[],
+        );
     }
 }
 
@@ -449,15 +491,14 @@ fn assign_contract_call_symbols(
                 child_type_references,
                 cast.target_type,
             );
-            for handle in cast.semantic_domain_arguments.handles() {
-                crate::resolution::names::type_references::reassign_type_reference_symbols(
-                    symbols,
-                    child_type_references,
-                    machine.type_constraints,
-                    machine.type_parameters,
-                    handle,
-                );
-            }
+            assign_contract_domain_arguments(
+                symbols,
+                machine,
+                parameters,
+                expression_table.name_path_members(cast.semantic_domain),
+                cast.semantic_domain_arguments,
+                child_type_references,
+            );
         }
         ExpressionNode::Call(call) => {
             assign_calls!(call.callee);
@@ -548,15 +589,14 @@ fn assign_contract_call_symbols(
         }
         ExpressionNode::Membership(membership) => {
             assign_calls!(membership.value);
-            for handle in membership.domain_arguments.handles() {
-                crate::resolution::names::type_references::reassign_type_reference_symbols(
-                    symbols,
-                    child_type_references,
-                    machine.type_constraints,
-                    machine.type_parameters,
-                    handle,
-                );
-            }
+            assign_contract_domain_arguments(
+                symbols,
+                machine,
+                parameters,
+                expression_table.name_path_members(membership.domain),
+                membership.domain_arguments,
+                child_type_references,
+            );
             assign_membership_symbol(symbols, expression_table, membership.domain, expression);
         }
         ExpressionNode::Borrow(inner) => assign_calls!(inner.target),
