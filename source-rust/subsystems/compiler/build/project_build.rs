@@ -98,6 +98,18 @@ impl SettledDependency {
         &self,
         inputs: PackageCompilationInputs,
     ) -> Result<PlannedProduct, CompileFailure> {
+        self.open_product_alongside(inputs, |_| Ok(()))
+            .map(|(product, ())| product)
+    }
+
+    /// Open the Product and run `alongside` on it while this Build is checked
+    /// again on the Product's sources. The Product is returned only after that
+    /// check passes.
+    pub fn open_product_alongside<T: Send>(
+        &self,
+        inputs: PackageCompilationInputs,
+        alongside: impl FnOnce(&PlannedProduct) -> Result<T, CompileFailure> + Send,
+    ) -> Result<(PlannedProduct, T), CompileFailure> {
         if inputs.source_inputs() != self.inputs.source_inputs() {
             return Err(refusal(
                 "Product handoffs belong to another acquired source graph".into(),
@@ -105,7 +117,7 @@ impl SettledDependency {
         }
         self.source
             .clone()
-            .open_product(self.evaluated.clone(), Some(&inputs))
+            .open_product_alongside(self.evaluated.clone(), Some(&inputs), alongside)
     }
 }
 

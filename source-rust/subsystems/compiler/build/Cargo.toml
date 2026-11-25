@@ -52,6 +52,8 @@ numerics = { path = "../foundation/numerics" }
 language-core = { path = "../foundation/language-core" }
 terminal-semantics = { path = "../psi/semantics" }
 psi-provider-selections = { path = "../psi/execution-inputs/providers" }
+rayon = "1.11"
+worker-budget = { path = "../foundation/worker-budget" }
 
 [dev-dependencies]
 artifact-lowering = { package = "target-bound-program-to-abstract-operations", path = "../psi-to-native/pipeline/02_target-bound-program-to-abstract-operations", features = ["test-support"] }

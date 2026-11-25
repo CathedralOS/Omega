@@ -668,9 +668,13 @@ fn a_projected_snapshot_cannot_supply_a_complete_build_invocation() {
     let mut program = Arc::unwrap_or_clone(typed_build(files, entry).unwrap());
     let machine = program.machines().at(0).symbol;
     program.roots.partial_build_entry = Some(entry);
-    let Err(failure) =
-        source_compiler::CheckedBuildInvocation::judge(&program, machine, &[Some(package)], None)
-    else {
+    let Err(failure) = source_compiler::CheckedBuildInvocation::judge(
+        &program,
+        machine,
+        &[Some(package)],
+        None,
+        None,
+    ) else {
         panic!("a partial snapshot supplied a complete Build invocation");
     };
     assert_eq!(failure.diagnostics.len(), 1);

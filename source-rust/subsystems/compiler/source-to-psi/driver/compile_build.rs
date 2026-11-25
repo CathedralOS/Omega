@@ -61,7 +61,9 @@ impl ProductDeclarationSource {
         host: &'static str,
         authority: Option<Arc<PackageDeclarationScope>>,
     ) -> Result<crate::compile_product::ProductDeclarations, Vec<Diagnostic>> {
-        let typed = self.0.typed_source(preparation, host, authority)?;
+        let typed =
+            self.0
+                .typed_source(preparation, host, authority, &mut CompileTimings::default())?;
         Ok(crate::compile_product::ProductDeclarations { typed })
     }
 }
@@ -86,7 +88,8 @@ impl BuildStageSource {
                 })
                 .collect());
         }
-        let program = self.typed_source(preparation, host, authority)?;
+        let program =
+            self.typed_source(preparation, host, authority, &mut CompileTimings::default())?;
         program
             .check_build_provider_declarations()
             .map_err(|error| vec![error])?;
@@ -102,8 +105,9 @@ impl BuildStageSource {
         authority: Option<Arc<PackageDeclarationScope>>,
         subject: Option<PackageKeyIdentity>,
         declaration: &source_admission::RetainedDeclaration,
+        timings: &mut CompileTimings,
     ) -> Result<(Arc<TypedTrees>, SymbolHandle), Vec<Diagnostic>> {
-        let typed = self.typed_source(preparation, host, authority)?;
+        let typed = self.typed_source(preparation, host, authority, timings)?;
         let entry = crate::source_state::source_subjects::rejoin_build_activation(
             &typed,
             subject,
@@ -118,10 +122,11 @@ impl BuildStageSource {
         preparation: &SourcePreparation,
         host: &'static str,
         authority: Option<Arc<PackageDeclarationScope>>,
+        timings: &mut CompileTimings,
     ) -> Result<Arc<TypedTrees>, Vec<Diagnostic>> {
         let checkpoint = self
             .request(preparation, host, authority)?
-            .prepare(&mut CompileTimings::default())?;
+            .prepare(timings)?;
         Ok(checkpoint.shared_typed())
     }
 
