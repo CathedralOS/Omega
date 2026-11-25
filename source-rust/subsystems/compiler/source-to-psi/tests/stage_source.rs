@@ -1451,6 +1451,40 @@ fn an_indexed_parameter_and_its_entry_contract_use_the_same_constant() {
 }
 
 #[test]
+fn a_data_type_parameter_rejects_a_value_even_if_expansion_discards_it() {
+    let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
+    let declarations = "data Word { bits: u32; }
+        data Pair<A, B> { first: A; second: B; }
+        data Phantom<T> { marker: u8; }
+        data Plain<T> = Word;";
+    for (body, bad_parameter) in [
+        ("machine f(v: Plain<Pair<1, u8>>) -> Word { v }", Some("A")),
+        ("machine f(v: Plain<Phantom<1>>) -> Word { v }", Some("T")),
+        ("machine f(v: Phantom<1>) -> u8 { v.marker }", Some("T")),
+        ("machine f(v: Plain<Pair<u8, u8>>) -> Word { v }", None),
+        (
+            "data Wrap<T> { item: Phantom<T>; } machine f(v: Wrap<u8>) -> u8 { v.item.marker }",
+            None,
+        ),
+    ] {
+        let (files, root) = captured(package, &format!("{declarations} {body}"));
+        let result = compile(product(files, root, package, &[]).unwrap(), None);
+        if let Some(binder) = bad_parameter {
+            let errors = result.expect_err(body);
+            assert!(
+                errors.iter().any(|error| error
+                    .message
+                    .contains(&format!("data type argument for `{binder}`"))
+                    && error.message.contains("supplied a value")),
+                "{errors:?}"
+            );
+        } else {
+            result.expect(body);
+        }
+    }
+}
+
+#[test]
 fn competing_domain_families_use_the_qualifications_on_each_side() {
     let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
     let declarations = "data Word { bits: u32; }
