@@ -51,6 +51,14 @@ pub const BUILD_AND_CHECKED_CONTINUATION: StageMeta = StageMeta::new(
 pub const SOURCE_ASSEMBLY: StageMeta =
     StageMeta::new("Step: assemble", "PreparedSources", "AssembledSyntax");
 
+/// Wall time to prepare native inputs for every target `--check` checks.
+/// The targets prepare in parallel, so this is not a sum of per-target work.
+pub const CHECKED_TARGET_PREPARATION: StageMeta = StageMeta::new(
+    "native preparation",
+    "PublishedTargetPrograms",
+    "NativePrograms",
+);
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PhaseTiming {
     pub phase: String,
