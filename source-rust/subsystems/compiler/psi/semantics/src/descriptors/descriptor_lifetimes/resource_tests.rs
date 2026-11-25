@@ -376,3 +376,100 @@ fn an_incoming_resource_observes_the_first_operation_before_transport() {
     assert!(lifetime.live.contains(&position(0)));
     assert!(!lifetime.live.contains(&position(1)));
 }
+
+#[test]
+fn indexed_sparse_lifetimes_match_dense_counterparts_without_empty_positions() {
+    let local = root(1);
+    let parameter = root(2);
+    let mut transfer = edge(1);
+    transfer.parameters.push(parameter.clone());
+    transfer.bindings.push(
+        DescriptorFlowBinding::new(
+            local.clone(),
+            parameter.clone(),
+            terminal_psi::StructuralAccess::SharedBorrow,
+            terminal_psi::StructuralAccess::SharedBorrow,
+        )
+        .unwrap(),
+    );
+    let steps = BTreeMap::from([
+        (
+            position(0),
+            DescriptorFlowStep {
+                definitions: vec![local.clone()],
+                successors: vec![transfer],
+                ..Default::default()
+            },
+        ),
+        (
+            position(1),
+            DescriptorFlowStep {
+                successors: vec![edge(2), edge(3)],
+                ..Default::default()
+            },
+        ),
+        (
+            position(2),
+            DescriptorFlowStep {
+                definitions: vec![local.clone(), parameter.clone()],
+                successors: vec![edge(4)],
+                ..Default::default()
+            },
+        ),
+        (
+            position(3),
+            DescriptorFlowStep {
+                successors: vec![edge(4)],
+                ..Default::default()
+            },
+        ),
+        (position(4), DescriptorFlowStep::default()),
+    ]);
+    let predecessors = FlowPredecessors::new(&steps);
+    let dense_formed = descriptor_location_lifetime(&steps, position(0), &local);
+    let sparse_formed =
+        descriptor_location_lifetime_indexed(&steps, &predecessors, None, position(0), &local);
+    let dense_borrowed =
+        descriptor_successor_lifetime(&steps, position(0), position(1), &parameter).unwrap();
+    let sparse_borrowed = descriptor_successor_lifetime_indexed(
+        &steps,
+        &predecessors,
+        None,
+        position(0),
+        position(1),
+        &parameter,
+    )
+    .unwrap();
+    for (dense, sparse) in [
+        (dense_formed, sparse_formed),
+        (dense_borrowed, sparse_borrowed),
+    ] {
+        assert_eq!(sparse.live, dense.live);
+        assert_eq!(sparse.demanded, dense.demanded);
+        assert!(sparse.authorized.values().all(|names| !names.is_empty()));
+        assert!(sparse.surviving.values().all(|names| !names.is_empty()));
+        let dense_authorized: BTreeMap<_, _> = dense
+            .authorized
+            .into_iter()
+            .filter(|(_, names)| !names.is_empty())
+            .collect();
+        let dense_surviving: BTreeMap<_, _> = dense
+            .surviving
+            .into_iter()
+            .filter(|(_, names)| !names.is_empty())
+            .collect();
+        assert_eq!(sparse.authorized, dense_authorized);
+        assert_eq!(sparse.surviving, dense_surviving);
+    }
+    assert!(
+        descriptor_successor_lifetime_indexed(
+            &steps,
+            &predecessors,
+            None,
+            position(1),
+            position(2),
+            &parameter,
+        )
+        .is_none()
+    );
+}

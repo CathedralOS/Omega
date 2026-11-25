@@ -349,6 +349,7 @@ fn build_dead_tail_cutoff(
     #[derive(Default, Clone)]
     struct Touch {
         ineligible: bool,
+        escapes_block: bool,
         block: Option<BlockId>,
         last_ordinal: u32,
     }
@@ -363,6 +364,11 @@ fn build_dead_tail_cutoff(
     let mark_ineligible = |touches: &mut Vec<Touch>, place: PlaceId| {
         touch_slot(touches, place).ineligible = true;
     };
+    let mark_escapes = |touches: &mut Vec<Touch>, place: PlaceId| {
+        let entry = touch_slot(touches, place);
+        entry.ineligible = true;
+        entry.escapes_block = true;
+    };
     let record = |touches: &mut Vec<Touch>, place: PlaceId, block: BlockId, ordinal: u32| {
         let entry = touch_slot(touches, place);
         match entry.block {
@@ -375,14 +381,17 @@ fn build_dead_tail_cutoff(
                     entry.last_ordinal = ordinal;
                 }
             }
-            Some(_) => entry.ineligible = true,
+            Some(_) => {
+                entry.ineligible = true;
+                entry.escapes_block = true;
+            }
         }
     };
     for param in &machine.structural_parameters {
-        mark_ineligible(&mut touches, param.place);
+        mark_escapes(&mut touches, param.place);
     }
     for (_, loc) in contents {
-        mark_ineligible(&mut touches, loc.root);
+        mark_escapes(&mut touches, loc.root);
     }
     for block in &machine.blocks {
         for (ordinal, operation) in block.operations.iter().enumerate() {
@@ -420,11 +429,21 @@ fn build_dead_tail_cutoff(
             }
         }
     }
+    let is_constant_source = |place: PlaceId| {
+        machine.structural_place(place).is_some_and(|decl| {
+            matches!(
+                decl.kind,
+                semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral { .. }
+                    | semantic_vocabulary::StructuralPlaceKind::ProviderAttachment { .. }
+            )
+        })
+    };
+    let mut derived_pairs: Vec<(PlaceId, PlaceId)> = Vec::new();
     for (&(block, ordinal), step) in flow {
         for input in step.observed_inputs() {
             record(&mut touches, input.root, block, ordinal);
             if step.may_escape {
-                mark_ineligible(&mut touches, input.root);
+                mark_escapes(&mut touches, input.root);
             }
         }
         for def in &step.definitions {
@@ -433,9 +452,15 @@ fn build_dead_tail_cutoff(
         for (src, dst) in step.derivations.iter().chain(&step.authority_derivations) {
             record(&mut touches, src.root, block, ordinal);
             record(&mut touches, dst.root, block, ordinal);
+            if src.root != dst.root && !is_constant_source(src.root) {
+                derived_pairs.push((src.root, dst.root));
+            }
         }
         for edge in &step.successors {
-            for loc in edge.parameters.iter().chain(&edge.definitions) {
+            for loc in &edge.parameters {
+                mark_escapes(&mut touches, loc.root);
+            }
+            for loc in &edge.definitions {
                 mark_ineligible(&mut touches, loc.root);
             }
             for (_, effect) in &edge.effects {
@@ -447,16 +472,54 @@ fn build_dead_tail_cutoff(
                     .iter()
                     .chain(&effect.authority_derivations)
                 {
-                    mark_ineligible(&mut touches, src.root);
-                    mark_ineligible(&mut touches, dst.root);
+                    mark_escapes(&mut touches, src.root);
+                    mark_escapes(&mut touches, dst.root);
                 }
             }
             for binding in &edge.bindings {
-                mark_ineligible(&mut touches, binding.parameter.root);
+                mark_escapes(&mut touches, binding.parameter.root);
                 if let Some(src) = binding.source.exact_location() {
-                    mark_ineligible(&mut touches, src.root);
+                    mark_escapes(&mut touches, src.root);
                 }
             }
+        }
+    }
+    // Derivation flows forward from `src` (`left`) to `dst` (`right`), so `src`
+    // must remain eligible and active through `dst`'s lifetime (or drop its
+    // cutoff if `dst` escapes or lives in another block). `dst` does not
+    // inherit `src`'s earlier escape or block status.
+    derived_pairs.sort_unstable();
+    derived_pairs.dedup();
+    loop {
+        let mut changed = false;
+        for &(left, right) in &derived_pairs {
+            let left_idx = usize::try_from(left.get() - 1).unwrap_or(usize::MAX);
+            let right_idx = usize::try_from(right.get() - 1).unwrap_or(usize::MAX);
+            let (Some(left_touch), Some(right_touch)) = (
+                touches.get(left_idx).cloned(),
+                touches.get(right_idx).cloned(),
+            ) else {
+                continue;
+            };
+            let disable = left_touch.escapes_block
+                || right_touch.escapes_block
+                || match (left_touch.block, right_touch.block) {
+                    (Some(a), Some(b)) => a != b,
+                    _ => false,
+                };
+            if disable {
+                if !touches[left_idx].escapes_block {
+                    touches[left_idx].ineligible = true;
+                    touches[left_idx].escapes_block = true;
+                    changed = true;
+                }
+            } else if touches[left_idx].last_ordinal < right_touch.last_ordinal {
+                touches[left_idx].last_ordinal = right_touch.last_ordinal;
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
         }
     }
     let stops: Vec<Option<DescriptorPosition>> = touches
@@ -575,9 +638,12 @@ fn machine_candidates(
                     machine,
                     operation,
                     analysis,
-                    Some(&predecessors),
-                    Some(&cutoff),
-                    Some(birth),
+                    crate::references::reference_completion::CallLifetimeIndex {
+                        predecessors: &predecessors,
+                        cutoff: Some(&cutoff),
+                        at: birth,
+                        include_surviving: false,
+                    },
                 )
                 .map_err(|error| Error::from_graph(module, error))?;
             if !retained.is_empty() {
