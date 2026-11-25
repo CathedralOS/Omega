@@ -1557,6 +1557,46 @@ fn affine_plain_values_transfer_once_and_publish_their_disposal() {
     );
 }
 
+/// The affine check plans machines on several workers, so a later machine can
+/// finish first. When every machine omits a disposal, the refusal still names
+/// machine 1, as checking the machines one at a time in order would.
+#[test]
+fn parallel_affine_planning_refuses_the_first_machine_in_order() {
+    let caller = || Shaped {
+        parameters: vec![point()],
+        locals: vec![point()],
+        result: u32_type().into(),
+        requires: Vec::new(),
+        statements: vec![
+            bind(1, place(0, point())),
+            returns(read(place(1, point()), 0)),
+        ],
+    };
+    let mut omitted = elaborate_over((0..4).map(|_| caller()).collect(), &affine_records());
+    assert_eq!(omitted.module.machines.len(), 4);
+    for machine in &mut omitted.module.machines {
+        for block in &mut machine.blocks {
+            if let terminal_psi::Terminator::Return {
+                cleanup_actions, ..
+            } = &mut block.terminator
+            {
+                cleanup_actions.clear();
+            }
+        }
+    }
+    let budget = worker_budget::ExecutionBudget::with_workers(4).unwrap();
+    let refused = budget.run(|| judge(Ok(omitted)));
+    let Err(refused) = refused else {
+        panic!("every machine omits its disposal: {refused:?}");
+    };
+    assert_eq!(refused.reason, RefusalReason::ForeignIdentity);
+    assert_eq!(
+        refused.site.in_machine().map(|(machine, _)| machine.get()),
+        Some(1),
+        "{refused:?}"
+    );
+}
+
 #[test]
 fn a_partial_affine_move_keeps_the_disjoint_sibling_established() {
     let branch = |field| {

@@ -1025,110 +1025,42 @@ fn examine(
                 )),
             )
         })?;
-    for machine in &elaboration.module.machines {
-        let candidates = reference_ends.get(machine.id).ok_or_else(|| {
-            Err(refusal(
-                RefusalReason::ForeignIdentity,
-                machine.id,
-                Construct::Machine,
-                "reference disposition lost its machine",
-            ))
-        })?;
-        let ends = match terminal_semantics::plain_affine::plan_reference_ends(
-            &elaboration.module,
-            machine.id,
-            candidates,
-        ) {
-            Ok(ends) => ends,
-            Err(error) => {
-                let concerns = match error.site() {
-                    Some(terminal_semantics::plain_affine::Site::Operation(at)) => {
-                        Construct::Operation(at)
-                    }
-                    Some(terminal_semantics::plain_affine::Site::Edge(at)) => Construct::Edge(at),
-                    None => Construct::Machine,
-                };
-                let (reason, detail) = match error {
-                    terminal_semantics::plain_affine::Error::Unavailable(unavailable) => {
-                        (RefusalReason::Unestablished, unavailable.message())
-                    }
-                    terminal_semantics::plain_affine::Error::Unconsumed { at_join, .. } => (
-                        RefusalReason::Violation,
-                        terminal_semantics::plain_affine::Error::unconsumed_message(at_join),
-                    ),
-                    terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
-                        (RefusalReason::Unsupported, detail)
-                    }
-                    terminal_semantics::plain_affine::Error::Malformed { detail, .. } => {
-                        (RefusalReason::ForeignIdentity, detail)
-                    }
-                };
-                let refused = refusal(reason, machine.id, concerns, detail);
-                if refused.reason == RefusalReason::Unsupported {
-                    unsupported.note(machine.id, refused);
-                    continue;
-                }
+    // Plans are computed on the workers, then read in machine order: the
+    // first deciding refusal and the noted machines are those one pass meets.
+    for (machine, planned) in plan_affine_machines(&elaboration.module, &reference_ends) {
+        let plan = match planned {
+            Some(Ok(plan)) => plan,
+            Some(Err(AffineRefusal::Unsupported(refused))) => {
+                unsupported.note(machine, refused);
+                continue;
+            }
+            Some(Err(AffineRefusal::Refused(refused))) => {
                 return Err(fall_back_or_defect(
                     Roster::of(&elaboration).locate(refused),
                 ));
             }
+            Some(Err(AffineRefusal::Decided(verdict))) => return Err(verdict),
+            // A machine is skipped only after an earlier one decided the
+            // verdict, so reading reaches no skipped machine.
+            None => {
+                return Err(Err(refusal(
+                    RefusalReason::ForeignIdentity,
+                    machine,
+                    Construct::Machine,
+                    "the affine check skipped a machine without an earlier refusal",
+                )));
+            }
         };
-        if !ends.reference_ends.is_empty() {
-            return Err(fall_back_or_defect(refusal(
-                RefusalReason::ForeignIdentity,
-                machine.id,
-                Construct::Machine,
-                "a dead stored reference has no explicit last-use disposition",
-            )));
-        }
-        let plan =
-            match terminal_semantics::plain_affine::verify_in(&elaboration.module, machine.id) {
-                Ok(plan) => plan,
-                Err(error) => {
-                    let concerns = match error.site() {
-                        Some(terminal_semantics::plain_affine::Site::Operation(at)) => {
-                            Construct::Operation(at)
-                        }
-                        Some(terminal_semantics::plain_affine::Site::Edge(at)) => {
-                            Construct::Edge(at)
-                        }
-                        None => Construct::Machine,
-                    };
-                    let (reason, detail) = match error {
-                        terminal_semantics::plain_affine::Error::Unavailable(unavailable) => {
-                            (RefusalReason::Unestablished, unavailable.message())
-                        }
-                        terminal_semantics::plain_affine::Error::Unconsumed { at_join, .. } => (
-                            RefusalReason::Violation,
-                            terminal_semantics::plain_affine::Error::unconsumed_message(at_join),
-                        ),
-                        terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
-                            (RefusalReason::Unsupported, detail)
-                        }
-                        terminal_semantics::plain_affine::Error::Malformed { detail, .. } => {
-                            (RefusalReason::ForeignIdentity, detail)
-                        }
-                    };
-                    let refused = refusal(reason, machine.id, concerns, detail);
-                    if refused.reason == RefusalReason::Unsupported {
-                        unsupported.note(machine.id, refused);
-                        continue;
-                    }
-                    return Err(fall_back_or_defect(
-                        Roster::of(&elaboration).locate(refused),
-                    ));
-                }
-            };
-        let sources = elaboration.sources.get(machine.id).ok_or_else(|| {
+        let sources = elaboration.sources.get(machine).ok_or_else(|| {
             Err(refusal(
                 RefusalReason::ForeignIdentity,
-                machine.id,
+                machine,
                 Construct::Machine,
                 "affine machine has no source correspondence",
             ))
         })?;
         if plan.unavailable.is_empty() && !plan.borrowed_header_ends.is_empty() {
-            verified_borrow_ends.push((machine.id, plan.borrowed_header_ends));
+            verified_borrow_ends.push((machine, plan.borrowed_header_ends));
         }
         for unavailable in plan.unavailable {
             let at = match unavailable.site {
@@ -1138,9 +1070,9 @@ fn examine(
                 terminal_semantics::plain_affine::Site::Edge(edge) => Construct::Edge(edge),
             };
             affine_unestablished.push(UnestablishedUse {
-                machine: machine.id,
+                machine,
                 at,
-                site: Some(source_of(sources, machine.id, at).map_err(Err)?),
+                site: Some(source_of(sources, machine, at).map_err(Err)?),
                 detail: unavailable.message().to_owned(),
                 declared: None,
             });
@@ -1170,6 +1102,133 @@ fn examine(
             Roster::of(&elaboration).locate(refused),
         )),
     }
+}
+
+/// Why one machine has no affine plan.
+enum AffineRefusal {
+    /// The check cannot judge this machine yet. Later machines are still
+    /// checked, and the first such machine becomes the verdict.
+    Unsupported(Refusal),
+    /// The machine is refused at a construct the closure's roster locates.
+    Refused(Refusal),
+    /// The verdict as the check reports it, without locating it.
+    Decided(Checked<RouteVerdict>),
+}
+
+impl AffineRefusal {
+    fn of(refused: Refusal) -> Self {
+        if refused.reason == RefusalReason::Unsupported {
+            Self::Unsupported(refused)
+        } else {
+            Self::Refused(refused)
+        }
+    }
+
+    /// Whether this refusal decides the verdict, so that no later machine's
+    /// plan can be read.
+    fn decides(&self) -> bool {
+        !matches!(self, Self::Unsupported(_))
+    }
+}
+
+/// The affine plan of every machine of `module`, in machine order. Each plan
+/// reads only the shared module and that machine's reference-end candidates,
+/// so the machines are planned on the invocation's workers. A machine after
+/// one whose refusal decides the verdict may be skipped (`None`); reading in
+/// machine order returns at that refusal before it reaches a skipped machine.
+fn plan_affine_machines(
+    module: &terminal_psi::TerminalModule,
+    reference_ends: &arena::IdTable<MachineId, terminal_semantics::reference_ends::Candidates>,
+) -> Vec<(
+    MachineId,
+    Option<Result<terminal_semantics::plain_affine::Plan, AffineRefusal>>,
+)> {
+    let plan = |machine: MachineId| affine_plan(module, machine, reference_ends.get(machine));
+    let machines = &module.machines;
+    if worker_budget::current_workers() == 1 || machines.len() < 2 {
+        let mut plans = Vec::with_capacity(machines.len());
+        for machine in machines {
+            let planned = plan(machine.id);
+            let decided = planned.as_ref().is_err_and(AffineRefusal::decides);
+            plans.push((machine.id, Some(planned)));
+            if decided {
+                break;
+            }
+        }
+        return plans;
+    }
+    use rayon::prelude::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let first_decided = AtomicUsize::new(usize::MAX);
+    machines
+        .par_iter()
+        .enumerate()
+        .with_max_len(1)
+        .map(|(position, machine)| {
+            if position > first_decided.load(Ordering::Relaxed) {
+                return (machine.id, None);
+            }
+            let planned = plan(machine.id);
+            if planned.as_ref().is_err_and(AffineRefusal::decides) {
+                first_decided.fetch_min(position, Ordering::Relaxed);
+            }
+            (machine.id, Some(planned))
+        })
+        .collect()
+}
+
+/// The affine plan of `machine`: its dead stored references each have an
+/// explicit last-use disposition, and its owned values are used affinely.
+fn affine_plan(
+    module: &terminal_psi::TerminalModule,
+    machine: MachineId,
+    candidates: Option<&terminal_semantics::reference_ends::Candidates>,
+) -> Result<terminal_semantics::plain_affine::Plan, AffineRefusal> {
+    let candidates = candidates.ok_or_else(|| {
+        AffineRefusal::Decided(Err(refusal(
+            RefusalReason::ForeignIdentity,
+            machine,
+            Construct::Machine,
+            "reference disposition lost its machine",
+        )))
+    })?;
+    let ends = terminal_semantics::plain_affine::plan_reference_ends(module, machine, candidates)
+        .map_err(|error| AffineRefusal::of(affine_refusal(machine, error)))?;
+    if !ends.reference_ends.is_empty() {
+        return Err(AffineRefusal::Decided(fall_back_or_defect(refusal(
+            RefusalReason::ForeignIdentity,
+            machine,
+            Construct::Machine,
+            "a dead stored reference has no explicit last-use disposition",
+        ))));
+    }
+    terminal_semantics::plain_affine::verify_in(module, machine)
+        .map_err(|error| AffineRefusal::of(affine_refusal(machine, error)))
+}
+
+/// The refusal of `machine` that an affine-check error states.
+fn affine_refusal(machine: MachineId, error: terminal_semantics::plain_affine::Error) -> Refusal {
+    let concerns = match error.site() {
+        Some(terminal_semantics::plain_affine::Site::Operation(at)) => Construct::Operation(at),
+        Some(terminal_semantics::plain_affine::Site::Edge(at)) => Construct::Edge(at),
+        None => Construct::Machine,
+    };
+    let (reason, detail) = match error {
+        terminal_semantics::plain_affine::Error::Unavailable(unavailable) => {
+            (RefusalReason::Unestablished, unavailable.message())
+        }
+        terminal_semantics::plain_affine::Error::Unconsumed { at_join, .. } => (
+            RefusalReason::Violation,
+            terminal_semantics::plain_affine::Error::unconsumed_message(at_join),
+        ),
+        terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
+            (RefusalReason::Unsupported, detail)
+        }
+        terminal_semantics::plain_affine::Error::Malformed { detail, .. } => {
+            (RefusalReason::ForeignIdentity, detail)
+        }
+    };
+    refusal(reason, machine, concerns, detail)
 }
 
 /// The verdict on an examined closure. A machine with an obligation the
