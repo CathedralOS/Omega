@@ -291,3 +291,65 @@ machine choose<T>(builder: @mutable Build) {{
         "{report}"
     );
 }
+
+#[test]
+fn a_resident_provider_requires_layout_storage_for_its_value_type() {
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        return;
+    };
+    let program = r#"
+use {omega}/language/core/layout.omg as layout;
+use {omega}/language/core/reflect/reflect.omg as reflect;
+use {omega}/language/core/access/access.omg as access;
+public data Word {}
+public data Other {}
+public data TestMemory {}
+public domain Word::Placed access NoFields;
+public domain Other::Placed access NoFields;
+public data WordPlacement = Word in Word::Placed;
+public data OtherPlacement = Other in Other::Placed;
+public data WordStorage = |layout|::LayoutStorage<Word, WordLayout>;
+public NoFields satisfies |layout|::AccessPolicy {
+    machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan reaches none crashes none terminates {
+        |access|::new_plan(@schema, |layout|::Issuance::Unrestricted)
+    }
+}
+public WordLayout satisfies |layout|::FixedLayout<Word> {
+    machine plan(schema: |layout|::Schema, target: |layout|::LayoutTarget) -> |layout|::LayoutPlan reaches none crashes none terminates {
+        let entries: [|layout|::FieldEntry; 64];
+        |layout|::LayoutPlan { entries: entries, entry_count: 0, size_fixed: 0, size_is_dynamic: false, align: 1 }
+    }
+}
+machine storage_probe() {}
+"#;
+    let target = host.target_name();
+    for (name, placement, value, storage, reason) in [
+        (
+            "plain_resident_storage",
+            "WordPlacement",
+            "Word",
+            "Word",
+            "`|app|::Word` is an ordinary value type",
+        ),
+        (
+            "wrong_resident_schema",
+            "OtherPlacement",
+            "Other",
+            "WordStorage",
+            "storage represents `Word`, but the operation requires `|app|::Other`",
+        ),
+    ] {
+        let build = format!(
+            r#"use main.omg as app;
+use {{omega}}/language/core/layout.omg as layout;
+machine build(builder: @mutable Build) {{
+    Build::application(builder, "storage_probe");
+    Build::accept_boundary::<|layout|::NativeAccess<|app|::{placement}, |app|::{value}, |app|::{storage}, |app|::TestMemory>>(builder);
+    Build::select_provider::<|layout|::AccessLifecycle<|app|::{placement}, |app|::{value}>, |layout|::NativeAccess<|app|::{placement}, |app|::{value}, |app|::{storage}, |app|::TestMemory>>(builder, {target});
+    Build::bind(builder, {target}\ProgramEntry, |app|::storage_probe);
+}}"#
+        );
+        let (status, report) = run_both(name, program, &build);
+        assert!(!status.success() && report.contains(reason), "{report}");
+    }
+}

@@ -5,6 +5,7 @@ with its arguments.
 */
 
 mod callback_bindings;
+mod resident_storage;
 
 use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
 use crate::declaration_selection::ResolvedAuthoredCallBinding;
@@ -87,6 +88,49 @@ fn argument_source(argument: &Expression) -> SourceOrigin {
 }
 
 impl<'t> Program<'t> {
+    /// An applied signature can only describe the call that owns its source operands.
+    fn owns_call_arguments(
+        &self,
+        id: MachineId,
+        application: StaticMachineApplicationHandle,
+        declaration: SymbolHandle,
+        arguments: &[StaticMachineArgument],
+    ) -> bool {
+        let table = &self.typed.expression_table;
+        let owner = table.static_machine_application(application);
+        let caller = self
+            .typed
+            .machine_by_symbol(owner.lexical_owner)
+            .or_else(|| self.typed.machine_holding_state(owner.lexical_owner));
+        caller.is_some_and(|caller| self.symbols.get(id) == Some(&caller.symbol))
+            && owner.binding_declaration == declaration
+            && (arguments.is_empty()
+                || arguments == table.static_machine_application_arguments(application))
+    }
+
+    /// A prepared static tuple binds a type parameter once in this occurrence.
+    fn bound_type_argument(
+        &self,
+        application: StaticMachineApplicationHandle,
+        parameter: SymbolHandle,
+    ) -> Option<TypeReferenceHandle> {
+        use crate::source_state::static_applications::StaticMachineBindingValue;
+        let bindings = self
+            .typed
+            .expression_table
+            .static_machine_application_bindings(application);
+        let mut selected = bindings
+            .iter()
+            .filter(|binding| binding.parameter == parameter);
+        match (selected.next(), selected.next()) {
+            (Some(binding), None) => match binding.value {
+                StaticMachineBindingValue::Type(reference) => Some(reference),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
     /// Read a declaration without granting invocation authority. Actual
     /// calls check visibility before using this same retained boundary row.
     pub(super) fn boundary_declaration(
@@ -1200,7 +1244,6 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
     ) -> Checked<Option<Expression>> {
         use crate::source_state::expression::AccessBorrowBacking;
-        use crate::source_state::static_applications::StaticMachineBindingValue;
         use crate::source_state::types::TypeReferenceNode;
 
         let typed = self.typed;
@@ -1244,21 +1287,12 @@ impl<'t> Program<'t> {
             .ok_or_else(|| {
                 unavailable("sealed borrow has no prepared closed declaration contract")
             })?;
-        let application = typed
-            .expression_table
-            .static_machine_application(call.authored_machine_application);
-        let actual_owner = typed
-            .machine_by_symbol(application.lexical_owner)
-            .or_else(|| typed.machine_holding_state(application.lexical_owner))
-            .map(|machine| machine.symbol);
-        if actual_owner != self.symbols.get(id).copied()
-            || application.binding_declaration != factory.factory
-            || (!call.machine_arguments.is_empty()
-                && call.machine_arguments.as_ref()
-                    != typed
-                        .expression_table
-                        .static_machine_application_arguments(call.authored_machine_application))
-        {
+        if !self.owns_call_arguments(
+            id,
+            call.authored_machine_application,
+            factory.factory,
+            &call.machine_arguments,
+        ) {
             return Err(unavailable(
                 "sealed borrow application belongs to another source call owner",
             ));
@@ -1282,21 +1316,8 @@ impl<'t> Program<'t> {
                 "sealed borrow needs its complete static or operational contract",
             ));
         }
-        let bindings = typed
-            .expression_table
-            .static_machine_application_bindings(call.authored_machine_application);
-        let bound_type = |parameter| {
-            let mut selected = bindings
-                .iter()
-                .filter(|binding| binding.parameter == parameter);
-            match (selected.next(), selected.next()) {
-                (Some(binding), None) => match binding.value {
-                    StaticMachineBindingValue::Type(reference) => Some(reference),
-                    _ => None,
-                },
-                _ => None,
-            }
-        };
+        let bound_type =
+            |parameter| self.bound_type_argument(call.authored_machine_application, parameter);
         let source_type = bound_type(factory.source_parameter)
             .ok_or_else(|| unavailable("sealed borrow lost its exact source type argument"))?;
         let view_type = bound_type(factory.view_parameter)
@@ -2386,6 +2407,7 @@ impl<'t> Program<'t> {
                 return Ok(CallBinding::Generic(read));
             }
         }
+        self.check_resident_storage(id, &invocation, source)?;
         self.applies_nothing(
             id,
             invocation.target,
