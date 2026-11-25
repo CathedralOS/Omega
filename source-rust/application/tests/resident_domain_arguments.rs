@@ -139,3 +139,22 @@ fn a_resident_view_preserves_the_placement_even_with_a_shared_policy() {
     assert!(placement.contains("Word::Placed"), "{report}");
     assert!(view.contains("Word::Other"), "{report}");
 }
+
+#[test]
+fn a_resident_view_requires_a_qualified_index_of_its_value_type() {
+    for (index, schema, expected) in [
+        ("Word", "Word", "must name a domain-qualified type"),
+        (
+            "WordPlacement",
+            "u16",
+            "does not qualify the supplied value type `u16`",
+        ),
+    ] {
+        let body = format!(
+            "machine carry(input: @mutable |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Resident<{index}, {schema}>) -> @mutable Word in Word::Placed {{\n    |access|::view_resident_mut::<{index}, {schema}, Word in Word::Placed>(input)\n}}"
+        );
+        let (output, report) = inspect(&body);
+        assert!(!output.status.success(), "{report}");
+        assert!(report.contains(expected), "{report}");
+    }
+}
