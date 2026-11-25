@@ -67,6 +67,6 @@ Independently compiled artifacts compare strong application commitments at actua
 by-value composition edges; unrelated artifacts and historical reviews are not
 globally unified.
 
-The [review implementation](../../../omega-rust/omega/packages/review-evidence/README.md#record)
+The [review implementation](../../../source-rust/subsystems/package-manager/review/evidence/README.md#encoding)
 retains exact carrier occurrences and checked placement. Runtime representation
 agreement is distinct from [package acceptance](../packages/acceptance.md).
