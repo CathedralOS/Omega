@@ -4,7 +4,8 @@ has no layout, so no value of it is stored and no machine over it runs: such a
 machine is a definition or a law, read into the compilation's mathematical
 signature (`crate::mathematics`) and never lowered to operations.
 Data with a field of such a type has no layout either, so it is mathematical
-too, however many declarations lie between.
+too, however many declarations lie between. An erased field is not one of
+those: it has no layout of its own, so it gives its record none either.
 
 The test reads the declaration as written. A field or payload field that
 names its own declaration, or a mathematical one, makes the data proof-only;
@@ -12,7 +13,7 @@ a machine with a formal or a result of such a type is a proof machine, and so
 is a machine declared inside one.
 */
 
-use crate::source_state::data::{DataDefinition, DataMember};
+use crate::source_state::data::{DataDefinition, DataField, DataMember};
 use crate::source_state::machine::Machine;
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use symbols::SymbolHandle;
@@ -84,17 +85,23 @@ impl Program<'_> {
         }
         visiting.push(data.symbol);
         let typed = self.typed;
-        let mathematical = |reference: TypeReferenceHandle, visiting: &mut Vec<SymbolHandle>| {
-            self.names_data(reference)
-                .and_then(|symbol| typed.unique_data_definition_by_symbol(symbol))
-                .is_some_and(|field| self.mathematical_within(field, visiting))
+        // An erased field has no layout, so mathematical data held in one
+        // takes none from its record: the record is stored without it
+        // (contracts.md: "Erased fields need not enter the executable
+        // structural-type graph").
+        let mathematical = |field: &DataField, visiting: &mut Vec<SymbolHandle>| {
+            field.relevance != language_core::BindingRelevance::Erased
+                && self
+                    .names_data(field.type_reference)
+                    .and_then(|symbol| typed.unique_data_definition_by_symbol(symbol))
+                    .is_some_and(|field| self.mathematical_within(field, visiting))
         };
         let found = typed.data_members(data).iter().any(|member| match member {
-            DataMember::Field(field) => mathematical(field.type_reference, visiting),
+            DataMember::Field(field) => mathematical(field, visiting),
             DataMember::Variant(variant) => typed
                 .data_payload_fields(variant)
                 .iter()
-                .any(|field| mathematical(field.type_reference, visiting)),
+                .any(|field| mathematical(field, visiting)),
         });
         visiting.pop();
         found

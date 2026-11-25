@@ -347,6 +347,32 @@ pub struct RecordType {
     /// is left without contents (constants.md: "Semantically unobservable
     /// padding is emitted as zero").
     pub authored_layout: bool,
+    /// The declaration's `[erased]` fields and payload fields, outside
+    /// `shape`: an erased binding "remains in checking and semantic identity
+    /// but contributes no runtime field, address, read, or cleanup"
+    /// (contracts.md, "Explicit erased bindings"), and "Erased fields need not
+    /// enter the executable structural-type graph". So no place, store, claim
+    /// or layout ever names one; lowering gives each its Terminal Psi row
+    /// with erased relevance (`ErasedField`).
+    pub erased: Vec<ErasedField>,
+}
+
+/// One `[erased]` field or payload field of a data type (`RecordType::erased`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ErasedField {
+    /// Unique in the module, minted with the relevant fields' identities.
+    pub id: StructuralFieldId,
+    pub identity: String,
+    /// The text of the field's exact normalized type identity, which is all
+    /// Terminal Psi keeps of its type (`StructuralFieldType::Erased`).
+    pub type_identity: String,
+    /// The plain scalar type of the term a literal supplies for it.
+    pub value_type: ValueType,
+    /// The case whose payload it belongs to, or `None` for a record field.
+    pub case: Option<usize>,
+    /// Its position among the authored members of its record or payload,
+    /// relevant ones included, so the declaration keeps authored order.
+    pub position: usize,
 }
 
 /// The source declaration's selected ordinary consumer. Discovery closes its

@@ -923,6 +923,7 @@ mod tests {
             shape: crate::StorageShape::Record(Vec::new()),
             requires: Vec::new(),
             authored_layout: false,
+            erased: Vec::new(),
         }
     }
 
@@ -942,6 +943,7 @@ mod tests {
             region_owner: SymbolHandle::invalid(),
             fields: Vec::new(),
             cases: Vec::new(),
+            erased: Vec::new(),
         });
         assert!(matches!(
             program
@@ -2853,6 +2855,7 @@ mod tests {
             region_owner: SymbolHandle::invalid(),
             fields: vec![a, b],
             cases: Vec::new(),
+            erased: Vec::new(),
         });
         let mut read = |pattern_subject, pattern_fields, initial_value| {
             program.record_pattern(

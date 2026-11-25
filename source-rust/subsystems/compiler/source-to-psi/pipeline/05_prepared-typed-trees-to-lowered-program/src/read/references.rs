@@ -137,6 +137,7 @@ impl Program<'_> {
             shape,
             requires: Vec::new(),
             authored_layout: false,
+            erased: Vec::new(),
         });
         self.record_sources.push(RecordSource {
             constant_input_owner,
@@ -150,6 +151,7 @@ impl Program<'_> {
             region_owner: owner,
             fields: Vec::new(),
             cases: Vec::new(),
+            erased: Vec::new(),
         });
         Ok(Some(ValueType::Record(id, qualification, regions)))
     }

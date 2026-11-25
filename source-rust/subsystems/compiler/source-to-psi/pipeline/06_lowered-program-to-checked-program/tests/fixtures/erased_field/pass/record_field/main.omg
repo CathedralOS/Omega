@@ -1,0 +1,12 @@
+// An `[erased]` field has no storage: `pick` reads the field after it, at the
+// place a layout without `ghost` gives it, and both engines see its 5.
+// Expected exit: 0
+data Tagged [copy] { value: u64; ghost [erased]: u64; tail: u64; }
+machine pick(tagged: Tagged) -> u64 { tagged.tail }
+machine main() crashes Trap {
+    let tagged: Tagged = Tagged { value: 3, ghost: 7, tail: 5 };
+    let picked: u64 = pick(tagged);
+    transition picked == 5 { true -> done(), _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

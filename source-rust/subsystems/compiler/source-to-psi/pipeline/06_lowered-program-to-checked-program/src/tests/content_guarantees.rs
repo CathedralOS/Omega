@@ -266,6 +266,7 @@ fn opening_a_qualified_partition_keeps_each_projection_on_its_original_claim() {
 
     let missing = lower(include_str!(
         "../../../../../../../../samples/cli/facts/independent_content_partition/invalid_local/main.omg"
-    )).err().expect("one law cannot account for both domains");
+    ))
+    .expect_err("one law cannot account for both domains");
     assert!(missing.detail.contains("partition law for each independent input projection"));
 }

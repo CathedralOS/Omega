@@ -18,6 +18,7 @@ fn tokens(copyable: bool) -> IdTable<StructuralTypeId, RecordType> {
     let mut records = IdTable::default();
     records.push(RecordType {
         authored_layout: false,
+        erased: Vec::new(),
         multiplicity: if copyable {
             terminal_psi::StructuralMultiplicity::Unrestricted
         } else {
@@ -30,6 +31,7 @@ fn tokens(copyable: bool) -> IdTable<StructuralTypeId, RecordType> {
     });
     records.push(RecordType {
         authored_layout: false,
+        erased: Vec::new(),
         multiplicity: if copyable {
             terminal_psi::StructuralMultiplicity::Unrestricted
         } else {

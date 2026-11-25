@@ -63,16 +63,40 @@ pub(super) struct RecordSource {
     pub(super) region_owner: SymbolHandle,
     pub(super) fields: Vec<SymbolHandle>,
     pub(super) cases: Vec<(SymbolHandle, Vec<SymbolHandle>)>,
+    /// The symbol of each `[erased]` field, in `RecordType::erased` order.
+    pub(super) erased: Vec<SymbolHandle>,
+}
+
+impl RecordSource {
+    /// Every field symbol of a record, its erased fields included: what a
+    /// record pattern accounts for.
+    fn record_members(&self) -> Vec<SymbolHandle> {
+        self.fields.iter().chain(&self.erased).copied().collect()
+    }
 }
 
 /// What `declared_members` reads: the fields and their symbols, then the cases
-/// (identity and payload fields) and their symbols with their payloads'.
+/// (identity and payload fields) and their symbols with their payloads', then
+/// the erased fields, which have no storage and are read apart.
 type Members = (
     Vec<(String, ValueType)>,
     Vec<SymbolHandle>,
     Vec<(String, Vec<(String, ValueType)>)>,
     Vec<(SymbolHandle, Vec<SymbolHandle>)>,
+    Vec<DeclaredErased>,
 );
+
+/// One `[erased]` field as `declared_members` reads it: its identity, the
+/// text of its type's identity, its case, its position among the authored
+/// members of its record or payload, and its symbol.
+pub(super) struct DeclaredErased {
+    identity: String,
+    type_identity: String,
+    value_type: ValueType,
+    case: Option<usize>,
+    position: usize,
+    symbol: SymbolHandle,
+}
 
 /// What a member's field symbol names in its receiver's data type.
 pub(super) enum Member {
@@ -325,7 +349,6 @@ impl Program<'_> {
             application.as_ref(),
             self.type_purpose,
             members,
-            |variant| typed.data_payload_fields(variant),
         )
         .map_err(|mut refusal| {
             // The caller may not yet have a machine body to locate this
@@ -371,7 +394,6 @@ impl Program<'_> {
                     application.as_ref(),
                     self.type_purpose,
                     typed.data_members(data),
-                    |variant| typed.data_payload_fields(variant),
                 )?;
                 self.resolving.push((symbol, application.clone()));
                 let enclosing = std::mem::replace(&mut self.lifetime_owner, symbol);
@@ -438,6 +460,7 @@ impl Program<'_> {
                 shape: crate::StorageShape::Sum(Vec::new()),
                 requires: Vec::new(),
                 authored_layout: false,
+                erased: Vec::new(),
             });
             self.record_sources.push(RecordSource {
                 constant_input_owner: None,
@@ -447,6 +470,7 @@ impl Program<'_> {
                 region_owner: SymbolHandle::invalid(),
                 fields: Vec::new(),
                 cases: Vec::new(),
+                erased: Vec::new(),
             });
             if let Err(position) = self.self_containing.binary_search(&record) {
                 self.self_containing.insert(position, record);
@@ -493,18 +517,45 @@ impl Program<'_> {
         self.lifetime_owner = enclosing;
         self.elision = elision;
         self.resolving.pop();
-        let (fields, field_symbols, cases, case_symbols) = read.map_err(|mut refusal| {
+        let members = read.map_err(|mut refusal| {
             refusal.detail.push_str(&format!(
                 " while reading the record application `{identity}`"
             ));
             refusal
         })?;
-        let mut mint = |fields: Vec<(String, ValueType)>| {
+        let (fields, field_symbols, cases, case_symbols, erased) = members;
+        // Field identities are minted in authored order, erased fields
+        // among the rest, since Terminal Psi orders a declaration's field
+        // rows by them. `erased` is in that order already: the record's
+        // fields, then each case's payload.
+        let mut erased = erased.into_iter().peekable();
+        let mut erased_fields = Vec::new();
+        let mut erased_symbols = Vec::new();
+        let mut mint = |fields: Vec<(String, ValueType)>, case: Option<usize>| {
             let mut declared = Vec::with_capacity(fields.len());
-            for (identity, value_type) in fields {
+            let mut fields = fields.into_iter();
+            for position in 0.. {
                 self.fields_minted += 1;
                 let field = StructuralFieldId::new(self.fields_minted)
                     .ok_or_else(|| unserved("field identity overflow"))?;
+                if let Some(next) =
+                    erased.next_if(|next| next.case == case && next.position == position)
+                {
+                    erased_fields.push(crate::body::ErasedField {
+                        id: field,
+                        identity: next.identity,
+                        type_identity: next.type_identity,
+                        value_type: next.value_type,
+                        case: next.case,
+                        position: next.position,
+                    });
+                    erased_symbols.push(next.symbol);
+                    continue;
+                }
+                let Some((identity, value_type)) = fields.next() else {
+                    self.fields_minted -= 1;
+                    break;
+                };
                 let byte_predicates = self.view_predicates(id, value_type)?;
                 declared.push(RecordField {
                     id: field,
@@ -515,10 +566,13 @@ impl Program<'_> {
             }
             Ok(declared)
         };
-        let declared = mint(fields)?;
+        let declared = mint(fields, None)?;
         let mut declared_cases = Vec::with_capacity(cases.len());
-        for (identity, payload) in cases {
-            declared_cases.push((identity, mint(payload)?));
+        for (position, (identity, payload)) in cases.into_iter().enumerate() {
+            declared_cases.push((identity, mint(payload, Some(position))?));
+        }
+        if erased.next().is_some() {
+            return Err(unserved("erased field outside its record's authored order"));
         }
         let mut case_types = Vec::with_capacity(declared_cases.len());
         for (identity, fields) in declared_cases {
@@ -534,6 +588,9 @@ impl Program<'_> {
         if let Some(record) = reserved {
             if !declared.is_empty() || case_types.is_empty() {
                 return Err(unserved("data that contains itself outside a case"));
+            }
+            if !erased_fields.is_empty() {
+                return Err(unserved("data that contains itself with an erased field"));
             }
             self.records
                 .get_mut(record)
@@ -593,6 +650,7 @@ impl Program<'_> {
                     .layout_storage_arguments(application.reference)
                     .is_some()
             }),
+            erased: erased_fields,
         });
         self.record_sources.push(RecordSource {
             constant_input_owner,
@@ -602,6 +660,7 @@ impl Program<'_> {
             region_owner: SymbolHandle::invalid(),
             fields: field_symbols,
             cases: case_symbols,
+            erased: erased_symbols,
         });
         if application.is_none() && data.predicate_subject_type.is_valid() {
             self.record_application(id, record, data.predicate_subject_type)?;
@@ -802,11 +861,18 @@ impl Program<'_> {
         let mut field_symbols = Vec::new();
         let mut cases = Vec::new();
         let mut case_symbols = Vec::new();
+        let mut erased = Vec::new();
+        let mut field_position = 0;
         for member in members {
             match member {
+                DataMember::Field(field) if is_erased(field) => {
+                    erased.push(self.declared_erased(id, field, None, field_position)?);
+                    field_position += 1;
+                }
                 DataMember::Field(field) => {
                     fields.push(self.declared_field(id, field)?);
                     field_symbols.push(field.symbol);
+                    field_position += 1;
                 }
                 DataMember::Variant(variant) => {
                     if !variant.symbol.is_valid() {
@@ -826,7 +892,11 @@ impl Program<'_> {
                     }
                     let mut payload = Vec::new();
                     let mut payload_symbols = Vec::new();
-                    for field in typed.data_payload_fields(variant) {
+                    for (position, field) in typed.data_payload_fields(variant).iter().enumerate() {
+                        if is_erased(field) {
+                            erased.push(self.declared_erased(id, field, Some(cases.len()), position)?);
+                            continue;
+                        }
                         payload.push(self.declared_field(id, field)?);
                         payload_symbols.push(field.symbol);
                     }
@@ -835,7 +905,59 @@ impl Program<'_> {
                 }
             }
         }
-        Ok((fields, field_symbols, cases, case_symbols))
+        Ok((fields, field_symbols, cases, case_symbols, erased))
+    }
+
+    /// One `[erased]` field or payload field. Its type is read as an erased
+    /// binding's is (`erased_local`): this slice serves a plain scalar,
+    /// whose term the literal supplies; anything else is refused by name.
+    fn declared_erased(
+        &mut self,
+        id: MachineId,
+        field: &DataField,
+        case: Option<usize>,
+        position: usize,
+    ) -> Checked<DeclaredErased> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Type(what));
+        if !field.symbol.is_valid() {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Spelling("field without a symbol"),
+            ));
+        }
+        if self.names_indexed_data(field.type_reference) {
+            return Err(unserved(
+                "data with an erased field of data indexed by values",
+            ));
+        }
+        let value_type = self.value_type(id, field.type_reference)?;
+        if !matches!(value_type, ValueType::Scalar(_, Qualification::NONE)) {
+            return Err(unserved(
+                "data with an erased field that is not a plain scalar",
+            ));
+        }
+        let identity = field.member_identity().spelling();
+        if identity.is_empty() {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Spelling("field without a declaration identity"),
+            ));
+        }
+        let type_identity = self
+            .typed
+            .type_identity_text(self.typed.normalized_type_identity(field.type_reference))
+            .filter(|identity| !identity.is_empty())
+            .ok_or_else(|| unserved("erased field without a type identity"))?;
+        Ok(DeclaredErased {
+            identity,
+            type_identity,
+            value_type,
+            case,
+            position,
+            symbol: field.symbol,
+        })
     }
 
     /// One declared field or payload field: its text identity for Terminal
@@ -973,15 +1095,39 @@ impl Program<'_> {
             .ok_or_else(|| refuse(id, Construct::Machine, absent))
     }
 
+    /// The position in `RecordType::erased` of the erased field `symbol`
+    /// names in `record`, if it names one.
+    pub(super) fn erased_member(
+        &self,
+        id: MachineId,
+        record: StructuralTypeId,
+        symbol: SymbolHandle,
+    ) -> Checked<Option<usize>> {
+        Ok(self
+            .source(id, record)?
+            .erased
+            .iter()
+            .position(|erased| symbol.is_valid() && *erased == symbol))
+    }
+
     /// What the field symbol of a member names in `record`: a field, or a
     /// payload field of one of its cases. Each field symbol is one
-    /// declaration, so at most one answer exists.
+    /// declaration, so at most one answer exists. An erased field has no
+    /// storage to name: the readers that can use one ask `erased_member`
+    /// first, and every other read of one is refused here.
     pub(super) fn member_of(
         &self,
         id: MachineId,
         record: Opened,
         symbol: SymbolHandle,
     ) -> Checked<Member> {
+        if self.erased_member(id, record.record(), symbol)?.is_some() {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Expression("read of an erased field of data"),
+            ));
+        }
         let source = self.source(id, record.record())?;
         if let Some(field) = source.fields.iter().position(|field| *field == symbol) {
             return Ok(Member::Field(field));
@@ -1173,7 +1319,7 @@ impl Program<'_> {
             .match_fields(local.pattern_fields);
         // Typing has replaced a `..` by one waived row for each field it
         // covers, so a `let` pattern's roster names every field.
-        record_roster_coverage(id, &source.fields, roster, false)?;
+        record_roster_coverage(id, &source.record_members(), roster, false)?;
         let nominal = self
             .typed
             .unique_data_definition_by_symbol(source.declaration)
@@ -1251,7 +1397,7 @@ impl Program<'_> {
                 return Err(unserved("record pattern that tests a field"));
             }
         }
-        record_roster_coverage(id, &source.fields, roster, pattern.has_rest)
+        record_roster_coverage(id, &source.record_members(), roster, pattern.has_rest)
     }
 
     /// A member the typed trees hold only as a spelling. It is an error
@@ -1377,6 +1523,20 @@ impl Program<'_> {
                 Unserved::Typing("member of a value that is not a record"),
             ));
         };
+        // An erased field holds no executable value (contracts.md,
+        // "Explicit erased bindings": it "cannot determine runtime data or
+        // control"), so a runtime read of one is refused as a read of any
+        // erased binding is.
+        if self
+            .erased_member(id, record.record(), member.selection.field_symbol())?
+            .is_some()
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Expression("runtime use of an erased binding"),
+            ));
+        }
         let regions = base
             .result
             .map_or(crate::body::Regions::NONE, ValueType::regions);
@@ -1525,16 +1685,39 @@ impl Program<'_> {
             .iter()
             .map(|field| field.value_type)
             .collect();
+        let erased: Vec<usize> = data
+            .erased
+            .iter()
+            .enumerate()
+            .filter(|(_, erased)| erased.case == case)
+            .map(|(position, _)| position)
+            .collect();
         let declared: Vec<ValueType> = declared
             .into_iter()
             .map(|field| self.substitute(field, &substitution))
             .collect();
         let authored = self.typed.expression_table.struct_fields(literal.fields);
         let mut seen = vec![false; declared.len()];
+        let mut erased_seen = vec![false; erased.len()];
         let mut fields = Vec::with_capacity(declared.len());
         for field in authored {
             if !field.field_symbol.is_valid() {
                 return Err(spelling("record literal field without a symbol"));
+            }
+            // contracts.md, "Explicit erased bindings": "Construction
+            // supplies the erased term". The literal's term for an erased
+            // field is read as an erased local's initializer is, and is no
+            // operand: the record has no storage for it.
+            if let Some(position) = self.erased_member(id, record, field.field_symbol)? {
+                let slot = erased
+                    .iter()
+                    .position(|candidate| *candidate == position)
+                    .ok_or_else(|| typing("case literal names a field of another case"))?;
+                if std::mem::replace(&mut erased_seen[slot], true) {
+                    return Err(typing("record literal names a field twice"));
+                }
+                self.erased_field_term(id, slots, record, position, field.value)?;
+                continue;
             }
             let position = match case {
                 None => self.field_position(
@@ -1567,6 +1750,15 @@ impl Program<'_> {
             }
             fields.push((position, operand));
         }
+        // No zero value stands in for an erased term: "there is no general
+        // implicit inhabitance or default-value search".
+        if erased_seen.contains(&false) {
+            return Err(if literal.zero_omitted_fields {
+                unserved("record literal that leaves an erased field to `..`")
+            } else {
+                typing("record literal misses a field")
+            });
+        }
         if seen.contains(&false) {
             if !literal.zero_omitted_fields {
                 return Err(typing("record literal misses a field"));
@@ -1590,6 +1782,43 @@ impl Program<'_> {
             result: Some(result),
             source,
         })
+    }
+
+    /// The term a literal supplies for the erased field at `position` of
+    /// `record`, read by the erased-term reader of an erased local's
+    /// initializer: a literal, a binding or a denotational call, whose
+    /// formation that reader checks. It is not kept. Terminal Psi holds no
+    /// value for an erased field, and every read of one, at runtime or in a
+    /// clause, is refused (`member_of`), so nothing can observe it.
+    fn erased_field_term(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        record: StructuralTypeId,
+        position: usize,
+        value: crate::source_state::expression::ExpressionHandle,
+    ) -> Checked<()> {
+        let value_type = self
+            .data_type(id, record)?
+            .erased
+            .get(position)
+            .ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Typing("erased field position"),
+                )
+            })?
+            .value_type;
+        let term = self.erased_term(id, slots, value, value_type.scalar())?;
+        if term.result != Some(value_type) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("record literal field type"),
+            ));
+        }
+        Ok(())
     }
 
     /// Construct zero using the existing initialization logic, then check each
@@ -1850,6 +2079,17 @@ impl Program<'_> {
         let case = self.case_position(id, record, symbol)?;
         let payload = self.source(id, record.record())?.cases[case].1.len();
         let mut seen = vec![false; payload];
+        // The case's erased payload fields are payload fields a pattern
+        // accounts for too, but only by waiving: there is nothing to bind.
+        let erased: Vec<usize> = self
+            .data_type(id, record.record())?
+            .erased
+            .iter()
+            .enumerate()
+            .filter(|(_, erased)| erased.case == Some(case))
+            .map(|(position, _)| position)
+            .collect();
+        let mut erased_seen = vec![false; erased.len()];
         let listed = self.typed.expression_table.match_fields(pattern.fields);
         for field in listed {
             match field.component {
@@ -1869,6 +2109,24 @@ impl Program<'_> {
                     Construct::Machine,
                     Unserved::Spelling("pattern field without a symbol"),
                 ));
+            }
+            if let Some(position) =
+                self.erased_member(id, record.record(), field.field_symbol)?
+                && let Some(slot) = erased.iter().position(|candidate| *candidate == position)
+                && matches!(field.action, MatchFieldAction::Waive)
+            {
+                if std::mem::replace(&mut erased_seen[slot], true) {
+                    return Err(crate::reject(
+                        id,
+                        at,
+                        format!(
+                            "this pattern names the payload field `{}` twice: a case pattern \
+                             names each payload field once",
+                            field.member.as_str()
+                        ),
+                    ));
+                }
+                continue;
             }
             let position = match self.member_of(id, record, field.field_symbol)? {
                 Member::Payload { case: owner, field } if owner == case => field,
@@ -1892,7 +2150,7 @@ impl Program<'_> {
                 ));
             }
         }
-        if !pattern.has_rest && seen.contains(&false) {
+        if !pattern.has_rest && (seen.contains(&false) || erased_seen.contains(&false)) {
             if listed.is_empty() {
                 return Err(refuse(
                     id,
@@ -1955,15 +2213,19 @@ fn record_roster_coverage(
     Ok(())
 }
 
+/// Whether a field or payload field is `[erased]`.
+fn is_erased(field: &DataField) -> bool {
+    field.relevance == language_core::BindingRelevance::Erased
+}
+
 /// Whether a data declaration is a plain record or a plain sum this slice
 /// serves. Each feature outside it is refused by name, never ignored.
 #[cfg(test)]
-fn record_shape<'m>(
+fn record_shape(
     id: MachineId,
     data: &DataDefinition,
     application: Option<&crate::source_state::SourceTypeApplication>,
-    members: &'m [DataMember],
-    payload: impl Fn(&'m crate::source_state::data::DataVariant) -> &'m [DataField],
+    members: &[DataMember],
 ) -> Checked<()> {
     record_shape_for(
         id,
@@ -1971,17 +2233,15 @@ fn record_shape<'m>(
         application,
         super::storage_metadata::TypePurpose::Value,
         members.into(),
-        |variant| payload(variant).into(),
     )
 }
 
-fn record_shape_for<'m>(
+fn record_shape_for(
     id: MachineId,
     data: &DataDefinition,
     application: Option<&crate::source_state::SourceTypeApplication>,
     _purpose: super::storage_metadata::TypePurpose,
-    members: arena::RootRows<'m, DataMember>,
-    payload: impl Fn(&'m crate::source_state::data::DataVariant) -> arena::RootRows<'m, DataField>,
+    members: arena::RootRows<'_, DataMember>,
 ) -> Checked<()> {
     let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
     if data.supply_mode == language_core::DataSupplyMode::BoundaryOpaque && !members.is_empty() {
@@ -2017,7 +2277,7 @@ fn record_shape_for<'m>(
     // Data with no member is a record whose roster is empty (`data Token
     // {}`): a value of it is established, copied or moved, passed and
     // dropped like any other record, and holds nothing to read.
-    let relevant = |field: &DataField| field.relevance == language_core::BindingRelevance::Relevant;
+    // An `[erased]` field is a member with no storage (`declared_erased`).
     let mut fields = false;
     let mut cases = false;
     for member in members {
@@ -2030,16 +2290,8 @@ fn record_shape_for<'m>(
                 if !variant.retired_payload_identities.is_empty() {
                     return unserved("data with retired field identities");
                 }
-                if !payload(variant).iter().all(relevant) {
-                    return unserved("data with an erased field");
-                }
             }
-            DataMember::Field(field) => {
-                fields = true;
-                if !relevant(field) {
-                    return unserved("data with an erased field");
-                }
-            }
+            DataMember::Field(_) => fields = true,
         }
     }
     // Common fields beside cases: a case literal names no common field
@@ -2287,6 +2539,7 @@ mod tests {
             shape: crate::StorageShape::Record(Vec::new()),
             requires: Vec::new(),
             authored_layout: false,
+            erased: Vec::new(),
         });
         assert!(!copy_field_is_unrestricted(
             ValueType::record(owned),
@@ -2316,7 +2569,7 @@ mod tests {
     }
 
     fn detail(data: &DataDefinition, members: &[DataMember]) -> String {
-        let refusal = record_shape(machine(), data, None, members, |_| &[]).unwrap_err();
+        let refusal = record_shape(machine(), data, None, members).unwrap_err();
         assert_eq!(
             refusal.reason,
             terminal_check_tables::RefusalReason::Unsupported
@@ -2330,13 +2583,13 @@ mod tests {
     fn each_data_declaration_outside_the_slice_is_refused_by_name() {
         let (data, members) = plain();
         assert_eq!(
-            record_shape(machine(), &data, None, &members, |_| &[]),
+            record_shape(machine(), &data, None, &members),
             Ok(())
         );
         let mut affine = data.clone();
         affine.properties.multiplicity = language_core::Multiplicity::Affine;
         assert_eq!(
-            record_shape(machine(), &affine, None, &members, |_| &[]),
+            record_shape(machine(), &affine, None, &members),
             Ok(())
         );
         // Lifetime parameters select nothing a value is made of, so the
@@ -2344,14 +2597,14 @@ mod tests {
         let mut borrowing = data.clone();
         borrowing.lifetime_parameters = vec![Identifier::generated("buffer")];
         assert_eq!(
-            record_shape(machine(), &borrowing, None, &members, |_| &[]),
+            record_shape(machine(), &borrowing, None, &members),
             Ok(())
         );
         borrowing.type_parameters = HandleSpan::from_parts(Handle::from_parts(1, 1), 1);
         assert_eq!(detail(&borrowing, &members), "type generic data");
         // A declaration-level `requires` is no longer refused here: its
         // clauses are read by the clause reader. A case-level one still is.
-        let cases: [(&str, fn(&mut DataDefinition, &mut Vec<DataMember>)); 6] = [
+        let cases: [(&str, fn(&mut DataDefinition, &mut Vec<DataMember>)); 5] = [
             ("type generic data", |data, _| {
                 data.type_parameters = HandleSpan::from_parts(Handle::from_parts(1, 1), 1);
             }),
@@ -2371,12 +2624,6 @@ mod tests {
                     ..DataVariant::default()
                 })];
             }),
-            ("type data with an erased field", |_, members| {
-                members.push(DataMember::Field(DataField {
-                    relevance: language_core::BindingRelevance::Erased,
-                    ..DataField::default()
-                }));
-            }),
             ("type opaque data with declared members", |data, _| {
                 data.supply_mode = language_core::DataSupplyMode::BoundaryOpaque;
             }),
@@ -2388,26 +2635,24 @@ mod tests {
         }
         // Data with no member at all is a record with an empty roster.
         let (data, _) = plain();
-        assert_eq!(record_shape(machine(), &data, None, &[], |_| &[]), Ok(()));
+        assert_eq!(record_shape(machine(), &data, None, &[]), Ok(()));
         let mut opaque = data.clone();
         opaque.supply_mode = language_core::DataSupplyMode::BoundaryOpaque;
-        assert_eq!(record_shape(machine(), &opaque, None, &[], |_| &[]), Ok(()));
+        assert_eq!(record_shape(machine(), &opaque, None, &[]), Ok(()));
         // A sum alone, with or without payload, is served.
         let sum = vec![
             DataMember::Variant(DataVariant::default()),
             DataMember::Variant(DataVariant::default()),
         ];
-        assert_eq!(record_shape(machine(), &data, None, &sum, |_| &[]), Ok(()));
-        let erased = [DataField {
+        assert_eq!(record_shape(machine(), &data, None, &sum), Ok(()));
+        // An erased field is a member with no storage, so its shape is
+        // served; `declared_erased` reads what it holds.
+        let (data, mut members) = plain();
+        members.push(DataMember::Field(DataField {
             relevance: language_core::BindingRelevance::Erased,
             ..DataField::default()
-        }];
-        assert_eq!(
-            record_shape(machine(), &data, None, &sum, |_| &erased)
-                .unwrap_err()
-                .detail,
-            "type data with an erased field"
-        );
+        }));
+        assert_eq!(record_shape(machine(), &data, None, &members), Ok(()));
     }
 
     fn tags(tags: &[&str]) -> Vec<Identifier> {

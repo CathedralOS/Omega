@@ -684,6 +684,7 @@ mod tests {
             cleanup: None,
             requires: Vec::new(),
             authored_layout: false,
+            erased: Vec::new(),
         });
         let mut array = |length| {
             ValueType::record(program.records.push(RecordType {
@@ -697,6 +698,7 @@ mod tests {
                 cleanup: None,
                 requires: Vec::new(),
                 authored_layout: false,
+                erased: Vec::new(),
             }))
         };
         let three = array(ArrayExtent::Literal(3));

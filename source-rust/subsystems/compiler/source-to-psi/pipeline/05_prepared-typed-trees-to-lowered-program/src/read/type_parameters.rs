@@ -131,6 +131,7 @@ impl Program<'_> {
             shape: StorageShape::TypeParameter(rigid),
             requires: Vec::new(),
             authored_layout: false,
+            erased: Vec::new(),
         });
         self.record_sources.push(RecordSource {
             constant_input_owner: None,
@@ -144,6 +145,7 @@ impl Program<'_> {
             region_owner: owner,
             fields: Vec::new(),
             cases: Vec::new(),
+            erased: Vec::new(),
         });
         self.rigid_storage
             .resize_with(self.rigid_storage.len().max(ordinal + 1), || None);
