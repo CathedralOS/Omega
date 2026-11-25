@@ -339,6 +339,37 @@ in the caller. Build has no operation for launching independent product builds
 and joining their outputs. Package dependency registration still prepares a
 dependency's own Build for its registered purpose.
 
+### Outgoing operations from a checked entry
+
+The compiler library exposes a read-only, in-memory query on a checked product.
+Given an entry belonging to that product, it returns a typed result identifying
+the boundary operations and authority that execution from that entry may reach.
+The answer applies to the exact checked product, target and provider selections.
+A caller can query several products before requesting native emission from the
+same checked inputs. The query requires neither another Build execution nor an
+on-disk report.
+
+Follow the [checked calls](../terminal-psi/product.md) through helpers, callbacks
+that can run as a consequence of the entry, cleanup and selected providers. A
+separate maintenance entry contributes an operation to the public handler's
+answer only if the handler can reach it. For replaceable providers, account for
+every implementation allowed by the replacement contract. For opaque code, use
+its admitted contract and identify the assumptions on which the bound depends.
+
+The result distinguishes a complete upper bound from incomplete coverage. A
+complete bound includes every possible outgoing operation, even when some occur
+only on particular paths. With incomplete coverage, return the known operations
+and identify where the analysis loses the bound. Only a complete empty bound
+establishes absence. Apply the same [coverage and authority rules](component_publication.md#verified-component-descriptions)
+to external calls as to the component inventory.
+
+The release application maps operations to service instances using its endpoint
+bindings and checks the resulting routes against its own policy. Knowing that an
+entry can send through a socket or raw network device leaves its possible peers
+unrestricted unless the installed transport or device enforces a narrower bound.
+A complete inventory of send operations can therefore still leave the destination
+unknown.
+
 ## Workspaces
 
 A workspace is a path-declared catalog of locatable members, not a combined
