@@ -654,49 +654,89 @@ impl<'a> Storage<'a> {
     /// byte-payload effects have been installed. Preserve the log's order,
     /// including multiple writes at the same point.
     pub(super) fn index_reaching_writes(&mut self) {
-        self.writes_by_root.clear();
-        for (index, row) in self.log.iter().enumerate() {
+        let block_count = self.graph.block_count();
+        self.writes_by_block.clear();
+        self.writes_by_block.resize_with(block_count, Vec::new);
+        self.block_log_ranges.clear();
+        self.block_log_ranges.resize(block_count, 0..0);
+        for (log_index, row) in self.log.iter().enumerate() {
+            let slot = index(row.block.get());
+            if let Some(range) = self.block_log_ranges.get_mut(slot) {
+                if range.start == range.end {
+                    *range = log_index..(log_index + 1);
+                } else {
+                    range.end = log_index + 1;
+                }
+            }
+            let Some(block_roots) = self.writes_by_block.get_mut(slot) else {
+                continue;
+            };
             let mut previous = None;
             for address in 0..row.backing.address_count() {
                 let root = row.backing.address(address).root;
                 if previous.replace(root) != Some(root) {
-                    self.writes_by_root
-                        .entry((row.block, root))
-                        .or_default()
-                        .push(index);
+                    match block_roots.binary_search_by_key(&root, |(id, _)| *id) {
+                        Ok(pos) => block_roots[pos].1.push(log_index),
+                        Err(pos) => block_roots.insert(pos, (root, vec![log_index])),
+                    }
                 }
             }
         }
     }
 
-    /// An overlap requires a common physical root. The ordinary overlap
-    /// and epoch checks still decide which of these writes can end a trace.
-    pub(super) fn reaching_writes(
+    /// Writes in `block` at or before `up_to` that share a physical root with
+    /// `watched`, yielded in reverse authored order (latest position and latest
+    /// log entry first).
+    pub(super) fn reaching_writes_rev(
         &self,
         block: BlockId,
         up_to: usize,
         watched: &Backing,
     ) -> impl Iterator<Item = (usize, &Logged)> {
+        let slot = index(block.get());
         let root = watched.address(0).root;
         let (selected, all) = if watched.address(watched.address_count() - 1).root == root {
-            let selected = self
-                .writes_by_root
-                .get(&(block, root))
-                .map_or(&[][..], Vec::as_slice);
-            (selected, 0..0)
+            let rows = self
+                .writes_by_block
+                .get(slot)
+                .and_then(|block_roots| {
+                    if block_roots.len() <= 8 {
+                        block_roots
+                            .iter()
+                            .find(|(id, _)| *id == root)
+                            .map(|(_, indices)| indices.as_slice())
+                    } else {
+                        block_roots
+                            .binary_search_by_key(&root, |(id, _)| *id)
+                            .ok()
+                            .map(|pos| block_roots[pos].1.as_slice())
+                    }
+                })
+                .unwrap_or(&[]);
+            let end = if up_to == usize::MAX {
+                rows.len()
+            } else {
+                rows.partition_point(|&log_index| self.log[log_index].position <= up_to)
+            };
+            (&rows[..end], 0..0)
         } else {
             // A query with several possible roots still considers every write
-            // in the block, once, in its authored order.
-            let begin = self.log.partition_point(|row| row.block < block);
-            let end = self.log.partition_point(|row| row.block <= block);
-            (&[][..], begin..end)
+            // in the block, once, in reverse authored order.
+            let range = self.block_log_ranges.get(slot).cloned().unwrap_or(0..0);
+            let end = if up_to == usize::MAX {
+                range.end
+            } else {
+                range.start
+                    + self.log[range.clone()].partition_point(|row| row.position <= up_to)
+            };
+            (&[][..], range.start..end)
         };
         selected
             .iter()
+            .rev()
             .copied()
-            .chain(all)
-            .map(|index| (index, &self.log[index]))
-            .take_while(move |(_, row)| row.position <= up_to)
+            .chain(all.rev())
+            .map(|log_index| (log_index, &self.log[log_index]))
     }
 
     /// Refuses a write log that is not, operation by operation and in

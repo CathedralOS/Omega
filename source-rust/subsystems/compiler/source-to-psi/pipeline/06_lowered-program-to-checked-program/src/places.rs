@@ -1230,7 +1230,11 @@ pub(crate) struct Storage<'a> {
     log: Vec<Logged>,
     /// Captured write selectors whose SSA definitions identify one fixed cell.
     fixed_write_indices: IdTable<ValueId, Option<u64>>,
-    writes_by_root: BTreeMap<(BlockId, PlaceId), Vec<usize>>,
+    /// Per-block write indices grouped by physical root (sorted by `PlaceId`
+    /// within each block) so `reaching_writes_rev` indexes by block in O(1).
+    writes_by_block: Vec<Vec<(PlaceId, Vec<usize>)>>,
+    /// Per-block `[begin..end)` ranges in `self.log` for multi-root queries.
+    block_log_ranges: Vec<std::ops::Range<usize>>,
     arrivals: Vec<Vec<arrivals::Arrival>>,
     cleanup_writes: Vec<crate::owned_cleanup::Write>,
     observations: Vec<BTreeMap<Lineage, Vec<Observation>>>,
@@ -1373,7 +1377,8 @@ impl<'a> Storage<'a> {
             reaching_budget,
             log: Vec::new(),
             fixed_write_indices: IdTable::default(),
-            writes_by_root: BTreeMap::new(),
+            writes_by_block: Vec::new(),
+            block_log_ranges: Vec::new(),
             arrivals: lowered
                 .blocks
                 .iter()
@@ -4251,14 +4256,18 @@ impl<'a> Storage<'a> {
                 });
             }
             // Each block is walked whole at most once, so a cycle ends the walk.
-            let mut walked = vec![false; self.graph.block_count()];
-            let mut pending = vec![(block, address, up_to)];
-            while let Some((block, mut destination, up_to)) = pending.pop() {
+            // Allocate `walked` and `pending` only when the query leaves its
+            // starting block, so same-block hits allocate nothing.
+            let mut walked: Option<Vec<bool>> = None;
+            let mut pending: Vec<(BlockId, usize, usize)> = Vec::new();
+            let mut next = Some((block, address, up_to));
+            while let Some((block, mut destination, up_to)) = next.take().or_else(|| pending.pop())
+            {
                 // The last row in this block, at or before the point, that ends
                 // the path: the latest position, and in one position the later
-                // log entry.
+                // log entry. Scanning in reverse hits it first and stops.
                 let mut last: Option<(usize, &Logged)> = None;
-                for (index, row) in self.reaching_writes(block, up_to, resolved) {
+                for (index, row) in self.reaching_writes_rev(block, up_to, resolved) {
                     #[cfg(test)]
                     {
                         budget.scanned_rows += 1;
@@ -4275,9 +4284,8 @@ impl<'a> Storage<'a> {
                     {
                         continue;
                     }
-                    if last.is_none_or(|(_, previous)| previous.position <= row.position) {
-                        last = Some((index, row));
-                    }
+                    last = Some((index, row));
+                    break;
                 }
                 if budget.initialization == Initialization::NotAsked
                     && budget.observations == Observations::All
@@ -4493,6 +4501,7 @@ impl<'a> Storage<'a> {
                         budget.add_supply(destination, Supply::Direct(selected));
                         continue;
                     }
+                    let walked = walked.get_or_insert_with(|| vec![false; self.graph.block_count()]);
                     let slot = walked.get_mut(index(predecessor.get())).ok_or_else(|| {
                         self.foreign(
                             Construct::Block(*predecessor),
@@ -9414,10 +9423,11 @@ mod observation_tests {
                         .then_some(id)
                     })
                     .collect();
-                let actual: Vec<_> = storage
-                    .reaching_writes(row.block, at, &watched)
+                let mut actual: Vec<_> = storage
+                    .reaching_writes_rev(row.block, at, &watched)
                     .filter_map(|(id, write)| overlap(&watched, &write.backing).then_some(id))
                     .collect();
+                actual.reverse();
                 assert_eq!(actual, expected);
             }
         }
