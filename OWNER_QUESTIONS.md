@@ -71,17 +71,8 @@ A release build might need to fetch a pinned firmware image or run a vendor imag
 
 The default build has neither service. The [network reach rules](wiki/spec/build/platform_services.md#network-reach) classify a networking call and its provider. The open choice is whether a Build may receive a live provider or launch a host tool. The existing rules distinguish a machine's transitive service reach, the consumer's acceptance of a restricted operation and the actual resource the executor supplies. Package retrieval already runs under the resolver's separate authority. [Build host restrictions](wiki/spec/build/execution.md#restricted-build-requests) · [Service reach](wiki/spec/language/effects.md#declarations) · [Restricted-build acceptance](wiki/spec/packages/acceptance.md#restricted-build-acceptance) · [Resolver transport](wiki/spec/packages/resolver_security.md#host-routed-network-transport)
 
-<a id="quotient-mere-proposition-evidence"></a>
-### 2. Where does a quotient declaration select the proof that its relation is a mere proposition?
-
-[Quotient formation](wiki/spec/proofs/quotients.md#formation-and-representation) "consumes a carrier family `C`, relation family `R`, and explicitly selected `Equivalence<C,R>`, together with the selected mere-proposition evidence". The declaration syntax selects only the equivalence: `data Sign = Representative % same_sign requires same_sign satisfies Equivalence<Representative, same_sign> as SameSign;`. No library trait states "any two proofs of `R(a, b)` are equal", and nothing in the declaration could name a conformance of one.
-
-It blocks one direction today. The compiler forms the quotient and proves `a as Sign` equal to `b as Sign` from `same_sign(a, b)`; that direction (soundness) holds for any relation. It does not use the other direction, effectivity (equal classes give related representatives), which is the one the evidence protects.
-
-The choices I see: (a) a second selected conformance on the declaration, of a new `core` trait whose one row proves any two proofs of the relation equal; (b) no syntax: the compiler derives the evidence when the relation's formula is an `Identity` at data it can show is a set, and refuses effectivity for any other relation; (c) drop the requirement for relations written as a `proposition`, on the ground that a `proposition` is erased and so already proof-irrelevant, and say so in the specification. I recommend (b) first, because every relation in the recovered corpus is an `Identity` of two computed values, and (a) when a relation that is not one arrives.
-
 <a id="supplying-build-library-bindings"></a>
-### 3. How does an invoker supply an external library to a root Build or to one child Build?
+### 2. How does an invoker supply an external library to a root Build or to one child Build?
 
 A project wants its Build to call a shared topology generator on its first line. A parent may also need to give one child the generator without giving its other children access. What does the invoker write to bind the root’s import alias to a package source? What does the parent write on a particular child’s dependency description to supply that child’s aliases and sources?
 

@@ -179,6 +179,8 @@ visibility, declaration order, or bare exact-requirement satisfiers:
 | Property | Required laws |
 | --- | --- |
 | Equivalence | Reflexivity, symmetry, transitivity. |
+| MereRelation | Any two witnesses of the same relation application are equal. |
+| MereEquivalence | The inherited laws of Equivalence and MereRelation. |
 | Preorder | Reflexivity, transitivity. |
 | Partial order | Preorder and antisymmetry. |
 
@@ -215,11 +217,63 @@ scope, erasure, and trust rules follow [proof contracts](contracts.md).
 
 ## Formation and representation
 
-Formation consumes a carrier family `C`, relation family `R`, and explicitly
-selected `Equivalence<C,R>`, together with the selected mere-proposition evidence
-for the exact relation described above. The quotient's identity includes the
-relation, not the chosen equivalence implementation. Casting an exact carrier
-instance with `as Quotient` is the sole construction route; struct/case literals cannot
+A quotient declaration selects one closed `MereEquivalence<C, R>` conformance.
+Its four laws apply to the same carrier and relation. For example, if `sign`
+classifies representatives, the quotient author selects its laws on the declaration.
+
+```omega
+let same_sign(a: Representative, b: Representative): |core|::Type<0> =
+    |core|::Identity::<Representative>(sign(a), sign(b));
+
+data Sign = Representative % same_sign
+requires same_sign satisfies MereEquivalence<Representative, same_sign> as SameSign;
+```
+
+The core library defines the fourth law using a
+[named mathematical definition](mathematical_bindings.md#named-mathematical-definitions).
+The dependent arrows bind two witnesses of the same relation application.
+
+```omega
+let IsMere<v: |core|::Level>(P: |core|::Type<v>): |core|::Type<v> =
+    (p: P) -> (q: P) -> |core|::Identity::<P>(p, q);
+
+public trait MereRelation<C, R: C -> C -> |core|::Type> {
+    machine proofs_agree(a: C, b: C)
+    ensures IsMere(R(a, b));
+}
+
+public trait MereEquivalence<C, R: C -> C -> |core|::Type>:
+    Equivalence<C, R> + MereRelation<C, R>
+{}
+```
+
+The trait examples elide universe levels. Both parents take the same mathematical
+function `R`. Its result universe is independent of the carrier's universe.
+`Equivalence` still requires only reflexivity, symmetry and transitivity.
+Given closed parent implementations `eqv` and `mere` at the same arguments,
+a library can assemble the four selections using ordinary
+[inherited fields](../language/conformances.md#construction-and-inherited-fields).
+
+```omega
+MereEquivalence {
+    reflexive: eqv.reflexive,
+    symmetric: eqv.symmetric,
+    transitive: eqv.transitive,
+    proofs_agree: mere.proofs_agree,
+}
+```
+
+For `Sign`, the checker must accept the guarantee of the selected
+`proofs_agree(a, b)` as mathematical evidence and apply it to arbitrary
+`p, q: same_sign(a, b)` to obtain `|core|::Identity::<same_sign(a, b)>(p, q)`.
+Reject a conformance proved for a different, definitionally unequal relation
+on the same carrier. Erasure supplies no proof of this law. The law discharges
+the mere-proposition premise of [effectivity](#set-quotient-foundation).
+Effectivity itself still requires its named admission or a checked derivation.
+
+The selected conformance contributes proof dependencies. The relation determines
+the quotient's identity for a given carrier and level application.
+Casting an exact carrier instance with `as Quotient` is the sole construction route; struct/case literals cannot
 construct it directly. Proving `R(a,b)` proves equality of quotient images,
 not identity of the representatives.
 
