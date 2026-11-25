@@ -83,9 +83,13 @@ use crate::known::{Fact, ProofValues, ValueRows, is_branch_fact};
 /// Why no certificate was built. Diagnostic only.
 pub(crate) type Unproven = &'static str;
 
-/// One obligation's case work, shared by all of its recursive searches.
-/// Running out supplies no premise or partial certificate.
-const CASE_BRANCH_BUDGET: usize = 64;
+/// How many arm combinations one obligation's case splits may cover
+/// (`wiki/spec/proofs/contracts.md`, "Case splits": "for up to 64 arm
+/// combinations per obligation"). A goal proved with no split is one
+/// combination; splitting one of them over a `k`-way disjunction adds `k - 1`.
+/// A split that fails gives its combinations back: only a certificate's case
+/// tree spends them. Running out supplies no premise or partial certificate.
+const CASE_COMBINATION_BUDGET: usize = 64;
 
 /// Build the candidate fact's tree with explicit invocation-owned work state.
 /// Opposite-search proof work belongs to its own construction.
@@ -830,8 +834,13 @@ pub(crate) struct Prover<'a> {
     /// Whether a failed goal may split over a disjunctive fact. Guard
     /// contradiction search disables this to avoid re-entering itself.
     case_split: bool,
-    /// Shared with each branch/implication and returned after its search.
-    remaining_case_branches: usize,
+    /// Arm combinations still available to this obligation's case trees,
+    /// beyond the one every goal starts with. Shared with each branch and
+    /// returned after its search; a failed split restores what it took.
+    remaining_case_combinations: usize,
+    /// A split could not start because the obligation's combinations ran
+    /// out. The refusal is then a resource diagnostic, not "no proof".
+    case_combinations_exhausted: bool,
     /// A branch already assumes one alternative of each cut on this path.
     /// Splitting that exact predicate again supplies no new information.
     active_cuts: Vec<ActiveCut>,
@@ -871,6 +880,41 @@ fn collect_term_values(term: &ScalarTerm, out: &mut Vec<ValueId>) {
     for operand in term.operands() {
         collect_term_values(operand, out);
     }
+}
+
+/// The subjects `term` names: "an exact value or place, including a
+/// projection such as `items.length`" (`wiki/spec/proofs/contracts.md`,
+/// "Order reasoning"). A layout query or other application is one subject,
+/// as is a field read; literals name none.
+fn collect_term_subjects(term: &ScalarTerm, out: &mut Vec<ScalarTerm>) {
+    match term {
+        ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_) | ScalarTerm::IeeeFloatLiteral(_) => {
+            return;
+        }
+        ScalarTerm::Value { .. }
+        | ScalarTerm::Application { .. }
+        | ScalarTerm::DeclarationApplication { .. }
+        | ScalarTerm::StructuralRead { .. }
+        | ScalarTerm::BooleanField { .. }
+        | ScalarTerm::IntegerField { .. }
+        | ScalarTerm::IeeeFloatField { .. }
+        | ScalarTerm::ViewExtent { .. }
+        | ScalarTerm::ByteSequencePredicate { .. }
+            if !out.contains(term) =>
+        {
+            out.push(term.clone());
+        }
+        _ => {}
+    }
+    for operand in term.operands() {
+        collect_term_subjects(operand, out);
+    }
+}
+
+fn proposition_subjects(proposition: &Proposition) -> Vec<ScalarTerm> {
+    let mut subjects = Vec::new();
+    proposition.visit_scalar_terms(|term| collect_term_subjects(term, &mut subjects));
+    subjects
 }
 
 fn term_shares_value(term: &ScalarTerm, targets: &[ValueId]) -> bool {
@@ -1282,7 +1326,8 @@ impl<'a> Prover<'a> {
             bounds,
             bound_facts,
             case_split: true,
-            remaining_case_branches: CASE_BRANCH_BUDGET,
+            remaining_case_combinations: CASE_COMBINATION_BUDGET - 1,
+            case_combinations_exhausted: false,
             active_cuts: Vec::new(),
             active_goals: Vec::new(),
             refuting: false,
@@ -1304,6 +1349,116 @@ impl<'a> Prover<'a> {
     fn by_transport(&mut self, goal: &Proposition) -> Option<ProofNode> {
         self.transport_through(goal, false)
             .or_else(|| self.transport_through(goal, true))
+            .or_else(|| self.landed_transport(goal))
+    }
+
+    /// `goal` by `ValueEqualityTransport` through the goal's definitions,
+    /// landing each value whose two literal bounds meet on that literal
+    /// (`wiki/spec/proofs/contracts.md`, "Range propagation": "An operand's
+    /// bounds are the tightest literal bounds order reasoning gives it", and
+    /// order reasoning includes equality substitution). In
+    /// `(prefix - 496) + last` with `prefix` fixed at 496 by its operands'
+    /// requirements, `prefix - 496` lands on 0, so `result <= last` denotes
+    /// `0 + last <= last` without unfolding `prefix`'s 31 summands, which
+    /// would exceed the kernel's predicate depth. Each landing is the
+    /// antisymmetry of the value's two bound certificates, and the kernel
+    /// checks it with the transport. A definition already in the goal's
+    /// closure is used as it stands; nothing is landed without both bounds.
+    fn landed_transport(&mut self, goal: &Proposition) -> Option<ProofNode> {
+        if !matches!(
+            goal,
+            Proposition::LessOrEqual(..) | Proposition::LessThan(..) | Proposition::Equal(..)
+        ) || self.equations.is_empty()
+        {
+            return None;
+        }
+        let mut pending = Vec::new();
+        collect_proposition_values(goal, &mut pending);
+        let mut visited: Vec<ValueId> = Vec::new();
+        let mut equalities: Vec<ProofNode> = Vec::new();
+        let mut landed = false;
+        while let Some(value) = pending.pop() {
+            if visited.contains(&value) {
+                continue;
+            }
+            visited.push(value);
+            let definition = self.definitions.get(value).copied().flatten();
+            let defined_by_literal = definition.is_some_and(|definition| {
+                matches!(
+                    self.facts[self.equations[definition]].proposition(),
+                    Proposition::Equal(_, term) if term.integer_value().is_some()
+                )
+            });
+            if !defined_by_literal
+                && let Some(ScalarType::Integer(integer)) = self.values.scalar_type(value)
+                && let Some(equality) = self.landing_equality(value, integer)
+            {
+                equalities.push(equality);
+                landed = true;
+                continue;
+            }
+            let Some(definition) = definition else {
+                continue;
+            };
+            let fact = &self.facts[self.equations[definition]];
+            let Proposition::Equal(subject, term) = fact.proposition() else {
+                continue;
+            };
+            if !matches!(subject, ScalarTerm::Value { id, .. } if *id == value) {
+                continue;
+            }
+            collect_term_values(term, &mut pending);
+            equalities.push(fact.proof(&self.facts));
+        }
+        if !landed {
+            return None;
+        }
+        let target = check_value_equality_denotation(
+            self.context,
+            goal,
+            equalities.iter().map(|equality| &equality.conclusion),
+        )
+        .ok()?;
+        if target == *goal {
+            return None;
+        }
+        let premise = if target == Proposition::Truth {
+            primitive(Proposition::Truth, PrimitiveJudgment::Truth)
+        } else if let Some(index) = self.exact_fact(&target) {
+            self.facts[index].proof(&self.facts)
+        } else {
+            self.reflexive(target.clone())
+                .or_else(|| self.closed(target.clone()))
+                .or_else(|| self.prove_direct_subgoal(&target).ok())?
+        };
+        Some(node(
+            goal.clone(),
+            ProofRule::ValueEqualityTransport {
+                premise: Box::new(premise),
+                equalities,
+            },
+        ))
+    }
+
+    /// `value == k` when order reasoning bounds `value` by `k` on both
+    /// sides; carrier endpoints alone never land a value.
+    fn landing_equality(&mut self, value: ValueId, integer: IntegerType) -> Option<ProofNode> {
+        let upper = self.bound_literal(value, Direction::Upper)?;
+        let lower = self.bound_literal(value, Direction::Lower)?;
+        if integer.compare(lower, upper) != Some(Ordering::Equal) {
+            return None;
+        }
+        let upper = self.bound(value, Direction::Upper)?;
+        let lower = self.bound(value, Direction::Lower)?;
+        let subject = ScalarTerm::value(value, ScalarType::Integer(integer));
+        let literal = ScalarTerm::integer(integer, upper.literal).ok()?;
+        Some(node(
+            Proposition::Equal(subject, literal),
+            ProofRule::IntegerOrderAntisymmetry {
+                forward: Box::new(upper.proof),
+                backward: Box::new(lower.proof),
+            },
+        ))
     }
 
     fn transport_through(&mut self, goal: &Proposition, arrivals: bool) -> Option<ProofNode> {
@@ -1606,7 +1761,7 @@ impl<'a> Prover<'a> {
             return Ok(split);
         }
         self.unreachable(goal)
-            .ok_or(if self.remaining_case_branches == 0 {
+            .ok_or(if self.case_combinations_exhausted {
                 "the bounded disjunction search was exhausted"
             } else {
                 direct.err().unwrap_or("no proof")
@@ -1849,20 +2004,86 @@ impl<'a> Prover<'a> {
     /// `goal` from a disjunctive fact (a disequality guard transports to
     /// `v < k or k < v`): each alternative either proves the goal as a local
     /// assumption or contradicts what is already known.
+    ///
+    /// Only a disjunction whose atoms share a subject with the goal is split
+    /// (`wiki/spec/proofs/contracts.md`, "Case splits"). A value shares its
+    /// subjects with the operands of its exact definition, so `w <= 92` with
+    /// `w == v + 1` shares `v`. `Falsehood`, owed where nothing may happen,
+    /// has no subject: every disjunction may close it. One that shares a
+    /// value with the goal directly is tried before one that shares it only
+    /// through definitions.
+    ///
+    /// The first candidate is the only one tried. Each arm's own search
+    /// splits every remaining candidate before it gives up, so an arm that
+    /// fails fails in some full combination of the candidates, and no other
+    /// order proves the goal: what an arm assumes only adds premises. The
+    /// exception is running out of combinations, which is reported as such.
     fn split(&mut self, goal: &Proposition) -> Option<ProofNode> {
+        let index = self.split_candidate(goal)?;
+        let Proposition::Disjunction(parts) = self.facts[index].proposition() else {
+            unreachable!("a split candidate is a disjunctive fact");
+        };
+        // A k-way split turns this goal's one combination into k.
+        let Some(remaining) = self
+            .remaining_case_combinations
+            .checked_sub(parts.len().saturating_sub(1))
+        else {
+            self.case_combinations_exhausted = true;
+            return None;
+        };
+        let parts = parts.clone();
+        let before = self.remaining_case_combinations;
+        self.remaining_case_combinations = remaining;
+        self.active_cuts.push(ActiveCut {
+            proposition: self.facts[index].proposition().clone(),
+            origin: self.facts[index].disjunction_origin(&self.facts),
+        });
+        let mut branches = Vec::with_capacity(parts.len());
+        for part in &parts {
+            let Some(branch) = self.branch(part, goal) else {
+                break;
+            };
+            branches.push(branch);
+        }
+        self.active_cuts.pop();
+        if branches.len() != parts.len() {
+            self.remaining_case_combinations = before;
+            return None;
+        }
+        // Failed cuts need no owned derivation of the disjunction. Facts
+        // stay fixed while branches are checked, so expand this exact
+        // selected source only after every alternative has proved the goal.
+        let proof = self.facts[index].proof(&self.facts);
+        #[cfg(test)]
+        {
+            self.activity.disjunction_materializations += 1;
+        }
+        Some(node(
+            goal.clone(),
+            ProofRule::DisjunctionElimination {
+                disjunction: Box::new(proof),
+                branches,
+            },
+        ))
+    }
+
+    /// The disjunctive fact `split` cuts for `goal`, if any.
+    fn split_candidate(&mut self, goal: &Proposition) -> Option<usize> {
         let mut connected_values: Option<Vec<ValueId>> = None;
+        // `None` for `Falsehood`: every disjunction is a candidate.
+        let subjects = (!matches!(goal, Proposition::Falsehood)).then(|| {
+            let direct = proposition_subjects(goal);
+            let closure = self.definition_closure(direct.clone());
+            (direct, closure)
+        });
+        let mut through_definitions = None;
         for index in 0..self.facts.len() {
-            // No branch can start once the shared budget is exhausted. An
-            // active cut likewise supplies no new information. Check both
-            // before expanding its owned proof tree or cloning alternatives.
-            if self.remaining_case_branches == 0 {
-                return None;
-            }
             let fact = &self.facts[index];
             let Proposition::Disjunction(parts) = fact.proposition() else {
                 continue;
             };
             let origin = fact.disjunction_origin(&self.facts);
+            // An active cut supplies no new information.
             if self.active_cuts.iter().any(|active| {
                 &active.proposition == fact.proposition()
                     || origin
@@ -1895,39 +2116,43 @@ impl<'a> Prover<'a> {
                     continue;
                 }
             }
-            let parts = parts.clone();
-            self.active_cuts.push(ActiveCut {
-                proposition: fact.proposition().clone(),
-                origin,
-            });
-            let mut branches = Vec::with_capacity(parts.len());
-            for part in &parts {
-                let Some(branch) = self.branch(part, goal) else {
-                    break;
-                };
-                branches.push(branch);
+            let Some((direct, closure)) = &subjects else {
+                return Some(index);
+            };
+            let atoms = proposition_subjects(fact.proposition());
+            if atoms.iter().any(|subject| direct.contains(subject)) {
+                return Some(index);
             }
-            self.active_cuts.pop();
-            if branches.len() != parts.len() {
+            if through_definitions.is_none()
+                && self
+                    .definition_closure(atoms)
+                    .iter()
+                    .any(|subject| closure.contains(subject))
+            {
+                through_definitions = Some(index);
+            }
+        }
+        through_definitions
+    }
+
+    /// `subjects` and, transitively, the subjects of each value's exact
+    /// definition.
+    fn definition_closure(&self, mut pending: Vec<ScalarTerm>) -> Vec<ScalarTerm> {
+        let mut closure = Vec::with_capacity(pending.len());
+        while let Some(subject) = pending.pop() {
+            if closure.contains(&subject) {
                 continue;
             }
-            // Failed cuts need no owned derivation of the disjunction. Facts
-            // stay fixed while branches are checked, so expand this exact
-            // selected source only after every alternative has proved the goal.
-            let proof = self.facts[index].proof(&self.facts);
-            #[cfg(test)]
+            if let ScalarTerm::Value { id, .. } = subject
+                && let Some(&Some(definition)) = self.definitions.get(id)
+                && let Proposition::Equal(_, term) =
+                    self.facts[self.equations[definition]].proposition()
             {
-                self.activity.disjunction_materializations += 1;
+                collect_term_subjects(term, &mut pending);
             }
-            return Some(node(
-                goal.clone(),
-                ProofRule::DisjunctionElimination {
-                    disjunction: Box::new(proof),
-                    branches,
-                },
-            ));
+            closure.push(subject);
         }
-        None
+        closure
     }
 
     /// Collects every `ValueId` referenced by `goal` or by any fact in
@@ -1988,7 +2213,6 @@ impl<'a> Prover<'a> {
 
     /// One alternative: the kernel adds it as the next assumption.
     fn branch(&mut self, part: &Proposition, goal: &Proposition) -> Option<ProofNode> {
-        self.remaining_case_branches = self.remaining_case_branches.checked_sub(1)?;
         if order_with_closed_endpoint(part).is_some() {
             let local = node(
                 part.clone(),
@@ -2019,13 +2243,15 @@ impl<'a> Prover<'a> {
             Some((&self.facts, &self.normalized_premises)),
         );
         branch.case_split = self.case_split;
-        branch.remaining_case_branches = self.remaining_case_branches;
+        branch.remaining_case_combinations = self.remaining_case_combinations;
+        branch.case_combinations_exhausted = self.case_combinations_exhausted;
         // The parent resumes after this branch. Nested cuts are popped by
         // split on both a successful proof and a failed alternative.
         branch.active_cuts = std::mem::take(&mut self.active_cuts);
         let proof = branch.prove(goal);
         self.active_cuts = branch.active_cuts;
-        self.remaining_case_branches = branch.remaining_case_branches;
+        self.remaining_case_combinations = branch.remaining_case_combinations;
+        self.case_combinations_exhausted = branch.case_combinations_exhausted;
         proof
     }
 

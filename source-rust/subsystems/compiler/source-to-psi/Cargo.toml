@@ -237,6 +237,11 @@ path = "pipeline/06_lowered-program-to-checked-program/tests/cast_edges.rs"
 required-features = ["test-support"]
 
 [[test]]
+name = "checking_required_floor"
+path = "pipeline/06_lowered-program-to-checked-program/tests/required_floor.rs"
+required-features = ["test-support"]
+
+[[test]]
 name = "checking_dominance"
 path = "pipeline/06_lowered-program-to-checked-program/tests/dominance.rs"
 required-features = ["test-support"]

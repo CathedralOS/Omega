@@ -1179,7 +1179,15 @@ kernel's correlated unsigned subtract. A goal the direct search misses is
 split over a disjunctive fact (a disequality guard transports to `v < k or
 k < v`): each alternative proves the goal as a local assumption or
 contradicts what is known (`DisjunctionElimination`, contradiction
-elimination). Splits do not nest. An implication, the goal at a call that
+elimination). Only a disjunction whose atoms share a subject with the goal
+is split ([case splits](../../../../../../wiki/spec/proofs/contracts.md#required-automatic-discharge)):
+a value, a field read or an application such as `size_of::<u32>()`, where a
+value also shares the subjects of its exact definition. `Falsehood` names no
+subject, and any disjunction may close it. An arm's own search splits the
+remaining candidates, so the first candidate is the only one tried: an arm
+that fails fails in a full combination. One obligation's case trees cover at
+most 64 arm combinations; a split that fails gives back what it took, and
+running out is reported as exhausted search. An implication, the goal at a call that
 may crash, is proved by assuming its premise and proving its conclusion
 (`ImplicationIntroduction`): under a callee's route `d == 0`, the caller's
 `requires d != 0` (`d < 0 or 0 < d`) splits into two contradictions, and
@@ -1284,18 +1292,24 @@ quotient or a right shift, so those stay unreached.
 - *A relation through a multiply.* `value * value >= value` for
   `value >= 1`; beyond the floor, which propagates ranges only
   (`pass/arithmetic/nonlinear_square_positive_operand_exit`).
-- *An operand fixed by its bounds, used as a literal.* `(prefix - 360) + last`
-  with `prefix` proved to be exactly 360 equals `last`, and no rule says
-  so: the endpoint chain lands an operand only on an earlier result
-  equation `value == literal`, never on an equality proved from bounds,
-  order translation concludes `a + t <= b + t` and nothing rewrites
-  `0 + last` to `last`, and `IntegerAddOrder` needs a strictly positive
-  increment. It would take a landing on a proved equality, or `0 + x == x`
-  over mathematical integers. These goals name only add and subtract, so
-  they still reject (`pass/facts/nine_arg_stack_calling_plan_through_local_exit`
-  and the `register_stack_arg` and `thirtytwo_arg` families, 15 programs).
-  The same gap is why a quotient or right shift by `divisor >= 3 &&
-  divisor <= 3` is unreached.
+- *A quotient or right shift by an operand fixed by its bounds.* The
+  endpoint chain lands a divisor or count only on an earlier result
+  equation `value == literal`, so a quotient or right shift by
+  `divisor >= 3 && divisor <= 3` is unreached. Transport lands such an
+  operand (below), but the chain does not consult it.
+
+A value whose two literal bounds meet is that literal ("An operand's bounds
+are the tightest literal bounds order reasoning gives it"), and transport
+uses it as one. When transport through a goal's definitions fails,
+`landed_transport` walks the same definitions and stops at each value whose
+bounds meet, replacing its definition by `value == k`, which is the
+`IntegerOrderAntisymmetry` of its two bound certificates. In
+`(prefix - 496) + a32` with each of `prefix`'s 31 summands fixed by a
+requirement, `prefix - 496` lands on 0, so `result <= a32` denotes
+`0 + a32 <= a32`. Unfolding `prefix` instead exceeds the kernel's predicate
+depth of 64 (`samples/cli/facts/thirtytwo_arg_stack_calling_plan`). The kernel
+evaluates what landing closes, including an exclusive or of a landed
+operand.
 
 ## Why this route and not the arithmetic engine
 

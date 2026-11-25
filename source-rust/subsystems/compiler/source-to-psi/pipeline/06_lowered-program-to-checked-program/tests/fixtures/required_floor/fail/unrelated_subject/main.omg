@@ -1,0 +1,10 @@
+// The positive twin subtracting from `y`. The disjunction over `x` shares no
+// subject with `10 <= y`, so the floor does not split it, and nothing else
+// proves `10 <= y`: the checker rejects `y - 10u64`.
+machine narrow(x: u64, y: u64) -> u64
+requires (x < 3u64 || x > 5u64) && x >= 3u64 && x <= 5u64
+{
+    y - 10u64
+}
+
+machine main() {}

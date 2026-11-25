@@ -63,10 +63,26 @@ fn headroom_of(limit: u128, operation: Strict, operand: Expression) -> Machine {
 
 #[test]
 fn a_goal_on_an_exclusive_or_is_incomplete() {
-    // 59 ^ 15 is 52, so the subtraction is safe, and no rule says so.
-    let unproved =
-        incomplete(lower(vec![headroom_of(63, Strict::BitwiseXor, unsigned(15))]).unwrap());
+    // `value ^ 15` with `value` in 48..=63 stays in 48..=63, so the
+    // subtraction is safe, and no rule bounds an exclusive or.
+    let ranged = Machine {
+        requires: vec![at_most(1, 63), at_least(1, 48)],
+        ..headroom_of(63, Strict::BitwiseXor, unsigned(15))
+    };
+    let unproved = incomplete(lower(vec![ranged]).unwrap());
     assert!(unproved.iter().all(|row| safety(&row.kind)));
+}
+
+#[test]
+fn an_exclusive_or_of_an_operand_fixed_by_its_bounds_is_evaluated() {
+    // `59 <= value <= 59` lands `value` on 59, and the kernel evaluates the
+    // closed `59 ^ 15` as 52 (`wiki/spec/proofs/contracts.md`, "Range
+    // propagation": "the tightest literal bounds order reasoning gives it").
+    let fixed = lower(vec![headroom_of(63, Strict::BitwiseXor, unsigned(15))]).unwrap();
+    assert!(matches!(
+        judge(Ok(fixed)).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
 }
 
 #[test]
