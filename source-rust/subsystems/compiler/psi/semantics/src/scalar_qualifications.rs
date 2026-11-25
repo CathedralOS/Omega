@@ -1158,8 +1158,6 @@ pub fn validate_for_bodies(
                     "scalar coercion domain is absent",
                 ),
             )?;
-            let membership =
-                membership_facts.scalar_on_edge(module, machine.id, coercion.edge, source.id, *id);
             if source_domains.contains(id) {
                 continue;
             }
@@ -1200,9 +1198,15 @@ pub fn validate_for_bodies(
                     "scalar coercion has no retained checked establishment completion",
                 );
             };
-            if membership == Some(false)
-                && destination.scalar_type == domain.carrier
+            if destination.scalar_type == domain.carrier
                 && completion.origins.as_slice() == [ScalarReturnOrigin::Forwarded]
+                && membership_facts.scalar_on_edge(
+                    module,
+                    machine.id,
+                    coercion.edge,
+                    source.id,
+                    *id,
+                ) == Some(false)
                 && domain
                     .establishment_routes
                     .as_deref()
