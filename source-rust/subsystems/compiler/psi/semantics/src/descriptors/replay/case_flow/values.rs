@@ -255,7 +255,9 @@ impl Storage {
         };
         self.case_types.contains(&source_type)
             && location_type(replay, machine, destination) == Some(source_type)
-            && find_structural_type(replay.types, source_type)
+            && replay
+                .type_index
+                .find(source_type)
                 .is_some_and(|row| row.is_copyable())
     }
 }
@@ -265,7 +267,7 @@ fn location_type(
     machine: &DescriptorMachine,
     location: &DescriptorLocation,
 ) -> Option<StructuralTypeId> {
-    machine.location_type(replay.types, location, None)
+    machine.location_type_indexed(&replay.type_index, location, None)
 }
 
 pub(crate) fn transported_subject(
@@ -359,7 +361,7 @@ fn ordinary_type(
     {
         return false;
     }
-    let Some(declaration) = find_structural_type(replay.types, structural_type) else {
+    let Some(declaration) = replay.type_index.find(structural_type) else {
         return false;
     };
     let mut child =
