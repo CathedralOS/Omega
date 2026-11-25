@@ -177,16 +177,45 @@ pub(super) struct MathematicalInputs {
 }
 
 impl MathematicalInputs {
+    #[cfg(test)]
     pub(super) fn new(
         typed: &TypedTrees,
         machine: MachineId,
         parameters: arena::RootRows<'_, crate::source_state::mathematical::MathematicalParameter>,
         address: MathematicalAddressContext<'_>,
     ) -> Checked<Self> {
+        Self::with_binders(typed, machine, &[], parameters, address)
+    }
+
+    /// The inputs of a definition with value binders
+    /// (`let below<Limit: u64>(value: u64)`): each binder is a leading
+    /// scalar input, before the ordinary formals, as a call supplies it from
+    /// its static arguments (mathematical_bindings.md, "Generic arguments are
+    /// resolved first under their own binder rules").
+    pub(super) fn with_binders(
+        typed: &TypedTrees,
+        machine: MachineId,
+        binders: &[(SymbolHandle, ScalarType)],
+        parameters: arena::RootRows<'_, crate::source_state::mathematical::MathematicalParameter>,
+        address: MathematicalAddressContext<'_>,
+    ) -> Checked<Self> {
         let mut inputs = Inputs::default();
         let member_arena = Arena::new();
         let mut type_arguments = Vec::new();
+        for (ordinal, &(symbol, scalar)) in binders.iter().enumerate() {
+            inputs.leaves.push(Leaf {
+                path: SymbolPath {
+                    root: symbol,
+                    members: HandleSpan::empty(),
+                },
+                scalar,
+                origin: ordinal,
+                reference: None,
+            });
+        }
+        let leading = binders.len();
         for (ordinal, parameter) in parameters.iter().enumerate() {
+            let ordinal = leading + ordinal;
             if !typed.symbols.symbols().nodes().is_valid(parameter.symbol)
                 || !typed.mathematical_types.is_valid(parameter.ty)
             {

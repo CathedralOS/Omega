@@ -344,3 +344,61 @@ fn a_transparent_definition_reads_anonymous_arithmetic_as_an_exact_integer() {
         "{unproved:?}",
     );
 }
+
+/// A transparent definition may take value binders, which a use writes as
+/// static arguments: mathematical_bindings.md, "Generic arguments are
+/// resolved first under their own binder rules". `below::<10>(value)`
+/// unfolds to `value < 10`, which proves `result < 10`. The twin promises
+/// `result < 9`, one input apart, and its guarantee is unproved.
+#[test]
+fn a_transparent_definition_takes_a_value_binder_from_its_static_argument() {
+    const BELOW: &str =
+        include_str!("../../tests/fixtures/transparent_definition/pass/value_binder/build.omg");
+    const TOO_TIGHT: &str = include_str!(
+        "../../tests/fixtures/transparent_definition/fail/value_binder_too_tight/build.omg"
+    );
+    let body = |source: &str| {
+        source
+            .lines()
+            .filter(|line| !line.starts_with("//"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    assert_eq!(
+        body(TOO_TIGHT),
+        body(BELOW).replace("ensures result < 10", "ensures result < 9")
+    );
+    assert_eq!(verdict(BELOW), "accepted");
+    let unproved = match judge_build(TOO_TIGHT) {
+        Ok(RouteVerdict::Incomplete(unproved)) | Ok(RouteVerdict::Rejected { unproved, .. }) => {
+            unproved
+        }
+        other => panic!("a guarantee past the binder's bound must be unproved: {other:?}"),
+    };
+    assert!(
+        unproved.iter().any(|failure| failure
+            .statement
+            .starts_with("cannot prove ensures contract for exit from check")),
+        "{unproved:?}",
+    );
+    // A machine's own binder stands for its input in the definition's.
+    assert_eq!(
+        verdict(
+            "let below<Limit: u64>(value: u64): core\\Strict<0> = value < Limit;
+machine check<Bound: u64>(value: u64) -> u64 requires below::<Bound>(value) && Bound <= 10
+ensures result < 10 { value }
+machine build_entry() { let checked: u64 = check::<10>(3); }"
+        ),
+        "accepted"
+    );
+    // A binder of a type has no scalar carrier, so it is no value binder
+    // and stays refused where its carrier is read.
+    assert_eq!(
+        verdict(
+            "let holds<T: core\\Type<0>>(value: u64): core\\Strict<0> = value < 10;
+machine check(value: u64) -> u64 requires holds::<u64>(value) { value }
+machine build_entry() { let checked: u64 = check(3); }"
+        ),
+        "type generic application while reading the signature of `check`"
+    );
+}

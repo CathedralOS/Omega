@@ -140,19 +140,39 @@ impl<'t> Program<'t> {
         // A definition typing could not finish holds a deferred request
         // (`crate::source_state::deferred_refusals`); its body is never read through.
         self.served(id, definition.symbol)?;
-        if !definition.binders.is_empty()
-            || call.receiver.is_valid()
-            || !call.machine_arguments.is_empty()
-            || !call.evidence_arguments.is_empty()
-        {
+        if call.receiver.is_valid() || !call.evidence_arguments.is_empty() {
             return Err(unserved("open mathematical premise application"));
         }
-        self.applies_nothing(
-            id,
-            call.target_symbol,
-            call.authored_machine_application,
-            &call.machine_arguments,
-        )?;
+        // Each value binder stands for the static argument the call writes
+        // for it, which is bound before the ordinary formals.
+        let binders = self.definition_value_binders(id, definition)?;
+        let mut bound = if binders.is_empty() {
+            if !call.machine_arguments.is_empty() {
+                return Err(unserved("open mathematical premise application"));
+            }
+            self.applies_nothing(
+                id,
+                call.target_symbol,
+                call.authored_machine_application,
+                &call.machine_arguments,
+            )?;
+            Vec::new()
+        } else {
+            if call.machine_arguments.len() != binders.len() {
+                return Err(unserved(
+                    "mathematical premise without an argument for each binder",
+                ));
+            }
+            // A definition's application keeps no binding tuple: each
+            // argument is the binder's in written order, read as any static
+            // value at its carrier; a binder of the machine being read
+            // stands for its input (`bound_scalar_value`).
+            let mut bound = Vec::with_capacity(binders.len());
+            for (&(symbol, scalar), argument) in binders.iter().zip(&call.machine_arguments) {
+                bound.push((symbol, self.bound_scalar_value(id, scalar, argument, true)?));
+            }
+            bound
+        };
         self.direct_selection(
             id,
             call.target_symbol,
@@ -187,7 +207,7 @@ impl<'t> Program<'t> {
         {
             return Err(unserved("mathematical premise argument correspondence"));
         }
-        let mut bound = Vec::with_capacity(parameters.len());
+        bound.reserve(parameters.len());
         let mut actual_inputs = MathematicalInputs::empty();
         for (parameter, argument) in parameters.iter().zip(arguments) {
             if !self.typed.mathematical_types.is_valid(parameter.ty) {
@@ -327,9 +347,7 @@ impl<'t> Program<'t> {
         {
             return Err(unserved("mathematical predicate has no exact declaration"));
         }
-        if !definition.binders.is_empty() {
-            return Err(unserved("open mathematical predicate declaration"));
-        }
+        let binders = self.definition_value_binders(id, definition)?;
         let parameters = self.typed.mathematical_parameters(definition.parameters);
         if parameters.len() != definition.parameters.len() {
             return Err(unserved("mathematical predicate formal correspondence"));
@@ -347,9 +365,11 @@ impl<'t> Program<'t> {
         }
         let mut expanding = expanding.to_vec();
         expanding.push(definition.symbol);
-        // This environment has only declaration formals. Actual argument terms
-        // enter later by exact symbol substitution, without caller assumptions.
-        let formal_inputs = MathematicalInputs::new(self.typed, id, parameters, address)?;
+        // This environment has only the declaration's value binders and
+        // formals. Actual argument terms enter later by exact symbol
+        // substitution, without caller assumptions.
+        let formal_inputs =
+            MathematicalInputs::with_binders(self.typed, id, &binders, parameters, address)?;
         let declaration_scope = ClauseScope {
             slots: &[],
             values: &[],
@@ -387,6 +407,43 @@ impl<'t> Program<'t> {
             });
         }
         Ok(expression)
+    }
+
+    /// The value binders of a definition, each with its scalar carrier, in
+    /// declared order. A binder of a type or a level is refused, and so is
+    /// a definition with binders that also takes an erased type formal,
+    /// whose formal ordinal would no longer be its position.
+    fn definition_value_binders(
+        &self,
+        id: MachineId,
+        definition: &MathematicalDefinition,
+    ) -> Checked<Vec<(SymbolHandle, semantic_vocabulary::ScalarType)>> {
+        use crate::source_state::data::TypeParameterKind;
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let typed = self.typed;
+        let declared = typed.data_type_parameters.span_or_empty(definition.binders);
+        let mut binders = Vec::with_capacity(declared.len());
+        for binder in declared.iter() {
+            let (TypeParameterKind::Value { type_reference }
+            | TypeParameterKind::Const { type_reference }) = binder.kind
+            else {
+                return Err(unserved(
+                    "open mathematical predicate declaration over a type or level binder",
+                ));
+            };
+            binders.push((binder.symbol, self.scalar_type(id, type_reference)?));
+        }
+        if !binders.is_empty()
+            && typed
+                .mathematical_parameters(definition.parameters)
+                .iter()
+                .any(|parameter| parameter.relevance == language_core::BindingRelevance::Erased)
+        {
+            return Err(unserved(
+                "open mathematical predicate declaration with an erased formal",
+            ));
+        }
+        Ok(binders)
     }
 
     fn predicate_result(
