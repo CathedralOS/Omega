@@ -392,6 +392,30 @@ impl<'a> DescriptorAnalysis<'a> {
             flows: Vec::new(),
         }
     }
+    /// Replay each callee once per module: take summaries this module's
+    /// other analyses completed and publish the ones this analysis
+    /// completes. `nominal_calls` are the ones this analysis's rows were
+    /// built with. Returns whether these rows can share the table. An
+    /// analysis that has already replayed anything keeps only its own.
+    pub fn share_summaries(
+        &mut self,
+        summaries: &'a super::ModuleSummaries<'a>,
+        nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
+    ) -> bool {
+        let shares = self.replay.summaries.is_empty()
+            && self.replay.snapshots.is_empty()
+            && summaries.serves(
+                self.replay.types,
+                self.replay.slot_kind,
+                self.replay.machines,
+                nominal_calls,
+            );
+        if shares {
+            self.replay.shared = Some(summaries);
+        }
+        shares
+    }
+
     pub fn with_access_origins(
         types: &'a [StructuralTypeDeclaration],
         machines: &'a [DescriptorMachine],

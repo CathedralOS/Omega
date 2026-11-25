@@ -150,6 +150,9 @@ fn describe_calls(
         id,
         &mut tables,
         inhabitation,
+        // Inference adds entry requirements between machines, so a summary
+        // replayed for one machine may not describe the module the next sees.
+        None,
         |prepared, tables| {
             describe_arrivals(
                 prepared,

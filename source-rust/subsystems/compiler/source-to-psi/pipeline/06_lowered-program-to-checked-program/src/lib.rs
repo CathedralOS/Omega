@@ -621,6 +621,12 @@ pub(crate) fn discharge_inner(
     let empty_contracts = terminal_semantics::inhabitation::TerminalContracts::new(
         module.types.structural_types.iter(),
     );
+    // Each machine's borrowed-storage replay reaches the same callees; the
+    // module replays each of them once for all its machines.
+    let summaries = terminal_semantics::descriptor_results::ModuleSummaries::borrowed_storage(
+        module,
+        formed.nominal_calls(),
+    );
     let machines =
         machine_batch::check(&mut checking.machines, activity, |id, tables, activity| {
             // A requirement has a contract and no body, so nothing about it is
@@ -663,6 +669,7 @@ pub(crate) fn discharge_inner(
                 &law_instances,
                 proved,
                 &empty_contracts,
+                &summaries,
                 borrow_ends,
                 activity,
             )
@@ -777,6 +784,7 @@ fn machine(
     law_instances: &[MachineId],
     proved: &[(MachineId, &laws::LawJudgment)],
     empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
+    summaries: &terminal_semantics::descriptor_results::ModuleSummaries<'_>,
     borrow_ends: Option<&[(EdgeId, PlaceId)]>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<MachineDischarge> {
@@ -796,6 +804,7 @@ fn machine(
         id,
         tables,
         inhabitation,
+        Some(summaries),
         |prepared, tables| {
             check_prepared_machine(
                 prepared,
@@ -1584,8 +1593,10 @@ pub(crate) fn prepare_with_inhabitation(
     tables: &mut MachineTables,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
 ) -> Checked<Prepared> {
-    with_prepared_machine(formed, domains, id, tables, inhabitation, |_, _| Ok(()))
-        .map(|(prepared, ())| prepared)
+    with_prepared_machine(formed, domains, id, tables, inhabitation, None, |_, _| {
+        Ok(())
+    })
+    .map(|(prepared, ())| prepared)
 }
 
 /// Keep analysis within one invocation while a caller checks the prepared
@@ -1596,6 +1607,7 @@ fn with_prepared_machine<Outcome>(
     id: MachineId,
     tables: &mut MachineTables,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+    summaries: Option<&terminal_semantics::descriptor_results::ModuleSummaries<'_>>,
     check: impl FnOnce(PreparedMachine<'_, '_>, &mut MachineTables) -> Checked<Outcome>,
 ) -> Checked<(Prepared, Outcome)> {
     let module = formed.source();
@@ -1621,6 +1633,11 @@ fn with_prepared_machine<Outcome>(
                 &module.types.structural_types,
                 &reference_graph,
             );
+        // The graph is this module's closure with its nominal calls, which
+        // is what the module's shared summaries were replayed from.
+        if let Some(summaries) = summaries {
+            references.share_summaries(summaries, formed.nominal_calls());
+        }
         let storage = places::Storage::new(
             id,
             lowered,

@@ -92,7 +92,7 @@ pub use invocation::{
 pub use replay::{
     DescriptorAnalysis, DescriptorResultContents, DescriptorSlotInventory, DescriptorSlotKind,
     DescriptorSourceObservation, DescriptorSourceObservations, DescriptorStoredCallEffect,
-    DescriptorStoredEffect, DescriptorStoredOrigin, UnknownContentsKind,
+    DescriptorStoredEffect, DescriptorStoredOrigin, ModuleSummaries, UnknownContentsKind,
     UnknownDescriptorContents, descriptor_slot_inventory, descriptor_slots,
     reconstruct_source_origins, reconstruct_stored_effects,
 };

@@ -17,11 +17,13 @@ pub(crate) mod case_flow;
 pub(crate) mod contents_queries;
 pub(crate) mod dispatch;
 pub(crate) mod engine;
+pub(crate) mod module_summaries;
 pub(crate) mod provider;
 pub(crate) mod summary_interface;
 use crate::runtime_structural_path_tip;
 pub use analysis::{DescriptorAnalysis, DescriptorSourceObservation, DescriptorSourceObservations};
 use engine::Replay;
+pub use module_summaries::ModuleSummaries;
 use terminal_psi::find_structural_type;
 
 /// Known reference origins and opaque value contents have different roles.
