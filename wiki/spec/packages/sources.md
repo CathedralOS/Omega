@@ -1,5 +1,11 @@
 # Package source selection
 
+[Staged package inputs](staged_inputs.md) defines the proposed driver handoff.
+The Git and local sections below describe source verification and custody shared
+with the bundled resolver library. References to locked selection and updates
+describe version 4. In the source-based workflow an ordinary Git declaration
+selects the commit and can carry a separate update reference.
+
 [Build declarations](../build/declarations.md) define package keys and
 interpreted dependency requests. [Acceptance](acceptance.md) is separate from
 source resolution. A resolver supplies immutable source custody, not approval of

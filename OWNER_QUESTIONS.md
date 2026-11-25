@@ -65,11 +65,15 @@ it instantiates. A reviewer verifies those citations before the framing.
 ## Open questions
 
 <a id="supplying-build-library-bindings"></a>
-### 1. Which external libraries does a Build need for its own computation, and how should its caller supply them?
+### 1. Which binding does a middle Build forward, and how does the caller admit it?
 
-Generators run in an earlier stage and hand files to the next Build through its supplied filesystem. Local helpers already use ordinary file imports. What concrete Build needs a separately supplied library to execute its own code? For that case, what should the root invoker write, and how should a parent bind an alias for just one child?
-
-The current spec assigns bindings to the invoker or parent before the Build starts. Package installation names an alias but does not specify these per-invocation inputs. [Dependency declarations and binding](wiki/spec/build/scoped_execution.md#dependency-declarations-and-binding) · [Command vocabulary](wiki/spec/build/command_line.md#command-vocabulary)
+The [staged package input draft](wiki/spec/packages/staged_inputs.md) records
+the preparing-stage proposal, source pins and consumer reach ceilings. For
+A → B → C, what typed value lets B forward the exact package it received
+without resolving it again? Which caller-owned inputs replace version 4
+acceptance for restricted operations and foreign assumptions? The draft also
+identifies unresolved ceiling defaults and CLI stage selection.
+[Decisions for review](wiki/spec/packages/staged_inputs.md#remaining-design-decisions)
 
 <a id="vacant-storage-boundary-calls"></a>
 ### 2. May a boundary call run while an owned value is moved out of borrowed storage?

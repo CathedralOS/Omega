@@ -1,5 +1,10 @@
 # Compiler-derived package review
 
+The proposed [source-based update workflow](staged_inputs.md#installing-and-updating)
+can report current reach without a stored baseline. The comparisons with
+accepted lock rows below describe version 4. A missing old result leaves the
+change unknown. Candidate admission still checks the actual constraints.
+
 [Acceptance](acceptance.md) owns the project's decisions and transaction.
 This contract defines the facts presented for that decision, not a second
 acceptance authority or an executable package format.

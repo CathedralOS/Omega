@@ -1,5 +1,12 @@
 # Package acceptance
 
+For [staged package inputs](staged_inputs.md), install and update edit
+source and the compiler checks each consumer's reach ceiling. Optional review
+can inspect candidate findings. The lock comparisons and declaration/lock
+transaction below describe the version 4 path during migration. Its authority
+checks for restricted execution and assumed bindings apply independently of
+where the caller retains its decisions.
+
 The package service resolves and installs source dependencies, checks their
 complete supported graph, and compares compiler-derived authority and assumptions
 with project acceptance. Fresh audit also exposes the complete public API and

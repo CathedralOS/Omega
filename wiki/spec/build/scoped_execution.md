@@ -69,6 +69,11 @@ or evidence systems:
 
 ## Dependency declarations and binding
 
+The [staged package input contract](../packages/staged_inputs.md#from-source-to-the-next-stage)
+describes how a project's preparing stage supplies libraries to a successor
+Build and how an ordinary product registration differs. Stages use the same
+fixed-import and filesystem rules as other compilations.
+
 The invoker supplies the external package bindings for the root Build. A parent
 supplies the bindings for each child Build when configuring the child's request.
 Each child gets its own scope. Supplying a library grants no host access and

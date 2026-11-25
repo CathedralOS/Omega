@@ -1,6 +1,6 @@
 # Which inputs belong to a Build?
 
-A release program, its interpreted Build, its product and each dependency Build have separate authority. The [program launch contract](../../spec/build/program_launch.md) settles host tool access. The remaining question here concerns [external library bindings](../../../OWNER_QUESTIONS.md#supplying-build-library-bindings).
+A release program, its interpreted Build, its product and each dependency Build have separate authority. The [program launch contract](../../spec/build/program_launch.md) settles host tool access. The [staged package input draft](../../spec/packages/staged_inputs.md) gives the proposed library handoff and identifies the remaining decisions.
 
 ## A library for whom?
 

@@ -389,7 +389,9 @@ search for undeclared build files. Source kinds are extensible; Git is not the
 semantic definition of a source. There is no independent package version field:
 the exact resolved source supplies instance identity.
 
-The workspace owns its lock; dependency locks do not pin the consumer's graph.
+Under [staged package inputs](../packages/staged_inputs.md), each package
+authors its direct requests. Workspace membership supplies no pins or approvals.
+In the version 4 workflow the workspace owns its lock and dependency locks do not pin the consumer's graph.
 Membership does not merge acceptance across roots. A multi-root workspace lock
 must retain each root's source closure, target sections and acceptance separately;
 neither catalog membership nor another root's acceptance can fill missing state.

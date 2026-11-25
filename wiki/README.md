@@ -170,7 +170,8 @@ public spellings.
   [hardware materialization](spec/build/hardware_materialization.md), and
   [executable installation](spec/build/executable_installation.md).
 - Packages: [source selection](spec/packages/sources.md),
-  [project locks](spec/packages/locks.md),
+  [staged package inputs](spec/packages/staged_inputs.md),
+  [version 4 project locks](spec/packages/locks.md),
   [declaration and carried-type boundaries](spec/packages/boundaries.md),
   [core and ordinary libraries](spec/packages/toolchain.md),
   [compiler-derived review](spec/packages/review.md),

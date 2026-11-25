@@ -128,7 +128,21 @@ project-build library can request the same builds directly. Each producer's
 own `build.omg` still describes that one project.
 [Releases with independent products](../spec/build/declarations.md#releases-with-independent-products)
 
-## Install and update
+## Building from a revision in source
+
+In the proposed staged workflow a project pins each direct Git dependency in
+its own Omega source. Building the project alone or as a dependency uses the
+same entry. A cached copy of that exact revision can satisfy an offline build.
+Use an extra stage when the Build itself imports the library. A product-only
+dependency needs the ordinary registration.
+
+For example, a Git declaration for `board` can follow the `stable` branch for
+updates and still build from yesterday's exact commit. Installing `board`
+again keeps that commit. Updating it proposes changing the commit literal.
+A custom revision calculation stays editable by the author.
+[Complete board example and command behavior](../spec/packages/staged_inputs.md)
+
+## Version 4 install and update
 
 ```text
 omega packages install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>]
