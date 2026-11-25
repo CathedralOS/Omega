@@ -3,7 +3,7 @@
 //! Allocate them after lowering so exact-place order is independent of when a
 //! body or a callee's clause first demands the leaf.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use arena::NumericId;
 use semantic_vocabulary::{
@@ -100,13 +100,23 @@ impl Lowering<'_> {
         result: Option<PlaceId>,
         argument_types: &[Option<(StructuralTypeId, StructuralTypeId)>],
     ) -> Checked<()> {
-        for Observation {
-            root,
-            mut path,
-            extent,
-            scalar_type,
-        } in Observation::in_clause(clause)
-        {
+        self.name_observations(
+            &Observation::in_clause(clause),
+            bindings,
+            result,
+            argument_types,
+        )
+    }
+
+    fn name_observations(
+        &mut self,
+        observations: &[Observation],
+        bindings: &[(PlaceId, ExactPlaceId)],
+        result: Option<PlaceId>,
+        argument_types: &[Option<(StructuralTypeId, StructuralTypeId)>],
+    ) -> Checked<()> {
+        for observation in observations {
+            let root = observation.root;
             // The declared output is not an invocation input. Its actual
             // returned storage is observed at the exit, not named as an
             // entry snapshot of an unavailable result.
@@ -120,28 +130,32 @@ impl Lowering<'_> {
             else {
                 return Err(self.internal("a contract observation has no structural subject"));
             };
-            if let Some(Some((formal_type, actual_type))) = argument_types.get(position)
+            let translated;
+            let path = if let Some(Some((formal_type, actual_type))) = argument_types.get(position)
                 && formal_type != actual_type
             {
-                path = terminal_semantics::call_projection::translate(
+                translated = terminal_semantics::call_projection::translate(
                     self.structural_types,
                     *formal_type,
                     *actual_type,
-                    &path,
+                    &observation.path,
                 )
                 .ok_or_else(|| {
                     self.internal(
                         "a call contract projection is absent from the actual storage type",
                     )
                 })?;
-            }
-            for segment in path {
+                &translated
+            } else {
+                &observation.path
+            };
+            for &segment in path {
                 leaf = self.project(leaf, projection(segment))?;
             }
-            if extent {
+            if observation.extent {
                 leaf = self.project(leaf, Segment::Extent)?;
             }
-            self.initial_content(leaf, scalar_type)?;
+            self.initial_content(leaf, observation.scalar_type)?;
         }
         Ok(())
     }
@@ -156,45 +170,59 @@ impl Lowering<'_> {
     ) -> Checked<()> {
         use terminal_semantics::structural_qualifications::DefaultRequirements;
 
-        let inventory = {
+        let (inventory, clauses) = {
             let requirements =
                 DefaultRequirements::new(types, &self.qualifications.structural, machine)
                     .map_err(|error| self.internal(error.detail))?;
-            let mut inventory = Vec::new();
-            for required in requirements
+            let declared = requirements
                 .declared()
-                .map_err(|error| self.internal(error.detail))?
-            {
-                let (_, root_type) = self
-                    .roots
-                    .get(required.root)
-                    .ok_or_else(|| self.internal("a default clause has no actual storage root"))?;
-                let (selected, carrier) = terminal_semantics::canonical_static_projection(
-                    types.iter(),
-                    *root_type,
-                    &required.path,
-                )
-                .ok_or_else(|| {
-                    self.internal("a default clause has no exact canonical storage path")
-                })?;
-                if carrier.id != required.carrier {
-                    return Err(self.internal("a default clause changed its actual carrier"));
-                }
+                .map_err(|error| self.internal(error.detail))?;
+            let mut inventory = Vec::with_capacity(declared.len());
+            let mut clauses = Vec::new();
+            let mut by_clause = HashMap::new();
+            for required in declared {
+                // Equal predicates over the same carrier read the same fields.
+                // Each occurrence still names its own actual storage below.
                 let clause = requirements
                     .clause(&required)
                     .map_err(|error| self.internal(error.detail))?;
-                inventory.push((required.root, selected, clause));
+                let index = *by_clause
+                    .entry((required.carrier, clause))
+                    .or_insert_with_key(|(_, clause)| {
+                        let index = clauses.len();
+                        clauses.push(Observation::in_clause(clause));
+                        index
+                    });
+                inventory.push((required, index));
             }
-            inventory
+            (inventory, clauses)
         };
         let subject = terminal_check_tables::program::self_place()
             .ok_or_else(|| self.internal("default clause subject identity"))?;
-        for (root, selected, clause) in inventory {
-            let mut exact = self.exact_root(root)?;
+        for group in inventory.chunk_by(|(left, _), (right, _)| {
+            left.root == right.root && left.path == right.path && left.carrier == right.carrier
+        }) {
+            let required = &group[0].0;
+            let (_, root_type) = self
+                .roots
+                .get(required.root)
+                .ok_or_else(|| self.internal("a default clause has no actual storage root"))?;
+            let (selected, carrier) = terminal_semantics::canonical_static_projection(
+                types.iter(),
+                *root_type,
+                &required.path,
+            )
+            .ok_or_else(|| self.internal("a default clause has no exact canonical storage path"))?;
+            if carrier.id != required.carrier {
+                return Err(self.internal("a default clause changed its actual carrier"));
+            }
+            let mut exact = self.exact_root(required.root)?;
             for segment in selected {
                 exact = self.project(exact, projection(segment))?;
             }
-            self.name_clause_contents(&clause, &[(subject, exact)], None)?;
+            for &(_, index) in group {
+                self.name_observations(&clauses[index], &[(subject, exact)], None, &[])?;
+            }
         }
         Ok(())
     }
