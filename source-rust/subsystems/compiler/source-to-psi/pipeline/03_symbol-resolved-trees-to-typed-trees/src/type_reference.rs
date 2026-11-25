@@ -748,10 +748,11 @@ pub(crate) mod alias_uses {
     /// Substitution may erase an argument from the result entirely. Judge the
     /// retained application once the cohort has complete type declarations.
     pub(crate) fn check_applications(
-        program: &typed::TypedTrees,
+        program: &mut typed::TypedTrees,
         completed_references: usize,
     ) -> Result<(), Diagnostic> {
         use typed_trees::static_operand_binding::{Stop, type_argument_meets_bounds};
+        let mut pending = Vec::new();
         let aliases = program.type_aliases();
         for application in program
             .type_reference_table
@@ -814,7 +815,17 @@ pub(crate) mod alias_uses {
                     )).with_source_span(site));
                 }
             }
+            let mut const_parameters = None;
             for (position, (formal, actual)) in formals.iter().zip(actuals).enumerate() {
+                if matches!(formal.kind, typed::data::TypeParameterKind::Const { .. }) {
+                    let parameters = const_parameters.get_or_insert_with(|| formals.to_vec());
+                    if !super::const_arguments::closed_applications::alias_const_argument_is_formed(
+                        program, alias.symbol, formal, *actual, parameters, actuals,
+                    ).map_err(|error| error.with_source_span(site))? {
+                        pending.push((supplying_owner, *actual, site));
+                    }
+                    continue;
+                }
                 if formal.kind != typed::data::TypeParameterKind::Type {
                     continue;
                 }
@@ -845,6 +856,19 @@ pub(crate) mod alias_uses {
                     .with_source_span(site)
                 })?;
             }
+        }
+        let mut owners = None;
+        for (owner, argument, site) in pending {
+            super::const_arguments::closed_applications::defer_to_holders(
+                program,
+                &mut owners,
+                owner,
+                &[argument],
+                crate::unavailable_judgment(
+                    "evaluated const argument for a transparent type alias",
+                )
+                .with_source_span(site),
+            )?;
         }
         Ok(())
     }
@@ -1413,6 +1437,50 @@ pub(crate) mod const_arguments {
             Ok(indices)
         }
 
+        /// An alias can erase an argument. Keep its static-value judgment even
+        /// when no consumer of the expansion will ever read the argument again.
+        pub(crate) fn alias_const_argument_is_formed(
+            program: &TypedTrees,
+            declaration: SymbolHandle,
+            parameter: &crate::source_state::data::TypeParameter,
+            argument: TypeReferenceHandle,
+            parameters: &[crate::source_state::data::TypeParameter],
+            arguments: &[TypeReferenceHandle],
+        ) -> Result<bool, Diagnostic> {
+            if let ConstArgument::Canonical(_) = const_argument(
+                program,
+                declaration,
+                parameter,
+                argument,
+                parameters,
+                arguments,
+            )? {
+                return Ok(true);
+            }
+            match program.type_reference_table.type_reference(argument) {
+                TypeReferenceNode::Named { symbol, .. }
+                    if program
+                        .data_type_parameter_by_symbol(*symbol)
+                        .is_some_and(|binder| {
+                            matches!(binder.kind, TypeParameterKind::Const { .. })
+                        }) =>
+                {
+                    Ok(true)
+                }
+                TypeReferenceNode::Named { symbol, .. }
+                    if program.const_declaration_by_symbol(*symbol).is_some() =>
+                {
+                    Ok(false)
+                }
+                TypeReferenceNode::ConstExpression(_) => Ok(false),
+                _ => Err(Diagnostic::error(format!(
+                    "const parameter `{}` of type alias `{}` requires a static value",
+                    parameter.name,
+                    program.symbols.name(declaration),
+                ))),
+            }
+        }
+
         /// A selected constant already has a declared carrier. Compare it
         /// against the complete receiving application before its name is
         /// replaced by an index key. This types the argument; its declaration's
@@ -1454,7 +1522,17 @@ pub(crate) mod const_arguments {
                 }
                 origin.declaration
             };
-            let Some(declaration) = program.const_declaration_by_symbol(symbol) else {
+            let declaration = program.const_declaration_by_symbol(symbol);
+            let forwarded = program.data_type_parameter_by_symbol(symbol);
+            let declared_type = if let Some(declaration) = declaration {
+                declaration.declared_type
+            } else if let Some(
+                TypeParameterKind::Const { type_reference }
+                | TypeParameterKind::Value { type_reference },
+            ) = forwarded.map(|binder| &binder.kind)
+            {
+                *type_reference
+            } else {
                 return Ok(None);
             };
             let refuse = |reason: &str| {
@@ -1477,7 +1555,7 @@ pub(crate) mod const_arguments {
                 .contains_type_reference(carrier)
                 || !program
                     .type_reference_table
-                    .contains_type_reference(declaration.declared_type)
+                    .contains_type_reference(declared_type)
             {
                 return Err(refuse(
                     "the selected constant or receiving carrier is stale",
@@ -1494,14 +1572,14 @@ pub(crate) mod const_arguments {
                     ..crate::source_state::type_identity::TypeIdentityRequest::ordinary(carrier)
                 },
             );
-            if expected != program.normalized_type_identity(declaration.declared_type) {
+            if expected != program.normalized_type_identity(declared_type) {
                 return Err(refuse(
-                    "the selected constant's declared carrier differs from its receiving parameter",
+                    "the argument's declared carrier differs from its receiving parameter",
                 ));
             }
             // A pending initializer still has a declared type. Compare that type
             // before deferring the value to the checked evaluator.
-            if declaration.evaluated_value.is_none() {
+            if declaration.is_none_or(|declaration| declaration.evaluated_value.is_none()) {
                 return Ok(None);
             }
             let value = crate::source_state::canonical_const_declaration_value(program, symbol)
@@ -1571,7 +1649,7 @@ pub(crate) mod const_arguments {
         /// the retained owners of the application and the argument and every
         /// declaration the argument is written in; an argument no declaration holds has no
         /// reader to raise it and refuses here with `unheld`.
-        fn defer_to_holders(
+        pub(crate) fn defer_to_holders(
             program: &mut TypedTrees,
             owners: &mut Option<crate::source_state::references::ProgramOperandOwners>,
             owner: symbols::SymbolHandle,

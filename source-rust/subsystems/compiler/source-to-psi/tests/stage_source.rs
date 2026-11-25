@@ -1369,6 +1369,51 @@ fn a_domain_on_a_qualified_alias_preserves_both_qualifications() {
 }
 
 #[test]
+fn transparent_aliases_check_their_const_arguments_even_when_expansion_erases_them() {
+    let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
+    let declarations = "data Buffer<T, const N: u64> { items: [T; N]; }
+        data ByteBuffer<const Capacity: u64> = Buffer<u8, Capacity>;
+        data Word { bits: u32; }
+        data Plain<const N: u8> = Word;";
+    for (source, refusal) in [
+        (
+            "machine f(x: ByteBuffer<2 + 2>) -> Buffer<u8, 4> { x }",
+            None,
+        ),
+        ("machine f(x: Plain<2>) -> Word { x }", None),
+        (
+            "data Broken<const N: u8> = Buffer<u8, N>; machine f() {}",
+            Some("declared carrier differs"),
+        ),
+        ("machine f(x: Plain<2u16>) {}", Some("must be a `u8`")),
+        (
+            "machine f(x: Plain<u16>) {}",
+            Some("requires a static value"),
+        ),
+        (
+            "machine f(v: u8, x: Plain<v>) {}",
+            Some("requires a static value"),
+        ),
+        (
+            "machine missing() -> u8 { crash Trap; } machine f(x: Plain<missing()>) {}",
+            Some("const argument typing does not admit"),
+        ),
+    ] {
+        let (files, root) = captured(package, &format!("{declarations} {source}"));
+        let result = compile(product(files, root, package, &[]).unwrap(), None);
+        if let Some(refusal) = refusal {
+            let errors = result.expect_err(source);
+            assert!(
+                errors.iter().any(|error| error.message.contains(refusal)),
+                "{errors:?}"
+            );
+        } else {
+            result.expect(source);
+        }
+    }
+}
+
+#[test]
 fn competing_domain_families_use_the_qualifications_on_each_side() {
     let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
     let declarations = "data Word { bits: u32; }

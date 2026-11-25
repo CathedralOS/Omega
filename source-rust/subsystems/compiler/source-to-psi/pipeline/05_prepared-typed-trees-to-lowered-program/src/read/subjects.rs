@@ -1095,8 +1095,15 @@ impl Program<'_> {
                 )
             })?;
         if parameters.iter().any(|parameter| {
-            parameter.kind != TypeParameterKind::Type
-                || !typed.symbols.symbols().nodes().is_valid(parameter.symbol)
+            let supported = match parameter.kind {
+                TypeParameterKind::Type => true,
+                TypeParameterKind::Const { type_reference } => {
+                    parameter.bounds == crate::source_state::data::DataProperties::default()
+                        && crate::source_state::canonical_const_carrier_is_supported(typed, type_reference)
+                }
+                _ => false,
+            };
+            !supported || !typed.symbols.symbols().nodes().is_valid(parameter.symbol)
                 || typed.symbols.get(parameter.symbol).parent != alias.symbol
         }) || !alias.conformance_bounds.is_empty()
         {
