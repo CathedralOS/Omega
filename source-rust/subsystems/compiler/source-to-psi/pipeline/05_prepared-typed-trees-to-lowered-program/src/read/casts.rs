@@ -445,12 +445,31 @@ impl Program<'_> {
         {
             result = ValueType::Record(row, qualification, regions);
         }
+        let structural_replacement =
+            matches!(actual, ValueType::Record(..)) && !removed.is_empty() && !added.is_empty();
+        let mut retained = actual.qualification();
         for (domain, origin) in removed.into_iter().rev() {
             self.domain_removal(id, domain, actual, origin)?;
+            retained.domains = retained
+                .domains
+                .without(domain)
+                .ok_or_else(|| unavailable("domain cast removes an absent membership"))?;
         }
         if actual == result && added.is_empty() {
             return Ok(operand);
         }
+        // Structural changes strictly erase or strictly add on one edge.
+        // The common qualifications survive both steps of a replacement.
+        let operand = if structural_replacement {
+            Expression {
+                call_context: None,
+                kind: ExpressionKind::Requalify(Box::new(operand)),
+                result: actual.qualified(retained),
+                source,
+            }
+        } else {
+            operand
+        };
         self.establish_domains(id, operand, result, added, source)
     }
 
