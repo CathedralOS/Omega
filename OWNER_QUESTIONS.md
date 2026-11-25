@@ -85,3 +85,17 @@ separate policy approval from the host's ability to confine execution.
 Generators run in an earlier stage and hand files to the next Build through its supplied filesystem. Local helpers already use ordinary file imports. What concrete Build needs a separately supplied library to execute its own code? For that case, what should the root invoker write, and how should a parent bind an alias for just one child?
 
 The current spec assigns bindings to the invoker or parent before the Build starts. Package installation names an alias but does not specify these per-invocation inputs. [Dependency declarations and binding](wiki/spec/build/scoped_execution.md#dependency-declarations-and-binding) · [Command vocabulary](wiki/spec/build/command_line.md#command-vocabulary)
+
+<a id="crash-free-machine-default"></a>
+### 3. Should omitting `crashes` mean crash-free for both public and private machines?
+
+**Jarod Castillo:** Why does leaving off `crashes` mean crash-free on a
+public machine but infer crash behavior on a private machine? I expect every
+machine to be crash-free by default, public or private, and any intentional
+`Trap` or `Abort` to require an explicit declaration. Should omission mean
+`crashes none` for both?
+
+The [current effects rules](wiki/spec/language/effects.md#implementation-boundaries-and-capability-identities)
+distinguish public and private checked bodies. This asks whether to change
+that default for machines with bodies; bodyless requirements and runtime
+callable types are separate.
