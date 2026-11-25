@@ -322,22 +322,23 @@ impl PreCheckEvaluation {
         }
     }
 
+    /// Move this continuation's requests to the `current` declaration scope.
+    ///
+    /// `retained` holds exactly the files whose declarations this
+    /// continuation typed. Each package among them must keep every grant it
+    /// had. Files the successor adds are typed afresh under `current` by
+    /// their own continuation, so this one does not answer for them.
     pub fn rejoin_source_authority(
         &mut self,
-        program: &TypedTrees,
+        retained: &crate::source_inputs::SourceMap,
         current: Option<Arc<PackageDeclarationScope>>,
     ) -> Result<(), String> {
         self.needs_scope_check = true;
-        let sources = program.symbols.source_map();
-        if self.declaration_scope.is_some() && current.is_some() && sources.is_none() {
-            return Err("restored source input has no complete source context".into());
-        }
         PackageDeclarationScope::require_current(
             self.declaration_scope.as_deref(),
             current.as_deref(),
-            sources
-                .iter()
-                .flat_map(|sources| sources.selected_files())
+            retained
+                .selected_files()
                 .filter(|file| !file.origin.is_toolchain())
                 .filter_map(|file| file.package_identity),
         )?;
@@ -508,7 +509,9 @@ mod tests {
             "source extension lost its original wire-schema frontier"
         );
 
-        restored.rejoin_source_authority(&typed, None).unwrap();
+        restored
+            .rejoin_source_authority(&Default::default(), None)
+            .unwrap();
         PreCheckEvaluation::record_continuations(vec![pending, restored], &mut typed).unwrap();
         assert!(typed.deferred_refusals.is_empty());
 

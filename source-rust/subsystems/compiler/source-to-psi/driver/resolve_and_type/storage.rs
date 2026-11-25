@@ -7,6 +7,7 @@ impl Record for SourceContext {
         output.record(|output| {
             self.bindings.write(output)?;
             self.build_helper_identity.write(output)?;
+            self.purpose.write(output)?;
             PackageDeclarationScope::write_checkpoint(self.declaration_scope.as_deref(), output)
         })
     }
@@ -15,6 +16,7 @@ impl Record for SourceContext {
             Ok(Self {
                 bindings: Record::read(input)?,
                 build_helper_identity: Record::read(input)?,
+                purpose: Record::read(input)?,
                 declaration_scope: PackageDeclarationScope::read_checkpoint(input)?,
             })
         })
