@@ -4,6 +4,15 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+/// The five hosted targets Omega produces native programs for (AGENTS.md).
+pub(crate) const HOSTED_TARGETS: [&str; 5] = [
+    "linux_x86_64",
+    "linux_arm64",
+    "macos_arm64",
+    "windows_x86_64",
+    "windows_arm64",
+];
+
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Plan {
@@ -100,11 +109,10 @@ impl Plan {
         {
             return Err("reported work requires nonzero work_units and a checksum".into());
         }
+        // Intel Mac hosts can also run what they compile, so compiler
+        // comparisons accept `macos_x86_64` beside the hosted targets.
         if let Measurement::Compiler { target, .. } = &self.measurement
-            && !matches!(
-                target.as_str(),
-                "windows_x86_64" | "linux_x86_64" | "macos_arm64" | "linux_arm64" | "macos_x86_64"
-            )
+            && !(HOSTED_TARGETS.contains(&target.as_str()) || target == "macos_x86_64")
         {
             return Err("compiler comparisons must use an executable hosted target".into());
         }
