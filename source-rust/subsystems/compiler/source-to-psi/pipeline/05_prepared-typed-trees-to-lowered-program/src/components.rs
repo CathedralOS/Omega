@@ -249,7 +249,7 @@ fn forwarding_receiver(
     // or guarantee, and the canonical heads keep their ranking evidence.
     if signature.result.is_some()
         || !signature.ensures.is_empty()
-        || !signature.membership_ensures.is_empty()
+        || signature.has_structural_guarantees()
         || signature.ranking.is_some()
         || signature.termination != Termination::Silent
         || !signature

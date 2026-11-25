@@ -51,6 +51,8 @@ use terminal_psi::{
 
 use crate::{Elaboration, Signature};
 
+mod content_contracts;
+
 const COMMITMENT_DOMAIN: &[u8] = b"omega.lowered-machine-public-contract.v2\0";
 
 /// Feeds the contract's structured fields into its domain-separated digest.
@@ -2377,13 +2379,22 @@ impl RequirementApplicationSource {
     }
 }
 
-fn commit_result_memberships(
+fn commit_structural_guarantees(
     typed: Option<&TypedTrees>,
     sources: &[(source_text::SourceId, [u8; 32])],
     signature: &Signature,
     identities: &mut TerminalIdentityTableBuilder,
     commitment: &mut Commitment,
 ) -> Result<(), &'static str> {
+    if !signature.content_ensures.is_empty() {
+        content_contracts::commit(
+            typed.ok_or("content guarantee lost its authored domain declarations")?,
+            sources,
+            signature,
+            identities,
+            commitment,
+        )?;
+    }
     if signature.membership_ensures.is_empty() {
         return Ok(());
     }
@@ -2455,7 +2466,7 @@ fn declaration_contract_commitment<'a>(
     for proposition in ensures {
         proposition.hash(&mut commitment);
     }
-    commit_result_memberships(Some(typed), sources, signature, identities, &mut commitment)?;
+    commit_structural_guarantees(Some(typed), sources, signature, identities, &mut commitment)?;
     crash_routes.hash(&mut commitment);
     // A caller relies on the promise, never on how it is discharged:
     // termination.md, "Ranking subjects, view, rank range, cyclic-component
@@ -2761,10 +2772,25 @@ pub(crate) fn boundary_declaration(
     }
     source.result_type.hash(&mut commitment);
     proof.requires.hash(&mut commitment);
+    let mut content_rows = 0;
     for clause in &proof.ensures {
-        clause.proposition.hash(&mut commitment);
+        // The portable source commitment below resolves each domain and path by
+        // identity; module-local projection ordinals may change on publication.
+        if !signature.content_ensures.is_empty()
+            && matches!(
+                clause.proposition,
+                semantic_vocabulary::Proposition::ContentConservation(_)
+            )
+        {
+            content_rows += 1;
+        } else {
+            clause.proposition.hash(&mut commitment);
+        }
     }
-    let sources = if signature.membership_ensures.is_empty() {
+    if content_rows != signature.content_ensures.len() {
+        return Err("boundary declaration lost an authored content guarantee");
+    }
+    let sources = if !signature.has_structural_guarantees() {
         Vec::new()
     } else {
         source_admission::source_identity::toolchain_source_identities(
@@ -2775,7 +2801,7 @@ pub(crate) fn boundary_declaration(
         )
         .map_err(|_| "normal-result membership lost its toolchain source identity")?
     };
-    commit_result_memberships(typed, &sources, signature, identities, &mut commitment)?;
+    commit_structural_guarantees(typed, &sources, signature, identities, &mut commitment)?;
     proof.crash_routes.hash(&mut commitment);
     signature.termination.hash(&mut commitment);
     let specialization = source.application.as_ref().map(|source| {

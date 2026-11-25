@@ -686,6 +686,7 @@ impl<'a> LogicalScope<'a> {
                 borrowed: Vec::new(),
                 result: None,
                 membership_ensures: Vec::new(),
+                content_ensures: Vec::new(),
                 requires,
                 ensures,
                 crashes: CrashCeiling::Inferred,

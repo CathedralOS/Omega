@@ -526,6 +526,9 @@ pub enum RuntimeMembershipSubject {
     },
 }
 
+mod content_contracts;
+pub use content_contracts::{ContentEquation, ProjectedContent};
+
 /// A machine's published signature as lowering and its callers need it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Signature {
@@ -561,6 +564,9 @@ pub struct Signature {
     pub result: Option<ValueType>,
     /// Facts promised about the normal result, independent of its declared type.
     pub membership_ensures: Vec<RuntimeMembership>,
+    /// Normal-return equations whose source domain instances still need their
+    /// module's structural projection identities.
+    pub content_ensures: Vec<ContentEquation>,
     /// Entry `requires` clauses over the formals, in Terminal Psi's canonical
     /// order (`MachineContract::requires` must strictly increase). A clause's
     /// position here is its position in every `CallRequirement`. A term
@@ -743,6 +749,10 @@ pub enum Termination {
 }
 
 impl Signature {
+    pub(crate) fn has_structural_guarantees(&self) -> bool {
+        !self.membership_ensures.is_empty() || !self.content_ensures.is_empty()
+    }
+
     /// An interface cannot infer a ceiling from a body it does not own.
     /// The selected declaration must supply the published routes explicitly.
     pub fn declared_crash_routes(&self) -> Option<&[CrashRouteBucket]> {

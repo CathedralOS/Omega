@@ -118,6 +118,7 @@ fn calls_with(argument: u128) -> (crate::lowering::Elaboration, Discharge) {
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     let signature = |parameters: Vec<ValueType>, crashes| Signature {
         membership_ensures: Vec::new(),
+        content_ensures: Vec::new(),
         operational: Default::default(),
         parameters,
         erased: Vec::new(),

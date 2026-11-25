@@ -61,6 +61,63 @@ impl Program<'_> {
             .map(|_| true)
     }
 
+    pub(super) fn contract_projection(
+        &self,
+        id: MachineId,
+        symbol: symbols::SymbolHandle,
+        expected: &str,
+    ) -> Checked<(
+        crate::body::DomainInstance,
+        crate::source_state::types::TypeReferenceHandle,
+        ContentAlgebra,
+    )> {
+        let typed = self.typed;
+        let missing = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let symbol = self
+            .entered_machine(symbol)
+            .ok_or_else(|| missing("content term does not call an owner projection"))?;
+        let machine = typed
+            .machine_by_symbol(symbol)
+            .ok_or_else(|| missing("content term does not call an owner projection"))?;
+        let domain = typed
+            .domain_definition(machine.attached_domain_symbol)
+            .filter(|domain| domain.content_projections.as_slice() == [symbol])
+            .ok_or_else(|| {
+                missing("content term must select its qualification's unique owner projection")
+            })?;
+        let selected = self.projection_header(id, domain, symbol)?;
+        let actual = crate::source_state::reflection::construction::schema_type_identity(
+            typed,
+            selected.result,
+            symbol,
+        )
+        .map_err(|_| missing("content term lost its complete algebra application"))?;
+        if actual != expected {
+            return Err(missing(
+                "content equation mixes distinct algebra applications",
+            ));
+        }
+        Ok((
+            crate::body::DomainInstance {
+                declaration: domain.symbol,
+                identity: domain.semantic_id,
+            },
+            domain.target_type,
+            selected.algebra,
+        ))
+    }
+
+    pub(super) fn content_algebra_kind(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<ContentAlgebraKind> {
+        match self.typed.core_vocabulary(symbol)? {
+            CoreVocabulary::IntervalSet => Some(ContentAlgebraKind::IntervalSet),
+            CoreVocabulary::CountedQuantity => Some(ContentAlgebraKind::CountedQuantity),
+            _ => None,
+        }
+    }
+
     fn projection_header(
         &self,
         id: MachineId,
@@ -187,15 +244,9 @@ impl Program<'_> {
             if !lifetime_arguments.is_empty() {
                 return Err(missing("content algebra with region arguments"));
             }
-            let kind = match typed.core_vocabulary(*base_symbol) {
-                Some(CoreVocabulary::IntervalSet) => ContentAlgebraKind::IntervalSet,
-                Some(CoreVocabulary::CountedQuantity) => ContentAlgebraKind::CountedQuantity,
-                _ => {
-                    return Err(invalid(
-                        "core Content requires IntervalSet<Space> or CountedQuantity<Unit>",
-                    ));
-                }
-            };
+            let kind = self.content_algebra_kind(*base_symbol).ok_or_else(|| {
+                invalid("core Content requires IntervalSet<Space> or CountedQuantity<Unit>")
+            })?;
             Ok(Header {
                 algebra: ContentAlgebra {
                     kind,

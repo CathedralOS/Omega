@@ -228,6 +228,7 @@ fn signature(parameters: Vec<ScalarType>, result: Option<ScalarType>) -> Signatu
         borrowed: Vec::new(),
         result: result.map(ValueType::plain),
         membership_ensures: Vec::new(),
+        content_ensures: Vec::new(),
         requires: Vec::new(),
         ensures: Vec::new(),
         reaches: crate::Ceiling::Inferred,

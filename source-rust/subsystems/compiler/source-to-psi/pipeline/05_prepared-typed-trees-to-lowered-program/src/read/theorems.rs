@@ -313,7 +313,7 @@ impl Program<'_> {
         if signature.result.is_some()
             || !signature.borrowed.is_empty()
             || !signature.erased.is_empty()
-            || !signature.membership_ensures.is_empty()
+            || signature.has_structural_guarantees()
             || signature.ranking.is_some()
             || matches!(&signature.reaches, Ceiling::Authored(entries) if !entries.is_empty())
             || matches!(&signature.invokes, Ceiling::Authored(entries) if !entries.is_empty())

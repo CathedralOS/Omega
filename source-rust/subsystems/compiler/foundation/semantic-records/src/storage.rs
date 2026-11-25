@@ -436,6 +436,38 @@ pub(crate) mod content {
             &self.right
         }
 
+        /// Visit the projection occurrences on both sides, including every separated operand.
+        pub fn try_for_each_projection<E>(
+            &self,
+            mut visit: impl FnMut(ContentProjectionIdentity, &ContentStructuralPlace) -> Result<(), E>,
+        ) -> Result<(), E> {
+            let mut pending = vec![self.right(), self.left()];
+            while let Some(term) = pending.pop() {
+                match term {
+                    ContentTerm::Projection {
+                        projection,
+                        subject,
+                    } => visit(*projection, subject)?,
+                    ContentTerm::Separate(terms) => pending.extend(terms.iter().rev()),
+                }
+            }
+            Ok(())
+        }
+
+        pub fn report_fingerprint(
+            &self,
+            place_kind: impl Fn(PlaceId) -> Option<StructuralPlaceKind>,
+        ) -> Option<u64> {
+            let mut bytes = Vec::new();
+            bytes.extend_from_slice(b"content-conservation-v1");
+            encode_fingerprint_algebra(self.algebra(), &mut bytes);
+            encode_fingerprint_term(self.left(), &place_kind, &mut bytes)?;
+            encode_fingerprint_term(self.right(), &place_kind, &mut bytes)?;
+            let mut hash = wire::fnv1a::Fnv1a::new();
+            hash.bytes(&bytes);
+            Some(hash.finish())
+        }
+
         pub(crate) fn validate(&self) -> Result<(), PropositionError> {
             if self.algebra.parameter.is_empty() {
                 return Err(PropositionError::EmptyContentAlgebraParameter);
@@ -452,14 +484,7 @@ pub(crate) mod content {
         conservation: &ContentConservation,
         structural_places: &BTreeMap<PlaceId, StructuralPlaceKind>,
     ) -> Option<u64> {
-        let mut bytes = Vec::new();
-        bytes.extend_from_slice(b"content-conservation-v1");
-        encode_fingerprint_algebra(conservation.algebra(), &mut bytes);
-        encode_fingerprint_term(conservation.left(), structural_places, &mut bytes)?;
-        encode_fingerprint_term(conservation.right(), structural_places, &mut bytes)?;
-        let mut hash = wire::fnv1a::Fnv1a::new();
-        hash.bytes(&bytes);
-        Some(hash.finish())
+        conservation.report_fingerprint(|place| structural_places.get(&place).copied())
     }
 
     fn encode_fingerprint_algebra(algebra: &ContentAlgebra, output: &mut Vec<u8>) {
@@ -472,7 +497,7 @@ pub(crate) mod content {
 
     fn encode_fingerprint_term(
         term: &ContentTerm,
-        structural_places: &BTreeMap<PlaceId, StructuralPlaceKind>,
+        place_kind: &impl Fn(PlaceId) -> Option<StructuralPlaceKind>,
         output: &mut Vec<u8>,
     ) -> Option<()> {
         match term {
@@ -491,7 +516,7 @@ pub(crate) mod content {
                     ContentPlaceVersion::Entry => 1,
                     ContentPlaceVersion::Current => 2,
                 });
-                match structural_places.get(&subject.root)? {
+                match place_kind(subject.root)? {
                     StructuralPlaceKind::Parameter { position } => {
                         output.push(1);
                         crate::codec_bytes::push_encoded(output, position.to_le_bytes());
@@ -538,7 +563,7 @@ pub(crate) mod content {
                 output.push(2);
                 crate::codec_bytes::push_encoded(output, (terms.len() as u64).to_le_bytes());
                 for term in terms {
-                    encode_fingerprint_term(term, structural_places, output)?;
+                    encode_fingerprint_term(term, place_kind, output)?;
                 }
             }
         }
