@@ -99,7 +99,32 @@ Notes from the prototypes:
 - In **D1**, encoding a 0-payload case's carrier unit as `Fin(0) -> Fin(0)` gives definitional unit eta for free from `FinEta(0)` without adding any kernel rule, and existing `Sigma` eta handles multi-payload tuples.
 - In **D2**, adding payload types required checking payload well-formedness in `PlainCtor`, elevating `PlainInd`'s universe to `max(0, max_i u_i)`, and converting non-identical payload types (e.g., type aliases) in `PlainElim` (+511 lines in `typing.rs`).
 - In **Option C**, representing `I`, `C_k`, and `I.rec` as ordinary `Term::Constant`s applied via `Term::Apply` avoids variable-arity `Term` variants and leaves `substitution.rs` and `typing.rs`'s inference/conversion loops unchanged. Compiled constructor and recursor reduction rules live only inside the checked `Signature`, so no certificate can forge a recursor type or reduction rule.
-- **Conclusion:** **Option C** is strictly stronger than A, B, D1, and D2 on performance, memory, generality (plain + payloads + generics + indexed families), and net crate LOC (-2,879 production LOC once `W`/`IW` are retired). The remaining extension inside Option C is supporting mutually recursive inductive blocks (`check_inductive_block` over a group of inductives).
+- **Conclusion:** **Option C** is strictly stronger than A, B, D1, and D2 on performance, memory, generality (plain + payloads + generics + indexed + mutual families), and net crate LOC (-2,640 production LOC once `W`/`IW` are retired).
+
+## Stress test: mutual inductives, 50-case AST, and unary `Nat` limits (Option C)
+
+We cloned `opt_c` into `opt_c_stress` and extended `check_inductive_block` to support mutually recursive inductive blocks (`M >= 1` inductives, `K` constructors, `M` mutual recursors). That extension cost **+201 LOC** (+172 `inductive.rs`, +23 `signature.rs`, +6 `certificate.rs`, **0** in `conversion.rs`, `typing.rs`, `term.rs`), bringing Option C's total kernel delta to **+1,215 LOC** (still **-2,640 net production LOC** once `W`/`IW` are retired). All **154/154** tests passed.
+
+| Probe | Steps (`Budget 20M`) | Arena Terms | Wall-Clock (ms) | Fits `65,536` |
+|---|---:|---:|---:|:---:|
+| Mutual `Expr` + `Stmt` decl | **0** | 621 | 0.20 | Yes |
+| Mutual `Expr` + `Stmt` `copy` / `bounds_mono` | **122** / **201** | 8,604 / 11,760 | 2.03 / 4.25 | Yes |
+| Nested `Tree` + `Forest` decl | **0** | 283 | 0.15 | Yes |
+| Nested `Tree` + `Forest` `copy` / `bounds_mono` | **41** / **72** | 2,821 / 3,884 | 0.54 / 1.16 | Yes |
+| 50-case payloaded `Ast50` decl | **0** | 2,796 | 0.87 | Yes |
+| 50-case `Ast50` single reduction (`C49`) | **273** | 29,187 | 6.49 | Yes |
+| 50-case `Ast50` `copy(e) = e` | **969** | 131,736 | 47.29 | Yes (1.5%) |
+| 50-case `Ast50` `bounds_mono` | **1,723** | 265,566 | 135.55 | Yes (2.6%) |
+| Closed `Nat` `plus(500, 500) == 1000` | **1,504** | 10,319 | 6.58 | Yes |
+| Closed `Nat` `mul(50, 50) == 2500` | **7,854** | 29,669 | 20.58 | Yes |
+| Closed `Nat` wall: `mul(150, 150) == 22,500` | **68,554** | 253,369 | 124.16 | **No** (1.05×) |
+
+Mutual soundness negative checks (4/4 refused): mutual negative cycle (`A { MkA(B -> Empty) }`, `B { MkB(A) }`), mutual non-strictly-positive cycle (`A { MkA((B -> Two) -> B) }`, `B { MkB(A) }`), mutual universe cheat (`A : Type 0 { MkA(B) }`, `B : Type 1`), and forged mutual recursor (`B.rec` tampered).
+
+### Two honest limits found in Option C
+
+1. **Arena allocation on huge `K`-case inductives grows as `O(K²)` while steps stay `O(K)`:** `Ast50 bounds_mono` uses only 1,723 steps (2.6% of budget, 135.6 ms), but allocates 265,566 arena terms because each ι-reduction rebuilds the `Apply` spine over all `K` minors for each recursive child.
+2. **Unary `Nat` hits the 65,536-step ceiling around `147 × 147`:** `plus(n, n)` scales as `3n + 4` steps and `mul(n, n)` as `3n² + 7n + 4` steps (`mul(150, 150)` takes 68,554 steps, 124 ms, with zero stack overflow at depth 22,500). Everyday scalar arithmetic already uses Omega's bounded integer evaluator; proof-level closed `Nat` arithmetic would only need a closed-literal fast-path if large closed `Nat` computations are expected in kernel conversion.
 
 ## Limits of these measurements
 
