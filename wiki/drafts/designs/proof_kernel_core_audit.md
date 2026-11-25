@@ -1386,9 +1386,10 @@ type), and the clause's `ClauseScope` says what each name denotes there.
     entry" ([call contracts](../../spec/terminal-psi/calls_and_outcomes.md#call-contracts)),
     so stage 05 reads a guard in the scope of an entry `requires`. Lowering
     names the leaves a guard reads in the callee and at each call, and a
-    call's crash continuations name the place of each whole structural
-    actual (`contract_forms::substituted_routes`, which stage 05 and stage
-    06's retained-row check now share). Stage 06 judges a call's route with
+    call's crash continuations name the storage each structural actual
+    stands for, its place and static path (`contract_forms::call_storage`
+    and `contract_forms::substituted_routes`, which stage 05 and stage 06's
+    retained-row check share). Stage 06 judges a call's route with
     the binding a `requires` uses (`at_call_actuals`), so the guard reads
     the actual's storage when the call is made, and states the machine's own
     coverage over its entry storage (`entry_goal`). The three are still
@@ -1404,10 +1405,12 @@ type), and the clause's `ClauseScope` says what each name denotes there.
     caller's `requires` names ("comparison term outside the scalar
     subset"). `other_state` calls a nested machine whose omitted crash
     route is inferred as `Truth`. `match_join` and the root package stop at
-    "call argument that names storage another argument lends". Two limits
-    fail closed: a route over an actual that projects a place
-    (`@pair.items`) is refused by name, and a forwarder over a `@mutable`
-    formal is refused whether or not it writes the guarded element.
+    "call argument that names storage another argument lends". A route
+    over an actual that lends a field (`@pair.items`) names that field
+    path at the call (2026-11-25). Two limits fail closed: a route over an
+    actual with no static path (`@rows[row]`) is refused by name, and a
+    forwarder over a `@mutable` formal is refused whether or not it writes
+    the guarded element.
   - "case membership" in a machine clause (`read_clause`) refused a form
     the specification admits, and is now served where the clause states the
     test outright (2026-11-24). A case is a domain: "A case implicitly

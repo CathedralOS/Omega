@@ -1165,7 +1165,7 @@ impl<'a> Lowering<'a> {
             let roots: Vec<_> = parameters
                 .records
                 .iter()
-                .map(|formal| Some(formal.place))
+                .map(|formal| Some(canonical::FormalStorage::whole(formal.place)))
                 .collect();
             if !signature.requires.is_empty() {
                 let mut clauses = Vec::with_capacity(signature.requires.len());

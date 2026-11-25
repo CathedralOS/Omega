@@ -682,10 +682,15 @@ impl Minted<'_> {
                 ));
             }
         }
+        let places = terminal_codec::contract_forms::call_storage(
+            &self.module.types.structural_types,
+            |place| self.lowered.structural_place_type(place),
+            inputs.structural_arguments,
+        );
         let crash_routes = terminal_codec::contract_forms::substituted_routes(
             call.contract.crash_routes,
             inputs.arguments,
-            inputs.structural_arguments,
+            &places,
         )
         .map_err(|detail| self.foreign(concerns, &detail))?;
         if let Some(retained) = inputs.crash_continuations

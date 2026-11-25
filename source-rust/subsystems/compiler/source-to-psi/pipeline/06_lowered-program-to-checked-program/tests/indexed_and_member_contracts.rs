@@ -313,32 +313,82 @@ fn borrowed_scalar_and_extent_crash_guards_read_the_callers_storage() {
     assert!(unproved(&twin) && twin.contains("CrashCoverage"), "{twin}");
 }
 
-/// A call's crash continuation names the place of each whole structural
-/// actual. An actual that lends a field of a record (`@pair.items`) has no
-/// place of its own, so the route over that formal is refused by name rather
-/// than dropped: an untranslated continuation cannot erase a crash
-/// (calls_and_outcomes.md, "Call contracts"). The twin lends a whole local
-/// array holding the same elements and is accepted.
+/// A call that lends a record's field (`@pair.items`) restates the callee's
+/// crash guard `items[index] == 0` over that field path, `pair.items[0]`, and
+/// the checker reads the element there at the call. The pair differs only in
+/// the element the guard reads: `[7, 7]` is accepted and `[0, 7]` is refused
+/// for its uncovered Trap route.
+///
+/// The restated route names only that field's storage (AGENTS.md rule 3):
+/// writing the sibling `pair.tag` before the call leaves it accepted, while
+/// writing `pair.items[0] = 0` is refused.
 #[test]
-fn a_crash_guard_over_a_projected_actual_is_refused_by_name() {
-    let program = |setup: &str, actual: &str| {
+fn a_crash_guard_over_a_projected_actual_reads_that_field_path() {
+    let program = |setup: &str| {
         format!(
             "public data Pair {{ items: [u64; 2]; tag: u64; }} \
              machine maybe_zero(items: @[u64; 2], index: u64) -> u64 \
              requires index < 2 crashes Trap items[index] == 0 \
              {{ transition items[index] == 0 {{ true -> bad(), false -> (items[index]) }} \
                 machine bad() -> u64 {{ crash Trap; }} }} \
-             public machine run() -> u64 {{ {setup} maybe_zero({actual}, 0) }}"
+             public machine run() -> u64 {{ {setup} maybe_zero(@pair.items, 0) }}"
         )
     };
-    accepted(&program("let items: [u64; 2] = [7, 7];", "@items"));
-    let twin = rejected(&program(
-        "let pair: Pair = Pair { items: [7, 7], tag: 0 };",
-        "@pair.items",
+    let uncovered = |source: &str| {
+        let twin = rejected(source);
+        assert!(unproved(&twin) && twin.contains("CrashCoverage"), "{twin}");
+    };
+    accepted(&program("let pair: Pair = Pair { items: [7, 7], tag: 0 };"));
+    uncovered(&program("let pair: Pair = Pair { items: [0, 7], tag: 0 };"));
+    accepted(&program(
+        "let mutable pair: Pair = Pair { items: [7, 7], tag: 3 }; pair.tag = 0;",
     ));
+    uncovered(&program(
+        "let mutable pair: Pair = Pair { items: [7, 7], tag: 3 }; pair.items[0] = 0;",
+    ));
+}
+
+/// A forwarder that lends its own formal's field covers the call's route
+/// with a guard over that same field path. `pair.items[0] == 0` covers
+/// `maybe_zero(@pair.items, 0)`; the twin's guard reads the sibling
+/// `pair.tag` and leaves the call's route uncovered.
+#[test]
+fn a_forwarder_covers_a_projected_route_with_a_guard_on_that_field() {
+    let program = |guard: &str| {
+        format!(
+            "public data Pair {{ items: [u64; 2]; tag: u64; }} \
+             machine maybe_zero(items: @[u64; 2], index: u64) -> u64 \
+             requires index < 2 crashes Trap items[index] == 0 \
+             {{ transition items[index] == 0 {{ true -> bad(), false -> (items[index]) }} \
+                machine bad() -> u64 {{ crash Trap; }} }} \
+             machine forward(pair: @Pair) -> u64 crashes Trap {guard} \
+             {{ maybe_zero(@pair.items, 0) }} \
+             public machine run() -> u64 \
+             {{ let pair: Pair = Pair {{ items: [7, 7], tag: 3 }}; forward(@pair) }}"
+        )
+    };
+    accepted(&program("pair.items[0] == 0"));
+    let twin = rejected(&program("pair.tag == 0"));
+    assert!(unproved(&twin) && twin.contains("CrashCoverage"), "{twin}");
+}
+
+/// An actual that lends an element chosen at run time (`@rows[row]`) has no
+/// static path for a restated route to name, so the call is refused by name
+/// rather than its route dropped: an untranslated continuation cannot erase
+/// a crash (calls_and_outcomes.md, "Call contracts").
+#[test]
+fn a_crash_guard_over_a_runtime_selected_actual_is_refused_by_name() {
+    let refused = rejected(
+        "machine maybe_zero(items: @[u64; 2], index: u64) -> u64 \
+         requires index < 2 crashes Trap items[index] == 0 \
+         { transition items[index] == 0 { true -> bad(), false -> (items[index]) } \
+           machine bad() -> u64 { crash Trap; } } \
+         machine pick(rows: @[[u64; 2]; 2], row: u64) -> u64 requires row < 2 \
+         { maybe_zero(@rows[row], 0) }",
+    );
     assert!(
-        twin.contains("clause names a structural formal whose actual projects a place"),
-        "{twin}"
+        refused.contains("clause names a structural formal whose actual has no static path"),
+        "{refused}"
     );
 }
 
