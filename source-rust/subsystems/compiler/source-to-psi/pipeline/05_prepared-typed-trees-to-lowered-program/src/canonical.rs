@@ -84,25 +84,25 @@ pub(crate) fn substitute(
     substitute_parameters(proposition, actuals, &[], values, id)
 }
 
-/// Restate a loop header's contract over its actual scalar and storage formals.
-/// Each incoming edge still owes the resulting predicate.
+/// Restate a loop header's or record cast's contract over its actual scalar
+/// and storage formals. Each incoming edge still owes the resulting predicate,
+/// so the restatement keeps byte predicates and float meaning sources the
+/// lowered value table traces. The wire owner's one binding renames the
+/// formals, as it does for a call's crash continuation.
 pub(crate) fn substitute_parameters(
     proposition: &Proposition,
     actuals: &[ValueId],
-    places: &[semantic_vocabulary::PlaceId],
+    places: &[Option<semantic_vocabulary::PlaceId>],
     values: &arena::IdTable<ValueId, terminal_check_tables::values::ValueRow>,
     id: MachineId,
 ) -> Checked<Proposition> {
-    let substituted = terminal_semantics::substitution::clauses::substitute_clause(
+    terminal_codec::contract_forms::substitute_formals(
         proposition,
-        &mut ScalarFormals {
-            actuals,
-            places,
-            values,
-        },
+        actuals,
+        places,
+        &mut LoweredSources { values },
     )
-    .map_err(|detail| refusal(id, detail.into()))?;
-    canonical_clause(substituted, id)
+    .map_err(|detail| refusal(id, detail))
 }
 
 /// Substitution can reverse equality order or make conjuncts identical. The
@@ -112,95 +112,13 @@ pub(crate) fn canonical_clause(proposition: Proposition, id: MachineId) -> Check
         .map_err(|detail| refusal(id, detail))
 }
 
-struct ScalarFormals<'a> {
-    actuals: &'a [ValueId],
+/// The sources a lowered value table traces for a restated clause.
+struct LoweredSources<'a> {
     values: &'a arena::IdTable<ValueId, terminal_check_tables::values::ValueRow>,
-    places: &'a [semantic_vocabulary::PlaceId],
 }
 
-impl ScalarFormals<'_> {
-    fn place(
-        &self,
-        formal: semantic_vocabulary::PlaceId,
-    ) -> Result<semantic_vocabulary::PlaceId, &'static str> {
-        usize::try_from(formal.get())
-            .ok()
-            .and_then(|position| position.checked_sub(1))
-            .and_then(|position| self.places.get(position))
-            .copied()
-            .ok_or("clause names storage that is not a structural formal")
-    }
-}
-
-impl terminal_semantics::substitution::clauses::ClauseBindings for ScalarFormals<'_> {
-    type Error = &'static str;
-
-    fn value(
-        &mut self,
-        formal: ValueId,
-        scalar_type: semantic_vocabulary::ScalarType,
-    ) -> Result<ScalarTerm, Self::Error> {
-        let actual = usize::try_from(formal.get())
-            .ok()
-            .and_then(|position| position.checked_sub(1))
-            .and_then(|position| self.actuals.get(position))
-            .ok_or("clause names a value that is not a formal")?;
-        Ok(ScalarTerm::value(*actual, scalar_type))
-    }
-
-    fn field(
-        &mut self,
-        version: semantic_vocabulary::ContentPlaceVersion,
-        root: semantic_vocabulary::PlaceId,
-        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
-        scalar_type: semantic_vocabulary::ScalarType,
-    ) -> Result<ScalarTerm, Self::Error> {
-        if version != semantic_vocabulary::ContentPlaceVersion::Current {
-            return Err("a loop header cannot restate a prior invocation's storage snapshot");
-        }
-        let root = self.place(root)?;
-        let path = path.to_vec();
-        Ok(match scalar_type {
-            semantic_vocabulary::ScalarType::Integer(scalar_type) => ScalarTerm::IntegerField {
-                version,
-                root,
-                path,
-                scalar_type,
-            },
-            semantic_vocabulary::ScalarType::Boolean => ScalarTerm::BooleanField {
-                version,
-                root,
-                path,
-            },
-            semantic_vocabulary::ScalarType::IeeeFloat(format) => ScalarTerm::IeeeFloatField {
-                version,
-                root,
-                path,
-                format,
-            },
-            semantic_vocabulary::ScalarType::Callable(_) => {
-                return Err("clause restatement cannot observe a callable scalar field");
-            }
-        })
-    }
-
-    fn structural_read(
-        &mut self,
-        root: semantic_vocabulary::PlaceId,
-        path: &[semantic_vocabulary::ScalarReadProjection],
-        scalar_type: semantic_vocabulary::ScalarType,
-    ) -> Result<ScalarTerm, Self::Error> {
-        // Substitution already renamed each selector into the header's scope.
-        // Restating a requirement names an observation; the incoming edge
-        // supplies the storage and proves it at that selector.
-        Ok(ScalarTerm::StructuralRead {
-            root: self.place(root)?,
-            path: path.to_vec(),
-            scalar_type,
-        })
-    }
-
-    fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
+impl terminal_codec::contract_forms::RestatedSources for LoweredSources<'_> {
+    fn float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), &'static str> {
         use terminal_check_tables::values::ValueOrigin;
         match source {
             ScalarTerm::IeeeFloatLiteral(_) => Ok(()),
@@ -227,39 +145,8 @@ impl terminal_semantics::substitution::clauses::ClauseBindings for ScalarFormals
         }
     }
 
-    fn extent(
-        &mut self,
-        root: semantic_vocabulary::PlaceId,
-        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
-        scalar_type: semantic_vocabulary::IntegerType,
-    ) -> Result<ScalarTerm, Self::Error> {
-        Ok(ScalarTerm::ViewExtent {
-            root: self.place(root)?,
-            path: path.to_vec(),
-            scalar_type,
-        })
-    }
-
-    fn byte_predicate(
-        &mut self,
-        predicate: semantic_vocabulary::ByteSequencePredicate,
-        root: semantic_vocabulary::PlaceId,
-        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
-    ) -> Result<ScalarTerm, Self::Error> {
-        Ok(ScalarTerm::byte_sequence_predicate(
-            predicate,
-            self.place(root)?,
-            path.to_vec(),
-        ))
-    }
-
-    fn case(
-        &mut self,
-        _: semantic_vocabulary::PlaceId,
-        _: &[semantic_vocabulary::CanonicalStructuralPathSegment],
-        _: semantic_vocabulary::StructuralCaseId,
-    ) -> Result<terminal_semantics::substitution::clauses::CaseAnswer, Self::Error> {
-        Err("clause restatement has no captured structural entry case")
+    fn keeps_byte_predicates(&self) -> bool {
+        true
     }
 }
 
@@ -337,7 +224,7 @@ mod tests {
         };
         let machine = MachineId::new(1).unwrap();
         let actuals = [ValueId::new(3).unwrap()];
-        let places = [PlaceId::new(4).unwrap()];
+        let places = [Some(PlaceId::new(4).unwrap())];
         let cells = values(ty);
         assert_eq!(
             substitute_parameters(&clause(1, 1), &actuals, &places, &cells, machine).unwrap(),

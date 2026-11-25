@@ -1214,7 +1214,10 @@ crash continuations are the callee's published routes with each formal
 replaced by the actual at its position, a structural formal by the place of
 its whole actual (`contract_forms::substituted_routes`); nothing is dropped
 or simplified, and a route over an actual that projects a place is refused.
-Both edges go to `Destination::NoNormal`. A call of a machine that may return
+A loop header and a record cast restate their requirements through the same
+binding (`contract_forms::substitute_formals`); they also keep the byte
+predicates and float meaning sources the lowered value table traces, because
+each arriving edge still proves the restated clause. Both edges go to `Destination::NoNormal`. A call of a machine that may return
 and also publishes crash routes stays a `Call` or `CallUnit` operation and
 carries the same substituted routes as its crash continuations: the block
 goes on after it, so the crash site is the operation

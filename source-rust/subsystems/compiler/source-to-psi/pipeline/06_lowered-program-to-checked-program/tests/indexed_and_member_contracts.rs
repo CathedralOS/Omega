@@ -282,6 +282,89 @@ fn a_forwarded_crash_guard_covers_the_call_it_forwards() {
     assert!(unproved(&twin) && twin.contains("CrashCoverage"), "{twin}");
 }
 
+/// A crash guard over a borrowed scalar (`value == 0` over `@u64`) and one
+/// over a slice's extent (`items.length == 0`) read the caller's storage at
+/// the call, as the element guard does: each call is accepted when the
+/// caller's `requires` rules the route out and refused without it.
+#[test]
+fn borrowed_scalar_and_extent_crash_guards_read_the_callers_storage() {
+    let scalar = |requires: &str| {
+        format!(
+            "machine maybe_zero(value: @u64) -> u64 crashes Trap value == 0 \
+             {{ transition $value == 0 {{ true -> bad(), false -> ($value) }} \
+                machine bad() -> u64 {{ crash Trap; }} }} \
+             public machine read_seven(value: @u64) -> u64 {requires} {{ maybe_zero(value) }}"
+        )
+    };
+    accepted(&scalar("requires value == 7"));
+    let twin = rejected(&scalar(""));
+    assert!(unproved(&twin) && twin.contains("CrashCoverage"), "{twin}");
+
+    let extent = |requires: &str| {
+        format!(
+            "machine maybe_empty(items: @[u8]) -> u64 crashes Trap items.length == 0 \
+             {{ transition items.length == 0 {{ true -> bad(), false -> (items.length) }} \
+                machine bad() -> u64 {{ crash Trap; }} }} \
+             public machine count(items: @[u8]) -> u64 {requires} {{ maybe_empty(items) }}"
+        )
+    };
+    accepted(&extent("requires items.length > 0"));
+    let twin = rejected(&extent(""));
+    assert!(unproved(&twin) && twin.contains("CrashCoverage"), "{twin}");
+}
+
+/// A call's crash continuation names the place of each whole structural
+/// actual. An actual that lends a field of a record (`@pair.items`) has no
+/// place of its own, so the route over that formal is refused by name rather
+/// than dropped: an untranslated continuation cannot erase a crash
+/// (calls_and_outcomes.md, "Call contracts"). The twin lends a whole local
+/// array holding the same elements and is accepted.
+#[test]
+fn a_crash_guard_over_a_projected_actual_is_refused_by_name() {
+    let program = |setup: &str, actual: &str| {
+        format!(
+            "public data Pair {{ items: [u64; 2]; tag: u64; }} \
+             machine maybe_zero(items: @[u64; 2], index: u64) -> u64 \
+             requires index < 2 crashes Trap items[index] == 0 \
+             {{ transition items[index] == 0 {{ true -> bad(), false -> (items[index]) }} \
+                machine bad() -> u64 {{ crash Trap; }} }} \
+             public machine run() -> u64 {{ {setup} maybe_zero({actual}, 0) }}"
+        )
+    };
+    accepted(&program("let items: [u64; 2] = [7, 7];", "@items"));
+    let twin = rejected(&program(
+        "let pair: Pair = Pair { items: [7, 7], tag: 0 };",
+        "@pair.items",
+    ));
+    assert!(
+        twin.contains("clause names a structural formal whose actual projects a place"),
+        "{twin}"
+    );
+}
+
+/// A forwarder over `@mutable` storage that writes the element before the
+/// call cannot rely on its entry guard, which described the element as it
+/// arrived. The call is refused. The same forwarder without the write is
+/// refused too today, because the checker cannot yet read the element's
+/// value at the call through a `@mutable` formal (`TASKS.md`,
+/// PROOF-KERNEL-CORE); so this test pins only the case that must stay
+/// refused.
+#[test]
+fn a_mutable_forwarder_that_writes_the_guarded_element_is_refused() {
+    let program = "machine maybe_zero(items: @[u64; 2], index: u64) -> u64 \
+         requires index < 2 crashes Trap items[index] == 0 \
+         { transition items[index] == 0 { true -> bad(), false -> (items[index]) } \
+           machine bad() -> u64 { crash Trap; } } \
+         machine forward(items: @mutable [u64; 2], index: u64) -> u64 \
+         requires index < 2 crashes Trap items[index] == 0 \
+         { items[index] = 0; maybe_zero(items, index) }";
+    let refused = rejected(program);
+    assert!(
+        unproved(&refused) && refused.contains("CrashCoverage"),
+        "{refused}"
+    );
+}
+
 /// A suspending call's result may be bound first or tested directly by a
 /// `transition`; both forms are accepted with the same nested suspension.
 #[test]

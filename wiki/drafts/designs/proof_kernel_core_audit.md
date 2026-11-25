@@ -1404,7 +1404,10 @@ type), and the clause's `ClauseScope` says what each name denotes there.
     caller's `requires` names ("comparison term outside the scalar
     subset"). `other_state` calls a nested machine whose omitted crash
     route is inferred as `Truth`. `match_join` and the root package stop at
-    "call argument that names storage another argument lends".
+    "call argument that names storage another argument lends". Two limits
+    fail closed: a route over an actual that projects a place
+    (`@pair.items`) is refused by name, and a forwarder over a `@mutable`
+    formal is refused whether or not it writes the guarded element.
   - "case membership" in a machine clause (`read_clause`) refused a form
     the specification admits, and is now served where the clause states the
     test outright (2026-11-24). A case is a domain: "A case implicitly
