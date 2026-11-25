@@ -483,21 +483,30 @@ impl<'t> Program<'t> {
     pub(crate) fn prepare_domain_predicates(&mut self, id: MachineId) -> Checked<()> {
         let mut slot = 0;
         while let Some(domain) = self.declared_domains.get(slot) {
-            if let Some(scope) = domain.schema_scope.clone() {
-                let values = std::mem::replace(&mut self.scope, scope.values);
-                let source = std::mem::replace(&mut self.source_scope, scope.source);
-                let schema = std::mem::replace(&mut self.reading_schema, true);
-                let read = self.prepare_declared_predicate(id, slot);
-                self.scope = values;
-                self.source_scope = source;
-                self.reading_schema = schema;
-                read?;
-            } else {
-                self.prepare_declared_predicate(id, slot)?;
-            }
+            self.in_domain_scope(domain.schema_scope.clone(), |program| {
+                program.prepare_declared_predicate(id, slot)
+            })?;
             slot += 1;
         }
         Ok(())
+    }
+
+    fn in_domain_scope<T>(
+        &mut self,
+        scope: Option<super::traits::RequirementTypeScope>,
+        read: impl FnOnce(&mut Self) -> Checked<T>,
+    ) -> Checked<T> {
+        let Some(scope) = scope else {
+            return read(self);
+        };
+        let values = std::mem::replace(&mut self.scope, scope.values);
+        let source = std::mem::replace(&mut self.source_scope, scope.source);
+        let schema = std::mem::replace(&mut self.reading_schema, true);
+        let result = read(self);
+        self.scope = values;
+        self.source_scope = source;
+        self.reading_schema = schema;
+        result
     }
 
     fn prepare_declared_predicate(&mut self, id: MachineId, slot: usize) -> Checked<()> {
@@ -673,6 +682,61 @@ impl<'t> Program<'t> {
 
     /// Read domain clauses while their source types and declarations can still
     /// be retained. Publication consumes these clauses after discovery closes.
+    pub(super) fn declared_domain_schema(
+        &mut self,
+        id: MachineId,
+        definition: &crate::source_state::domain::DomainDefinition,
+        schema: Option<&prepared_source::DomainSchema>,
+    ) -> Checked<()> {
+        let Some(schema) = schema else {
+            return self.declared_predicates(id, definition);
+        };
+        let identity = *schema.application.as_ref().map_err(|reason| {
+            let mut refusal = refuse(
+                id,
+                Construct::Machine,
+                Unserved::Declaration("domain family with an unsupported declaration application"),
+            );
+            refusal.detail.push_str(": ");
+            refusal.detail.push_str(reason);
+            self.read_failure_at(refusal, definition.symbol, "the domain declaration")
+        })?;
+        let parameters = self.typed.domain_type_parameters(definition);
+        if parameters.iter().any(|parameter| {
+            !self
+                .typed
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(parameter.symbol)
+                || self.typed.symbols.get(parameter.symbol).parent != definition.symbol
+        }) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Declaration("domain schema with a foreign or stale parameter"),
+            ));
+        }
+        let instance = crate::body::DomainInstance {
+            declaration: definition.symbol,
+            identity,
+        };
+        let scope = super::traits::RequirementTypeScope {
+            values: super::type_parameters::rigid_type_scope(parameters),
+            source: std::sync::Arc::new(crate::source_state::SourceTypeScope {
+                rigid_parameters: parameters
+                    .iter()
+                    .map(|parameter| parameter.symbol)
+                    .collect(),
+                ..Default::default()
+            }),
+        };
+        self.in_domain_scope(Some(scope), |program| {
+            let theory = program.domain_theory(id, instance)?;
+            program.declared_predicates(id, theory)
+        })
+    }
+
     pub(super) fn declared_predicates(
         &mut self,
         id: MachineId,

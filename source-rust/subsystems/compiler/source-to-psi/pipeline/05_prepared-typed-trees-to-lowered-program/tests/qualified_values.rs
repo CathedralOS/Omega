@@ -242,6 +242,25 @@ fn a_domain_declared_on_a_qualified_alias_keeps_its_carrier_membership() {
 }
 
 #[test]
+fn an_indexed_refinement_checks_each_familys_declared_predicate() {
+    const DOMAINS: &str = "domain<const M: u8> u32::At<M> requires self > 0u32;
+        domain<const N: u8> u32::At<N>::Child<N> requires self < 100u32;";
+    for value in [7, 0, 150] {
+        let source = format!(
+            "{DOMAINS}
+            machine run() -> u32 in At::Child<3> {{ {value}u32 as +At::Child<3> }}"
+        );
+        let program = Program::of(&source);
+        let judged = program.judged(|_| {});
+        if value == 7 {
+            judged.accepted();
+        } else {
+            assert_eq!(judged.rejected().unproved.len(), 1);
+        }
+    }
+}
+
+#[test]
 fn an_unused_refinement_publishes_its_exact_parent() {
     Program::of(
         "domain<const N: u8> u32::At<N>;

@@ -36,6 +36,13 @@ impl EntryApplication {
     }
 }
 
+/// A generic domain checked at its own declaration, in source order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DomainSchema {
+    pub declaration: SymbolHandle,
+    pub application: Result<semantic_vocabulary::SemanticDomainId, String>,
+}
+
 /// A frozen source snapshot with checked computation-input correspondence.
 /// Cloning retains the same source owner. Only stage 04 links the issuer
 /// crate, so only stage 04 can build one:
@@ -44,7 +51,7 @@ impl EntryApplication {
 /// use prepared_source::PreparedTypedTrees;
 /// use prepared_source_issuer::PREPARATION;
 /// use typed_trees::source_state::TypedTrees;
-/// let prepared = PreparedTypedTrees::new(PREPARATION, TypedTrees::default(), &[], Vec::new()).unwrap();
+/// let prepared = PreparedTypedTrees::new(PREPARATION, TypedTrees::default(), &[], Vec::new(), Vec::new()).unwrap();
 /// assert!(std::sync::Arc::ptr_eq(prepared.trees(), prepared.clone().trees()));
 /// ```
 ///
@@ -61,6 +68,7 @@ pub struct PreparedTypedTrees {
     values: std::sync::Arc<[ValueInputs]>,
     constants: std::sync::Arc<[arena::Handle<source_state::constant::ConstDeclaration>]>,
     entries: std::sync::Arc<[(EntryApplication, SymbolHandle)]>,
+    domain_schemas: std::sync::Arc<[DomainSchema]>,
 }
 
 impl PreparedTypedTrees {
@@ -75,6 +83,7 @@ impl PreparedTypedTrees {
         program: TypedTrees,
         values: &[ValueInputs],
         entries: Vec<(EntryApplication, SymbolHandle)>,
+        domain_schemas: Vec<DomainSchema>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let constants = values::constant_inputs(&program, values)?;
         Ok(Self {
@@ -82,12 +91,18 @@ impl PreparedTypedTrees {
             values: values.into(),
             constants: constants.into(),
             entries: entries.into(),
+            domain_schemas: domain_schemas.into(),
         })
     }
 
     /// Read the exact source snapshot used to prepare this program.
     pub fn trees(&self) -> &std::sync::Arc<FrozenTypedTrees> {
         &self.typed
+    }
+
+    /// Declaration applications and individual formation failures, in domain declaration order.
+    pub fn domain_schemas(&self) -> &[DomainSchema] {
+        &self.domain_schemas
     }
 
     /// The exact executable specialization produced for this root request.
@@ -127,7 +142,8 @@ mod tests {
         let program = TypedTrees::default();
         let identity = program.identity.get();
         let expected = program.clone();
-        let prepared = PreparedTypedTrees::new(PREPARATION, program, &[], Vec::new()).unwrap();
+        let prepared =
+            PreparedTypedTrees::new(PREPARATION, program, &[], Vec::new(), Vec::new()).unwrap();
         let cloned = prepared.clone();
         assert!(std::sync::Arc::ptr_eq(prepared.trees(), cloned.trees()));
         assert_eq!(prepared.trees().identity.get(), identity);
@@ -145,8 +161,8 @@ mod tests {
             Vec::new(),
             TargetInputs::None,
         );
-        let refusal =
-            PreparedTypedTrees::new(PREPARATION, other, &[input], Vec::new()).unwrap_err();
+        let refusal = PreparedTypedTrees::new(PREPARATION, other, &[input], Vec::new(), Vec::new())
+            .unwrap_err();
         assert_eq!(refusal.len(), 1);
         assert_eq!(
             refusal[0].message,
@@ -164,7 +180,8 @@ mod tests {
             TargetInputs::None,
         );
         let refusal =
-            PreparedTypedTrees::new(PREPARATION, program, &[input], Vec::new()).unwrap_err();
+            PreparedTypedTrees::new(PREPARATION, program, &[input], Vec::new(), Vec::new())
+                .unwrap_err();
         assert_eq!(refusal.len(), 1);
         assert_eq!(
             refusal[0].message,
@@ -187,7 +204,8 @@ mod tests {
             TargetInputs::None,
         );
         let refusal =
-            PreparedTypedTrees::new(PREPARATION, program, &[input], Vec::new()).unwrap_err();
+            PreparedTypedTrees::new(PREPARATION, program, &[input], Vec::new(), Vec::new())
+                .unwrap_err();
         assert_eq!(refusal.len(), 1);
         assert_eq!(
             refusal[0].message,
