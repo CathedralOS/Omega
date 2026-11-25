@@ -12,7 +12,9 @@ use build_execution::{
     TerminalBuildActivation, prepare_build_evaluation,
 };
 use build_recheck::BuildRecheck;
-pub use build_recheck::{PendingProduct, rechecks_outlive_caller, with_build_rechecks};
+pub use build_recheck::{
+    OwedBuildRecheck, PendingProduct, rechecks_outlive_caller, with_build_rechecks,
+};
 use diagnostics::Diagnostic;
 use package_compilation::source_assembly::{
     AssembledSyntax, DeferredProductSources, ImmutableSourceParseCheckpoint,

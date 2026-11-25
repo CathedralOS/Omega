@@ -220,7 +220,7 @@ fn compile_targets(
         let timings = plans.settle_rechecks(profile)?;
         if arguments.timings && timings.is_enabled() {
             print_phases(
-                "Dependency Builds (finished alongside the Product)",
+                "Build rechecks (finished alongside the Product)",
                 &timings,
             );
         }

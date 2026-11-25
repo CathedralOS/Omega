@@ -373,34 +373,68 @@ impl SourceHost<'_, '_> {
 type Deployment = Result<Rc<project_build::PlannedProduct>, Vec<Diagnostic>>;
 
 /// The Product prepared for each requested deployment target, and the
-/// dependency Build rechecks each may still owe.
+/// Build rechecks each may still owe. Targets that share one Product share
+/// its rechecks.
 pub struct ProjectProducts(
     Vec<(TargetProfile, Deployment)>,
-    Vec<(TargetProfile, RefCell<OwedRechecks>)>,
+    Vec<(TargetProfile, Rc<RefCell<OwedRechecks>>)>,
 );
 
-/// The dependency rechecks one deployment owes, until they are settled once.
+/// The rechecks one deployment owes, until they are settled once.
 enum OwedRechecks {
     Running(services::DependencyRechecks),
     Settled(Result<(), Vec<Diagnostic>>),
 }
 
 impl ProjectProducts {
-    fn shared(profiles: &[TargetProfile], planned: project_build::PlannedProduct) -> Self {
+    fn shared(
+        profiles: &[TargetProfile],
+        planned: project_build::PlannedProduct,
+        rechecks: services::DependencyRechecks,
+    ) -> Self {
         let planned = Rc::new(planned);
+        let owed = Rc::new(RefCell::new(OwedRechecks::Running(rechecks)));
         Self(
             profiles
                 .iter()
                 .map(|&target| (target, Ok(Rc::clone(&planned))))
                 .collect(),
-            Vec::new(),
+            profiles
+                .iter()
+                .map(|&target| (target, Rc::clone(&owed)))
+                .collect(),
         )
     }
 
-    /// Wait for the dependency Build rechecks the Product for `target` still
-    /// owes. Their refusal is that Product's result, ahead of any refusal of
-    /// its own, so report nothing about the Product before this returns. The
-    /// Build work they measured is returned once, by the first call.
+    /// Open the one Product a root without dependencies shares across its
+    /// targets. With `alongside`, the root's own Build recheck may still be
+    /// running when this returns, as in [`open_products_alongside_rechecks`].
+    fn open_shared(
+        profiles: &[TargetProfile],
+        root: ReturnedPlanningStage,
+        inputs: Option<&PackageCompilationInputs>,
+        alongside: bool,
+    ) -> Result<Self, build_evaluation_result::CompileFailure> {
+        if !(alongside && project_build::rechecks_outlive_caller()) {
+            return Ok(Self::shared(
+                profiles,
+                root.open_product(inputs)?,
+                Default::default(),
+            ));
+        }
+        let (planned, own) = root.open_pending(inputs)?.release_for_check();
+        Ok(Self::shared(
+            profiles,
+            planned,
+            services::DependencyRechecks::own(own),
+        ))
+    }
+
+    /// Wait for the Build rechecks the Product for `target` still owes: its
+    /// own and its dependencies'. Their refusal is that Product's result,
+    /// ahead of any refusal of its own, so report nothing about the Product
+    /// before this returns. The Build work they measured is returned once,
+    /// by the first call.
     pub fn settle_rechecks(
         &self,
         target: TargetProfile,
@@ -611,10 +645,9 @@ fn open_products_with(
             .stage;
         if returned.returned().declaration().is_none() {
             preparation.require_unlocked_anonymous()?;
-            return Ok(ProjectProducts::shared(
-                profiles,
-                returned.open_product(None)?,
-            ));
+            return Ok(ProjectProducts::open_shared(
+                profiles, returned, None, alongside,
+            )?);
         }
         let resolved = host.join(acquired, returned)?;
         let settled = host.settled;
@@ -642,10 +675,12 @@ fn open_products_with(
                 .iter()
                 .all(|(_, policy)| matches!(policy, Ok(None)))
         {
-            return Ok(ProjectProducts::shared(
+            return Ok(ProjectProducts::open_shared(
                 profiles,
-                resolved.root.open_product(Some(&resolved.inputs))?,
-            ));
+                resolved.root,
+                Some(&resolved.inputs),
+                alongside,
+            )?);
         }
         let root = resolved.root.settle_dependency(resolved.inputs)?;
         let mut owed = Vec::new();
@@ -675,7 +710,7 @@ fn open_products_with(
                                 alongside,
                             )
                             .map_err(|failure| error(failure.into()))?;
-                        owed.push((target, RefCell::new(OwedRechecks::Running(rechecks))));
+                        owed.push((target, Rc::new(RefCell::new(OwedRechecks::Running(rechecks)))));
                         let planned = planned
                             .with_dependency_timings(dependencies.take_timings())
                             .with_component_suppliers(dependencies.into_suppliers());
@@ -698,6 +733,7 @@ mod owed_recheck_tests {
     use super::{OwedRechecks, ProjectProducts};
     use diagnostics::Diagnostic;
     use std::cell::RefCell;
+    use std::rc::Rc;
     use target::TargetProfile;
 
     /// A refused dependency recheck stays its deployment's result however
@@ -711,11 +747,11 @@ mod owed_recheck_tests {
             vec![
                 (
                     TargetProfile::LinuxX64,
-                    RefCell::new(OwedRechecks::Settled(Err(refused.clone()))),
+                    Rc::new(RefCell::new(OwedRechecks::Settled(Err(refused.clone())))),
                 ),
                 (
                     TargetProfile::LinuxArm64,
-                    RefCell::new(OwedRechecks::Running(Default::default())),
+                    Rc::new(RefCell::new(OwedRechecks::Running(Default::default()))),
                 ),
             ],
         );
