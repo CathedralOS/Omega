@@ -205,7 +205,7 @@ impl Program<'_> {
             let at = SourceOrigin::of(table.source_span(test.subject));
             self.checked_membership_carrier(id, definition, carrier, Some(actual), at)?;
             if test.application.is_valid() {
-                self.declared_domain(
+                self.form_domain(
                     id,
                     crate::body::DomainInstance {
                         declaration: test.domain,
@@ -214,6 +214,7 @@ impl Program<'_> {
                     actual,
                     definition.target_type,
                     at,
+                    super::types::DomainUse::Test,
                 )?;
             }
         }

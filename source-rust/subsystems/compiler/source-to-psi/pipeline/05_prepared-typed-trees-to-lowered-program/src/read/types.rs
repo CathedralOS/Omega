@@ -164,6 +164,13 @@ fn landed_type(
     }
 }
 
+/// Using a domain as a qualification retains its nominal theory. A Boolean
+/// test of a predicate-only domain evaluates its clauses at the operand.
+pub(super) enum DomainUse {
+    Qualification,
+    Test,
+}
+
 #[derive(Clone, Copy)]
 enum DomainSpelling {
     CompleteType,
@@ -181,7 +188,8 @@ impl<'t> Program<'t> {
         self.domain_theory_in_scope(
             id,
             domain,
-            self.reading_schema.then_some(self.source_scope.as_ref()),
+            (self.reading_schema || self.is_generic_check_form())
+                .then_some(self.source_scope.as_ref()),
         )
     }
 
@@ -1469,6 +1477,25 @@ impl Program<'_> {
         carrier_type: TypeReferenceHandle,
         at: crate::SourceOrigin,
     ) -> Checked<()> {
+        self.form_domain(
+            id,
+            domain,
+            carrier,
+            carrier_type,
+            at,
+            DomainUse::Qualification,
+        )
+    }
+
+    pub(super) fn form_domain(
+        &mut self,
+        id: MachineId,
+        domain: crate::body::DomainInstance,
+        carrier: ValueType,
+        carrier_type: TypeReferenceHandle,
+        at: crate::SourceOrigin,
+        use_site: DomainUse,
+    ) -> Checked<()> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
         let typed = self.typed;
         let definition = self.domain_theory(id, domain)?;
@@ -1579,6 +1606,15 @@ impl Program<'_> {
             return unserved("a content projection without an ordinary structural carrier");
         }
         self.admitted_declarations.include(domain.declaration);
+        // The tested expression owns the substituted predicate, including any
+        // rigid const index in its machine's scope. It never qualifies a value.
+        if matches!(use_site, DomainUse::Test)
+            && definition.has_complete_predicate_theory()
+            && !definition.requires_result_membership()
+            && self.require_domain_predicate_form(id, declaration)
+        {
+            return Ok(());
+        }
         // Primitive byte domains already retain their predicate on the byte
         // storage descriptor. Ordinary scalar/record domains need their own
         // generic declaration alongside the instantiated use-site clauses.
