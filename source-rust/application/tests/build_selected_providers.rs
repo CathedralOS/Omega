@@ -338,6 +338,20 @@ machine storage_probe() {}
             "WordStorage",
             "storage represents `Word`, but the operation requires `|app|::Other`",
         ),
+        (
+            "unqualified_resident_index",
+            "Word",
+            "Word",
+            "WordStorage",
+            "must name a domain-qualified type",
+        ),
+        (
+            "wrong_resident_index_carrier",
+            "OtherPlacement",
+            "Word",
+            "WordStorage",
+            "does not qualify the supplied value type",
+        ),
     ] {
         let build = format!(
             r#"use main.omg as app;
@@ -351,5 +365,41 @@ machine build(builder: @mutable Build) {{
         );
         let (status, report) = run_both(name, program, &build);
         assert!(!status.success() && report.contains(reason), "{report}");
+    }
+}
+
+#[test]
+fn a_resident_index_alias_preserves_its_imported_value_type() {
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        return;
+    };
+    // Exercise the original sample's layout, domain and resource profile in a
+    // selected provider, ahead of the independent vacancy and loan judgments
+    // in the sample's allocating entry.
+    let sample =
+        support::repository_root().join("samples/cli/facts/resident_backing/local/main.omg");
+    let sample = std::fs::read_to_string(sample).unwrap();
+    let (definitions, _) = sample
+        .split_once("\nboundary trait NativeAllocation {")
+        .unwrap();
+    let program = format!("{definitions}\nmachine storage_probe() {{}}\n");
+    let target = host.target_name();
+    let build = format!(
+        r#"use main.omg as app;
+use {{omega}}/language/core/layout.omg as layout;
+machine build(builder: @mutable Build) {{
+    Build::application(builder, "storage_probe");
+    Build::accept_boundary::<|app|::MemorySupply>(builder);
+    Build::accept_boundary::<|layout|::NativeAccess<|app|::WordPlacement, |app|::Word, |app|::WordStorage, |app|::TestMemory>>(builder);
+    Build::select_provider::<|layout|::ResourceProfileSupply<|app|::TestMemory>, |app|::MemorySupply>(builder, {target});
+    Build::select_provider::<|layout|::AccessLifecycle<|app|::WordPlacement, |app|::Word>, |layout|::NativeAccess<|app|::WordPlacement, |app|::Word, |app|::WordStorage, |app|::TestMemory>>(builder, {target});
+    Build::bind(builder, {target}\ProgramEntry, |app|::storage_probe);
+}}"#
+    );
+    let (status, report) = run_both("matching_resident_index", &program, &build);
+    if status.success() {
+        assert_agreed_exit_zero((status, report));
+    } else {
+        assert!(report.contains("resident placement needs evaluated layout, access policy, live content and the selected resource profile for this grant"), "{report}");
     }
 }

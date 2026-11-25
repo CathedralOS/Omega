@@ -10,7 +10,7 @@ use crate::source_state::{
 
 impl Program<'_> {
     pub(super) fn check_resident_storage(
-        &self,
+        &mut self,
         id: MachineId,
         invocation: &StaticInvocation<'_>,
         source: SourceOrigin,
@@ -61,7 +61,8 @@ impl Program<'_> {
         let template = typed
             .machine(operation.template())
             .ok_or_else(|| unavailable("resident placement lost its sealed declaration"))?;
-        let Some([_, schema, storage, _]) = typed.machine_type_parameters(template).as_array()
+        let Some([placement, schema, storage, _]) =
+            typed.machine_type_parameters(template).as_array()
         else {
             return Err(unavailable(
                 "resident placement lost its source and storage binders",
@@ -125,6 +126,12 @@ impl Program<'_> {
                 ),
             ));
         }
+        // P names an access-qualified form of the very T carried by the
+        // resident. Read both through the normal source type judgment so a
+        // transparent alias and an inherited domain keep their identities.
+        let placement = selected(placement.symbol)
+            .ok_or_else(|| unavailable("resident placement needs its selected type index"))?;
+        self.resident_index(id, source, placement, schema)?;
         Err(unavailable(
             "resident placement needs evaluated layout, access policy, live content and the selected resource profile for this grant",
         ))
