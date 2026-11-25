@@ -897,42 +897,65 @@ fn boolean_value_literal(proposition: &Proposition) -> Option<(ValueId, bool)> {
     }
 }
 
-fn is_mutual_exclusion_over(proposition: &Proposition, ids: &[ValueId]) -> bool {
+fn collect_proposition_values(proposition: &Proposition, out: &mut Vec<ValueId>) {
+    proposition.visit_scalar_terms(|term| collect_term_values(term, out));
+}
+
+fn distinct_positive_boolean_choice(parts: &[Proposition]) -> Option<Vec<ValueId>> {
+    if parts.is_empty() {
+        return None;
+    }
+    let mut ids = Vec::with_capacity(parts.len());
+    for part in parts {
+        let (id, true) = boolean_value_literal(part)? else {
+            return None;
+        };
+        if ids.contains(&id) {
+            return None;
+        }
+        ids.push(id);
+    }
+    Some(ids)
+}
+
+fn mutual_exclusion_members(proposition: &Proposition) -> Option<(ValueId, Vec<ValueId>)> {
     let Proposition::Implication {
         premise,
         conclusion,
     } = proposition
     else {
-        return false;
+        return None;
     };
-    let Some((chosen, true)) = boolean_value_literal(premise) else {
-        return false;
+    let (chosen, true) = boolean_value_literal(premise)? else {
+        return None;
     };
-    if !ids.contains(&chosen) {
-        return false;
-    }
-    let excludes_other = |item: &Proposition| {
-        matches!(
-            boolean_value_literal(item),
-            Some((other, false)) if other != chosen && ids.contains(&other)
-        )
-    };
+    let mut others = Vec::new();
     match conclusion.as_ref() {
         Proposition::Conjunction(conjuncts) => {
-            !conjuncts.is_empty() && conjuncts.iter().all(excludes_other)
+            if conjuncts.is_empty() {
+                return None;
+            }
+            for item in conjuncts {
+                let (other, false) = boolean_value_literal(item)? else {
+                    return None;
+                };
+                if other == chosen {
+                    return None;
+                }
+                others.push(other);
+            }
         }
-        single => excludes_other(single),
+        single => {
+            let (other, false) = boolean_value_literal(single)? else {
+                return None;
+            };
+            if other == chosen {
+                return None;
+            }
+            others.push(other);
+        }
     }
-}
-
-fn proposition_mentions_any_value(proposition: &Proposition, ids: &[ValueId]) -> bool {
-    let mut found = false;
-    proposition.visit_scalar_terms(|term| {
-        if !found && term_shares_value(term, ids) {
-            found = true;
-        }
-    });
-    found
+    Some((chosen, others))
 }
 
 fn term_mentions(term: &ScalarTerm, target: &ScalarTerm) -> bool {
@@ -1822,6 +1845,7 @@ impl<'a> Prover<'a> {
     /// `v < k or k < v`): each alternative either proves the goal as a local
     /// assumption or contradicts what is already known.
     fn split(&mut self, goal: &Proposition) -> Option<ProofNode> {
+        let mut connected_values: Option<Vec<ValueId>> = None;
         for index in 0..self.facts.len() {
             // No branch can start once the shared budget is exhausted. An
             // active cut likewise supplies no new information. Check both
@@ -1856,8 +1880,15 @@ impl<'a> Prover<'a> {
             // names appear nowhere in `goal` or in any other fact outside its
             // own mutual-exclusion implications) is a conservative extension
             // and cannot help prove `goal` or derive `Falsehood`.
-            if self.is_disconnected_boolean_choice(index, parts, goal) {
-                continue;
+            if let Some(choice_ids) = distinct_positive_boolean_choice(parts) {
+                let connected = connected_values
+                    .get_or_insert_with(|| self.values_connected_outside_boolean_choices(goal));
+                if choice_ids
+                    .iter()
+                    .all(|id| connected.binary_search(id).is_err())
+                {
+                    continue;
+                }
             }
             let parts = parts.clone();
             self.active_cuts.push(ActiveCut {
@@ -1894,41 +1925,60 @@ impl<'a> Prover<'a> {
         None
     }
 
-    fn is_disconnected_boolean_choice(
-        &self,
-        disjunction_index: usize,
-        parts: &[Proposition],
-        goal: &Proposition,
-    ) -> bool {
-        if parts.is_empty() {
-            return false;
-        }
-        let mut ids = Vec::with_capacity(parts.len());
-        for part in parts {
-            let Some((id, true)) = boolean_value_literal(part) else {
-                return false;
-            };
-            if ids.contains(&id) {
-                return false;
+    /// Collects every `ValueId` referenced by `goal` or by any fact in
+    /// `self.facts` outside a single positive boolean-choice disjunction and
+    /// its own internal mutual-exclusion implications. Built once per `split`
+    /// call so checking all choice disjunctions is O(F log F) instead of O(K * F).
+    fn values_connected_outside_boolean_choices(&self, goal: &Proposition) -> Vec<ValueId> {
+        let mut connected = Vec::new();
+        collect_proposition_values(goal, &mut connected);
+        let mut choice_owner: Vec<(ValueId, usize)> = Vec::new();
+        for (index, fact) in self.facts.iter().enumerate() {
+            if let Proposition::Disjunction(parts) = fact.proposition()
+                && let Some(ids) = distinct_positive_boolean_choice(parts)
+            {
+                for id in ids {
+                    choice_owner.push((id, index));
+                }
             }
-            ids.push(id);
         }
-        if proposition_mentions_any_value(goal, &ids) {
-            return false;
-        }
-        for (other_index, fact) in self.facts.iter().enumerate() {
-            if other_index == disjunction_index {
-                continue;
+        choice_owner.sort_unstable_by_key(|(id, _)| *id);
+        let mut unique_owner: Vec<(ValueId, Option<usize>)> =
+            Vec::with_capacity(choice_owner.len());
+        for (id, owner) in choice_owner {
+            if let Some((last_id, last_owner)) = unique_owner.last_mut()
+                && *last_id == id
+            {
+                *last_owner = None;
+                connected.push(id);
+            } else {
+                unique_owner.push((id, Some(owner)));
             }
+        }
+        let owner_of = |id: ValueId| -> Option<usize> {
+            unique_owner
+                .binary_search_by_key(&id, |(entry, _)| *entry)
+                .ok()
+                .and_then(|pos| unique_owner[pos].1)
+        };
+        for fact in &self.facts {
             let proposition = fact.proposition();
-            if is_mutual_exclusion_over(proposition, &ids) {
+            if let Proposition::Disjunction(parts) = proposition
+                && distinct_positive_boolean_choice(parts).is_some()
+            {
                 continue;
             }
-            if proposition_mentions_any_value(proposition, &ids) {
-                return false;
+            if let Some((chosen, others)) = mutual_exclusion_members(proposition)
+                && let Some(group) = owner_of(chosen)
+                && others.iter().all(|&other| owner_of(other) == Some(group))
+            {
+                continue;
             }
+            collect_proposition_values(proposition, &mut connected);
         }
-        true
+        connected.sort_unstable();
+        connected.dedup();
+        connected
     }
 
     /// One alternative: the kernel adds it as the next assumption.
