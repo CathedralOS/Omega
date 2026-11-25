@@ -769,7 +769,7 @@ fn publish_parents(
         let mut analysis =
             DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, &graph);
         let flow = analysis
-            .flow(machine.id)
+            .flow_arc(machine.id)
             .map_err(|error| graph_unavailable(module, error))?;
         let mut parents = Vec::new();
         for block in &machine.blocks {

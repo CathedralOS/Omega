@@ -111,6 +111,10 @@ impl StorageQueries {
 pub struct DescriptorAnalysis<'a> {
     replay: Replay<'a>,
     storage_queries: StorageQueries,
+    flows: Vec<(
+        MachineId,
+        std::sync::Arc<BTreeMap<DescriptorPosition, DescriptorFlowStep>>,
+    )>,
 }
 
 pub type DescriptorSourceObservations =
@@ -238,6 +242,7 @@ impl<'a> DescriptorAnalysis<'a> {
         Self {
             replay: Replay::new(types, machines),
             storage_queries: StorageQueries::default(),
+            flows: Vec::new(),
         }
     }
     pub fn flow_feasibility(
@@ -397,6 +402,7 @@ impl<'a> DescriptorAnalysis<'a> {
         Self {
             replay: Replay::with_slot_kind(types, machines, DescriptorSlotKind::References),
             storage_queries: StorageQueries::default(),
+            flows: Vec::new(),
         }
     }
 
@@ -411,6 +417,7 @@ impl<'a> DescriptorAnalysis<'a> {
                 DescriptorSlotKind::BorrowedStorage,
             ),
             storage_queries: StorageQueries::default(),
+            flows: Vec::new(),
         }
     }
     pub fn with_access_origins(
@@ -420,6 +427,7 @@ impl<'a> DescriptorAnalysis<'a> {
         Self {
             replay: Replay::with_slot_kind(types, machines, DescriptorSlotKind::AccessOrigins),
             storage_queries: StorageQueries::default(),
+            flows: Vec::new(),
         }
     }
     pub(crate) fn compatibility_machines(&self) -> &[DescriptorMachine] {
@@ -1522,12 +1530,30 @@ impl<'a> DescriptorAnalysis<'a> {
         self.append_invocation_flow(machine, position, call, before, &mut step, None)?;
         Ok(step)
     }
+    pub fn flow_arc(
+        &mut self,
+        identity: MachineId,
+    ) -> Result<std::sync::Arc<BTreeMap<DescriptorPosition, DescriptorFlowStep>>, DescriptorGraphError>
+    {
+        if let Ok(index) = self.flows.binary_search_by_key(&identity, |(id, _)| *id) {
+            return Ok(std::sync::Arc::clone(&self.flows[index].1));
+        }
+        let prepared = std::sync::Arc::new(self.prepare_flow(identity, None)?);
+        let index = self
+            .flows
+            .binary_search_by_key(&identity, |(id, _)| *id)
+            .unwrap_or_else(|index| index);
+        self.flows
+            .insert(index, (identity, std::sync::Arc::clone(&prepared)));
+        Ok(prepared)
+    }
+
     pub fn flow(
         &mut self,
         identity: MachineId,
     ) -> Result<BTreeMap<DescriptorPosition, DescriptorFlowStep>, DescriptorGraphError>
     {
-        self.prepare_flow(identity, None)
+        self.flow_arc(identity).map(|arc| (*arc).clone())
     }
 
     pub fn residence_flow(

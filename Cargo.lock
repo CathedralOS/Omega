@@ -2219,6 +2219,7 @@ dependencies = [
  "prepared-source",
  "proof-admission",
  "proof-applications",
+ "rayon",
  "schema-reflection",
  "semantic-vocabulary",
  "service-surface",
@@ -2234,6 +2235,7 @@ dependencies = [
  "terminal-semantics",
  "typed-trees",
  "wire",
+ "worker-budget",
 ]
 
 [[package]]

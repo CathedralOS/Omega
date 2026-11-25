@@ -330,61 +330,85 @@ pub fn prepare_compilation(
     let mut witnesses = Vec::new();
     let mut next = 0;
     while next < rows.len() {
-        let (declaring_trait, requirement, arguments, implementation, signature) = &rows[next];
-        let prepared = crate::prepare_witness(
-            typed,
-            *declaring_trait,
-            *requirement,
-            arguments,
-            *implementation,
-            *signature,
-            crate::WitnessInputs {
-                captures: captures.clone(),
-                purpose: compilation.purpose,
-                outcome_subjects: Some(compilation.subjects),
-            },
-        );
-        let prepared = prepared.and_then(|mut prepared| {
-            crate::declare::close_specializations(
-                &forms,
-                std::mem::take(&mut prepared.prepared_applications),
-                &mut prepared.program,
-            )
-            .map_err(|(owner, reason)| {
-                crate::refuse(
-                    owner,
-                    terminal_check_tables::Construct::Machine,
-                    crate::Unserved::Declaration(reason),
-                )
-            })?;
-            prepared.finalize_check_form()
-        });
-        let mut witness = match prepared {
-            Ok(prepared) => {
-                source.forms.push(Some(prepared.source));
-                Ok(prepared.program)
-            }
-            Err(refusal) => {
-                source.forms.push(None);
-                Err(refusal)
-            }
-        };
-        if let Ok(witness) = &mut witness {
-            for row in std::mem::take(&mut witness.conformance_witnesses) {
-                let row = (
-                    row.declaring_trait,
-                    row.requirement,
-                    row.value_arguments,
-                    row.implementation,
-                    None,
+        let wave_end = rows.len();
+        let prepare_one =
+            |(declaring_trait, requirement, arguments, implementation, signature): &(
+                SymbolHandle,
+                SymbolHandle,
+                Vec<semantic_vocabulary::ScalarTerm>,
+                SymbolHandle,
+                Option<&_>,
+            )| {
+                let prepared = crate::prepare_witness(
+                    typed,
+                    *declaring_trait,
+                    *requirement,
+                    arguments,
+                    *implementation,
+                    *signature,
+                    crate::WitnessInputs {
+                        captures: captures.clone(),
+                        purpose: compilation.purpose,
+                        outcome_subjects: Some(compilation.subjects),
+                    },
                 );
-                if !rows.contains(&row) {
-                    rows.push(row);
+                prepared.and_then(|mut prepared| {
+                    crate::declare::close_specializations(
+                        &forms,
+                        std::mem::take(&mut prepared.prepared_applications),
+                        &mut prepared.program,
+                    )
+                    .map_err(|(owner, reason)| {
+                        crate::refuse(
+                            owner,
+                            terminal_check_tables::Construct::Machine,
+                            crate::Unserved::Declaration(reason),
+                        )
+                    })?;
+                    prepared
+                        .finalize_check_form()
+                        .map(|prepared| (prepared.source, prepared.program))
+                })
+            };
+        let wave_results: Vec<_> =
+            if worker_budget::current_workers() == 1 || wave_end - next < 2 {
+                rows[next..wave_end].iter().map(prepare_one).collect()
+            } else {
+                use rayon::prelude::*;
+                rows[next..wave_end]
+                    .par_iter()
+                    .with_max_len(1)
+                    .map(prepare_one)
+                    .collect()
+            };
+        for prepared in wave_results {
+            let mut witness = match prepared {
+                Ok((witness_source, program)) => {
+                    source.forms.push(Some(witness_source));
+                    Ok(program)
+                }
+                Err(refusal) => {
+                    source.forms.push(None);
+                    Err(refusal)
+                }
+            };
+            if let Ok(witness) = &mut witness {
+                for row in std::mem::take(&mut witness.conformance_witnesses) {
+                    let row = (
+                        row.declaring_trait,
+                        row.requirement,
+                        row.value_arguments,
+                        row.implementation,
+                        None,
+                    );
+                    if !rows.contains(&row) {
+                        rows.push(row);
+                    }
                 }
             }
+            witnesses.push(witness);
         }
-        witnesses.push(witness);
-        next += 1;
+        next = wave_end;
     }
     if let Ok(elaboration) = &mut closure {
         retain_installation_reach(&mut elaboration.module)?;

@@ -2512,8 +2512,7 @@ impl<'a> Storage<'a> {
         known: &mut Vec<Option<bool>>,
     ) -> Checked<bool> {
         let declaration = self.declaration(element, concerns)?;
-        if !declaration.is_copyable()
-            || declaration.owns_linear_claim
+        if declaration.owns_linear_claim
             || declaration.nominal_cleanup.is_some()
             || declaration.quotient_carrier.is_some()
         {

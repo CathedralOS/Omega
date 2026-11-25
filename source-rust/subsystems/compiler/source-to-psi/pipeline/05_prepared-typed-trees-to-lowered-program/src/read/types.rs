@@ -1515,12 +1515,16 @@ impl Program<'_> {
             declaration: parent.domain_symbol,
             identity: parent.semantic_domain,
         });
-        if let Some(instance) = parent {
-            if !required.domains.contains(instance) {
-                required.domains = required.domains.with(instance).ok_or_else(|| {
-                    refuse(id, Construct::Machine, Unserved::Type("more than four declared domains"))
-                })?;
-            }
+        if let Some(instance) = parent
+            && !required.domains.contains(instance)
+        {
+            required.domains = required.domains.with(instance).ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Type("more than four declared domains"),
+                )
+            })?;
         }
         if required.policy.is_some() {
             return unserved("a domain declared on an arithmetic-policy-qualified carrier");

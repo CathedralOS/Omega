@@ -1634,11 +1634,34 @@ pub(crate) fn judge_compilation_with_activity(
     // A selection borrows the same discharge that later decides its witness's
     // verdict. Several selections may name one witness; none owns a second
     // copy to prove independently.
-    let examined_witnesses: Vec<_> = prepared
-        .witnesses
-        .into_iter()
-        .map(|witness| examine(witness, &[], laws, activity, &mut further))
-        .collect();
+    let examined_witnesses: Vec<_> =
+        if worker_budget::current_workers() == 1 || prepared.witnesses.len() < 2 {
+            prepared
+                .witnesses
+                .into_iter()
+                .map(|witness| examine(witness, &[], laws, activity, &mut further))
+                .collect()
+        } else {
+            use rayon::prelude::*;
+            let results: Vec<_> = prepared
+                .witnesses
+                .into_par_iter()
+                .with_max_len(1)
+                .map(|witness| {
+                    let mut local_activity = crate::ProofSearchActivity::default();
+                    let mut local_further = Vec::new();
+                    let examined = examine(witness, &[], laws, &mut local_activity, &mut local_further);
+                    (examined, local_activity, local_further)
+                })
+                .collect();
+            let mut examined_witnesses = Vec::with_capacity(results.len());
+            for (examined, local_activity, local_further) in results {
+                activity.merge(local_activity);
+                further.extend(local_further);
+                examined_witnesses.push(examined);
+            }
+            examined_witnesses
+        };
     let closure_verdict = match prepared.closure {
         Ok(closure) => {
             let witnesses = witnesses(
