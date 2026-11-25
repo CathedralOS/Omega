@@ -1,9 +1,10 @@
 # Kernel metatheory
 
-This document carries the combined rule/encoding justification required by the
-[foundation](foundation.md) and [inductive profile](inductive_profile.md#typed-function-eta):
-substitution, preservation, normalization, decidable conversion and
-derived-encoding correspondence.
+This document records the metatheory of the implemented W/IW encoding.
+The [selected profile](inductive_profile.md#native-inductive-declarations)
+requires a separate justification for the kernel's native inductive declarations
+and their constructor reductions. The W/IW arguments below describe the
+implementation preceding that migration.
 
 It is a justification at the level of the reference paper's section 4 — an
 argument over the rules the checker actually implements — not a mechanized
@@ -578,8 +579,8 @@ merely because the kernel implements it. Kernel anchors are `typing.rs`,
 | `unbox` with a motive into `Type_j` or `sProp_j`; `unbox P f (box a) ≡ f a` (§3.5) | `BoxElim` accepts a motive into either sort; ι-unbox | Matches. |
 
 Beyond this selection the kernel adds the
-[inductive profile](inductive_profile.md)'s typed function eta, relevant
-identity, `Two` and `W` rules. Those are separately selected extensions with
+implemented profile's typed function eta, relevant identity, `Two` and `W`
+rules. These are extensions with
 their own arguments above, not rows of the reference figure. Section 4's
 consistency argument translates sMLTT into extensional type theory (Fig. 3,
 Lemma 4.1, Theorem 4.2). It covers the matching and restricted rows. It does

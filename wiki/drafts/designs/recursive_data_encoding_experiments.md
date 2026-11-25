@@ -2,7 +2,7 @@
 
 Declaring a plain recursive `data` type in `mathematical-kernel` hits the default 65,536-step conversion budget between six and eight cases. On 2026-11-24 we benchmarked the current canonical W-type encoding against four isolated kernel prototypes—unit/empty/two eta (**B**), W-types with primitive `Fin(n)` + finite-domain eta (**D1**), native plain inductives (**D2**), and Lean 4 / Rocq-style unified native inductives (**C**)—across 2- to 12-case plain `data`, 4- to 12-case payloaded ASTs with a crash-freedom bounds proof, and value-indexed `Vector<Length, Total>`.
 
-**Option C (unified native inductives)** dominates every other design tested for [recursive data as W types](../../../OWNER_QUESTIONS.md#recursive-data-as-w-types). Because the inductive type, its constructors, and its recursor are ordinary `Term::Constant`s applied via `Term::Apply`, Option C adds **0 new `Term` variants**, **+976 kernel LOC** (less than D2's +1,203 LOC), and removes ~3,855 production LOC of `W` / canonical-tree / `IW` encoding once retired (**-2,879 net production LOC**). Every declaration checks in **0 conversion steps**, the 12-case payloaded `bounds_mono` theorem drops to **364 steps** (10× fewer than D1/D2), and value-indexed `Vector<Length, Total>` drops from 1,077/285/361 steps (`IW`) to **0/0/12 steps**.
+**Option C (unified native inductives)** is the [selected kernel design](../../spec/proofs/inductive_profile.md#native-inductive-declarations). Because the inductive type, its constructors, and its recursor are ordinary `Term::Constant`s applied via `Term::Apply`, Option C adds **0 new `Term` variants**, **+976 kernel LOC** (less than D2's +1,203 LOC), and removes ~3,855 production LOC of `W` / canonical-tree / `IW` encoding once retired (**-2,879 net production LOC**). Every declaration checks in **0 conversion steps**, the 12-case payloaded `bounds_mono` theorem drops to **364 steps** (10× fewer than D1/D2), and value-indexed `Vector<Length, Total>` drops from 1,077/285/361 steps (`IW`) to **0/0/12 steps**.
 
 ## Designs tested
 
@@ -99,7 +99,7 @@ Notes from the prototypes:
 - In **D1**, encoding a 0-payload case's carrier unit as `Fin(0) -> Fin(0)` gives definitional unit eta for free from `FinEta(0)` without adding any kernel rule, and existing `Sigma` eta handles multi-payload tuples.
 - In **D2**, adding payload types required checking payload well-formedness in `PlainCtor`, elevating `PlainInd`'s universe to `max(0, max_i u_i)`, and converting non-identical payload types (e.g., type aliases) in `PlainElim` (+511 lines in `typing.rs`).
 - In **Option C**, representing `I`, `C_k`, and `I.rec` as ordinary `Term::Constant`s applied via `Term::Apply` avoids variable-arity `Term` variants and leaves `substitution.rs` and `typing.rs`'s inference/conversion loops unchanged. Compiled constructor and recursor reduction rules live only inside the checked `Signature`, so no certificate can forge a recursor type or reduction rule.
-- **Conclusion:** **Option C** is strictly stronger than A, B, D1, and D2 on performance, memory, generality (plain + payloads + generics + indexed + mutual families), and net crate LOC (-2,640 production LOC once `W`/`IW` are retired).
+- **Conclusion:** **Option C** covers plain, payloaded and indexed families with one mechanism and took the fewest steps on the measured bounds proofs. D2 took fewer steps on the 12-case single reduction (25 versus 42). The later mutual-family prototype projects 2,640 fewer production lines after retirement of `W`/`IW`.
 
 ## Stress test: mutual inductives, 50-case AST, and unary `Nat` limits (Option C)
 
@@ -129,5 +129,5 @@ Mutual soundness negative checks (4/4 refused): mutual negative cycle (`A { MkA(
 ## Limits of these measurements
 
 - Prototypes were tested at the `mathematical-kernel` crate level only; stage 05 elaboration, Psi wire encoding, and end-to-end Omega programs were not updated or run.
-- Payloaded prototypes tested independent (non-dependent) non-recursive payload fields; dependent payload telescopes and mutually recursive families were not benchmarked.
+- The payload comparison used independent non-recursive fields. The later stress test measured mutual families. Dependent payload telescopes still lack measurements.
 - All timings were measured once on a single Windows x86-64 host under `[profile.test]` (`opt-level = 1`, `debug = 0`). Step counts and arena term counts are deterministic and host-independent.

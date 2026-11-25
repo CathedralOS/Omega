@@ -19,9 +19,8 @@ singleton elimination. The optional UIP extension in section 4.4 is excluded.
 The impredicative variant and implementation-specific extensions are not silently
 part of this selection.
 
-The [W-based inductive profile](inductive_profile.md) supplies the selected
-typed function eta, relevant identity, two-element type, W rules and derived
-indexed encoding.
+The [inductive profile](inductive_profile.md) supplies typed function eta, relevant
+identity, the two-element type and unified native inductive declarations.
 [Set quotients](quotients.md#set-quotient-foundation) use an explicit assumption-bearing
 interface, without new kernel reduction rules. These choices are settled;
 their combined metatheory, checked encodings and implementation remain required
@@ -112,11 +111,10 @@ does not trust its guesses. There is no self-typing universal type.
 
 Dependent function application, capture-avoiding substitution, mathematical
 conversion and dependent pairs belong to this core. General data declarations
-must lower through the [W/indexed encoding](inductive_profile.md), not a trusted
-assertion that the source recursion looked reasonable. The encoding scheme needs
-semantic justification and each application needs independent checking; a
-round-trip structure comparison alone supplies neither induction nor computation
-correctness. This mathematical encoding does not prescribe runtime storage.
+must elaborate to [checked inductive declarations](inductive_profile.md#native-inductive-declarations)
+where induction is required. The kernel validates the declaration and derives
+its recursor. Elaboration must also preserve the source declaration's meaning.
+Mathematical induction supplies no runtime storage.
 
 For termination, distinguish the measure value, a proof of decrease,
 accessibility evidence used in a mathematical definition, and executable control
