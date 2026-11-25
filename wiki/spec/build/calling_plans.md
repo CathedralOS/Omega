@@ -191,7 +191,7 @@ application identity merely because the register recipe is unchanged.
 
 [Provider selection](provider_selection.md) chooses checked implementations or
 derives native backing from exact package-local Build binding intent. A
-`Build::bind::<Requirement>(builder, target, locator)` row retains the requirement's
+`Build::bind_native::<Requirement>(builder, target, locator)` row retains the requirement's
 complete signature and calling-policy application; it needs no source `via`
 clause or synthetic forwarding machine. Literal byte lengths are inferred.
 A locator, syscall number, or target label cannot select calling policy.

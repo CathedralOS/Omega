@@ -845,7 +845,7 @@ fn a_native_binding_publishes_its_closed_locator_shape() {
     let prelude = native_binding_prelude();
     let build = r#"
 machine build(builder: @mutable Build) {
-    Build::bind::<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 });
+    Build::bind_native::<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 });
 }
 "#;
     let program = native_binding_program(build);
@@ -872,7 +872,7 @@ machine build(builder: @mutable Build) {
     let lookalike_build = r#"
 machine build(builder: @mutable Build) {
     let locator: ForeignBinding<0, 0, 0> = ForeignBinding::Syscall { number: 9u64 };
-    Build::bind::<Probe::poke>(builder, linux_x86_64, locator);
+    Build::bind_native::<Probe::poke>(builder, linux_x86_64, locator);
 }
 "#;
     let lookalike = accepted_frontier(
@@ -904,7 +904,7 @@ machine build(builder: @mutable Build) {
 fn a_selection_row_keeps_the_exact_operation_typing_recorded() {
     use language_core::build_protocol::SelectionProtocolOperation as Protocol;
     use source_compiler::representations::source_state::expression::ExpressionNode;
-    let build = "machine build(builder: @mutable Build) { Build::bind::<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 }); }";
+    let build = "machine build(builder: @mutable Build) { Build::bind_native::<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 }); }";
     let typed = || {
         typed_with_external_binding(
             build,
@@ -1006,7 +1006,7 @@ fn a_native_import_infers_nested_byte_widths_and_publishes_their_shapes() {
     let program = native_binding_program(
         r#"
 machine build(builder: @mutable Build) {
-    Build::bind::<Probe::poke>(builder, windows_x86_64, ForeignBinding::DllImport {
+    Build::bind_native::<Probe::poke>(builder, windows_x86_64, ForeignBinding::DllImport {
         import: DllImport::PeByName { library: "winmm.dll", export: "PlaySoundW" }
     });
 }
@@ -1051,7 +1051,7 @@ machine locator() -> ForeignBinding<9, 10, 0> {
     }
 }
 machine build(builder: @mutable Build) {
-    Build::bind::<Probe::poke>(builder, windows_x86_64, locator());
+    Build::bind_native::<Probe::poke>(builder, windows_x86_64, locator());
 }
 "#,
     );
@@ -1233,7 +1233,7 @@ fn a_case_value_pattern_cannot_discard_its_applied_type() {
     use source_compiler::representations::source_state::expression::{ExpressionNode, MatchPattern};
     use source_compiler::representations::source_state::types::TypeReferenceNode;
     let mut typed = typed_with_external_binding(
-        "machine build(builder: @mutable Build) { Build::bind::<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 }); }",
+        "machine build(builder: @mutable Build) { Build::bind_native::<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 }); }",
         &native_binding_prelude(),
         Some(include_str!(
             "../../../../../../../source/library/core/external_binding.omg"

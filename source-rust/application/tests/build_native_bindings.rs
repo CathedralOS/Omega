@@ -3,7 +3,7 @@
 End-to-end CLI check that the native bindings a Build makes are held to the
 Product (`omega --check`).
 
-`Build::bind<Requirement>(builder, target, locator)` says where one boundary
+`Build::bind_native::<Requirement>(builder, target, locator)` says where one boundary
 requirement is found on one target (`wiki/spec/build/foreign_bindings.md`).
 The requirement is a declaration of the Product, which the Build cannot
 check while it runs, so the binding is admitted when the Product is typed:
@@ -90,8 +90,8 @@ fn a_binding_of_each_requirement_is_admitted() {
     let stderr = check(
         "control",
         &format!(
-            "    Build::bind::<Host::tick>(builder, windows_x86_64, {SLEEP});
-    Build::bind::<Host::tock>(builder, windows_x86_64, {OTHER});
+            "    Build::bind_native::<Host::tick>(builder, windows_x86_64, {SLEEP});
+    Build::bind_native::<Host::tock>(builder, windows_x86_64, {OTHER});
 "
         ),
     );
@@ -105,8 +105,8 @@ fn two_places_for_one_requirement_on_one_target_are_refused() {
     let stderr = check(
         "two-places",
         &format!(
-            "    Build::bind::<Host::tick>(builder, windows_x86_64, {SLEEP});
-    Build::bind::<Host::tick>(builder, windows_x86_64, {OTHER});
+            "    Build::bind_native::<Host::tick>(builder, windows_x86_64, {SLEEP});
+    Build::bind_native::<Host::tick>(builder, windows_x86_64, {OTHER});
 "
         ),
     );
@@ -125,8 +125,8 @@ fn one_requirement_may_be_found_in_a_different_place_on_each_target() {
     let stderr = check(
         "two-targets",
         &format!(
-            "    Build::bind::<Host::tick>(builder, windows_x86_64, {SLEEP});
-    Build::bind::<Host::tick>(builder, linux_x86_64, {OTHER});
+            "    Build::bind_native::<Host::tick>(builder, windows_x86_64, {SLEEP});
+    Build::bind_native::<Host::tick>(builder, linux_x86_64, {OTHER});
 "
         ),
     );
@@ -139,7 +139,7 @@ fn one_requirement_may_be_found_in_a_different_place_on_each_target() {
 fn a_binding_that_names_no_requirement_is_refused() {
     let stderr = check(
         "no-requirement",
-        &format!("    Build::bind::<Host::missing>(builder, windows_x86_64, {SLEEP});\n"),
+        &format!("    Build::bind_native::<Host::missing>(builder, windows_x86_64, {SLEEP});\n"),
     );
     assert!(
         stderr
@@ -161,7 +161,7 @@ fn a_requirement_the_package_binds_is_judged_though_nothing_calls_it() {
     let stderr = check_product(
         "uncalled-binding",
         &product,
-        &format!("    Build::bind::<Host::tock>(builder, windows_x86_64, {OTHER});\n"),
+        &format!("    Build::bind_native::<Host::tock>(builder, windows_x86_64, {OTHER});\n"),
     );
     assert!(stderr.contains(DEFAULT_BODY_REFUSAL), "{stderr}");
 }
@@ -196,7 +196,7 @@ fn check_with_bound_library(name: &str, body: &str) -> String {
 use omega\\language\\core\\ForeignBinding;
 machine build(builder: @mutable Build) {{
     Build::package(builder, \"bound_library\");
-    Build::bind::<Raw::read>(builder, macos_arm64, {SLEEP});
+    Build::bind_native::<Raw::read>(builder, macos_arm64, {SLEEP});
 }}
 "
         ),

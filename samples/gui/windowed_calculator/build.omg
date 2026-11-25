@@ -15,7 +15,7 @@ machine build(builder: @mutable Build) {
     Build::select_provider::<Input, CalcInputProvider>(builder, macos_arm64);
     Build::select_provider::<Input, CalcInputProvider>(builder, windows_x86_64);
     Build::select_provider::<Clock, CalcClockProvider>(builder, macos_arm64);
-    Build::bind::<Clock::sleep>(builder, windows_x86_64, ForeignBinding::DllImport {
+    Build::bind_native::<Clock::sleep>(builder, windows_x86_64, ForeignBinding::DllImport {
         import: DllImport::PeByName { library: "kernel32.dll", export: "Sleep" }
     });
     builder.subsystem = Subsystem::Gui;

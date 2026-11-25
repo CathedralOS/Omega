@@ -73,7 +73,7 @@ pointer graphs or owned aggregate result publication.
 
 ## Build-owned source migration
 
-Direct target-keyed `Build::bind<Writer::member>` rows now supply the unchanged
+Direct target-keyed `Build::bind_native::<Writer::member>` rows now supply the unchanged
 native imports with inferred locator lengths. The selected-body place uses an
 ordinary private `PendingTransferCode` implementation returning its exact
 incoming Pending with the complete lifetime and Retained obligation. No new

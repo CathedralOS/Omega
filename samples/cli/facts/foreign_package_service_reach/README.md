@@ -11,7 +11,7 @@ with the same exact result.
 Psi records three service rows on each emitted boundary declaration: the fixed
 reach, the owning trait service and the published ceiling. Here
 `CharacterCase::upper` owns `CharacterCase` and reaches the memberless package
-service `Lettering`. `Build::bind` backs it with C `toupper` on each hosted
+service `Lettering`. `Build::bind_native` backs it with C `toupper` on each hosted
 target (msvcrt, glibc 2.2.5 and 2.17, libSystem). The Terminal native sponsor
 reads that recorded list. Under the host's explicit
 `TerminalNativeServiceDelegation::MatchingHost`, which `omega run` and the corpus

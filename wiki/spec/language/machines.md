@@ -123,7 +123,7 @@ selection without making data a code owner.
 | --- | --- |
 | Checked body | An ordinary machine with a checked `{ ... }` body, including generated/default bodies after generation. |
 | Required body | A bodyless trait/component machine requirement; a boundary operation belongs to a boundary trait, including a one-member trait when independent selection is required. |
-| Native provider | A package-local `Build::bind::<Requirement>(builder, target, locator)` row backing an exact boundary requirement under its pinned contract, calling policy, and foreign admission. No forwarding machine or `via` clause is declared. |
+| Native provider | A package-local `Build::bind_native::<Requirement>(builder, target, locator)` row backing an exact boundary requirement under its pinned contract, calling policy, and foreign admission. No forwarding machine or `via` clause is declared. |
 | Admission-bearing declaration | A bodyless `boundary machine` publishing an unproved theorem or external-behavior guarantee for separate owner acceptance. |
 | Compiler-supplied primitive | A bodyless exact toolchain declaration with an authorized closed-catalog implementation and fixed semantic contract; not selectable by naming or user registration. |
 

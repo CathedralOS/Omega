@@ -17,7 +17,7 @@ use {psi}/pipeline/source_files_to_tokens/lexer.omg;
 
 The description below covers today's implementation, including data-owned
 machine declarations, retired target prefixes and `via` binding clauses: syntax
-still to be removed, not accepted alternatives. Package-local `Build::bind<Requirement>(builder, target, locator)`
+still to be removed, not accepted alternatives. Package-local `Build::bind_native::<Requirement>(builder, target, locator)`
 replaces the per-symbol native forwarding declaration, and infers locator
 lengths. `BUILD-OWNED-NATIVE-BINDINGS` and `BUILD-OWNED-TARGET-SELECTION` in
 [the task board](../../../../TASKS.md#pipeline-route) track those changes.

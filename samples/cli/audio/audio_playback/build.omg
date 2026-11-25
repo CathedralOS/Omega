@@ -15,7 +15,7 @@ machine build(builder: @mutable Build) {
     Build::select_provider::<audio_playback\AudioPlayback, audio_playback\LinuxAudioPlayback>(builder, linux_arm64);
     Build::select_provider::<audio_playback\AudioPlayback, audio_playback\MacosAudioPlayback>(builder, macos_arm64);
 
-    Build::bind::<audio_playback\WindowsAudioPlaybackIo::c_play_sound>(builder, windows_x86_64,
+    Build::bind_native::<audio_playback\WindowsAudioPlaybackIo::c_play_sound>(builder, windows_x86_64,
         ForeignBinding::DllImport {
             import: DllImport::PeByName {
                 library: "winmm.dll",
@@ -24,7 +24,7 @@ machine build(builder: @mutable Build) {
         }
     );
 
-    Build::bind::<audio_playback\LinuxAudioPlaybackIo::c_open>(builder, linux_x86_64,
+    Build::bind_native::<audio_playback\LinuxAudioPlaybackIo::c_open>(builder, linux_x86_64,
         ForeignBinding::DllImport {
             import: DllImport::ElfVersioned {
                 object: "libasound.so.2", symbol: "snd_pcm_open", version: "ALSA_0.9",
@@ -32,7 +32,7 @@ machine build(builder: @mutable Build) {
         }
     );
 
-    Build::bind::<audio_playback\LinuxAudioPlaybackIo::c_set_params>(builder, linux_x86_64,
+    Build::bind_native::<audio_playback\LinuxAudioPlaybackIo::c_set_params>(builder, linux_x86_64,
         ForeignBinding::DllImport {
             import: DllImport::ElfVersioned {
                 object: "libasound.so.2", symbol: "snd_pcm_set_params", version: "ALSA_0.9",
@@ -40,7 +40,7 @@ machine build(builder: @mutable Build) {
         }
     );
 
-    Build::bind::<audio_playback\LinuxAudioPlaybackIo::c_writei>(builder, linux_x86_64,
+    Build::bind_native::<audio_playback\LinuxAudioPlaybackIo::c_writei>(builder, linux_x86_64,
         ForeignBinding::DllImport {
             import: DllImport::ElfVersioned {
                 object: "libasound.so.2", symbol: "snd_pcm_writei", version: "ALSA_0.9",
@@ -48,7 +48,7 @@ machine build(builder: @mutable Build) {
         }
     );
 
-    Build::bind::<audio_playback\LinuxAudioPlaybackIo::c_drain>(builder, linux_x86_64,
+    Build::bind_native::<audio_playback\LinuxAudioPlaybackIo::c_drain>(builder, linux_x86_64,
         ForeignBinding::DllImport {
             import: DllImport::ElfVersioned {
                 object: "libasound.so.2", symbol: "snd_pcm_drain", version: "ALSA_0.9",
@@ -56,7 +56,7 @@ machine build(builder: @mutable Build) {
         }
     );
 
-    Build::bind::<audio_playback\LinuxAudioPlaybackIo::c_close>(builder, linux_x86_64,
+    Build::bind_native::<audio_playback\LinuxAudioPlaybackIo::c_close>(builder, linux_x86_64,
         ForeignBinding::DllImport {
             import: DllImport::ElfVersioned {
                 object: "libasound.so.2", symbol: "snd_pcm_close", version: "ALSA_0.9",
@@ -64,7 +64,7 @@ machine build(builder: @mutable Build) {
         }
     );
 
-    Build::bind::<audio_playback\LinuxAudioPlaybackIo::c_open>(builder, linux_arm64,
+    Build::bind_native::<audio_playback\LinuxAudioPlaybackIo::c_open>(builder, linux_arm64,
         ForeignBinding::DllImport {
             import: DllImport::ElfVersioned {
                 object: "libasound.so.2", symbol: "snd_pcm_open", version: "ALSA_0.9",
@@ -72,7 +72,7 @@ machine build(builder: @mutable Build) {
         }
     );
 
-    Build::bind::<audio_playback\LinuxAudioPlaybackIo::c_set_params>(builder, linux_arm64,
+    Build::bind_native::<audio_playback\LinuxAudioPlaybackIo::c_set_params>(builder, linux_arm64,
         ForeignBinding::DllImport {
             import: DllImport::ElfVersioned {
                 object: "libasound.so.2", symbol: "snd_pcm_set_params", version: "ALSA_0.9",
@@ -80,7 +80,7 @@ machine build(builder: @mutable Build) {
         }
     );
 
-    Build::bind::<audio_playback\LinuxAudioPlaybackIo::c_writei>(builder, linux_arm64,
+    Build::bind_native::<audio_playback\LinuxAudioPlaybackIo::c_writei>(builder, linux_arm64,
         ForeignBinding::DllImport {
             import: DllImport::ElfVersioned {
                 object: "libasound.so.2", symbol: "snd_pcm_writei", version: "ALSA_0.9",
@@ -88,7 +88,7 @@ machine build(builder: @mutable Build) {
         }
     );
 
-    Build::bind::<audio_playback\LinuxAudioPlaybackIo::c_drain>(builder, linux_arm64,
+    Build::bind_native::<audio_playback\LinuxAudioPlaybackIo::c_drain>(builder, linux_arm64,
         ForeignBinding::DllImport {
             import: DllImport::ElfVersioned {
                 object: "libasound.so.2", symbol: "snd_pcm_drain", version: "ALSA_0.9",
@@ -96,7 +96,7 @@ machine build(builder: @mutable Build) {
         }
     );
 
-    Build::bind::<audio_playback\LinuxAudioPlaybackIo::c_close>(builder, linux_arm64,
+    Build::bind_native::<audio_playback\LinuxAudioPlaybackIo::c_close>(builder, linux_arm64,
         ForeignBinding::DllImport {
             import: DllImport::ElfVersioned {
                 object: "libasound.so.2", symbol: "snd_pcm_close", version: "ALSA_0.9",
@@ -104,7 +104,7 @@ machine build(builder: @mutable Build) {
         }
     );
 
-    Build::bind::<audio_playback\MacosAudioPlaybackIo::c_dlsym>(builder, macos_arm64,
+    Build::bind_native::<audio_playback\MacosAudioPlaybackIo::c_dlsym>(builder, macos_arm64,
         ForeignBinding::DllImport {
             import: DllImport::MachODylibSymbol {
                 install_name: "/usr/lib/libSystem.B.dylib",
@@ -113,7 +113,7 @@ machine build(builder: @mutable Build) {
         }
     );
 
-    Build::bind::<audio_playback\MacosAudioPlaybackIo::c_new_output>(builder, macos_arm64,
+    Build::bind_native::<audio_playback\MacosAudioPlaybackIo::c_new_output>(builder, macos_arm64,
         ForeignBinding::DllImport {
             import: DllImport::MachODylibSymbol {
                 install_name: "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
@@ -122,7 +122,7 @@ machine build(builder: @mutable Build) {
         }
     );
 
-    Build::bind::<audio_playback\MacosAudioPlaybackIo::c_allocate_buffer>(builder, macos_arm64,
+    Build::bind_native::<audio_playback\MacosAudioPlaybackIo::c_allocate_buffer>(builder, macos_arm64,
         ForeignBinding::DllImport {
             import: DllImport::MachODylibSymbol {
                 install_name: "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
@@ -131,7 +131,7 @@ machine build(builder: @mutable Build) {
         }
     );
 
-    Build::bind::<audio_playback\MacosAudioPlaybackIo::c_enqueue_buffer>(builder, macos_arm64,
+    Build::bind_native::<audio_playback\MacosAudioPlaybackIo::c_enqueue_buffer>(builder, macos_arm64,
         ForeignBinding::DllImport {
             import: DllImport::MachODylibSymbol {
                 install_name: "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
@@ -140,7 +140,7 @@ machine build(builder: @mutable Build) {
         }
     );
 
-    Build::bind::<audio_playback\MacosAudioPlaybackIo::c_start>(builder, macos_arm64,
+    Build::bind_native::<audio_playback\MacosAudioPlaybackIo::c_start>(builder, macos_arm64,
         ForeignBinding::DllImport {
             import: DllImport::MachODylibSymbol {
                 install_name: "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
@@ -149,7 +149,7 @@ machine build(builder: @mutable Build) {
         }
     );
 
-    Build::bind::<audio_playback\MacosAudioPlaybackIo::c_stop>(builder, macos_arm64,
+    Build::bind_native::<audio_playback\MacosAudioPlaybackIo::c_stop>(builder, macos_arm64,
         ForeignBinding::DllImport {
             import: DllImport::MachODylibSymbol {
                 install_name: "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
@@ -158,7 +158,7 @@ machine build(builder: @mutable Build) {
         }
     );
 
-    Build::bind::<audio_playback\MacosAudioPlaybackIo::c_dispose>(builder, macos_arm64,
+    Build::bind_native::<audio_playback\MacosAudioPlaybackIo::c_dispose>(builder, macos_arm64,
         ForeignBinding::DllImport {
             import: DllImport::MachODylibSymbol {
                 install_name: "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
@@ -167,7 +167,7 @@ machine build(builder: @mutable Build) {
         }
     );
 
-    Build::bind::<audio_playback\MacosAudioPlaybackIo::c_copy_to_address>(builder, macos_arm64,
+    Build::bind_native::<audio_playback\MacosAudioPlaybackIo::c_copy_to_address>(builder, macos_arm64,
         ForeignBinding::DllImport {
             import: DllImport::MachODylibSymbol {
                 install_name: "/usr/lib/libSystem.B.dylib",
@@ -176,7 +176,7 @@ machine build(builder: @mutable Build) {
         }
     );
 
-    Build::bind::<audio_playback\MacosAudioPlaybackIo::c_load_pointer>(builder, macos_arm64,
+    Build::bind_native::<audio_playback\MacosAudioPlaybackIo::c_load_pointer>(builder, macos_arm64,
         ForeignBinding::DllImport {
             import: DllImport::MachODylibSymbol {
                 install_name: "/usr/lib/libSystem.B.dylib",
@@ -185,7 +185,7 @@ machine build(builder: @mutable Build) {
         }
     );
 
-    Build::bind::<audio_playback\MacosAudioPlaybackIo::c_usleep>(builder, macos_arm64,
+    Build::bind_native::<audio_playback\MacosAudioPlaybackIo::c_usleep>(builder, macos_arm64,
         ForeignBinding::DllImport {
             import: DllImport::MachODylibSymbol {
                 install_name: "/usr/lib/libSystem.B.dylib",

@@ -1,7 +1,7 @@
 # External boundary contracts
 
 Calls libc `abs` through three requirements of one public boundary trait,
-each bound to `_abs` by a `Build::bind` row in `build.omg`. The program exits
+each bound to `_abs` by a `Build::bind_native` row in `build.omg`. The program exits
 0 only when all three results match, including a field/local operand and
 state forwarding.
 

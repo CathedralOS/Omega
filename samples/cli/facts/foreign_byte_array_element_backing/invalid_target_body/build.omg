@@ -11,20 +11,20 @@ machine build(builder: @mutable Build) {
     Build::select_provider::<Measuring, CountingMeasuring>(builder, linux_x86_64);
     Build::select_provider::<Measuring, CountingMeasuring>(builder, linux_arm64);
     Build::select_provider::<Measuring, CountingMeasuring>(builder, macos_arm64);
-    Build::bind::<Text::length>(builder, windows_x86_64, ForeignBinding::DllImport {
+    Build::bind_native::<Text::length>(builder, windows_x86_64, ForeignBinding::DllImport {
         import: DllImport::PeByName { library: "msvcrt.dll", export: "strlen" }
     });
-    Build::bind::<Text::length>(builder, linux_x86_64, ForeignBinding::DllImport {
+    Build::bind_native::<Text::length>(builder, linux_x86_64, ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libc.so.6", symbol: "strlen", version: "GLIBC_2.2.5"
         }
     });
-    Build::bind::<Text::length>(builder, linux_arm64, ForeignBinding::DllImport {
+    Build::bind_native::<Text::length>(builder, linux_arm64, ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libc.so.6", symbol: "strlen", version: "GLIBC_2.17"
         }
     });
-    Build::bind::<Text::length>(builder, macos_arm64, ForeignBinding::DllImport {
+    Build::bind_native::<Text::length>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_strlen"
         }

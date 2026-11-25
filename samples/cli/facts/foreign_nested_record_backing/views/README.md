@@ -18,7 +18,7 @@ The C counterpart stores `struct cell (*cells)[3]`, an explicit pointer to a
 fixed array. Registration writes 41 and retains the original Buffer address;
 completion writes 73 through that pointer. Both neighbors (305419896 and
 1515863100) and marker 91 must survive. A private copied array cannot satisfy
-both the Buffer and original caller observations. The C source is unchanged. Direct target-keyed `Build::bind<Writer::member>`
+both the Buffer and original caller observations. The C source is unchanged. Direct target-keyed `Build::bind_native::<Writer::member>`
 rows now supply the original imports with inferred locator lengths. An ordinary
 private `PendingTransferCode` implementation supplies the selected-body place;
 its complete existing Pending qualification and content obligation are unchanged.

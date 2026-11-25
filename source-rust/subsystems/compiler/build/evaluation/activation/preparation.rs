@@ -236,8 +236,8 @@ impl PreparedBuildExecution {
 }
 
 /// The first executable root or provider selection an artifact-only Build
-/// made, described for its refusal. Provider selections and `Build::bind`
-/// native bindings choose implementations for the executable product, which
+/// made, described for its refusal. Provider selections and `Build::bind_native`
+/// choose implementations for the executable product, which
 /// artifact-only mode never builds.
 fn executable_selection_in_artifact_only(completed: &crate::ReturnedBuild) -> Option<&'static str> {
     use source_compiler::representations::declaration_selection::BuildOperation;

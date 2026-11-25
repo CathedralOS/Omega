@@ -114,7 +114,7 @@ boundary trait PosixFilesystemLinuxX86ByteViews: Calling<LinuxX86ByteViewCalling
 
 ```omega
 // In std's build machine
-Build::bind::<PosixFilesystemLinuxX86ByteViews::read>(builder, linux_x86_64,
+Build::bind_native::<PosixFilesystemLinuxX86ByteViews::read>(builder, linux_x86_64,
     ForeignBinding::Syscall { number: 0 });
 ```
 

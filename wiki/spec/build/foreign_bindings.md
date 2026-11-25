@@ -13,7 +13,7 @@ exact product requirement directly to a typed native locator in the owning
 package's Build:
 
 ```omega
-Build::bind::<WindowsAudioPlaybackIo::c_play_sound>(
+Build::bind_native::<WindowsAudioPlaybackIo::c_play_sound>(
 	builder,
 	windows_x86_64,
 	ForeignBinding::DllImport {
@@ -34,8 +34,8 @@ uses ordinary named implementations and real machine bodies.
 `builder` is the current activation's original mutable Build value. `target` is
 an ordinary exact validated target-profile reference, not a declaration keyword
 or an observation of the selected realization target. One Build evaluation
-records explicit target-keyed binding intent. This overload does not change the
-existing entry-binding form or turn arbitrary values into requirements.
+records explicit target-keyed binding intent. Executable entries use
+[`Build::bind(builder, slot, entry)`](entry_roots.md).
 
 The requirement operand is an exact designated product-selection reference,
 including package/declaration ownership and its static application. Build may
@@ -82,7 +82,7 @@ The locator argument is an ordinary compile-time expression producing a closed
 argument is a `u64` byte-array length and part of type identity. Ordinary
 constructor/call inference determines lengths from the supplied fixed-byte
 values; coordinates unused by the selected case are zero. Authors need not
-write byte counts on the constructor or `Build::bind`, and need not introduce
+write byte counts on the constructor or `Build::bind_native`, and need not introduce
 a helper with an explicitly counted return type. In the example above the
 inferred type is `ForeignBinding<9, 10, 0>`; these are locator byte lengths,
 not syscall numbers, argument counts, or calling conventions. Incorrect explicit
@@ -135,7 +135,7 @@ to one field of the table supplied at each call. The binding identifies where
 to read the function address; the requirement's calling plan independently
 describes which arguments the foreign function receives.
 
-`Build::bind::<Requirement>(builder, target, binding)` accepts an ordinary
+`Build::bind_native::<Requirement>(builder, target, binding)` accepts an ordinary
 `FunctionFieldBinding` description with two operands:
 
 | Operand | Meaning |

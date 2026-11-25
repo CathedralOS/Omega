@@ -36,7 +36,7 @@ never execute during Build; product compilation starts only after the join.
 ## Native binding intent
 
 The owning package records a direct native binding with
-`Build::bind::<Requirement>(builder, target, locator)` under
+`Build::bind_native::<Requirement>(builder, target, locator)` under
 [foreign bindings](foreign_bindings.md#build-owned-native-binding). The exact
 requirement is an inert designated product-selection reference until product
 discovery and checking resolve its complete owned declaration/application.
@@ -57,7 +57,7 @@ Exact contract, lifetime, memory-access, calling-policy, native applicability,
 foreign admission, provenance, and runtime-authority obligations remain.
 There is no source `via` clause or per-symbol forwarding realization, and no
 author API for manufacturing trusted plan rows.
-The entry-binding overload of `Build::bind` is a separate operation.
+`Build::bind(builder, slot, entry)` selects the product entry.
 
 ## Project role
 

@@ -105,7 +105,7 @@ machine main() reaches Source invokes Source crashes Trap {
     let profile = target::TargetProfile::host();
     let forwarding_binding = if forward {
         format!(
-            r#"    Build::bind::<Sink::read>(builder, {target}, ForeignBinding::DllImport {{
+            r#"    Build::bind_native::<Sink::read>(builder, {target}, ForeignBinding::DllImport {{
         import: DllImport::ElfVersioned {{ object: "{library}", symbol: "omega_reference_read", version: "REFERENCE_1.0" }}
     }});
 "#,
@@ -127,7 +127,7 @@ machine build(builder: @mutable Build) {{
     Build::bind(builder, linux_arm64\ProgramEntry, main);
     Build::bind(builder, macos_arm64\ProgramEntry, main);
     Build::bind(builder, windows_x86_64\ProgramEntry, main);
-    Build::bind::<Source::cell>(builder, {target}, ForeignBinding::DllImport {{
+    Build::bind_native::<Source::cell>(builder, {target}, ForeignBinding::DllImport {{
         import: DllImport::ElfVersioned {{ object: "{library}", symbol: "omega_reference_cell", version: "REFERENCE_1.0" }}
     }});
 {forwarding_binding}}}

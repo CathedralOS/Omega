@@ -320,7 +320,7 @@ crashes none
 // In build.omg
 machine build(builder: @mutable Build) {
     Build::package(builder, "windows_wall_clock");
-    Build::bind<WindowsWallClock::read>(
+    Build::bind_native::<WindowsWallClock::read>(
         builder,
         windows_x86_64,
         ForeignBinding::DllImport {

@@ -220,7 +220,7 @@ call encoding.
 [Foreign binding](foreign_bindings.md) identities are normalized evaluated values;
 the requirement owns its
 [calling-policy application](calling_plans.md#identity-and-selection).
-The owning package records `Build::bind::<Requirement>(builder, target, locator)`
+The owning package records `Build::bind_native::<Requirement>(builder, target, locator)`
 for irreducible native supply. The requirement operand is an exact designated
 product reference; target is an ordinary validated catalog reference, and the
 locator is ordinary compile-time data with literal byte lengths inferred.

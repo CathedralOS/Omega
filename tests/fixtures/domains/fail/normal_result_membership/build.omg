@@ -5,15 +5,15 @@ machine build(builder: @mutable Build) {
     Build::accept_boundary::<Selected>(builder);
     Build::accept_boundary::<NativeAllocation::allocate>(builder);
     Build::select_provider::<Service, Selected>(builder, windows_x86_64);
-    Build::bind::<NativeAllocation::allocate>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "msvcrt.dll", export: "calloc" } });
+    Build::bind_native::<NativeAllocation::allocate>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "msvcrt.dll", export: "calloc" } });
     Build::bind(builder, windows_x86_64\ProgramEntry, main);
     Build::select_provider::<Service, Selected>(builder, linux_x86_64);
-    Build::bind::<NativeAllocation::allocate>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "calloc", version: "GLIBC_2.2.5" } });
+    Build::bind_native::<NativeAllocation::allocate>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "calloc", version: "GLIBC_2.2.5" } });
     Build::bind(builder, linux_x86_64\ProgramEntry, main);
     Build::select_provider::<Service, Selected>(builder, macos_arm64);
-    Build::bind::<NativeAllocation::allocate>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "/usr/lib/libSystem.B.dylib", symbol: "_calloc" } });
+    Build::bind_native::<NativeAllocation::allocate>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "/usr/lib/libSystem.B.dylib", symbol: "_calloc" } });
     Build::bind(builder, macos_arm64\ProgramEntry, main);
     Build::select_provider::<Service, Selected>(builder, linux_arm64);
-    Build::bind::<NativeAllocation::allocate>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "calloc", version: "GLIBC_2.17" } });
+    Build::bind_native::<NativeAllocation::allocate>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "calloc", version: "GLIBC_2.17" } });
     Build::bind(builder, linux_arm64\ProgramEntry, main);
 }
