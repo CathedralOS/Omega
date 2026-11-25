@@ -352,7 +352,7 @@ struct DescriptorDemand {
 /// single-predecessor plain fallthrough in an acyclic block graph. Neither
 /// liveness nor reference-end eligibility can change past `(block, stop_ordinal)`,
 /// so walks can stop propagating `place` there.
-pub(crate) struct DeadTailCutoff {
+pub struct DeadTailCutoff {
     acyclic: bool,
     stops: Vec<Option<DescriptorPosition>>,
 }
@@ -599,12 +599,12 @@ pub fn descriptor_successor_lifetime(
     ))
 }
 
-pub(crate) struct FlowPredecessors<'a> {
+pub struct FlowPredecessors<'a> {
     predecessors: BTreeMap<DescriptorPosition, Vec<(DescriptorPosition, &'a DescriptorFlowEdge)>>,
 }
 
 impl<'a> FlowPredecessors<'a> {
-    pub(crate) fn new(steps: &'a BTreeMap<DescriptorPosition, DescriptorFlowStep>) -> Self {
+    pub fn new(steps: &'a BTreeMap<DescriptorPosition, DescriptorFlowStep>) -> Self {
         let mut predecessors =
             BTreeMap::<DescriptorPosition, Vec<(DescriptorPosition, &'a DescriptorFlowEdge)>>::new(
             );
@@ -622,6 +622,28 @@ impl<'a> FlowPredecessors<'a> {
     pub(crate) fn count(&self, position: DescriptorPosition) -> usize {
         self.predecessors.get(&position).map_or(0, Vec::len)
     }
+}
+
+/// Same lifetime as `descriptor_location_lifetime` (including `surviving`
+/// locations for join authority), reusing precomputed `predecessors` and
+/// optional acyclic `cutoff` across every query on one machine.
+pub fn descriptor_location_lifetime_indexed(
+    steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+    predecessors: &FlowPredecessors<'_>,
+    cutoff: Option<&DeadTailCutoff>,
+    birth: DescriptorPosition,
+    descriptor: &DescriptorLocation,
+) -> DescriptorLifetime {
+    descriptor_lifetime_with_predecessors(
+        steps,
+        Some(predecessors),
+        cutoff,
+        birth,
+        descriptor,
+        DescriptorStart::AfterDefinition,
+        false,
+        |_, _| false,
+    )
 }
 
 pub(crate) fn descriptor_entry_lifetime_with_contents_indexed(
