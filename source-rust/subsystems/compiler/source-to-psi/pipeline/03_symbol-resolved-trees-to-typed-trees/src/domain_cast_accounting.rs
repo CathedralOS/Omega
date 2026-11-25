@@ -31,7 +31,7 @@ use crate::source_state::types::{
 };
 use crate::tables::expression_table;
 use crate::type_reference::domain_constraints::{
-    normalize_domain_constraints_for_type, select_domain_candidates, select_domain_candidates_where,
+    normalize_domain_constraints_for_type, select_domain_candidates_where,
 };
 use crate::typing_queries::declared_expression_type as declared_type;
 use diagnostics::Diagnostic;
@@ -60,6 +60,7 @@ struct Member {
 struct Named {
     handle: ExpressionHandle,
     entry: CastEntry,
+    selection: Option<(SymbolHandle, semantic_vocabulary::SemanticDomainId)>,
     atoms: Vec<Spelled>,
     label: String,
 }
@@ -664,6 +665,7 @@ fn named_domains(
     let mut named: Vec<Named> = Vec::new();
     for (handle, cast, entry) in run {
         let label = entry_label(program, cast);
+        let mut selection = None;
         let atoms: Vec<Spelled> = if cast.semantic_domain.is_empty() {
             vec![(
                 Atom::Policy(cast.domain),
@@ -676,14 +678,17 @@ fn named_domains(
                 .type_reference_table
                 .type_reference_handles(cast.semantic_domain_arguments)
                 .to_vec();
-            let candidates = select_domain_candidates(
+            let candidates = select_domain_candidates_where(
                 source,
                 program,
-                carrier,
                 &name,
                 authored_span(program, *handle),
                 SymbolHandle::invalid(),
-                &arguments,
+                |domain| {
+                    crate::source_state::domain::domain_accepts_cast_carrier(
+                        program, domain, carrier, &arguments,
+                    )
+                },
             );
             let [domain] = candidates.as_slice() else {
                 let reason = if candidates.is_empty() {
@@ -700,6 +705,8 @@ fn named_domains(
                     ),
                 ));
             };
+            let semantic_id = program.retain_domain_application(domain.symbol, carrier, &arguments)?;
+            selection = Some((domain.symbol, semantic_id));
             if let Some(alias) = &domain.alias {
                 // Naming an alias names its expansion.
                 alias
@@ -709,8 +716,6 @@ fn named_domains(
                     .map(|(atom, label)| (atom, label, None))
                     .collect()
             } else {
-                let semantic_id =
-                    program.retain_domain_application(domain.symbol, carrier, &arguments)?;
                 vec![(
                     Atom::Declared(domain.symbol, semantic_id),
                     domain_label(program, domain),
@@ -741,6 +746,7 @@ fn named_domains(
         named.push(Named {
             handle: *handle,
             entry: *entry,
+            selection,
             atoms,
             label,
         });
@@ -946,6 +952,10 @@ fn account_run(
         else {
             continue;
         };
+        if let Some((symbol, identity)) = entry.selection {
+            cast.semantic_domain_symbol = symbol;
+            cast.semantic_domain_id = identity;
+        }
         match entry.entry.kind {
             CastEntryKind::Add => {
                 cast.target_type = before;

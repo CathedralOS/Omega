@@ -4174,31 +4174,24 @@ pub(crate) mod qualification_casts {
                 .with_source_span(authored_selection.source_span()),
             );
             }
+            if cast.form.entry().is_some() {
+                // Accounting selected this entry against both sides of the cast.
+                // In particular, its result can have removed the domain's carrier
+                // qualifications. Finalize the original selection at its source.
+                updates.push((
+                    handle,
+                    authored_occurrence,
+                    cast.semantic_domain_symbol,
+                    cast.semantic_domain_id,
+                ));
+                continue;
+            }
             let name = expression_table(program).name_path_string(cast.semantic_domain);
             let arguments = program
                 .type_reference_table
                 .type_reference_handles(cast.semantic_domain_arguments)
                 .to_vec();
-            // An entry's target already carries the kept domains; selection reads the carrier.
-            let mut carrier = if cast.form.entry().is_some() {
-                program
-                    .type_reference_table
-                    .unconstrained_type_reference(cast.target_type)
-            } else {
-                cast.target_type
-            };
-            // An entry over a reference names a domain of its referent
-            // (domains.md, "Mutable views": the cast accounts "for the
-            // domains displayed on its referent"), which accounting left as
-            // the reference's referee.
-            if cast.form.entry().is_some()
-                && let TypeReferenceNode::Reference { referee, .. } =
-                    program.type_reference_table.type_reference(carrier)
-            {
-                carrier = program
-                    .type_reference_table
-                    .unconstrained_type_reference(*referee);
-            }
+            let carrier = cast.target_type;
             let matches =
                 crate::type_reference::domain_constraints::select_domain_candidates(
                     source,
@@ -4268,16 +4261,6 @@ pub(crate) mod qualification_casts {
             };
             let authored = *authored;
             if authored.form.entry().is_some() {
-                // Accounting fixed this entry's target and result. Every
-                // named entry retains the selected declaration and arguments:
-                // the checker must distinguish keeping/removing that domain
-                // from a different qualification with the same carrier.
-                let ExpressionNode::Cast(cast) = program.expression_table.expression_mut(handle)
-                else {
-                    continue;
-                };
-                cast.semantic_domain_symbol = domain;
-                cast.semantic_domain_id = semantic_id;
                 continue;
             }
             let result_type = if let Some(declaration) = program.domain_definition(domain) {

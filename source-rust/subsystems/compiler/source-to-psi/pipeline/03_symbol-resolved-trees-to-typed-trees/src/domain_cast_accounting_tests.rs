@@ -773,3 +773,49 @@ fn domain_index_literals_are_checked_against_the_selected_family() {
         }
     }
 }
+
+#[test]
+fn casts_retain_the_domain_declared_on_a_qualified_alias() {
+    let (_, typed) = source(
+        "domain u16::Stored requires self > 0u16;
+         data Kept = u16 in Stored;
+         domain Kept::Side;
+         machine add(x: Kept) -> Kept in Side { x as =Stored +Kept::Side }
+         machine keep(x: Kept in Side) -> Kept in Side { x as =Side =Stored }
+         machine remove(x: Kept in Side) -> u16 { keep(x) as -Stored -Side }",
+    );
+    let side = typed
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.name.as_str() == "Kept::Side")
+        .unwrap();
+    let mut entries = 0;
+    for (_, node) in typed.expression_table.expression_entries() {
+        if let ExpressionNode::Cast(cast) = node
+            && cast.form.entry().is_some()
+            && typed.expression_table.name_path_string(cast.semantic_domain).ends_with("Side")
+        {
+            assert!(cast.result_type.is_valid());
+            assert_eq!(cast.semantic_domain_symbol, side.symbol);
+            assert_eq!(cast.semantic_domain_id, side.semantic_id);
+            entries += 1;
+        }
+    }
+    assert_eq!(entries, 3);
+}
+
+#[test]
+fn a_qualified_domain_cast_still_requires_its_exact_data_carrier() {
+    let (_, result) = source_result(
+        "domain u16::Stored;
+         data Kept = u16 in Stored;
+         domain Kept::Side;
+         machine wrong(x: u32) -> u32 { x as +Kept::Side }",
+    );
+    let error = result.expect_err("Side is a domain of u16");
+    assert!(
+        error.message.contains("names no visible domain") && error.message.contains("u32"),
+        "{}",
+        error.message
+    );
+}

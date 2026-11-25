@@ -1415,9 +1415,37 @@ pub mod domain {
         carrier: TypeReferenceHandle,
         arguments: &[TypeReferenceHandle],
     ) -> bool {
+        domain_target_matches_carrier(program, domain, domain.target_type, carrier, arguments)
+    }
+
+    /// Cast entries account for both sides simultaneously. The name selects
+    /// on the underlying data carrier. Establishment still owes every
+    /// membership required by the declaration's complete target.
+    pub fn domain_accepts_cast_carrier(
+        program: &TypedTrees,
+        domain: &DomainDefinition,
+        carrier: TypeReferenceHandle,
+        arguments: &[TypeReferenceHandle],
+    ) -> bool {
+        if !domain.target_type.is_valid() {
+            return false;
+        }
+        let target = program
+            .type_reference_table
+            .unconstrained_type_reference(domain.target_type);
+        domain_target_matches_carrier(program, domain, target, carrier, arguments)
+    }
+
+    fn domain_target_matches_carrier(
+        program: &TypedTrees,
+        domain: &DomainDefinition,
+        target: TypeReferenceHandle,
+        carrier: TypeReferenceHandle,
+        arguments: &[TypeReferenceHandle],
+    ) -> bool {
         use crate::source_state::type_identity::TypeIdentityRequest;
 
-        if !carrier.is_valid() || !domain.target_type.is_valid() {
+        if !carrier.is_valid() || !target.is_valid() {
             return false;
         }
         if has_generic_carrier(program, domain) {
@@ -1430,7 +1458,7 @@ pub mod domain {
             .collect::<Vec<_>>();
         let target = program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
             substitutions: &substitutions,
-            ..TypeIdentityRequest::package_qualified(domain.target_type)
+            ..TypeIdentityRequest::package_qualified(target)
         });
         // An additional qualification can apply to an already qualified
         // value. A qualification on the declared target is still required.
