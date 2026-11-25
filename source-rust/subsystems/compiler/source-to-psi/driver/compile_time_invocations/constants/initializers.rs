@@ -9,7 +9,7 @@ use typed_trees_to_prepared_typed_trees::{PreparedValue, TargetInputs, ValueInpu
 
 use crate::source_state::TypedTrees;
 use crate::source_state::constant::ConstDeclaration;
-use crate::source_state::references::DeclarationSelection;
+use crate::source_state::references::{ComputationDependencyRows, DeclarationSelection};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
@@ -69,8 +69,12 @@ fn deployment_targets<'scope>(
         })
         .collect::<Vec<_>>();
     ordered.sort_by(|left, right| left.target.cmp(&right.target));
+    if ordered.is_empty() {
+        return Ok(reached);
+    }
+    let dependencies = ComputationDependencyRows::of(program);
     for scope in ordered {
-        let selection = scope.demanded_declarations(program)?;
+        let selection = scope.demanded_declarations(program, &dependencies)?;
         for (position, constant) in constants.iter().enumerate() {
             let targets: &mut Vec<&FixedLayoutTargetScope> = &mut reached[position];
             if !selection.contains(*constant) {

@@ -946,6 +946,32 @@ impl<'base> ConstantSelection<'base> {
         name: &Identifier,
         kinds: &[SymbolKind],
     ) -> Option<Vec<GenericParameterRole>> {
+        self.generic_parameter_roles_among(syntax, None, name, kinds)
+    }
+
+    /*
+        `generic_parameter_roles` for a caller that asks about many names in
+        one forest and indexed its root headers once. Every candidate passes
+        the same kind, span and spelling test in root order, read from the
+        forest as it is now.
+    */
+    pub(crate) fn generic_parameter_roles_in(
+        &self,
+        syntax: &SyntaxTrees,
+        headers: &RootHeaders,
+        name: &Identifier,
+        kinds: &[SymbolKind],
+    ) -> Option<Vec<GenericParameterRole>> {
+        self.generic_parameter_roles_among(syntax, Some(headers), name, kinds)
+    }
+
+    fn generic_parameter_roles_among(
+        &self,
+        syntax: &SyntaxTrees,
+        headers: Option<&RootHeaders>,
+        name: &Identifier,
+        kinds: &[SymbolKind],
+    ) -> Option<Vec<GenericParameterRole>> {
         let selected = self.symbols.find_top_level_by_name_and_kinds_from_source(
             name.as_str(syntax),
             kinds,
@@ -954,8 +980,13 @@ impl<'base> ConstantSelection<'base> {
         let reference = self.symbols.symbol_source_span(selected)?;
         let selected_kind = self.symbols.get(selected).kind;
         let selected_name = self.symbols.name(selected);
-        let mut headers = syntax.root_items().filter_map(|item| {
-            let (kind, declaration, parameters) = match item {
+        let candidates: Box<dyn Iterator<Item = syntax_trees::item::ItemHandle> + '_> =
+            match headers {
+                Some(headers) if headers.serves(syntax) => Box::new(headers.at(reference)),
+                _ => Box::new(syntax.root_item_handles().iter().copied()),
+            };
+        let mut headers = candidates.filter_map(|handle| {
+            let (kind, declaration, parameters) = match syntax.root_item(handle) {
                 Item::Data(data) => (SymbolKind::Data, &data.name, data.type_parameters),
                 Item::Domain(domain) => (SymbolKind::Domain, &domain.name, domain.type_parameters),
                 Item::TypeAlias(alias) => {
@@ -1783,7 +1814,7 @@ pub(crate) fn has_deferred_const_argument(
 */
 pub(crate) struct RootDeclarations<'syntax> {
     syntax: &'syntax SyntaxTrees,
-    rows: Vec<((usize, usize, usize), usize, syntax_trees::item::ItemHandle)>,
+    headers: RootHeaders,
 }
 
 impl<'syntax> RootDeclarations<'syntax> {
@@ -1792,6 +1823,40 @@ impl<'syntax> RootDeclarations<'syntax> {
     }
 
     pub(crate) fn of(syntax: &'syntax SyntaxTrees) -> Self {
+        Self {
+            syntax,
+            headers: RootHeaders::of(syntax),
+        }
+    }
+
+    /* Root declaration items named at `span`, in root order. */
+    pub(crate) fn at(
+        &self,
+        span: source_text::SourceSpan,
+    ) -> impl Iterator<Item = syntax_trees::item::ItemHandle> + '_ {
+        self.headers.at(span)
+    }
+}
+
+/*
+    The root items of one forest that declare a generic header (data, domain,
+    alias, machine, trait or named conformance), ordered by their name span;
+    ties keep root order.
+
+    The rows name items, not their contents. A caller that rewrites headers
+    in place, such as declared-type normalization changing a parameter's
+    kind, keeps the index and reads each candidate's current header. A caller
+    holding the index must still re-test every candidate, because the index
+    only narrows the search to one name span. `serves` refuses a forest
+    whose root roster has grown since the index was built.
+*/
+pub(crate) struct RootHeaders {
+    root_count: usize,
+    rows: Vec<((usize, usize, usize), usize, syntax_trees::item::ItemHandle)>,
+}
+
+impl RootHeaders {
+    pub(crate) fn of(syntax: &SyntaxTrees) -> Self {
         let mut rows = syntax
             .root_item_handles()
             .iter()
@@ -1799,6 +1864,10 @@ impl<'syntax> RootDeclarations<'syntax> {
             .filter_map(|(position, handle)| {
                 let name = match syntax.root_item(*handle) {
                     Item::Data(data) => &data.name,
+                    Item::Domain(domain) => &domain.name,
+                    Item::TypeAlias(alias) => &alias.name,
+                    Item::Machine(machine) => &machine.name,
+                    Item::Trait(definition) => &definition.name,
                     Item::Conformance(implementation) => implementation.alias.as_ref()?,
                     _ => return None,
                 };
@@ -1806,10 +1875,18 @@ impl<'syntax> RootDeclarations<'syntax> {
             })
             .collect::<Vec<_>>();
         rows.sort_unstable_by_key(|(key, position, _)| (*key, *position));
-        Self { syntax, rows }
+        Self {
+            root_count: syntax.root_item_handles().len(),
+            rows,
+        }
     }
 
-    /* Root data and conformance items named at `span`, in root order. */
+    /* Whether these rows still list every root item of `syntax`. */
+    pub(crate) fn serves(&self, syntax: &SyntaxTrees) -> bool {
+        syntax.root_item_handles().len() == self.root_count
+    }
+
+    /* Root header items named at `span`, in root order. */
     pub(crate) fn at(
         &self,
         span: source_text::SourceSpan,

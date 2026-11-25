@@ -6,7 +6,7 @@ use checked_program_to_psi as production;
 use std::sync::Arc;
 
 use crate::source_state::references::{
-    collect_program_type_occurrences, collect_type_symbol_dependencies,
+    ComputationDependencyRows, collect_program_type_occurrences, collect_type_symbol_dependencies,
 };
 use crate::source_state::{
     PlanLaidGeometry, PlanLaidLayout, PlanLaidRealizations, PlanLaidRetiredFieldIdentity,
@@ -147,27 +147,39 @@ impl<'scope> Layouts<'scope> {
             let data = typed.closed_data_definition(storage.semantic_type)?;
             data.type_parameters.is_empty().then_some(storage)
         };
-        let occurrences = collect_program_type_occurrences(typed);
+        // Whether an occurrence names a closed storage application does not
+        // depend on the deployment. Find those first: a program with none
+        // demands no layout, whichever declarations each scope reaches.
+        let written_storage = collect_program_type_occurrences(typed)
+            .into_iter()
+            .filter_map(|occurrence| {
+                closed_storage(typed, occurrence.reference).map(|storage| (occurrence, storage))
+            })
+            .collect::<Vec<_>>();
+        if written_storage.is_empty() {
+            super::frontier::refresh_evaluated_requests(typed)?;
+            return Ok(demanded);
+        }
+        // Every scope reads the same unchanged program, so one dependency
+        // inventory serves each scope's declaration closure.
+        let dependencies = ComputationDependencyRows::of(typed);
         let mut requests = Vec::new();
         for (scope_index, scope) in scopes.iter().enumerate() {
             if scope.entry_declarations.is_empty() && scope.provider_declarations.is_empty() {
                 continue;
             }
             let selection = scope
-                .demanded_declarations(typed)
+                .demanded_declarations(typed, &dependencies)
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            for occurrence in &occurrences {
+            for (occurrence, storage) in &written_storage {
                 if !selection.contains(typed.refusal_declaration(occurrence.lexical_owner)) {
                     continue;
                 }
-                let Some(storage) = closed_storage(typed, occurrence.reference) else {
-                    continue;
-                };
                 requests.push((
                     scope_index,
                     typed.normalized_type_identity(storage.application),
                     occurrence.lexical_owner,
-                    storage,
+                    *storage,
                 ));
             }
         }
@@ -180,14 +192,13 @@ impl<'scope> Layouts<'scope> {
         // Every declaration that writes a requested application holds its
         // plan, whichever deployment selects it.
         let key = |symbol: SymbolHandle| (symbol.arena_index(), symbol.generation());
-        let mut written = occurrences
+        let mut written = written_storage
             .iter()
-            .filter_map(|occurrence| {
-                let storage = closed_storage(typed, occurrence.reference)?;
-                Some((
+            .map(|(occurrence, storage)| {
+                (
                     typed.normalized_type_identity(storage.application),
                     typed.refusal_declaration(occurrence.lexical_owner),
-                ))
+                )
             })
             .collect::<Vec<_>>();
         written.sort_unstable_by_key(|(identity, holder)| (*identity, key(*holder)));

@@ -10,7 +10,7 @@
 */
 
 use super::callable_signatures::SignatureInputs;
-use super::declaration_selection::{ConstantSelection, GenericParameterRole};
+use super::declaration_selection::{ConstantSelection, GenericParameterRole, RootHeaders};
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use source_text::SourceSpan;
@@ -651,6 +651,8 @@ mod static_operands {
 
 struct Expansion<'a, 'base> {
     selection: &'a ConstantSelection<'base>,
+    /* The forest's root headers, indexed once for every name this pass reads. */
+    headers: RootHeaders,
     active: Vec<SourceSpan>,
     supplied: Vec<TypeReferenceHandle>,
 }
@@ -686,8 +688,9 @@ impl Expansion<'_, '_> {
             head.filter(|head| !bound.iter().any(|name| name == head.as_str(syntax)))
         {
             let declaration = self.selection.type_alias_source(syntax, &head);
-            let parameters = self.selection.generic_parameter_roles(
+            let parameters = self.selection.generic_parameter_roles_in(
                 syntax,
+                &self.headers,
                 &head,
                 &[
                     SymbolKind::BuiltinType,
@@ -775,7 +778,7 @@ impl Expansion<'_, '_> {
                     .collect::<Vec<_>>()
             } else {
                 self.selection
-                    .generic_parameter_roles(syntax, name, &[SymbolKind::Domain])
+                    .generic_parameter_roles_in(syntax, &self.headers, name, &[SymbolKind::Domain])
                     .unwrap_or_default()
                     .into_iter()
                     .map(|role| role == GenericParameterRole::Type)
@@ -1171,6 +1174,7 @@ pub(super) fn normalize(
     let templates = syntax.clone();
     let mut expansion = Expansion {
         selection,
+        headers: RootHeaders::of(syntax),
         active: Vec::new(),
         supplied: Vec::new(),
     };
@@ -1591,6 +1595,83 @@ mod type_alias_tests {
             ConstantSelection::new(&syntax, Some(std::sync::Arc::new(sources)), Vec::new())?;
         normalize(&mut syntax, &selection)?;
         Ok(syntax)
+    }
+
+    fn parsed(text: &str) -> (SyntaxTrees, crate::source_inputs::SourceMap) {
+        let tokens = crate::resolution::frontend_fixture::Lexer::new(text)
+            .tokenize()
+            .unwrap();
+        let mut sources = crate::source_inputs::SourceMap::default();
+        let id = sources
+            .add("headers/main.omg".into(), text.to_owned())
+            .source_id;
+        let syntax =
+            crate::resolution::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
+        (syntax, sources)
+    }
+
+    /* Normalization reads each name's roles through the header index; the
+    index must answer exactly what scanning every root item answers. */
+    #[test]
+    fn indexed_header_roles_match_the_full_root_scan() {
+        let text = "data Pair<A, B> { first: A; second: B; }
+             machine choose<T, const N: u32>(value: T) -> T { value }
+             trait Shape<T> {}
+             data Count = u64;
+             data Twice<T> = Pair<T, T>;";
+        let (syntax, sources) = parsed(text);
+        let selection =
+            ConstantSelection::new(&syntax, Some(std::sync::Arc::new(sources)), Vec::new())
+                .unwrap();
+        let headers = RootHeaders::of(&syntax);
+        assert!(headers.serves(&syntax));
+        let kinds = [
+            SymbolKind::Data,
+            SymbolKind::TypeAlias,
+            SymbolKind::Machine,
+            SymbolKind::Trait,
+        ];
+        let names = syntax
+            .root_items()
+            .filter_map(|item| match item {
+                Item::Data(data) => Some(data.name.clone()),
+                Item::Machine(machine) => Some(machine.name.clone()),
+                Item::Trait(definition) => Some(definition.name.clone()),
+                Item::TypeAlias(alias) => Some(alias.name.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(names.len(), 5);
+        for name in &names {
+            assert_eq!(
+                selection.generic_parameter_roles_in(&syntax, &headers, name, &kinds),
+                selection.generic_parameter_roles(&syntax, name, &kinds),
+                "roles of `{}`",
+                name.as_str(&syntax)
+            );
+        }
+        let roles = |spelling: &str| {
+            let name = names
+                .iter()
+                .find(|name| name.as_str(&syntax) == spelling)
+                .unwrap();
+            selection.generic_parameter_roles_in(&syntax, &headers, name, &kinds)
+        };
+        use GenericParameterRole::{Const, Type};
+        assert_eq!(roles("Pair"), Some(vec![Type, Type]));
+        assert_eq!(roles("choose"), Some(vec![Type, Const]));
+        assert_eq!(roles("Count"), Some(Vec::new()));
+    }
+
+    /* A forest that gained a root item after indexing is not served by the
+    old rows, so a lookup falls back to scanning every root item. */
+    #[test]
+    fn a_header_index_refuses_a_forest_with_more_root_items() {
+        let (small, _) = parsed("data One<T> { value: T; }");
+        let (larger, _) = parsed("data One<T> { value: T; } data Two<T> { value: T; }");
+        let headers = RootHeaders::of(&small);
+        assert!(headers.serves(&small));
+        assert!(!headers.serves(&larger));
     }
 
     #[test]
