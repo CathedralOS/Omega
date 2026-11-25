@@ -457,6 +457,7 @@ pub struct TableRangeExpression {
 pub struct TableMembershipExpression {
     pub value: ExpressionHandle,
     pub domain: HandleSpan<Identifier>,
+    pub domain_arguments: HandleSpan<crate::types::TypeReferenceHandle>,
 }
 
 #[derive(

@@ -655,11 +655,14 @@ fn lower_nonbinary_expression_node_into_table(
                 expression_table(lowerer)
                     .push_name_path_member(&mut domain, lower_name(syntax_trees, member));
             }
+            let domain_arguments =
+                lower_child_type_references(lowerer, syntax_trees, membership.domain_arguments)?;
             Ok(expression_table(lowerer).insert(ExpressionNode::Membership(
                 TableMembershipExpression {
                     is_pattern: false,
                     value,
                     domain,
+                    domain_arguments,
                     domain_symbol: SymbolHandle::invalid(),
                     case_type_symbol: SymbolHandle::invalid(),
                     case_symbol: SymbolHandle::invalid(),

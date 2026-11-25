@@ -733,6 +733,25 @@ impl ProofExpressionContext<'_> {
         true
     }
 
+    fn assign_type_arguments(
+        &mut self,
+        arguments: impl IntoIterator<Item = arena::Handle<crate::source_resolved::types::TypeReference>>,
+    ) {
+        if let Some(parameters) = self.local_type_parameters {
+            for reference in arguments {
+                let mut target = self.child_type_references.get(reference).clone();
+                super::type_references::assign_type_reference_symbol_with_locals_and_constraints(
+                    self.symbols,
+                    self.child_type_references,
+                    self.type_constraints,
+                    parameters,
+                    &mut target,
+                );
+                *self.child_type_references.get_mut(reference) = target;
+            }
+        }
+    }
+
     fn assign(&mut self, expression: ExpressionHandle) {
         let expression_node = self.expression_table.expression(expression).clone();
         match expression_node {
@@ -850,21 +869,9 @@ impl ProofExpressionContext<'_> {
                 }
             }
             ExpressionNode::Cast(cast) => {
-                if let Some(parameters) = self.local_type_parameters {
-                    for reference in
-                        once(cast.target_type).chain(cast.semantic_domain_arguments.handles())
-                    {
-                        let mut target = self.child_type_references.get(reference).clone();
-                        super::type_references::assign_type_reference_symbol_with_locals_and_constraints(
-                    self.symbols,
-                    self.child_type_references,
-                    self.type_constraints,
-                    parameters,
-                    &mut target,
+                self.assign_type_arguments(
+                    once(cast.target_type).chain(cast.semantic_domain_arguments.handles()),
                 );
-                        *self.child_type_references.get_mut(reference) = target;
-                    }
-                }
                 self.assign(cast.value);
             }
             ExpressionNode::Indexed(indexed) => {
@@ -880,6 +887,7 @@ impl ProofExpressionContext<'_> {
                 }
             }
             ExpressionNode::Membership(membership) => {
+                self.assign_type_arguments(membership.domain_arguments.handles());
                 self.assign(membership.value);
                 let (name, reference_span) = {
                     let members = self.expression_table.name_path_members(membership.domain);

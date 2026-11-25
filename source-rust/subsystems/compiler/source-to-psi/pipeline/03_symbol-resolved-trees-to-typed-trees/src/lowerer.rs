@@ -2364,7 +2364,7 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         service_reach_rows,
         authored_service_reach_rows,
         semantic_domains,
-        applied_domain_applications: _,
+        applied_domain_applications,
         applied_data_cleanup_selections: _,
         opaque_representation_selections: _,
         external_bindings,
@@ -2409,6 +2409,7 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
     trees.service_reach_rows = service_reach_rows;
     trees.authored_service_reach_rows = authored_service_reach_rows;
     trees.semantic_domains = semantic_domains;
+    trees.applied_domain_applications = applied_domain_applications;
     trees.external_bindings = external_bindings;
     trees.evidence_forwardings = source
         .evidence_forwardings

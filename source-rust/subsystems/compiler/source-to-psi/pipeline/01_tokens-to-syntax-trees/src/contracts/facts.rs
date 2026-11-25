@@ -164,10 +164,8 @@ fn parse_fact_list<'tokens, 'source>(
                 let (first_domain, rest) = parse_path_handle_span(input, |member| {
                     syntax_trees.items.append_identifier_path_member(member)
                 })?;
-                let argument_start = rest;
                 let (first_arguments, rest) =
                     parse_domain_argument_handles(syntax_trees, domain_argument_start(rest)?)?;
-                let mut argument_site = (!first_arguments.is_empty()).then_some(argument_start);
                 input = rest;
 
                 let first_expression_domain =
@@ -176,6 +174,7 @@ fn parse_fact_list<'tokens, 'source>(
                     TableMembershipExpression {
                         value,
                         domain: first_expression_domain,
+                        domain_arguments: first_arguments,
                     },
                 ));
 
@@ -201,12 +200,8 @@ fn parse_fact_list<'tokens, 'source>(
                     let (domain, rest) = parse_path_handle_span(rest, |member| {
                         syntax_trees.items.append_identifier_path_member(member)
                     })?;
-                    let argument_start = rest;
                     let (domain_arguments, rest) =
                         parse_domain_argument_handles(syntax_trees, domain_argument_start(rest)?)?;
-                    if !domain_arguments.is_empty() && argument_site.is_none() {
-                        argument_site = Some(argument_start);
-                    }
                     input = rest;
                     membership_domains.push((domain, domain_arguments));
                     let expression_domain = copy_item_path_to_expression_path(syntax_trees, domain);
@@ -214,6 +209,7 @@ fn parse_fact_list<'tokens, 'source>(
                         TableMembershipExpression {
                             value,
                             domain: expression_domain,
+                            domain_arguments,
                         },
                     ));
                     chain_expression = syntax_trees.expressions.insert(ExpressionNode::Binary(
@@ -228,11 +224,6 @@ fn parse_fact_list<'tokens, 'source>(
                 }
 
                 if saw_pipe {
-                    if let Some(site) = argument_site {
-                        return Err(site.error_here(
-                            "indexed domain applications are not carried by `|` proof-fact alternatives; state the indexed membership as its own fact",
-                        ));
-                    }
                     let handle = syntax_trees
                         .items
                         .append_proof_fact(ProofFact::Expression(chain_expression));

@@ -258,7 +258,18 @@ fn assign_expression_symbols_in_role(
             recurse!(indexed.collection);
             recurse!(indexed.index);
         }
-        ExpressionNode::Membership(membership) => recurse!(membership.value),
+        ExpressionNode::Membership(membership) => {
+            recurse!(membership.value);
+            for handle in membership.domain_arguments.handles() {
+                crate::resolution::names::type_references::reassign_type_reference_symbols(
+                    symbols,
+                    child_type_references,
+                    type_constraints,
+                    local_type_parameters,
+                    handle,
+                );
+            }
+        }
         ExpressionNode::Member(member) => recurse!(member.receiver),
         ExpressionNode::Borrow(inner) => recurse!(inner.target),
         ExpressionNode::Name(path) => {

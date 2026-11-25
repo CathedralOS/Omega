@@ -77,6 +77,7 @@ pub(crate) fn hoist_membership_match_subject(
             is_pattern: membership.is_pattern,
             value: name_reference,
             domain: membership.domain,
+            domain_arguments: membership.domain_arguments,
             domain_symbol: membership.domain_symbol,
             case_type_symbol: membership.case_type_symbol,
             case_symbol: membership.case_symbol,

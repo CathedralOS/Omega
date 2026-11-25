@@ -2319,10 +2319,7 @@ pub mod expression {
                         self.copy_subtree_with_occurrences(source, test.subject, retain, copies);
                     self.retain_executable_domain_test(
                         copied,
-                        super::ExecutableDomainTest {
-                            subject,
-                            domain: test.domain,
-                        },
+                        super::ExecutableDomainTest { subject, ..test },
                     );
                 }
                 for (original, capture) in &copies.subjects {
@@ -3331,6 +3328,7 @@ pub mod expression {
     pub struct ExecutableDomainTest {
         pub subject: ExpressionHandle,
         pub domain: SymbolHandle,
+        pub application: semantic_vocabulary::SemanticDomainId,
     }
 
     // A continuation appends nodes and their provenance in the same private
@@ -4309,7 +4307,7 @@ pub mod expression {
             }
         }
 
-        fn replace_executable_domain_tests(
+        pub(crate) fn replace_executable_domain_tests(
             &mut self,
             expression: ExpressionHandle,
             tests: impl IntoIterator<Item = ExecutableDomainTest>,

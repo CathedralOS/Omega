@@ -431,6 +431,37 @@ fn a_domain_cast_checks_every_member_of_a_transparent_alias() {
 }
 
 #[test]
+fn indexed_membership_evaluates_with_its_written_application() {
+    let family = "domain<const Bound: u64> u64::AtMost<Bound> requires self <= Bound;";
+    let program = Program::of(&format!(
+        "{family}
+        domain u64::Positive requires self > 0u64;
+        machine tagged(candidate: u64 in Positive) -> bool {{ candidate in AtMost::<8> }}
+        machine under(candidate: u64) -> bool ensures result == (candidate <= 8u64) {{ candidate in AtMost::<8> }}
+        machine above() -> bool ensures !result {{ 8u64 in u64::AtMost::<7> }}
+        machine exact() -> bool ensures result {{ 8u64 in AtMost::<8> }}"
+    ));
+    program.judged(|_| {}).accepted();
+
+    for (operand, application, refusal) in [
+        ("u32", "AtMost::<8>", "domain classifies `u64`"),
+        ("u64", "AtMost::<7, 8>", "incomplete index telescope"),
+        ("u64", "AtMost", "incomplete index telescope"),
+        (
+            "u64",
+            "AtMost::<bool>",
+            "must name a constant or a const parameter",
+        ),
+    ] {
+        let source = format!("{family} machine f(x: {operand}) -> bool {{ x in {application} }}");
+        let error = Program::try_of(&[("product/main.omg", &source)])
+            .err()
+            .expect("ill-formed membership");
+        assert!(error.message.contains(refusal), "{}", error.message);
+    }
+}
+
+#[test]
 fn scalar_domain_predicates_bind_each_const_index_in_the_declaration() {
     const DOMAIN: &str = "domain<const Lo: u8, const Hi: u8> u8::Between<Lo, Hi>
         requires self >= Lo && self < Hi;";
