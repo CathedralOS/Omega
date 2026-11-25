@@ -1804,7 +1804,13 @@ pub(crate) fn analyze_bodies(
             &mut entry,
         );
         let mut before = BTreeMap::from([(graph.entry, entry)]);
-        let mut effective = BTreeMap::new();
+        // Casts read facts on edges. Edges leaving the same terminator share
+        // one observation, and an unreachable terminator has no observation.
+        let mut edge_facts: BTreeMap<_, _> = machine_facts
+            .edges
+            .iter()
+            .map(|(_, position)| (*position, None))
+            .collect();
         let mut completed = BTreeMap::new();
         let mut pending = BTreeSet::from([graph.entry]);
         while let Some(position) = pending.pop_first() {
@@ -1894,7 +1900,9 @@ pub(crate) fn analyze_bodies(
                     }
                 }
             }
-            effective.insert(position, incoming.clone());
+            if let Some(observation) = edge_facts.get_mut(&position) {
+                *observation = Some(incoming.clone());
+            }
             let mut transferred = incoming.transferred(&step.value_transfers);
             if let Some(reads) = graph.scalar_payload_reads.get(&position) {
                 for (source, destination) in reads {
@@ -2015,7 +2023,10 @@ pub(crate) fn analyze_bodies(
             std::mem::swap(earlier, later);
             true
         });
-        machine_facts.before = effective.into_iter().collect();
+        machine_facts.before = edge_facts
+            .into_iter()
+            .filter_map(|(position, facts)| Some((position, facts?)))
+            .collect();
         result.machines.push(machine_facts);
         storage.release_storage_snapshots();
     }
