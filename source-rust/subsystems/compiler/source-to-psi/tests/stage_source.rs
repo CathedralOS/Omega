@@ -1255,6 +1255,30 @@ fn a_cast_in_a_membership_operand_must_establish_its_domain() {
 }
 
 #[test]
+fn scalar_predicates_read_self_on_their_own_carrier() {
+    let package = PackageKeyIdentity::from_digest([0x75; 32]).unwrap();
+    for (body, refusal) in [
+        ("x in Positive::Small", None),
+        ("x > 0u32", Some("takes unqualified operands only")),
+    ] {
+        let source = format!(
+            "domain u32::Positive requires self > 0u32;
+             domain u32::Positive::Small requires self < 10u32;
+             domain u32::Tag;
+             machine test(x: u32 in Positive & Tag) -> bool {{ {body} }}"
+        );
+        let (files, root) = captured(package, &source);
+        let result = compile(product(files, root, package, &[]).unwrap(), None);
+        if let Some(reason) = refusal {
+            let errors = result.expect_err("ordinary source still needs its declared operator");
+            assert!(errors.iter().any(|error| error.message.contains(reason)), "{errors:?}");
+        } else {
+            result.expect("each predicate checks the completed integer at its declared carrier");
+        }
+    }
+}
+
+#[test]
 fn an_indexed_domain_retains_the_members_of_its_applied_carrier() {
     let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
     for (input_domain, returned_index, domain_index, refusal) in [
