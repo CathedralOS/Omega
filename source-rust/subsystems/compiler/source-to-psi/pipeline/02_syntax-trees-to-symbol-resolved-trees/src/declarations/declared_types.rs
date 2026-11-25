@@ -741,13 +741,7 @@ impl Expansion<'_, '_> {
                             .type_references
                             .type_reference_handles(domain.arguments)
                             .to_vec();
-                        self.application_arguments(
-                            syntax,
-                            &domain.name,
-                            &arguments,
-                            &[SymbolKind::Domain],
-                            bound,
-                        )?;
+                        self.domain_arguments(syntax, base_type, &domain.name, &arguments, bound)?;
                     }
                 }
             }
@@ -764,21 +758,31 @@ impl Expansion<'_, '_> {
         Ok(())
     }
 
-    fn application_arguments(
+    fn domain_arguments(
         &mut self,
         syntax: &mut SyntaxTrees,
+        carrier: TypeReferenceHandle,
         name: &Identifier,
         arguments: &[TypeReferenceHandle],
-        kinds: &[SymbolKind],
         bound: &[String],
     ) -> Result<(), Diagnostic> {
-        let parameters = self.selection.generic_parameter_roles(syntax, name, kinds);
-        for (position, argument) in arguments.iter().enumerate() {
-            if parameters
-                .as_ref()
-                .and_then(|parameters| parameters.get(position))
-                .is_some_and(|parameter| *parameter == GenericParameterRole::Type)
-            {
+        let type_indices =
+            if let Some(family) = self.selection.domain_family_on_type(syntax, name, carrier) {
+                super::generic_data::domain_index_telescope(syntax, family)
+                    .0
+                    .into_iter()
+                    .map(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+                    .collect::<Vec<_>>()
+            } else {
+                self.selection
+                    .generic_parameter_roles(syntax, name, &[SymbolKind::Domain])
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|role| role == GenericParameterRole::Type)
+                    .collect()
+            };
+        for (argument, is_type) in arguments.iter().zip(type_indices) {
+            if is_type {
                 self.reference(syntax, *argument, bound)?;
             }
         }
