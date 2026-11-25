@@ -32,7 +32,8 @@ crashes Trap
     }
 
     machine separator(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, first_member: u64 in Trapping, start: u64 in Trapping) {
-        let more: bool = |input|::at_path_separator(parser, input);
+        let more: bool = |input|::at_path_separator(parser, input)
+            && !|input|::at_expression_arguments(parser, input);
         transition more {
             true -> next_member(parser, input, first_member, start),
             _ -> retain_capacity(parser, input, first_member, start)
@@ -60,6 +61,8 @@ crashes Trap
         parser.output.name_paths[parser.output.name_path_count] = |syntax_trees|::NamePath {
             first_member: first_member,
             member_count: (parser.output.member_count as +Trapping) - first_member,
+            first_argument: 0 as +Trapping,
+            argument_count: 0 as +Trapping,
             source_span: |parser|::parser_source_span(parser, start, parser.name_end)
         };
         parser.output.name_path_count = parser.output.name_path_count + 1;

@@ -1,0 +1,104 @@
+// Expected exit: 0
+use pipeline/source_files_to_tokens/lexer.omg;
+use pipeline/tokens_to_syntax_trees/parser.omg;
+use representations/syntax_trees/syntax_trees.omg as syntax;
+use representations/source_files/source.omg;
+
+machine append_input(scanner: @mutable |lexer|::Lexer, text: @[u8]) crashes Trap {
+    transition { _ -> scan(scanner, text, 0 as +Trapping) }
+    machine scan(scanner: @mutable |lexer|::Lexer, text: @[u8], index: u64 in Trapping) {
+        transition index < text.length {
+            true -> append(scanner, text, index),
+            _ -> done()
+        }
+    }
+    machine append(scanner: @mutable |lexer|::Lexer, text: @[u8], index: u64 in Trapping)
+    requires index < text.length
+    {
+        |lexer|::append_source_byte(scanner, text[index as -Trapping]);
+        transition { _ -> scan(scanner, text, index + 1) }
+    }
+    machine done() {}
+}
+
+machine parse_source(parser: @mutable |parser|::Parser, text: @[u8]) crashes Trap {
+    let mutable scanner: |lexer|::Lexer;
+    |lexer|::lexer_initialize(@mutable scanner, 7 as +Trapping);
+    append_input(@mutable scanner, text);
+    |lexer|::tokenize(@mutable scanner);
+    |parser|::parser_initialize(parser);
+    |parser|::parse(parser, |source|::SourceId { value: 7 as +Trapping },
+        scanner.source.length as +Trapping, @scanner.output);
+}
+
+machine main() crashes Trap {
+    let mutable parser: |parser|::Parser;
+    parse_source(@mutable parser, "machine test<const K: u64>(x: u64) -> bool requires x in B<K> { x in u64::AtMost::<K> & Other::<8, K> }");
+    transition parser.output.accepted && parser.output.name_path_count == 3 && parser.output.type_argument_count == 4 {
+        true -> arguments(@parser.output),
+        _ -> wrong()
+    }
+
+    machine arguments(tree: @|syntax|::SyntaxTrees) {
+        let premise: |syntax|::Expression = |syntax|::syntax_trees_expression(tree, tree.clauses[0].expression);
+        let result: |syntax|::Expression = |syntax|::syntax_trees_expression(tree, tree.statements[0].value);
+        let contract: |syntax|::NamePath = tree.name_paths[0];
+        let first: |syntax|::NamePath = tree.name_paths[1];
+        let second: |syntax|::NamePath = tree.name_paths[2];
+        let formal: |syntax|::TypeReference = |syntax|::syntax_trees_type_reference(tree, tree.type_arguments[0]);
+        let body: |syntax|::TypeReference = |syntax|::syntax_trees_type_reference(tree, tree.type_arguments[1]);
+        let literal: |syntax|::TypeReference = |syntax|::syntax_trees_type_reference(tree, tree.type_arguments[2]);
+        let last: |syntax|::TypeReference = |syntax|::syntax_trees_type_reference(tree, tree.type_arguments[3]);
+        transition premise.kind == |syntax|::ExpressionKind::Membership && premise.first == 0 && premise.count == 1
+            && result.kind == |syntax|::ExpressionKind::Membership && result.first == 1 && result.count == 2
+            && result.operator == |syntax|::OperatorKind::And
+            && contract.first_argument == 0 && contract.argument_count == 1 && first.first_argument == 1
+            && first.member_count == 2 && first.argument_count == 1 && second.first_argument == 2 && second.argument_count == 2
+            && formal.kind == |syntax|::TypeReferenceKind::Named && body.kind == |syntax|::TypeReferenceKind::Named
+            && literal.kind == |syntax|::TypeReferenceKind::Literal && last.kind == |syntax|::TypeReferenceKind::Named
+            && contract.source_span.span.start == 57 && contract.source_span.span.end == 61
+            && first.source_span.span.start == 69 && first.source_span.span.end == 85
+            && second.source_span.span.start == 88 && second.source_span.span.end == 101 {
+            true -> canonical_contract(), _ -> wrong()
+        }
+    }
+
+    machine canonical_contract() {
+        let mutable parser: |parser|::Parser;
+        parse_source(@mutable parser, "machine test<const K: u64>(x: u64) -> bool requires x in AtMost::<K> { true }");
+        let path: |syntax|::NamePath = parser.output.name_paths[0];
+        transition parser.output.accepted && parser.output.name_path_count == 1 && parser.output.type_argument_count == 1
+            && path.first_argument == 0 && path.argument_count == 1 && path.source_span.span.end == 68 {
+            true -> malformed(), _ -> wrong()
+        }
+    }
+
+    machine malformed() {
+        let mutable parser: |parser|::Parser;
+        parse_source(@mutable parser, "machine f(x: u64) -> bool { x in AtMost::<8,> }");
+        transition !parser.output.accepted && parser.output.diagnostic.code == |syntax|::ParseDiagnosticCode::ExpectedStaticArgument
+            && parser.output.diagnostic.source_span.span.start == 44 {
+            true -> lifetime(), _ -> wrong()
+        }
+    }
+
+    machine lifetime() {
+        let mutable parser: |parser|::Parser;
+        parse_source(@mutable parser, "machine f(x: u64) -> bool { x in AtMost::<'a> }");
+        transition !parser.output.accepted && parser.output.diagnostic.code == |syntax|::ParseDiagnosticCode::ExpectedStaticArgument
+            && parser.output.diagnostic.source_span.span.start == 42 {
+            true -> bare_expression(), _ -> wrong()
+        }
+    }
+
+    machine bare_expression() {
+        let mutable parser: |parser|::Parser;
+        parse_source(@mutable parser, "machine f(x: u64) -> bool { x in AtMost<8> }");
+        transition !parser.output.accepted && parser.output.diagnostic.code == |syntax|::ParseDiagnosticCode::UnsupportedDomainArguments {
+            true -> done(), _ -> wrong()
+        }
+    }
+
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

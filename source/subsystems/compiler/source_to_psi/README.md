@@ -106,14 +106,15 @@ multi-entry accounting refuse),
 `Path { field: value }` constructions (always inside brackets, never before an
 unbracketed body), prefix `!`, `-`, `~`, `@`, `@mutable`, `@write` and the call
 acknowledgements `suspend`, `block` and `suspend block`, the binary
-operators in the reference grammar's two precedence tiers, memberships
+operators in the reference grammar's two precedence tiers, and memberships
 `value in Domain {& Domain}` or `{| Domain}` between those tiers (one
-connective per membership; an indexed domain `AtMost<8>` rejects), and
-value-position `match subject { pattern -> value, ... }` whose arms are `_` or
-value patterns, commas between them optional, and keep their own table,
-and fixed-array literals `[element, ...]`, a trailing comma allowed, or `[]`,
-all on explicit stacks rather than
-recursion. Every type position (fields, payload fields,
+connective per membership). Each applied domain path keeps its own argument
+list. Executable membership uses `AtMost::<8>`. A standalone contract also
+accepts `AtMost<8>`. The resolver currently refuses indexed membership.
+Value-position `match subject { pattern -> value, ... }` stores its arms in
+a separate table. Arms may be `_` or value patterns, with optional commas.
+Fixed-array literals accept `[element, ...]`, a trailing comma, or `[]`.
+The expression parser uses explicit stacks. Every type position (fields, payload fields,
 generic binders, parameters, return types, `let` types and casts) shares one
 grammar in [`pipeline/tokens_to_syntax_trees/types.omg`](pipeline/tokens_to_syntax_trees/types.omg): references `@['tag] [mutable] T`,
 arrays `[T; N]`, slices `[T]` and named types, possibly `::` paths, with

@@ -859,9 +859,16 @@ crashes Trap
 
     machine domain(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, index: u64 in Trapping, expression: |syntax_trees|::Expression) {
         let path: |syntax_trees|::NamePath = |syntax_trees|::syntax_trees_name_path(syntax, expression.first);
+        transition path.argument_count == 0 {
+            true -> unapplied(resolver, sources, syntax, scope, index, expression.first, path),
+            _ -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::UnsupportedExpression, path.source_span)
+        }
+    }
+
+    machine unapplied(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: NameScope, index: u64 in Trapping, path_handle: u64 in Trapping, path: |syntax_trees|::NamePath) {
         transition path.member_count {
-            1 -> bare(resolver, sources, syntax, expression.first, path),
-            2 -> owned(resolver, sources, syntax, scope, index, expression.first, path),
+            1 -> bare(resolver, sources, syntax, path_handle, path),
+            2 -> owned(resolver, sources, syntax, scope, index, path_handle, path),
             _ -> reject(resolver, |symbol_resolved_trees|::ResolveDiagnosticCode::UnknownDomain, path.source_span)
         }
     }

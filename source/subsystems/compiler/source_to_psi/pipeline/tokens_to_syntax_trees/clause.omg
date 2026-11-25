@@ -197,7 +197,7 @@ crashes Trap
     }
 
     machine satisfied_arguments(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, owner: |syntax_trees|::ClauseOwner) {
-        |types|::parse_static_arguments(parser, input);
+        |types|::parse_static_arguments(parser, input, true);
         parser.clause_first_argument = parser.committed_type_first;
         parser.clause_argument_count = parser.committed_type_count;
         transition parser.output.accepted {
@@ -661,8 +661,10 @@ crashes Trap
     machine fact(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, owner: |syntax_trees|::ClauseOwner, kind: |syntax_trees|::ClauseKind) {
         let logical: bool = owner == |syntax_trees|::ClauseOwner::Domain || owner == |syntax_trees|::ClauseOwner::Data;
         parser.expression_allow_subject = logical;
+        parser.expression_clause_fact = true;
         |expression|::parse_expression(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedClauseFact, false, true);
         parser.expression_allow_subject = false;
+        parser.expression_clause_fact = false;
         let expression_result: u64 in Trapping = parser.expression_result;
         transition parser.output.accepted {
             true -> fact_retained(parser, input, owner, kind, expression_result),

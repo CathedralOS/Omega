@@ -93,6 +93,14 @@ crashes Trap
     }
 }
 
+// The separator before an expression's explicit static argument list.
+machine at_expression_arguments(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) -> bool
+crashes Trap
+{
+    at_punctuation(parser, input, |tokens|::PunctuationKind::ColonColon)
+        && next_is_punctuation(parser, input, |tokens|::PunctuationKind::Less)
+}
+
 machine at_path_separator(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) -> bool
 crashes Trap
 {

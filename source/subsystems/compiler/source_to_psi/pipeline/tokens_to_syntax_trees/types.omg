@@ -876,51 +876,63 @@ crashes Trap
 // argument is a type, or an integer static value, staged on the type
 // argument stack until `>` commits the list to `type_arguments`; its range
 // lands in `committed_type_first`/`committed_type_count`.
-public machine parse_static_arguments(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream)
+public machine parse_static_arguments(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, allow_lifetimes: bool)
 crashes Trap
 {
     let base: u64 in Trapping = parser.pending_type_argument_count as +Trapping;
     let lifetime_base: u64 in Trapping = parser.pending_type_lifetime_count as +Trapping;
     |input|::take_current(parser, input);
-    transition { _ -> argument(parser, input, base, lifetime_base) }
+    transition { _ -> argument(parser, input, base, lifetime_base, allow_lifetimes) }
 
-    machine argument(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping) {
+    machine argument(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping, allow_lifetimes: bool) {
+        let lifetime: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Apostrophe);
+        transition lifetime && !allow_lifetimes {
+            true -> reject_lifetime(parser, input),
+            _ -> read(parser, input, base, lifetime_base, allow_lifetimes)
+        }
+    }
+
+    machine reject_lifetime(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::reject_current(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedStaticArgument);
+    }
+
+    machine read(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping, allow_lifetimes: bool) {
         parse_static_argument(parser, input);
         transition parser.output.accepted {
-            true -> staged(parser, input, base, lifetime_base),
+            true -> staged(parser, input, base, lifetime_base, allow_lifetimes),
             _ -> done()
         }
     }
 
     // A lifetime argument of an invocation names a region the call binds
     // afresh; it leaves no row and the list keeps only its types.
-    machine staged(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping) {
+    machine staged(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping, allow_lifetimes: bool) {
         transition parser.type_lifetime_argument {
-            true -> separated(parser, input, base, lifetime_base),
-            _ -> typed(parser, input, base, lifetime_base)
+            true -> separated(parser, input, base, lifetime_base, allow_lifetimes),
+            _ -> typed(parser, input, base, lifetime_base, allow_lifetimes)
         }
     }
 
-    machine typed(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping) {
+    machine typed(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping, allow_lifetimes: bool) {
         let argument: u64 in Trapping = parser.type_result;
         push_type_argument(parser, input, argument);
         transition parser.output.accepted {
-            true -> separated(parser, input, base, lifetime_base),
+            true -> separated(parser, input, base, lifetime_base, allow_lifetimes),
             _ -> done()
         }
     }
 
-    machine separated(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping) {
+    machine separated(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping, allow_lifetimes: bool) {
         let has_comma: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Comma);
         transition has_comma {
-            true -> comma(parser, input, base, lifetime_base),
+            true -> comma(parser, input, base, lifetime_base, allow_lifetimes),
             _ -> close(parser, input, base, lifetime_base)
         }
     }
 
-    machine comma(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping) {
+    machine comma(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping, allow_lifetimes: bool) {
         |input|::take_current(parser, input);
-        transition { _ -> argument(parser, input, base, lifetime_base) }
+        transition { _ -> argument(parser, input, base, lifetime_base, allow_lifetimes) }
     }
 
     machine close(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, base: u64 in Trapping, lifetime_base: u64 in Trapping) {

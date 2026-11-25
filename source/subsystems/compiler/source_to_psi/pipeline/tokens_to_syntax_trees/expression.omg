@@ -478,28 +478,12 @@ crashes Trap
         first_domain: u64 in Trapping,
         connective: |syntax_trees|::OperatorKind
     ) {
-        |path|::parse_name_path(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedMembershipDomain);
-        transition parser.output.accepted {
-            true -> membership_arguments(parser, input, value, first_domain, connective),
-            _ -> done()
-        }
-    }
-
-    // An indexed domain application (`AtMost<8>`) is not read here; a `<`
-    // after a domain rejects rather than comparing the membership's result.
-    machine membership_arguments(
-        parser: @mutable |parser|::Parser,
-        input: @|tokens|::TokenStream,
-        value: u64 in Trapping,
-        first_domain: u64 in Trapping,
-        connective: |syntax_trees|::OperatorKind
-    ) {
-        let applied: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Less);
+        parse_membership_domain(parser, input);
         let both: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Ampersand);
         let either: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Pipe);
-        transition applied {
-            true -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::UnsupportedDomainArguments),
-            _ -> membership_connective(parser, input, value, first_domain, connective, both, either)
+        transition parser.output.accepted {
+            true -> membership_connective(parser, input, value, first_domain, connective, both, either),
+            _ -> done()
         }
     }
 
@@ -579,7 +563,7 @@ crashes Trap
             type_reference: 0 as +Trapping,
             first_row: 0 as +Trapping,
             literal: 0 as +Trapping,
-            source_span: |parser|::parser_source_span(parser, value_expression.source_span.span.start, parser.name_end)
+            source_span: |parser|::parser_source_span(parser, value_expression.source_span.span.start, parser.token_end)
         };
         emit_expression(parser, input, node);
         transition parser.output.accepted {
@@ -771,7 +755,7 @@ crashes Trap
 
     // The static argument list (types.omg) commits to `type_arguments`.
     machine static_arguments(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
-        |types|::parse_static_arguments(parser, input);
+        |types|::parse_static_arguments(parser, input, true);
         transition parser.output.accepted {
             true -> apply_node(parser, input),
             _ -> done()
@@ -2332,6 +2316,68 @@ crashes Trap
     machine invalid() -> u64 in Trapping {
         crash Trap;
     }
+}
+
+// Read one domain of a membership, including the argument list owned by that
+// path. The type grammar commits nested argument rows before its enclosing list.
+machine parse_membership_domain(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream)
+crashes Trap
+{
+    |path|::parse_name_path(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedMembershipDomain);
+    transition parser.output.accepted {
+        true -> suffix(parser, input),
+        _ -> done()
+    }
+
+    machine suffix(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        let explicit: bool = |input|::at_expression_arguments(parser, input);
+        let bare: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Less);
+        transition {
+            explicit -> separator(parser, input),
+            bare && parser.expression_clause_fact && parser.expression_frame_depth == 0 -> arguments(parser, input),
+            bare -> reject(parser, input),
+            _ -> done()
+        }
+    }
+
+    machine separator(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
+        transition { _ -> arguments(parser, input) }
+    }
+
+    machine arguments(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        let handle: u64 in Trapping = parser.name_path_result;
+        |types|::parse_static_arguments(parser, input, false);
+        transition parser.output.accepted {
+            true -> retain(parser, handle),
+            _ -> done()
+        }
+    }
+
+    machine retain(parser: @mutable |parser|::Parser, handle: u64 in Trapping) {
+        transition handle < parser.output.name_path_count {
+            true -> write(parser, handle),
+            _ -> invalid()
+        }
+    }
+
+    machine write(parser: @mutable |parser|::Parser, handle: u64 in Trapping)
+    requires handle < parser.output.name_path_count
+    {
+        let mutable path: |syntax_trees|::NamePath = parser.output.name_paths[handle as -Trapping];
+        path.first_argument = parser.committed_type_first;
+        path.argument_count = parser.committed_type_count;
+        path.source_span.span.end = parser.token_end;
+        parser.output.name_paths[handle as -Trapping] = path;
+    }
+
+    machine reject(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::reject_current(parser, input, |syntax_trees|::ParseDiagnosticCode::UnsupportedDomainArguments);
+    }
+
+    machine invalid() { crash Trap; }
+
+    machine done() {}
 }
 
 // Whether the `<` at the cursor opens a static argument list: its matching
