@@ -126,12 +126,8 @@ mod provider_source_identities {
             DependencyScope::Product,
             shared.clone(),
         );
-        let second = crate::read::Program::with_captures(
-            &typed,
-            true,
-            DependencyScope::Product,
-            shared,
-        );
+        let second =
+            crate::read::Program::with_captures(&typed, true, DependencyScope::Product, shared);
         let refusal = first.exact_toolchain_sources().unwrap_err();
         assert!(refusal.contains("outside its canonical root"), "{refusal}");
         assert_eq!(
@@ -3043,14 +3039,14 @@ fn a_module_with_records_declares_them_and_encodes() {
     });
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     signatures.push(shaped(vec![u32_type().into()], Some(line())));
-    let elaboration =
-        crate::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap();
+    let elaboration = crate::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap();
     let module = &elaboration.module;
     assert_eq!(module.types.structural_types.len(), 2);
     assert_eq!(module.layouts.native_layouts.records().count(), 2);
     assert!(
         module
-            .types.structural_types
+            .types
+            .structural_types
             .iter()
             .all(|declaration| declaration.is_copyable())
     );
@@ -3456,8 +3452,7 @@ fn a_local_without_an_initializer_logs_the_zero_it_is_established_with() {
     bodies.push(body());
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     signatures.push(shaped(Vec::new(), Some(u32_type().into())));
-    let elaboration =
-        crate::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap();
+    let elaboration = crate::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap();
     let machine = &elaboration.module.machines[0];
     let tables = elaboration.tables.machines.get(id(1)).unwrap();
     let operations = &block(machine, 1).operations;
@@ -3554,8 +3549,7 @@ fn a_local_without_an_initializer_logs_the_zero_it_is_established_with() {
         statements: vec![declare(0, None), returns(integer(1))],
         ..body()
     });
-    let refusal =
-        crate::lower_bodies(id(1), &nameless, &signatures, &records()).unwrap_err();
+    let refusal = crate::lower_bodies(id(1), &nameless, &signatures, &records()).unwrap_err();
     assert_eq!(
         refusal.reason,
         terminal_check_tables::RefusalReason::Unsupported
@@ -3603,10 +3597,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Point"),
-        shape: crate::StorageShape::Record(vec![
-            field(1, "x", scalar),
-            field(2, "y", scalar),
-        ]),
+        shape: crate::StorageShape::Record(vec![field(1, "x", scalar), field(2, "y", scalar)]),
         requires: Vec::new(),
         authored_layout: false,
         erased: Vec::new(),
@@ -4192,8 +4183,7 @@ fn each_operation_that_forms_or_changes_a_constrained_value_owes_its_clauses() {
     bodies.push(body);
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     signatures.push(shaped(Vec::new(), Some(u32_type().into())));
-    let elaboration =
-        crate::lower_bodies(id(1), &bodies, &signatures, &constrained()).unwrap();
+    let elaboration = crate::lower_bodies(id(1), &bodies, &signatures, &constrained()).unwrap();
     // Each type's declaration in the module states its clauses, and the
     // checker's table beside the module restates them by the type's
     // identity.
@@ -4307,8 +4297,7 @@ fn an_entry_clause_over_a_record_formals_field_encodes_in_the_module_contract() 
         requires: vec![clause.clone()],
         ..shaped(vec![point()], Some(u32_type().into()))
     });
-    let elaboration =
-        crate::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap();
+    let elaboration = crate::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap();
     let machine = &elaboration.module.machines[0];
     assert_eq!(machine.contract.requires, [clause]);
     assert_eq!(machine.structural_parameters[0].place, id::<PlaceId>(1));
@@ -4717,8 +4706,10 @@ fn machines_planned_on_workers_apply_what_planning_in_order_yields() {
                     if raw != 3 {
                         machine.attachment =
                             Some(id(plan.value.map_or(raw, |value| value.get() + 10)));
+                        Ok(true)
+                    } else {
+                        Ok(false)
                     }
-                    Ok(())
                 },
             )
         });

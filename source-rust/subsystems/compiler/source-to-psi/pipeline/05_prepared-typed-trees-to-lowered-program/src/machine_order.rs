@@ -35,7 +35,7 @@ pub(crate) fn plan_then_apply<Plan: Send, Error>(
     module: &mut TerminalModule,
     plan: impl Fn(&TerminalModule, &AffineSummaries<'_>, &TerminalMachine) -> Plan + Sync,
     reads: impl Fn(&Plan) -> Option<&[MachineId]>,
-    mut apply: impl FnMut(&mut TerminalMachine, Plan) -> Result<(), Error>,
+    mut apply: impl FnMut(&mut TerminalMachine, Plan) -> Result<bool, Error>,
 ) -> Result<(), Error> {
     let count = module.machines.len();
     let mut advance: Vec<Option<Plan>> = if worker_budget::current_workers() == 1 || count < 2 {
@@ -55,19 +55,46 @@ pub(crate) fn plan_then_apply<Plan: Send, Error>(
     let mut changed: Vec<MachineId> = Vec::new();
     let mut ordinal = 0;
     while ordinal < count {
+        // While no re-plan has needed an `AffineSummaries` table in this
+        // epoch, `module` stays unborrowed so pre-planned `advance` hits apply
+        // directly in place without cloning `TerminalMachine`.
+        while ordinal < count {
+            let machine = &module.machines[ordinal];
+            let unchanged = |id: &MachineId| changed.binary_search(id).is_err();
+            let usable = advance[ordinal].as_ref().is_some_and(|item| {
+                changed.is_empty()
+                    || unchanged(&machine.id)
+                        && reads(item).is_some_and(|read| read.iter().all(unchanged))
+            });
+            if !usable {
+                break;
+            }
+            let next = advance[ordinal]
+                .take()
+                .expect("usable advance entry is present");
+            let id = machine.id;
+            ordinal += 1;
+            if apply(&mut module.machines[ordinal - 1], next)?
+                && let Err(position) = changed.binary_search(&id)
+            {
+                changed.insert(position, id);
+            }
+        }
+        if ordinal >= count {
+            break;
+        }
         // Until an application changes a machine, the module stays as it is
-        // here, so the walks planned again until then share one table. It is
-        // built only when one of them is.
+        // here, so the walks planned again share one `AffineSummaries` table.
         let edit = {
             let module = &*module;
-            let summaries = std::cell::OnceCell::new();
+            let summaries = AffineSummaries::new(module);
             loop {
                 let Some(machine) = module.machines.get(ordinal) else {
                     break None;
                 };
                 // A plan finds its own machine by identity too, so that
                 // identity counts among what it read.
-                let unchanged = |machine: &MachineId| changed.binary_search(machine).is_err();
+                let unchanged = |id: &MachineId| changed.binary_search(id).is_err();
                 let next = match advance[ordinal].take() {
                     Some(advance)
                         if changed.is_empty()
@@ -77,28 +104,22 @@ pub(crate) fn plan_then_apply<Plan: Send, Error>(
                     {
                         advance
                     }
-                    _ => plan(
-                        module,
-                        summaries.get_or_init(|| AffineSummaries::new(module)),
-                        machine,
-                    ),
+                    _ => plan(module, &summaries, machine),
                 };
                 let mut applied = machine.clone();
-                let outcome = apply(&mut applied, next);
+                let mutated = apply(&mut applied, next)?;
                 ordinal += 1;
-                if applied != *machine {
-                    break Some((applied, outcome));
+                if mutated {
+                    break Some(applied);
                 }
-                outcome?;
             }
         };
-        if let Some((applied, outcome)) = edit {
+        if let Some(applied) = edit {
             let id = applied.id;
             module.machines[ordinal - 1] = applied;
             if let Err(position) = changed.binary_search(&id) {
                 changed.insert(position, id);
             }
-            outcome?;
         }
     }
     Ok(())
