@@ -97,6 +97,9 @@ Native/interpreter comparison retains those exact selections rather than
 replacing them with mocks. Separately configured virtual-service tests exercise
 their declared service contracts, not the unselected real OS implementation.
 
+A Build running in the [stock sandbox](scoped_execution.md#build-sandbox-bindings)
+uses that environment’s host bindings for files, output and other admitted services.
+
 Under `hosted-interpreter-abi-library-dependency`, Psi owns interpreted execution
 and the interface for installing and dispatching explicit host bindings.
 Target-aware host adapters live outside Psi in Omega-owned host integration;

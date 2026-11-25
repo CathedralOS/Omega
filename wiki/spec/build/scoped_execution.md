@@ -39,7 +39,7 @@ snapshot; transitional implementations must distinguish those modes.
 Use one ordinary Build activation with:
 
 1. Separate library inputs for the Build program and dependency requests for its product.
-2. Explicit filesystem/provider arguments under ordinary generic or dynamic
+2. Caller-installed filesystem and other services under ordinary static or dynamic
   selection. Being a root grants no authority; the invocation supplies backing.
 3. Explicit product-description selection without executing target code.
 4. Generic required output publication, including artifact-only builds, without
@@ -323,26 +323,18 @@ without the compiler establishing it somewhere.
 
 ## Inputs and default filesystem
 
-Build code uses ordinary filesystem traits with explicit backing arguments and
-ordinary statically selected named implementations or machine-valued operation
-records, with optional `some` packages for heterogeneous borrowed backing.
-A type parameter such as FilesystemBacking names the backing data, not a magic State parameter
-or implicit service. The dependency calls the filesystem contract without
-needing to know whether its backing is a host directory, a restricted view or a virtual
-tree. A parent choosing and inspecting a virtual backing may name its library
-implementation explicitly. Dynamic dispatch is optional, not a condition of
-sandbox transparency.
+The CLI or embedding application starts each Build with a selected filesystem
+implementation and a view for that activation. By default the view contains the
+exact read-only package snapshot and private, bounded writable storage. A
+parent can supply a different view when it registers a child. The child calls
+its ordinary filesystem library through the installed provider. Its entry takes
+only the mutable Build plan. Helpers can still take explicit views, readers or
+writers when they need narrower access.
 
-Every activation receives only its actual invocation/parent grants, explicit
-bounded diagnostics and evaluation resources. An entry declaring only
-`build(plan)` receives no filesystem argument. For a filesystem-using entry,
-the default view contains the exact read-only package snapshot and private,
-bounded writable storage. The CLI or embedding program supplies the root's
-backing and selected implementation. A root may receive
-broad host backing only when the invocation actually grants it. Root position,
-a package import, a lock acceptance row or a filesystem trait name supplies
-none. Descendants do not inherit home directories, consumer source trees,
-credentials, resolver access, network or unrestricted host filesystem access.
+The host binds the provider to that activation's backing before entry. Two
+concurrent Builds can call the same operation and read different bytes at the
+same path. A real host directory requires an actual grant from the caller.
+Neither a copied path nor an accepted package request opens the host filesystem.
 
 The public library surface covers file reads/writes and streaming operations,
 directory listing/metadata and namespace operations; restricted subtrees,
@@ -359,8 +351,7 @@ as a real one; that declaration does not create physical backing or host
 authority. Admission covers the entire executable closure, so a child cannot
 escape by importing another filesystem package, selecting an unprovided raw
 host implementation, fabricating a handle or obtaining the parent's builder.
-The same principle applies to future network or other service contracts; this
-decision neither introduces those APIs nor grants them by analogy.
+Live networking follows the same containment rule under the [Build network grant](#live-networking-in-a-build).
 
 "Virtual filesystem" specifies observable isolation, not mandatory RAM storage.
 The implementation may use an in-memory tree or confined disk backing, provided
@@ -489,16 +480,15 @@ the selected filesystem's checked result; no fallback grants a broader root.
 
 To give one child a filesystem, the parent configures its dependency
 description with `|dependency|::with_filesystem`, then passes the description
-to `Build::dependency`. That registration
-retains the selected implementation and its backing. The driver binds them
-to the child's [filesystem parameter](declarations.md#project-role) before
-execution. If a required binding is missing or incompatible, the driver
-refuses to start that child. This is the `per-child-filesystem-grant`
-decision of 2026-11-23.
+to `Build::dependency`. The registration retains the selected implementation
+and its backing. The driver installs that pair for the child before entering its
+[Build machine](declarations.md#project-role). A missing or incompatible
+required binding prevents entry. This preserves the ownership and isolation
+of the `per-child-filesystem-grant` decision.
 
-A child that asks for a filesystem gets the [default view](#inputs-and-default-filesystem)
-of its own package snapshot and private scratch when the parent supplies no override.
-An explicit view is the child's entire filesystem argument. The parent
+A child that uses the filesystem gets the [default view](#inputs-and-default-filesystem)
+when the parent supplies no override. An explicit view replaces that default
+in full, including its writable mounts. The parent
 chooses which files and mounts it exposes and which operations it permits.
 Siblings retain their own views. The compiler can still read the child's
 package to compile its source. Editing the child's mutable Build plan cannot
@@ -516,6 +506,62 @@ joins outstanding dependency work at that point. Returning from the helper
 alone cannot end a child's borrow. A helper can transfer a memory filesystem
 it created locally. The checker rejects lending that local to a child that
 can outlive the helper.
+
+### Build sandbox bindings
+
+The stock Build sandbox is an execution environment. Its host interface lives
+in the toolchain package `omega::build`. That package declares the typed host
+operations that library providers can use in this environment. For example, a
+filesystem provider can forward a read to the sandbox file service, and a
+console provider can forward output to the activation's bounded diagnostic
+sink. The host may also bind the exact required service directly. The host interface can be used independently of the optional system library.
+
+The provider's package selects its sandbox adapter through ordinary Build
+provider selection when that package is built for this environment. The
+caller supplies the backing when the selected code runs.
+
+Before entry, the driver installs each required host binding with its admitted
+backing and limits for this activation. Psi dispatches by the exact selected
+requirement and contract. A package with a matching operation name acquires
+no binding. A missing adapter or grant rejects the demand before execution.
+The Build sandbox can run on any supported host through these adapters.
+Explicitly OS-targeted programs retain their [selected ABI](embedding.md#target-environments-and-execution-engines).
+A Build's own `Build::select_provider` configures its product. Editing that
+plan cannot install a host service into the running Build.
+
+### Live networking in a Build
+
+`omega build` starts with live networking disabled. The caller can raise the
+root Build's ceiling with `omega build --allow Network root/build.omg`. An
+embedding host can set the same ceiling. The host must still supply a compatible
+live provider within that ceiling, and downloaded code's restricted requests
+must pass [project acceptance](../packages/acceptance.md#restricted-build-acceptance).
+Resolver credentials and product runtime permissions belong to their own
+contexts.
+
+The compiler checks the ordinary [network reach atoms](platform_services.md#network-reach).
+Networking libraries implement transports and protocols. A recorded provider
+can satisfy the same typed operation offline. Its logical reach remains
+visible, while admission checks its selected implementation and actual backing
+for live effects. The Build entry follows ordinary [reach inference and explicit
+ceilings](../language/effects.md#declarations). Each boundary requirement
+declares its contract.
+
+Dependency registration defaults to offline. `Build::dependency(build, source)`
+registers it with that default. `Build::dependency(build, source,
+Networking::Inherit)` gives just that child access to the parent's network
+grant, with the same backing and limits. Both forms also accept a configured
+dependency description so the parent can supply a filesystem view in the same
+registration. Inheriting from an offline parent leaves the child offline.
+Delegating the grant contributes no network reach to the parent. Package
+retrieval still uses the resolver’s separate authority. Ordinary helper calls run in the
+current activation. A grandchild requires another explicit delegation.
+
+If the selected code requires live networking and the backing, grant or
+acceptance is missing, the driver refuses that activation before entry and
+identifies the requesting dependency and call path. The caller can audit that
+request or fetch the needed bytes in an authorized earlier stage and give the
+offline child a file. The staged handoff needs no live socket.
 
 ## Execution contexts and reuse
 
@@ -560,10 +606,9 @@ the invocation supplies actual grants separately. No dependency's own lock,
 runtime acceptance, or ordinary resolution refresh substitutes for that decision.
 Specify operation, root/object scope, lifetime, and bounds;
 do not use an undifferentiated "trust this package" flag. A host
-grant does not propagate automatically to dependency builds or sibling helpers.
-Prefer capturing another input over lending live filesystem authority. Network
-and subprocess facilities, if later justified, need their own admitted protocols;
-a filesystem grant or std import provides neither. Resolver credentials and
+grant does not propagate automatically to dependency Builds. A parent may
+[delegate live networking](#live-networking-in-a-build) to a specific child.
+A filesystem or network grant gives no subprocess authority. Resolver credentials and
 package retrieval remain outside build code's authority.
 
 The default portable profile prefers captured read-only views. Separately

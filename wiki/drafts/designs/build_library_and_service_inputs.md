@@ -1,6 +1,6 @@
 # Which inputs belong to a Build?
 
-A release program, its interpreted Build, the product that Build describes, and each dependency's own Build can run different code and hold different authority. This note follows a firmware package through those contexts so reviewers can distinguish a compiler migration from the remaining host-service decision. Delete it when the migration is documented at its implementation and the owner resolves the [live-service question](../../../OWNER_QUESTIONS.md#build-network-and-subprocess-grants).
+A release program, its interpreted Build, the product that Build describes, and each dependency's own Build can run different code and hold different authority. This note follows a firmware package through those contexts so reviewers can distinguish a compiler migration from the remaining host-service decision. Delete it when the migration is documented at its implementation and the owner resolves the [host tool question](../../../OWNER_QUESTIONS.md#build-subprocess-grants).
 
 ## A library for whom?
 
@@ -27,9 +27,11 @@ Build::dependency(plan, |dependency|::with_filesystem(firmware, view));
 
 Give a child a filesystem by configuring its dependency description before registration. For a confined input the parent reads the file it already has, creates an empty memory filesystem, writes the bytes at the name the child expects, then supplies that view. Those are distinct operations. A single helper called “private tree with input” hid which file was read, which store owned the result, and who could change it. Editing a Build plan cannot widen a child's host access. Sibling grants stay separate. [Filesystem delegation](../../spec/build/scoped_execution.md#supplying-a-filesystem-to-a-child-build)
 
-If a child simply needs one firmware blob, the release program can acquire it before the build and put it in the supplied filesystem. If the child owns a conditional fetch or validation algorithm, a candidate design would let the parent supply a service for one resource. The child calls it, checks returned bytes against its expected hash, and writes using its own filesystem grant. A recorded provider can return the same bytes offline. A live provider would need a limited destination and operation, a redirect rule, bounds, independently accepted policy, and an actual grant for that invocation. Accepting the bytes' hash answers an integrity question. It does not authorize the fetch.
-
-Core network reach describes resolving a name, initiating contact, serving, sending and receiving. Passing a sender adds no network reach. Writing on a fixed-peer sender reaches `NetworkSend`. Choosing a UDP destination and sending reaches both `NetworkInitiateContact` and `NetworkSend`. Audits separately report host network stack access and possible off-machine transmission. The spec classifies these operations already. Whether Build may receive a live network provider is still open. Package retrieval uses the resolver's own authority. [Network reach](../../spec/build/platform_services.md#network-reach) · [Build restrictions](../../spec/build/execution.md#restricted-build-requests)
+For a pinned firmware blob, an authorized earlier stage can capture the bytes
+and give the child an offline filesystem view. A child that must fetch live
+instead needs an admitted provider and its parent's explicit delegation.
+The child can verify the expected digest in either case.
+[Build network grants](../../spec/build/scoped_execution.md#live-networking-in-a-build)
 
 ## Independent products and tools
 

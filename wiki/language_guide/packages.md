@@ -47,7 +47,7 @@ selected for this backing.
 
 ```omega
 machine register_firmware<Backing, const Files: Filesystem<Backing>>(
-    plan: @mutable Build,
+    build: @mutable Build,
     child_filesystem: Backing
 ) -> DependencyRegistration {
     let source: Source = Source::Path { location: "deps/firmware" };
@@ -55,14 +55,34 @@ machine register_firmware<Backing, const Files: Filesystem<Backing>>(
     let configured: DependencyDescription = |dependency|::with_filesystem::<Backing, Files>(
         firmware, child_filesystem
     );
-    Build::dependency(plan, configured)
+    Build::dependency(build, configured)
 }
 ```
 
-When the driver starts the firmware Build, its filesystem argument provides
-the copy under `expected.sha256`. Another dependency registered without an
-override gets its own default view if it asks for a filesystem.
+The driver installs the read-only view for the firmware Build before entry.
+When that Build reads `expected.sha256` through its filesystem library, it
+reads the copy. Its entry is still `machine build(build: @mutable Build)`.
 [Child Build filesystems and borrowing](../spec/build/scoped_execution.md#supplying-a-filesystem-to-a-child-build)
+
+## Giving one dependency network access
+
+Suppose only the board package needs to fetch firmware. The caller runs
+`omega build --allow Network release/build.omg`. The release Build chooses
+which child gets its network grant when it registers the dependencies.
+
+```omega
+machine build(build: @mutable Build) {
+    Build::package(build, "release");
+    Build::dependency(build, Source::Path { location: "board" }, Networking::Inherit);
+    Build::dependency(build, Source::Path { location: "assets" });
+}
+```
+
+The board Build can use the parent's admitted live network provider. The
+assets Build stays offline. If the caller omits the flag, both stay offline
+and a board Build requiring a live fetch fails before entry. To keep it
+offline, an earlier stage can fetch the firmware and supply it in the board
+Build's filesystem view. [Build network grants](../spec/build/scoped_execution.md#live-networking-in-a-build)
 
 ## Packaging several products
 

@@ -61,14 +61,13 @@ author API for manufacturing trusted plan rows.
 
 ## Project role
 
-A selected build file has exactly one free build entry with the explicit mutable
-Build parameter and any declared execution-backing parameters selected and
-admitted by its invocation. A simple entry remains
-`machine build(builder: @mutable Build)`; a filesystem-using entry may additionally
-take `filesystem: @mutable FilesystemBacking` under an ordinary selected
-`const Files: Filesystem<FilesystemBacking>` binder. The invoking tool supplies
-the root backing. A parent can [supply its child's backing at registration](scoped_execution.md#supplying-a-filesystem-to-a-child-build).
-The driver passes the selected backing as a separate entry argument.
+A selected build file has exactly one free entry, `machine build(build: @mutable Build)`.
+The invoker supplies the plan and installs the activation's [sandbox
+bindings](scoped_execution.md#build-sandbox-bindings) before entry. Filesystem
+and network use follow normal service calls and reach accounting. A parent
+can [choose its child's filesystem](scoped_execution.md#supplying-a-filesystem-to-a-child-build)
+without changing the child's entry signature.
+
 The Build declares its project role through one of the following operations.
 
 | Build result | Role |
@@ -152,6 +151,7 @@ describe responsibilities that guide library organization:
 | Name | Responsibility |
 | --- | --- |
 | `core` | Foundational language-facing types, contracts and mechanisms. Compiler privilege remains confined to exact primitives, not the entire package. |
+| `build` | The stock Build sandbox’s typed host interface, used by providers running in that environment. [Build sandbox bindings](scoped_execution.md#build-sandbox-bindings) |
 | `system` | Interfaces and adapters to the execution environment: operating systems, firmware, platform entry and related services. |
 | `allocation` | Strategies for obtaining, partitioning, reusing and returning storage under their contracts. |
 | `collections` | Containers and operations on their elements, using the storage arrangements their contracts permit. |
@@ -163,7 +163,7 @@ packages. Allocation need not use a heap or ambient allocator; a strategy can
 work over explicitly supplied storage without creating backing authority.
 
 These are library responsibilities, not compiler categories or a requirement
-to create four separately versioned packages. Modules can express the logical
+to version every responsibility separately. Modules can express the logical
 separation; independent use, dependencies or replacement can justify later
 package boundaries. The existing allocation library's container customer does
 not make all containers allocation strategies or fix their permanent home.
