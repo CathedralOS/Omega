@@ -64,7 +64,7 @@ installed entry contract determines its invocation arguments and the arrival
 bridge must establish each one from actual backing. A mutable parameter alone
 does not ask the bridge to construct its referent. The provider selection names a provider implementation;
 its ordinary satisfiers determine the derived plan. Irreducible native backing
-uses the separate `Build::bind::<Requirement>(builder, target, locator)` overload
+uses the separate `Build::bind_native::<Requirement>(builder, target, locator)` operation
 under [foreign bindings](foreign_bindings.md#build-owned-native-binding), not a
 source `via` clause or a per-symbol forwarding declaration. Both forms record
 product intent rather than invoking selected code or granting authority.

@@ -239,7 +239,7 @@ reaches GlobalInputObservation invokes CoreGraphics {
     macos_key_state(virtual_key)
 }
 
-// Windows pacing is a direct Build::bind of kernel32 Sleep; the non-blocking
+// Windows pacing is a direct Build::bind_native of kernel32 Sleep; the non-blocking
 // Clock row cannot call the blocking TimeHost::sleep, so only macOS carries
 // this family member.
 public macos_arm64 machine app_sleep(milliseconds: u32)

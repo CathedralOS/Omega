@@ -2,10 +2,10 @@ machine build(builder: @mutable Build) {
     Build::application(builder, "registered_streams");
     Build::bind(builder, linux_x86_64\ProgramEntry, main);
     Build::bind(builder, linux_arm64\ProgramEntry, main);
-    Build::bind::<Streams::read>(builder, linux_x86_64, ForeignBinding::Syscall { number: 0 });
-    Build::bind::<Streams::write>(builder, linux_x86_64, ForeignBinding::Syscall { number: 1 });
-    Build::bind::<Streams::read>(builder, linux_arm64, ForeignBinding::Syscall { number: 63 });
-    Build::bind::<Streams::write>(builder, linux_arm64, ForeignBinding::Syscall { number: 64 });
+    Build::bind_native::<Streams::read>(builder, linux_x86_64, ForeignBinding::Syscall { number: 0 });
+    Build::bind_native::<Streams::write>(builder, linux_x86_64, ForeignBinding::Syscall { number: 1 });
+    Build::bind_native::<Streams::read>(builder, linux_arm64, ForeignBinding::Syscall { number: 63 });
+    Build::bind_native::<Streams::write>(builder, linux_arm64, ForeignBinding::Syscall { number: 64 });
 
     let echo = builder.tests.group::<Checks::echo>();
     let mutable bytes: [u8; 2] = [57, 57];

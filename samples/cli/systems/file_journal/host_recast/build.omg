@@ -1,12 +1,12 @@
 use omega\language\core\DllImport;
 use omega\language\core\ForeignBinding;
 machine build(builder: @mutable Build) {
-    Build::bind::<NativeFill::fill>(builder, macos_arm64, ForeignBinding::DllImport {
+    Build::bind_native::<NativeFill::fill>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_memset"
         }
     });
-    Build::bind::<NativeFill::check>(builder, macos_arm64, ForeignBinding::DllImport {
+    Build::bind_native::<NativeFill::check>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_memcmp"
         }

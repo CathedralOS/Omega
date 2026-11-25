@@ -219,7 +219,7 @@ use {platform}/entry.omg as abi;
 use main.omg as app;
 
 Build::bind(builder, |abi|::ProgramEntry, |app|::start);
-Build::bind::<WindowsAudioPlaybackIo::c_play_sound>(builder, windows_x86_64, native_locator);
+Build::bind_native::<WindowsAudioPlaybackIo::c_play_sound>(builder, windows_x86_64, native_locator);
 Build::select_provider::<|abi|::Console, TestConsole>(builder);
 Build::assume_binding_contract::<WritableMemory::claim, RangeSupplier::supply>(builder);
 _ = builder.tests.group::<Tests::memory>();
@@ -234,7 +234,7 @@ or provider is executed. A user-defined same-named method or generic helper gets
 no special resolution. This extends the existing "selection is not invocation"
 rule, not general syntax quotation or an exception to ordinary call checking.
 
-The native-binding overload's requirement argument is an exact designated
+The requirement argument of `Build::bind_native` is an exact designated
 product reference; its target and locator are ordinary checked Build data.
 It records package-local intent for resolution against the completed checked
 product, not an ordinary import or a call into product source. Literal locator

@@ -56,7 +56,7 @@ fn typed_requirement_at(
     let build = format!(
         "machine build(builder: @mutable Build) {{\n\
          let locator: ForeignBinding<0, 0, 0> = ForeignBinding::Syscall {{ number: 9u64 }};\n\
-         Build::bind::<{path}>(builder, linux_x86_64, locator);\n}}"
+         Build::bind_native::<{path}>(builder, linux_x86_64, locator);\n}}"
     );
     let mut sources = crate::source_inputs::SourceMap::default();
     if dependency {

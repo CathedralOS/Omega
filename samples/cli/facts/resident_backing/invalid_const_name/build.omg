@@ -29,12 +29,12 @@ machine build(builder: @mutable Build) {
     Build::select_provider::<|layout|::ResourceProfileSupply<|app|::TestMemory>, |app|::MemorySupply>(builder, linux_arm64);
     Build::select_provider::<|layout|::AccessLifecycle<|app|::WordPlacement, |app|::Word>, |layout|::NativeAccess<|app|::WordPlacement, |app|::Word, |app|::WordStorage, |app|::TestMemory>>(builder, linux_arm64);
     Build::bind(builder, linux_arm64\ProgramEntry, |app|::main);
-    Build::bind::<|app|::NativeAllocation::allocate>(builder, windows_x86_64, |binding|::ForeignBinding::DllImport { import: |binding|::DllImport::PeByName { library: "msvcrt.dll", export: "calloc" } });
-    Build::bind::<|process|::ProcessExit::exit_process>(builder, windows_x86_64, |binding|::ForeignBinding::DllImport { import: |binding|::DllImport::PeByName { library: "kernel32.dll", export: "ExitProcess" } });
-    Build::bind::<|app|::NativeAllocation::allocate>(builder, linux_x86_64, |binding|::ForeignBinding::DllImport { import: |binding|::DllImport::ElfVersioned { object: "libc.so.6", symbol: "calloc", version: "GLIBC_2.2.5" } });
-    Build::bind::<|process|::ProcessExit::exit_process>(builder, linux_x86_64, |binding|::ForeignBinding::DllImport { import: |binding|::DllImport::ElfVersioned { object: "libc.so.6", symbol: "exit", version: "GLIBC_2.2.5" } });
-    Build::bind::<|app|::NativeAllocation::allocate>(builder, linux_arm64, |binding|::ForeignBinding::DllImport { import: |binding|::DllImport::ElfVersioned { object: "libc.so.6", symbol: "calloc", version: "GLIBC_2.17" } });
-    Build::bind::<|process|::ProcessExit::exit_process>(builder, linux_arm64, |binding|::ForeignBinding::DllImport { import: |binding|::DllImport::ElfVersioned { object: "libc.so.6", symbol: "exit", version: "GLIBC_2.17" } });
-    Build::bind::<|app|::NativeAllocation::allocate>(builder, macos_arm64, |binding|::ForeignBinding::DllImport { import: |binding|::DllImport::MachODylibSymbol { install_name: "libSystem.B.dylib", symbol: "_calloc" } });
-    Build::bind::<|process|::ProcessExit::exit_process>(builder, macos_arm64, |binding|::ForeignBinding::DllImport { import: |binding|::DllImport::MachODylibSymbol { install_name: "libSystem.B.dylib", symbol: "_exit" } });
+    Build::bind_native::<|app|::NativeAllocation::allocate>(builder, windows_x86_64, |binding|::ForeignBinding::DllImport { import: |binding|::DllImport::PeByName { library: "msvcrt.dll", export: "calloc" } });
+    Build::bind_native::<|process|::ProcessExit::exit_process>(builder, windows_x86_64, |binding|::ForeignBinding::DllImport { import: |binding|::DllImport::PeByName { library: "kernel32.dll", export: "ExitProcess" } });
+    Build::bind_native::<|app|::NativeAllocation::allocate>(builder, linux_x86_64, |binding|::ForeignBinding::DllImport { import: |binding|::DllImport::ElfVersioned { object: "libc.so.6", symbol: "calloc", version: "GLIBC_2.2.5" } });
+    Build::bind_native::<|process|::ProcessExit::exit_process>(builder, linux_x86_64, |binding|::ForeignBinding::DllImport { import: |binding|::DllImport::ElfVersioned { object: "libc.so.6", symbol: "exit", version: "GLIBC_2.2.5" } });
+    Build::bind_native::<|app|::NativeAllocation::allocate>(builder, linux_arm64, |binding|::ForeignBinding::DllImport { import: |binding|::DllImport::ElfVersioned { object: "libc.so.6", symbol: "calloc", version: "GLIBC_2.17" } });
+    Build::bind_native::<|process|::ProcessExit::exit_process>(builder, linux_arm64, |binding|::ForeignBinding::DllImport { import: |binding|::DllImport::ElfVersioned { object: "libc.so.6", symbol: "exit", version: "GLIBC_2.17" } });
+    Build::bind_native::<|app|::NativeAllocation::allocate>(builder, macos_arm64, |binding|::ForeignBinding::DllImport { import: |binding|::DllImport::MachODylibSymbol { install_name: "libSystem.B.dylib", symbol: "_calloc" } });
+    Build::bind_native::<|process|::ProcessExit::exit_process>(builder, macos_arm64, |binding|::ForeignBinding::DllImport { import: |binding|::DllImport::MachODylibSymbol { install_name: "libSystem.B.dylib", symbol: "_exit" } });
 }

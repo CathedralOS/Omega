@@ -10,7 +10,7 @@ use windows_gui_host.omg as gui;
 
 // The leaf requirements below carry no source realization: each one is a
 // package-owned boundary row whose DLL locator lives in `std/build.omg`
-// (`Build::bind<WindowsGuiIo::...>` / `Build::bind<WindowsGuiHost::...>`).
+// (`Build::bind_native::<WindowsGuiIo::...>` / `Build::bind_native::<WindowsGuiHost::...>`).
 // Providers invoke the trait members directly and publish that synchronous
 // edge through `invokes`, which the portable `WindowsGuiHost` requirements
 // echo in their own ceilings.

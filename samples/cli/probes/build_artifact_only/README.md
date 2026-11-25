@@ -15,5 +15,5 @@ still drives the full required-output custody loop.
   provider to serve, so the Build is refused ("artifact-only Build cannot
   select providers") instead of dropping the selection.
 - `invalid_artifact_native_binding`: the parent probe plus one native
-  `Build::bind<Requirement::machine>`. It is refused the same way
+  `Build::bind_native::<Requirement::machine>`. It is refused the same way
   ("artifact-only Build cannot bind native implementations").

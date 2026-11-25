@@ -116,7 +116,7 @@ fn darwin_poll_exclusions_check_each_invocation() {
 machine build(builder: @mutable Build) {
     Build::application(builder, "poll_counts");
     Build::bind(builder, macos_arm64\ProgramEntry, main);
-    Build::bind::<Wait::poll>(builder, macos_arm64, ForeignBinding::DllImport {
+    Build::bind_native::<Wait::poll>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_poll"
         }
@@ -142,6 +142,17 @@ machine main() reaches none invokes Wait {
         &args,
     );
     assert!(passed, "{report}");
+
+    let (passed, report) = execute(
+        "retired-native-binding-name",
+        &build.replace("Build::bind_native::<", "Build::bind::<"),
+        &program.replace("COUNT", "0u32"),
+        &args,
+    );
+    assert!(
+        !passed && report.contains("this call has no visible declaration in its source scope"),
+        "{report}"
+    );
 
     let (passed, report) = execute(
         "descriptor-bearing",

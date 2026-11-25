@@ -2,7 +2,7 @@
 
 This Linux runtime-admission control reads one byte from descriptor 0 through
 the libc `read` import. It checks that an import bound only through
-`Build::bind<Probe::read>` reaches the real supplied input rather than a
+`Build::bind_native::<Probe::read>` reaches the real supplied input rather than a
 fabricated stream, so that each engine either reads the supplied `A` or traps on
 exhaustion.
 

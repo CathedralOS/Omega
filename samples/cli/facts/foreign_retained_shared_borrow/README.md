@@ -6,7 +6,7 @@ Parents: **FOREIGN-RETAINED-ARGUMENT-BACKING**,
 
 The migration requirement is to preserve this entire shared-loan row and its
 composition controls while ordinary named implementations replace target-prefixed
-bodies and direct target-keyed `Build::bind` rows replace native helper forwarders.
+bodies and direct target-keyed `Build::bind_native` rows replace native helper forwarders.
 Locator byte lengths are inferred from the original fixed-byte values. The same
 four hosted locators, public contracts, provider authority, backing and loan
 occurrences remain the executable obligation.

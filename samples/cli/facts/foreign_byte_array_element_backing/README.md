@@ -8,7 +8,7 @@ Fact: a shared element loan into an owned byte array exports the whole original
 array through the thin foreign ABI, so the foreign reader sees every sibling
 byte and no byte changes.
 
-`Text::length` is C `strlen`, bound by `Build::bind` on each hosted target
+`Text::length` is C `strlen`, bound by `Build::bind_native` on each hosted target
 (msvcrt, glibc 2.2.5 and 2.17, libSystem). The consumer copies the transported
 `[u8; 8]` value `omega\0xy` into its own `let mutable text`, lends `@text[0]` and
 `@text[2]`, and checks both counts (5 and 3) and the bytes after the terminator.

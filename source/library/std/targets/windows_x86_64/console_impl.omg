@@ -12,7 +12,7 @@ use omega\language\core\widen_u8_to_i32;
 
 // The leaf requirements below carry no source realization: each one is a
 // package-owned boundary row whose DLL locator lives in `std/build.omg`
-// (`Build::bind<WindowsConsoleIo::...>`). Providers invoke the trait members
+// (`Build::bind_native::<WindowsConsoleIo::...>`). Providers invoke the trait members
 // directly; their raw host dependencies belong to the realization inventory.
 boundary trait WindowsConsoleIo: |abi|::Calling<|windows_abi|::WindowsX64ScalarCalling> {
     machine write(descriptor: i32, buffer: @mutable i32, count: u32) -> i32

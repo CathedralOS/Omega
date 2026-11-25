@@ -6,20 +6,20 @@ machine build(builder: @mutable Build) {
     Build::bind(builder, linux_x86_64\ProgramEntry, start);
     Build::bind(builder, linux_arm64\ProgramEntry, start);
     Build::bind(builder, macos_arm64\ProgramEntry, start);
-    Build::bind::<CharacterCase::upper>(builder, windows_x86_64, ForeignBinding::DllImport {
+    Build::bind_native::<CharacterCase::upper>(builder, windows_x86_64, ForeignBinding::DllImport {
         import: DllImport::PeByName { library: "msvcrt.dll", export: "toupper" }
     });
-    Build::bind::<CharacterCase::upper>(builder, linux_x86_64, ForeignBinding::DllImport {
+    Build::bind_native::<CharacterCase::upper>(builder, linux_x86_64, ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libc.so.6", symbol: "toupper", version: "GLIBC_2.2.5"
         }
     });
-    Build::bind::<CharacterCase::upper>(builder, linux_arm64, ForeignBinding::DllImport {
+    Build::bind_native::<CharacterCase::upper>(builder, linux_arm64, ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libc.so.6", symbol: "toupper", version: "GLIBC_2.17"
         }
     });
-    Build::bind::<CharacterCase::upper>(builder, macos_arm64, ForeignBinding::DllImport {
+    Build::bind_native::<CharacterCase::upper>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_toupper"
         }

@@ -65,7 +65,7 @@ impl BuildOperation {
         match self {
             Self::ParameterDescription => "reflect::parameter",
             Self::FieldDescription => "reflect::field",
-            Self::NativeBinding => "bind",
+            Self::NativeBinding => "bind_native",
             Self::ProviderReadiness => "await_provider",
             Self::ProviderSelection => "select_provider",
             Self::AssumedBindingContract => "assume_binding_contract",

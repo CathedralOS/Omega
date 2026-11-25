@@ -4,15 +4,15 @@ use omega\language\core\ProcessExit;
 
 machine build(builder: @mutable Build) {
     Build::application(builder, "native_process_exit_review");
-    Build::bind::<ProcessExit::exit_process>(builder, linux_x86_64,
+    Build::bind_native::<ProcessExit::exit_process>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 231u64 });
-    Build::bind::<ProcessExit::exit_process>(builder, linux_arm64,
+    Build::bind_native::<ProcessExit::exit_process>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 94u64 });
-    Build::bind::<ProcessExit::exit_process>(builder, macos_arm64,
+    Build::bind_native::<ProcessExit::exit_process>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "__exit"
         } });
-    Build::bind::<ProcessExit::exit_process>(builder, windows_x86_64,
+    Build::bind_native::<ProcessExit::exit_process>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "ExitProcess"
         } });

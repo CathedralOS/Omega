@@ -34,62 +34,62 @@ machine build(builder: @mutable Build) {
     configure_windows_gui(builder);
     configure_macos_gui(builder);
     // Bind the complete ObjectiveC family once. String extents stay static.
-    Build::bind::<ObjectiveC::get_class>(builder, macos_arm64, ForeignBinding::DllImport {
+    Build::bind_native::<ObjectiveC::get_class>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_getClass"
         }
     });
-    Build::bind::<ObjectiveC::register_selector>(builder, macos_arm64, ForeignBinding::DllImport {
+    Build::bind_native::<ObjectiveC::register_selector>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libobjc.A.dylib", symbol: "_sel_registerName"
         }
     });
-    Build::bind::<ObjectiveC::send_string>(builder, macos_arm64, ForeignBinding::DllImport {
+    Build::bind_native::<ObjectiveC::send_string>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_msgSend"
         }
     });
-    Build::bind::<ObjectiveC::send_byte_string>(builder, macos_arm64, ForeignBinding::DllImport {
+    Build::bind_native::<ObjectiveC::send_byte_string>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_msgSend"
         }
     });
-    Build::bind::<ObjectiveC::send>(builder, macos_arm64, ForeignBinding::DllImport {
+    Build::bind_native::<ObjectiveC::send>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_msgSend"
         }
     });
-    Build::bind::<ObjectiveC::send_scalar>(builder, macos_arm64, ForeignBinding::DllImport {
+    Build::bind_native::<ObjectiveC::send_scalar>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_msgSend"
         }
     });
-    Build::bind::<ObjectiveC::send_delayed>(builder, macos_arm64, ForeignBinding::DllImport {
+    Build::bind_native::<ObjectiveC::send_delayed>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_msgSend"
         }
     });
-    Build::bind::<ObjectiveC::send_rect>(builder, macos_arm64, ForeignBinding::DllImport {
+    Build::bind_native::<ObjectiveC::send_rect>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_msgSend"
         }
     });
-    Build::bind::<ObjectiveC::send_image_size>(builder, macos_arm64, ForeignBinding::DllImport {
+    Build::bind_native::<ObjectiveC::send_image_size>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_msgSend"
         }
     });
-    Build::bind::<ObjectiveC::send_scalar4>(builder, macos_arm64, ForeignBinding::DllImport {
+    Build::bind_native::<ObjectiveC::send_scalar4>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_msgSend"
         }
     });
-    Build::bind::<ObjectiveC::pool_push>(builder, macos_arm64, ForeignBinding::DllImport {
+    Build::bind_native::<ObjectiveC::pool_push>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_autoreleasePoolPush"
         }
     });
-    Build::bind::<ObjectiveC::pool_pop>(builder, macos_arm64, ForeignBinding::DllImport {
+    Build::bind_native::<ObjectiveC::pool_pop>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_autoreleasePoolPop"
         }
@@ -124,62 +124,62 @@ machine configure_filesystem_providers(builder: @mutable Build) {
 machine configure_clock(builder: @mutable Build) {
     Build::select_provider::<|clock|::Clock, |windows_x86_64_clock|::WindowsX8664Clock>(builder, windows_x86_64);
     Build::select_provider::<|clock|::Clock, |windows_x86_64_clock|::WindowsX8664Clock>(builder, windows_arm64);
-    Build::bind::<|windows_x86_64_wait|::WindowsClockWait::sleep>(builder, windows_x86_64,
+    Build::bind_native::<|windows_x86_64_wait|::WindowsClockWait::sleep>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "Sleep"
         } });
-    Build::bind::<|windows_x86_64_wait|::WindowsClockWait::sleep>(builder, windows_arm64,
+    Build::bind_native::<|windows_x86_64_wait|::WindowsClockWait::sleep>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "Sleep"
         } });
 
     Build::select_provider::<|clock|::Clock, |macos_arm64_clock|::MacosArm64Clock>(builder, macos_arm64);
-    Build::bind::<|macos_arm64_wait|::DarwinClockWait::poll>(builder, macos_arm64,
+    Build::bind_native::<|macos_arm64_wait|::DarwinClockWait::poll>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_poll"
         } });
 
     Build::select_provider::<|clock|::Clock, |linux_x86_64_clock|::LinuxX8664Clock>(builder, linux_x86_64);
-    Build::bind::<|linux_x86_64_wait|::LinuxClockWait::poll>(builder, linux_x86_64,
+    Build::bind_native::<|linux_x86_64_wait|::LinuxClockWait::poll>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 7 });
 
     Build::select_provider::<|clock|::Clock, |linux_arm64_clock|::LinuxArm64Clock>(builder, linux_arm64);
-    Build::bind::<|linux_arm64_wait|::LinuxArmClockWait::nanosleep>(builder, linux_arm64,
+    Build::bind_native::<|linux_arm64_wait|::LinuxArmClockWait::nanosleep>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 101 });
 }
 
 // TimeHost owns one target-keyed provider map and its package-local raw supply.
 // Ordinary helpers keep the activation's original mutable Build value.
 machine configure_time_host(builder: @mutable Build) {
-    Build::bind::<|windows_x86_64_time_read|::WindowsTimeRead::query_performance_counter>(builder, windows_x86_64,
+    Build::bind_native::<|windows_x86_64_time_read|::WindowsTimeRead::query_performance_counter>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "QueryPerformanceCounter"
         } });
-    Build::bind::<|windows_x86_64_time_read|::WindowsTimeRead::query_performance_counter>(builder, windows_arm64,
+    Build::bind_native::<|windows_x86_64_time_read|::WindowsTimeRead::query_performance_counter>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "QueryPerformanceCounter"
         } });
-    Build::bind::<|windows_x86_64_time_read|::WindowsTimeRead::query_performance_frequency>(builder, windows_x86_64,
+    Build::bind_native::<|windows_x86_64_time_read|::WindowsTimeRead::query_performance_frequency>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "QueryPerformanceFrequency"
         } });
-    Build::bind::<|windows_x86_64_time_read|::WindowsTimeRead::query_performance_frequency>(builder, windows_arm64,
+    Build::bind_native::<|windows_x86_64_time_read|::WindowsTimeRead::query_performance_frequency>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "QueryPerformanceFrequency"
         } });
-    Build::bind::<|windows_x86_64_time_read|::WindowsTimeRead::system_time_as_file_time>(builder, windows_x86_64,
+    Build::bind_native::<|windows_x86_64_time_read|::WindowsTimeRead::system_time_as_file_time>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "GetSystemTimePreciseAsFileTime"
         } });
-    Build::bind::<|windows_x86_64_time_read|::WindowsTimeRead::system_time_as_file_time>(builder, windows_arm64,
+    Build::bind_native::<|windows_x86_64_time_read|::WindowsTimeRead::system_time_as_file_time>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "GetSystemTimePreciseAsFileTime"
         } });
-    Build::bind::<|windows_x86_64_time_read|::WindowsTimeRead::sleep>(builder, windows_x86_64,
+    Build::bind_native::<|windows_x86_64_time_read|::WindowsTimeRead::sleep>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "Sleep"
         } });
-    Build::bind::<|windows_x86_64_time_read|::WindowsTimeRead::sleep>(builder, windows_arm64,
+    Build::bind_native::<|windows_x86_64_time_read|::WindowsTimeRead::sleep>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "Sleep"
         } });
@@ -189,29 +189,29 @@ machine configure_time_host(builder: @mutable Build) {
     Build::select_provider::<|time_host|::TimeHost, |linux_arm64_time_host|::LinuxArm64TimeHost>(builder, linux_arm64);
     Build::select_provider::<|time_host|::TimeHost, |macos_arm64_time_host|::DarwinTimeHost>(builder, macos_arm64);
     Build::select_provider::<|time_host|::TimeHost, |macos_arm64_time_host|::DarwinTimeHost>(builder, macos_x86_64);
-    Build::bind::<|macos_arm64_time_read|::DarwinTimeRead::clock_nanoseconds>(builder, macos_arm64,
+    Build::bind_native::<|macos_arm64_time_read|::DarwinTimeRead::clock_nanoseconds>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_clock_gettime_nsec_np"
         } });
-    Build::bind::<|macos_arm64_time_read|::DarwinTimeRead::poll>(builder, macos_arm64,
+    Build::bind_native::<|macos_arm64_time_read|::DarwinTimeRead::poll>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_poll"
         } });
-    Build::bind::<|macos_arm64_time_read|::DarwinTimeRead::clock_nanoseconds>(builder, macos_x86_64,
+    Build::bind_native::<|macos_arm64_time_read|::DarwinTimeRead::clock_nanoseconds>(builder, macos_x86_64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_clock_gettime_nsec_np"
         } });
-    Build::bind::<|macos_arm64_time_read|::DarwinTimeRead::poll>(builder, macos_x86_64,
+    Build::bind_native::<|macos_arm64_time_read|::DarwinTimeRead::poll>(builder, macos_x86_64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_poll"
         } });
-    Build::bind::<|linux_x86_64_time_read|::LinuxX64TimeRead::clock_gettime>(builder, linux_x86_64,
+    Build::bind_native::<|linux_x86_64_time_read|::LinuxX64TimeRead::clock_gettime>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 228 });
-    Build::bind::<|linux_x86_64_time_read|::LinuxX64TimeRead::poll>(builder, linux_x86_64,
+    Build::bind_native::<|linux_x86_64_time_read|::LinuxX64TimeRead::poll>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 7 });
-    Build::bind::<|linux_arm64_time_read|::LinuxArm64TimeRead::clock_gettime>(builder, linux_arm64,
+    Build::bind_native::<|linux_arm64_time_read|::LinuxArm64TimeRead::clock_gettime>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 113 });
-    Build::bind::<|linux_arm64_time_read|::LinuxArm64TimeRead::nanosleep>(builder, linux_arm64,
+    Build::bind_native::<|linux_arm64_time_read|::LinuxArm64TimeRead::nanosleep>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 101 });
 }
 
@@ -222,339 +222,339 @@ machine configure_windows_filesystem(builder: @mutable Build) {
     // ReadFile/WriteFile split a borrowed view by each target's C ABI.
     Build::select_provider::<targets\windows_x86_64\WindowsFilesystemTransfer, targets\windows_x86_64\WindowsX64FilesystemTransfer>(builder, windows_x86_64);
     Build::select_provider::<targets\windows_x86_64\WindowsFilesystemTransfer, targets\windows_x86_64\WindowsArm64FilesystemTransfer>(builder, windows_arm64);
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemDirectoryIo::next_name>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemDirectoryIo::next_name>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "ntdll.dll", export: "NtQueryDirectoryFile"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemDirectoryIo::next_name>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemDirectoryIo::next_name>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "ntdll.dll", export: "NtQueryDirectoryFile"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemDirectoryIo::next_entry>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemDirectoryIo::next_entry>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "ntdll.dll", export: "NtQueryDirectoryFile"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemDirectoryIo::next_entry>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemDirectoryIo::next_entry>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "ntdll.dll", export: "NtQueryDirectoryFile"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemFileControlIo::end_of_file>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemFileControlIo::end_of_file>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "SetFileInformationByHandle"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemFileControlIo::end_of_file>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemFileControlIo::end_of_file>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "SetFileInformationByHandle"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemFileControlIo::basic>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemFileControlIo::basic>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "SetFileInformationByHandle"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemFileControlIo::basic>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemFileControlIo::basic>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "SetFileInformationByHandle"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemFileControlIo::open_attributes>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemFileControlIo::open_attributes>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "CreateFileW"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemFileControlIo::open_attributes>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemFileControlIo::open_attributes>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "CreateFileW"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemLockIo::acquire>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemLockIo::acquire>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "LockFileEx"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemLockIo::acquire>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemLockIo::acquire>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "LockFileEx"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemLockIo::release>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemLockIo::release>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "UnlockFile"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemLockIo::release>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemLockIo::release>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "UnlockFile"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemMetadataIo::file_type>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemMetadataIo::file_type>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "GetFileType"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemMetadataIo::file_type>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemMetadataIo::file_type>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "GetFileType"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemMetadataIo::open_attributes>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemMetadataIo::open_attributes>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "CreateFileW"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemMetadataIo::open_attributes>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemMetadataIo::open_attributes>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "CreateFileW"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemMetadataIo::basic>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemMetadataIo::basic>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "GetFileInformationByHandleEx"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemMetadataIo::basic>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemMetadataIo::basic>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "GetFileInformationByHandleEx"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemMetadataIo::standard>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemMetadataIo::standard>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "GetFileInformationByHandleEx"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemMetadataIo::standard>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemMetadataIo::standard>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "GetFileInformationByHandleEx"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemMetadataIo::attribute_tag>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemMetadataIo::attribute_tag>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "GetFileInformationByHandleEx"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemMetadataIo::attribute_tag>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemMetadataIo::attribute_tag>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "GetFileInformationByHandleEx"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemPathIo::final_path>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemPathIo::final_path>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "GetFinalPathNameByHandleW"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemPathIo::final_path>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemPathIo::final_path>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "GetFinalPathNameByHandleW"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemUtf8Io::utf8>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemUtf8Io::utf8>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "WideCharToMultiByte"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemUtf8Io::utf8>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemUtf8Io::utf8>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "WideCharToMultiByte"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemPositionIo::object_access>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemPositionIo::object_access>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "ntdll.dll", export: "NtQueryObject"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemPositionIo::object_access>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemPositionIo::object_access>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "ntdll.dll", export: "NtQueryObject"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemPositionIo::reopen_read>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemPositionIo::reopen_read>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "ReOpenFile"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemPositionIo::reopen_read>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemPositionIo::reopen_read>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "ReOpenFile"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemPositionIo::reopen_write>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemPositionIo::reopen_write>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "ReOpenFile"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemPositionIo::reopen_write>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemPositionIo::reopen_write>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "ReOpenFile"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemReparseIo::query>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemReparseIo::query>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "DeviceIoControl"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemReparseIo::query>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemReparseIo::query>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "DeviceIoControl"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemTransferIo::write_file>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemTransferIo::write_file>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "WriteFile"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsArm64FilesystemTransferIo::write_file>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsArm64FilesystemTransferIo::write_file>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "WriteFile"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemTransferIo::read_file>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemTransferIo::read_file>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "ReadFile"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsArm64FilesystemTransferIo::read_file>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsArm64FilesystemTransferIo::read_file>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "ReadFile"
         } });
-    Build::bind::<targets\windows_x86_64\filesystem_removal\WindowsFilesystemRemovalIo::open>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\filesystem_removal\WindowsFilesystemRemovalIo::open>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "ntdll.dll", export: "NtOpenFile"
         } });
-    Build::bind::<targets\windows_x86_64\filesystem_removal\WindowsFilesystemRemovalIo::open>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\filesystem_removal\WindowsFilesystemRemovalIo::open>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "ntdll.dll", export: "NtOpenFile"
         } });
-    Build::bind::<targets\windows_x86_64\filesystem_removal\WindowsFilesystemRemovalIo::dispose>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\filesystem_removal\WindowsFilesystemRemovalIo::dispose>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "SetFileInformationByHandle"
         } });
-    Build::bind::<targets\windows_x86_64\filesystem_removal\WindowsFilesystemRemovalIo::dispose>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\filesystem_removal\WindowsFilesystemRemovalIo::dispose>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "SetFileInformationByHandle"
         } });
-    Build::bind::<targets\windows_x86_64\filesystem_removal\WindowsFilesystemRemovalIo::close>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\filesystem_removal\WindowsFilesystemRemovalIo::close>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "CloseHandle"
         } });
-    Build::bind::<targets\windows_x86_64\filesystem_removal\WindowsFilesystemRemovalIo::close>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\filesystem_removal\WindowsFilesystemRemovalIo::close>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "CloseHandle"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_file_mode>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_file_mode>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "ntdll.dll", export: "NtQueryInformationFile"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_file_mode>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_file_mode>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "ntdll.dll", export: "NtQueryInformationFile"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_status_to_error>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_status_to_error>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "ntdll.dll", export: "RtlNtStatusToDosError"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_status_to_error>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_status_to_error>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "ntdll.dll", export: "RtlNtStatusToDosError"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_create_file>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_create_file>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "CreateFileW"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_create_file>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_create_file>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "CreateFileW"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_close_handle>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_close_handle>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "CloseHandle"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_close_handle>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_close_handle>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "CloseHandle"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_get_last_error>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_get_last_error>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "GetLastError"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_get_last_error>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_get_last_error>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "GetLastError"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_flush_file_buffers>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_flush_file_buffers>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "FlushFileBuffers"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_flush_file_buffers>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_flush_file_buffers>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "FlushFileBuffers"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_set_file_pointer>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_set_file_pointer>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "SetFilePointerEx"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_set_file_pointer>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_set_file_pointer>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "SetFilePointerEx"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_get_current_process>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_get_current_process>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "GetCurrentProcess"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_get_current_process>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_get_current_process>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "GetCurrentProcess"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_duplicate_handle>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_duplicate_handle>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "DuplicateHandle"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_duplicate_handle>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_duplicate_handle>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "DuplicateHandle"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_set_file_attributes>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_set_file_attributes>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "SetFileAttributesW"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_set_file_attributes>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_set_file_attributes>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "SetFileAttributesW"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_move_file>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_move_file>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "MoveFileExW"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_move_file>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_move_file>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "MoveFileExW"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_rename_file>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_rename_file>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "MoveFileExW"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_rename_file>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_rename_file>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "MoveFileExW"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_hard_link>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_hard_link>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "CreateHardLinkW"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_hard_link>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_hard_link>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "CreateHardLinkW"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_create_directory>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_create_directory>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "CreateDirectoryW"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_create_directory>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_create_directory>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "CreateDirectoryW"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_remove_directory>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_remove_directory>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "RemoveDirectoryW"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_remove_directory>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_remove_directory>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "RemoveDirectoryW"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_delete_file>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_delete_file>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "DeleteFileW"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_delete_file>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_delete_file>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "DeleteFileW"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_set_file_time>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_set_file_time>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "SetFileTime"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_set_file_time>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_set_file_time>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "SetFileTime"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_get_file_time>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_get_file_time>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "GetFileTime"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_get_file_time>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_get_file_time>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "GetFileTime"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_set_last_error>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_set_last_error>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "SetLastError"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsFilesystemIo::c_set_last_error>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsFilesystemIo::c_set_last_error>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "SetLastError"
         } });
@@ -565,27 +565,27 @@ machine configure_windows_filesystem(builder: @mutable Build) {
 // restates one. Darwin's filesystem provider reads `errno` through the same
 // `PosixErrno::slot` row.
 machine configure_posix_canonical(builder: @mutable Build) {
-    Build::bind::<PosixCanonicalLibc::resolve>(builder, linux_x86_64,
+    Build::bind_native::<PosixCanonicalLibc::resolve>(builder, linux_x86_64,
         ForeignBinding::DllImport { import: DllImport::ElfVersioned {
             object: "libc.so.6", symbol: "realpath", version: "GLIBC_2.3"
         } });
-    Build::bind::<PosixErrno::slot>(builder, linux_x86_64,
+    Build::bind_native::<PosixErrno::slot>(builder, linux_x86_64,
         ForeignBinding::DllImport { import: DllImport::ElfVersioned {
             object: "libc.so.6", symbol: "__errno_location", version: "GLIBC_2.2.5"
         } });
-    Build::bind::<PosixCanonicalLibc::resolve>(builder, linux_arm64,
+    Build::bind_native::<PosixCanonicalLibc::resolve>(builder, linux_arm64,
         ForeignBinding::DllImport { import: DllImport::ElfVersioned {
             object: "libc.so.6", symbol: "realpath", version: "GLIBC_2.17"
         } });
-    Build::bind::<PosixErrno::slot>(builder, linux_arm64,
+    Build::bind_native::<PosixErrno::slot>(builder, linux_arm64,
         ForeignBinding::DllImport { import: DllImport::ElfVersioned {
             object: "libc.so.6", symbol: "__errno_location", version: "GLIBC_2.17"
         } });
-    Build::bind::<PosixCanonicalLibc::resolve>(builder, macos_arm64,
+    Build::bind_native::<PosixCanonicalLibc::resolve>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_realpath"
         } });
-    Build::bind::<PosixErrno::slot>(builder, macos_arm64,
+    Build::bind_native::<PosixErrno::slot>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "___error"
         } });
@@ -596,259 +596,259 @@ machine configure_posix_canonical(builder: @mutable Build) {
 // per-target calling convention in their boundary trait, so the same member
 // names bind different traits on x86_64 and arm64.
 machine configure_posix_filesystem(builder: @mutable Build) {
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::openat>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::openat>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 257 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinuxX86ByteViews::read>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinuxX86ByteViews::read>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 0 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinuxX86ByteViews::write>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinuxX86ByteViews::write>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 1 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinuxX86ByteViews::pread64>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinuxX86ByteViews::pread64>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 17 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinuxX86ByteViews::pwrite64>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinuxX86ByteViews::pwrite64>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 18 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::close>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::close>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 3 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::lseek>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::lseek>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 8 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::mkdirat>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::mkdirat>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 258 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::unlinkat>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::unlinkat>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 263 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::fchmodat>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::fchmodat>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 268 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::fchmod>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::fchmod>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 91 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::renameat>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::renameat>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 264 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::linkat>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::linkat>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 265 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::symlinkat>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::symlinkat>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 266 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinuxX86ByteViews::readlinkat>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinuxX86ByteViews::readlinkat>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 267 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinuxX86ByteViews::getdents64>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinuxX86ByteViews::getdents64>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 217 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::newfstatat>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::newfstatat>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 262 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::fstat>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::fstat>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 5 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::ftruncate>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::ftruncate>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 77 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::utimensat>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::utimensat>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 280 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::fsync>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::fsync>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 74 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::fdatasync>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::fdatasync>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 75 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::dup>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::dup>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 32 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::flock>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::flock>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 73 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::fchownat>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::fchownat>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 260 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::fchown>(builder, linux_x86_64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::fchown>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 93 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::openat>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::openat>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 56 });
-    Build::bind::<targets\linux_arm64\PosixFilesystemLinuxArm64ByteViews::read>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_arm64\PosixFilesystemLinuxArm64ByteViews::read>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 63 });
-    Build::bind::<targets\linux_arm64\PosixFilesystemLinuxArm64ByteViews::write>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_arm64\PosixFilesystemLinuxArm64ByteViews::write>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 64 });
-    Build::bind::<targets\linux_arm64\PosixFilesystemLinuxArm64ByteViews::pread64>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_arm64\PosixFilesystemLinuxArm64ByteViews::pread64>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 67 });
-    Build::bind::<targets\linux_arm64\PosixFilesystemLinuxArm64ByteViews::pwrite64>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_arm64\PosixFilesystemLinuxArm64ByteViews::pwrite64>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 68 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::close>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::close>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 57 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::lseek>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::lseek>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 62 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::mkdirat>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::mkdirat>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 34 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::unlinkat>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::unlinkat>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 35 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::fchmodat>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::fchmodat>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 53 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::fchmod>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::fchmod>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 52 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::renameat>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::renameat>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 38 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::linkat>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::linkat>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 37 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::symlinkat>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::symlinkat>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 36 });
-    Build::bind::<targets\linux_arm64\PosixFilesystemLinuxArm64ByteViews::readlinkat>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_arm64\PosixFilesystemLinuxArm64ByteViews::readlinkat>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 78 });
-    Build::bind::<targets\linux_arm64\PosixFilesystemLinuxArm64ByteViews::getdents64>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_arm64\PosixFilesystemLinuxArm64ByteViews::getdents64>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 61 });
     // The shared raw schema lends 144 bytes, which also contains ARM64's
     // 128-byte stat record. Keep that complete schema bound on both targets;
     // the ARM64 provider below lends its own exact 128-byte output window.
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::newfstatat>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::newfstatat>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 79 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::fstat>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::fstat>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 80 });
-    Build::bind::<targets\linux_arm64\PosixFilesystemLinuxArm64Metadata::newfstatat>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_arm64\PosixFilesystemLinuxArm64Metadata::newfstatat>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 79 });
-    Build::bind::<targets\linux_arm64\PosixFilesystemLinuxArm64Metadata::fstat>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_arm64\PosixFilesystemLinuxArm64Metadata::fstat>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 80 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::ftruncate>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::ftruncate>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 46 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::utimensat>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::utimensat>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 88 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::fsync>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::fsync>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 82 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::fdatasync>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::fdatasync>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 83 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::dup>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::dup>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 23 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::flock>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::flock>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 32 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::fchownat>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::fchownat>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 54 });
-    Build::bind::<targets\linux_x86_64\PosixFilesystemLinux::fchown>(builder, linux_arm64,
+    Build::bind_native::<targets\linux_x86_64\PosixFilesystemLinux::fchown>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 55 });
 }
 
 // The Darwin POSIX filesystem requirements resolve against libSystem; every
 // member shares one install name and keeps its authored Mach-O symbol.
 machine configure_posix_filesystem_darwin(builder: @mutable Build) {
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_open>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_open>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_open"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_open_create>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_open_create>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "___open"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_create>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_create>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_creat"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwinByteViews::c_read>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwinByteViews::c_read>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwinByteViews::c_write>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwinByteViews::c_write>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwinByteViews::c_read_at>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwinByteViews::c_read_at>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_pread"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwinByteViews::c_write_at>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwinByteViews::c_write_at>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_pwrite"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_close>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_close>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_close"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_remove>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_remove>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_unlink"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_seek>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_seek>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_lseek"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_create_dir>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_create_dir>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_mkdir"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_remove_dir>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_remove_dir>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_rmdir"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_create_dir_name>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_create_dir_name>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_mkdir"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_open_at>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_open_at>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_openat"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_unlink_at>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_unlink_at>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_unlinkat"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_set_permissions>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_set_permissions>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_chmod"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_set_file_permissions>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_set_file_permissions>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_fchmod"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_rename>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_rename>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_rename"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_hard_link>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_hard_link>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_link"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_symlink>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_symlink>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_symlink"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwinByteViews::c_read_link>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwinByteViews::c_read_link>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_readlink"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwinByteViews::c_read_dir>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwinByteViews::c_read_dir>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "___getdirentries64"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_remove_name>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_remove_name>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_unlink"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_remove_dir_name>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_remove_dir_name>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_rmdir"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_read_file_metadata>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_read_file_metadata>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_fstat"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_read_metadata_at>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_read_metadata_at>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_fstatat"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_set_len>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_set_len>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_ftruncate"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_set_file_times>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_set_file_times>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_futimens"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_sync>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_sync>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_fsync"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_sync_data>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_sync_data>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_fdatasync"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_duplicate>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_duplicate>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_dup"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_lock_file>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_lock_file>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_flock"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_change_owner>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_change_owner>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_chown"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_change_owner_no_follow>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_change_owner_no_follow>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_lchown"
         } });
-    Build::bind::<targets\macos_arm64\PosixFilesystemDarwin::c_change_file_owner>(builder, macos_arm64,
+    Build::bind_native::<targets\macos_arm64\PosixFilesystemDarwin::c_change_file_owner>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_fchown"
         } });
@@ -856,36 +856,36 @@ machine configure_posix_filesystem_darwin(builder: @mutable Build) {
 
 // Console providers and raw host bindings are selected for each hosted target.
 machine configure_console(builder: @mutable Build) {
-    Build::bind::<targets\windows_x86_64\WindowsConsoleIo::write>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsConsoleIo::write>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "msvcrt.dll", export: "_write"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsConsoleIo::read>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsConsoleIo::read>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "msvcrt.dll", export: "_read"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsConsoleIo::set_input_mode>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsConsoleIo::set_input_mode>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "msvcrt.dll", export: "_setmode"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsConsoleIo::set_output_mode>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsConsoleIo::set_output_mode>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "msvcrt.dll", export: "_setmode"
         } });
 
-    Build::bind::<targets\windows_arm64\WindowsArm64ConsoleIo::write>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_arm64\WindowsArm64ConsoleIo::write>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "msvcrt.dll", export: "_write"
         } });
-    Build::bind::<targets\windows_arm64\WindowsArm64ConsoleIo::read>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_arm64\WindowsArm64ConsoleIo::read>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "msvcrt.dll", export: "_read"
         } });
-    Build::bind::<targets\windows_arm64\WindowsArm64ConsoleIo::set_input_mode>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_arm64\WindowsArm64ConsoleIo::set_input_mode>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "msvcrt.dll", export: "_setmode"
         } });
-    Build::bind::<targets\windows_arm64\WindowsArm64ConsoleIo::set_output_mode>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_arm64\WindowsArm64ConsoleIo::set_output_mode>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "msvcrt.dll", export: "_setmode"
         } });
@@ -898,29 +898,29 @@ machine configure_console(builder: @mutable Build) {
     Build::select_provider::<Console, WindowsConsole>(builder, windows_x86_64);
     Build::select_provider::<Console, WindowsConsole>(builder, windows_arm64);
     Build::select_provider::<Console, LinuxX86Console>(builder, linux_x86_64);
-    Build::bind::<LinuxX86ConsoleIo::read>(builder, linux_x86_64, ForeignBinding::Syscall { number: 0 });
-    Build::bind::<LinuxX86ConsoleIo::write>(builder, linux_x86_64, ForeignBinding::Syscall { number: 1 });
+    Build::bind_native::<LinuxX86ConsoleIo::read>(builder, linux_x86_64, ForeignBinding::Syscall { number: 0 });
+    Build::bind_native::<LinuxX86ConsoleIo::write>(builder, linux_x86_64, ForeignBinding::Syscall { number: 1 });
 
     Build::select_provider::<Console, LinuxArm64Console>(builder, linux_arm64);
-    Build::bind::<LinuxArm64ConsoleIo::read>(builder, linux_arm64, ForeignBinding::Syscall { number: 63 });
-    Build::bind::<LinuxArm64ConsoleIo::write>(builder, linux_arm64, ForeignBinding::Syscall { number: 64 });
+    Build::bind_native::<LinuxArm64ConsoleIo::read>(builder, linux_arm64, ForeignBinding::Syscall { number: 63 });
+    Build::bind_native::<LinuxArm64ConsoleIo::write>(builder, linux_arm64, ForeignBinding::Syscall { number: 64 });
 
     Build::select_provider::<Console, DarwinArm64Console>(builder, macos_arm64);
-    Build::bind::<DarwinArm64ConsoleIo::read>(builder, macos_arm64,
+    Build::bind_native::<DarwinArm64ConsoleIo::read>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
         } });
-    Build::bind::<DarwinArm64ConsoleIo::write>(builder, macos_arm64,
+    Build::bind_native::<DarwinArm64ConsoleIo::write>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
         } });
 
     Build::select_provider::<Console, DarwinX86Console>(builder, macos_x86_64);
-    Build::bind::<DarwinX86ConsoleIo::read>(builder, macos_x86_64,
+    Build::bind_native::<DarwinX86ConsoleIo::read>(builder, macos_x86_64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
         } });
-    Build::bind::<DarwinX86ConsoleIo::write>(builder, macos_x86_64,
+    Build::bind_native::<DarwinX86ConsoleIo::write>(builder, macos_x86_64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
         } });
@@ -930,144 +930,144 @@ machine configure_console(builder: @mutable Build) {
 // Win32 GUI leaves: window and message pumps on user32, device-context and
 // client-rectangle reads on user32, and bitmap presentation on gdi32.
 machine configure_windows_gui(builder: @mutable Build) {
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::create_window>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::create_window>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "CreateWindowExA"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::create_window>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::create_window>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "CreateWindowExA"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::foreground_window>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::foreground_window>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "GetForegroundWindow"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::foreground_window>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::foreground_window>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "GetForegroundWindow"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::is_window>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::is_window>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "IsWindow"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::is_window>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::is_window>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "IsWindow"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::destroy_window>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::destroy_window>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "DestroyWindow"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::destroy_window>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::destroy_window>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "DestroyWindow"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::peek_message>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::peek_message>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "PeekMessageA"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::peek_message>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::peek_message>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "PeekMessageA"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::translate_message>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::translate_message>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "TranslateMessage"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::translate_message>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::translate_message>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "TranslateMessage"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::dispatch_message>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::dispatch_message>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "DispatchMessageA"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::dispatch_message>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::dispatch_message>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "DispatchMessageA"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::key_state>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::key_state>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "GetAsyncKeyState"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::key_state>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::key_state>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "GetAsyncKeyState"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::adjust_rectangle>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::adjust_rectangle>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "AdjustWindowRectEx"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::adjust_rectangle>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::adjust_rectangle>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "AdjustWindowRectEx"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::get_dc>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::get_dc>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "GetDC"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::get_dc>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::get_dc>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "GetDC"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::release_dc>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::release_dc>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "ReleaseDC"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::release_dc>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::release_dc>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "ReleaseDC"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::client_rectangle>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::client_rectangle>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "GetClientRect"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::client_rectangle>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::client_rectangle>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "GetClientRect"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::stretch_dibits>(builder, windows_x86_64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::stretch_dibits>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "gdi32.dll", export: "StretchDIBits"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsGuiIo::stretch_dibits>(builder, windows_arm64,
+    Build::bind_native::<targets\windows_x86_64\WindowsGuiIo::stretch_dibits>(builder, windows_arm64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "gdi32.dll", export: "StretchDIBits"
         } });
 }
 
 machine configure_macos_gui(builder: @mutable Build) {
-    Build::bind::<AppKit::load>(builder, macos_arm64,
+    Build::bind_native::<AppKit::load>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/AppKit.framework/AppKit",
             symbol: "_NSApplicationLoad"
         } });
-    Build::bind::<CoreGraphics::color_space_rgb>(builder, macos_arm64,
+    Build::bind_native::<CoreGraphics::color_space_rgb>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
             symbol: "_CGColorSpaceCreateDeviceRGB"
         } });
-    Build::bind::<CoreGraphics::color_space_release>(builder, macos_arm64,
+    Build::bind_native::<CoreGraphics::color_space_release>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
             symbol: "_CGColorSpaceRelease"
         } });
-    Build::bind::<CoreGraphics::event_source_key_state>(builder, macos_arm64,
+    Build::bind_native::<CoreGraphics::event_source_key_state>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
             symbol: "_CGEventSourceKeyState"
         } });
-    Build::bind::<DarwinClock::clock_ns>(builder, macos_arm64,
+    Build::bind_native::<DarwinClock::clock_ns>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib",
             symbol: "_clock_gettime_nsec_np"
         } });
-    Build::bind::<DarwinClock::mach_absolute_time>(builder, macos_arm64,
+    Build::bind_native::<DarwinClock::mach_absolute_time>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib",
             symbol: "_mach_absolute_time"
         } });
-    Build::bind::<DarwinClock::poll>(builder, macos_arm64,
+    Build::bind_native::<DarwinClock::poll>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib",
             symbol: "_poll"
@@ -1077,32 +1077,32 @@ machine configure_macos_gui(builder: @mutable Build) {
 // Native object storage belongs to the image module; the original Build value
 // records its exact requirements and locators for the macOS deployment target.
 machine configure_macos_image(builder: @mutable Build) {
-    Build::bind::<MacosImageData::copy>(builder, macos_arm64,
+    Build::bind_native::<MacosImageData::copy>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
             symbol: "_CFDataCreate"
         } });
-    Build::bind::<MacosImageObjects::provider>(builder, macos_arm64,
+    Build::bind_native::<MacosImageObjects::provider>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
             symbol: "_CGDataProviderCreateWithCFData"
         } });
-    Build::bind::<MacosImageObjects::release_data>(builder, macos_arm64,
+    Build::bind_native::<MacosImageObjects::release_data>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
             symbol: "_CFRelease"
         } });
-    Build::bind::<MacosImageObjects::release_provider>(builder, macos_arm64,
+    Build::bind_native::<MacosImageObjects::release_provider>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
             symbol: "_CGDataProviderRelease"
         } });
-    Build::bind::<MacosImageObjects::release_image>(builder, macos_arm64,
+    Build::bind_native::<MacosImageObjects::release_image>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
             symbol: "_CGImageRelease"
         } });
-    Build::bind::<MacosImageObjects::create>(builder, macos_arm64,
+    Build::bind_native::<MacosImageObjects::create>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
             symbol: "_CGImageCreate"

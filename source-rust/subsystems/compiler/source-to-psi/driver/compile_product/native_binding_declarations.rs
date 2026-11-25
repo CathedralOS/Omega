@@ -1,4 +1,4 @@
-//! Native bindings a Build made: `Build::bind::<Requirement>(builder, target,
+//! Native bindings a Build made: `Build::bind_native::<Requirement>(builder, target,
 //! locator)` says where one boundary requirement is found on one target
 //! (`wiki/spec/build/foreign_bindings.md`). The Build names the requirement
 //! without running anything of the Product, so it is held to the Product

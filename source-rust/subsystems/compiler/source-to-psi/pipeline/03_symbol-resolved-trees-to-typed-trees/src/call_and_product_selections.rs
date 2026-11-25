@@ -3792,7 +3792,7 @@ pub(crate) mod product_selections {
         // The Build prelude's operations live in its module `Build`, and
         // static normalization folds a module qualifier into the written
         // name. A designated operation has no declaration for that name to
-        // resolve to, so its call arrives as `Build::bind` with no namespace
+        // resolve to, so its call arrives as `Build::bind_native` with no namespace
         // symbol at all. Read the qualifier back as the prelude module it
         // names, the same lookup the testing facet uses; any other qualifier
         // names no Build operation and stays an ordinary unresolved call.
