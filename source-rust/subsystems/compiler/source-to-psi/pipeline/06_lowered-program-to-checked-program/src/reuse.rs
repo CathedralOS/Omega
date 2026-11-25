@@ -187,7 +187,7 @@ pub fn reverify_at_call(
     let instance = |clause: &Proposition| {
         crate::substitute(
             clause,
-            &mut crate::ScalarActuals {
+            &mut ScalarActuals {
                 actuals: &actuals,
                 result: None,
                 tables,
@@ -2284,6 +2284,72 @@ impl Carry<'_> {
                 unsupported("the refinement proof names a value that is not a formal or the result")
             })
         })
+    }
+}
+
+/// A call's actuals standing for the callee's formals: the callee's `k`-th
+/// scalar formal (callee value `k + 1`) is the caller's `k`-th scalar
+/// actual. In a guarantee, the callee's result pseudo-value (the value after
+/// its scalar formals) is `result`, the value the call defines
+/// (calls_and_outcomes.md: "Normal guarantees refer to the actual result and
+/// appropriate parameter versions."). A `requires` has no result, and a
+/// clause naming one where none is given is refused.
+#[cfg(any(test, feature = "test-support"))]
+struct ScalarActuals<'a> {
+    actuals: &'a [ValueId],
+    result: Option<ValueId>,
+    tables: &'a MachineTables,
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl crate::Bindings for ScalarActuals<'_> {
+    type Error = crate::Unbound;
+    fn value(
+        &mut self,
+        id: ValueId,
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        match self.result {
+            Some(result) if id.get() == self.actuals.len() as u64 + 1 => {
+                let row = self
+                    .tables
+                    .values
+                    .get(result)
+                    .ok_or(crate::Unbound::Unsupported(
+                        "call result is past the end of the caller's values",
+                    ))?;
+                if row.scalar_type != scalar_type {
+                    return Err(crate::Unbound::Unsupported(
+                        "call result type differs from the callee's",
+                    ));
+                }
+                Ok(ScalarTerm::value(result, scalar_type))
+            }
+            _ => crate::scalar_actual(self.actuals, self.tables, id, scalar_type),
+        }
+    }
+
+    fn field(
+        &mut self,
+        _: semantic_vocabulary::ContentPlaceVersion,
+        _: semantic_vocabulary::PlaceId,
+        _: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        _: ScalarType,
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        Err(crate::Unbound::Unsupported(
+            "clause term outside the scalar subset",
+        ))
+    }
+
+    fn case(
+        &mut self,
+        _: semantic_vocabulary::PlaceId,
+        _: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        _: semantic_vocabulary::StructuralCaseId,
+    ) -> Result<crate::CaseAnswer, crate::Unbound> {
+        Err(crate::Unbound::Unsupported(
+            "clause form outside the scalar subset",
+        ))
     }
 }
 

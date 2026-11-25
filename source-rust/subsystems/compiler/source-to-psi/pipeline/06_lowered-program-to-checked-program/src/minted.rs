@@ -685,6 +685,7 @@ impl Minted<'_> {
         let crash_routes = terminal_codec::contract_forms::substituted_routes(
             call.contract.crash_routes,
             inputs.arguments,
+            inputs.structural_arguments,
         )
         .map_err(|detail| self.foreign(concerns, &detail))?;
         if let Some(retained) = inputs.crash_continuations

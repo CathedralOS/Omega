@@ -1948,6 +1948,37 @@ fn entry_snapshot_conjuncts(
     storage_conjuncts(clause, bindings, |unread| Some(unread.clone()))
 }
 
+/// States one of this machine's own entry clauses as a goal over its entry
+/// storage. An atomic part the entry binding cannot state
+/// (`Unbound::Unproved`: an element no operation reads at entry) keeps its
+/// form over the machine's own formals, the form `entry_snapshot_conjuncts`
+/// gives the same part of a `requires` premise and a call gives a shared
+/// input it reads. The goal then names the same unread entry observation as
+/// the premises about it, and nothing else proves it.
+pub(crate) fn entry_goal(
+    clause: &Proposition,
+    bindings: &mut dyn Bindings<Error = Unbound>,
+) -> Result<Proposition, Unbound> {
+    let parts = |parts: &[Proposition], bindings: &mut dyn Bindings<Error = Unbound>| {
+        parts
+            .iter()
+            .map(|part| entry_goal(part, bindings))
+            .collect::<Result<Vec<_>, _>>()
+    };
+    match clause {
+        Proposition::Conjunction(conjuncts) => {
+            Ok(Proposition::Conjunction(parts(conjuncts, bindings)?))
+        }
+        Proposition::Disjunction(disjuncts) => {
+            Ok(Proposition::Disjunction(parts(disjuncts, bindings)?))
+        }
+        part => match substitute_goal(part, bindings) {
+            Err(Unbound::Unproved(_)) => Ok(part.clone()),
+            stated => stated,
+        },
+    }
+}
+
 /// A conjunction admits independent projections. A disjunction must remain
 /// whole even if only one of its alternatives mentions an unread field.
 fn storage_conjuncts(
@@ -2221,19 +2252,6 @@ impl Bindings for ErasedTerms<'_> {
     }
 }
 
-/// A call's actuals standing for the callee's formals: the callee's `k`-th
-/// scalar formal (callee value `k + 1`) is the caller's `k`-th scalar
-/// actual. In a guarantee, the callee's result pseudo-value (the value after
-/// its scalar formals) is `result`, the value the call defines
-/// (calls_and_outcomes.md: "Normal guarantees refer to the actual result and
-/// appropriate parameter versions."). A `requires` has no result, and a
-/// clause naming one where none is given is refused.
-pub(crate) struct ScalarActuals<'a> {
-    pub(crate) actuals: &'a [ValueId],
-    pub(crate) result: Option<ValueId>,
-    pub(crate) tables: &'a MachineTables,
-}
-
 /// The caller's scalar actual a callee's scalar formal stands for.
 pub(crate) fn scalar_actual(
     actuals: &[ValueId],
@@ -2258,47 +2276,58 @@ pub(crate) fn scalar_actual(
     Ok(ScalarTerm::value(*actual, scalar_type))
 }
 
-impl Bindings for ScalarActuals<'_> {
-    type Error = Unbound;
-    fn value(&mut self, id: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Unbound> {
-        match self.result {
-            Some(result) if id.get() == self.actuals.len() as u64 + 1 => {
-                let row = self.tables.values.get(result).ok_or(Unbound::Unsupported(
-                    "call result is past the end of the caller's values",
-                ))?;
-                if row.scalar_type != scalar_type {
-                    return Err(Unbound::Unsupported(
-                        "call result type differs from the callee's",
-                    ));
-                }
-                Ok(ScalarTerm::value(result, scalar_type))
-            }
-            _ => scalar_actual(self.actuals, self.tables, id, scalar_type),
-        }
+/// States one of a callee's entry clauses (a `requires` or a published crash
+/// route) over one call with `state`. A scalar formal is the scalar actual in
+/// its lane, an `[erased]` formal is the term the call supplies, and a field
+/// or element of a record formal is what that storage of the record actual
+/// holds when the call is made (calls_and_outcomes.md: "Declared
+/// requirements and published crash routes describe invocation entry").
+pub(crate) fn at_call_actuals<'a>(
+    (storage, references): (
+        &places::Storage<'a>,
+        &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
+    ),
+    tables: &MachineTables,
+    (invocation, row, call): (
+        terminal_check_tables::InvocationId,
+        &terminal_check_tables::edges::InvocationRow,
+        &call_contracts::Invocation<'_>,
+    ),
+    id: MachineId,
+    concerns: Construct,
+    state: impl FnOnce(&mut dyn Bindings<Error = Unbound>) -> Result<Proposition, Unbound>,
+) -> Checked<Proposition> {
+    let erased = erased_actuals(&call.contract, call.inputs, id, invocation)?;
+    let formals = call.structural_inputs();
+    let over_actuals = |runtime: &mut dyn Bindings<Error = Unbound>| {
+        state(&mut ErasedTerms {
+            terms: &erased,
+            runtime,
+        })
+    };
+    match row.site {
+        InvocationSite::Cleanup {
+            edge,
+            action_ordinal,
+        } => over_actuals(&mut storage.at_cleanup_call(
+            references,
+            tables,
+            &row.actuals,
+            formals,
+            edge,
+            action_ordinal,
+            concerns,
+        )?),
+        site => over_actuals(&mut storage.at_call(
+            references,
+            tables,
+            &row.actuals,
+            formals,
+            site,
+            concerns,
+        )?),
     }
-
-    fn field(
-        &mut self,
-        _: semantic_vocabulary::ContentPlaceVersion,
-        _: PlaceId,
-        _: &[CanonicalStructuralPathSegment],
-        _: ScalarType,
-    ) -> Result<ScalarTerm, Unbound> {
-        Err(Unbound::Unsupported(
-            "clause term outside the scalar subset",
-        ))
-    }
-
-    fn case(
-        &mut self,
-        _: PlaceId,
-        _: &[CanonicalStructuralPathSegment],
-        _: StructuralCaseId,
-    ) -> Result<crate::CaseAnswer, Unbound> {
-        Err(Unbound::Unsupported(
-            "clause form outside the scalar subset",
-        ))
-    }
+    .map_err(|unbound| unbound.refusal(id, concerns))
 }
 
 /// The goal of one obligation, over this machine's values.
@@ -2404,7 +2433,6 @@ fn stated_goal<'a>(
                 Construct::Invocation(invocation),
             )?;
             let call = call_contracts::invocation(module, lowered, tables, invocation, row)?;
-            let erased = erased_actuals(&call.contract, call.inputs, id, invocation)?;
             let clause = usize::try_from(clause)
                 .ok()
                 .and_then(|clause| call.contract.requires.get(clause))
@@ -2416,42 +2444,14 @@ fn stated_goal<'a>(
                         "callee has no such requires clause",
                     )
                 })?;
-            // A scalar formal is the scalar actual in its lane; a field of a
-            // record formal is what that field of the record actual holds
-            // when the call is made.
-            let over_actuals = |runtime: &mut dyn Bindings<Error = Unbound>| {
-                substitute_goal(
-                    clause,
-                    &mut ErasedTerms {
-                        terms: &erased,
-                        runtime,
-                    },
-                )
-            };
-            let formals = call.structural_inputs();
-            match row.site {
-                InvocationSite::Cleanup {
-                    edge,
-                    action_ordinal,
-                } => over_actuals(&mut storage.at_cleanup_call(
-                    references,
-                    tables,
-                    &row.actuals,
-                    formals,
-                    edge,
-                    action_ordinal,
-                    concerns,
-                )?),
-                site => over_actuals(&mut storage.at_call(
-                    references,
-                    tables,
-                    &row.actuals,
-                    formals,
-                    site,
-                    concerns,
-                )?),
-            }
-            .map_err(|unbound| unbound.refusal(id, concerns))
+            at_call_actuals(
+                (storage, references),
+                tables,
+                (invocation, row, &call),
+                id,
+                concerns,
+                |bindings| substitute_goal(clause, bindings),
+            )
         }
         ObligationKind::DataDomain { operation, clause } => {
             storage.domain_goal(references, tables, operation, clause, concerns)
@@ -2491,7 +2491,17 @@ fn stated_goal<'a>(
             references,
         ),
         ObligationKind::CrashCoverage { site, cause } => {
-            crashes::coverage_goal(module, lowered, tables, types, id, obligation, site, cause)
+            crashes::coverage_goal(
+                module,
+                lowered,
+                (storage, references),
+                tables,
+                types,
+                id,
+                obligation,
+                site,
+                cause,
+            )
         }
         ObligationKind::RankComparison { component, edge } => rankings::goal(
             lowered,

@@ -36,23 +36,17 @@ omega run --both samples/cli/facts/indexed_crash_guard/other_machine/main.omg
 omega run --both samples/cli/facts/indexed_crash_guard/target_body/main.omg
 ```
 
-Every positive passes with native and Terminal Psi agreement (`exit 0`).
+`parameter`, `local`, `const_name` and `other_machine` pass `omega --check` and run with native/Psi agreement (exit 0, empty stdout and stderr on both engines). `target_body` passes `omega --check`; `omega run` on `windows_x86_64` stops at Build provider selection ("boundary requirement `SelectedForward::forward` has no provider"). `field` and `call_result` are refused where the same program with a `requires` in place of the guard is refused: the checker cannot yet show the call's index equals the selector the caller's `requires` names. `other_state` calls a nested machine whose omitted crash route is inferred as unconditional. `match_join` and the root application stop at "call argument that names storage another argument lends"; the root package also compiles every `invalid_*` twin as one of its modules. `TASKS.md` (**PROOF-KERNEL-CORE**, step 5) tracks these.
 
 ## Reject twins
 
-Each place has an `invalid/` twin whose `main.omg` omits only the `requires items[index] == 7` precondition (or equivalent carrier constraint). Because `read_seven` is `pub` and declares no `crashes Trap` clause, public crash omission is forbidden. Each twin fails closed with:
+Each place has an `invalid_<place>/` twin whose `main.omg` omits only the `requires items[index] == 7` precondition (or equivalent carrier constraint). Because `read_seven` is `pub` and declares no `crashes Trap` clause, public crash omission is forbidden. Each twin fails closed with:
 
 ```text
-error: call from `read_seven` to `maybe_zero` at statement ... call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+error: call from `read_seven` to `maybe_zero` has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 ```
 
-(or `call from read_seven to forward` for `other_machine` and `target_body`). Check a twin with `omega --check samples/cli/facts/indexed_crash_guard/<place>/invalid/main.omg`.
-
-The root-level [`private_omission/`](private_omission/main.omg) is not a
-reject twin: it keeps `read_seven` private while omitting the equality, so
-the public omitted-cause prohibition does not apply and it compiles and runs
-with exit 0. It stands as the recorded exposure of that private coverage gap,
-not as a ninth-tenth control.
+(or `call from read_seven to forward` for `other_machine`; `invalid_target_body` is refused for the same uncovered route but names the machine `read_seven`, not the boundary call). Check a twin with `omega --check samples/cli/facts/indexed_crash_guard/invalid_<place>/main.omg`.
 
 ## Requirements and Evidence
 
@@ -64,8 +58,8 @@ This row establishes that an entry observation `items[index] == 7` with `index <
 
 - **Establishment:** The entry precondition `requires index < 2` combined with `requires items[index] == 7` establishes that `items[index] != 0` at the invocation of `maybe_zero(items, index)`. Because `7 != 0`, the callee's crash condition `items[index] == 0` is proved unreachable at this call site, discharging the crash obligation directly without requiring a caller crash ceiling or relying on post-hoc caller equality guards (`transition x == 100`).
 - **Identity and lifetime:** The guarded fact `items[index] == 7` stays bound to the exact scalar subject and immutable collection length across local variable copy (`let selected = index`), record field projection (`selection.index`), explicit parameter, call result guarantee (`ensures result == index`), all-arm match joins (`match flag { true -> index, false -> index }`), named constants (`const SEVEN: u64 = 7`), successor machine transitions (`machine consume(values: @[u64; 2], selected: u64)`), forwarding machines (`forward`), and target-scoped bodies across all four targets. Storage versions, distinct element slots, and borrow lifetimes are preserved without invalidation.
-- **Composition:** The crash-guarded index bound composes into the consuming `maybe_zero` invocation across all nine places. Calls substitute exact actuals (`items`, `index`), `match_join` preserves the selector identity on both branch paths (both executed at runtime), and state transitions prove their arrival obligations before invoking the callee. Each `<place>/main.omg` vs. `<place>/invalid/main.omg` differs solely in the presence versus deletion of the precondition `requires items[index] == 7`, maintaining identical carrier shapes, bounds, and operations.
-- **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins
+- **Composition:** The crash-guarded index bound composes into the consuming `maybe_zero` invocation across all nine places. Calls substitute exact actuals (`items`, `index`), `match_join` preserves the selector identity on both branch paths (both executed at runtime), and state transitions prove their arrival obligations before invoking the callee. Each `<place>/main.omg` vs. `invalid_<place>/main.omg` differs solely in the presence versus deletion of the precondition `requires items[index] == 7`, maintaining identical carrier shapes, bounds, and operations.
+- **Soundness boundaries:** All nine `invalid_<place>/main.omg` reject twins
   fail closed at compile time: omitting the equality leaves the potential
   zero-element crash route uncovered. Because `read_seven` is `pub`, the
   compiler refuses public crash omission with `error: call from read_seven to

@@ -107,17 +107,33 @@ pub fn routes(
 
 /// Retain every published crash alternative under simultaneous actuals.
 /// This operation does not prove a route impossible or remove one.
+///
+/// A guard over a structural formal (`items[index] == 0`) names the place of
+/// the call's structural actual in that lane, read when the call is made. An
+/// actual that projects its place (`@pair.items`) has no place of its own to
+/// name, so a guard over that formal is refused rather than dropped: an
+/// untranslated continuation cannot erase a crash (calls_and_outcomes.md,
+/// "Call contracts").
 pub fn substituted_routes(
     routes: &[CrashRouteBucket],
     actuals: &[ValueId],
+    structural: &[terminal_psi::StructuralArgument],
 ) -> Result<Vec<CrashRouteBucket>, String> {
+    let places: Vec<_> = structural
+        .iter()
+        .map(|argument| argument.path.is_empty().then_some(argument.place))
+        .collect();
     let mut alternatives = Vec::new();
     for bucket in routes {
         for guard in &bucket.alternatives {
             let guard = match guard {
                 CrashRouteGuard::Truth => CrashRouteGuard::Truth,
                 CrashRouteGuard::Predicate(predicate) => CrashRouteGuard::Predicate(
-                    CrashPredicateTerm::new(substitute(predicate.proposition(), actuals)?),
+                    CrashPredicateTerm::new(substitute_formals(
+                        predicate.proposition(),
+                        actuals,
+                        &places,
+                    )?),
                 ),
             };
             alternatives.push((bucket.cause, guard));
@@ -127,15 +143,15 @@ pub fn substituted_routes(
 }
 
 pub fn substitute(proposition: &Proposition, actuals: &[ValueId]) -> Result<Proposition, String> {
-    substitute_parameters(proposition, actuals, &[])
+    substitute_formals(proposition, actuals, &[])
 }
 
 /// Substitute exact scalar and storage formal identities together. Storage
 /// observations remain predicates to prove, not facts introduced by this step.
-pub fn substitute_parameters(
+fn substitute_formals(
     proposition: &Proposition,
     actuals: &[ValueId],
-    places: &[semantic_vocabulary::PlaceId],
+    places: &[Option<semantic_vocabulary::PlaceId>],
 ) -> Result<Proposition, String> {
     let substituted = terminal_semantics::substitution::clauses::substitute_clause(
         proposition,
@@ -188,7 +204,9 @@ pub fn canonical_clause(proposition: Proposition) -> Result<Proposition, String>
 
 struct ScalarFormals<'a> {
     values: &'a [ValueId],
-    places: &'a [semantic_vocabulary::PlaceId],
+    /// The place each structural formal stands for, or `None` when its actual
+    /// projects a place.
+    places: &'a [Option<semantic_vocabulary::PlaceId>],
 }
 
 impl ScalarFormals<'_> {
@@ -200,8 +218,8 @@ impl ScalarFormals<'_> {
             .ok()
             .and_then(|position| position.checked_sub(1))
             .and_then(|position| self.places.get(position))
-            .copied()
-            .ok_or("clause names storage that is not a structural formal")
+            .ok_or("clause names storage that is not a structural formal")?
+            .ok_or("clause names a structural formal whose actual projects a place")
     }
 }
 
@@ -254,6 +272,22 @@ impl terminal_semantics::substitution::clauses::ClauseBindings for ScalarFormals
             semantic_vocabulary::ScalarType::Callable(_) => {
                 return Err("a callable field has no scalar contract term");
             }
+        })
+    }
+
+    fn structural_read(
+        &mut self,
+        root: semantic_vocabulary::PlaceId,
+        path: &[semantic_vocabulary::ScalarReadProjection],
+        scalar_type: semantic_vocabulary::ScalarType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        // Substitution already renamed each selector into the caller's
+        // scope. The restated route names the observation; the checker reads
+        // that storage where the call is made.
+        Ok(ScalarTerm::StructuralRead {
+            root: self.place(root)?,
+            path: path.to_vec(),
+            scalar_type,
         })
     }
 

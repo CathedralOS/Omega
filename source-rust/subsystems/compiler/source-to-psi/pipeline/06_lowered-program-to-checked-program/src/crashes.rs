@@ -18,7 +18,11 @@ not do, so such a site is unproved.
 
 At a call site (an `InvokeNoNormal` terminator, or a `Call` or `CallUnit`
 operation whose callee may return and crash) the guard is the callee's
-published route for the cause, substituted with the call's actuals: the call
+published route for the cause, restated over the call's actuals with the
+binding its `requires` clauses use (`at_call_actuals`), so a guard over a
+formal's field or element reads that storage of the actual when the call is
+made ("borrowed observations still use their appropriate storage
+revisions", fact_validity.md). The call
 crashes with that cause only when one of its alternatives holds ("Entry-only
 call-ceiling coverage proves the same-cause union of published
 alternatives", fact_validity.md). Unlike a `Crash` terminator's guard it is
@@ -29,6 +33,14 @@ callee route `d == 0`), the implication holds however little the caller
 publishes, `crashes none` included: the call never crashes with that cause.
 An unconditional callee route is `Truth`, and the goal is the coverage
 itself.
+
+The coverage is the machine's own published route, a clause over its
+invocation entry, so it is restated over this machine's entry storage
+(`Storage::at_entry`) in the form its `requires` premises take
+(`entry_goal`): an element no operation reads keeps its form over the formal.
+The call's route is a premise and keeps plain `substitute`, which refuses
+what it cannot state: dropping one of its alternatives would assume the call
+crashes less often than its callee publishes.
 
 A Trapping operation (`TrappingInteger`) is its own `Trap` site
 (`wiki/spec/language/numeric_values.md`, "Overflow policies"): it crashes
@@ -51,12 +63,18 @@ use terminal_psi::{
     CrashRouteBucket, CrashRouteGuard, TerminalMachine, TerminalModule, Terminator,
 };
 
+use crate::places::Storage;
 use crate::refusal;
+use terminal_semantics::descriptor_results::DescriptorAnalysis;
+
+/// The storage a crash goal reads, and the descriptor results it reads with.
+type Observed<'s, 'a> = (&'s Storage<'a>, &'s mut DescriptorAnalysis<'a>);
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn coverage_goal(
+pub(crate) fn coverage_goal<'a>(
     module: &TerminalModule,
     lowered: &TerminalMachine,
+    (storage, references): Observed<'_, 'a>,
     tables: &MachineTables,
     types: &IdTable<ValueId, ScalarType>,
     id: MachineId,
@@ -66,12 +84,33 @@ pub(crate) fn coverage_goal(
 ) -> Checked<Proposition> {
     let concerns = Construct::Obligation(obligation);
     let guard = match site {
-        CrashSite::Block(block) => block_site(module, lowered, tables, id, concerns, block, cause)?,
+        CrashSite::Block(block) => block_site(
+            module,
+            lowered,
+            (storage, &mut *references),
+            tables,
+            id,
+            concerns,
+            block,
+            cause,
+        )?,
         CrashSite::Operation(operation) => operation_site(
-            module, lowered, tables, types, id, concerns, operation, cause,
+            module,
+            lowered,
+            (storage, &mut *references),
+            tables,
+            types,
+            id,
+            concerns,
+            operation,
+            cause,
         )?,
     };
-    let coverage = coverage(&lowered.contract.crash_routes, cause);
+    let coverage = crate::entry_goal(
+        &coverage(&lowered.contract.crash_routes, cause),
+        &mut storage.at_entry(references, tables),
+    )
+    .map_err(|unbound| unbound.refusal(id, concerns))?;
     Ok(match guard {
         Guard::Unless(completes) => match coverage {
             Proposition::Truth => Proposition::Truth,
@@ -109,22 +148,22 @@ enum Guard {
     Unless(Proposition),
 }
 
-fn has_cause(continuations: &[CrashRouteBucket], cause: CrashCause) -> bool {
-    continuations.iter().any(|bucket| bucket.cause == cause)
-}
-
-/// A call's guard for `cause`: the disjunction of its continuations'
+/// A callee's guard for `cause`: the disjunction of its published
 /// alternatives, when it may crash with that cause at all.
-fn route(continuations: &[CrashRouteBucket], cause: CrashCause) -> Option<Proposition> {
-    has_cause(continuations, cause).then(|| coverage(continuations, cause))
+fn route(routes: &[CrashRouteBucket], cause: CrashCause) -> Option<Proposition> {
+    routes
+        .iter()
+        .any(|bucket| bucket.cause == cause)
+        .then(|| coverage(routes, cause))
 }
 
 /// A trapping primitive supplies its definedness guard; other operations
 /// use their exact invocation row and public crash contract.
 #[allow(clippy::too_many_arguments)]
-fn operation_site(
+fn operation_site<'a>(
     module: &TerminalModule,
     lowered: &TerminalMachine,
+    observed: Observed<'_, 'a>,
     tables: &MachineTables,
     types: &IdTable<ValueId, ScalarType>,
     id: MachineId,
@@ -165,6 +204,7 @@ fn operation_site(
     call_site(
         module,
         lowered,
+        observed,
         tables,
         id,
         concerns,
@@ -173,12 +213,15 @@ fn operation_site(
     )
 }
 
-/// Use the same actual invocation and public contract as call obligations.
-/// Stored routes retain their evaluated callable and exact public contract.
+/// Use the same actual invocation, public contract and actual binding as call
+/// requirements. The call's retained crash continuations are checked against
+/// that contract when the call is admitted (`minted`); the route is judged
+/// from the contract itself, where each storage observation can be read.
 #[allow(clippy::too_many_arguments)]
-fn call_site(
+fn call_site<'a>(
     module: &TerminalModule,
     lowered: &TerminalMachine,
+    observed: Observed<'_, 'a>,
     tables: &MachineTables,
     id: MachineId,
     concerns: Construct,
@@ -202,29 +245,25 @@ fn call_site(
     };
     let call =
         crate::call_contracts::invocation(module, lowered, tables, invocation, row)?;
-    let guard = match call.inputs.crash_continuations {
-        Some(routes) => route(routes, cause).ok_or_else(refuse)?,
-        None => {
-            let guard = route(call.contract.crash_routes, cause).ok_or_else(refuse)?;
-            crate::substitute(
-                &guard,
-                &mut crate::ScalarActuals {
-                    actuals: call.inputs.arguments,
-                    result: None,
-                    tables,
-                },
-            )
-            .map_err(|unbound| unbound.refusal(id, concerns))?
-        }
-    };
-    Ok(Guard::Route(guard))
+    let guard = route(call.contract.crash_routes, cause).ok_or_else(refuse)?;
+    crate::at_call_actuals(
+        observed,
+        tables,
+        (invocation, row, &call),
+        id,
+        concerns,
+        |bindings| crate::substitute(&guard, bindings),
+    )
+    .map(Guard::Route)
 }
 
 /// The guard of a block site: a `Crash` terminator's clauses, or a no-normal
 /// call's callee route.
-fn block_site(
+#[allow(clippy::too_many_arguments)]
+fn block_site<'a>(
     module: &TerminalModule,
     lowered: &TerminalMachine,
+    observed: Observed<'_, 'a>,
     tables: &MachineTables,
     id: MachineId,
     concerns: Construct,
@@ -257,6 +296,7 @@ fn block_site(
         Terminator::InvokeNoNormal { edge, .. } => call_site(
             module,
             lowered,
+            observed,
             tables,
             id,
             concerns,
@@ -266,6 +306,7 @@ fn block_site(
         Terminator::ExternalCompletion { edge, .. } => call_site(
             module,
             lowered,
+            observed,
             tables,
             id,
             concerns,
@@ -281,9 +322,9 @@ fn block_site(
     }
 }
 
-/// The disjunction of the alternatives `routes` holds for `cause` (a
-/// machine's published routes, or a call's crash continuations): `Truth`
-/// when one is unconditional, `Falsehood` when there are none.
+/// The disjunction of the alternatives a machine's published `routes` hold
+/// for `cause`: `Truth` when one is unconditional, `Falsehood` when there are
+/// none.
 fn coverage(routes: &[CrashRouteBucket], cause: CrashCause) -> Proposition {
     let published = routes.iter().find(|bucket| bucket.cause == cause);
     match published {

@@ -2,7 +2,7 @@
 
 use semantic_vocabulary::{CrashCause, MachineId, Proposition, ScalarTerm, ValueId};
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
-use terminal_psi::{CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard};
+use terminal_psi::{CrashRouteBucket, CrashRouteGuard};
 
 pub(crate) use terminal_codec::contract_forms::RepeatedClauses as Repeated;
 
@@ -62,30 +62,17 @@ pub(crate) fn routes(
     terminal_codec::contract_forms::routes(alternatives)
 }
 
+/// A call's crash continuations: the callee's published routes over the
+/// call's scalar and structural actuals. The wire owner states them, so the
+/// checker's retained-row comparison restates them by the same rule.
 pub fn substituted_routes(
     routes: &[CrashRouteBucket],
     actuals: &[ValueId],
-    values: &arena::IdTable<ValueId, terminal_check_tables::values::ValueRow>,
+    structural: &[terminal_psi::StructuralArgument],
     id: MachineId,
 ) -> Checked<Vec<CrashRouteBucket>> {
-    let mut alternatives = Vec::new();
-    for bucket in routes {
-        for guard in &bucket.alternatives {
-            let guard = match guard {
-                CrashRouteGuard::Truth => CrashRouteGuard::Truth,
-                CrashRouteGuard::Predicate(predicate) => {
-                    CrashRouteGuard::Predicate(CrashPredicateTerm::new(substitute(
-                        predicate.proposition(),
-                        actuals,
-                        values,
-                        id,
-                    )?))
-                }
-            };
-            alternatives.push((bucket.cause, guard));
-        }
-    }
-    Ok(self::routes(alternatives))
+    terminal_codec::contract_forms::substituted_routes(routes, actuals, structural)
+        .map_err(|detail| refusal(id, detail))
 }
 
 pub(crate) fn substitute(
