@@ -852,8 +852,14 @@ impl Program<'_> {
                 DataMember::Variant(variant) => typed.data_payload_fields(variant),
             };
             for field in fields {
-                if field.relevance != language_core::BindingRelevance::Relevant {
-                    return Err(unserved("generic data with an erased member"));
+                // Erased evidence of indexed data is the mathematical
+                // signature's to read (`families`); it must be at the
+                // header's own value binders or at numbers.
+                if field.relevance == language_core::BindingRelevance::Erased
+                    && self.names_indexed_data(field.type_reference)
+                {
+                    self.evidence_field_indices(entry, parameters, field.type_reference)?;
+                    continue;
                 }
                 self.template_type(entry, data.symbol, parameters, field.type_reference, 0)?;
             }

@@ -331,6 +331,30 @@ impl<'t> Program<'t> {
                 };
                 (kind, scalar)
             }
+            // Evidence held in an erased field of data (`measured.evidence`)
+            // is passed as the witness an erased local of evidence is
+            // (`families::evidence_witness`); that the receiving formal
+            // takes evidence, and at this index, is checked where the
+            // mathematical signature reads evidence (`families`).
+            ExpressionNode::Member(member) if expected == Some(ScalarType::Boolean) => {
+                let base = self.place(id, slots, member.receiver, None, super::authority::Access::Read)?;
+                let evidence = match self.opened_place(id, &base, super::authority::Access::Read)? {
+                    Some(record) => self
+                        .erased_member(id, record.record(), member.selection.field_symbol())?
+                        .and_then(|position| {
+                            self.data_type(id, record.record())
+                                .ok()
+                                .and_then(|data| data.erased.get(position))
+                                .map(|erased| erased.evidence)
+                        })
+                        .unwrap_or(false),
+                    None => false,
+                };
+                if !evidence {
+                    return unserved("erased term other than a literal or a binding");
+                }
+                (ExpressionKind::Boolean(true), ScalarType::Boolean)
+            }
             _ => return unserved("erased term other than a literal or a binding"),
         };
         Ok(Expression {

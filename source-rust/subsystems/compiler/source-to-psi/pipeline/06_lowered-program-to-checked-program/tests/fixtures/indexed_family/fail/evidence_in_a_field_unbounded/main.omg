@@ -1,0 +1,43 @@
+// The same program with `remaining` admitting a length of nine, where the
+// bound allows a total of 90: `80 - total` may underflow and is refused.
+// Expected: refused, exact arithmetic in `remaining` may overflow `u64`
+// (one input from the positive: `Length <= 9`).
+data Vector<Length: u64, Total: u64>
+    requires ((self in Vector::Nil) && (Length == 0 && Total == 0)) || ((self in Vector::Cons) && (self.head <= 10 && embed(self.previous) + 1 == embed(Length)
+              && embed(self.previous_total) + embed(self.head) == embed(Total)))
+{
+    case Nil;
+    case Cons(previous: u64, previous_total: u64, head: u64,
+              tail [erased]: Vector<previous, previous_total>);
+}
+machine vector_bound<Length: u64, Total: u64>(evidence [erased]: Vector<Length, Total>)
+terminates by Length
+ensures embed(Total) <= 10 * embed(Length)
+{
+    transition evidence {
+        Vector::Nil { .. } -> done(),
+        Vector::Cons { previous, previous_total, head, tail, .. } -> step(previous, previous_total, head, tail)
+    }
+    machine done() requires Length == 0 && Total == 0 {}
+    machine step(previous: u64, previous_total: u64, head: u64, tail [erased]: Vector<previous, previous_total>)
+    requires head <= 10 && embed(previous) + 1 == embed(Length)
+             && embed(previous_total) + embed(head) == embed(Total)
+    {
+        vector_bound::<previous, previous_total>(tail);
+    }
+}
+data Measured<Length: u64, Total: u64> [copy] { total: u64; evidence [erased]: Vector<Length, Total>; }
+machine remaining<Length: u64, Total: u64>(measured: Measured<Length, Total>) -> u64
+requires Length <= 9 && measured.total == Total
+{
+    vector_bound::<Length, Total>(measured.evidence);
+    80u64 - measured.total
+}
+machine main() crashes Trap {
+    let nil [erased]: Vector<0, 0> = Vector::Nil;
+    let measured: Measured<0, 0> = Measured { total: 0, evidence: nil };
+    let left: u64 = remaining::<0, 0>(measured);
+    transition left == 80 { true -> done(), _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

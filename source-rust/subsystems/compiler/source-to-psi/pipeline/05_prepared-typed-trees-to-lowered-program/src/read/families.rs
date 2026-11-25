@@ -825,41 +825,308 @@ impl Program<'_> {
                 FamilyTerm::Name(symbol)
             }
         };
-        let literal = |text: &str| {
-            text.parse::<i128>()
-                .map(FamilyTerm::Literal)
-                .map_err(|_| unserved("index of indexed data that is no integer"))
-        };
+        // Each value argument, read by the one index reader.
         arguments
             .iter()
             .enumerate()
             .filter(|(position, _)| family.type_at(*position).is_none())
-            .map(
-                |(_, argument)| match typed.type_reference_table.type_reference(*argument) {
-                    TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
-                        Ok(named(*symbol))
+            .map(|(_, argument)| {
+                Ok(match self.written_index(id, binders, *argument)? {
+                    WrittenIndex::Name(symbol) => named(symbol),
+                    WrittenIndex::Literal(value) => FamilyTerm::Literal(value),
+                })
+            })
+            .collect()
+    }
+
+    /// One value argument as a type reference writes it: a name, resolved
+    /// to its symbol (against `binders` when the typed trees kept only its
+    /// spelling), or a number. This is the one reader of an index, for a
+    /// family and for data that holds evidence of one in an erased field.
+    fn written_index(
+        &self,
+        id: MachineId,
+        binders: &[(String, SymbolHandle)],
+        argument: TypeReferenceHandle,
+    ) -> Checked<WrittenIndex> {
+        let typed = self.typed;
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Type(what));
+        let literal = |text: &str| {
+            text.parse::<i128>()
+                .map(WrittenIndex::Literal)
+                .map_err(|_| unserved("index of indexed data that is no integer"))
+        };
+        match typed.type_reference_table.type_reference(argument) {
+            TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
+                Ok(WrittenIndex::Name(*symbol))
+            }
+            TypeReferenceNode::Named { name, .. } => binders
+                .iter()
+                .find(|(binder, _)| binder == name.as_str())
+                .map_or_else(
+                    || literal(name.as_str()),
+                    |(_, symbol)| Ok(WrittenIndex::Name(*symbol)),
+                ),
+            TypeReferenceNode::ConstExpression(expression) => {
+                match typed.expression_table.expression(*expression) {
+                    ExpressionNode::Name(path) if path.symbol.is_valid() => {
+                        Ok(WrittenIndex::Name(path.symbol))
                     }
-                    TypeReferenceNode::Named { name, .. } => binders
-                        .iter()
-                        .find(|(binder, _)| binder == name.as_str())
-                        .map_or_else(|| literal(name.as_str()), |(_, symbol)| Ok(named(*symbol))),
-                    TypeReferenceNode::ConstExpression(expression) => {
-                        match typed.expression_table.expression(*expression) {
-                            ExpressionNode::Name(path) if path.symbol.is_valid() => {
-                                Ok(named(path.symbol))
-                            }
-                            ExpressionNode::Integer(value) => literal(&value.to_string()),
-                            _ => Err(unserved(
-                                "index of indexed data other than a name or an integer",
-                            )),
-                        }
-                    }
+                    ExpressionNode::Integer(value) => literal(&value.to_string()),
                     _ => Err(unserved(
                         "index of indexed data other than a name or an integer",
                     )),
-                },
-            )
-            .collect()
+                }
+            }
+            _ => Err(unserved(
+                "index of indexed data other than a name or an integer",
+            )),
+        }
+    }
+
+    /// Checks the type of an erased field of evidence in a generic data
+    /// template: each index it writes is one of the template's own value
+    /// binders or a number (`Measured<Length, Total>` holding
+    /// `Vector<Length, Total>`).
+    pub(super) fn evidence_field_indices(
+        &self,
+        id: MachineId,
+        parameters: arena::RootRows<'_, crate::source_state::data::TypeParameter>,
+        reference: TypeReferenceHandle,
+    ) -> Checked<()> {
+        let typed = self.typed;
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Type(what));
+        let TypeReferenceNode::Generic {
+            arguments,
+            lifetime_arguments,
+            ..
+        } = typed.type_reference_table.type_reference(reference)
+        else {
+            return Err(unserved("indexed data named without its indices"));
+        };
+        if !lifetime_arguments.is_empty() {
+            return Err(unserved("indexed data named through another declaration"));
+        }
+        for argument in typed
+            .type_reference_table
+            .type_reference_handles(*arguments)
+        {
+            if let WrittenIndex::Name(symbol) = self.written_index(id, &[], *argument)?
+                && !parameters.iter().any(|parameter| {
+                    parameter.symbol == symbol
+                        && matches!(
+                            parameter.kind,
+                            TypeParameterKind::Value { .. } | TypeParameterKind::Const { .. }
+                        )
+                })
+            {
+                return Err(unserved(
+                    "erased field of evidence at an index other than a value parameter of its data or a number",
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// Whether a type reference names data, not itself indexed, with an
+    /// erased field of indexed data: data that holds evidence.
+    pub(super) fn holds_evidence(&self, reference: TypeReferenceHandle) -> bool {
+        self.held_data(reference)
+            .is_some_and(|data| self.evidence_fields(data).next().is_some())
+    }
+
+    /// The declaration a type reference applies, when it is data that is
+    /// not itself indexed.
+    fn held_data(&self, reference: TypeReferenceHandle) -> Option<&DataDefinition> {
+        if !reference.is_valid() {
+            return None;
+        }
+        let symbol = match self.typed.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Named { symbol, .. } => *symbol,
+            TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
+            _ => return None,
+        };
+        self.typed
+            .unique_data_definition_by_symbol(symbol)
+            .filter(|data| !self.is_family(data))
+    }
+
+    /// The erased fields of a declaration that hold evidence of indexed
+    /// data. Only a record's own fields do: a case's payload is not read.
+    fn evidence_fields<'d>(
+        &'d self,
+        data: &'d DataDefinition,
+    ) -> impl Iterator<Item = &'d crate::source_state::data::DataField> + 'd {
+        self.typed
+            .data_members(data)
+            .iter()
+            .filter_map(|member| match member {
+                DataMember::Field(field) => Some(field),
+                DataMember::Variant(_) => None,
+            })
+            .filter(|field| {
+                field.relevance == language_core::BindingRelevance::Erased
+                    && self.names_indexed_data(field.type_reference)
+            })
+    }
+
+    /// The evidence the erased field `field` of data typed `holder` holds:
+    /// the family its declared type names, at the indices that type writes
+    /// once each binder of the data stands for what `holder` applies it at.
+    /// `Measured<Length, Total>` with `evidence [erased]: Vector<Length,
+    /// Total>`, held as `Measured<0, 7>`, holds `Vector` at `0, 7`.
+    fn field_evidence(
+        &mut self,
+        id: MachineId,
+        own: &[SymbolHandle],
+        holder: TypeReferenceHandle,
+        field: SymbolHandle,
+    ) -> Checked<Option<Applied>> {
+        let typed = self.typed;
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let Some(data) = self.held_data(holder) else {
+            return Ok(None);
+        };
+        let Some(declared) = self
+            .evidence_fields(data)
+            .find(|candidate| field.is_valid() && candidate.symbol == field)
+            .map(|declared| declared.type_reference)
+        else {
+            return Ok(None);
+        };
+        // What the holder applies each value binder of the data at.
+        let mut applied = Vec::new();
+        if let TypeReferenceNode::Generic { arguments, .. } =
+            typed.type_reference_table.type_reference(holder)
+        {
+            let arguments = typed
+                .type_reference_table
+                .type_reference_handles(*arguments);
+            for (parameter, argument) in typed.data_type_parameters(data).iter().zip(arguments) {
+                if let TypeParameterKind::Value { .. } | TypeParameterKind::Const { .. } =
+                    parameter.kind
+                {
+                    applied.push((parameter.symbol, self.written_index(id, &[], *argument)?));
+                }
+            }
+        }
+        let value_type = self.value_type(id, declared)?;
+        let family = self
+            .family_of(value_type)
+            .ok_or_else(|| unserved("evidence of data that is not indexed"))?
+            .clone();
+        let at = self
+            .family_arguments(id, &family, &[], declared)?
+            .into_iter()
+            .map(|term| {
+                let written = match term {
+                    FamilyTerm::Literal(value) => WrittenIndex::Literal(value),
+                    FamilyTerm::Name(binder) => applied
+                        .iter()
+                        .find(|(parameter, _)| *parameter == binder)
+                        .map(|(_, written)| *written)
+                        .ok_or_else(|| {
+                            unserved("evidence in a field at an index its data does not bind")
+                        })?,
+                    FamilyTerm::Index(_) | FamilyTerm::Payload(_) => {
+                        return Err(unserved(
+                            "evidence in a field at an index its data does not bind",
+                        ));
+                    }
+                };
+                match written {
+                    WrittenIndex::Literal(value) => Ok(EvidenceTerm::Literal(value)),
+                    WrittenIndex::Name(symbol) => own
+                        .iter()
+                        .position(|parameter| *parameter == symbol)
+                        .map(|position| EvidenceTerm::Parameter(position as u32))
+                        .ok_or_else(|| {
+                            unserved(
+                                "data holding evidence at a value that is neither a number nor one of the machine's value parameters",
+                            )
+                        }),
+                }
+            })
+            .collect::<Checked<_>>()?;
+        Ok(Some(Applied {
+            record: family.record,
+            at,
+        }))
+    }
+
+    /// The evidence an expression names in a running machine: an erased
+    /// local or formal it holds, or an erased field of evidence of data it
+    /// holds in a formal or a local (`holder.evidence`). `None` when the
+    /// expression names no evidence.
+    fn held_evidence(
+        &mut self,
+        id: MachineId,
+        own: &[SymbolHandle],
+        held: &Held,
+        holders: &Holders,
+        expression: ExpressionHandle,
+    ) -> Checked<Option<Applied>> {
+        let typed = self.typed;
+        match typed.expression_table.expression(expression) {
+            ExpressionNode::Name(path) => Ok(held
+                .iter()
+                .find(|(symbol, ..)| *symbol == path.symbol)
+                .map(|(_, applied)| applied.clone())),
+            ExpressionNode::Member(member) => {
+                let ExpressionNode::Name(path) = typed.expression_table.expression(member.receiver)
+                else {
+                    return Ok(None);
+                };
+                let Some(&(_, holder)) = holders.iter().find(|(symbol, _)| *symbol == path.symbol)
+                else {
+                    return Ok(None);
+                };
+                self.field_evidence(id, own, holder, member.selection.field_symbol())
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /// Checks a literal of data that holds evidence: each erased field of
+    /// evidence is supplied evidence the machine holds, at the index the
+    /// literal's type gives that field.
+    fn evidence_in_literal(
+        &mut self,
+        id: MachineId,
+        own: &[SymbolHandle],
+        literal: ExpressionHandle,
+        held: &Held,
+        holders: &Holders,
+    ) -> Checked<()> {
+        let typed = self.typed;
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let ExpressionNode::StructLiteral(literal) = typed.expression_table.expression(literal)
+        else {
+            return Ok(());
+        };
+        if !literal.application_type.is_valid() {
+            return Err(unserved(
+                "literal of data holding evidence without its type",
+            ));
+        }
+        for field in typed.expression_table.struct_fields(literal.fields) {
+            let Some(expected) =
+                self.field_evidence(id, own, literal.application_type, field.field_symbol)?
+            else {
+                continue;
+            };
+            let passed = self
+                .held_evidence(id, own, held, holders, field.value)?
+                .ok_or_else(|| {
+                    unserved("evidence in a field that is no evidence the machine holds")
+                })?;
+            if passed != expected {
+                return Err(unserved(
+                    "evidence in a field at another index than the field's type takes",
+                ));
+            }
+        }
+        Ok(())
     }
 
     /// The declaration a type reference names when it is a bare name.
@@ -1195,6 +1462,17 @@ struct Applied {
 /// what it is evidence of.
 type Held = Vec<(SymbolHandle, Applied)>;
 
+/// The formals and locals of a machine that hold data with an erased field
+/// of evidence, each with its type as written.
+type Holders = Vec<(SymbolHandle, TypeReferenceHandle)>;
+
+/// An index as a type reference writes it (`written_index`).
+#[derive(Debug, Clone, Copy)]
+enum WrittenIndex {
+    Name(SymbolHandle),
+    Literal(i128),
+}
+
 /// What a call writes for one parameter of what it calls.
 #[derive(Debug, Clone, Copy)]
 enum Written {
@@ -1288,6 +1566,7 @@ impl Program<'_> {
             .collect();
         let own = symbols.as_slice();
         let mut held: Held = Vec::new();
+        let mut holders: Holders = Vec::new();
         let mut constructions = Vec::new();
         let mut found = false;
         for state in typed.machine_states(machine) {
@@ -1296,6 +1575,11 @@ impl Program<'_> {
                 .span(state.parameters)
                 .ok_or_else(|| unserved("machine lost its parameters"))?;
             for formal in formals.iter() {
+                if self.holds_evidence(formal.type_reference) {
+                    found = true;
+                    holders.push((formal.symbol, formal.type_reference));
+                    continue;
+                }
                 if !self.names_indexed_data(formal.type_reference) {
                     continue;
                 }
@@ -1307,8 +1591,14 @@ impl Program<'_> {
                 held.push((formal.symbol, applied));
             }
             for statement in typed.statement_table.statements(state.statement_nodes) {
-                found |=
-                    self.evidence_statement(id, own, statement, &mut held, &mut constructions)?;
+                found |= self.evidence_statement(
+                    id,
+                    own,
+                    statement,
+                    &mut held,
+                    &mut holders,
+                    &mut constructions,
+                )?;
             }
         }
         if !found {
@@ -1510,6 +1800,7 @@ impl Program<'_> {
         own: &[SymbolHandle],
         statement: &StatementNode,
         held: &mut Held,
+        holders: &mut Holders,
         constructions: &mut Vec<Construction>,
     ) -> Checked<bool> {
         let typed = self.typed;
@@ -1522,13 +1813,39 @@ impl Program<'_> {
                 return Err(unserved("indexed data in a local that is not erased"));
             }
             let applied = self.evidence_type(id, own, local.type_reference)?;
-            self.evidence_initializer(id, own, local.initial_value, &applied, held, constructions)?;
+            self.evidence_initializer(
+                id,
+                own,
+                local.initial_value,
+                &applied,
+                held,
+                holders,
+                constructions,
+            )?;
             held.push((local.symbol, applied));
             return Ok(true);
+        }
+        // A local that holds evidence in a field is read like any other
+        // statement, its literal included, and then held.
+        let holder = match statement {
+            StatementNode::LocalData(local) if self.holds_evidence(local.type_reference) => {
+                Some((local.symbol, local.type_reference))
+            }
+            _ => None,
+        };
+        // Evidence has no value: a local of another type cannot hold it.
+        if let StatementNode::LocalData(local) = statement
+            && local.initial_value.is_valid()
+            && self
+                .held_evidence(id, own, held, holders, local.initial_value)?
+                .is_some()
+        {
+            return Err(unserved("evidence held in a local that takes none"));
         }
         // Every call the statement makes, at any depth, and every literal
         // of indexed data written anywhere but in an erased local above.
         let mut calls = Vec::new();
+        let mut literals = Vec::new();
         let mut stray = false;
         match statement {
             StatementNode::Call(call) => calls.push((
@@ -1563,7 +1880,7 @@ impl Program<'_> {
             typed.subtree_for_each(
                 root,
                 crate::source_state::SubtreeEdges::VALUES,
-                |_, node| match node {
+                |handle, node| match node {
                     ExpressionNode::Call(call) => calls.push((
                         call.target_symbol,
                         call.machine_arguments.to_vec(),
@@ -1573,9 +1890,13 @@ impl Program<'_> {
                             .to_vec(),
                     )),
                     ExpressionNode::StructLiteral(literal) => {
-                        stray |= typed
-                            .unique_data_definition_by_symbol(literal.type_symbol)
-                            .is_some_and(|data| self.is_family(data));
+                        let data = typed.unique_data_definition_by_symbol(literal.type_symbol);
+                        stray |= data.is_some_and(|data| self.is_family(data));
+                        if data.is_some_and(|data| {
+                            !self.is_family(data) && self.evidence_fields(data).next().is_some()
+                        }) {
+                            literals.push(handle);
+                        }
                     }
                     _ => {}
                 },
@@ -1586,10 +1907,14 @@ impl Program<'_> {
                 "indexed data built anywhere but in an erased local of the machine's own statements",
             ));
         }
-        let mut found = false;
-        for (target, written, arguments) in calls {
-            found |= self.evidence_call(id, own, target, &written, &arguments, held)?;
+        let mut found = !literals.is_empty() || holder.is_some();
+        for literal in literals {
+            self.evidence_in_literal(id, own, literal, held, holders)?;
         }
+        for (target, written, arguments) in calls {
+            found |= self.evidence_call(id, own, target, &written, &arguments, held, holders)?;
+        }
+        holders.extend(holder);
         Ok(found)
     }
 
@@ -1681,19 +2006,25 @@ impl Program<'_> {
         written: &[crate::source_state::expression::StaticMachineArgument],
         arguments: &[ExpressionHandle],
         held: &Held,
+        holders: &Holders,
     ) -> Checked<bool> {
         let typed = self.typed;
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
-        let names_held = |expression: ExpressionHandle| {
-            matches!(typed.expression_table.expression(expression),
-                ExpressionNode::Name(path) if held.iter().any(|(symbol, ..)| *symbol == path.symbol))
-        };
+        // Which arguments name evidence the machine holds, in any form.
+        let mut naming = Vec::with_capacity(arguments.len());
+        for argument in arguments {
+            naming.push(
+                self.held_evidence(id, own, held, holders, *argument)?
+                    .is_some(),
+            );
+        }
+        let names_any = naming.contains(&true);
         let Some(callee) = self
             .entered_machine(target)
             .and_then(|machine| typed.machine_by_symbol(machine))
         else {
             // Not a machine: nothing here may take evidence.
-            if arguments.iter().any(|argument| names_held(*argument)) {
+            if names_any {
                 return Err(unserved(
                     "evidence passed to something other than a machine",
                 ));
@@ -1711,7 +2042,7 @@ impl Program<'_> {
             .iter()
             .any(|formal| self.names_indexed_data(formal.type_reference));
         if formals.len() != arguments.len() {
-            if takes || arguments.iter().any(|argument| names_held(*argument)) {
+            if takes || names_any {
                 return Err(unserved(
                     "call that takes evidence with another number of arguments",
                 ));
@@ -1719,7 +2050,7 @@ impl Program<'_> {
             return Ok(false);
         }
         if !takes {
-            if arguments.iter().any(|argument| names_held(*argument)) {
+            if names_any {
                 return Err(unserved("evidence passed to a formal that takes none"));
             }
             return Ok(false);
@@ -1746,9 +2077,9 @@ impl Program<'_> {
         } else {
             self.evidence_values(id, own, &kinds, written)?
         };
-        for (formal, &argument) in formals.iter().zip(arguments) {
+        for ((formal, &argument), &names) in formals.iter().zip(arguments).zip(&naming) {
             if !self.names_indexed_data(formal.type_reference) {
-                if names_held(argument) {
+                if names {
                     return Err(unserved("evidence passed to a formal that takes none"));
                 }
                 continue;
@@ -1763,16 +2094,10 @@ impl Program<'_> {
                 Self::applied_at_call(&family, &terms, &kinds, &written).ok_or_else(|| {
                     unserved("formal that takes indexed data at an index this call does not fix")
                 })?;
-            let passed = match typed.expression_table.expression(argument) {
-                ExpressionNode::Name(path) => {
-                    held.iter().find(|(symbol, ..)| *symbol == path.symbol)
-                }
-                _ => None,
-            }
-            .ok_or_else(|| {
-                unserved("evidence passed that is no erased local or formal of the machine")
-            })?;
-            if passed.1 != expected {
+            let passed = self
+                .held_evidence(id, own, held, holders, argument)?
+                .ok_or_else(|| unserved("evidence passed that is no evidence the machine holds"))?;
+            if passed != expected {
                 return Err(unserved(
                     "evidence passed at another index than the formal takes",
                 ));
@@ -1792,6 +2117,7 @@ impl Program<'_> {
         initializer: ExpressionHandle,
         applied: &Applied,
         held: &Held,
+        holders: &Holders,
         constructions: &mut Vec<Construction>,
     ) -> Checked<()> {
         let typed = self.typed;
@@ -1810,16 +2136,16 @@ impl Program<'_> {
             .ok_or_else(|| unserved("evidence of data that is not indexed"))?
             .clone();
         let source = Some(typed.expression_table.source_span(initializer));
+        if let Some(known) = self.held_evidence(id, own, held, holders, initializer)? {
+            if known != *applied {
+                return Err(unserved(
+                    "evidence held at another index than the local declares",
+                ));
+            }
+            return Ok(());
+        }
         let (case, fields) = match typed.expression_table.expression(initializer) {
             ExpressionNode::Name(path) => {
-                if let Some((_, known)) = held.iter().find(|(symbol, ..)| *symbol == path.symbol) {
-                    if known != applied {
-                        return Err(unserved(
-                            "evidence held at another index than the local declares",
-                        ));
-                    }
-                    return Ok(());
-                }
                 // A case with nothing in it is written as its name.
                 let case = family
                     .cases
@@ -1877,16 +2203,12 @@ impl Program<'_> {
                         "definition that hands evidence on applied to other than one value",
                     ));
                 };
-                let passed = match typed.expression_table.expression(*argument) {
-                    ExpressionNode::Name(path) => {
-                        held.iter().find(|(symbol, ..)| *symbol == path.symbol)
-                    }
-                    _ => None,
-                }
-                .ok_or_else(|| {
-                    unserved("evidence passed that is no erased local or formal of the machine")
-                })?;
-                if passed.1 != expected || expected != *applied {
+                let passed = self
+                    .held_evidence(id, own, held, holders, *argument)?
+                    .ok_or_else(|| {
+                        unserved("evidence passed that is no evidence the machine holds")
+                    })?;
+                if passed != expected || expected != *applied {
                     return Err(unserved(
                         "evidence handed on at another index than the local declares",
                     ));
@@ -1965,16 +2287,12 @@ impl Program<'_> {
                 record,
                 at: expected,
             };
-            let passed = match typed.expression_table.expression(expression) {
-                ExpressionNode::Name(path) => {
-                    held.iter().find(|(symbol, ..)| *symbol == path.symbol)
-                }
-                _ => None,
-            }
-            .ok_or_else(|| {
-                unserved("child of a literal that is no erased local or formal of the machine")
-            })?;
-            if passed.1 != expected {
+            let passed = self
+                .held_evidence(id, own, held, holders, expression)?
+                .ok_or_else(|| {
+                    unserved("child of a literal that is no evidence the machine holds")
+                })?;
+            if passed != expected {
                 return Err(unserved(
                     "child of a literal at another index than the case declares for it",
                 ));
