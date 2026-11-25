@@ -693,6 +693,20 @@ fn prepare_generic_forms<'source>(
             )?);
             continue;
         }
+        if let Some(domain) = typed.domain_definition(*template) {
+            let mut program = read::Program::with_captures(typed, true, purpose, captures.clone());
+            program.publication = publication;
+            program.form_domain_predicate(domain)?;
+            forms.push(finish_reading(
+                program,
+                None,
+                IdTable::default(),
+                None,
+                None,
+                None,
+            )?);
+            continue;
+        }
         if let Some(declared) = typed.unique_data_definition_by_symbol(*template) {
             let mut program = read::Program::with_captures(typed, true, purpose, captures.clone());
             program.publication = publication;

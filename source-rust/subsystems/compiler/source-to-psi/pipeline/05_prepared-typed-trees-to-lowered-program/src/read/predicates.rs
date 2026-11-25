@@ -513,6 +513,11 @@ impl<'t> Program<'t> {
         let domain = &self.declared_domains[slot];
         let instance = domain.instance;
         let carrier = domain.carrier;
+        // An entry may use a domain from outside the requested package subjects.
+        // Its concrete predicate cannot establish formation for the whole family.
+        if let Some(declaration) = self.typed.domain_definition(instance.declaration) {
+            self.require_domain_predicate_form(id, declaration);
+        }
         let domains = crate::DomainSet::EMPTY
             .with(instance)
             .ok_or_else(|| {
@@ -733,6 +738,9 @@ impl<'t> Program<'t> {
         };
         self.in_domain_scope(Some(scope), |program| {
             let theory = program.domain_theory(id, instance)?;
+            if program.require_domain_predicate_form(id, definition) {
+                return Ok(());
+            }
             program.declared_predicates(id, theory)
         })
     }
