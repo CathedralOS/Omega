@@ -2055,13 +2055,14 @@ impl DeclarationSelection {
 
     /// A requested computation also needs the declarations its source uses.
     /// Derived reports retain custody but do not request another evaluation.
+    /// `dependencies` must be built from `program` as it is now.
     pub fn from_computation_roots(
         program: &TypedTrees,
+        dependencies: &ComputationDependencyRows,
         roots: impl IntoIterator<Item = SymbolHandle>,
     ) -> Result<Self, &'static str> {
         let key = |symbol: SymbolHandle| (symbol.arena_index(), symbol.generation());
-        let mut rows = collect_computation_symbol_dependencies(program);
-        rows.sort_unstable_by_key(|(symbol, _)| key(*symbol));
+        let rows = dependencies.rows();
         let mut visited = vec![false; rows.len()];
         let mut pending = roots.into_iter().collect::<Vec<_>>();
         let mut declarations = Vec::new();
@@ -2242,16 +2243,32 @@ impl TypedReferences for ComputationDependencies {
     }
 }
 
+/// Each declaration's source computation dependencies in one program, sorted
+/// by declaration. Building the rows visits the whole program, so a caller
+/// that asks several closure questions of one unchanged program builds them
+/// once and passes them to each question.
+///
 /// Actual source computation dependencies omit derived receipt/provenance
 /// ownership edges. Those edges keep source custody alive but do not request
 /// evaluating the owner again.
-pub fn collect_computation_symbol_dependencies(
-    program: &TypedTrees,
-) -> Vec<(SymbolHandle, Vec<SymbolHandle>)> {
-    let mut declarations = ComputationDependencies::default();
-    visit_program(program, &mut declarations);
-    declarations.finish();
-    declarations.rows
+pub struct ComputationDependencyRows {
+    rows: Vec<(SymbolHandle, Vec<SymbolHandle>)>,
+}
+
+impl ComputationDependencyRows {
+    pub fn of(program: &TypedTrees) -> Self {
+        let mut declarations = ComputationDependencies::default();
+        visit_program(program, &mut declarations);
+        declarations.finish();
+        let mut rows = declarations.rows;
+        rows.sort_unstable_by_key(|(symbol, _)| (symbol.arena_index(), symbol.generation()));
+        Self { rows }
+    }
+
+    /// One row per visited declaration, sorted by declaration.
+    pub fn rows(&self) -> &[(SymbolHandle, Vec<SymbolHandle>)] {
+        &self.rows
+    }
 }
 
 /// Prepare one expression's actual referenced family through the same source

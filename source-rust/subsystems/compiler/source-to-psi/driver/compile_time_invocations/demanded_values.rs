@@ -224,12 +224,10 @@ fn settle_in_demand_order(
     if places.is_empty() {
         return Ok(());
     }
-    let mut rows =
-        crate::source_state::references::collect_computation_symbol_dependencies(program);
-    rows.sort_unstable_by_key(|(symbol, _)| key(*symbol));
+    let rows = crate::source_state::references::ComputationDependencyRows::of(program);
     let mut reads = Vec::with_capacity(places.len());
     for &(kind, value) in &places {
-        let reached = reached(program, &rows, kinds[kind].roots(value));
+        let reached = reached(program, rows.rows(), kinds[kind].roots(value));
         kinds[kind].reaches(program, value, &reached);
         reads.push(reached);
     }

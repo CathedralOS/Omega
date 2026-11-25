@@ -1,7 +1,9 @@
 //! Source declarations reached by the entry, bindings and supplies of one compilation.
 
 use crate::source_state::TypedTrees;
-use crate::source_state::references::{DeclarationSelection, conformance_header_dependencies};
+use crate::source_state::references::{
+    ComputationDependencyRows, DeclarationSelection, conformance_header_dependencies,
+};
 use crate::source_state::trait_definition::Supply;
 use checked_program_to_psi as production;
 use symbols::SymbolHandle;
@@ -50,16 +52,21 @@ pub(crate) fn demanded_declarations(
         pending.extend(scope.entry_declarations.iter().copied());
         supplies.extend(scope.selected_supplies());
     }
-    from_supplied_roots(program, pending, supplies).map_err(str::to_owned)
+    let dependencies = ComputationDependencyRows::of(program);
+    from_supplied_roots(program, &dependencies, pending, supplies).map_err(str::to_owned)
 }
 
 impl super::FixedLayoutTargetScope {
+    /// `dependencies` must be built from `program` as it is now; one
+    /// inventory serves every scope of an unchanged program.
     pub(super) fn demanded_declarations(
         &self,
         program: &TypedTrees,
+        dependencies: &ComputationDependencyRows,
     ) -> Result<DeclarationSelection, &'static str> {
         from_supplied_roots(
             program,
+            dependencies,
             self.entry_declarations.clone(),
             self.selected_supplies(),
         )
@@ -77,6 +84,7 @@ impl super::FixedLayoutTargetScope {
 /// An independent request for the entire provider still reaches every member.
 fn from_supplied_roots(
     program: &TypedTrees,
+    dependencies: &ComputationDependencyRows,
     mut roots: Vec<SymbolHandle>,
     supplies: impl IntoIterator<Item = Supply>,
 ) -> Result<DeclarationSelection, &'static str> {
@@ -102,7 +110,7 @@ fn from_supplied_roots(
             }
         }
     }
-    let mut selected = DeclarationSelection::from_computation_roots(program, roots)?;
+    let mut selected = DeclarationSelection::from_computation_roots(program, dependencies, roots)?;
     for header in headers {
         // Const arguments and layout occurrences belong to this header. Following
         // its ordinary declaration edges would also request every member body.
