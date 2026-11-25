@@ -77,10 +77,3 @@ The default build has neither service. The [network reach rules](wiki/spec/build
 Generators run in an earlier stage and hand files to the next Build through its supplied filesystem. Local helpers already use ordinary file imports. What concrete Build needs a separately supplied library to execute its own code? For that case, what should the root invoker write, and how should a parent bind an alias for just one child?
 
 The current spec assigns bindings to the invoker or parent before the Build starts. Package installation names an alias but does not specify these per-invocation inputs. [Dependency declarations and binding](wiki/spec/build/scoped_execution.md#dependency-declarations-and-binding) · [Command vocabulary](wiki/spec/build/command_line.md#command-vocabulary)
-
-<a id="release-tool-entry-reach"></a>
-### 3. What checked reach information should a release tool be able to query for one entry point?
-
-Suppose a release tool builds API, Auth and Ledger independently. It knows which providers, replicas and endpoints it will install. To check whether API can reach Ledger while bypassing Auth, it also needs to know which outgoing operations each entry can invoke in that exact build. A component-wide inventory could attribute a maintenance operation to a public request handler.
-
-Would a read-only, in-memory query over the checked product suffice? Which effects of callbacks, replaceable providers and opaque code can the compiler account for per entry, and how should it report incomplete coverage? For a network call or raw NIC, what evidence from the transport and installer would let the tool narrow possible destinations? The release project owns the route policy and actual bindings. [Service reach](wiki/spec/language/effects.md#declarations) · [Verified component descriptions](wiki/spec/build/component_publication.md#verified-component-descriptions) · [Independent releases](wiki/spec/build/declarations.md#releases-with-independent-products)

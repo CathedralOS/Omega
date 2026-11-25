@@ -461,6 +461,8 @@ The release application asks each checked build which outgoing operations its en
 
 Of course, the guarantee depends on what each service can actually reach. If the API receives an unrestricted socket that can connect to My Account, the release application cannot rule out a bypass. If the installed transport confines the API to its declared peers, the check can use that guarantee.
 
+[Querying outgoing operations from a checked entry](wiki/spec/build/declarations.md#outgoing-operations-from-a-checked-entry)
+
 ## Omega's big bets
 
 | The bet | How Omega helps |
