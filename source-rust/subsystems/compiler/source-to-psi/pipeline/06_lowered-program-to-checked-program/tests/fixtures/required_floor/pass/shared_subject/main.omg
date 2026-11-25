@@ -1,0 +1,10 @@
+// A disjunction that shares the goal's subject is split. `10 <= x` holds in
+// both arms because each contradicts the bounds on `x`
+// (`wiki/spec/proofs/contracts.md`, "Case splits").
+machine narrow(x: u64, y: u64) -> u64
+requires (x < 3u64 || x > 5u64) && x >= 3u64 && x <= 5u64
+{
+    x - 10u64
+}
+
+machine main() {}

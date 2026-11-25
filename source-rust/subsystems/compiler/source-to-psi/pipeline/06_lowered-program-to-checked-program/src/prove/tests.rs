@@ -800,7 +800,10 @@ fn failed_opposite_searches_leave_candidate_fact_proofs_unbuilt() {
         let before = prover.activity.refutation_fact_nodes;
         assert!(prover.prove(&Proposition::Falsehood).is_err());
         constructed.push(prover.activity.refutation_fact_nodes - before);
-        assert_eq!(prover.remaining_case_branches, CASE_BRANCH_BUDGET);
+        assert_eq!(
+            prover.remaining_case_combinations,
+            CASE_COMBINATION_BUDGET - 1
+        );
     }
     // Check every refusal before comparing the candidate trees. Proofs
     // constructed inside the opposite search are separate work.
@@ -1210,7 +1213,10 @@ fn scalar_counterexamples_check_every_premise_and_semantic_axiom() {
     let mut prover = Prover::new(&context, &assumptions, &[], &values, &mut activity);
     assert!(prover.has_scalar_counterexample(&Proposition::Falsehood));
     assert!(prover.prove(&Proposition::Falsehood).is_err());
-    assert_eq!(prover.remaining_case_branches, CASE_BRANCH_BUDGET);
+    assert_eq!(
+        prover.remaining_case_combinations,
+        CASE_COMBINATION_BUDGET - 1
+    );
 
     let conflicting = [Proposition::Equal(input, literal(3))];
     let mut prover = Prover::new(&context, &assumptions, &conflicting, &values, &mut activity);
@@ -1290,7 +1296,10 @@ fn a_taken_equality_can_supply_a_counterexample_between_both_extrema() {
         let proof = prover.prove(&Proposition::Falsehood);
         if consistent {
             assert!(proof.is_err());
-            assert_eq!(prover.remaining_case_branches, CASE_BRANCH_BUDGET);
+            assert_eq!(
+                prover.remaining_case_combinations,
+                CASE_COMBINATION_BUDGET - 1
+            );
         } else {
             proof_admission::accept_certificate(
                 &context,
@@ -1350,7 +1359,10 @@ fn a_counterexample_chooses_one_case_of_each_sum() {
     let mut prover = Prover::new(&context, &possible, &[], &values, &mut activity);
     assert!(prover.has_scalar_counterexample(&Proposition::Falsehood));
     assert!(prover.prove(&Proposition::Falsehood).is_err());
-    assert_eq!(prover.remaining_case_branches, CASE_BRANCH_BUDGET);
+    assert_eq!(
+        prover.remaining_case_combinations,
+        CASE_COMBINATION_BUDGET - 1
+    );
 
     let mut impossible = names;
     impossible.extend((1..=3).map(|raw| holds(raw, false)));
@@ -1467,6 +1479,7 @@ fn each_case_branch_allocates_rows_only_for_the_values_it_names() {
     let id = values.identity_at(NAMESPACE - 1).unwrap();
     let input = ScalarTerm::value(id, scalar_type);
     let literal = |n| ScalarTerm::integer(integer, IntegerValue::Unsigned(n)).unwrap();
+    let goal = Proposition::LessOrEqual(input.clone(), literal(255));
     let cut = Proposition::Disjunction(vec![
         Proposition::LessThan(input.clone(), literal(10)),
         Proposition::LessOrEqual(literal(20), input),
@@ -1475,10 +1488,9 @@ fn each_case_branch_allocates_rows_only_for_the_values_it_names() {
     let assumptions = [cut];
     let mut activity = ProofSearchActivity::default();
     let mut prover = Prover::new(&context, &assumptions, &[], &values, &mut activity);
-    prover.remaining_case_branches = 2;
-    let proof = prover.split(&Proposition::Truth).unwrap();
-    proof_admission::accept_certificate(&context, &Proposition::Truth, &assumptions, &[], &proof)
-        .unwrap();
+    prover.remaining_case_combinations = 1;
+    let proof = prover.split(&goal).unwrap();
+    proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof).unwrap();
     assert_eq!(prover.activity.started, 3, "the root and both branches");
     assert!(
         prover.activity.value_rows <= 3 * 4,
@@ -1500,6 +1512,7 @@ fn case_search_does_not_materialize_exhausted_or_active_cuts() {
     });
     let input = ScalarTerm::value(id, scalar_type);
     let literal = |n| ScalarTerm::integer(integer, IntegerValue::Unsigned(n)).unwrap();
+    let goal = Proposition::LessOrEqual(input.clone(), literal(255));
     let cut = Proposition::Disjunction(vec![
         Proposition::LessThan(input.clone(), literal(10)),
         Proposition::LessOrEqual(literal(20), input),
@@ -1508,18 +1521,18 @@ fn case_search_does_not_materialize_exhausted_or_active_cuts() {
     let assumptions = [cut.clone()];
     let mut activity = ProofSearchActivity::default();
     let mut prover = Prover::new(&context, &assumptions, &[], &values, &mut activity);
-    prover.remaining_case_branches = 2;
-    let proof = prover.split(&Proposition::Truth).unwrap();
-    assert_eq!(prover.remaining_case_branches, 0);
-    proof_admission::accept_certificate(&context, &Proposition::Truth, &assumptions, &[], &proof)
-        .unwrap();
+    prover.remaining_case_combinations = 1;
+    let proof = prover.split(&goal).unwrap();
+    assert_eq!(prover.remaining_case_combinations, 0);
+    proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof).unwrap();
     assert_eq!(prover.activity.disjunction_materializations, 1);
     assert_eq!(prover.activity.started, 3);
 
     let mut activity = ProofSearchActivity::default();
     let mut exhausted = Prover::new(&context, &assumptions, &[], &values, &mut activity);
-    exhausted.remaining_case_branches = 0;
-    assert!(exhausted.split(&Proposition::Truth).is_none());
+    exhausted.remaining_case_combinations = 0;
+    assert!(exhausted.split(&goal).is_none());
+    assert!(exhausted.case_combinations_exhausted);
     assert_eq!(exhausted.activity.disjunction_materializations, 0);
     assert_eq!(exhausted.activity.started, 1);
 
@@ -1529,7 +1542,7 @@ fn case_search_does_not_materialize_exhausted_or_active_cuts() {
         proposition: cut.clone(),
         origin: None,
     });
-    assert!(active.split(&Proposition::Truth).is_none());
+    assert!(active.split(&goal).is_none());
     assert_eq!(active.activity.disjunction_materializations, 0);
     assert_eq!(active.activity.started, 1);
     let unknown = Proposition::Equal(ScalarTerm::value(id, scalar_type), literal(7));
@@ -1540,15 +1553,25 @@ fn case_search_does_not_materialize_exhausted_or_active_cuts() {
             .is_ok()
     );
     assert!(matches!(active.active_cuts.as_slice(), [only] if only.proposition == cut));
-    assert_eq!(active.remaining_case_branches, CASE_BRANCH_BUDGET);
+    assert_eq!(
+        active.remaining_case_combinations,
+        CASE_COMBINATION_BUDGET - 1
+    );
 
     let mut activity = ProofSearchActivity::default();
     let mut failed = Prover::new(&context, &assumptions, &[], &values, &mut activity);
     assert!(failed.split(&unknown).is_none());
     assert!(failed.active_cuts.is_empty());
-    failed.remaining_case_branches = 1;
+    // A failed cut gives back what it took: only a certificate's case tree
+    // spends combinations.
+    assert_eq!(
+        failed.remaining_case_combinations,
+        CASE_COMBINATION_BUDGET - 1
+    );
+    failed.remaining_case_combinations = 1;
     assert!(failed.split(&unknown).is_none());
-    assert_eq!(failed.remaining_case_branches, 0);
+    assert_eq!(failed.remaining_case_combinations, 1);
+    assert!(!failed.case_combinations_exhausted);
     assert!(failed.active_cuts.is_empty());
     assert_eq!(failed.activity.disjunction_materializations, 0);
 
@@ -1588,8 +1611,12 @@ fn case_search_does_not_materialize_exhausted_or_active_cuts() {
         proposition: wrapped,
         origin: original.disjunction_origin(&active.facts),
     });
-    assert!(active.split(&Proposition::Truth).is_none());
-    assert_eq!(active.remaining_case_branches, CASE_BRANCH_BUDGET);
+    let goal = Proposition::LessOrEqual(ScalarTerm::value(id, scalar_type), literal(255));
+    assert!(active.split(&goal).is_none());
+    assert_eq!(
+        active.remaining_case_combinations,
+        CASE_COMBINATION_BUDGET - 1
+    );
     assert_eq!(active.activity.disjunction_materializations, 0);
 }
 
@@ -2745,7 +2772,10 @@ fn refutation_without_a_closed_endpoint_skips_bound_work() {
             .is_none()
     );
     let copied_for_refutation = prover.activity.bound_certificate_copies;
-    assert_eq!(prover.remaining_case_branches, CASE_BRANCH_BUDGET);
+    assert_eq!(
+        prover.remaining_case_combinations,
+        CASE_COMBINATION_BUDGET - 1
+    );
     assert!(prover.prove(&Proposition::Falsehood).is_err());
     assert_eq!(copied_for_refutation, 0);
 }
@@ -2969,4 +2999,80 @@ fn discarded_compound_orders_preserve_queries_without_materializing_facts() {
             );
         }
     }
+}
+
+/// `x == top` under `1 <= x <= top` and `x != k` for every `k` below `top`:
+/// each disequality is a cut whose low arm contradicts the previous one, so
+/// the case tree has `top` leaves. Ten disequalities over an unrelated `y`
+/// come first; they share no subject with the goal and are never split.
+fn disequality_chain(
+    top: u128,
+) -> (
+    PropositionContext,
+    IdTable<ValueId, ValueRow>,
+    Vec<Proposition>,
+    Proposition,
+) {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let mut parameter = |position| {
+        values.push(ValueRow {
+            scalar_type,
+            origin: ValueOrigin::MachineParameter { position },
+            rigid: None,
+        })
+    };
+    let (x, y) = (parameter(0), parameter(1));
+    let literal = |n| ScalarTerm::integer(integer, IntegerValue::Unsigned(n)).unwrap();
+    let x = ScalarTerm::value(x, scalar_type);
+    let y = ScalarTerm::value(y, scalar_type);
+    let unequal = |subject: &ScalarTerm, k| {
+        Proposition::Disjunction(vec![
+            Proposition::LessThan(subject.clone(), literal(k)),
+            Proposition::LessThan(literal(k), subject.clone()),
+        ])
+    };
+    let mut assumptions: Vec<_> = (1..=10).map(|k| unequal(&y, k)).collect();
+    assumptions.push(Proposition::LessOrEqual(literal(1), x.clone()));
+    assumptions.push(Proposition::LessOrEqual(x.clone(), literal(top)));
+    assumptions.extend((1..top).map(|k| unequal(&x, k)));
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let goal = Proposition::Equal(x, literal(top));
+    (context, values, assumptions, goal)
+}
+
+// `wiki/spec/proofs/contracts.md`, "Case splits": "for up to 64 arm
+// combinations per obligation", over the disjunctions "whose atoms share a
+// subject with the goal". The old search charged each visited alternative,
+// including those of unrelated and failed cuts, and gave up long before.
+#[test]
+fn sixty_four_goal_relevant_combinations_prove_beside_unrelated_disjunctions() {
+    let (context, values, assumptions, goal) = disequality_chain(64);
+    let mut activity = ProofSearchActivity::default();
+    let mut prover = Prover::new(&context, &assumptions, &[], &values, &mut activity);
+    let proof = prover.prove(&goal).unwrap();
+    assert_eq!(prover.remaining_case_combinations, 0);
+    assert!(!prover.case_combinations_exhausted);
+    assert_eq!(prover.activity.disjunction_materializations, 63);
+    proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof).unwrap();
+}
+
+#[test]
+fn a_sixty_fifth_combination_is_reported_as_exhausted_search() {
+    let (context, values, assumptions, goal) = disequality_chain(65);
+    let mut activity = ProofSearchActivity::default();
+    let mut prover = Prover::new(&context, &assumptions, &[], &values, &mut activity);
+    assert_eq!(
+        prover.prove(&goal).unwrap_err(),
+        "the bounded disjunction search was exhausted"
+    );
+    assert!(prover.case_combinations_exhausted);
+    // The failed tree gave its combinations back.
+    assert_eq!(
+        prover.remaining_case_combinations,
+        CASE_COMBINATION_BUDGET - 1
+    );
 }
