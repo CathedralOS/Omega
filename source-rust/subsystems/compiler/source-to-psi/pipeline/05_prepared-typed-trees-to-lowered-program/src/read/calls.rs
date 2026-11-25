@@ -4218,9 +4218,10 @@ impl<'t> Program<'t> {
 /// A shared loan only forbids changing the lent storage (ownership.md,
 /// "Borrows and aliases": "Shared loans may duplicate or reborrow, while
 /// exclusive loans must not overlap incompatibly"). A read beside it is
-/// harmless. A mutable loan conflicts with any use of overlapping storage,
-/// and so does a whole non-scalar slot that is not a shared reference,
-/// because using it moves or reborrows its value.
+/// harmless, and so is a nested call's shared loan of the same storage
+/// (`f(g(@a), @a)`). A mutable loan conflicts with any use of overlapping
+/// storage, and so does a whole non-scalar slot that is not a shared
+/// reference, because using it moves or reborrows its value.
 ///
 /// A place that holds a byte view lends none of its binding's storage: the
 /// callee is given the view, whose bytes are elsewhere. lifetimes.md: "The
@@ -4386,10 +4387,14 @@ impl Touches<'_> {
     /// A place touches the storage its path names; its new selectors and
     /// any root that is not a slot are evaluated expressions. A saved
     /// subject still uses its captured backing, but not its old selector.
+    /// `lent_shared` marks a place a nested call borrows shared
+    /// (`f(g(@items), @items)`): that loan reborrows the storage and moves
+    /// no value, so it conflicts only with a mutable loan.
     fn place<'a>(
         &self,
         place: &'a Expression,
         changes: bool,
+        lent_shared: bool,
         captures: &mut SavedSubjects<'a>,
     ) -> Checked<bool> {
         let mut root = place;
@@ -4418,8 +4423,9 @@ impl Touches<'_> {
             return Ok(false);
         };
         // Using a whole slot moves or reborrows its value unless it is a
-        // scalar copy or a shared reference.
-        let whole = matches!(place.kind, ExpressionKind::Slot(_))
+        // scalar copy, a shared reference or lent shared.
+        let whole = !lent_shared
+            && matches!(place.kind, ExpressionKind::Slot(_))
             && place.result.and_then(ValueType::scalar).is_none()
             && !(self.shared_reference)(slot);
         Ok(self.conflicts(slot, &path, changes || whole))
@@ -4447,7 +4453,7 @@ impl Touches<'_> {
             | ExpressionKind::Payload { .. }
             | ExpressionKind::Index { .. }
             | ExpressionKind::ByteElement { .. }
-            | ExpressionKind::Referent(_) => self.place(expression, changes, captures),
+            | ExpressionKind::Referent(_) => self.place(expression, changes, false, captures),
             ExpressionKind::Integer(_)
             | ExpressionKind::Float(_)
             | ExpressionKind::ErasedApplication(_)
@@ -4469,6 +4475,11 @@ impl Touches<'_> {
             | ExpressionKind::IsCase {
                 subject: operand, ..
             } => self.expression(operand, changes, captures),
+            ExpressionKind::Borrow { place, access, .. }
+                if !changes && *access == ReferenceAccess::Shared =>
+            {
+                self.place(place, false, true, captures)
+            }
             ExpressionKind::Borrow { place, access, .. } => self.expression(
                 place,
                 changes || *access != ReferenceAccess::Shared,
@@ -4978,5 +4989,31 @@ mod tests {
         // an owned record passed whole moves the lent storage.
         assert!(check(&[root(), shared()], true).is_ok());
         assert!(check(&[root(), shared()], false).is_err());
+        // A nested call's loan of the owned record: shared reborrows and
+        // moves nothing, mutable may change the lent storage.
+        let nested = |access| Expression {
+            call_context: None,
+            kind: ExpressionKind::Call {
+                callee: CallTarget::Machine(id),
+                required_contract: None,
+                static_reach_binding: None,
+                static_reach_arguments: Vec::new(),
+                proof_arguments: Vec::new(),
+                arguments: vec![borrow(access, root())],
+                designated: None,
+            },
+            result: Some(scalar),
+            source,
+        };
+        // `f(g(@fs), @fs.buffer)` against `f(g(@mutable fs), @fs.buffer)`.
+        assert!(check(&[nested(ReferenceAccess::Shared), shared()], false).is_ok());
+        let refused = check(&[nested(ReferenceAccess::Mutable), shared()], false).unwrap_err();
+        assert!(
+            refused
+                .detail
+                .contains("argument that names storage another argument lends")
+        );
+        // `f(g(@fs), @mutable fs.buffer)`: a mutable loan forbids the read.
+        assert!(check(&[nested(ReferenceAccess::Shared), mutable()], false).is_err());
     }
 }
