@@ -39,7 +39,7 @@ authority. Source checking derives proofs and reachable authority from selected
 code; a cached analysis is not an admission certificate. Preserve normalized
 policy sufficient to explain changes without the old checkout, not only opaque
 hashes. The lock uses versioned,
-deterministic LF text; [its codec](../../../omega-rust/omega/packages/package-manager/src/lock/README.md)
+deterministic LF text; [its codec](../../../source-rust/subsystems/package-manager/lockfile/README.md)
 owns the physical format.
 
 ## Ordinary compilation
@@ -309,6 +309,6 @@ transaction is recoverable rather than two simultaneously visible renames:
 recover pending intent before reading accepted state, stop on unrelated edits,
 and never delete pending publication state as disposable cache. Exact command
 and interruption behavior belongs to the
-[command](../../../omega-rust/omega/packages/package-manager/README.md#install-and-update)
-and [publication](../../../omega-rust/omega/packages/package-manager/src/operations/publication/README.md)
+[command](../../../source-rust/subsystems/package-manager/README.md#install-and-update)
+and [publication](../../../source-rust/subsystems/package-manager/lockfile/publication/README.md)
 owners.

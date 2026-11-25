@@ -8,7 +8,7 @@ write it. Each chapter is short and starts from code.
 The [specification](../README.md) has the complete rules; every chapter links
 to the part it summarizes. The guide describes the language as designed. What
 the compiler supports today is tracked in the
-[implementation notes](../../omega-rust/README.md) and [TASKS.md](../../TASKS.md).
+[implementation notes](../../source-rust/README.md) and [TASKS.md](../../TASKS.md).
 
 ## Start here
 

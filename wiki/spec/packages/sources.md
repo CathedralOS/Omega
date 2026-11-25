@@ -152,5 +152,5 @@ source restricts source diagnostics, not comparison with the accepted baseline.
 
 Offline policy changes acquisition, not compilation, scoped build outputs,
 project decisions, or publication recovery; it is not runtime containment.
-The [resolution owner](../../../omega-rust/omega/packages/package-manager/src/resolution/README.md)
+The [resolution owner](../../../source-rust/subsystems/package-manager/dependencies/README.md)
 maps these rules to pin and acquisition APIs.

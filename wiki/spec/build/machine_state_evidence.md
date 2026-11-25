@@ -43,7 +43,7 @@ of any digest recording its result.
 Backend regression tests check observable behavior or format rules against an
 independent expectation. For example, a static Linux arm64 image must place
 its load segments so a kernel with 64 KiB pages can map them separately.
-The [ELF regression test](../../../omega-rust/omega/compilation/backend/images/image-elf/src/static_executable.rs#L332)
+The [ELF regression test](../../../source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-elf/src/static_executable.rs#L332)
 checks the emitted headers even on a host with smaller pages.
 CI runs such regressions through the backend test suite. Keep a more elaborate
 test helper only when it catches a specific defect a simpler assertion or

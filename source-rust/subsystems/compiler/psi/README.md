@@ -17,3 +17,16 @@
 | `layouts` | [Target layout applications and native layouts](layouts/declarations.rs) |
 
 [Source publication](../source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs) produces a program after source checking. [Psi artifacts](artifact/) define its canonical encoding, publication metadata and receiving trust decision. The [shared semantics](semantics/) give operations their meaning. The [execution inputs](execution-inputs/) bind the program's declarations to a particular target and supplied resources.
+
+## Changes to Psi
+
+Implementers choose the representation, operations, encoding and reconstruction
+needed for accepted Omega behavior. Human design review takes place when the
+owner requests it. Carry a change through its versioned schema, producers,
+consumers and the program that exercises it. Keep source behavior, trust
+guarantees and the boundary between Psi and native compilation intact.
+
+Compiler checking and rejection tests continue at the documented
+[verification boundaries](../README.md#verification-placement). Profiling and
+reducing compile costs also fall within implementation work. Record unresolved
+language or trust decisions in [owner questions](../../../../OWNER_QUESTIONS.md).

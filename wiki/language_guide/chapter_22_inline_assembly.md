@@ -112,6 +112,6 @@ instruction the interpreter has no meaning for cannot run there.
 
 [Chapter 23](chapter_23_testing.md) covers testing. The supported
 instructions are in the
-[instruction catalog](../../omega-rust/psi/foundation/language-core/inline_assembly.md),
+[instruction catalog](../../source-rust/subsystems/compiler/foundation/language-core/inline_assembly.md),
 and the complete rules, including interrupts and mode switches, are in
 [assembly](../spec/language/assembly.md).

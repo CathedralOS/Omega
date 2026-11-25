@@ -187,8 +187,8 @@ measure a reference descriptor or create access authority. Its runtime and
 interpretation obligations are specified under
 [location alignment](../language/counts_and_addresses.md#location-alignment).
 
-The Rust reference's supported query flow and retained arithmetic obligations
-are documented under [runtime layout observations](../../../omega-rust/psi/compilation/build-time-evaluation/layouts.md#runtime-layout-observations).
+The Rust compiler’s [layout query tests](../../../source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/tests/layout_queries.rs#L274)
+follow selected sizes and alignments through calls and check the bounds on their arithmetic.
 
 ## Placement vocabulary
 
