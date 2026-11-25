@@ -1248,13 +1248,14 @@ fn a_user_record_named_dependency_registration_keeps_its_own_fields() {
     let target = target.target_name();
     let build = format!(
         r#"use counts.omg as counts;
+use support/support.omg as issued;
 data DependencyRegistration [copy] {{ mark: u32; }}
 machine build(builder: @mutable Build) suspends {{
     Build::application(builder, "staged");
     let mutable request: DependencyDescription = dependency\from_source(Source::Path {{ location: "dep" }});
     dependency\with_alias(@mutable request, "kit");
     let shadow: DependencyRegistration = DependencyRegistration {{ mark: 7u32 }};
-    let real = Build::dependency(builder, request);
+    let real: |issued|::IssuedRegistration = Build::dependency(builder, request);
     suspend Build::prepare_dependency(builder, real);
     builder.tests.disabled = shadow.mark == 7u32;
     let seven: i32 = |counts|::value();
@@ -1266,11 +1267,12 @@ machine build(builder: @mutable Build) suspends {{
 }}
 "#
     );
-    let (ran, report) = check_project(
+    let (ran, report) = check_project_with_support(
         "same-spelled-user-record",
         &build,
         7,
         "",
+        Some("public data IssuedRegistration = DependencyRegistration;"),
         &["--check", "main.omg"],
     );
     assert!(ran, "{report}");
