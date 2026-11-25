@@ -20,7 +20,8 @@
 use semantic_vocabulary::MachineId;
 use std::sync::OnceLock;
 use terminal_psi::{
-    OperationKind, TerminalAffineCleanupAction, TerminalMachine, TerminalModule, Terminator,
+    ExternalReach, OperationKind, TerminalAffineCleanupAction, TerminalMachine, TerminalModule,
+    Terminator,
 };
 
 /// What running one operation or terminator can reach.
@@ -35,32 +36,25 @@ pub(super) enum Reach {
 }
 
 pub(super) fn operation(kind: &OperationKind) -> Reach {
-    if let Some(callee) = kind.direct_callee() {
-        return Reach::Calls(callee);
-    }
-    match kind {
-        // The instruction services are the ones
-        // `UnoptimizedMachineBehavior::capture` classifies; every register
-        // access touches machine state outside the program's storage.
-        OperationKind::BoundaryCall { .. }
-        | OperationKind::CallMachine { .. }
-        | OperationKind::CallDynamic { .. }
-        | OperationKind::ActivateTaskRegister { .. }
-        | OperationKind::ReadTaskRegister { .. }
-        | OperationKind::ReloadSegmentDescriptors { .. }
-        | OperationKind::ReadSegmentSelector { .. }
-        | OperationKind::GlobalDescriptorTable { .. }
-        | OperationKind::PortWrite { .. }
-        | OperationKind::RegisterAccess { .. } => Reach::Fenced,
-        _ => Reach::Plain,
-    }
+    reach(kind.external_reach())
 }
 
 pub(super) fn terminator(terminator: &Terminator) -> Reach {
-    match terminator {
-        Terminator::InvokeNoNormal { callee, .. } => Reach::Calls(*callee),
-        Terminator::ExternalCompletion { .. } => Reach::Fenced,
-        _ => Reach::Plain,
+    reach(terminator.external_reach().map(|(_, reach)| reach))
+}
+
+/// Every reach the shared classifier names other than a module machine is
+/// fenced, including a register access that names no service: it still
+/// touches machine state outside the program's storage.
+fn reach(reach: Option<ExternalReach>) -> Reach {
+    match reach {
+        None => Reach::Plain,
+        Some(ExternalReach::Machine(callee)) => Reach::Calls(callee),
+        Some(
+            ExternalReach::Boundary(_)
+            | ExternalReach::InstructionService(_)
+            | ExternalReach::ComputedCall,
+        ) => Reach::Fenced,
     }
 }
 

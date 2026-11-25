@@ -71,7 +71,7 @@ pub use crate::machines::direct_calls::{
 pub use crate::machines::generic_calls;
 pub use crate::machines::{
     AtomicAccessEvent, AtomicReadModifyWrite, Block, CallableInvocation, CallableInvocationInputs,
-    CrashCause, ElementViewRegion, FenceOrdering, FloatResultPolicy, MemoryOrdering,
+    CrashCause, ElementViewRegion, ExternalReach, FenceOrdering, FloatResultPolicy, MemoryOrdering,
     ModuleInvocation, ModuleInvocationInputs, Operation, OperationKind, OperationResult,
     RecordFieldInitializer, RecordFieldValue, ReferenceStorageView, RegisterAccessEvent,
     ScalarCaseField, StorageLocationQuery, StructuralCaseSuccessorEdge, StructuralOperationResult,

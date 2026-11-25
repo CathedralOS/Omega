@@ -626,6 +626,231 @@ fn a_window_through_a_local_reference_fences_the_same_calls() {
     rejected(&program("helper();", store), FENCED_CALL);
 }
 
+/// `bump` moves `holder.inner` into `step` and stores the result back, so
+/// the call runs with the field vacant.
+fn bump(step: &str) -> String {
+    format!(
+        "{CLOCK}machine step(inner: Inner) -> Inner {step}\n\
+         machine bump(holder: @mutable Holder) {{\n    holder.inner = step(holder.inner);\n}}\n"
+    )
+}
+
+/// ownership.md: calls "may consume the detached value ... only when their
+/// complete access and outcome contracts cannot expose the incomplete
+/// owner". A `step` that reaches nothing may take the detached value and
+/// return its replacement; the twin's `step` reaches the `Clock` service.
+#[test]
+fn a_quiet_call_may_consume_the_detached_value_and_return_its_replacement() {
+    accepted(&bump("{ inner }"));
+    rejected(&bump("reaches Clock { Clock::tick(); inner }"), FENCED_CALL);
+}
+
+const HALT: &str = "public data Empty requires false {}\n\
+                    public machine halt() -> Empty reaches Clock crashes Trap { Clock::tick(); crash Trap; }\n\
+                    machine stop() -> Empty crashes Trap { crash Trap; }\n";
+
+/// A call to a machine whose result is empty never returns, so it ends its
+/// block as an `InvokeNoNormal` terminator rather than a call operation. It
+/// is fenced the same way: `halt` reaches the `Clock` service and waits for
+/// the store, while `stop` reaches nothing and may run before it.
+#[test]
+fn a_call_that_never_returns_is_fenced_by_what_it_reaches() {
+    let program = |first: &str, second: &str| {
+        format!(
+            "{CLOCK}{HALT}machine swap(holder: @mutable Holder, next: Inner) -> Inner crashes Trap {{\n    \
+             let taken: Inner = holder.inner;\n    {first}\n    {second}\n    taken\n}}\n"
+        )
+    };
+    let store = "holder.inner = next;";
+    accepted(&program(store, "let stopped: Empty = halt();"));
+    rejected(&program("let stopped: Empty = halt();", store), FENCED_CALL);
+    accepted(&program("let stopped: Empty = stop();", store));
+}
+
+fn accepted_elaboration(body: &str) -> terminal_check_tables::program::Elaboration {
+    match super::entryless::judged(&format!("{DATA}{body}"), false) {
+        RouteVerdict::Accepted(accepted) => accepted.elaboration,
+        other => panic!("{other:?}: {body}"),
+    }
+}
+
+fn machine_named(
+    elaboration: &terminal_check_tables::program::Elaboration,
+    name: &str,
+) -> MachineId {
+    elaboration
+        .module
+        .machines
+        .iter()
+        .map(|machine| machine.id)
+        .find(|id| {
+            elaboration
+                .names
+                .get(*id)
+                .is_some_and(|names| names.machine == name)
+        })
+        .unwrap_or_else(|| panic!("no machine `{name}`"))
+}
+
+/// Adds `kind` to the end of `machine`'s first block. Source cannot spell a
+/// port write in an ordinary helper or a computed call to an unknown
+/// machine value, so these tests add one to an accepted module.
+fn append(module: &mut terminal_psi::TerminalModule, machine: MachineId, kind: OperationKind) {
+    let machine = module
+        .machines
+        .iter_mut()
+        .find(|row| row.id == machine)
+        .unwrap();
+    let next = machine
+        .operations()
+        .map(|operation| operation.id.get())
+        .max()
+        .unwrap_or(0)
+        + 1;
+    machine.blocks[0]
+        .operations
+        .push(terminal_psi::Operation::unsuspended(
+            semantic_vocabulary::OperationId::new(next).unwrap(),
+            terminal_psi::OperationResult::Unit,
+            kind,
+        ));
+}
+
+/// The sites where the module-aware walk of `machine` fences a call.
+fn fenced_sites(
+    module: &terminal_psi::TerminalModule,
+    machine: MachineId,
+) -> Vec<terminal_semantics::plain_affine::Site> {
+    terminal_semantics::plain_affine::verify_in(module, machine)
+        .expect("the accepted walk still completes")
+        .unavailable
+        .into_iter()
+        .filter(|row| row.reason == terminal_semantics::plain_affine::UnavailableReason::FencedCall)
+        .map(|row| row.site)
+        .collect()
+}
+
+const TICKET: &str = "data Ticket dropped by stamp { id: u32; }\n\
+                      machine stamp(ticket: Ticket) { let { id } = move ticket; }\n\
+                      machine make() -> Ticket { Ticket { id: 1u32 } }\n";
+
+/// A discarded `Ticket` is disposed by an owned cleanup call to `stamp` on
+/// the edge after the discard. Source refuses an automatic cleanup that
+/// reaches a service, so the test gives `stamp` a port write, an
+/// instruction service. The walk must then fence the cleanup edge that runs
+/// inside the window, and not the one that runs after the store.
+#[test]
+fn owned_cleanup_on_an_edge_is_fenced_by_what_its_cleanup_machine_reaches() {
+    let program = |first: &str, second: &str| {
+        format!(
+            "{CLOCK}{TICKET}machine swap(holder: @mutable Holder, next: Inner) -> Inner {{\n    \
+             let taken: Inner = holder.inner;\n    {first}\n    {second}\n    taken\n}}\n"
+        )
+    };
+    let (store, discard) = ("holder.inner = next;", "_ = make();");
+    for (first, second, inside) in [(discard, store, true), (store, discard, false)] {
+        let elaboration = accepted_elaboration(&program(first, second));
+        let (swap, stamp) = (
+            machine_named(&elaboration, "swap"),
+            machine_named(&elaboration, "stamp"),
+        );
+        let mut module = elaboration.module;
+        assert!(fenced_sites(&module, swap).is_empty());
+        append(
+            &mut module,
+            stamp,
+            OperationKind::PortWrite {
+                service: semantic_vocabulary::ServiceId::new(1).unwrap(),
+                port: 0x80,
+                value: 0,
+            },
+        );
+        let sites = fenced_sites(&module, swap);
+        if inside {
+            assert!(
+                matches!(
+                    sites.as_slice(),
+                    [terminal_semantics::plain_affine::Site::Edge(_)]
+                ),
+                "{sites:?}"
+            );
+        } else {
+            assert!(sites.is_empty(), "{sites:?}");
+        }
+    }
+}
+
+/// Decoding a published module checks again the value availability of each
+/// machine with an `EliminateEmpty` terminator, here the empty `Never` case
+/// that the `match` leaves out. That check must judge the quiet `step` call
+/// made while `holder.inner` is vacant with the module's own callee table,
+/// as stage 06 did. A walk without the module refused this call as not
+/// supported, so decoding refused the accepted module.
+#[test]
+fn decoding_judges_a_call_inside_the_window_by_its_module_callee() {
+    let elaboration = accepted_elaboration(&format!(
+        "{CLOCK}public data Empty requires false {{}}\n\
+         data Pick {{ case Some(value: u32); case Never(value: Empty); }}\n\
+         machine step(inner: Inner) -> Inner {{ inner }}\n\
+         machine bump(holder: @mutable Holder, pick: Pick) -> u32 {{\n    \
+         holder.inner = step(holder.inner);\n    \
+         match pick {{ Pick::Some {{ value }} -> value }}\n}}\n"
+    ));
+    let bump = machine_named(&elaboration, "bump");
+    let module = elaboration.module;
+    assert!(
+        module
+            .machine(bump)
+            .unwrap()
+            .blocks
+            .iter()
+            .any(|block| matches!(
+                block.terminator,
+                terminal_psi::Terminator::EliminateEmpty { .. }
+            )),
+        "the left-out empty case ends in an elimination"
+    );
+    let closed = terminal_codec::ClosedTerminalModule::new(module).unwrap();
+    terminal_codec::ClosedTerminalModule::from_semantic_bytes(closed.semantic_bytes())
+        .expect("the accepted module decodes");
+}
+
+/// A callee that calls a computed machine value runs code the module does
+/// not name, so a call to it inside the window is fenced even though
+/// `step` declares no reach.
+#[test]
+fn a_computed_call_in_a_callee_fences_the_call_to_it() {
+    let elaboration = accepted_elaboration(&bump("{ inner }"));
+    let (caller, step) = (
+        machine_named(&elaboration, "bump"),
+        machine_named(&elaboration, "step"),
+    );
+    let mut module = elaboration.module;
+    assert!(fenced_sites(&module, caller).is_empty());
+    append(
+        &mut module,
+        step,
+        OperationKind::CallMachine {
+            callee: semantic_vocabulary::ValueId::new(1).unwrap(),
+            contract: semantic_vocabulary::CallableContractId::new(1).unwrap(),
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    );
+    assert!(
+        matches!(
+            fenced_sites(&module, caller).as_slice(),
+            [terminal_semantics::plain_affine::Site::Operation(_)]
+        ),
+        "the call to `step` is fenced"
+    );
+}
+
 /// A shared reference lends no window: the move stays outside what this
 /// route reads, and is never accepted.
 #[test]

@@ -1,4 +1,4 @@
-use crate::{OperationKind, TerminalMachine, Terminator};
+use crate::{ExternalReach, TerminalMachine, Terminator};
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, CrashCause, InvocationSite, MachineId, OperationId, ServiceId,
 };
@@ -41,60 +41,60 @@ impl UnoptimizedMachineBehavior {
         let mut operations = Vec::new();
         for block in &machine.blocks {
             for operation in &block.operations {
-                if let Some(callee) = operation.kind.direct_callee() {
-                    operations.push(UnoptimizedBehaviorOperation::Invocation {
-                        block: block.id,
-                        site: InvocationSite::Operation(operation.id),
-                        callee,
-                    });
-                }
-                match &operation.kind {
-                    OperationKind::BoundaryCall { boundary, .. } => {
-                        operations.push(UnoptimizedBehaviorOperation::BoundaryInvocation {
+                let site = InvocationSite::Operation(operation.id);
+                match operation.kind.external_reach() {
+                    Some(ExternalReach::Machine(callee)) => {
+                        operations.push(UnoptimizedBehaviorOperation::Invocation {
                             block: block.id,
-                            site: InvocationSite::Operation(operation.id),
-                            boundary: *boundary,
+                            site,
+                            callee,
                         })
                     }
-                    OperationKind::ActivateTaskRegister { service, .. }
-                    | OperationKind::ReadTaskRegister { service, .. }
-                    | OperationKind::ReloadSegmentDescriptors { service, .. }
-                    | OperationKind::ReadSegmentSelector { service, .. }
-                    | OperationKind::GlobalDescriptorTable { service, .. }
-                    | OperationKind::PortWrite { service, .. }
-                    | OperationKind::RegisterAccess {
-                        service: Some(service),
-                        ..
-                    } => operations.push(UnoptimizedBehaviorOperation::InstructionService {
-                        block: block.id,
-                        operation: operation.id,
-                        service: *service,
-                    }),
-                    _ => {}
+                    Some(ExternalReach::Boundary(boundary)) => {
+                        operations.push(UnoptimizedBehaviorOperation::BoundaryInvocation {
+                            block: block.id,
+                            site,
+                            boundary,
+                        })
+                    }
+                    Some(ExternalReach::InstructionService(Some(service))) => {
+                        operations.push(UnoptimizedBehaviorOperation::InstructionService {
+                            block: block.id,
+                            operation: operation.id,
+                            service,
+                        })
+                    }
+                    // The inventory records named services and callees only.
+                    Some(ExternalReach::InstructionService(None) | ExternalReach::ComputedCall)
+                    | None => {}
                 }
             }
-            match &block.terminator {
-                Terminator::InvokeNoNormal { edge, callee, .. } => {
+            match block.terminator.external_reach() {
+                Some((site, ExternalReach::Machine(callee))) => {
                     operations.push(UnoptimizedBehaviorOperation::Invocation {
                         block: block.id,
-                        site: InvocationSite::InvokeNoNormal(*edge),
-                        callee: *callee,
+                        site,
+                        callee,
                     })
                 }
-                Terminator::ExternalCompletion { edge, boundary, .. } => {
+                Some((site, ExternalReach::Boundary(boundary))) => {
                     operations.push(UnoptimizedBehaviorOperation::BoundaryInvocation {
                         block: block.id,
-                        site: InvocationSite::ExternalCompletion(*edge),
-                        boundary: *boundary,
+                        site,
+                        boundary,
                     })
                 }
-                Terminator::Crash { cause, .. } => {
-                    operations.push(UnoptimizedBehaviorOperation::Crash {
-                        block: block.id,
-                        cause: *cause,
-                    })
-                }
-                _ => {}
+                Some((
+                    _,
+                    ExternalReach::InstructionService(_) | ExternalReach::ComputedCall,
+                ))
+                | None => {}
+            }
+            if let Terminator::Crash { cause, .. } = &block.terminator {
+                operations.push(UnoptimizedBehaviorOperation::Crash {
+                    block: block.id,
+                    cause: *cause,
+                });
             }
             for (_, actions) in block.terminator.cleanup_rosters() {
                 for action in actions {
