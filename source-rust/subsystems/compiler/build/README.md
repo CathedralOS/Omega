@@ -3,7 +3,7 @@
 The package manager starts a project Build with `project_build::prepare` and passes the captured source to [the project-build crate root](project_build.rs). `project_build::interpret` resumes the authored Build when it requests a dependency or provider. Its returned stage opens the selected Product with `open_product`. [Product planning](planning/product.rs) passes the selected source, bindings and settings to the source and native compilers.
 
 An ordinary [release program](../../../../wiki/spec/build/declarations.md#releases-with-independent-products) coordinates independent products.
-The [child filesystem contract](../../../../wiki/spec/build/scoped_execution.md#supplying-a-filesystem-to-a-child-build) specifies how a parent supplies an owned or borrowed view. The [implementation task](../../../../TASKS.md#immediate-product-closure) tracks the handoff. [Live network grants](../../../../wiki/spec/build/scoped_execution.md#live-networking-in-a-build) follow the Build invocation. [Launching host tools](../../../../OWNER_QUESTIONS.md#build-subprocess-grants) remains open.
+The [child filesystem contract](../../../../wiki/spec/build/scoped_execution.md#supplying-a-filesystem-to-a-child-build) specifies how a parent supplies an owned or borrowed view. The [implementation task](../../../../TASKS.md#immediate-product-closure) tracks the handoff. [Live network grants](../../../../wiki/spec/build/scoped_execution.md#live-networking-in-a-build) follow the Build invocation. [Program launches](../../../../wiki/spec/build/program_launch.md) require separately bound executable grants.
 
 | Directory | Responsibility |
 | --- | --- |

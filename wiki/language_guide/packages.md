@@ -84,6 +84,41 @@ and a board Build requiring a live fetch fails before entry. To keep it
 offline, an earlier stage can fetch the firmware and supply it in the board
 Build's filesystem view. [Build network grants](../spec/build/scoped_execution.md#live-networking-in-a-build)
 
+## Running a program in a Build
+
+Suppose the board package declares a program identity and calls its vendor's
+packer. This helper returns the outcome to the board Build, which can inspect
+the status before using the output.
+
+```omega
+use {omega}/build/program.omg as program;
+
+public data VendorPacker {}
+
+machine pack_firmware() -> |program|::RunResult
+    reaches ProgramLaunch
+    blocks
+    crashes none
+{
+    let arguments: [@[u8]; 2] = ["firmware.bin", "boot.img"];
+    block |program|::run::<VendorPacker>(@arguments[..])
+}
+```
+
+For a board Build with readable `firmware.bin` and writable `boot.img` in
+its view, the caller can bind the packer and grant those two paths:
+
+```sh
+omega build --allow ProgramLaunch \
+  --program board::VendorPacker /opt/vendor/packer \
+  --program-read firmware.bin --program-write boot.img \
+  --program-timeout 30000 board/build.omg
+```
+
+The host resolves `board::VendorPacker` to the same type the helper uses.
+A missing approval prevents entry. An admitted packer that exits with status
+1 returns that status to the helper. [Program launch contract](../spec/build/program_launch.md)
+
 ## Packaging several products
 
 An ordinary release program can run `omega build` for each producer and pass

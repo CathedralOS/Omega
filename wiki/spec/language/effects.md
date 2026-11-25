@@ -311,6 +311,17 @@ operation retains the operation's declared reach. Cleanup retains its own effect
 The receiver enforces [executable installation](../build/executable_installation.md)
 and the owner needs exclusive access to replace an [owned provider](../build/component_publication.md#owned-runtime-providers).
 
+## Program launch reach
+
+Core declares the memberless boundary trait `ProgramLaunch`. An operation that
+can request execution of a program reports this reach, including execution in
+a new process, replacement of the current program and a typed request to a
+launch service. The provider may implement that request through IPC. Ordinary
+message transport retains its own reach. A message alone supplies no contract
+about what an independent receiver will do. Loading a library into the current
+program and exiting a process retain their respective service identities.
+The [Build launcher](../build/program_launch.md) supplies the executable grant.
+
 ## Process-exit reach
 
 The canonical core [ProcessExit requirement](process_exit.md) explicitly declares
