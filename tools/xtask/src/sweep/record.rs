@@ -165,6 +165,9 @@ pub(crate) fn row_json(row: &Row) -> serde_json::Value {
         "detail": row.detail,
         "expect": if row.reject { "reject" } else { "accept" },
     });
+    if row.unjudged > 0 {
+        value["unjudged"] = serde_json::Value::from(row.unjudged);
+    }
     if !row.program.ends_with("/main.omg") {
         value["entry"] = serde_json::Value::String(row.program.clone());
     }
@@ -205,6 +208,12 @@ pub(crate) fn row_from_json(value: &serde_json::Value) -> Result<Row, String> {
         cause: text("cause")?.to_owned(),
         detail: text("detail")?.to_owned(),
         reject: text("expect")? == "reject",
+        unjudged: value
+            .get("unjudged")
+            .and_then(serde_json::Value::as_u64)
+            .map_or(Ok(0), |count| {
+                u32::try_from(count).map_err(|_| format!("{program}: `unjudged` overflows"))
+            })?,
         program,
     })
 }

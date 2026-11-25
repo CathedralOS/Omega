@@ -112,6 +112,7 @@ mod reuse;
 mod static_contracts;
 mod static_reach;
 mod theorems;
+mod unjudged;
 mod verdict;
 pub use publication::{AcceptedAdvisories, CheckedPublication, judge_publication};
 

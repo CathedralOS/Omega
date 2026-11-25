@@ -4,7 +4,9 @@
 use super::*;
 use std::sync::Arc;
 
-fn typed(text: &str) -> Result<crate::source_state::TypedTrees, diagnostics::Diagnostic> {
+pub(super) fn typed(
+    text: &str,
+) -> Result<crate::source_state::TypedTrees, diagnostics::Diagnostic> {
     let mut sources = crate::source_inputs::SourceMap::default();
     let source = sources
         .add("width_parameters/source.omg".into(), text.to_owned())
