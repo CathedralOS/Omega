@@ -462,7 +462,7 @@ pub fn discharge(
     elaboration: &mut Elaboration,
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
-    discharge_inner(elaboration, &[], &[], None, activity)
+    discharge_inner(elaboration, &[], &[], None, None, activity)
 }
 
 /// `discharge`, where each machine of `carried` is one stage 04 generated
@@ -481,7 +481,7 @@ pub fn discharge_carrying(
     carried: &[Carried<'_>],
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
-    discharge_inner(elaboration, carried, &[], None, activity)
+    discharge_inner(elaboration, carried, &[], None, None, activity)
 }
 
 /// `laws` are the laws the mathematical signature proved. A machine of the
@@ -492,6 +492,7 @@ pub(crate) fn discharge_inner(
     carried: &[Carried<'_>],
     laws: &[laws::LawJudgment],
     verified_borrow_ends: Option<&VerifiedBorrowEnds>,
+    donors: Option<&reuse::Donors<'_>>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
     for boundary in &elaboration.module.interfaces.boundary_machines {
@@ -606,6 +607,9 @@ pub(crate) fn discharge_inner(
                 .map(move |law| (id, law))
         })
         .collect();
+    // The source machine of each machine, to find an earlier checked copy
+    // of it among `donors` (`reuse::Donors`).
+    let symbols = donors.map(|_| scope.source().machines.clone());
     let (formed, domains, checking, sources, requirements) = scope.checking();
     let module = formed.source();
     let inputs = machine_inputs::PreparedMachineInputs::new(
@@ -653,7 +657,11 @@ pub(crate) fn discharge_inner(
                     branch_warnings: branch_warnings::Deferred::default(),
                 });
             }
-            let beyond = unreached.values(terminal_machine(&module.machines, id, id)?, tables);
+            let lowered = terminal_machine(&module.machines, id, id)?;
+            let beyond = unreached.values(lowered, tables);
+            let donated = donors.zip(symbols.as_ref()).and_then(|(donors, symbols)| {
+                donors.for_machine(*symbols.get(id)?, lowered, tables)
+            });
             let proved = &theorems[theorems.partition_point(|(machine, _)| *machine < id)
                 ..theorems.partition_point(|(machine, _)| *machine <= id)];
             let borrow_ends = verified_borrow_ends.map(|ends| {
@@ -668,6 +676,7 @@ pub(crate) fn discharge_inner(
                 tables,
                 &beyond,
                 inputs.carried.map(|position| &carried[position]),
+                donated.as_ref(),
                 inputs.branches,
                 &law_instances,
                 proved,
@@ -783,6 +792,7 @@ fn machine(
     tables: &mut MachineTables,
     unreached: &[ValueId],
     carried: Option<&Carried<'_>>,
+    donated: Option<&reuse::Donated<'_>>,
     branches: &[terminal_check_tables::program::Branch],
     law_instances: &[MachineId],
     proved: &[(MachineId, &laws::LawJudgment)],
@@ -815,6 +825,7 @@ fn machine(
                 tables,
                 unreached,
                 carried,
+                donated,
                 law_instances,
                 proved,
                 empty_contracts,
@@ -837,6 +848,7 @@ fn check_prepared_machine(
     tables: &mut MachineTables,
     unreached: &[ValueId],
     carried: Option<&Carried<'_>>,
+    donated: Option<&reuse::Donated<'_>>,
     law_instances: &[MachineId],
     proved: &[(MachineId, &laws::LawJudgment)],
     empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
@@ -1029,7 +1041,7 @@ fn check_prepared_machine(
             {
                 return Ok(Discharged::Certificate(evidence));
             }
-            decide(
+            decide_borrowing(
                 context,
                 graph,
                 tables,
@@ -1038,6 +1050,7 @@ fn check_prepared_machine(
                 row.created_at,
                 goal,
                 unreached,
+                donated,
                 activity,
             )
             .map(Discharged::Certificate)
@@ -2564,11 +2577,67 @@ fn decide(
     unreached: &[ValueId],
     activity: &mut ProofSearchActivity,
 ) -> Checked<Evidence> {
+    decide_borrowing(
+        context, graph, tables, id, obligation, point, goal, unreached, None, activity,
+    )
+}
+
+/// `decide`, taking the certificate an earlier checked copy of this machine
+/// found when its search started from this obligation's inputs
+/// (`reuse::Donated::borrow`). The kernel decides a borrowed certificate
+/// against this machine's own goal and hypotheses; when there is none, or
+/// the kernel refuses it, the search runs as in `decide`.
+#[allow(clippy::too_many_arguments)]
+fn decide_borrowing(
+    context: &PropositionContext,
+    graph: &Graph,
+    tables: &MachineTables,
+    id: MachineId,
+    obligation: ObligationId,
+    point: ProgramPoint,
+    goal: Proposition,
+    unreached: &[ValueId],
+    donated: Option<&reuse::Donated<'_>>,
+    activity: &mut ProofSearchActivity,
+) -> Checked<Evidence> {
     let hypotheses = hypotheses(graph, tables, id, obligation, point)?;
     // Search and the kernel first see only the facts connected to the goal
     // (`connected`); the full set is tried only when that search fails, so
     // the narrowing never refuses an obligation the full set proves.
-    if let Some(narrowed) = connected(&goal, &hypotheses)
+    let narrowed = connected(&goal, &hypotheses);
+    if let Some(borrowed) = donated
+        .and_then(|donated| donated.borrow(obligation, &goal, &hypotheses, narrowed.as_ref()))
+    {
+        let premises = if borrowed.narrowed {
+            narrowed.as_ref()
+        } else {
+            Some(&hypotheses)
+        };
+        if let Some(premises) = premises
+            && let Ok(fact) = verify_certificate(
+                context,
+                id,
+                obligation,
+                &goal,
+                &premises.assumptions,
+                &premises.axioms,
+                &borrowed.certificate,
+            )
+        {
+            let premises = match narrowed {
+                Some(narrowed) if borrowed.narrowed => narrowed,
+                _ => hypotheses,
+            };
+            return Ok(Evidence {
+                goal,
+                assumptions: premises.assumption_rows,
+                axioms: premises.axiom_rows,
+                certificate: borrowed.certificate,
+                fact,
+            });
+        }
+    }
+    if let Some(narrowed) = narrowed
         && let Ok(certificate) = search_certificate(
             context,
             &*tables.values,

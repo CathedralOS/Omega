@@ -6436,6 +6436,116 @@ mod reuse {
             reusing.as_micros(),
         );
     }
+
+    /// One module of a compilation: an entry that calls machine 2 once with
+    /// `(1, 2)`, and `helper` as machine 2. `sources` names the source machine
+    /// each one lowers; copies in different modules are the same machine
+    /// only by that name.
+    fn module_of(helper: Machine, sources: [u32; 2]) -> crate::lowering::Elaboration {
+        let invoke = Statement::discard(call(2, vec![unsigned(1), unsigned(2)]));
+        let entry = machine(Vec::new(), vec![invoke, returns(unsigned(0))]);
+        let mut module = lower(vec![entry, helper]).unwrap();
+        module.machines = IdTable::default();
+        for source in sources {
+            module
+                .machines
+                .push(symbols::SymbolHandle::from_parts(source, 1));
+        }
+        module
+    }
+
+    /// The verdicts on `closure` and its conformance `witnesses`, with the
+    /// number of proof searches the whole judgment started.
+    fn judged(
+        closure: crate::lowering::Elaboration,
+        witnesses: Vec<crate::lowering::Elaboration>,
+    ) -> (
+        Vec<Result<RouteVerdict, crate::verdict::CompilationRefusal>>,
+        usize,
+    ) {
+        use terminal_check_tables::compilation::{PreparedCompilation, TerminalCompilation};
+        let mut specializations = IdTable::default();
+        for _ in closure.machines.iter() {
+            specializations.push(None);
+        }
+        let prepared = TerminalCompilation::Prepared(PreparedCompilation {
+            arrivals: Vec::new(),
+            closure: Ok(closure),
+            further: Vec::new(),
+            forms: Vec::new(),
+            witnesses: witnesses.into_iter().map(Ok).collect(),
+            specializations,
+            selection_witnesses: Vec::new(),
+            mathematics: Default::default(),
+        });
+        let mut activity = ProofSearchActivity::default();
+        let verdicts = crate::verdict::judge_compilation_with_activity(prepared, &mut activity);
+        (verdicts, activity.started())
+    }
+
+    /// The certificate of the helper's add in an accepted module.
+    fn helper_proof(
+        verdict: &Result<RouteVerdict, crate::verdict::CompilationRefusal>,
+    ) -> proof_admission::CertificateEnvelope {
+        let Ok(RouteVerdict::Accepted(accepted)) = verdict else {
+            panic!("the module must be accepted: {verdict:?}");
+        };
+        let (_, proved) = verdicts(&accepted.elaboration, &accepted.discharge, 2, safety)[0];
+        certificate(proved).certificate.clone()
+    }
+
+    #[test]
+    fn a_later_copy_of_a_helper_takes_the_first_copys_proofs_without_search() {
+        // Shows: two conformance witnesses and the closure each hold a copy
+        // of the same helper `add`. The first witness searches; the second
+        // witness and the closure take its certificates, which the kernel
+        // decides again against their own goals, so fewer searches start.
+        // Every copy ends with the same proof its own search finds.
+        let shared = |entry| module_of(add(10), [entry, 20]);
+        let (borrowing, borrowed) = judged(shared(30), vec![shared(10), shared(11)]);
+        let apart = |entry, helper| module_of(add(10), [entry, helper]);
+        let (searching, searched) = judged(apart(30, 22), vec![apart(10, 20), apart(11, 21)]);
+        assert_eq!(borrowing.len(), 3);
+        for (borrowed, searched) in borrowing.iter().zip(&searching) {
+            assert_eq!(helper_proof(borrowed), helper_proof(searched));
+        }
+        assert!(
+            borrowed < searched,
+            "borrowing started {borrowed} searches, searching alone {searched}"
+        );
+    }
+
+    #[test]
+    fn a_copy_under_another_contract_borrows_nothing_and_is_still_refused() {
+        // Shows: the second witness's helper is the same source machine but
+        // lacks the input `a <= 10`, so its add may overflow. The first
+        // copy's proof cites that input; the kernel refuses it here
+        // (`a_proof_whose_assumption_is_gone_is_refused`), and this copy's
+        // hypotheses differ, so it is not even offered. The copy searches and
+        // the witness is rejected exactly as when no other copy exists.
+        let unbounded = || add_of_formals(vec![at_most(2, 100)]);
+        let (shared, _) = judged(
+            module_of(add(10), [30, 20]),
+            vec![
+                module_of(add(10), [10, 20]),
+                module_of(unbounded(), [11, 20]),
+            ],
+        );
+        let (alone, _) = judged(
+            module_of(add(10), [30, 22]),
+            vec![
+                module_of(add(10), [10, 20]),
+                module_of(unbounded(), [11, 21]),
+            ],
+        );
+        assert!(
+            matches!(shared[2], Ok(RouteVerdict::Rejected { .. })),
+            "{:?}",
+            shared[2]
+        );
+        assert_eq!(format!("{:?}", shared[2]), format!("{:?}", alone[2]));
+        assert_eq!(helper_proof(&shared[1]), helper_proof(&alone[1]));
+    }
 }
 
 mod generic_bodies {
