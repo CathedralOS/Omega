@@ -1191,13 +1191,7 @@ impl Program<'_> {
                 .iter()
                 .map(|parameter| parameter.symbol),
         );
-        if !self.trait_declaration(diagnostic, declared.symbol)? {
-            return Err(refuse(
-                diagnostic,
-                Construct::Machine,
-                Unserved::Declaration("generic trait lost its actual declaration"),
-            ));
-        }
+        self.read_trait_schema(diagnostic, declared)?;
         // This check form owns the open requirements in its prepared schema
         // family, including inherited method binders. Closed products only
         // read those schemas; they do not adopt the schema's source namespace.
