@@ -292,6 +292,53 @@ fn build_bind_uses_the_selected_operation_record_before_root_operand_grammar() {
     ));
 }
 
+/*
+    A selection row names its realization by spelling, and normalization
+    realizes only the machines that spelling reaches. The row must still pick
+    the one named machine among same-shaped declarations, and a spelling that
+    reaches no machine must be refused rather than filled by another one.
+*/
+#[test]
+fn a_selection_row_realizes_only_the_machine_its_spelling_selects() {
+    let decoys = (0..8)
+        .map(|index| format!("machine decoy{index}(a: u64) {{}}\n"))
+        .collect::<String>();
+    let source = format!(
+        "trait Writer {{ machine bind(a: u64); }}
+        {decoys}machine write(a: u64) {{}}
+        Build satisfies Writer {{ Writer::bind = write; }}"
+    );
+    let program = resolve(super::source_request(&source))
+        .unwrap_or_else(|errors| panic!("{source}: {errors:?}"));
+    let write = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "write")
+        .unwrap()
+        .symbol;
+    let rows = program
+        .conformances
+        .iter()
+        .flat_map(|conformance| conformance.rows.iter())
+        .collect::<Vec<_>>();
+    let [row] = rows.as_slice() else {
+        panic!("one selection row: {rows:?}")
+    };
+    assert_eq!(row.realization_machine, write);
+
+    let missing = source.replace("Writer::bind = write;", "Writer::bind = absent;");
+    let errors = resolve(super::source_request(&missing)).unwrap_err();
+    let [error] = errors.as_slice() else {
+        panic!("{errors:?}")
+    };
+    assert!(
+        error
+            .message
+            .contains("member `bind` does not identify one exact inherited overload"),
+        "{error:?}"
+    );
+}
+
 #[test]
 fn malformed_selected_root_bindings_report_the_authored_bind_or_operand() {
     for (args, expected) in [("builder, slot", "bind"), ("builder, 7, entry", "7")] {
