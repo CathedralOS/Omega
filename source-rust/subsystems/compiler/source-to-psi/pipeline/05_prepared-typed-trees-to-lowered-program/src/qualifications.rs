@@ -361,6 +361,18 @@ fn establishment_routes(
 }
 
 impl Qualifications {
+    /// The module identity assigned to this domain application on its exact carrier.
+    pub(crate) fn structural_domain_id(
+        &self,
+        instance: DomainInstance,
+        carrier: StructuralTypeId,
+    ) -> Option<StructuralDomainId> {
+        self.structural_domains
+            .iter()
+            .find(|(declared, actual, _)| *declared == instance && *actual == carrier)
+            .map(|(_, _, id)| *id)
+    }
+
     pub fn runtime_membership(
         &self,
         machine: MachineId,
@@ -390,12 +402,7 @@ impl Qualifications {
                 carrier,
             } => {
                 let domain = self
-                    .structural_domains
-                    .iter()
-                    .find(|(instance, actual, _)| {
-                        *instance == membership.domain && actual == carrier
-                    })
-                    .map(|(_, _, domain)| *domain)
+                    .structural_domain_id(membership.domain, *carrier)
                     .ok_or_else(|| {
                         unavailable(
                             "runtime structural membership lost its exact domain and carrier",
@@ -902,16 +909,9 @@ impl Qualifications {
         }
         let mut domains = Vec::with_capacity(DomainSet::CAPACITY);
         for symbol in qualification.domains.members() {
-            let id = self
-                .structural_domains
-                .iter()
-                .find(|(declared, actual_carrier, _)| {
-                    *declared == symbol && *actual_carrier == carrier
-                })
-                .map(|(_, _, id)| *id)
-                .ok_or_else(|| {
-                    unavailable("data qualification has no retained domain declaration")
-                })?;
+            let id = self.structural_domain_id(symbol, carrier).ok_or_else(|| {
+                unavailable("data qualification has no retained domain declaration")
+            })?;
             if self
                 .structural
                 .iter()

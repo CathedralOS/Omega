@@ -129,7 +129,7 @@ impl Program<'_> {
             .get(id)
             .ok_or_else(|| unserved("mathematical machine lost its signature"))?;
         if own.result.is_some()
-            && (!required.ensures.is_empty() || !required.membership_ensures.is_empty())
+            && (!required.ensures.is_empty() || required.has_structural_guarantees())
         {
             return Err(self.read_failure_at(
                 unserved("operation requirement with a guarantee"),
@@ -942,7 +942,7 @@ impl<'p> Converter<'p, '_> {
         let lost = || unserved(id, "mathematical machine lost its signature");
         let public = program.signatures.get(id).ok_or_else(lost)?;
         let private = program.signatures.get(operation).ok_or_else(lost)?;
-        if !public.ensures.is_empty() || !public.membership_ensures.is_empty() {
+        if !public.ensures.is_empty() || public.has_structural_guarantees() {
             return Err(unserved(
                 id,
                 "quotient operation that states a guarantee of its own",
@@ -2377,10 +2377,10 @@ impl<'p> Converter<'p, '_> {
             .signatures
             .get(id)
             .ok_or_else(|| unserved(id, "mathematical machine lost its signature"))?;
-        if !signature.membership_ensures.is_empty() {
+        if signature.has_structural_guarantees() {
             return Err(unserved(
                 id,
-                "mathematical machine with a result and a membership guarantee",
+                "mathematical machine with a result and a structural guarantee",
             ));
         }
         let formals = self.formals(id)?;

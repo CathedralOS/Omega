@@ -278,6 +278,7 @@ fn lowered(machines: Vec<Shape>, contracts: &[u64]) -> crate::lowering::Elaborat
         });
         signatures.push(Signature {
             membership_ensures: Vec::new(),
+            content_ensures: Vec::new(),
             operational: Default::default(),
             parameters: machine.parameters,
             erased: Vec::new(),
@@ -594,6 +595,7 @@ fn rigid_result_transport(
     for (position, output) in [result_type, input_type].into_iter().enumerate() {
         signatures.push(Signature {
             membership_ensures: Vec::new(),
+            content_ensures: Vec::new(),
             operational: Default::default(),
             parameters: vec![input_type],
             erased: Vec::new(),
@@ -928,6 +930,7 @@ fn a_real_helper_cannot_supply_an_unresolved_requirements_service_reach() {
         });
         signatures.push(Signature {
             membership_ensures: Vec::new(),
+            content_ensures: Vec::new(),
             operational: Default::default(),
             parameters: Vec::new(),
             erased: Vec::new(),

@@ -331,6 +331,7 @@ fn an_indexed_match_reuses_its_captured_selector_in_the_arm() {
     let mut signatures = IdTable::default();
     signatures.push(Signature {
         membership_ensures: Vec::new(),
+        content_ensures: Vec::new(),
         operational: Default::default(),
         parameters: invalid.parameters,
         erased: Vec::new(),

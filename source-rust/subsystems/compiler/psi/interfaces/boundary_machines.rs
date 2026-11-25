@@ -674,6 +674,59 @@ pub struct ContentConservationGuarantee {
     pub conservation: ContentConservation,
 }
 
+impl ContentConservationGuarantee {
+    /// Reconstruct the report from the law and the actual structural formal and result coordinates.
+    pub fn from_declaration(
+        law: &ContentConservation,
+        parameters: &[StructuralParameterDeclaration],
+        result: Option<semantic_vocabulary::PlaceId>,
+    ) -> Result<Self, &'static str> {
+        use semantic_vocabulary::{ContentPlaceVersion, StructuralPlaceKind};
+        let mut structural_places = Vec::new();
+        law.try_for_each_projection(|_, subject| {
+            let id = subject.root;
+            let kind = match subject.version {
+                ContentPlaceVersion::Entry => {
+                    let parameter = StructuralParameterDeclaration::find_by_place(parameters, id)
+                        .ok_or(
+                        "boundary content input is not its declared structural parameter",
+                    )?;
+                    StructuralPlaceKind::Parameter {
+                        position: parameter.position,
+                    }
+                }
+                ContentPlaceVersion::Current if result == Some(id) => StructuralPlaceKind::Result,
+                ContentPlaceVersion::Current => {
+                    return Err("boundary content output is not its declared structural result");
+                }
+            };
+            structural_places.push(StructuralPlaceDeclaration { id, kind });
+            Ok(())
+        })?;
+        structural_places.sort_unstable();
+        structural_places.dedup();
+        if structural_places
+            .windows(2)
+            .any(|pair| pair[0].id == pair[1].id)
+        {
+            return Err("boundary content root has conflicting declaration roles");
+        }
+        let report_fingerprint = law
+            .report_fingerprint(|id| {
+                let position = structural_places
+                    .binary_search_by_key(&id, |row| row.id)
+                    .ok()?;
+                Some(structural_places[position].kind)
+            })
+            .ok_or("boundary content guarantee lost its complete structural-place declaration")?;
+        Ok(Self {
+            report_fingerprint,
+            structural_places,
+            conservation: law.clone(),
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BoundaryContentGuarantee {
     Conservation(ContentConservationGuarantee),

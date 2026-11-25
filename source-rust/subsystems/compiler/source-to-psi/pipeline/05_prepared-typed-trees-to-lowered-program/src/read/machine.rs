@@ -2354,6 +2354,7 @@ impl<'t> Program<'t> {
             signature.requires = routed.requires;
             signature.ensures = routed.ensures;
             signature.membership_ensures = routed.membership_ensures;
+            signature.content_ensures = routed.content_ensures;
             names.requires = routed_names.requires;
             names.ensures = routed_names.ensures;
             // An abstract requirement bounds the selected installation's
@@ -2674,6 +2675,7 @@ impl<'t> Program<'t> {
             signature
                 .membership_ensures
                 .extend(inherited.membership_ensures);
+            signature.content_ensures.extend(inherited.content_ensures);
             for (position, clause) in inherited.ensures.into_iter().enumerate() {
                 if !signature.ensures.contains(&clause) {
                     signature.ensures.push(clause);
@@ -3075,6 +3077,7 @@ impl<'t> Program<'t> {
             borrowed: Vec::new(),
             result,
             membership_ensures: Vec::new(),
+            content_ensures: Vec::new(),
             requires: terminal_semantics::numeric_primitives::requires(meaning)
                 .map_err(unavailable)?,
             ensures,
@@ -3656,6 +3659,7 @@ impl<'t> Program<'t> {
         let mut requires = Vec::new();
         let mut ensures = Vec::new();
         let mut membership_ensures = Vec::new();
+        let mut content_ensures = Vec::new();
         let mut requires_text = Vec::new();
         let mut ensures_text = Vec::new();
         let mut routes = Vec::new();
@@ -3697,6 +3701,10 @@ impl<'t> Program<'t> {
                 }
                 SignatureContractKind::Ensures => {
                     for fact in facts {
+                        if let Some(equation) = self.content_equation(id, &exit, fact)? {
+                            content_ensures.push(equation);
+                            continue;
+                        }
                         if let crate::source_state::domain::ProofFact::Membership(membership) = fact
                         {
                             let (membership, clause) =
@@ -3874,6 +3882,7 @@ impl<'t> Program<'t> {
                 borrowed,
                 result,
                 membership_ensures,
+                content_ensures,
                 requires,
                 ensures,
                 reaches: crate::Ceiling::Inferred,

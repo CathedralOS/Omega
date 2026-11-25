@@ -60,6 +60,7 @@ macro_rules! continuing {
 
 mod calls;
 pub(crate) use calls::publish_write_frames;
+mod content_equations;
 mod control;
 mod join_reads;
 mod operations;
@@ -1014,6 +1015,7 @@ impl<'a> Lowering<'a> {
             .collect::<Checked<_>>()?;
         contract.membership_ensures.sort();
         contract.membership_ensures.dedup();
+        self.qualify_content_equations(contract)?;
         for value in contract
             .parameters
             .iter_mut()
@@ -1439,6 +1441,15 @@ impl<'a> Lowering<'a> {
     ) -> Checked<Lowered> {
         self.arrivals()?;
         let mut drafts = std::mem::take(&mut self.blocks);
+        if !self.signature.content_ensures.is_empty() {
+            return Err(refuse(
+                self.id,
+                Construct::Machine,
+                Unserved::Contract(
+                    "checked content conservation requires a body judgment over the actual normal return",
+                ),
+            ));
+        }
         let mut blocks = Vec::with_capacity(drafts.len());
         for position in 1..=drafts.len() as u64 {
             let block =

@@ -41,6 +41,7 @@ mod casts;
 mod clause_calls;
 mod clause_terms;
 mod constant_values;
+mod content_contracts;
 mod content_projections;
 mod contracts;
 mod expressions;
