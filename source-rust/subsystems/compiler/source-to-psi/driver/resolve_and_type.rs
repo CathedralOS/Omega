@@ -23,6 +23,9 @@ pub struct ResolveAndTypeRequest {
     pub root_sources: Vec<source_text::SourceId>,
     pub frontends: SourceFrontends,
     pub build_helper_identity: &'static str,
+    /// Whether this typing checks a Build or a Product. Retained typings are
+    /// resumed only by a request of the same purpose.
+    pub purpose: source_provenance::DependencyScope,
     pub sources: Arc<crate::source_inputs::SourceMap>,
     pub top_level_bindings: Vec<crate::source_symbols::SourceScopedTopLevelBinding>,
     pub selection_authority: Option<Arc<PackageDeclarationScope>>,
@@ -134,6 +137,7 @@ impl ResolveAndTypeRequest {
             bindings: self.top_level_bindings.clone(),
             declaration_scope: self.selection_authority.clone(),
             build_helper_identity: self.build_helper_identity.into(),
+            purpose: self.purpose,
         };
         let activation = activation::select_retained_source(&self, &context, timings)?;
         if let Some(activation) = &activation {
@@ -248,7 +252,7 @@ impl SourceTypingCheckpoint {
         sources: Arc<crate::source_inputs::SourceMap>,
         bindings: Vec<crate::source_symbols::SourceScopedTopLevelBinding>,
         timings: &mut CompileTimings,
-    ) -> Result<(typing::SeededTypingBase, Vec<PreCheckEvaluation>), Vec<Diagnostic>> {
+    ) -> Result<typing::SeededTypingBase, Vec<Diagnostic>> {
         let mut typing = input.typing.clone();
         let pending_bodies = input
             .pending_bodies
@@ -262,7 +266,7 @@ impl SourceTypingCheckpoint {
             resolution::DeferredBodyScope::SelectedFiles,
             timings,
         )?;
-        Ok((typing, input.pending_pre_checks.clone()))
+        Ok(typing)
     }
 
     pub(super) fn shared_typed(&self) -> Arc<typed_trees::TypedTrees> {

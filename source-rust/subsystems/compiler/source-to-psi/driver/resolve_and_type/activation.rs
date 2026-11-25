@@ -1,12 +1,13 @@
 use super::{PreCheckEvaluation, ResolveAndTypeRequest};
-use declaration_scope::PackageDeclarationScope;
 use crate::source_inputs::SourceMap;
 use crate::source_symbols::SourceScopedTopLevelBinding;
-use symbol_resolved_trees_to_typed_trees::SeededTypingBase;
+use declaration_scope::PackageDeclarationScope;
 use diagnostics::Diagnostic;
+use source_provenance::DependencyScope;
 use source_text::{SourceId, SourceSpan, Span};
 use std::collections::HashSet;
 use std::sync::Arc;
+use symbol_resolved_trees_to_typed_trees::SeededTypingBase;
 use syntax_trees::SyntaxTrees;
 
 #[derive(Clone)]
@@ -14,12 +15,14 @@ pub(super) struct SourceContext {
     pub bindings: Vec<SourceScopedTopLevelBinding>,
     pub declaration_scope: Option<Arc<PackageDeclarationScope>>,
     pub build_helper_identity: std::borrow::Cow<'static, str>,
+    pub purpose: DependencyScope,
 }
 
 impl SourceContext {
     pub fn same_input(&self, other: &Self) -> bool {
         self.bindings == other.bindings
             && self.build_helper_identity == other.build_helper_identity
+            && self.purpose == other.purpose
             && self.declaration_scope == other.declaration_scope
     }
 
@@ -30,7 +33,13 @@ impl SourceContext {
         sources: &SourceMap,
         activation: &SourceMap,
     ) -> Result<(), SourceReuseMiss> {
-        if self.build_helper_identity != current.build_helper_identity {
+        // A Build typing selects its host's Build helpers and completes only
+        // Build bodies; a Product typing selects no helpers. Typings of
+        // different purposes never share a helper selection, so a Product
+        // never resumes a Build's typing, nor a Build a Product's.
+        if self.purpose != current.purpose
+            || self.build_helper_identity != current.build_helper_identity
+        {
             return Err(SourceReuseMiss::BuildHelperSelection);
         }
         for added in sources
@@ -155,11 +164,22 @@ pub(super) fn select_retained_source(
         {
             continue;
         }
-        candidates.push((count, source, Arc::new(activation)));
+        // The retained requests answer only for the files this candidate
+        // typed. Rejoin them before completing any body, so a candidate whose
+        // packages lost a grant costs nothing.
+        let mut pre_checks = source.pending_pre_checks.clone();
+        if pre_checks.iter_mut().any(|pending| {
+            pending
+                .rejoin_source_authority(&activation, context.declaration_scope.clone())
+                .is_err()
+        }) {
+            continue;
+        }
+        candidates.push((count, source, Arc::new(activation), pre_checks));
     }
-    candidates.sort_unstable_by_key(|(count, _, _)| std::cmp::Reverse(*count));
-    for (_, source, sources) in candidates {
-        let (typing, pending_pre_checks) = super::SourceTypingCheckpoint::complete_selected(
+    candidates.sort_by_key(|(count, ..)| std::cmp::Reverse(*count));
+    for (_, source, sources, pre_checks) in candidates {
+        let typing = super::SourceTypingCheckpoint::complete_selected(
             source,
             Arc::clone(&sources),
             context.bindings.clone(),
@@ -205,22 +225,10 @@ pub(super) fn select_retained_source(
         {
             continue;
         }
-        let mut pre_checks = pending_pre_checks
+        let pre_checks = pre_checks
             .iter()
             .map(|pending| pending.activate_sources(typing.typed()))
             .collect::<Result<Vec<_>, _>>()?;
-        let mut authority_miss = None;
-        for pending in &mut pre_checks {
-            if let Err(reason) =
-                pending.rejoin_source_authority(typing.typed(), context.declaration_scope.clone())
-            {
-                authority_miss = Some(reason);
-                break;
-            }
-        }
-        if authority_miss.is_some() {
-            continue;
-        }
         return Ok(Some(ActivatedSource {
             typing,
             pre_checks,
@@ -282,6 +290,7 @@ mod tests {
                 bindings: vec![],
                 declaration_scope: Some(original.clone()),
                 build_helper_identity: "".into(),
+                purpose,
             };
             let pending = PreCheckEvaluation::new(Some(original));
             let limits = record_storage::RecordLimits::default();
@@ -296,6 +305,20 @@ mod tests {
                     context.compatibility(&fresh, &sources, &retargeted, &sources),
                     Err(SourceReuseMiss::ProductAliases)
                 ));
+                // The same files typed for the other purpose are never resumed,
+                // even when every other input agrees.
+                let other_purpose = SourceContext {
+                    purpose: match purpose {
+                        DependencyScope::Build => DependencyScope::Product,
+                        DependencyScope::Product => DependencyScope::Build,
+                    },
+                    ..fresh.clone()
+                };
+                assert!(matches!(
+                    context.compatibility(&other_purpose, &sources, &sources, &sources),
+                    Err(SourceReuseMiss::BuildHelperSelection)
+                ));
+                assert!(!context.same_input(&other_purpose));
                 let saved = context.declaration_scope.as_ref().unwrap();
                 assert!(saved.allows_declaration_selection(root, granted));
                 assert!(!saved.allows_declaration_selection(root, other));
@@ -320,7 +343,7 @@ mod tests {
                     let mut pending = requests.clone();
                     assert_eq!(
                         pending
-                            .rejoin_source_authority(&typed, current.declaration_scope)
+                            .rejoin_source_authority(&sources, current.declaration_scope)
                             .is_ok(),
                         allowed
                     );
@@ -331,5 +354,67 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// A dependency's retained typing answers for its own files. The client
+    /// that resumes it adds files of a package the dependency's scope never
+    /// named; those are typed afresh under the client's scope, so they must
+    /// not refuse the dependency's requests. A lost grant still refuses them.
+    #[test]
+    fn retained_requests_rejoin_only_the_packages_of_the_files_they_typed() {
+        let [dependency, library, client] =
+            [1, 2, 3].map(|id| PackageKeyIdentity::from_digest([id; 32]).unwrap());
+        let add = |sources: &mut SourceMap, path: &str, root: &str, package| {
+            sources.add_checked_instance(
+                path.into(),
+                "",
+                root.into(),
+                Some(package),
+                SourceOrigin::User,
+                SourceResolutionStratum::Base,
+                DependencyScope::Product,
+            );
+        };
+        let mut retained = SourceMap::default();
+        add(
+            &mut retained,
+            "dependency/lib.omg",
+            "dependency",
+            dependency,
+        );
+        let mut request = retained.clone();
+        add(&mut request, "client/main.omg", "client", client);
+        let saved = Arc::new(PackageDeclarationScope::from_direct_dependencies(
+            &[dependency, library],
+            [(dependency, library)],
+        ));
+        let scope = |edges: &[(PackageKeyIdentity, PackageKeyIdentity)]| {
+            Some(Arc::new(PackageDeclarationScope::from_direct_dependencies(
+                &[dependency, library, client],
+                edges.iter().copied(),
+            )))
+        };
+        let keeps = scope(&[(dependency, library), (client, dependency)]);
+        let loses = scope(&[(client, dependency)]);
+        let pending = PreCheckEvaluation::new(Some(saved));
+
+        let mut whole_request = pending.clone();
+        assert!(
+            whole_request
+                .rejoin_source_authority(&request, keeps.clone())
+                .is_err()
+        );
+        let mut resumed = pending.clone();
+        resumed
+            .rejoin_source_authority(&retained, keeps.clone())
+            .unwrap();
+        assert!(resumed.same_pending_work(&{
+            let mut again = pending.clone();
+            again.rejoin_source_authority(&retained, keeps).unwrap();
+            again
+        }));
+        let mut lost = pending;
+        assert!(lost.rejoin_source_authority(&retained, loses).is_err());
+        assert!(!lost.same_pending_work(&resumed));
     }
 }

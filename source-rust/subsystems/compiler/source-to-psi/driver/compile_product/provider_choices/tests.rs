@@ -71,7 +71,8 @@ fn try_typed(supplied: &str, program: &str) -> Result<Fixture, Vec<diagnostics::
     }
     let primary = roots[0];
     let parsed = crate::ParsedStageSources::parse(Arc::new(sources), roots, Vec::new())?;
-    let request = parsed.into_request(TARGET, primary)?;
+    let request =
+        parsed.into_request(TARGET, source_provenance::DependencyScope::Product, primary)?;
     let typed = crate::test_support::type_authored_source_for_test(
         request,
         &mut crate::CompileTimings::default(),

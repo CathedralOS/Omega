@@ -59,7 +59,11 @@ impl<'a> StageSource<'a> {
             .ok_or_else(|| vec![Diagnostic::error("Product stage has no root source")])?;
         let mut request = self
             .parsed
-            .into_request(self.product.build_host.canonical_name(), primary)?;
+            .into_request(
+                self.product.build_host.canonical_name(),
+                source_provenance::DependencyScope::Product,
+                primary,
+            )?;
         request.selection_authority = self.product.declaration_scope.clone();
         let continuation = request
             .with_build_entry(self.product.policy.activation)

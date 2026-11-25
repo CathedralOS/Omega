@@ -51,6 +51,7 @@ impl ParsedStageSources {
     pub(crate) fn into_request(
         mut self,
         host: &'static str,
+        purpose: source_provenance::DependencyScope,
         primary: SourceId,
     ) -> Result<ResolveAndTypeRequest, Vec<Diagnostic>> {
         if !self.files.source_is_selected(primary)
@@ -72,6 +73,7 @@ impl ParsedStageSources {
             sources: self.files,
             top_level_bindings: self.imports,
             build_helper_identity: host,
+            purpose,
             selection_authority: None,
             frontends: Default::default(),
         })
