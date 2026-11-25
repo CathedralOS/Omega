@@ -17895,6 +17895,107 @@ mod tests {
         );
     }
 
+    /// The other direction of the crossing above: a retained math equality
+    /// cited at its lowered `Equal` form. On a fixed, non-address carrier
+    /// `same_denotation` needs no symmetry step, because a math equality
+    /// must already hold its endpoints in the order
+    /// `lift_fixed_integer_relation` sorts them into, so the goal re-lifts
+    /// to the retained proposition itself. The twin swaps only the premise's
+    /// endpoints and is refused as malformed. An address carrier lowers but
+    /// does not lift back, so its citation reaches the crossing and the
+    /// kernel refuses it as unsupported.
+    #[test]
+    fn a_math_equality_cited_at_its_lowered_form_denotes_identically() {
+        let (x_id, x) = value(1);
+        let (y_id, y) = value(2);
+        let context = PropositionContext::from_value_types([
+            (x_id, unsigned64_type()),
+            (y_id, unsigned64_type()),
+        ])
+        .expect("context");
+        let embed = |term| semantic_vocabulary::IntegerMathTerm::embed(term).expect("u64 embeds");
+        let retained = Proposition::IntegerMathEqual(embed(x.clone()), embed(y.clone()));
+        let goal = crate::lower_integer_math_relation(&retained).expect("u64 endpoints lower");
+        assert_eq!(goal, Proposition::Equal(x.clone(), y.clone()));
+        assert_eq!(
+            crate::lift_fixed_integer_relation(&goal).as_ref(),
+            Some(&retained),
+        );
+        let swapped = Proposition::IntegerMathEqual(embed(y), embed(x));
+        for (assumptions, axioms, proof) in [
+            (
+                from_ref(&retained),
+                &[][..],
+                assumption_proof(goal.clone(), 0),
+            ),
+            (
+                &[][..],
+                from_ref(&retained),
+                semantic_axiom_proof(goal.clone(), 0),
+            ),
+        ] {
+            let denoted = verify_bounded_certificate(
+                &context,
+                &goal,
+                assumptions,
+                axioms,
+                &proof,
+                &mut budget(),
+            )
+            .expect("the lowered citation verifies");
+            assert!(
+                matches!(
+                    denoted.arena.get(denoted.certificate.term),
+                    Term::Variable(_)
+                ),
+                "the cited variable is the whole certificate",
+            );
+            let accepted = crate::accept_certificate(&context, &goal, assumptions, axioms, &proof)
+                .expect("the lowered citation is accepted");
+            assert!(matches!(
+                accepted.mathematical_core,
+                crate::MathematicalCoreDecision::Judged(_)
+            ));
+            let swapped = from_ref(&swapped);
+            let (assumptions, axioms) = if assumptions.is_empty() {
+                (assumptions, swapped)
+            } else {
+                (swapped, axioms)
+            };
+            assert!(matches!(
+                crate::accept_certificate(&context, &goal, assumptions, axioms, &proof),
+                Err(ProofError::MalformedProposition(
+                    semantic_vocabulary::PropositionError::NonCanonicalIntegerMathEqualityOperands
+                )),
+            ));
+        }
+        // An address carrier lowers but does not lift back, so the citation
+        // reaches the crossing in `same_denotation`, which refuses it.
+        let address = IntegerType::address(64).expect("address");
+        let context = PropositionContext::from_value_types([
+            (x_id, ScalarType::Integer(address)),
+            (y_id, ScalarType::Integer(address)),
+        ])
+        .expect("address context");
+        let math = |value| semantic_vocabulary::IntegerMathTerm::MathValue {
+            source_type: address,
+            value,
+        };
+        let retained = Proposition::IntegerMathEqual(math(x_id), math(y_id));
+        let goal = crate::lower_integer_math_relation(&retained).expect("address lowers");
+        assert_eq!(crate::lift_fixed_integer_relation(&goal), None);
+        let proof = assumption_proof(goal.clone(), 0);
+        assert!(matches!(
+            crate::accept_certificate(&context, &goal, from_ref(&retained), &[], &proof),
+            Err(ProofError::MathematicalCore(error)) if matches!(
+                *error,
+                BoundedDenotationError::Unsupported(
+                    "integer-math-normalized citation across denotation shapes"
+                )
+            ),
+        ));
+    }
+
     #[test]
     fn the_closure_names_every_judgment_premise() {
         let p = atom(1);
