@@ -1109,7 +1109,7 @@ fn an_applied_carrier_domain_is_exposed_by_its_declaring_file() {
             "product",
             package,
             "parts.omg",
-            "public data Segment<T> {{ value: T; }} public domain<T> Segment<T>::Live<T>;",
+            "public data Segment<T> { value: T; } public domain<T> Segment<T>::Live<T>;",
         );
         let mut stage = product(files, root, package, &[]).unwrap();
         stage.parsed.roots.push(parts);
