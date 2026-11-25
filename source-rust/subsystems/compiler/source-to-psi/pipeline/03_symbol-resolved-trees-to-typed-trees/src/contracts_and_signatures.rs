@@ -294,7 +294,7 @@ pub(crate) mod contracts {
                         )
                         .with_source_span(source_span));
                     }
-                    let mut carrier = None;
+                    let mut carriers = Vec::new();
                     let mut missing = false;
                     for owner in &holders {
                         let found = types.get(program, *owner, value).and_then(|reference| {
@@ -304,18 +304,16 @@ pub(crate) mod contracts {
                             missing = true;
                             continue;
                         };
-                        if carrier.is_some_and(|earlier| {
-                            program.package_qualified_type_identity(earlier)
-                                != program.package_qualified_type_identity(found)
-                        }) {
-                            return Err(Diagnostic::error(
-                                "domain membership has conflicting declared carrier contexts",
-                            )
-                            .with_source_span(source_span));
+                        let plain = |reference| program.type_reference_table.unconstrained_type_reference(reference);
+                        if let Some(&first) = carriers.first()
+                            && plain(first) != plain(found)
+                            && program.package_qualified_type_identity(plain(first)) != program.package_qualified_type_identity(plain(found))
+                        {
+                            return Err(Diagnostic::error("domain membership has conflicting declared carrier contexts").with_source_span(source_span));
                         }
-                        carrier = Some(found);
+                        if !carriers.contains(&found) { carriers.push(found); }
                     }
-                    if !missing && let Some(carrier) = carrier {
+                    if !missing && !carriers.is_empty() {
                         let occurrence = membership.authored_domain_selection.ok_or_else(|| {
                             crate::unavailable_judgment("contract membership custody")
                         })?;
@@ -345,27 +343,31 @@ pub(crate) mod contracts {
                             .map(|part| part.as_str())
                             .collect::<Vec<_>>()
                             .join("::");
-                        let arguments = program
-                            .type_reference_table
-                            .type_reference_handles(membership.domain_arguments);
-                        let matches =
-                            crate::type_reference::domain_constraints::select_domain_candidates(
-                                source,
-                                program,
-                                carrier,
-                                &name,
-                                Some(authored_span),
-                                symbols::SymbolHandle::invalid(),
-                                arguments,
-                            );
-                        if let [domain] = matches.as_slice() {
-                            super::check_membership_argument_count(
-                                program,
-                                domain,
-                                arguments.len(),
-                            )
-                            .map_err(|error| error.with_source_span(source_span))?;
-                            updates.push((handle, occurrence, domain.symbol));
+                        let arguments = program.type_reference_table.type_reference_handles(membership.domain_arguments).to_vec();
+                        let written = crate::type_reference::carrier_qualifications::DomainUse {
+                            name: &name, arguments: &arguments, reference: Some(authored_span),
+                            retained: symbols::SymbolHandle::invalid(),
+                        };
+                        let mut selected = None;
+                        for carrier in carriers {
+                            let matches = written.on_operand(source, program, carrier);
+                            let [domain] = matches.as_slice() else {
+                                if let [first, second, ..] = matches.as_slice() {
+                                    return Err(Diagnostic::error(format!("ambiguous domain `{name}`: competing visible declarations `{}` and `{}`",
+                                        source.symbols.display_path(first.symbol, "::"), source.symbols.display_path(second.symbol, "::"))).with_source_span(authored_span));
+                                }
+                                selected = None;
+                                break;
+                            };
+                            super::check_membership_argument_count(program, domain, arguments.len())
+                                .map_err(|error| error.with_source_span(source_span))?;
+                            if selected.is_some_and(|earlier| earlier != domain.symbol) {
+                                return Err(Diagnostic::error("domain membership selects different declarations in its carrier contexts").with_source_span(source_span));
+                            }
+                            selected = Some(domain.symbol);
+                        }
+                        if let Some(domain) = selected {
+                            updates.push((handle, occurrence, domain));
                             continue;
                         }
                     }
@@ -893,9 +895,9 @@ pub(crate) mod contracts {
                     if !types.contains_type_reference(*referee) {
                         return None;
                     }
-                    types.unconstrained_type_reference(*referee)
+                    *referee
                 }
-                _ => carrier,
+                _ => reference,
             };
             types.contains_type_reference(carrier).then_some(carrier)
         }
@@ -1000,6 +1002,7 @@ pub(crate) mod contracts {
                     let Some(found) = types
                         .get(program, *owner, membership.value)
                         .and_then(|reference| membership_carrier_type(program, reference))
+                        .map(|reference| program.type_reference_table.unconstrained_type_reference(reference))
                     else {
                         missing = true;
                         continue;
