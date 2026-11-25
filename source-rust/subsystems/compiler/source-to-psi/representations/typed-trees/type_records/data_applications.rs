@@ -528,6 +528,26 @@ impl<'source> ApplicationPreparation<'source> {
         if lifetimes != template.lifetime_parameters.len() || parameters.len() != arguments.len() {
             return Err("data application does not retain its complete argument tuple".into());
         }
+        // Even an argument erased by the member types must have its declared
+        // kind. Check the tuple before deferring an open application.
+        for (parameter, &argument) in parameters.iter().zip(&arguments) {
+            if !self
+                .source
+                .type_reference_table
+                .contains_type_reference(argument)
+            {
+                return Err("data application refers to a missing type reference".into());
+            }
+            if parameter.kind == TypeParameterKind::Type
+                && self.source.type_argument_names_value(argument)
+            {
+                return Err(format!(
+                    "data type argument for `{}` of `{}` requires a type but was supplied a value",
+                    parameter.name.as_str(),
+                    self.source.symbols.name(owner),
+                ));
+            }
+        }
         if parameters.is_empty() {
             return Ok(true);
         }
@@ -566,13 +586,6 @@ impl<'source> ApplicationPreparation<'source> {
                 return Err(
                     "data application has a foreign or duplicated declaration binder".into(),
                 );
-            }
-            if !self
-                .source
-                .type_reference_table
-                .contains_type_reference(argument)
-            {
-                return Err("data application refers to a missing type reference".into());
             }
             substitutions.push((parameter.symbol, argument));
         }
