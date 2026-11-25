@@ -3,16 +3,17 @@
 use super::PlannedProduct;
 use build_declarations::BuildDeclaration;
 use compiler::{NativeApplicationSettings, Program, SourceNativeTarget, StageSource};
+use declaration_scope::PackageDeclarationScope;
 use diagnostics::Diagnostic;
 use installation_conditions::InstallationEnvironmentAssumption;
 use optimization_requests::{OptimizationRollback, OptimizationRollbackReceipt};
+use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use retained_product_selections::RetainedProviderSelection;
 use semantic_vocabulary::source_selections::ProductTarget;
 use source_compiler::compile_product::source_targets::SourceTarget;
 use source_compiler::compile_product::{
     NativeBindingInputs, PackageNativeBindings, ProductPolicyInputs, ProductSourceInputs,
 };
-use declaration_scope::PackageDeclarationScope;
 use source_declarations::declaration_selection::{
     DescribedProductEntry, ProductEntryBinding, RootBindingSelection,
 };
@@ -175,28 +176,70 @@ impl ProductStage<'_> {
             Some(&mut advisories),
             timings,
         )?;
-        for (target, publication) in checked.into_iter().zip(publications) {
-            let program = Program::CheckedSource {
-                publication,
-                suppliers: stage.product,
-                runtime_consent: stage.runtime_consent(target)?,
-                target: stage.native_target(target, Vec::new())?,
-            };
-            let row = |mut diagnostics: Vec<Diagnostic>| {
-                if target != profile {
-                    for diagnostic in &mut diagnostics {
-                        diagnostic.message = format!(
-                            "the `{}` Build row: {}",
-                            target.target_name(),
-                            diagnostic.message
-                        );
-                    }
-                }
-                diagnostics
-            };
-            advisories.extend(program.check_target(timings).map_err(row)?);
+        // Each target's native preparation reads only its own publication and
+        // the shared Product, so the targets prepare in parallel on the
+        // invocation's workers. Results keep the checked order, so the first
+        // failing target in that order is still the one reported.
+        let enabled = timings.is_enabled();
+        let prepared = timings.record_result(
+            artifacts::compile_timings::CHECKED_TARGET_PREPARATION,
+            || {
+                Ok::<_, Vec<Diagnostic>>(worker_budget::within_budget(|| {
+                    checked
+                        .into_par_iter()
+                        .zip(publications)
+                        .map(|(target, publication)| {
+                            let mut target_timings = if enabled {
+                                source_compiler::CompileTimings::enabled()
+                            } else {
+                                source_compiler::CompileTimings::default()
+                            };
+                            let result = stage.check_publication(
+                                target,
+                                profile,
+                                publication,
+                                &mut target_timings,
+                            );
+                            (target_timings, result)
+                        })
+                        .collect::<Vec<_>>()
+                }))
+            },
+        )?;
+        for (target_timings, result) in prepared {
+            timings.extend(&target_timings);
+            advisories.extend(result?);
         }
         Ok(advisories)
+    }
+
+    /// Prepare `target`'s native inputs from its checked publication. A
+    /// refusal on a target other than the requested `profile` names its Build row.
+    fn check_publication(
+        &self,
+        target: TargetProfile,
+        profile: TargetProfile,
+        publication: source_compiler::PublishedTargetProgram,
+        timings: &mut source_compiler::CompileTimings,
+    ) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
+        let program = Program::CheckedSource {
+            publication,
+            suppliers: self.product,
+            runtime_consent: self.runtime_consent(target)?,
+            target: self.native_target(target, Vec::new())?,
+        };
+        program.check_target(timings).map_err(|mut diagnostics| {
+            if target != profile {
+                for diagnostic in &mut diagnostics {
+                    diagnostic.message = format!(
+                        "the `{}` Build row: {}",
+                        target.target_name(),
+                        diagnostic.message
+                    );
+                }
+            }
+            diagnostics
+        })
     }
 
     /// Whether the Build binds a program entry for `profile`.
