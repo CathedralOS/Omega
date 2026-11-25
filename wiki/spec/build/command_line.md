@@ -41,8 +41,9 @@ with status 1. Source refusals include the path, one-based line and byte
 column, and byte range. Invalid usage exits with status 2. Use `--` before
 a file name beginning with a dash.
 
-The [source-based install and update forms](../packages/staged_inputs.md#installing-and-updating)
-edit the selected stage's dependency declaration. The version 4 package manager
+In the [source-based workflow](../packages/staged_inputs.md#installing-and-updating),
+`omega packages`, `omega packages help add` and `omega packages help update`
+provide instructions for editing the consuming stage. The version 4 package manager
 uses the following acquisition, review, resume and discard forms during migration:
 
 ```text

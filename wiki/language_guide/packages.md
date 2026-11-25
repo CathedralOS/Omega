@@ -32,6 +32,73 @@ the libraries its product can import. In
 dependency and `vec` names one file inside the importing source. [Chapter 15](chapter_15_modules_imports_visibility.md#build-helpers)
 shows the two dependency kinds.
 
+## Using the same console in a Build and an application
+
+In the staged design, `omega build build.omg` starts at the named file. Here
+the first entry prepares an interpreted Build. That Build prints a message
+and describes a Linux editor. Both programs import the same helper.
+
+```omega
+// build.omg
+use {omega}/build/dependency.omg;
+use {std}/console.omg;
+
+machine build(build: @mutable Build) {
+    let std: DependencyDescription =
+        |dependency|::from_source(Source::Path { location: "vendor/std" });
+    |dependency|::add(build, std, max_reach: [StandardOutput]);
+    Build::build_entry(build, "build_0.omg");
+    Build::select_provider::<|console|::Console, |console|::InterpreterConsole>(
+        build, interpreter
+    );
+}
+```
+
+Here `vendor/std` declares the package name `std`. The console references
+in the selection are designated product operands. The preparing entry never
+calls the console. Its caller supplies the child's admitted output sink.
+
+```omega
+// build_0.omg
+use {omega}/build/dependency.omg;
+use generated.omg;
+use main.omg as editor;
+
+machine build(build: @mutable Build) reaches StandardOutput {
+    |generated|::announce("configuring editor");
+    Build::application(build, "editor");
+    let std: PackageBinding = |dependency|::input(build, "std");
+    |dependency|::add(build, std, max_reach: [StandardOutput]);
+    Build::bind(build, linux_x86_64::ProgramEntry, |editor|::main);
+}
+```
+
+```omega
+// generated.omg, supplied in the frozen source view of both programs
+use {std}/console.omg;
+
+public machine announce(message: @[u8]) reaches StandardOutput {
+    |console|::Console::write_line(message);
+}
+```
+
+```omega
+// main.omg
+use generated.omg;
+
+machine main() reaches StandardOutput {
+    |generated|::announce("editor started");
+}
+```
+
+The first message reaches the interpreter's diagnostic sink. When the editor
+runs, its message reaches Linux standard output through the provider selected
+by the `std` package for that target. The intermediate Build forwards the
+package once. Individual callers just use `Console`. A generator can supply
+`generated.omg` by writing it into the source view before handoff.
+The successor API and interpreter adapter are specified implementation work.
+[Stage admission and acceptance cases](../spec/build/scoped_execution.md#providers-for-an-interpreted-successor)
+
 ## Giving one dependency a filesystem
 
 Suppose a firmware package's Build reads `expected.sha256`. The parent reads
@@ -130,15 +197,15 @@ own `build.omg` still describes that one project.
 
 ## Building from a revision in source
 
-In the proposed staged workflow a project pins each direct Git dependency in
+In the staged workflow a project pins each direct Git dependency in
 its own Omega source. Building the project alone or as a dependency uses the
 same entry. A cached copy of that exact revision can satisfy an offline build.
 Use an extra stage when the Build itself imports the library. A product-only
 dependency needs the ordinary registration.
 
 For example, a Git declaration for `board` can follow the `stable` branch for
-updates and still build from yesterday's exact commit. Installing `board`
-again keeps that commit. Updating it proposes changing the commit literal.
+updates and still build from yesterday's exact commit. The add and update guides explain how to register that package or change
+its commit literal.
 A custom revision calculation stays editable by the author.
 [Complete board example and command behavior](../spec/packages/staged_inputs.md)
 

@@ -1,6 +1,6 @@
 # Compiler-derived package review
 
-The proposed [source-based update workflow](staged_inputs.md#installing-and-updating)
+The [source-based update workflow](staged_inputs.md#installing-and-updating)
 can report current reach without a stored baseline. The comparisons with
 accepted lock rows below describe version 4. A missing old result leaves the
 change unknown. Candidate admission still checks the actual constraints.
