@@ -1093,6 +1093,38 @@ fn an_indexed_domain_retains_the_members_of_its_applied_carrier() {
 }
 
 #[test]
+fn a_domain_on_a_qualified_alias_preserves_both_qualifications() {
+    let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
+    for (input, carries_stored) in [("Kept", true), ("Segment<Placed, Word>", false)] {
+        let source = format!(
+            "data Word {{ bits: u64; }}
+             domain Word::Placed;
+             data Placed = Word in Word::Placed;
+             data Segment<P, T> [linear] {{ value: T; }}
+             domain<P, T> Segment<P, T>::Stored<P, T>;
+             domain<P, T> Segment<P, T>::Live<P, T>;
+             data Kept = Segment<Placed, Word> in Stored<Placed, Word>;
+             machine carry(x: {input} in Live<Placed, Word>)
+                 -> Kept in Live<Placed, Word> {{ x }}"
+        );
+        let (files, root) = captured(package, &source);
+        let result = compile(product(files, root, package, &[]).unwrap(), None);
+        if carries_stored {
+            result.expect("Live qualifies the carrier of the already stored segment");
+        } else {
+            let errors = result.expect_err("Live alone does not establish Stored");
+            assert!(
+                errors.iter().any(|error| {
+                    error.message.contains("machine's result declares")
+                        && error.message.contains("Stored")
+                }),
+                "{errors:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn an_applied_carrier_domain_is_exposed_by_its_declaring_file() {
     let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
     for (name, visible) in [

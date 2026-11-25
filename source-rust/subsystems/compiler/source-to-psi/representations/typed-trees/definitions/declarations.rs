@@ -1423,6 +1423,11 @@ pub mod domain {
         if has_generic_carrier(program, domain) {
             return true;
         }
+        // A qualification on the entire value leaves its carrier unchanged.
+        // Qualifications inside a type argument still identify that argument.
+        let carrier = program
+            .type_reference_table
+            .unconstrained_type_reference(carrier);
         let substitutions = index_parameters(program, domain)
             .iter()
             .zip(arguments)
