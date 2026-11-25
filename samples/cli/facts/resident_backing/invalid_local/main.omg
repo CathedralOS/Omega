@@ -11,9 +11,9 @@ use {omega}/language/core/reflect/reflect.omg as reflect;
 
 data TestMemory {}
 public data Word { prefix: u64; value: u64; suffix: u64; }
-public data WordPlacement {}
 public data WordStorage = |layout|::LayoutStorage<Word, WordLayout>;
 public domain Word::Placed access WordAccess;
+public data WordPlacement = Word in Word::Placed;
 
 public WordLayout satisfies |layout|::FixedLayout<Word> {
     machine plan(schema: |layout|::Schema, target: |layout|::LayoutTarget) -> |layout|::LayoutPlan
@@ -29,7 +29,7 @@ public WordLayout satisfies |layout|::FixedLayout<Word> {
 public WordAccess satisfies |layout|::AccessPolicy {
     machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan
     reaches none crashes none terminates {
-        let mutable plan = |access|::new_plan(@schema, |layout|::Issuance::Unrestricted);
+        let mutable plan: |layout|::AccessPlan = |access|::new_plan(@schema, |layout|::Issuance::Unrestricted);
         |access|::observe(@mutable plan, |reflect|::field(Word::prefix),
             |layout|::FieldAccess::Stable { read: true, take: false, write: true, swap: false, exposure: |layout|::Exposure::Exported });
         |access|::observe(@mutable plan, |reflect|::field(Word::value),
@@ -112,7 +112,8 @@ machine exercise(vacant: |extent|::Extent in |extent|::Extent::Granted & |extent
         let view: @mutable WordStorage in Word::Placed = |access|::view_resident_mut::<WordPlacement, Word, WordStorage in Word::Placed>(@mutable retained);
         let before: u64 = view.value;
         view.value = 29u64;
-        let released = |access|::move_out_owned::<WordPlacement, Word>(retained);
+        let released: |layout|::AccessReturn<|extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant, Word> =
+            |access|::move_out_owned::<WordPlacement, Word>(retained);
         transition { _ -> finish(released.source, released.custody, before) }
     }
 

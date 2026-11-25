@@ -8,19 +8,12 @@ use {omega}/language/core/access/access.omg as access;
 use {omega}/language/core/reflect/reflect.omg as reflect;
 
 data Word { value: u64; }
-domain Word::Placed access Allow;
-domain Word::Other access Deny;
+domain Word::Placed access WordAccess;
+domain Word::Other access WordAccess;
 data WordPlacement = Word in Word::Placed;
-Allow satisfies |layout|::AccessPolicy {
+WordAccess satisfies |layout|::AccessPolicy {
     machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan reaches none crashes none terminates {
         |access|::new_plan(@schema, |layout|::Issuance::Unrestricted)
-    }
-}
-Deny satisfies |layout|::AccessPolicy {
-    machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan reaches none crashes none terminates {
-        let mutable policy = |access|::new_plan(@schema, |layout|::Issuance::Unrestricted);
-        |access|::observe(@mutable policy, |reflect|::field(Word::value), |layout|::FieldAccess::Inaccessible);
-        policy
     }
 }
 machine carry(input: @|extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Resident<WordPlacement, Word>)
