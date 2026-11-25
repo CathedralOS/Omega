@@ -92,17 +92,10 @@ pub struct JudgedSource {
     pub accounting: crate::compile_time_invocations::SourceCompletionAccounting,
 }
 
-enum SourceRoots<'a> {
-    Selected(
-        TerminalSourceCompilation<'a>,
-        terminal_codec::TerminalPublication,
-    ),
-    Product(SourceCompilationRoster),
-}
-
-fn judge_source(
+fn judge_selected_source(
     source: PreparedTypedTrees,
-    roots: SourceRoots<'_>,
+    compilation: TerminalSourceCompilation<'_>,
+    publication: terminal_codec::TerminalPublication,
     optimizations: PsiOptimizationSelections,
     timings: &mut CompileTimings,
 ) -> Result<
@@ -113,11 +106,8 @@ fn judge_source(
     Vec<Diagnostic>,
 > {
     let lowered = timings
-        .record_result(stages::LOWER, || match roots {
-            SourceRoots::Selected(compilation, publication) => {
-                lower_for_publication(source, compilation, publication)
-            }
-            SourceRoots::Product(roster) => lower_roster(roster, source),
+        .record_result(stages::LOWER, || {
+            lower_for_publication(source, compilation, publication)
         })
         .map_err(|rows| DiagnosticStage::Lowering.attribute(rows))?;
     timings
@@ -131,9 +121,10 @@ pub fn judge_terminal_source(
     publication: terminal_codec::TerminalPublication,
 ) -> Result<AcceptedTerminalSource, Vec<Diagnostic>> {
     // A selected invocation is used and never reported, so its advisories are not read.
-    let (judgment, _) = judge_source(
+    let (judgment, _) = judge_selected_source(
         source,
-        SourceRoots::Selected(compilation, publication),
+        compilation,
+        publication,
         Default::default(),
         &mut CompileTimings::default(),
     )?;
@@ -155,14 +146,24 @@ impl std::ops::Deref for SourcePublication {
 }
 
 impl SourcePublication {
-    pub fn judge(
+    pub fn lower_product(
         source: PreparedTypedTrees,
         roster: SourceCompilationRoster,
+        timings: &mut CompileTimings,
+    ) -> Result<LoweredSourcePublication, Vec<Diagnostic>> {
+        timings
+            .record_result(stages::LOWER, || lower_roster(roster, source))
+            .map_err(|rows| DiagnosticStage::Lowering.attribute(rows))
+    }
+
+    pub fn judge_lowered(
+        lowered: LoweredSourcePublication,
         optimizations: PsiOptimizationSelections,
         timings: &mut CompileTimings,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let (judgment, advisories) =
-            judge_source(source, SourceRoots::Product(roster), optimizations, timings)?;
+        let (judgment, advisories) = timings
+            .record_result(stages::CHECK, || judge_publication(lowered, optimizations))
+            .map_err(|rows| DiagnosticStage::Checking.attribute(rows))?;
         let publication = timings.record_result(stages::ACCEPT, || {
             checked_program_to_psi::SourcePublication::from_judgment(judgment)
         })?;
@@ -170,6 +171,16 @@ impl SourcePublication {
             publication,
             advisories,
         })
+    }
+
+    pub fn judge(
+        source: PreparedTypedTrees,
+        roster: SourceCompilationRoster,
+        optimizations: PsiOptimizationSelections,
+        timings: &mut CompileTimings,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let lowered = Self::lower_product(source, roster, timings)?;
+        Self::judge_lowered(lowered, optimizations, timings)
     }
 
     /// What the checker says about the accepted source without refusing it:

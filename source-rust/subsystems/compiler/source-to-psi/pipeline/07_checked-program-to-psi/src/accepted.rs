@@ -376,81 +376,7 @@ impl AcceptedTerminalSource {
     pub fn boundary_requirements_declared(
         &self,
     ) -> Result<Vec<DeclaredBoundaryRequirement>, Diagnostic> {
-        let elaboration = self.closure.elaboration();
-        let lost = |detail: &str| {
-            Diagnostic::error(format!(
-                "cannot determine executable boundary supply: {detail}"
-            ))
-        };
-        if elaboration.module.interfaces.boundary_machines.len() != elaboration.boundaries.len() {
-            return Err(lost(
-                "differ from the requirements the module was lowered from",
-            ));
-        }
-        let mut declared = Vec::with_capacity(elaboration.boundaries.len());
-        for (boundary, symbol) in elaboration.boundaries.iter() {
-            let declaration = elaboration
-                .module
-                .boundary_machine(boundary)
-                .ok_or_else(|| lost("omit a requirement the module was lowered from"))?;
-            if crate::provider_supply::is_direct_compiler_primitive(declaration) {
-                terminal_semantics::closed_conformances::validate_boundary_callable(
-                    &elaboration.module,
-                    declaration,
-                )
-                .map_err(|reason| {
-                    let identity = declaration
-                        .declaration
-                        .as_ref()
-                        .and_then(|checked| {
-                            elaboration
-                                .module
-                                .identities
-                                .text(checked.source.semantic_declaration)
-                        })
-                        .unwrap_or("missing declaration identity");
-                    lost(&format!("{reason}: {identity}"))
-                })?;
-                continue;
-            }
-            let (owner, requirement) = self
-                .source()
-                .trait_machine_signature(*symbol)
-                .filter(|(owner, requirement)| owner.is_boundary && requirement.symbol == *symbol)
-                .ok_or_else(|| lost("lost the boundary trait that owns a requirement"))?;
-            let application = self
-                .source()
-                .closed_requirement_application(*symbol)
-                .map(|closed| {
-                    let receiving_trait = self
-                        .source()
-                        .type_identity_text(closed.portable_trait_application_identity)
-                        .filter(|identity| !identity.is_empty())
-                        .ok_or_else(|| lost("lost the complete application of a boundary trait"))?;
-                    let callable = self
-                        .source()
-                        .trait_requirement_callable_identity_text(owner, requirement);
-                    if callable.is_empty() {
-                        return Err(lost(
-                            "lost the complete application of a boundary requirement",
-                        ));
-                    }
-                    Ok(DeclaredRequirementApplication {
-                        template: closed.template,
-                        receiving_trait,
-                        callable,
-                    })
-                })
-                .transpose()?;
-            declared.push(DeclaredBoundaryRequirement {
-                boundary,
-                requirement: *symbol,
-                slot: owner.symbol,
-                application,
-                name: format!("{}::{}", owner.name.as_str(), requirement.name.as_str()),
-            });
-        }
-        Ok(declared)
+        boundary_requirements_declared_for(self.source(), self.closure.elaboration())
     }
 
     /// Follow the entry and its demanded scalar evaluations through actual
@@ -799,6 +725,81 @@ fn build_backing<'source>(
         ));
     }
     Ok(selected)
+}
+
+pub fn boundary_requirements_declared_for(
+    source: &FrozenTypedTrees,
+    elaboration: &terminal_check_tables::program::Elaboration,
+) -> Result<Vec<DeclaredBoundaryRequirement>, Diagnostic> {
+    let lost = |detail: &str| {
+        Diagnostic::error(format!(
+            "cannot determine executable boundary supply: {detail}"
+        ))
+    };
+    if elaboration.module.interfaces.boundary_machines.len() != elaboration.boundaries.len() {
+        return Err(lost(
+            "differ from the requirements the module was lowered from",
+        ));
+    }
+    let mut declared = Vec::with_capacity(elaboration.boundaries.len());
+    for (boundary, symbol) in elaboration.boundaries.iter() {
+        let declaration = elaboration
+            .module
+            .boundary_machine(boundary)
+            .ok_or_else(|| lost("omit a requirement the module was lowered from"))?;
+        if crate::provider_supply::is_direct_compiler_primitive(declaration) {
+            terminal_semantics::closed_conformances::validate_boundary_callable(
+                &elaboration.module,
+                declaration,
+            )
+            .map_err(|reason| {
+                let identity = declaration
+                    .declaration
+                    .as_ref()
+                    .and_then(|checked| {
+                        elaboration
+                            .module
+                            .identities
+                            .text(checked.source.semantic_declaration)
+                    })
+                    .unwrap_or("missing declaration identity");
+                lost(&format!("{reason}: {identity}"))
+            })?;
+            continue;
+        }
+        let (owner, requirement) = source
+            .trait_machine_signature(*symbol)
+            .filter(|(owner, requirement)| owner.is_boundary && requirement.symbol == *symbol)
+            .ok_or_else(|| lost("lost the boundary trait that owns a requirement"))?;
+        let application = source
+            .closed_requirement_application(*symbol)
+            .map(|closed| {
+                let receiving_trait = source
+                    .type_identity_text(closed.portable_trait_application_identity)
+                    .filter(|identity| !identity.is_empty())
+                    .ok_or_else(|| lost("lost the complete application of a boundary trait"))?;
+                let callable = source.trait_requirement_callable_identity_text(owner, requirement);
+                if callable.is_empty() {
+                    return Err(lost(
+                        "lost the complete application of a boundary requirement",
+                    ));
+                }
+                Ok(DeclaredRequirementApplication {
+                    template: closed.template,
+                    receiving_trait,
+                    callable,
+                })
+            })
+            .transpose()?;
+        declared.push(DeclaredBoundaryRequirement {
+            boundary,
+            requirement: *symbol,
+            slot: owner.symbol,
+            application,
+            name: format!("{}::{}", owner.name.as_str(), requirement.name.as_str()),
+        });
+    }
+    Ok(declared)
 }
 
 #[cfg(test)]

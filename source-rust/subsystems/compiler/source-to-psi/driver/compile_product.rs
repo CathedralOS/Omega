@@ -10,7 +10,7 @@ use diagnostics::Diagnostic;
 use std::sync::Arc;
 
 mod judge_product_roster;
-use judge_product_roster::prepare_and_judge;
+use judge_product_roster::prepare_and_lower;
 
 mod behavior_exclusions;
 pub(crate) mod declaration_lookup;
@@ -250,10 +250,71 @@ pub(crate) fn prepare_lower_and_check(
         timings,
     };
     let mut layouts = Vec::new();
-    let mut judged = prepare_and_judge(&mut pass, typed, &layouts)?;
-    loop {
-        use provider_settlement::{ProductSupplySource, ProviderWork, next_provider_work};
-        let work = pass.timings.record_result(
+    let mut current = prepare_and_lower(&mut pass, typed, &layouts)?;
+    let judged = loop {
+        use provider_settlement::{
+            LoweredSupplySource, ProductSupplySource, ProviderWork, next_provider_work,
+            next_provider_work_from_lowered,
+        };
+        // Settle layout defaults and provider supplies on the lowered module
+        // before running the Stage 06 checker so intermediate waves are not
+        // checked and discarded.
+        loop {
+            let work = pass.timings.record_result(
+                artifacts::compile_timings::source::PROVIDER_SETTLEMENT,
+                || {
+                    next_provider_work_from_lowered(LoweredSupplySource {
+                        targets: pass.inputs.targets,
+                        lowered: &current.lowered,
+                        build: &pass.explicit_providers,
+                        native_bindings: &pass.native_supplies,
+                        defaults: &current.provider_defaults,
+                        layout_prepared: &layouts,
+                    })
+                },
+            )?;
+            match work {
+                ProviderWork::Complete => break,
+                ProviderWork::JudgeProviders(supplies) => {
+                    let mut roster = current
+                        .lowered
+                        .source()
+                        .roster
+                        .clone()
+                        .ok_or_else(|| {
+                            vec![Diagnostic::error(
+                                "lowered product lost its compilation roster during provider settlement",
+                            )]
+                        })?;
+                    roster.supplies.extend(supplies);
+                    let source = current.lowered.source().owner.clone();
+                    current.lowered = judge_lowered_source::SourcePublication::lower_product(
+                        source,
+                        roster,
+                        pass.timings,
+                    )?;
+                }
+                ProviderWork::PrepareLayouts(chosen) => {
+                    layouts = chosen;
+                    let typed = unprepared.clone().ok_or_else(|| vec![Diagnostic::error(
+                        "a target chose a provider default absent from the source preparation frontier"
+                    )])?;
+                    current = prepare_and_lower(&mut pass, typed, &layouts)?;
+                }
+            }
+        }
+        let publication = Arc::new(judge_lowered_source::SourcePublication::judge_lowered(
+            current.lowered,
+            pass.inputs.optimizations.clone(),
+            pass.timings,
+        )?);
+        let judged = JudgedSource {
+            program: current.program,
+            publication,
+            provider_defaults: current.provider_defaults,
+        };
+        // Confirm completeness against the checked publication as well.
+        let confirm = pass.timings.record_result(
             artifacts::compile_timings::source::PROVIDER_SETTLEMENT,
             || {
                 next_provider_work(ProductSupplySource {
@@ -266,28 +327,32 @@ pub(crate) fn prepare_lower_and_check(
                 })
             },
         )?;
-        match work {
-            ProviderWork::Complete => break,
+        match confirm {
+            ProviderWork::Complete => break judged,
             ProviderWork::JudgeProviders(supplies) => {
                 let mut roster = judged.publication.roster()?.clone();
                 roster.supplies.extend(supplies);
                 let source = judged.publication.accepted()?.prepared().clone();
-                judged.publication = Arc::new(judge_lowered_source::SourcePublication::judge(
+                let lowered = judge_lowered_source::SourcePublication::lower_product(
                     source,
                     roster,
-                    pass.inputs.optimizations.clone(),
                     pass.timings,
-                )?);
+                )?;
+                current = LoweredProduct {
+                    program: judged.program,
+                    lowered,
+                    provider_defaults: judged.provider_defaults,
+                };
             }
             ProviderWork::PrepareLayouts(chosen) => {
                 layouts = chosen;
                 let typed = unprepared.clone().ok_or_else(|| vec![Diagnostic::error(
                     "a target chose a provider default absent from the source preparation frontier"
                 )])?;
-                judged = prepare_and_judge(&mut pass, typed, &layouts)?;
+                current = prepare_and_lower(&mut pass, typed, &layouts)?;
             }
         }
-    }
+    };
     if let (
         ProductRoots::Applied { test, application },
         ProductEntry::RegisteredTest { target, .. },
@@ -337,6 +402,12 @@ struct ProductSourcePass<'a, 'f> {
     initial_accounting: crate::compile_time_invocations::SourceCompletionAccounting,
     accounting: &'f mut crate::compile_time_invocations::SourceCompletionAccounting,
     timings: &'f mut crate::CompileTimings,
+}
+
+struct LoweredProduct {
+    program: Arc<crate::source_state::FrozenTypedTrees>,
+    lowered: prepared_typed_trees_to_lowered_program::LoweredSourcePublication,
+    provider_defaults: Vec<provider_choice_inputs::TargetProviderDefaults>,
 }
 
 struct JudgedSource {

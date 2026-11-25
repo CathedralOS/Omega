@@ -37,6 +37,18 @@ pub(crate) fn selected_supplies(
     }
 }
 
+/// What a Product's lowered module is extended from before running the checker:
+/// the frozen source and lowered elaboration, with the supplies the Build and
+/// the target packages declare.
+pub(super) struct LoweredSupplySource<'a> {
+    pub targets: &'a [super::source_targets::SourceTarget],
+    pub lowered: &'a prepared_typed_trees_to_lowered_program::LoweredSourcePublication,
+    pub build: &'a [crate::compile_product::provider_declarations::ProviderSelection],
+    pub native_bindings: &'a [provider_choice_inputs::NativeBuildSupply],
+    pub defaults: &'a [crate::compile_product::provider_declarations::TargetProviderDefaults],
+    pub layout_prepared: &'a [ChosenDefaultLayout],
+}
+
 /// What a Product's accepted module is extended from: the frozen source and
 /// the first judgment, with the supplies the Build and the target packages
 /// declare.
@@ -84,6 +96,48 @@ struct ModuleDemand {
 }
 
 impl ModuleDemand {
+    fn read_from_elaboration(
+        source: &crate::source_state::FrozenTypedTrees,
+        elaboration: &terminal_check_tables::program::Elaboration,
+        roster: &source_roster::SourceCompilationRoster,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let declared = production::boundary_requirements_declared_for(source, elaboration)
+            .map_err(|error| vec![error])?;
+        // Every entry the Build binds is a root of every target's walk. The
+        // Build binds an entry per target, so a program that binds different
+        // entries to different targets is asked on each for what any of
+        // them reaches, until the entry of one target is selected here.
+        let roots = roster
+            .entries
+            .iter()
+            .map(|entry| {
+                elaboration
+                    .machines
+                    .iter()
+                    .find_map(|(machine, symbol)| (*symbol == *entry).then_some(machine))
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "no product route yet: the accepted module does not hold a program entry the Build binds",
+                        )]
+                    })
+            })
+            .collect::<Result<_, _>>()?;
+        let judged = elaboration
+            .supplied
+            .iter()
+            .map(|supplied| JudgedProvider {
+                provider: supplied.provider,
+                requirement: supplied.requirement,
+                machine: supplied.machine,
+            })
+            .collect();
+        Ok(Self {
+            declared,
+            roots,
+            judged,
+        })
+    }
+
     fn read(
         accepted: &production::AcceptedTerminalSource,
         roster: &source_roster::SourceCompilationRoster,
@@ -91,10 +145,6 @@ impl ModuleDemand {
         let declared = accepted
             .boundary_requirements_declared()
             .map_err(|error| vec![error])?;
-        // Every entry the Build binds is a root of every target's walk. The
-        // Build binds an entry per target, so a program that binds different
-        // entries to different targets is asked on each for what any of
-        // them reaches, until the entry of one target is selected here.
         let roots = roster
             .entries
             .iter()
@@ -124,7 +174,8 @@ impl ModuleDemand {
 
     fn prepare(
         &self,
-        accepted: &production::AcceptedTerminalSource,
+        source: &crate::source_state::FrozenTypedTrees,
+        module: &terminal_psi::TerminalModule,
         build: &[crate::compile_product::provider_declarations::ProviderSelection],
         native_bindings: &[provider_choice_inputs::NativeBuildSupply],
         defaults: &[crate::compile_product::provider_declarations::TargetProviderDefaults],
@@ -132,8 +183,8 @@ impl ModuleDemand {
         numeric_support: Option<&language_core::float_operations::NumericTargetCapabilities>,
     ) -> Result<PreparedTargetSupply, Vec<Diagnostic>> {
         PreparedTargetSupply::prepare(TargetSupplyRequest {
-            source: accepted.source(),
-            module: accepted.module(),
+            source,
+            module,
             declared: &self.declared,
             roots: &self.roots,
             judged: &self.judged,
@@ -146,25 +197,27 @@ impl ModuleDemand {
     }
 }
 
-/// Read every target's choices from one accepted Product. Missing target-specific
-/// supply is reported when that target is requested. A chosen checked provider
-/// becomes a root in the shared Product, including all its transitive requirements.
-/// Layouts take precedence: the driver must prepare those selected defaults on
-/// their target before it can judge the providers on the resulting source.
-pub(super) fn next_provider_work(
-    source: ProductSupplySource<'_>,
+#[allow(clippy::too_many_arguments)]
+fn scan_provider_work(
+    demand: &ModuleDemand,
+    source: &crate::source_state::FrozenTypedTrees,
+    module: &terminal_psi::TerminalModule,
+    roster: &source_roster::SourceCompilationRoster,
+    targets: &[super::source_targets::SourceTarget],
+    build: &[crate::compile_product::provider_declarations::ProviderSelection],
+    native_bindings: &[provider_choice_inputs::NativeBuildSupply],
+    defaults: &[crate::compile_product::provider_declarations::TargetProviderDefaults],
+    layout_prepared: &[ChosenDefaultLayout],
 ) -> Result<ProviderWork, Vec<Diagnostic>> {
-    let accepted = source.publication.accepted()?;
-    let roster = source.publication.roster()?;
-    let demand = ModuleDemand::read(accepted, roster)?;
     let mut new_supplies = Vec::new();
     let mut unprepared = Vec::new();
-    for profile in source.targets {
+    for profile in targets {
         let Ok(supply) = demand.prepare(
-            accepted,
-            source.build,
-            source.native_bindings,
-            source.defaults,
+            source,
+            module,
+            build,
+            native_bindings,
+            defaults,
             Some(profile.numeric_support.target),
             Some(&profile.numeric_support),
         ) else {
@@ -178,8 +231,7 @@ pub(super) fn next_provider_work(
             let SupplySelection::Checked(selection) = &supply.selection else {
                 continue;
             };
-            if source
-                .defaults
+            if defaults
                 .iter()
                 .any(|row| row.selections.contains(selection))
             {
@@ -187,7 +239,7 @@ pub(super) fn next_provider_work(
                     target: profile.numeric_support.target.to_owned(),
                     selection: selection.clone(),
                 };
-                if !source.layout_prepared.contains(&layout) && !unprepared.contains(&layout) {
+                if !layout_prepared.contains(&layout) && !unprepared.contains(&layout) {
                     unprepared.push(layout);
                 }
             }
@@ -204,7 +256,7 @@ pub(super) fn next_provider_work(
         }
     }
     if !unprepared.is_empty() {
-        let mut layouts = source.layout_prepared.to_vec();
+        let mut layouts = layout_prepared.to_vec();
         layouts.append(&mut unprepared);
         return Ok(ProviderWork::PrepareLayouts(layouts));
     }
@@ -212,4 +264,59 @@ pub(super) fn next_provider_work(
         return Ok(ProviderWork::Complete);
     }
     Ok(ProviderWork::JudgeProviders(new_supplies))
+}
+
+/// Read every target's choices from a lowered Product before running Stage 06.
+/// If lowering produced a formation failure or closure refusal, stop settling
+/// so Stage 06 reports that exact refusal unchanged.
+pub(super) fn next_provider_work_from_lowered(
+    source: LoweredSupplySource<'_>,
+) -> Result<ProviderWork, Vec<Diagnostic>> {
+    let terminal_check_tables::TerminalCompilation::Prepared(prepared) = source.lowered.program()
+    else {
+        return Ok(ProviderWork::Complete);
+    };
+    let Ok(elaboration) = &prepared.closure else {
+        return Ok(ProviderWork::Complete);
+    };
+    let Some(roster) = source.lowered.source().roster.as_ref() else {
+        return Ok(ProviderWork::Complete);
+    };
+    let trees = source.lowered.source().owner.trees();
+    let demand = ModuleDemand::read_from_elaboration(trees, elaboration, roster)?;
+    scan_provider_work(
+        &demand,
+        trees,
+        &elaboration.module,
+        roster,
+        source.targets,
+        source.build,
+        source.native_bindings,
+        source.defaults,
+        source.layout_prepared,
+    )
+}
+
+/// Read every target's choices from one accepted Product. Missing target-specific
+/// supply is reported when that target is requested. A chosen checked provider
+/// becomes a root in the shared Product, including all its transitive requirements.
+/// Layouts take precedence: the driver must prepare those selected defaults on
+/// their target before it can judge the providers on the resulting source.
+pub(super) fn next_provider_work(
+    source: ProductSupplySource<'_>,
+) -> Result<ProviderWork, Vec<Diagnostic>> {
+    let accepted = source.publication.accepted()?;
+    let roster = source.publication.roster()?;
+    let demand = ModuleDemand::read(accepted, roster)?;
+    scan_provider_work(
+        &demand,
+        accepted.source(),
+        accepted.module(),
+        roster,
+        source.targets,
+        source.build,
+        source.native_bindings,
+        source.defaults,
+        source.layout_prepared,
+    )
 }
