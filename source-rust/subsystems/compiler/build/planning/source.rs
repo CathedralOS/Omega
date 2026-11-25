@@ -2,14 +2,17 @@
 
 use super::{PlanningServices, refusal};
 
+#[path = "build_recheck.rs"]
+mod build_recheck;
 #[path = "product_queries.rs"]
 mod product_queries;
 use artifacts::compile_timings::{CompileTimings, counters::BuildExecutionPurpose};
 use build_execution::{
-    BuildEvaluationRequest, BuildSubjectValidation, CompileFailure, EvaluatedBuild,
-    PreparedBuildEvaluation, TerminalBuildActivation, prepare_build_evaluation,
-    settle_rejoined_build_slice,
+    BuildEvaluationRequest, CompileFailure, EvaluatedBuild, PreparedBuildEvaluation,
+    TerminalBuildActivation, prepare_build_evaluation,
 };
+use build_recheck::BuildRecheck;
+pub use build_recheck::{BuildRechecks, CheckedRechecks, PendingProduct, with_build_rechecks};
 use diagnostics::Diagnostic;
 use package_compilation::source_assembly::{
     AssembledSyntax, DeferredProductSources, ImmutableSourceParseCheckpoint,
@@ -251,7 +254,7 @@ pub fn prepare(
         },
         &mut timings,
     )
-    .map_err(|failure| locate_failure(failure, &assembled, inputs))?;
+    .map_err(|failure| locate_failure(failure, &assembled.parsed.files, inputs))?;
     Ok(PreparedPlanningStage {
         evaluation,
         source: PlanningSource {
@@ -289,7 +292,7 @@ fn check_only_subject(
     stage
         .prepare(preparation, profile.target_name(), scope)
         .map(Some)
-        .map_err(|rows| locate_failure(rows.into(), assembled, None))
+        .map_err(|rows| locate_failure(rows.into(), &assembled.parsed.files, None))
 }
 
 fn resolve(
@@ -311,12 +314,12 @@ fn resolve(
                 .or_else(|| SuppliedBuildLibrary::declaration_scope(libraries, None))
                 .map(Arc::new),
         )
-        .map_err(|rows| locate_failure(rows.into(), assembled, inputs))
+        .map_err(|rows| locate_failure(rows.into(), &assembled.parsed.files, inputs))
 }
 
 fn locate_failure(
     mut failure: CompileFailure,
-    source: &AssembledSyntax,
+    sources: &SourceMap,
     inputs: Option<&PackageCompilationInputs>,
 ) -> CompileFailure {
     match &mut failure {
@@ -324,7 +327,7 @@ fn locate_failure(
         | CompileFailure::SourceCompletion {
             diagnostics: rows, ..
         } => {
-            package_compilation::attribute_diagnostics(rows, &source.parsed.files, inputs);
+            package_compilation::attribute_diagnostics(rows, sources, inputs);
         }
         CompileFailure::BuildConsentRequired { .. } => {}
     }
@@ -411,26 +414,45 @@ impl PlanningSource {
         Ok(graph)
     }
 
+    /// Open the Product and check its returned Build again on the Product's
+    /// sources before returning it.
     pub(super) fn open_product(
         self,
         evaluated: EvaluatedBuild,
         inputs: Option<&PackageCompilationInputs>,
     ) -> Result<PlannedProduct, CompileFailure> {
-        self.open_product_alongside(evaluated, inputs, |_| Ok(()))
-            .map(|(product, ())| product)
+        let product = self.open_unchecked(evaluated, inputs)?;
+        match BuildRecheck::owed_by(&product) {
+            None => Ok(product),
+            Some((recheck, owed)) => {
+                let checked = recheck.run();
+                product.settle_recheck(Some(owed), Some(checked))
+            }
+        }
     }
 
-    /// Open the Product and run `alongside` on it while the returned Build is
-    /// checked again on the Product's sources. That check reads the opened
-    /// Product but never changes what `alongside` reads, so the two run in
-    /// parallel. The Product is returned only after the check passes, and a
-    /// refusal from the check is reported before any refusal from `alongside`.
-    pub(super) fn open_product_alongside<T: Send>(
+    /// Open the Product and start checking its returned Build again on the
+    /// Product's sources in `rechecks`. The Product is released only by
+    /// [`PendingProduct::settle`], after that check passes.
+    pub(super) fn open_pending(
+        self,
+        evaluated: EvaluatedBuild,
+        inputs: Option<&PackageCompilationInputs>,
+        rechecks: &BuildRechecks<'_, '_>,
+    ) -> Result<PendingProduct, CompileFailure> {
+        let product = self.open_unchecked(evaluated, inputs)?;
+        let owed = match BuildRecheck::owed_by(&product) {
+            None => None,
+            Some((recheck, owed)) => Some((owed, rechecks.start(recheck)?)),
+        };
+        Ok(PendingProduct::new(product, owed))
+    }
+
+    fn open_unchecked(
         mut self,
         evaluated: EvaluatedBuild,
         inputs: Option<&PackageCompilationInputs>,
-        alongside: impl FnOnce(&PlannedProduct) -> Result<T, CompileFailure> + Send,
-    ) -> Result<(PlannedProduct, T), CompileFailure> {
+    ) -> Result<PlannedProduct, CompileFailure> {
         for library in self.supplied_libraries.iter() {
             let joined = inputs.ok_or_else(|| {
                 refusal("a supplied Build library has no joined Product inputs".into())
@@ -474,7 +496,7 @@ impl PlanningSource {
             )?;
             Some(extension.prepare_source_request(&source.parsed.files, inputs, &mut self.timings)?)
         };
-        let mut product = PlannedProduct {
+        Ok(PlannedProduct {
             generated,
             evaluated,
             build_profile: self.profile,
@@ -485,76 +507,6 @@ impl PlanningSource {
             preparation: self.preparation,
             timings: self.timings,
             dependency_timings: CompileTimings::default(),
-        };
-        let owes_real_owner_check = product.evaluated.subject_validation
-            == BuildSubjectValidation::CheckedUnderProvisionalOwner;
-        let constants = &product.evaluated.constants;
-        if !owes_real_owner_check && constants.read.is_empty() && !constants.folded_under_providers
-        {
-            let value = alongside(&product)?;
-            return Ok((product, value));
-        }
-        let mut rejoin_timings = if product.timings.is_enabled() {
-            CompileTimings::enabled()
-        } else {
-            CompileTimings::default()
-        };
-        // Both halves run on the invocation's large-stack workers.
-        let (checked, value) = worker_budget::within_budget(|| {
-            rayon::join(
-                || product.check_rejoined_build(&mut rejoin_timings),
-                || alongside(&product),
-            )
-        });
-        product.timings.extend(&rejoin_timings);
-        let spent = checked?;
-        let value = value?;
-        product.evaluated.source_completion_accounting.append(spent);
-        if owes_real_owner_check {
-            product.evaluated.subject_validation = BuildSubjectValidation::Checked;
-        }
-        Ok((product, value))
-    }
-}
-
-impl PlannedProduct {
-    /// Check the returned Build entry again on this Product's sources, so the
-    /// constants it read are judged in the context the Product compiles.
-    fn check_rejoined_build(
-        &self,
-        timings: &mut CompileTimings,
-    ) -> Result<source_compiler::compile_time_invocations::SourceCompletionAccounting, CompileFailure>
-    {
-        let evaluated = &self.evaluated;
-        let inputs = self.package_inputs.as_ref();
-        let authority = inputs.map(|inputs| {
-            Arc::new(inputs.declaration_scope(build_declarations::DependencyPurpose::Build))
-        });
-        let declaration = evaluated
-            .configuration
-            .selected_build_declaration()
-            .ok_or_else(|| refusal("rejoined Build source lost its issued entry".into()))?;
-        // Checking the rejoined subject can refuse any declaration in the
-        // Product's files, so its refusals name their file, line and column.
-        let checked = (|| {
-            let (typed, entry) = self.source.build_stage_source()?.rejoin_build_entry(
-                &self.preparation,
-                self.build_profile.target_name(),
-                authority,
-                inputs.map(|inputs| inputs.root()),
-                declaration,
-                timings,
-            )?;
-            settle_rejoined_build_slice(
-                &evaluated.constants,
-                &typed,
-                entry,
-                inputs,
-                self.source.anonymous_owner.as_ref(),
-                evaluated.subject_validation,
-                timings,
-            )
-        })();
-        checked.map_err(|failure| locate_failure(failure, &self.source, inputs))
+        })
     }
 }
