@@ -1997,6 +1997,10 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
     )?;
+    crate::type_reference::direct::check_fixed_array_extent_carriers(
+        &lowerer.typed_trees,
+        cohort.typed_type_references,
+    )?;
     // Constructor and cast preparation may finish a callee's retained type.
     // Bind those values before attributing any still-unserved call request.
     crate::typing_queries::defer_unbound_calls(

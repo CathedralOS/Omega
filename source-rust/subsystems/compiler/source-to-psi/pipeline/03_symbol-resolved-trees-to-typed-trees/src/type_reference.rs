@@ -3012,6 +3012,103 @@ pub(crate) mod direct {
         Ok(reference)
     }
 
+    /// Check the written extent while its type still belongs to the declaring
+    /// cohort. An alias can discard the array before anyone requests its layout.
+    pub(crate) fn check_fixed_array_extent_carriers(
+        program: &typed::TypedTrees,
+        frontier: usize,
+    ) -> Result<(), Diagnostic> {
+        use symbols::BuiltinTypeAtom;
+        use typed::data::TypeParameterKind;
+        use typed::types::{FixedArrayLength, TypeReferenceNode};
+
+        let types = &program.type_reference_table;
+        let expressions = &program.expression_table;
+        let symbols = &program.symbols;
+        for (_, node) in types.type_reference_rows_from(frontier) {
+            let TypeReferenceNode::FixedArray { length, .. } = node else {
+                continue;
+            };
+            let (carrier, site) = match length {
+                FixedArrayLength::ConstParameter { symbol, .. } => {
+                    if !symbols.symbols().nodes().is_valid(*symbol) {
+                        continue;
+                    }
+                    let site = symbols.symbol_source_span(*symbol).unwrap_or_default();
+                    let carrier = if let Some(parameter) =
+                        program.data_type_parameter_by_symbol(*symbol)
+                    {
+                        let TypeParameterKind::Const { type_reference } = parameter.kind else {
+                            return Err(Diagnostic::error(
+                                "a fixed-array extent requires a const value",
+                            )
+                            .with_source_span(site));
+                        };
+                        type_reference
+                    } else if let Some(constant) = program.const_declaration_by_symbol(*symbol) {
+                        constant.declared_type
+                    } else {
+                        continue;
+                    };
+                    (carrier, site)
+                }
+                FixedArrayLength::Expression(argument) => {
+                    let TypeReferenceNode::ConstExpression(expression) =
+                        types.type_reference(*argument)
+                    else {
+                        continue;
+                    };
+                    (
+                        expressions.constructed_value_type_reference(*expression),
+                        expressions.source_span(*expression),
+                    )
+                }
+                FixedArrayLength::ConstCall {
+                    machine,
+                    source_span,
+                    ..
+                } => {
+                    let Some(state) = program
+                        .machine_by_symbol(*machine)
+                        .and_then(|machine| program.machine_states(machine).first())
+                    else {
+                        continue;
+                    };
+                    (state.return_type, *source_span)
+                }
+                FixedArrayLength::Literal(_) => continue,
+            };
+            if !types.contains_type_reference(carrier) {
+                continue;
+            }
+            let carrier = types.unconstrained_type_reference(carrier);
+            // An abstract type parameter may acquire its integer carrier on
+            // application. A nominal data type keeps its own identity.
+            let noninteger = if let Some(head) = types.type_head_symbol(carrier) {
+                match symbols.builtin_type_atom(head) {
+                    Some(atom) => !matches!(
+                        atom,
+                        BuiltinTypeAtom::Integer(_) | BuiltinTypeAtom::Int | BuiltinTypeAtom::UInt
+                    ),
+                    None => program.data_definition_by_symbol(head).is_some(),
+                }
+            } else {
+                !matches!(
+                    types.type_reference(carrier),
+                    TypeReferenceNode::ConstExpression(_)
+                )
+            };
+            if noninteger {
+                return Err(Diagnostic::error(format!(
+                    "a fixed-array extent requires an integer, found `{}`",
+                    program.display_type_reference_with_constraints(carrier)
+                ))
+                .with_source_span(site));
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn lower_fixed_array_type(
         source_trees: &SymbolResolvedTrees,
         typed_trees: &mut typed::TypedTrees,
