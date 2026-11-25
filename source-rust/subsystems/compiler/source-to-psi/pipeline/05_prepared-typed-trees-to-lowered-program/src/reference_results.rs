@@ -8,8 +8,35 @@ use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct, Refusal};
 use terminal_psi::TerminalModule;
 use terminal_semantics::descriptor_results::{
-    DescriptorAnalysis, DescriptorGraphError, terminal_borrowed_storage_graph_from,
+    DescriptorAnalysis, DescriptorGraphError, ModuleSummaries, terminal_borrowed_storage_graph_from,
 };
+
+/// The nominal calls of every graph this stage builds with
+/// `terminal_borrowed_storage_graph_from`: none. `ModuleSummaries` checks a
+/// graph's nominal calls by address, so a table and the analyses sharing it
+/// name this one slice.
+static NO_NOMINAL_CALLS: [terminal_psi::generic_calls::NominalCallArgument; 0] = [];
+
+/// One module's callee summaries for the per-machine analyses of graphs this
+/// stage builds without nominal calls. Each analysis takes a summary only
+/// where its own replay would have produced the same one, so each callee is
+/// replayed once per module rather than once per analysis.
+pub(crate) fn module_summaries(module: &TerminalModule) -> ModuleSummaries<'_> {
+    ModuleSummaries::borrowed_storage(module, &NO_NOMINAL_CALLS)
+}
+
+/// A fresh analysis over `graph`, a closure built from `module` without
+/// nominal calls, sharing `summaries` (`module_summaries` of that module).
+pub(crate) fn shared_analysis<'a>(
+    module: &'a TerminalModule,
+    graph: &'a [terminal_semantics::descriptor_results::DescriptorMachine],
+    summaries: &'a ModuleSummaries<'a>,
+) -> DescriptorAnalysis<'a> {
+    let mut analysis =
+        DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, graph);
+    analysis.share_summaries(summaries, &NO_NOMINAL_CALLS);
+    analysis
+}
 
 fn graph_unavailable(module: &TerminalModule, error: DescriptorGraphError) -> Refusal {
     let mut refusal = refuse(
@@ -762,12 +789,13 @@ fn publish_parents(
     let roots = queries.iter().map(|(machine, _, _, _)| machine.id);
     let graph = terminal_borrowed_storage_graph_from(module, roots, &[])
         .map_err(|error| graph_unavailable(module, error))?;
+    let summaries = module_summaries(module);
     let mut updates = Vec::new();
     for (machine, tables, mut children, view_reborrows) in queries {
-        // Calls share one immutable graph. Saved storage states are needed
-        // only while finding the parents of this machine's loans.
-        let mut analysis =
-            DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, &graph);
+        // Calls share one immutable graph and the module's callee summaries.
+        // Saved storage states are needed only while finding the parents of
+        // this machine's loans.
+        let mut analysis = shared_analysis(module, &graph, &summaries);
         let flow = analysis
             .flow_arc(machine.id)
             .map_err(|error| graph_unavailable(module, error))?;

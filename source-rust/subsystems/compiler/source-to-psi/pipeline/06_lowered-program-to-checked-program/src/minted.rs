@@ -727,6 +727,7 @@ pub(crate) fn follow_the_lowered_form(
     tables: &MachineTables,
     types: &IdTable<ValueId, ScalarType>,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+    affine: Option<&terminal_semantics::plain_affine::AffineSummaries<'_>>,
 ) -> Checked<()> {
     values_are_declared(id, lowered, tables)?;
     let returned =
@@ -766,7 +767,9 @@ pub(crate) fn follow_the_lowered_form(
                 )
             },
         )?,
-        claims: terminal_semantics::plain_affine::verify_claims_in(module, id).map_err(
+        claims: terminal_semantics::plain_affine::MachineAffine::new(module, id, affine)
+            .and_then(|walks| walks.verify_claims())
+            .map_err(
             |error| {
                 use terminal_semantics::plain_affine::{Error, Site};
                 let concerns = match error.site() {

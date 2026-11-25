@@ -26,6 +26,7 @@ use crate::{
 use terminal_check_tables::{Construct, Refusal, UnprovedCause};
 
 mod address_bounds;
+mod affine_summaries;
 mod applications;
 mod arithmetic_policies;
 mod array_lengths;
