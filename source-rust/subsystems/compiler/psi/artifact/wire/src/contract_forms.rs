@@ -298,15 +298,18 @@ impl<S> ScalarFormals<'_, S> {
             .ok_or("clause names a structural formal whose actual has no static path")
     }
 
-    /// The formal's path restated below the storage its actual stands for.
-    fn path(
+    /// The formal's path restated below the storage its actual stands for:
+    /// the actual's static prefix first, then the formal's own segments. A
+    /// field, extent or byte predicate keeps canonical segments; an element
+    /// read converts the prefix into its read projections.
+    fn path<T: Clone + From<CanonicalStructuralPathSegment>>(
         &self,
         formal: PlaceId,
-        path: &[CanonicalStructuralPathSegment],
-    ) -> Result<(PlaceId, Vec<CanonicalStructuralPathSegment>), &'static str> {
+        path: &[T],
+    ) -> Result<(PlaceId, Vec<T>), &'static str> {
         let storage = self.place(formal)?;
         let mut restated = Vec::with_capacity(storage.prefix.len() + path.len());
-        restated.extend_from_slice(&storage.prefix);
+        restated.extend(storage.prefix.iter().copied().map(T::from));
         restated.extend_from_slice(path);
         Ok((storage.root, restated))
     }
@@ -368,25 +371,16 @@ impl<S: RestatedSources> terminal_semantics::substitution::clauses::ClauseBindin
     fn structural_read(
         &mut self,
         root: semantic_vocabulary::PlaceId,
-        path: &[semantic_vocabulary::ScalarReadProjection],
+        path: &[ScalarReadProjection],
         scalar_type: semantic_vocabulary::ScalarType,
     ) -> Result<ScalarTerm, Self::Error> {
         // Substitution already renamed each selector into the consumer's
         // scope. The restated clause names the observation; the checker reads
         // that storage where the call is made or the edge arrives.
-        let storage = self.place(root)?;
-        let mut restated = Vec::with_capacity(storage.prefix.len() + path.len());
-        restated.extend(
-            storage
-                .prefix
-                .iter()
-                .copied()
-                .map(ScalarReadProjection::from),
-        );
-        restated.extend_from_slice(path);
+        let (root, path) = self.path(root, path)?;
         Ok(ScalarTerm::StructuralRead {
-            root: storage.root,
-            path: restated,
+            root,
+            path,
             scalar_type,
         })
     }

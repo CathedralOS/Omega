@@ -1386,9 +1386,10 @@ type), and the clause's `ClauseScope` says what each name denotes there.
     entry" ([call contracts](../../spec/terminal-psi/calls_and_outcomes.md#call-contracts)),
     so stage 05 reads a guard in the scope of an entry `requires`. Lowering
     names the leaves a guard reads in the callee and at each call, and a
-    call's crash continuations name the place of each whole structural
-    actual (`contract_forms::substituted_routes`, which stage 05 and stage
-    06's retained-row check now share). Stage 06 judges a call's route with
+    call's crash continuations name the storage each structural actual
+    stands for, its place and static path (`contract_forms::call_storage`
+    and `contract_forms::substituted_routes`, which stage 05 and stage 06's
+    retained-row check share). Stage 06 judges a call's route with
     the binding a `requires` uses (`at_call_actuals`), so the guard reads
     the actual's storage when the call is made, and states the machine's own
     coverage over its entry storage (`entry_goal`). The three are still
