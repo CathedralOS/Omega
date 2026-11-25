@@ -36,7 +36,12 @@ pub(crate) fn publish_stage(
     let checked = product.judge(continuation, entry, accounting, timings)?;
     let psi = product.publish(&checked, timings)?;
     if let Some(advisories) = advisories {
-        advisories.extend_from_slice(checked.terminal_publication.advisories());
+        // The checker searches for its advisories only when they are read,
+        // so their cost is recorded here rather than in Psi 06.
+        let found = timings.record_result(artifacts::compile_timings::source::ADVISORIES, || {
+            Ok::<_, Vec<Diagnostic>>(checked.terminal_publication.advisories())
+        })?;
+        advisories.extend_from_slice(found);
     }
     Ok((psi, checked))
 }

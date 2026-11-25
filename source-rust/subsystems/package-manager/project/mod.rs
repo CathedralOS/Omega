@@ -595,7 +595,9 @@ pub fn open_products(
                                 &mut dependencies,
                             )
                             .map_err(|failure| error(failure.into()))?;
-                        let planned = planned.with_component_suppliers(dependencies.into_suppliers());
+                        let planned = planned
+                            .with_dependency_timings(dependencies.take_timings())
+                            .with_component_suppliers(dependencies.into_suppliers());
                         Ok(Rc::new(match consent {
                             Some(consent) => planned.with_runtime_consents(vec![consent]),
                             None => planned,

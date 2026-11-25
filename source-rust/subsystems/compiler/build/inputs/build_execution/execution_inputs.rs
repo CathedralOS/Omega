@@ -37,6 +37,18 @@ impl BuildExecutionInputs {
         }
     }
 
+    /// Whether this Build is typed and judged whole under a provisional owner
+    /// before it runs: only a root Build that has no package graph yet. A
+    /// dependency Build checks only what its entry reaches, so it needs no
+    /// check-only typing of its file.
+    pub fn checks_whole_subject_first(
+        &self,
+        inputs: Option<&PackageCompilationInputs>,
+        has_anonymous_source: bool,
+    ) -> bool {
+        !self.dependency_activation && inputs.is_none() && has_anonymous_source
+    }
+
     pub fn resolve_compilation_defaults(
         mut self,
         inputs: Option<&PackageCompilationInputs>,

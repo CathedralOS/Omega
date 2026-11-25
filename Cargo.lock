@@ -2312,6 +2312,7 @@ dependencies = [
  "provider-plans",
  "psi-authorization",
  "psi-provider-selections",
+ "rayon",
  "retained-image-runtime",
  "retained-product-selections",
  "review-evidence",
@@ -2333,6 +2334,7 @@ dependencies = [
  "terminal-psi",
  "terminal-runtime",
  "terminal-semantics",
+ "worker-budget",
 ]
 
 [[package]]

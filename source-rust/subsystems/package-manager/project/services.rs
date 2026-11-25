@@ -98,7 +98,7 @@ impl SourceHost<'_, '_> {
                 generated: None,
             });
         }
-        let product = self.handoffs().dependency_product(
+        let (product, handoff) = self.handoffs().dependency_handoff(
             &settled.build,
             purpose,
             self.profile,
@@ -111,7 +111,7 @@ impl SourceHost<'_, '_> {
                 .package_inputs()
                 .ok_or_else(|| refused("prepared dependency lost its package source"))?
                 .clone(),
-            generated: Some(product.build_handoff(self.profile)?),
+            generated: Some(handoff),
         })
     }
 
@@ -262,13 +262,13 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
             .iter()
             .filter(|settled| settled.declaration.identity() == handoff.package())
         {
-            let product = products.dependency_product(
+            let (product, formed) = products.dependency_handoff(
                 &settled.build,
                 handoff.purpose(),
                 handoff.target(),
                 &mut DependencyProducts::default(),
             )?;
-            if product.build_handoff(handoff.target())? == *handoff {
+            if formed == *handoff {
                 return Ok(product);
             }
         }
@@ -300,6 +300,8 @@ impl SourceHost<'_, '_> {
 pub(super) struct DependencyProducts {
     by_package: BTreeMap<semantic_vocabulary::PackageKeyIdentity, Vec<CompletedDependency>>,
     independent_target: Option<target::TargetProfile>,
+    /// The measured Build work of every dependency Product opened for this traversal.
+    timings: Option<artifacts::compile_timings::CompileTimings>,
 }
 
 struct CompletedDependency {
@@ -308,6 +310,18 @@ struct CompletedDependency {
 }
 
 impl DependencyProducts {
+    fn record_timings(&mut self, product: &project_build::PlannedProduct) {
+        if product.timings().is_enabled() {
+            self.timings
+                .get_or_insert_with(artifacts::compile_timings::CompileTimings::enabled)
+                .extend(product.timings());
+        }
+    }
+
+    pub(super) fn take_timings(&mut self) -> artifacts::compile_timings::CompileTimings {
+        self.timings.take().unwrap_or_default()
+    }
+
     pub(super) fn into_suppliers(
         self,
     ) -> BTreeMap<semantic_vocabulary::PackageKeyIdentity, project_build::PlannedProduct> {
@@ -353,8 +367,7 @@ impl HandoffSources<'_> {
         }
     }
 
-    /// Recursively form each package/purpose/target handoff once from that dependency's
-    /// original Build return and the handoffs of its own dependencies.
+    /// Open the Product of `settled` after forming the handoffs of its dependencies.
     pub(super) fn dependency_product(
         &self,
         settled: &project_build::SettledDependency,
@@ -362,6 +375,33 @@ impl HandoffSources<'_> {
         target: target::TargetProfile,
         products: &mut DependencyProducts,
     ) -> Result<project_build::PlannedProduct, CompileFailure> {
+        let inputs = self.dependency_inputs(settled, purpose, target, products)?;
+        settled.open_product(inputs)
+    }
+
+    /// Open the Product of `settled` and form its Build handoff for `target`.
+    /// The handoff is formed while the dependency's Build is checked again on
+    /// the Product's sources, because neither reads what the other produces.
+    pub(super) fn dependency_handoff(
+        &self,
+        settled: &project_build::SettledDependency,
+        purpose: DependencyPurpose,
+        target: target::TargetProfile,
+        products: &mut DependencyProducts,
+    ) -> Result<(project_build::PlannedProduct, PackageBuildHandoff), CompileFailure> {
+        let inputs = self.dependency_inputs(settled, purpose, target, products)?;
+        settled.open_product_alongside(inputs, |product| product.build_handoff(target))
+    }
+
+    /// Recursively form each package/purpose/target handoff once from that dependency's
+    /// original Build return and the handoffs of its own dependencies.
+    fn dependency_inputs(
+        &self,
+        settled: &project_build::SettledDependency,
+        purpose: DependencyPurpose,
+        target: target::TargetProfile,
+        products: &mut DependencyProducts,
+    ) -> Result<PackageCompilationInputs, CompileFailure> {
         let inputs = settled
             .inputs()
             .clone()
@@ -396,8 +436,9 @@ impl HandoffSources<'_> {
                 .iter()
                 .find(|child| child.declaration.identity() == package)
                 .ok_or_else(|| refused("dependency graph has no corresponding settled Build"))?;
-            let product = self.dependency_product(&child.build, purpose, deployment, products)?;
-            let bundle = product.build_handoff(deployment)?;
+            let (product, bundle) =
+                self.dependency_handoff(&child.build, purpose, deployment, products)?;
+            products.record_timings(&product);
             let supplier = (purpose == DependencyPurpose::Product
                 && products.independent_target == Some(deployment))
             .then_some(product);
@@ -419,6 +460,6 @@ impl HandoffSources<'_> {
                 ))
             })?;
         inputs.validate_execution_context(Some(target), Some(self.profile))?;
-        settled.open_product(inputs)
+        Ok(inputs)
     }
 }

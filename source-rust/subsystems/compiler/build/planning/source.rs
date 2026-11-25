@@ -70,6 +70,8 @@ pub struct PlannedProduct {
         std::collections::BTreeMap<semantic_vocabulary::PackageKeyIdentity, PlannedProduct>,
     pub(crate) preparation: SourcePreparation,
     pub(crate) timings: CompileTimings,
+    /// Build work spent opening the dependency Products this one was formed from.
+    dependency_timings: CompileTimings,
 }
 
 impl PlannedProduct {
@@ -167,6 +169,17 @@ impl PlannedProduct {
     pub fn timings(&self) -> &CompileTimings {
         &self.timings
     }
+
+    /// Attribute the Build work of the dependency Products this one consumed.
+    pub fn with_dependency_timings(mut self, timings: CompileTimings) -> Self {
+        self.dependency_timings = timings;
+        self
+    }
+
+    /// Phases spent planning and opening this Product's dependencies.
+    pub fn dependency_timings(&self) -> &CompileTimings {
+        &self.dependency_timings
+    }
 }
 
 pub fn prepare(
@@ -213,8 +226,14 @@ pub fn prepare(
         }
     };
     let interval = resolve(&assembled, &preparation, profile, inputs, &supplied_libraries)?;
+    // A dependency Build checks only what its entry reaches, so typing its
+    // file under a check-only owner would produce a subject nothing judges.
     let check_only_subject =
-        check_only_subject(&assembled, &preparation, profile, &supplied_libraries)?;
+        if execution.checks_whole_subject_first(inputs, assembled.anonymous_owner.is_some()) {
+            check_only_subject(&assembled, &preparation, profile, &supplied_libraries)?
+        } else {
+            None
+        };
     let evaluation = prepare_build_evaluation(
         BuildEvaluationRequest {
             execution_purpose: BuildExecutionPurpose::Source,
@@ -393,10 +412,25 @@ impl PlanningSource {
     }
 
     pub(super) fn open_product(
-        mut self,
-        mut evaluated: EvaluatedBuild,
+        self,
+        evaluated: EvaluatedBuild,
         inputs: Option<&PackageCompilationInputs>,
     ) -> Result<PlannedProduct, CompileFailure> {
+        self.open_product_alongside(evaluated, inputs, |_| Ok(()))
+            .map(|(product, ())| product)
+    }
+
+    /// Open the Product and run `alongside` on it while the returned Build is
+    /// checked again on the Product's sources. That check reads the opened
+    /// Product but never changes what `alongside` reads, so the two run in
+    /// parallel. The Product is returned only after the check passes, and a
+    /// refusal from the check is reported before any refusal from `alongside`.
+    pub(super) fn open_product_alongside<T: Send>(
+        mut self,
+        evaluated: EvaluatedBuild,
+        inputs: Option<&PackageCompilationInputs>,
+        alongside: impl FnOnce(&PlannedProduct) -> Result<T, CompileFailure> + Send,
+    ) -> Result<(PlannedProduct, T), CompileFailure> {
         for library in self.supplied_libraries.iter() {
             let joined = inputs.ok_or_else(|| {
                 refusal("a supplied Build library has no joined Product inputs".into())
@@ -419,45 +453,6 @@ impl PlanningSource {
                 )
             })?
             .1;
-        let owes_real_owner_check =
-            evaluated.subject_validation == BuildSubjectValidation::CheckedUnderProvisionalOwner;
-        if owes_real_owner_check
-            || !evaluated.constants.read.is_empty()
-            || evaluated.constants.folded_under_providers
-        {
-            let authority = inputs.map(|inputs| {
-                Arc::new(inputs.declaration_scope(build_declarations::DependencyPurpose::Build))
-            });
-            let declaration = evaluated
-                .configuration
-                .selected_build_declaration()
-                .ok_or_else(|| refusal("rejoined Build source lost its issued entry".into()))?;
-            // Checking the rejoined subject can refuse any declaration in the
-            // Product's files, so its refusals name their file, line and column.
-            let checked = (|| {
-                let (typed, entry) = source.build_stage_source()?.rejoin_build_entry(
-                    &self.preparation,
-                    self.profile.target_name(),
-                    authority,
-                    inputs.map(|inputs| inputs.root()),
-                    declaration,
-                )?;
-                settle_rejoined_build_slice(
-                    &evaluated.constants,
-                    &typed,
-                    entry,
-                    inputs,
-                    source.anonymous_owner.as_ref(),
-                    evaluated.subject_validation,
-                    &mut self.timings,
-                )
-            })();
-            let spent = checked.map_err(|failure| locate_failure(failure, &source, inputs))?;
-            evaluated.source_completion_accounting.append(spent);
-            if owes_real_owner_check {
-                evaluated.subject_validation = BuildSubjectValidation::Checked;
-            }
-        }
         let generated = if evaluated.configuration.generated_sources.is_empty() {
             None
         } else {
@@ -479,7 +474,7 @@ impl PlanningSource {
             )?;
             Some(extension.prepare_source_request(&source.parsed.files, inputs, &mut self.timings)?)
         };
-        Ok(PlannedProduct {
+        let mut product = PlannedProduct {
             generated,
             evaluated,
             build_profile: self.profile,
@@ -489,6 +484,77 @@ impl PlanningSource {
             suppliers: Default::default(),
             preparation: self.preparation,
             timings: self.timings,
-        })
+            dependency_timings: CompileTimings::default(),
+        };
+        let owes_real_owner_check = product.evaluated.subject_validation
+            == BuildSubjectValidation::CheckedUnderProvisionalOwner;
+        let constants = &product.evaluated.constants;
+        if !owes_real_owner_check && constants.read.is_empty() && !constants.folded_under_providers
+        {
+            let value = alongside(&product)?;
+            return Ok((product, value));
+        }
+        let mut rejoin_timings = if product.timings.is_enabled() {
+            CompileTimings::enabled()
+        } else {
+            CompileTimings::default()
+        };
+        // Both halves run on the invocation's large-stack workers.
+        let (checked, value) = worker_budget::within_budget(|| {
+            rayon::join(
+                || product.check_rejoined_build(&mut rejoin_timings),
+                || alongside(&product),
+            )
+        });
+        product.timings.extend(&rejoin_timings);
+        let spent = checked?;
+        let value = value?;
+        product.evaluated.source_completion_accounting.append(spent);
+        if owes_real_owner_check {
+            product.evaluated.subject_validation = BuildSubjectValidation::Checked;
+        }
+        Ok((product, value))
+    }
+}
+
+impl PlannedProduct {
+    /// Check the returned Build entry again on this Product's sources, so the
+    /// constants it read are judged in the context the Product compiles.
+    fn check_rejoined_build(
+        &self,
+        timings: &mut CompileTimings,
+    ) -> Result<source_compiler::compile_time_invocations::SourceCompletionAccounting, CompileFailure>
+    {
+        let evaluated = &self.evaluated;
+        let inputs = self.package_inputs.as_ref();
+        let authority = inputs.map(|inputs| {
+            Arc::new(inputs.declaration_scope(build_declarations::DependencyPurpose::Build))
+        });
+        let declaration = evaluated
+            .configuration
+            .selected_build_declaration()
+            .ok_or_else(|| refusal("rejoined Build source lost its issued entry".into()))?;
+        // Checking the rejoined subject can refuse any declaration in the
+        // Product's files, so its refusals name their file, line and column.
+        let checked = (|| {
+            let (typed, entry) = self.source.build_stage_source()?.rejoin_build_entry(
+                &self.preparation,
+                self.build_profile.target_name(),
+                authority,
+                inputs.map(|inputs| inputs.root()),
+                declaration,
+                timings,
+            )?;
+            settle_rejoined_build_slice(
+                &evaluated.constants,
+                &typed,
+                entry,
+                inputs,
+                self.source.anonymous_owner.as_ref(),
+                evaluated.subject_validation,
+                timings,
+            )
+        })();
+        checked.map_err(|failure| locate_failure(failure, &self.source, inputs))
     }
 }

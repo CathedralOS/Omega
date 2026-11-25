@@ -204,6 +204,7 @@ fn compile_targets(
         && let Some(target) = prepared.iter().find_map(|(_, result)| result.as_ref().ok())
     {
         print_phases("Build", target.planned.timings());
+        print_phases("Dependency Builds", target.planned.dependency_timings());
     }
     let mut failures = Vec::new();
     let mut failed_targets = Vec::new();
