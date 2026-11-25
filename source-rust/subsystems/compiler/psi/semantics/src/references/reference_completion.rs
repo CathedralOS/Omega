@@ -910,6 +910,7 @@ fn retain_call_lifetime(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn retain_provider_inputs(
     module: &terminal_psi::TerminalModule,
     result: &terminal_psi::StructuralOperationResult,
@@ -921,6 +922,8 @@ fn retain_provider_inputs(
         crate::descriptor_lifetimes::DescriptorPosition,
         crate::descriptor_lifetimes::DescriptorFlowStep,
     >,
+    predecessors: Option<&crate::descriptor_lifetimes::FlowPredecessors<'_>>,
+    cutoff: Option<&crate::descriptor_lifetimes::DeadTailCutoff>,
     retained: &mut Vec<RetainedCallLoan>,
 ) -> Result<(), &'static str> {
     use crate::descriptor_results::DescriptorStoredOrigin;
@@ -958,11 +961,22 @@ fn retain_provider_inputs(
                 if pending.is_empty() {
                     return Ok(());
                 }
-                let lifetime = crate::descriptor_lifetimes::descriptor_location_lifetime(
-                    flow,
-                    at,
-                    &descriptor,
-                );
+                let lifetime = if let Some(predecessors) = predecessors {
+                    crate::descriptor_lifetimes::descriptor_location_lifetime_with_contents_indexed(
+                        flow,
+                        predecessors,
+                        cutoff,
+                        at,
+                        &descriptor,
+                        |_, _| false,
+                    )
+                } else {
+                    crate::descriptor_lifetimes::descriptor_location_lifetime(
+                        flow,
+                        at,
+                        &descriptor,
+                    )
+                };
                 if lifetime.live.contains(&at) {
                     return Err("returned provider dependency crosses its own call formation");
                 }
@@ -1089,6 +1103,19 @@ pub fn reference_call_lifetimes(
     caller: &terminal_psi::TerminalMachine,
     operation: &terminal_psi::Operation,
     analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+) -> Result<Vec<RetainedCallLoan>, crate::descriptor_results::DescriptorGraphError> {
+    reference_call_lifetimes_indexed(module, caller, operation, analysis, None, None, None)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn reference_call_lifetimes_indexed(
+    module: &terminal_psi::TerminalModule,
+    caller: &terminal_psi::TerminalMachine,
+    operation: &terminal_psi::Operation,
+    analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+    predecessors: Option<&crate::descriptor_lifetimes::FlowPredecessors<'_>>,
+    cutoff: Option<&crate::descriptor_lifetimes::DeadTailCutoff>,
+    at_override: Option<crate::descriptor_lifetimes::DescriptorPosition>,
 ) -> Result<Vec<RetainedCallLoan>, crate::descriptor_results::DescriptorGraphError> {
     let refuse = |detail| {
         crate::descriptor_results::DescriptorGraphError::at_operation(
@@ -1317,29 +1344,47 @@ pub fn reference_call_lifetimes(
         )
         .map_err(refuse)?
     };
-    let mut positions = caller.blocks.iter().flat_map(|block| {
-        block
-            .operations
-            .iter()
-            .enumerate()
-            .filter_map(move |(ordinal, candidate)| {
-                (candidate.id == operation.id && candidate == operation)
-                    .then_some((block.id, ordinal))
-            })
-    });
-    let (block, ordinal) = positions
-        .next()
-        .ok_or_else(|| refuse("returned reference has no exact caller operation"))?;
-    if positions.next().is_some() {
-        return Err(refuse(
-            "returned reference has ambiguous caller operation coordinates",
-        ));
-    }
-    let at = (
-        block,
-        u32::try_from(ordinal).map_err(|_| refuse("call ordinal overflows"))?,
-    );
+    let at = if let Some(at) = at_override {
+        at
+    } else {
+        let mut positions = caller.blocks.iter().flat_map(|block| {
+            block
+                .operations
+                .iter()
+                .enumerate()
+                .filter_map(move |(ordinal, candidate)| {
+                    (candidate.id == operation.id && candidate == operation)
+                        .then_some((block.id, ordinal))
+                })
+        });
+        let (block, ordinal) = positions
+            .next()
+            .ok_or_else(|| refuse("returned reference has no exact caller operation"))?;
+        if positions.next().is_some() {
+            return Err(refuse(
+                "returned reference has ambiguous caller operation coordinates",
+            ));
+        }
+        (
+            block,
+            u32::try_from(ordinal).map_err(|_| refuse("call ordinal overflows"))?,
+        )
+    };
     let flow = analysis.flow_arc(caller.id)?;
+    let compute_lifetime = |descriptor: &DescriptorLocation| {
+        if let Some(predecessors) = predecessors {
+            crate::descriptor_lifetimes::descriptor_location_lifetime_with_contents_indexed(
+                &flow,
+                predecessors,
+                cutoff,
+                at,
+                descriptor,
+                |_, _| false,
+            )
+        } else {
+            descriptor_location_lifetime(&flow, at, descriptor)
+        }
+    };
     let mut retained = Vec::new();
     for (mapping_index, binding) in bindings.into_iter().enumerate() {
         let source_positions = if let Some(public) = &public {
@@ -1413,7 +1458,7 @@ pub fn reference_call_lifetimes(
                     "returned reference does not retain an actual input loan",
                 ));
             }
-            let lifetime = descriptor_location_lifetime(&flow, at, &descriptor);
+            let lifetime = compute_lifetime(&descriptor);
             if lifetime.live.contains(&at) {
                 return Err(refuse(
                     "returned reference loan crosses its own call formation",
@@ -1467,7 +1512,7 @@ pub fn reference_call_lifetimes(
                 root: result.place,
                 path: packet.path,
             };
-            let lifetime = descriptor_location_lifetime(&flow, at, &location);
+            let lifetime = compute_lifetime(&location);
             if lifetime.live.contains(&at) {
                 return Err(refuse("returned contents cross their own call formation"));
             }
@@ -1528,7 +1573,7 @@ pub fn reference_call_lifetimes(
                         // transports that view's own loan; the call lends none.
                         continue;
                     }
-                    let lifetime = descriptor_location_lifetime(&flow, at, &descriptor);
+                    let lifetime = compute_lifetime(&descriptor);
                     if lifetime.live.contains(&at) {
                         return Err(refuse(
                             "returned view loan crosses its own call formation",
@@ -1553,6 +1598,8 @@ pub fn reference_call_lifetimes(
         &slots,
         at,
         &flow,
+        predecessors,
+        cutoff,
         &mut retained,
     )
     .map_err(refuse)?;
