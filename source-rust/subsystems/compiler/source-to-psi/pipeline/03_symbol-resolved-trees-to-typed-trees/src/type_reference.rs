@@ -823,10 +823,18 @@ pub(crate) mod alias_uses {
             for (position, (formal, actual)) in formals.iter().zip(actuals).enumerate() {
                 if matches!(formal.kind, typed::data::TypeParameterKind::Const { .. }) {
                     let parameters = const_parameters.get_or_insert_with(|| formals.to_vec());
-                    if !super::const_arguments::closed_applications::alias_const_argument_is_formed(
-                        program, alias.symbol, formal, *actual, parameters, actuals,
-                    ).map_err(|error| error.with_source_span(site))? {
-                        pending.push((supplying_owner, *actual, site));
+                    if let Some(request) =
+                        super::const_arguments::closed_applications::alias_const_argument_request(
+                            program,
+                            alias.symbol,
+                            formal,
+                            *actual,
+                            parameters,
+                            actuals,
+                        )
+                        .map_err(|error| error.with_source_span(site))?
+                    {
+                        pending.push((supplying_owner, *actual, site, request));
                     }
                     continue;
                 }
@@ -864,12 +872,13 @@ pub(crate) mod alias_uses {
             }
         }
         let mut owners = None;
-        for (owner, argument, site) in pending {
+        for (owner, argument, site, request) in pending {
             super::const_arguments::closed_applications::defer_to_holders(
                 program,
                 &mut owners,
                 owner,
                 &[argument],
+                request,
                 crate::unavailable_judgment(
                     "evaluated const argument for a transparent type alias",
                 )
@@ -985,6 +994,7 @@ pub(crate) mod const_arguments {
     pub(crate) mod closed_applications {
         use crate::source_state::TypedTrees;
         use crate::source_state::data::TypeParameterKind;
+        use crate::source_state::deferred_refusals::DeferredRequest;
         use crate::source_state::name::Identifier;
         use crate::source_state::types::TypeReferenceNode;
         use application_identity::const_value::CanonicalConstValue;
@@ -1302,6 +1312,7 @@ pub(crate) mod const_arguments {
                             &mut owners,
                             owner,
                             &demanded,
+                            DeferredRequest::ConstArgumentAdmission,
                             crate::unavailable_judgment(
                                 "closed const argument declaration custody",
                             ),
@@ -1341,6 +1352,7 @@ pub(crate) mod const_arguments {
                             &mut owners,
                             owner,
                             &[argument],
+                            DeferredRequest::ConstArgumentAdmission,
                             Diagnostic::error(
                                 "no product route yet: a record or case const argument is \
                                  not typed against its declared data type",
@@ -1445,14 +1457,14 @@ pub(crate) mod const_arguments {
 
         /// An alias can erase an argument. Keep its static-value judgment even
         /// when no consumer of the expansion will ever read the argument again.
-        pub(crate) fn alias_const_argument_is_formed(
+        pub(crate) fn alias_const_argument_request(
             program: &TypedTrees,
             declaration: SymbolHandle,
             parameter: &crate::source_state::data::TypeParameter,
             argument: TypeReferenceHandle,
             parameters: &[crate::source_state::data::TypeParameter],
             arguments: &[TypeReferenceHandle],
-        ) -> Result<bool, Diagnostic> {
+        ) -> Result<Option<DeferredRequest>, Diagnostic> {
             if let ConstArgument::Canonical(_) = const_argument(
                 program,
                 declaration,
@@ -1461,7 +1473,7 @@ pub(crate) mod const_arguments {
                 parameters,
                 arguments,
             )? {
-                return Ok(true);
+                return Ok(None);
             }
             match program.type_reference_table.type_reference(argument) {
                 TypeReferenceNode::Named { symbol, .. }
@@ -1471,14 +1483,27 @@ pub(crate) mod const_arguments {
                             matches!(binder.kind, TypeParameterKind::Const { .. })
                         }) =>
                 {
-                    Ok(true)
+                    Ok(None)
                 }
                 TypeReferenceNode::Named { symbol, .. }
                     if program.const_declaration_by_symbol(*symbol).is_some() =>
                 {
-                    Ok(false)
+                    Ok(Some(DeferredRequest::ConstArgumentAdmission))
                 }
-                TypeReferenceNode::ConstExpression(_) => Ok(false),
+                TypeReferenceNode::ConstExpression(_)
+                    if needs_admission(program, argument)
+                        && let TypeParameterKind::Const { type_reference } = parameter.kind
+                        && builtin_carrier(program, type_reference, parameters, arguments)
+                            .is_some() =>
+                {
+                    // Source preparation checks the call in its receiving carrier and replaces
+                    // this exact expression with the resulting value. Other restrictions on
+                    // the declaration remain independent of that evaluation.
+                    Ok(Some(DeferredRequest::TypeExpressionEvaluation))
+                }
+                TypeReferenceNode::ConstExpression(_) => {
+                    Ok(Some(DeferredRequest::ConstArgumentAdmission))
+                }
                 _ => Err(Diagnostic::error(format!(
                     "const parameter `{}` of type alias `{}` requires a static value",
                     parameter.name,
@@ -1660,6 +1685,7 @@ pub(crate) mod const_arguments {
             owners: &mut Option<crate::source_state::references::ProgramOperandOwners>,
             owner: symbols::SymbolHandle,
             arguments: &[crate::source_state::types::TypeReferenceHandle],
+            request: DeferredRequest,
             unheld: Diagnostic,
         ) -> Result<(), Diagnostic> {
             let owners = owners.get_or_insert_with(|| {
@@ -1696,11 +1722,7 @@ pub(crate) mod const_arguments {
                 });
             }
             for holder in holders {
-                program.record_deferred_refusal(
-                    holder,
-                    crate::source_state::deferred_refusals::DeferredRequest::ConstArgumentAdmission,
-                    source_span,
-                );
+                program.record_deferred_refusal(holder, request, source_span);
             }
             Ok(())
         }
