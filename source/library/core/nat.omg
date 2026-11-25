@@ -39,16 +39,14 @@ public data Nat {
     case Succ(prev: Nat);
 }
 
-// Natural order and exact subtraction are ordinary proof-number operators
-// with declaration-owned bodies (OPERATOR-MACHINE-SUPPLY's machine
-// token-binding contract): each token-bound machine declaration owns both
-// the operator binding and its implementation, no separate `satisfies`
-// provider pair. `<=` is the public spelling of the structural order decided
-// below; subtraction is partial at formation, with its premise carried
-// explicitly by the machine's contract. The total provider is the same
-// recursive definition as `Nat::saturating_sub`, but bare `-` can select it
-// only after proving the right operand no greater than the left.
-machine <= Nat::less_or_equal(left: Nat, right: Nat) -> bool
+// Natural order and exact subtraction are free operator machines: each
+// token-bound machine binds its operator and owns its body, with no separate
+// `satisfies` provider pair. Both are public, so a program outside core may
+// import them and select them by their `Nat` operands. `<=` is true exactly
+// when `saturating_sub(left, right)` is zero. Subtraction is partial: its
+// `requires` makes every `a - b` prove `b <= a` first. Its body is the same
+// recursion as `saturating_sub`, which stays the separate clamping operation.
+public machine <= less_or_equal(left: Nat, right: Nat) -> bool
 {
     transition (saturating_sub(left, right)) {
         Nat::Zero -> true,
@@ -56,7 +54,7 @@ machine <= Nat::less_or_equal(left: Nat, right: Nat) -> bool
     }
 }
 
-machine - Nat::subtract(left: Nat, right: Nat) -> Nat
+public machine - subtract(left: Nat, right: Nat) -> Nat
 requires
     right <= left
 {
@@ -447,11 +445,10 @@ machine pred(a: Nat) -> Nat
 // pred(saturating_sub(a, b')) -- Lean's Nat.sub spelling, recursion on `b` composing
 // `pred` cross-machine (the mul-over-add pattern; every machine here stays
 // single-transition so lemma facts unfold). `saturating_sub(a, b) == Zero` is the
-// roster's `a <= b` spelling until an order surface lands. The settled public
-// name is `Nat::saturating_sub`; ordinary `Nat - Nat` is Exact and requires
-// `b <= a` at formation. This named monus and its proof corpus remain distinct
-// from the exact operator above rather than silently routing bare `-` to
-// clamping.
+// roster's spelling of `a <= b`, which the laws below keep using. Ordinary
+// `Nat - Nat` is the exact `subtract` above and requires `b <= a` at each
+// use. This named monus and its proof corpus remain distinct from that
+// operator rather than silently routing bare `-` to clamping.
 public machine saturating_sub(a: Nat, b: Nat) -> Nat
 terminates by b
 {

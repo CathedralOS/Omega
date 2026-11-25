@@ -234,6 +234,11 @@ pub enum SignatureEntryKind {
         fields: Vec<u32>,
         type_identity: String,
     },
+    /// `bool`, the carrier of a Boolean formal or result: a definition equal
+    /// to the kernel's `Two`, with `false` its zero and `true` its one
+    /// (kernel_metatheory.md, "Boolean values denote `Two`"). A signature
+    /// declares it once, the first time a machine needs it.
+    Boolean,
     /// A case of the data declared at index `data`, as a function of its fields.
     Constructor { data: u32, case: u32 },
     /// A declaration the encoding of the data at index `data` needs besides

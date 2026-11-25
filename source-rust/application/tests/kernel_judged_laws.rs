@@ -172,6 +172,29 @@ fn a_local_operation_gets_no_license_from_the_library_conformance() {
 }
 
 #[test]
+fn library_subtraction_whose_order_premise_is_in_hand_compiles() {
+    // `difference` requires `b <= a`, which is exactly what core's `-`
+    // requires at `a - b`.
+    let (output, report) = check("nat_order/pass/exact_subtraction");
+    assert_eq!(output.status.code(), Some(0), "{report}");
+}
+
+#[test]
+fn library_subtraction_under_the_swapped_order_is_refused_at_its_call() {
+    // The same machine requiring `a <= b` instead: the premise of `-` is
+    // not one it holds, and nothing proves it from `a <= b`.
+    let (output, report) = check("nat_order/fail/swapped_order");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains(
+            "cannot prove ensures contract for `difference`: the premise of `subtract` at its call"
+        ) && report.contains(UNPROVED)
+            && report.contains("main.omg:9:9"),
+        "{report}"
+    );
+}
+
+#[test]
 fn laws_with_a_premise_compile() {
     let (output, report) = check("law_premise/pass/peano_cancellation");
     assert_eq!(output.status.code(), Some(0), "{report}");

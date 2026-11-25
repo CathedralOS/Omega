@@ -180,24 +180,17 @@ fn an_operation_outside_the_conformance_gets_no_license_from_it() {
 
 /// `nat.omg`'s own declarations as a program. The library is only ever
 /// judged through a program that reaches it, and most of these lemmas are
-/// private, so the file's text is compiled as the program's. Left out, each
-/// for a reason of its own: the three ranking primitives only the toolchain
-/// may declare, and the `<=` and `-` machines the `Nat` declaration owns (the
-/// compiler rejects a machine owned by a data declaration before any proof).
-/// `mod`, `div` and `gcd` are left out here too: `fuel_recursion` judges the
-/// file with them, and the tests that build on this text measure what they
-/// add without them. Every other declaration is the file's, unchanged.
+/// private, so the file's text is compiled as the program's. Left out are the
+/// three ranking primitives only the toolchain may declare. `mod`, `div` and
+/// `gcd` are left out here too: `fuel_recursion` judges the file with them,
+/// and the tests that build on this text measure what they add without them.
+/// Every other declaration is the file's, unchanged, the `<=` and `-`
+/// operator machines among them.
 pub(super) fn library_declarations() -> String {
     let start = NAT.find("public data Nat {").expect("the data declaration");
-    let operators = NAT
-        .find("// Natural order and exact subtraction")
-        .expect("the operator machines");
-    let ring = NAT
-        .find("// The Peano ring surface")
-        .expect("the operations");
     let mut program = String::from("use omega\\language\\core\\CommutativeSemiring;\n");
     let mut skipping = false;
-    for line in NAT[start..operators].lines().chain(NAT[ring..].lines()) {
+    for line in NAT[start..].lines() {
         skipping |= ["mod", "div", "gcd"]
             .iter()
             .any(|name| line.starts_with(&format!("machine {name}(")));

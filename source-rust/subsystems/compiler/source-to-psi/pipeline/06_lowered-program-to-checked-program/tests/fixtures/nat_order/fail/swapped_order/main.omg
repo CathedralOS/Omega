@@ -1,0 +1,24 @@
+// The positive twin with the operands of its `<=` swapped. `difference`
+// now holds `a <= b`, which is not the `b <= a` that core's `-` requires at
+// `a - b`, so the checker refuses the call's premise.
+use omega\language\core\ProcessExit;
+use omega\language\core\Nat;
+use omega\language\core\less_or_equal;
+use omega\language\core\subtract;
+
+machine difference(a: Nat, b: Nat) -> Nat
+requires a <= b
+{
+    transition { _ -> (a - b) }
+}
+
+data Main { }
+machine exit_with_status(main: @mutable Main) reaches ProcessExit {
+    ProcessExit::exit_process(0);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit {
+    let mutable entry_storage: Main;
+    block exit_with_status(@mutable entry_storage);
+}

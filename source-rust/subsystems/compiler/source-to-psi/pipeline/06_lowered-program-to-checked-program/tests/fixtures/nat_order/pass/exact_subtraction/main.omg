@@ -1,0 +1,27 @@
+// A program that subtracts the library's `Nat` with bare `-`. Core's `-`
+// requires its right operand to be no greater than its left, and
+// `difference` requires exactly that with core's `<=`, so the call's premise
+// is one the machine already holds. The negative twin swaps the operands of
+// that `<=`. The two operator machines are imported: a use selects a public
+// operator from another file only through an import.
+use omega\language\core\ProcessExit;
+use omega\language\core\Nat;
+use omega\language\core\less_or_equal;
+use omega\language\core\subtract;
+
+machine difference(a: Nat, b: Nat) -> Nat
+requires b <= a
+{
+    transition { _ -> (a - b) }
+}
+
+data Main { }
+machine exit_with_status(main: @mutable Main) reaches ProcessExit {
+    ProcessExit::exit_process(0);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit {
+    let mutable entry_storage: Main;
+    block exit_with_status(@mutable entry_storage);
+}

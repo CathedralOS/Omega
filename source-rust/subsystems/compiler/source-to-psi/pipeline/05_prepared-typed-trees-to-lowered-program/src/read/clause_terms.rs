@@ -1297,7 +1297,25 @@ impl Program<'_> {
             if call.receiver.is_valid() || (typed.symbols.symbols().nodes().is_valid(call.target_symbol)
                 && (typed.closed_requirement_application(call.target_symbol).is_some()
                     || typed.trait_definition_by_symbol(typed.symbols.get(call.target_symbol).parent).is_some())));
-        if abstract_application && matches!(usage, ClauseUse::Proposition) {
+        // A mathematical machine with a `bool` result is a definition of
+        // the signature, so its proposition is that its result is true
+        // (mathematical_bindings.md), never an unfolding of its body.
+        let boolean_proposition = matches!(usage, ClauseUse::Proposition)
+            && (abstract_application
+                || match table.expression(expression) {
+                    ExpressionNode::Call(call) if self.mathematical => {
+                        match self.mathematical_function(call) {
+                            Some(target) => {
+                                let (_, entry) = self.declaration(id, target)?;
+                                self.value_type(id, entry.return_type)?
+                                    == ValueType::plain(ScalarType::Boolean)
+                            }
+                            None => false,
+                        }
+                    }
+                    _ => false,
+                });
+        if boolean_proposition {
             // A proposition-valued use of a Boolean operation requires its
             // actual result to be true under the same declaration and inputs.
             let mut values = Vec::new();
