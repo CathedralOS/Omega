@@ -149,6 +149,51 @@ fn closed_domain_index_calls_use_their_evaluated_value() {
 }
 
 #[test]
+fn a_const_argument_erased_by_an_alias_evaluates_on_its_source_owner() {
+    use crate::source_state::deferred_refusals::DeferredRequest;
+
+    let source = "data Word { bits: u32; } data Plain<const N: u8> = Word;
+        machine bound() -> u8 { 2u8 }
+        machine bad() -> u8 { crash Trap; }
+        machine good(x: Plain<bound()>) {}
+        machine trapping(x: Plain<bad()>) {}
+        machine restricted(v: u8, x: Plain<bound()>, y: Plain<v + 1u8>) {}";
+    for (name, allowed) in [("good", true), ("restricted", false)] {
+        let mut program = typed_source(source);
+        let entry = program.realized_machine_named(name).unwrap().symbol;
+        let entries = [entry];
+        let request = request(&entries);
+        let mut accounting = SourceCompletionAccounting::default();
+        let values = evaluate(&mut program, request, None, &mut accounting).unwrap();
+        assert_eq!(evaluations(&program, &accounting), [(name.to_owned(), 2)]);
+        assert_eq!(
+            program
+                .deferred_refusals_of(entry)
+                .any(|row| row.request == DeferredRequest::ConstArgumentAdmission),
+            !allowed
+        );
+        let prepared = prepare_typed_trees(program, &values, &[]).unwrap();
+        let judged = crate::test_support::judge_terminal_source(
+            prepared,
+            request,
+            terminal_codec::TerminalPublication::Invocation,
+        );
+        assert_eq!(judged.is_ok(), allowed, "{name}");
+    }
+    let mut program = typed_source(source);
+    let entry = program.realized_machine_named("trapping").unwrap().symbol;
+    let mut accounting = SourceCompletionAccounting::default();
+    let errors = evaluate(&mut program, request(&[entry]), None, &mut accounting).unwrap_err();
+    assert!(
+        errors.iter().any(|error| {
+            error.message.contains("const argument for `N` of `Plain`")
+                && error.message.contains("crash")
+        }),
+        "{errors:?}"
+    );
+}
+
+#[test]
 fn a_computed_constant_uses_its_source_receipt_only_when_reached() {
     let mut typed = typed_source(
         "const VALUE: u32 = calc(); const UNREAD: u32 = spare();
