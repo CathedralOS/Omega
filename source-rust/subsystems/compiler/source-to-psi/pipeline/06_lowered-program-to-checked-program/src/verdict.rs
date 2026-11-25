@@ -958,7 +958,7 @@ pub(super) fn judge_owing_with_activity(
 ) -> Checked<RouteVerdict> {
     let mut further = Vec::new();
     match examine(elaborated, &[], None, &[], activity, &mut further) {
-        Ok(examined) => conclude(examined, applied, &mut further),
+        Ok(examined) => conclude(examined, applied, true, &mut further),
         Err(decided) => decided,
     }
 }
@@ -1280,6 +1280,7 @@ fn affine_refusal(machine: MachineId, error: terminal_semantics::plain_affine::E
 fn conclude(
     examined: Examined,
     applied: AppliedContracts,
+    seal_operations: bool,
     further: &mut Vec<Refusal>,
 ) -> Checked<RouteVerdict> {
     let Examined {
@@ -1582,10 +1583,10 @@ fn conclude(
     if let Err(refused) = accept_proof_callables(&mut elaboration, &discharged) {
         return fall_back_or_defect(Roster::of(&elaboration).locate(refused));
     }
-    // A generic check form is never published (`validate_publication`), so
-    // its evidence needs no seal, and a seal cannot encode a parameter
-    // width: its closed applications carry their own.
-    let seals = if elaboration.generic_binders.is_empty() {
+    // Only a published closure carries operation evidence seals. Generic check
+    // forms and conformance witnesses are never published (`publication.rs`
+    // retains only their elaboration and discharge for advisories).
+    let seals = if seal_operations && elaboration.generic_binders.is_empty() {
         match discharged.operation_seals(&elaboration) {
             Ok(seals) => seals,
             Err(refused) => return fall_back_or_defect(Roster::of(&elaboration).locate(refused)),
@@ -1732,7 +1733,6 @@ pub(crate) fn judge_compilation_with_activity(
         .as_ref()
         .map_or(&[][..], |judged| judged.theorems.as_slice());
     let mut further = Vec::new();
-    let forms = examine_generic_forms(prepared.forms, laws, activity, &mut further);
     // A selection borrows the same discharge that later decides its witness's
     // verdict. Several selections may name one witness; none owns a second
     // copy to prove independently.
@@ -1762,7 +1762,34 @@ pub(crate) fn judge_compilation_with_activity(
         .into_iter()
         .enumerate()
         .partition(|(witness, _)| first_wave[*witness]);
-    let first = examine_witnesses(first, None, laws, activity);
+    // Generic check forms and the first wave of conformance witnesses share
+    // only immutable `laws`, so they run concurrently when workers are
+    // available and merge their refusals and activity in deterministic order.
+    let (forms, first) =
+        if worker_budget::current_workers() == 1 || prepared.forms.is_empty() || first.is_empty() {
+            let forms = examine_generic_forms(prepared.forms, laws, activity, &mut further);
+            let first = examine_witnesses(first, None, laws, activity);
+            (forms, first)
+        } else {
+            let mut forms_further = Vec::new();
+            let mut forms_activity = crate::ProofSearchActivity::default();
+            let mut first_activity = crate::ProofSearchActivity::default();
+            let (forms, first) = rayon::join(
+                || {
+                    examine_generic_forms(
+                        prepared.forms,
+                        laws,
+                        &mut forms_activity,
+                        &mut forms_further,
+                    )
+                },
+                || examine_witnesses(first, None, laws, &mut first_activity),
+            );
+            further.extend(forms_further);
+            activity.merge(forms_activity);
+            activity.merge(first_activity);
+            (forms, first)
+        };
     let second = {
         let donors = crate::reuse::Donors::new(first.iter().filter_map(|(_, examined, _)| {
             examined
@@ -1799,7 +1826,7 @@ pub(crate) fn judge_compilation_with_activity(
                 },
             ));
             match examine(Ok(closure), &carried, Some(&donors), laws, activity, &mut further) {
-                Ok(examined) => conclude(examined, AppliedContracts::Undecided, &mut further),
+                Ok(examined) => conclude(examined, AppliedContracts::Undecided, true, &mut further),
                 Err(decided) => decided,
             }
         }
@@ -1807,23 +1834,69 @@ pub(crate) fn judge_compilation_with_activity(
             judge_owing_with_activity(Err(refused), AppliedContracts::Undecided, activity)
         }
     };
-    let mut verdicts = vec![closure_verdict.map_err(CompilationRefusal::Elaboration)];
-    verdicts.extend(forms.into_iter().map(|form| {
-        match form {
+    let mut verdicts = Vec::with_capacity(1 + forms.len() + examined_witnesses.len());
+    verdicts.push(closure_verdict.map_err(CompilationRefusal::Elaboration));
+    let conclude_form = |form: GenericForm| {
+        let mut local_further = Vec::new();
+        let verdict = match form {
             GenericForm::Decided(verdict) => verdict,
-            GenericForm::Examined { examined, .. } => {
-                conclude(examined, AppliedContracts::OwnCheckForms, &mut further)
-            }
+            GenericForm::Examined { examined, .. } => conclude(
+                examined,
+                AppliedContracts::OwnCheckForms,
+                false,
+                &mut local_further,
+            ),
         }
-        .map_err(CompilationRefusal::Elaboration)
-    }));
-    verdicts.extend(examined_witnesses.into_iter().map(|witness| {
-        match witness {
-            Ok(examined) => conclude(examined, AppliedContracts::Undecided, &mut further),
+        .map_err(CompilationRefusal::Elaboration);
+        (verdict, local_further)
+    };
+    let conclude_witness = |witness: Result<Examined, Checked<RouteVerdict>>| {
+        let mut local_further = Vec::new();
+        let verdict = match witness {
+            Ok(examined) => {
+                conclude(examined, AppliedContracts::Undecided, false, &mut local_further)
+            }
             Err(decided) => decided,
         }
-        .map_err(CompilationRefusal::Elaboration)
-    }));
+        .map_err(CompilationRefusal::Elaboration);
+        (verdict, local_further)
+    };
+    let (form_verdicts, witness_verdicts) =
+        if worker_budget::current_workers() == 1 || forms.len() + examined_witnesses.len() < 2 {
+            (
+                forms.into_iter().map(conclude_form).collect::<Vec<_>>(),
+                examined_witnesses
+                    .into_iter()
+                    .map(conclude_witness)
+                    .collect::<Vec<_>>(),
+            )
+        } else {
+            use rayon::prelude::*;
+            rayon::join(
+                || {
+                    forms
+                        .into_par_iter()
+                        .with_max_len(1)
+                        .map(conclude_form)
+                        .collect::<Vec<_>>()
+                },
+                || {
+                    examined_witnesses
+                        .into_par_iter()
+                        .with_max_len(1)
+                        .map(conclude_witness)
+                        .collect::<Vec<_>>()
+                },
+            )
+        };
+    for (verdict, local_further) in form_verdicts {
+        further.extend(local_further);
+        verdicts.push(verdict);
+    }
+    for (verdict, local_further) in witness_verdicts {
+        further.extend(local_further);
+        verdicts.push(verdict);
+    }
     // The closure's further refusals come last, in the order reading met
     // them. Each is judged as the closure's own refusal is, so an
     // unsupported construct falls back and a rejection rejects.
