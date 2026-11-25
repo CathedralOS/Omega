@@ -11,15 +11,20 @@ source that asked: a path through a Product dependency alias names a public
 declaration of that dependency, and a Build-scope edge of the same alias
 grants nothing to the Product.
 
-The two kept programs differ only in the scope of the dependency edge their
+The first two programs differ only in the scope of the dependency edge their
 Build registers under the alias `support`. With a Product edge the entry is
 found and the program compiles. With a Build edge the alias names no Product
 dependency, so the path names nothing and the Build is refused for it.
+
+The invoker can supply a different Build library under the Product alias.
+A query issued by a generated helper uses its own package as its origin.
+The tests run the selected entry on the native and Psi engines.
 
 */
 
 mod support;
 
+use std::path::Path;
 use std::process::Command;
 
 fn check(fixture: &str) -> (bool, String) {
@@ -56,8 +61,83 @@ fn an_entry_asked_through_a_build_scope_alias_names_nothing() {
     );
 }
 
+/// Supply the external Build library at invocation. Run the resulting Product
+/// artifact through the CLI so both engines exercise the entry the Build bound.
+fn run_with_kit(
+    root: &Path,
+    library: &str,
+    target: target::TargetProfile,
+) -> Result<String, String> {
+    use build_declarations::{BuildDependencySource, ProjectName};
+    use compiler::{Artifact, CompileRequest};
+    use package_manager::project::{BuildLibraryRequest, ProjectInput, open_products};
+    use product_publication::CompletedProduct;
+
+    package_compilation::toolchain_library::configure(
+        &support::repository_root().join("source/library"),
+    )?;
+    let output = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "supplied-query-product",
+        false,
+    )
+    .unwrap();
+    let libraries = [BuildLibraryRequest {
+        alias: ProjectName::parse("kit").unwrap(),
+        source: BuildDependencySource::Path(library.into()),
+    }];
+    let products = open_products(
+        ProjectInput::WithBuildLibraries {
+            file: &root.join("build.omg"),
+            libraries: &libraries,
+        },
+        &[target],
+        true,
+        false,
+        &output.path().join("build"),
+        None,
+    )
+    .map_err(|errors| format!("{errors:?}"))?;
+    let product = products
+        .select(target)
+        .map_err(|errors| format!("{errors:?}"))?;
+    let stage = product
+        .product_stage(&[target])
+        .map_err(|errors| format!("{errors:?}"))?;
+    let compiled = compiler::compile(CompileRequest::Psi(stage.source()), Default::default())
+        .map_err(|errors| format!("{errors:?}"))?;
+    let Artifact::Psi(artifact) = compiled.artifact else {
+        panic!("requested Psi");
+    };
+    let mut published = CompletedProduct::from_published_psi(artifact, None)?;
+    let path = output.path().join("program.psi");
+    CompletedProduct::save_shared_psi(&mut [&mut published], &path)?;
+    let manifest = published
+        .artifact()
+        .unwrap()
+        .manifest()
+        .identity()
+        .to_string();
+    let result = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .args(["run", "--both", "--trusted-artifact", &manifest])
+        .arg(&path)
+        .current_dir(root)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap();
+    let report = format!(
+        "{}{}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
+    );
+    if result.status.success() {
+        Ok(report)
+    } else {
+        Err(report)
+    }
+}
+
 #[test]
-fn a_resumed_build_calls_its_kit_and_queries_the_products_kit() {
+fn a_build_calls_its_supplied_kit_and_queries_the_products_kit() {
     let Some(host) = target::TargetProfile::host_if_supported() else {
         return;
     };
@@ -83,17 +163,14 @@ fn a_resumed_build_calls_its_kit_and_queries_the_products_kit() {
         .unwrap();
     }
     std::fs::write(root.join("main.omg"), "machine main() {}").unwrap();
-    let build = r#"use kit;
+    let build = r#"use {kit}/main.omg as kit;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "dual_alias");
-    let mutable host: DependencyDescription = dependency\from_source(Source::Path { location: "tools" });
-    dependency\with_alias(@mutable host, "kit");
-    let h: DependencyRegistration = Build::build_dependency(builder, host);
     let mutable deployed: DependencyDescription = dependency\from_source(Source::Path { location: "runtime" });
     dependency\with_alias(@mutable deployed, "kit");
     let p: DependencyRegistration = Build::dependency(builder, deployed);
-    suspend Build::prepare_dependency(builder, h);
-    let seven: i32 = kit\choose();
+    suspend Build::prepare_dependency(builder, p);
+    let seven: i32 = |kit|::choose();
     transition seven == 7 {
         true -> bind_entry(builder),
         _ -> wrong(builder)
@@ -108,31 +185,18 @@ machine entry(builder: @mutable Build, slot: @[u8]) -> ProductEntryRef {
 }
 "#.replace("HOST", host.target_name());
     std::fs::write(root.join("build.omg"), build).unwrap();
-    let output = std::process::Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--both", "build.omg"])
-        .current_dir(root)
-        .output()
-        .unwrap();
-    let report = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(
-        output.status.success()
-            && report.contains("native exit 0")
-            && report.contains("interp exit: 0"),
-        "{report}"
-    );
+    let report = run_with_kit(root, "tools", host).unwrap();
+    assert!(report.contains("native exit 0") && report.contains("interp exit: 0"), "{report}");
 
+    let tools = root.join("tools/main.omg");
+    std::fs::write(&tools, "public machine choose() -> i32 { 8 }").unwrap();
+    let diagnostic = run_with_kit(root, "tools", host).unwrap_err();
+    assert!(diagnostic.contains("project role"), "{diagnostic}");
+
+    std::fs::write(&tools, "public machine choose() -> i32 { 7 }").unwrap();
     std::fs::write(root.join("runtime/main.omg"), "machine launch() {}").unwrap();
-    let refused = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["--check", "build.omg"])
-        .current_dir(root)
-        .output()
-        .unwrap();
-    let diagnostic = String::from_utf8_lossy(&refused.stderr);
-    assert!(!refused.status.success() && diagnostic.contains(
+    let diagnostic = run_with_kit(root, "tools", host).unwrap_err();
+    assert!(diagnostic.contains(
         "product entry `kit::launch` is not a product declaration visible from"
     ), "{diagnostic}");
 }
@@ -168,38 +232,22 @@ fn a_query_issued_by_a_generated_build_helper_keeps_its_source() {
     std::fs::write(kit.join("main.omg"), "public machine launch() {}").unwrap();
     std::fs::write(
         root.join("main.omg"),
-        "use kit;\nmachine main() { kit\\launch(); }",
+        r"use {kit}/main.omg as kit;
+machine main() { |kit|::launch(); }
+machine launch() crashes Trap { crash Trap; }",
     )
     .unwrap();
-    let build = r#"use kit;
+    let build = r#"use {kit}/generated.omg as selector;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "generated_query");
-    let mutable request: DependencyDescription = dependency\from_source(Source::Path { location: "vendor" });
-    dependency\with_alias(@mutable request, "kit");
-    let registered: DependencyRegistration = Build::build_dependency(builder, request);
     let mutable product_request: DependencyDescription = dependency\from_source(Source::Path { location: "vendor" });
     dependency\with_alias(@mutable product_request, "kit");
     let for_product: DependencyRegistration = Build::dependency(builder, product_request);
-    suspend Build::prepare_dependency(builder, registered);
-    Build::bind(builder, HOST\ProgramEntry, kit\select(builder, "HOST::ProgramEntry"));
+    suspend Build::prepare_dependency(builder, for_product);
+    Build::bind(builder, HOST\ProgramEntry, |selector|::select(builder, "HOST::ProgramEntry"));
 }
 "#.replace("HOST", target.target_name());
     std::fs::write(root.join("build.omg"), build).unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--both", "build.omg"])
-        .current_dir(root)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .unwrap();
-    let report = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(
-        output.status.success()
-            && report.contains("native exit 0")
-            && report.contains("interp exit: 0"),
-        "{report}"
-    );
+    let report = run_with_kit(root, "vendor", target).unwrap();
+    assert!(report.contains("native exit 0") && report.contains("interp exit: 0"), "{report}");
 }
