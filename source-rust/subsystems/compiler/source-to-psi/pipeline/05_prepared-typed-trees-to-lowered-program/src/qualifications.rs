@@ -373,6 +373,34 @@ impl Qualifications {
             .map(|(_, _, id)| *id)
     }
 
+    fn semantic_domain_on(
+        &self,
+        carrier: ValueType,
+        instance: DomainInstance,
+    ) -> Option<DomainSemanticId> {
+        match carrier {
+            ValueType::Scalar(carrier, _) => self
+                .domains
+                .iter()
+                .filter(|(source, _)| *source == instance)
+                .find_map(|(_, id)| {
+                    self.catalog
+                        .domains
+                        .iter()
+                        .find(|row| row.id == *id && row.carrier == carrier)
+                })
+                .map(|row| row.semantic_domain),
+            ValueType::Record(carrier, ..) => {
+                let id = self.structural_domain_id(instance, carrier)?;
+                self.structural
+                    .iter()
+                    .find(|row| row.id == id)
+                    .map(|row| row.semantic_domain)
+            }
+            ValueType::Rigid(_) => None,
+        }
+    }
+
     pub fn runtime_membership(
         &self,
         machine: MachineId,
@@ -499,6 +527,18 @@ impl Qualifications {
 
         for declared in &source.declared_domains {
             let symbol = declared.instance;
+            // The reader visits the declaration's applied carrier before adding
+            // the declaration itself, including domains supplied by an alias.
+            let mut required_memberships = declared
+                .required_memberships
+                .members()
+                .map(|required| {
+                    result
+                        .semantic_domain_on(declared.carrier, required)
+                        .ok_or_else(|| unavailable("domain carrier lost a required membership"))
+                })
+                .collect::<Checked<Vec<_>>>()?;
+            required_memberships.sort_unstable();
             let carrier = match declared.carrier {
                 ValueType::Scalar(carrier, _) => carrier,
                 ValueType::Record(_, _, _) => {
@@ -522,6 +562,7 @@ impl Qualifications {
                         &sources,
                         declared,
                         semantic_domain,
+                        required_memberships,
                     )?;
                     continue;
                 }
@@ -583,7 +624,7 @@ impl Qualifications {
                 });
             }
             result.catalog.domains.push(ScalarDomainDeclaration {
-                required_memberships: Some(Vec::new()),
+                required_memberships: Some(required_memberships),
                 predicate,
                 id,
                 semantic_domain,
@@ -762,6 +803,7 @@ impl Qualifications {
         sources: &[(source_text::SourceId, [u8; 32])],
         declared: &crate::read::DeclaredDomain,
         semantic_domain: DomainSemanticId,
+        required_memberships: Vec<DomainSemanticId>,
     ) -> Checked<()> {
         let typed = source.typed;
         let unavailable = |detail| {
@@ -861,7 +903,7 @@ impl Qualifications {
         self.structural.push(StructuralDomainDeclaration {
             subject_identity: self.identities.intern(&subject_identity),
             access_policy: None,
-            required_memberships: Some(Vec::new()),
+            required_memberships: Some(required_memberships),
             complete_predicate_theory: declared.complete_predicate_theory,
             predicate,
             id,

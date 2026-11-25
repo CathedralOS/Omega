@@ -179,3 +179,64 @@ fn a_cast_reports_the_selected_array_carrier_in_its_domain_predicate() {
         );
     }
 }
+
+#[test]
+fn a_domain_declared_on_a_qualified_alias_keeps_its_carrier_membership() {
+    let program = Program::of(
+        "domain u16::Positive requires self > 0u16;
+         data Count = u16 in Positive;
+         domain Count::Selected;
+         data Segment<P> [linear] { value: P; }
+         domain<P> Segment<P>::Stored<P>;
+         data Kept = Segment<Count> in Stored<Count>;
+         domain<P> Kept::Side<P>;
+         machine scalar(x: Count in Selected) -> Count in Selected { x }
+         machine structural(x: Kept in Side<Count>) -> Kept in Side<Count> { x }",
+    );
+    program
+        .judged(|lowered| {
+            let types = &lowered.module.types;
+            let name = |id| {
+                let instance = lowered.domain_sources.get(id).unwrap().application;
+                program
+                    .trees()
+                    .domain_definition(instance.declaration)
+                    .unwrap()
+                    .name
+                    .as_str()
+            };
+            let structural = types
+                .structural_domains
+                .iter()
+                .map(|row| (row.semantic_domain, row.required_memberships.as_deref()));
+            let scalar = types
+                .scalar_qualifications
+                .domains
+                .iter()
+                .map(|row| (row.semantic_domain, row.required_memberships.as_deref()));
+            let requirements: std::collections::BTreeMap<_, _> = structural
+                .chain(scalar)
+                .map(|(id, required)| {
+                    (
+                        name(id),
+                        required
+                            .unwrap()
+                            .iter()
+                            .copied()
+                            .map(name)
+                            .collect::<Vec<_>>(),
+                    )
+                })
+                .collect();
+            assert_eq!(
+                requirements,
+                std::collections::BTreeMap::from([
+                    ("u16::Positive", vec![]),
+                    ("Count::Selected", vec!["u16::Positive"]),
+                    ("Segment::Stored", vec![]),
+                    ("Kept::Side", vec!["Segment::Stored"]),
+                ])
+            );
+        })
+        .accepted();
+}

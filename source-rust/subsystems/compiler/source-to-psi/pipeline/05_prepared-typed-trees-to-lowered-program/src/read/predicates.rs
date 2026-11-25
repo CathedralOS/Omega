@@ -161,7 +161,7 @@ impl<'t> Program<'t> {
                 // The ordinary type owner checks the exact carrier, generic
                 // eligibility and remaining domain requirements before reading
                 // its predicates; equal fields or names cannot substitute it.
-                self.declared_domain(id, domain, plain, definition.target_type, at)?;
+                self.declared_domain(id, domain, actual, definition.target_type, at)?;
                 let subject = plain
                     .qualified(qualification)
                     .ok_or_else(|| unavailable("runtime membership storage qualification"))?;
@@ -179,10 +179,7 @@ impl<'t> Program<'t> {
                 let (subject, actual) = self
                     .clause_term(id, scope, membership.value, ClauseUse::Scalar(None))?
                     .scalar(id)?;
-                let plain = actual
-                    .qualified(Qualification::NONE)
-                    .ok_or_else(|| unavailable("runtime membership of a rigid scalar"))?;
-                self.declared_domain(id, domain, plain, definition.target_type, at)?;
+                self.declared_domain(id, domain, actual, definition.target_type, at)?;
                 let clauses = self.of_value(id, scope, qualification, &subject)?;
                 (
                     crate::body::RuntimeMembershipSubject::Scalar(subject),
