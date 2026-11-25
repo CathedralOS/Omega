@@ -688,11 +688,41 @@ impl DescriptorMachine {
         StructuralTypeId,
         &'graph DescriptorFlowStep,
     )> {
+        self.sequence_construction_with(
+            |id| terminal_psi::find_structural_type(types, id),
+            root,
+            completed,
+        )
+    }
+
+    pub(crate) fn sequence_construction_indexed<'graph, 'types>(
+        &'graph self,
+        types: &descriptor_lifetimes::locations::StructuralTypeIndex<'types>,
+        root: PlaceId,
+        completed: Option<(MachineId, DescriptorPosition)>,
+    ) -> Option<(
+        DescriptorPosition,
+        StructuralTypeId,
+        &'graph DescriptorFlowStep,
+    )> {
+        self.sequence_construction_with(|id| types.find(id), root, completed)
+    }
+
+    fn sequence_construction_with<'graph, 'types>(
+        &'graph self,
+        find_type: impl Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
+        root: PlaceId,
+        completed: Option<(MachineId, DescriptorPosition)>,
+    ) -> Option<(
+        DescriptorPosition,
+        StructuralTypeId,
+        &'graph DescriptorFlowStep,
+    )> {
         let ty = *self.place_types.get(&root)?;
         let StructuralTypeShape::ElementView {
             element,
             access: None | Some(StructuralAccess::SharedBorrow),
-        } = terminal_psi::find_structural_type(types, ty)?.shape
+        } = find_type(ty)?.shape
         else {
             return None;
         };
@@ -775,13 +805,27 @@ impl DescriptorMachine {
         Some((self.id, (producer.0, producer.1.checked_add(1)?)))
     }
 
-    pub(crate) fn location_type(
+    pub(crate) fn location_type_indexed(
         &self,
-        types: &[StructuralTypeDeclaration],
+        types: &descriptor_lifetimes::locations::StructuralTypeIndex<'_>,
         location: &DescriptorLocation,
         completed: Option<(MachineId, DescriptorPosition)>,
     ) -> Option<StructuralTypeId> {
-        self.resolve_location(types, location, completed)?.1
+        types.resolved_tip(
+            *self.place_types.get(&location.root)?,
+            &location.path,
+            |prefix, ty, index| {
+                if !prefix.is_empty() || self.place_types.get(&location.root) != Some(&ty) {
+                    return None;
+                }
+                let (_, element, step) =
+                    self.sequence_construction_indexed(types, location.root, completed)?;
+                let (_, destination) = step.derivations.get(usize::try_from(index).ok()?)?;
+                (destination.root == location.root
+                    && destination.path == [DescriptorPathSegment::FixedIndex(index)])
+                .then_some(element)
+            },
+        )?
     }
 
     pub(crate) fn location_path(
@@ -791,6 +835,34 @@ impl DescriptorMachine {
         completed: Option<(MachineId, DescriptorPosition)>,
     ) -> Option<Vec<StructuralPathSegment>> {
         Some(self.resolve_location(types, location, completed)?.0)
+    }
+
+    pub(crate) fn location_path_indexed(
+        &self,
+        types: &descriptor_lifetimes::locations::StructuralTypeIndex<'_>,
+        location: &DescriptorLocation,
+        completed: Option<(MachineId, DescriptorPosition)>,
+    ) -> Option<Vec<StructuralPathSegment>> {
+        Some(
+            types
+                .resolved_path(
+                    *self.place_types.get(&location.root)?,
+                    &location.path,
+                    |prefix, ty, index| {
+                        if !prefix.is_empty() || self.place_types.get(&location.root) != Some(&ty) {
+                            return None;
+                        }
+                        let (_, element, step) =
+                            self.sequence_construction_indexed(types, location.root, completed)?;
+                        let (_, destination) =
+                            step.derivations.get(usize::try_from(index).ok()?)?;
+                        (destination.root == location.root
+                            && destination.path == [DescriptorPathSegment::FixedIndex(index)])
+                        .then_some(element)
+                    },
+                )?
+                .0,
+        )
     }
 }
 

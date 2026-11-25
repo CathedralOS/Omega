@@ -2,7 +2,6 @@ use super::dispatch::join;
 use super::*;
 use crate::descriptors::descriptor_lifetimes;
 use crate::descriptors::descriptor_lifetimes::DescriptorFlowSource;
-use crate::descriptors::descriptor_lifetimes::descriptor_location_type;
 use crate::exactly_one::exactly_one;
 use std::sync::Arc;
 
@@ -341,6 +340,7 @@ fn carries_backing(shape: &StructuralTypeShape) -> bool {
 
 pub(crate) struct Replay<'a> {
     pub(crate) types: &'a [StructuralTypeDeclaration],
+    pub(crate) type_index: descriptor_lifetimes::locations::StructuralTypeIndex<'a>,
     pub(crate) slot_kind: DescriptorSlotKind,
     pub(crate) machines: &'a [DescriptorMachine],
     pub(crate) summaries: BTreeMap<MachineId, Option<Summary>>,
@@ -434,6 +434,7 @@ impl<'a> Replay<'a> {
     ) -> Self {
         Self {
             types,
+            type_index: descriptor_lifetimes::locations::StructuralTypeIndex::new(types),
             slot_kind,
             machines,
             summaries: BTreeMap::new(),
@@ -514,11 +515,11 @@ impl<'a> Replay<'a> {
             let prefix = query.observation();
             if prefix.path.len() < query.steps.len() {
                 let Some(selected) =
-                    descriptor_location_type(self.types, *root_type, &prefix.path)
+                    self.type_index.descriptor_location_type(*root_type, &prefix.path)
                 else {
                     return Err("storage write has no declared collection prefix");
                 };
-                if !find_structural_type(self.types, selected).is_some_and(|declaration| {
+                if !self.type_index.find(selected).is_some_and(|declaration| {
                     matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
                 }) {
                     return Ok(None);
@@ -820,7 +821,7 @@ impl<'a> Replay<'a> {
         machine: &DescriptorMachine,
         location: &DescriptorLocation,
     ) -> Option<DescriptorCallOrigin> {
-        let path = machine.location_path(self.types, location, None)?;
+        let path = machine.location_path_indexed(&self.type_index, location, None)?;
         Some(DescriptorCallOrigin::Argument {
             source: location.root,
             projection: Projection::new(&path),
@@ -1145,8 +1146,7 @@ impl<'a> Replay<'a> {
                     return None;
                 };
                 if let Ok(path) = projection.captured_address_path()
-                    && let Some(location) = crate::descriptor_lifetimes::descriptor_location(
-                        self.types,
+                    && let Some(location) = self.type_index.descriptor_location(
                         source,
                         *machine.place_types.get(&source)?,
                         &path,
@@ -1164,8 +1164,7 @@ impl<'a> Replay<'a> {
                     return None;
                 };
                 let path = projection.captured_address_path().ok()?;
-                let location = crate::descriptor_lifetimes::descriptor_location(
-                    self.types,
+                let location = self.type_index.descriptor_location(
                     source,
                     *machine.place_types.get(&source)?,
                     &path,
@@ -1177,8 +1176,7 @@ impl<'a> Replay<'a> {
         }
         let base = projection.captured_address_path().ok()?;
         let ty = *machine.place_types.get(&source)?;
-        let target = crate::descriptor_lifetimes::descriptor_location(
-            self.types,
+        let target = self.type_index.descriptor_location(
             source,
             ty,
             &projection
@@ -1222,7 +1220,7 @@ impl<'a> Replay<'a> {
         expansions: BTreeMap<DescriptorLocation, usize>,
         unavailable: Option<&'static str>,
     ) -> Option<StorageResolution> {
-        let suffix_path = machine.location_path(self.types, current, None)?;
+        let suffix_path = machine.location_path_indexed(&self.type_index, current, None)?;
         let suffix = Projection::new(&suffix_path);
         let mut resolutions = Vec::with_capacity(origins.len());
         for origin in origins {
@@ -1320,7 +1318,7 @@ impl<'a> Replay<'a> {
                 DescriptorDefinition::Arrival { access }
                     if *access != StructuralAccess::Owned
             ) || matches!(
-                find_structural_type(self.types, root_type)?.shape,
+                self.type_index.find(root_type)?.shape,
                 StructuralTypeShape::Reference { .. }
             ) || is_descriptor(self.types.iter(), root_type);
             let borrowed_arrival = matches!(definition, DescriptorDefinition::Arrival { access } if *access != StructuralAccess::Owned)
@@ -1375,7 +1373,7 @@ impl<'a> Replay<'a> {
                 && origins
                     .iter()
                     .all(|origin| matches!(origin, Origin::Storage(_)))
-                && !(matches!(find_structural_type(self.types, root_type)?.shape, StructuralTypeShape::ElementView { .. })
+                && !(matches!(self.type_index.find(root_type)?.shape, StructuralTypeShape::ElementView { .. })
                     && origins.iter().all(|origin| matches!(origin, Origin::Storage(backing)
                         if self.has_roster_source(machine, backing, depth))))
             {
@@ -1420,7 +1418,7 @@ impl<'a> Replay<'a> {
                 }
                 let reference = self.resolved_location(machine, state, &prefix, depth)?.1?;
                 if !matches!(
-                    find_structural_type(self.types, reference)?.shape,
+                    self.type_index.find(reference)?.shape,
                     StructuralTypeShape::Reference { .. }
                 ) {
                     return None;
@@ -1461,9 +1459,9 @@ impl<'a> Replay<'a> {
                             // A formed reference can retain an indexed address
                             // that has no descriptor-slot location. Crossing it
                             // uses that exact captured address, not its carrier home.
-                            let full = machine.location_path(self.types, &current, None)?;
+                            let full = machine.location_path_indexed(&self.type_index, &current, None)?;
                             let prefix_path =
-                                machine.location_path(self.types, &prefix, None)?;
+                                machine.location_path_indexed(&self.type_index, &prefix, None)?;
                             if full.get(prefix_path.len())
                                 != Some(&StructuralPathSegment::Referent)
                             {
@@ -1530,9 +1528,9 @@ impl<'a> Replay<'a> {
                                 unavailable.get_or_insert("captured reference backing changes or cannot identify its declared referee type");
                                 continue;
                             }
-                            let full = machine.location_path(self.types, &current, None)?;
+                            let full = machine.location_path_indexed(&self.type_index, &current, None)?;
                             let prefix_path =
-                                machine.location_path(self.types, &prefix, None)?;
+                                machine.location_path_indexed(&self.type_index, &prefix, None)?;
                             projected.push(self.append_storage_capture(
                                 machine,
                                 state,
@@ -1560,7 +1558,7 @@ impl<'a> Replay<'a> {
                                 .resolved_location(machine, state, &descriptor, depth)?
                                 .1?;
                             if !matches!(
-                                find_structural_type(self.types, source)?.shape,
+                                self.type_index.find(source)?.shape,
                                 StructuralTypeShape::Reference { .. }
                             ) {
                                 return None;
@@ -1578,7 +1576,7 @@ impl<'a> Replay<'a> {
                                 .resolved_location(machine, state, descriptor, depth)?
                                 .1?;
                             if !matches!(
-                                find_structural_type(self.types, source)?.shape,
+                                self.type_index.find(source)?.shape,
                                 StructuralTypeShape::Reference { .. }
                             ) {
                                 return None;
@@ -1698,8 +1696,7 @@ impl<'a> Replay<'a> {
                     self.types, source, root_type, &path,
                 )?
             } else {
-                vec![descriptor_lifetimes::descriptor_location(
-                    self.types, source, root_type, &path, None,
+                vec![self.type_index.descriptor_location( source, root_type, &path, None,
                 )?]
             };
             for member in members {
@@ -1777,7 +1774,7 @@ impl<'a> Replay<'a> {
         let mut suffix = location.path.as_slice();
         let root_type = *machine.place_types.get(&location.root)?;
         if matches!(
-            find_structural_type(self.types, root_type)?.shape,
+            self.type_index.find(root_type)?.shape,
             StructuralTypeShape::Reference { .. }
         ) && self.reference_backing_matches(machine, state, backing, root_type, depth)?
         {
@@ -1853,7 +1850,7 @@ impl<'a> Replay<'a> {
         if location.path.last() == Some(&DescriptorPathSegment::UnknownContents) {
             let ty = self.unknown_contents_type(machine, location)?;
             if !matches!(
-                find_structural_type(self.types, ty)?.shape,
+                self.type_index.find(ty)?.shape,
                 StructuralTypeShape::TypeParameter
             ) {
                 return None;
@@ -2102,8 +2099,7 @@ impl<'a> Replay<'a> {
                                 // Exact projections keep their original
                                 // storage identity, including any checked
                                 // presentation step between its fields.
-                                crate::descriptor_lifetimes::descriptor_location(
-                                    self.types,
+                                self.type_index.descriptor_location(
                                     source,
                                     *machine.place_types.get(&source)?,
                                     &composed.path,
@@ -2243,7 +2239,7 @@ impl<'a> Replay<'a> {
         let (path, endpoint) = self.resolved_location(machine, state, location, reads)?;
         if let Some(endpoint) = endpoint {
             return Some(carries_backing(
-                &find_structural_type(self.types, endpoint)?.shape,
+                &self.type_index.find(endpoint)?.shape,
             ));
         }
         // Inline scalar and byte-view fields do not need separate type
@@ -2525,7 +2521,7 @@ impl<'a> Replay<'a> {
                 return None;
             }
             let structural_type = *machine.place_types.get(&parameter.root)?;
-            let shape = &find_structural_type(self.types, structural_type)?.shape;
+            let shape = &self.type_index.find(structural_type)?.shape;
             if carries_backing(shape) {
                 continue;
             }
@@ -3667,7 +3663,7 @@ impl<'a> Replay<'a> {
         let origins = if let Origin::Storage(backing) = origin
             && self.owns_roster_type(slot.1)
         {
-            if slot.1 != machine.location_type(self.types, backing, None) {
+            if slot.1 != machine.location_type_indexed(&self.type_index, backing, None) {
                 return None;
             }
             self.exported_roster(machine, states, backing, depth)?
@@ -3681,7 +3677,7 @@ impl<'a> Replay<'a> {
     }
 
     fn owns_roster_type(&self, ty: Option<StructuralTypeId>) -> bool {
-        ty.and_then(|ty| find_structural_type(self.types, ty))
+        ty.and_then(|ty| self.type_index.find(ty))
             .is_some_and(|declaration| {
                 !declaration.is_copyable()
                     && matches!(
@@ -3704,11 +3700,10 @@ impl<'a> Replay<'a> {
         let StructuralTypeShape::ElementView {
             element: expected_element,
             access: None,
-        } = find_structural_type(
-            self.types,
-            machine.location_type(self.types, backing, None)?,
-        )?
-        .shape
+        } = self
+            .type_index
+            .find(machine.location_type_indexed(&self.type_index, backing, None)?)?
+            .shape
         else {
             return None;
         };
@@ -3721,7 +3716,7 @@ impl<'a> Replay<'a> {
             let call = machine.direct_call(position)?;
             let before = states.get(&position)?;
             let reads = DescriptorReadDepth::at(machine, before, Some(states));
-            let expected = machine.location_type(self.types, backing, None);
+            let expected = machine.location_type_indexed(&self.type_index, backing, None);
             let mut rebased = Vec::new();
             for origin in origins {
                 rebased.extend(self.reexported_result_origin(
@@ -3748,7 +3743,7 @@ impl<'a> Replay<'a> {
         let mut elements = Vec::with_capacity(step.inputs.len());
         for (element, _) in &step.inputs {
             let element = element.as_ref()?;
-            if machine.location_type(self.types, element, None)? != element_type {
+            if machine.location_type_indexed(&self.type_index, element, None)? != element_type {
                 return None;
             }
             let mut slots = Vec::new();
@@ -3773,7 +3768,7 @@ impl<'a> Replay<'a> {
                         &origin,
                         (
                             &source.path,
-                            machine.location_type(self.types, &source, None),
+                            machine.location_type_indexed(&self.type_index, &source, None),
                         ),
                         depth + 1,
                     )?;
@@ -3809,7 +3804,7 @@ impl<'a> Replay<'a> {
         }
         if let DescriptorStoredOrigin::Carried { element, elements } = origin {
             if !self.owns_roster_type(expected)
-                || !matches!(find_structural_type(self.types, expected?)?.shape,
+                || !matches!(self.type_index.find(expected?)?.shape,
                     StructuralTypeShape::ElementView { element: actual, access: None } if actual == *element)
             {
                 return None;
@@ -4115,7 +4110,7 @@ impl<'a> Replay<'a> {
                             &origin,
                             (
                                 &location.path,
-                                machine.location_type(self.types, &location, None),
+                                machine.location_type_indexed(&self.type_index, &location, None),
                             ),
                             0,
                         )?)?;
@@ -4162,7 +4157,7 @@ impl<'a> Replay<'a> {
             } else {
                 if !matches!(access, terminal_psi::exclusive_borrow_pair_pattern!())
                     && !matches!(
-                        find_structural_type(self.types, structural_type)?.shape,
+                        self.type_index.find(structural_type)?.shape,
                         StructuralTypeShape::Reference {
                             access: terminal_psi::exclusive_borrow_pair_pattern!(),
                             ..

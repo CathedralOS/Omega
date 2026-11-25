@@ -58,14 +58,14 @@ fn valid_subject(
 ) -> Option<StructuralTypeId> {
     let ty = match &predicate.subject {
         DescriptorFlowSource::Location(location) => {
-            machine.location_type(replay.types, location, None)?
+            machine.location_type_indexed(&replay.type_index, location, None)?
         }
         DescriptorFlowSource::Contents(query) => {
             let root = *machine.place_types.get(&query.root)?;
             query.selected_type_using(replay.types, root, |carrier, path, original| {
                 if original {
-                    Some(machine.location_type(
-                        replay.types,
+                    Some(machine.location_type_indexed(
+                        &replay.type_index,
                         &DescriptorLocation {
                             root: query.root,
                             path: path.to_vec(),
@@ -73,19 +73,16 @@ fn valid_subject(
                         None,
                     ))
                 } else {
-                    descriptor_path(replay.types, carrier, path)?;
-                    Some(crate::descriptor_lifetimes::descriptor_location_type(
-                        replay.types,
-                        carrier,
-                        path,
-                    ))
+                    replay
+                        .type_index
+                        .resolved_tip(carrier, path, |_, _, _| None)
                 }
             })??
         }
         DescriptorFlowSource::Unavailable(_) => return None,
     };
     let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
-        &find_structural_type(replay.types, ty)?.shape
+        &replay.type_index.find(ty)?.shape
     else {
         return None;
     };
@@ -143,7 +140,7 @@ fn selection(
         .copies
         .equivalents(&storage, machine.flow.len().saturating_mul(4096).max(4096))?;
     let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
-        &find_structural_type(replay.types, ty)?.shape
+        &replay.type_index.find(ty)?.shape
     else {
         return None;
     };

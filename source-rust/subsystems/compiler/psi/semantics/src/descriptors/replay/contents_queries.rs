@@ -1,6 +1,5 @@
 use super::engine::{DescriptorReadDepth, Origin, State, Value};
 use super::*;
-use crate::descriptors::descriptor_lifetimes::descriptor_location;
 
 impl Replay<'_> {
     pub(crate) fn location_capture(
@@ -110,13 +109,12 @@ impl Replay<'_> {
         Vec<terminal_psi::StructuralPathSegment>,
         Option<StructuralTypeId>,
     )> {
-        crate::descriptors::descriptor_lifetimes::locations::resolved_path(
-            self.types,
+        self.type_index.resolved_path(
             *machine.place_types.get(&location.root)?,
             &location.path,
             |prefix, view_type, ordinal| {
                 let StructuralTypeShape::ElementView { element, .. } =
-                    find_structural_type(self.types, view_type)?.shape
+                    self.type_index.find(view_type)?.shape
                 else {
                     return None;
                 };
@@ -141,8 +139,8 @@ impl Replay<'_> {
                         _ => return None,
                     };
                     if backing.path.is_empty()
-                        && let Some((_, actual, step)) = machine.sequence_construction(
-                            self.types,
+                        && let Some((_, actual, step)) = machine.sequence_construction_indexed(
+                            &self.type_index,
                             backing.root,
                             depth.captured.get(),
                         )
@@ -196,10 +194,9 @@ impl Replay<'_> {
             return None;
         }
         let root = *machine.place_types.get(&location.root)?;
-        let carrier =
-            crate::descriptor_lifetimes::descriptor_location_type(self.types, root, path)?;
+        let carrier = self.type_index.descriptor_location_type(root, path)?;
         matches!(
-            find_structural_type(self.types, carrier)?.shape,
+            self.type_index.find(carrier)?.shape,
             StructuralTypeShape::TypeParameter
         )
         .then_some(carrier)
@@ -270,19 +267,14 @@ impl Replay<'_> {
     ) -> Option<()> {
         let root = *machine.place_types.get(&query.root)?;
         query.validate_using(self.types, root, |carrier, path, original| {
-            use crate::descriptors::descriptor_lifetimes::{
-                descriptor_location_type, descriptor_path,
-            };
             if original {
                 let location = DescriptorLocation {
                     root: query.root,
                     path: path.to_vec(),
                 };
-                Some(self.resolved_location(machine, state, &location, depth)?.1)
-            } else {
-                descriptor_path(self.types, carrier, path)?;
-                Some(descriptor_location_type(self.types, carrier, path))
+                return Some(self.resolved_location(machine, state, &location, depth)?.1);
             }
+            self.type_index.resolved_tip(carrier, path, |_, _, _| None)
         })
     }
 
@@ -582,7 +574,7 @@ impl Replay<'_> {
                         root_type,
                         &prefix.path,
                     )
-                    .and_then(|ty| find_structural_type(self.types, ty))
+                    .and_then(|ty| self.type_index.find(ty))
                     .is_some_and(|declaration| {
                         matches!(declaration.shape, StructuralTypeShape::FixedArray { length, .. }
                             if length.literal().is_none())
@@ -717,7 +709,7 @@ impl Replay<'_> {
         ) {
             let reference = resolved.1?;
             let StructuralTypeShape::Reference { referent, .. } =
-                find_structural_type(self.types, reference)?.shape
+                self.type_index.find(reference)?.shape
             else {
                 return None;
             };
@@ -764,7 +756,7 @@ impl Replay<'_> {
             None => self.canonical_storage_with_depth(machine, state, &selected, depth)?,
         };
         let selected_type = resolved.1?;
-        let declaration = find_structural_type(self.types, selected_type)?;
+        let declaration = self.type_index.find(selected_type)?;
         let suffix = &steps[prefix_length + 1..];
         match declaration.shape {
             StructuralTypeShape::FixedArray {
@@ -866,7 +858,7 @@ impl Replay<'_> {
             {
                 let root = *machine.place_types.get(&source)?;
                 let backing =
-                    descriptor_location(self.types, source, root, &projection.path, None)?;
+                    self.type_index.descriptor_location(source, root, &projection.path, None)?;
                 if !self
                     .reference_backing_matches(machine, state, &backing, reference, depth)?
                 {
@@ -927,7 +919,7 @@ impl Replay<'_> {
         match boundary {
             DescriptorContentsStep::Address(DescriptorPathSegment::Referent) => {
                 let StructuralTypeShape::Reference { referent, .. } =
-                    find_structural_type(self.types, selected)?.shape
+                    self.type_index.find(selected)?.shape
                 else {
                     return None;
                 };
@@ -944,7 +936,7 @@ impl Replay<'_> {
                 }
             }
             DescriptorContentsStep::Element { element, .. } => {
-                match find_structural_type(self.types, selected)?.shape {
+                match self.type_index.find(selected)?.shape {
                     StructuralTypeShape::FixedArray {
                         element: actual,
                         length: terminal_psi::ArrayExtent::Literal(count),
@@ -1427,7 +1419,7 @@ impl Replay<'_> {
                     let selected = crate::descriptor_lifetimes::descriptor_location_type(
                         self.types, carrier, &path,
                     )?;
-                    let shape = &find_structural_type(self.types, selected)?.shape;
+                    let shape = &self.type_index.find(selected)?.shape;
                     let term = selector.as_ref().and_then(|selector| {
                         crate::substitution::substitute_bound_scalar_term(
                             selector,

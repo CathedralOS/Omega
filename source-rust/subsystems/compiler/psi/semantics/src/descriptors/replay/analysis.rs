@@ -199,9 +199,9 @@ impl<'a> DescriptorAnalysis<'a> {
                     };
                     for length in 0..=source.path.len() {
                         let path = &source.path[..length];
-                        if descriptor_location_type(self.replay.types, *root, path)
+                        if self.replay.type_index.descriptor_location_type(*root, path)
                             .and_then(|leaf| {
-                                terminal_psi::find_structural_type(self.replay.types, leaf)
+                                self.replay.type_index.find(leaf)
                             })
                             .is_some_and(|declaration| {
                                 matches!(
@@ -476,7 +476,9 @@ impl<'a> DescriptorAnalysis<'a> {
         if *projection != Projection::new(&projection.path) {
             return None;
         }
-        descriptor_location(self.replay.types, *source, ty, &projection.path, None)?;
+        self.replay
+            .type_index
+            .descriptor_location(*source, ty, &projection.path, None)?;
         Some(())
     }
     pub fn flatten_source_origin(
@@ -1216,7 +1218,9 @@ impl<'a> DescriptorAnalysis<'a> {
         let callee = self.replay.machine(call.stored_effects_callee()?)?;
         let (parameter, _, ty) = self.replay.parameter(callee, *source)?;
         let relative =
-            descriptor_location(self.replay.types, *source, ty, &projection.path, None)?;
+            self.replay
+                .type_index
+                .descriptor_location(*source, ty, &projection.path, None)?;
         let actual = self.replay.actual_slot(call, parameter, &relative.path)?;
         let before = self.replay.invocation_state(identity, position, owner)?;
         let storage = before
@@ -1338,7 +1342,10 @@ impl<'a> DescriptorAnalysis<'a> {
                 .place_types
                 .get(&root.place)
                 .ok_or("descriptor parameter has no type")?;
-            let Some(selected) = descriptor_location_type(self.replay.types, root_type, path)
+            let Some(selected) = self
+                .replay
+                .type_index
+                .descriptor_location_type(root_type, path)
             else {
                 return Ok(false);
             };
