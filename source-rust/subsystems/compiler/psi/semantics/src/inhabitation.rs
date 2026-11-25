@@ -195,7 +195,7 @@ where
         _root: semantic_vocabulary::PlaceId,
         _path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
         _case: semantic_vocabulary::StructuralCaseId,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<crate::substitution::clauses::CaseAnswer, Self::Error> {
         Err("scalar predicate has no case observation")
     }
 }

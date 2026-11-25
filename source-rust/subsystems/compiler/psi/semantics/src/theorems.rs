@@ -285,7 +285,7 @@ impl ClauseBindings for Subjects<'_> {
         _: PlaceId,
         _: &[CanonicalStructuralPathSegment],
         _: StructuralCaseId,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<crate::substitution::clauses::CaseAnswer, Self::Error> {
         Err("logical application cannot observe a live case")
     }
 }

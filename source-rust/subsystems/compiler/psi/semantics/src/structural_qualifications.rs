@@ -1511,7 +1511,7 @@ impl crate::substitution::clauses::ClauseBindings for DefaultBindings {
         _: PlaceId,
         _: &[CanonicalStructuralPathSegment],
         _: StructuralCaseId,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<crate::substitution::clauses::CaseAnswer, Self::Error> {
         Err("a default case predicate requires symbolic rebasing")
     }
     fn case_predicate(
@@ -1774,7 +1774,7 @@ impl crate::substitution::clauses::ClauseBindings for Rerooted {
         _: PlaceId,
         _: &[CanonicalStructuralPathSegment],
         _: StructuralCaseId,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<crate::substitution::clauses::CaseAnswer, Self::Error> {
         Err("a structural cast's predicate tests a case")
     }
 }

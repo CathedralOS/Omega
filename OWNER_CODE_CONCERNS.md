@@ -75,6 +75,22 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+<a id="a-stated-case-is-decided-twice"></a>
+### A stated case is decided by a table beside the case names
+- Category: 1. One idea, several implementations
+- Where: `source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/places.rs` (`stated_cases`, `Storage::entry_cases` and `returned_cases` beside `entry_case_names` and `returned_case_names`)
+- Saw: `requires x in S::C` stated as a conjunct is answered by the `stated_cases` table as a structural case, while the same test beside an alternative is a proposition over the boundary's case name (`ValueOrigin::StorageCase`). The conjunct could be the entry fact `name == true` instead, but payload reads (`case_at(..) != Some(CaseAnswer::Holds(true))`) accept only a structural case, so removing the table would refuse payload reads under `requires x in Result::Ok`.
+- Cost: two answers to "which case does this formal hold at entry" that must agree; a fix to one does not reach the other.
+- Reported: 2026-11-25, Claude Code, while naming a sum's case at storage boundaries.
+
+<a id="the-changed-line-format-check-reports-enums-it-did-not-change"></a>
+### The changed-line format check reports enums it did not change
+- Category: 10. Verifying costs more than writing
+- Where: `tools/xtask/src/fmt/changed.rs` (`--file-lines` ranges passed to the pinned rustfmt 1.10.0-nightly)
+- Saw: any range inside `ValueOrigin` (`representations/lowered-program/tables/values.rs`) or stage 06's `Reached` (`places.rs`), even one unchanged line (`--file-lines '[{"file":..,"range":[60,60]}]'`), makes rustfmt propose joining the enum's opening line with its first variant's doc comment (`pub enum ValueOrigin {    /// An invocation formal..`). `mbx xtask fmt --check --base origin/main` therefore fails on every change that adds a variant to such an enum.
+- Cost: a check agents are told to run before pushing fails on correctly formatted code, so its other findings are easy to dismiss.
+- Reported: 2026-11-25, Claude Code, while adding `ValueOrigin::StorageCase`.
+
 <a id="stage-03-rebuilds-the-whole-program-operand-owner-table-in-each-pass"></a>
 ### Stage 03 rebuilds the whole-program operand-owner table in each pass
 - Category: 4. Re-deriving

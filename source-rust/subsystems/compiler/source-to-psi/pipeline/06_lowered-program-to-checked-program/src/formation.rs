@@ -914,7 +914,7 @@ impl ClauseBindings for Scope<'_, '_> {
         _: PlaceId,
         _: &[Segment],
         _: StructuralCaseId,
-    ) -> Result<bool, BindingError> {
+    ) -> Result<crate::CaseAnswer, BindingError> {
         Err("partial contract under a case requires its exact case observation".into())
     }
 

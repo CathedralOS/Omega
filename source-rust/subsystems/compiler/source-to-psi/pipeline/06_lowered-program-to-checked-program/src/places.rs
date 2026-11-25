@@ -93,7 +93,7 @@ use terminal_psi::{
 };
 
 use crate::graph::Graph;
-use crate::{StorageUse, refusal};
+use crate::{CaseAnswer, StorageUse, refusal};
 
 mod arrivals;
 mod backing;
@@ -384,6 +384,26 @@ fn asked_root(asked: Asked<'_>) -> PlaceId {
 struct Contents {
     entry: Vec<Option<ValueId>>,
     calls: Vec<Vec<(ExactPlaceId, ValueId)>>,
+    entry_cases: Vec<CaseName>,
+    call_cases: Vec<Vec<CaseName>>,
+}
+
+/// The Boolean that names whether one sum place holds one case at a
+/// storage boundary (`ValueOrigin::StorageCase`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct CaseName {
+    place: ExactPlaceId,
+    case: StructuralCaseId,
+    value: ValueId,
+}
+
+/// The name of `case` of `place` among one boundary's names, which are in
+/// place and then case order.
+fn case_name(names: &[CaseName], place: ExactPlaceId, case: StructuralCaseId) -> Option<ValueId> {
+    names
+        .binary_search_by(|name| (name.place, name.case).cmp(&(place, case)))
+        .ok()
+        .map(|found| names[found].value)
 }
 
 /// The case tests a clause states outright: each conjunct of it that is a
@@ -475,9 +495,49 @@ fn initial_contents(
     let mut contents = Contents {
         entry: vec![None; tables.places.len()],
         calls: vec![Vec::new(); operations],
+        entry_cases: Vec::new(),
+        call_cases: vec![Vec::new(); operations],
     };
     let mut previous = None;
+    let mut previous_case = None;
     for (value, row) in tables.values.iter() {
+        if let ValueOrigin::StorageCase { place, case, after } = row.origin {
+            let key = (place, after, case);
+            if previous_case.is_some_and(|previous| previous >= key) {
+                return Err(refusal(
+                    RefusalReason::ForeignIdentity,
+                    machine,
+                    Construct::Value(value),
+                    "storage case values are not in the order of their places, boundaries and cases",
+                ));
+            }
+            previous_case = Some(key);
+            if index(place.get()) >= tables.places.len() {
+                return Err(refusal(
+                    RefusalReason::ForeignIdentity,
+                    machine,
+                    Construct::Value(value),
+                    "case of a place past the end of this machine",
+                ));
+            }
+            let name = CaseName { place, case, value };
+            match after {
+                None => contents.entry_cases.push(name),
+                Some(call) => contents
+                    .call_cases
+                    .get_mut(index(call.get()))
+                    .ok_or_else(|| {
+                        refusal(
+                            RefusalReason::ForeignIdentity,
+                            machine,
+                            Construct::Value(value),
+                            "storage case names a call past the end of this machine",
+                        )
+                    })?
+                    .push(name),
+            }
+            continue;
+        }
         let ValueOrigin::StorageContent { place, after } = row.origin else {
             continue;
         };
@@ -565,6 +625,13 @@ enum Reached {
     /// with that value. A transfer can retain the field's own type evidence
     /// without lending it to a record that now encloses it.
     Established(usize),
+    /// Asked of a sum: every path keeps the case it held at one storage
+    /// boundary, which is named there per case (`ValueOrigin::StorageCase`):
+    /// at entry (`after: None`) or at the normal return of `after`.
+    NamedCase {
+        place: ExactPlaceId,
+        after: Option<OperationId>,
+    },
     /// Every path supplies contents, but not one same named value or case.
     Unknown,
     /// Some path supplies nothing: no store reaches the use along it and the
@@ -1149,6 +1216,12 @@ pub(crate) struct Storage<'a> {
     /// states one outright: the path beneath the result, and the case. The
     /// callee proved it at each of its returns.
     returned_cases: Vec<Vec<(Vec<Segment>, StructuralCaseId)>>,
+    /// The Booleans naming which case each named sum place holds at entry,
+    /// where structure and a stated case say nothing: `(x in S::C) || y`
+    /// states a proposition over them.
+    entry_case_names: Vec<CaseName>,
+    /// The same names at each call's normal return.
+    returned_case_names: Vec<Vec<CaseName>>,
     /// Bound actual operations and structural edge bindings once per machine.
     reaching_budget: usize,
     log: Vec<Logged>,
@@ -1289,6 +1362,8 @@ impl<'a> Storage<'a> {
             returned_contents: contents.calls,
             entry_cases,
             returned_cases,
+            entry_case_names: contents.entry_cases,
+            returned_case_names: contents.call_cases,
             reaching_budget,
             log: Vec::new(),
             fixed_write_indices: IdTable::default(),
@@ -3395,17 +3470,29 @@ impl<'a> Storage<'a> {
                         && matches!(self.root_kind(sum.root, concerns)?,
                             StructuralPlaceKind::OperationResult { producer, .. }
                                 if producer == row.operation);
-                    self.returned_cases
+                    match self
+                        .returned_cases
                         .get(index(row.operation.get()))
                         .filter(|_| produced)
                         .and_then(|cases| {
                             cases
                                 .iter()
                                 .find(|(segments, _)| segments.as_slice() == beneath)
-                        })
-                        .map_or(Reached::Unknown, |(_, case)| {
-                            case_selection(*case, excluded)
-                        })
+                        }) {
+                        Some((_, case)) => case_selection(*case, excluded),
+                        // Otherwise the sum holds the case its names at
+                        // this call's return stand for.
+                        None => match self.returned_case_names.get(index(row.operation.get())) {
+                            Some(names) => self.named_case(
+                                tables,
+                                sum,
+                                Some(row.operation),
+                                names,
+                                concerns,
+                            )?,
+                            None => Reached::Unknown,
+                        },
+                    }
                 }
                 // A window is answered by the row alone, above.
                 (Stored::Zeroed | Stored::Established, Asked::Window { .. }) => {
@@ -4326,19 +4413,25 @@ impl<'a> Storage<'a> {
                                     })
                             }
                         }
-                        // Which case a formal holds at entry is known only
-                        // where the machine's own `requires` states it, and
-                        // other storage holds nothing there; that it holds
-                        // nothing is the contents question's answer to give.
+                        // Which case a formal holds at entry is known where
+                        // the machine's own `requires` states it. Otherwise
+                        // it is the case the formal's entry names stand
+                        // for, and other storage holds nothing there; that
+                        // it holds nothing is the contents question's
+                        // answer to give.
                         (Asked::Case(sum, excluded), _) => Supply::Direct(
-                            self.entry_cases
-                                .iter()
-                                .find(|(place, _)| {
-                                    place.root == sum.root && place.segments == sum.segments
-                                })
-                                .map_or(Reached::Unknown, |(_, case)| {
-                                    case_selection(*case, excluded)
-                                }),
+                            match self.entry_cases.iter().find(|(place, _)| {
+                                place.root == sum.root && place.segments == sum.segments
+                            }) {
+                                Some((_, case)) => case_selection(*case, excluded),
+                                None => self.named_case(
+                                    tables,
+                                    sum,
+                                    None,
+                                    &self.entry_case_names,
+                                    concerns,
+                                )?,
+                            },
                         ),
                         (
                             Asked::Contents(_),
@@ -4396,6 +4489,31 @@ impl<'a> Storage<'a> {
         budget.remaining = remaining;
         discovered?;
         Ok(Supply::transfer(address).within(projection))
+    }
+
+    /// The case a sum holds where it still holds what it held at a storage
+    /// boundary and nothing structural says which case that is: the case its
+    /// names at that boundary stand for, when stage 05 named them. The query
+    /// may ask for one case's exclusion; the names answer that too, so the
+    /// boundary's answer is the same for every query of this sum.
+    fn named_case(
+        &self,
+        tables: &MachineTables,
+        sum: &Lineage,
+        after: Option<OperationId>,
+        names: &[CaseName],
+        concerns: Construct,
+    ) -> Checked<Reached> {
+        let Some(place) = self.interned(tables, sum, concerns)? else {
+            return Ok(Reached::Unknown);
+        };
+        let first = names.partition_point(|name| name.place < place);
+        let named = names.get(first).is_some_and(|name| name.place == place);
+        Ok(if named {
+            Reached::NamedCase { place, after }
+        } else {
+            Reached::Unknown
+        })
     }
 
     fn budget(&self) -> Reaching {
@@ -4456,6 +4574,9 @@ impl<'a> Storage<'a> {
         if matches!(operation.kind, OperationKind::ByteSequencePredicate { .. }) {
             return self.stable_byte_predicate_equation(operation);
         }
+        if let OperationKind::StructuralCaseMembership { source, path, case } = &operation.kind {
+            return self.membership_equation(references, tables, operation, *source, path, *case);
+        }
         let Some(leaf) = self.read_leaf(operation)? else {
             return Ok(None);
         };
@@ -4508,6 +4629,147 @@ impl<'a> Storage<'a> {
             ScalarTerm::value(result.id, result.scalar_type),
             held,
         )))
+    }
+
+    /// A sum holds exactly one of its declared cases, so of the names one
+    /// boundary gives the cases of one sum, exactly one is true: one of them
+    /// holds, and each excludes the others. Each premise is available where
+    /// its names are bound: at entry, by the formal's declared type, and on a
+    /// call's normal continuation, by what the call establishes.
+    pub(crate) fn case_name_premises(
+        &self,
+        tables: &MachineTables,
+    ) -> Checked<Vec<(ProgramPoint, Option<OperationId>, Proposition)>> {
+        let holds = |name: &CaseName, holds: bool| {
+            Proposition::Equal(
+                ScalarTerm::value(name.value, ScalarType::Boolean),
+                ScalarTerm::Boolean(holds),
+            )
+        };
+        let mut premises = Vec::new();
+        let boundaries = std::iter::once((None, self.entry_case_names.as_slice())).chain(
+            self.returned_case_names
+                .iter()
+                .enumerate()
+                .filter(|(_, names)| !names.is_empty())
+                .map(|(position, names)| (Some(position), names.as_slice())),
+        );
+        for (call, names) in boundaries {
+            let after = call
+                .map(|position| {
+                    u64::try_from(position + 1)
+                        .ok()
+                        .and_then(OperationId::new)
+                        .ok_or_else(|| {
+                            self.foreign(Construct::Machine, "a case name's call has no identity")
+                        })
+                })
+                .transpose()?;
+            let point = match after {
+                None => ProgramPoint::BlockEntry(self.graph.entry()),
+                Some(call) => ProgramPoint::AfterOperation(call),
+            };
+            for sum in names.chunk_by(|left, right| left.place == right.place) {
+                let concerns = Construct::Value(sum[0].value);
+                let place = lineage(self.machine, &tables.places, sum[0].place)?;
+                let Shape::Typed(sum_type) = self.shape(&place, concerns)? else {
+                    return Err(self.foreign(concerns, "a case name of storage that is no sum"));
+                };
+                let StructuralTypeShape::Sum { cases } =
+                    &self.declaration(sum_type, concerns)?.shape
+                else {
+                    return Err(self.foreign(concerns, "a case name of storage that is no sum"));
+                };
+                // Stage 05 names every declared case or none.
+                if cases.len() != sum.len() {
+                    return Err(self.foreign(concerns, "a sum's case names omit a declared case"));
+                }
+                let mut some = sum.iter().map(|name| holds(name, true)).collect::<Vec<_>>();
+                some.sort();
+                premises.push((
+                    point,
+                    after,
+                    match some.len() {
+                        1 => some.remove(0),
+                        _ => Proposition::Disjunction(some),
+                    },
+                ));
+                for name in sum {
+                    let mut others = sum
+                        .iter()
+                        .filter(|other| other.case != name.case)
+                        .map(|other| holds(other, false))
+                        .collect::<Vec<_>>();
+                    others.sort();
+                    let conclusion = match others.len() {
+                        0 => continue,
+                        1 => others.remove(0),
+                        _ => Proposition::Conjunction(others),
+                    };
+                    premises.push((
+                        point,
+                        after,
+                        Proposition::Implication {
+                            premise: Box::new(holds(name, true)),
+                            conclusion: Box::new(conclusion),
+                        },
+                    ));
+                }
+            }
+        }
+        Ok(premises)
+    }
+
+    /// A membership test of a sum that still holds the case it held at a
+    /// storage boundary computes that boundary's name of the case, so a
+    /// branch on the test decides the name on each edge, and what an entry
+    /// clause or a guarantee states over the name is known there. A test
+    /// structure decides already needs no equation: the edge says it.
+    fn membership_equation(
+        &self,
+        references: &mut DescriptorAnalysis<'a>,
+        tables: &MachineTables,
+        operation: &Operation,
+        source: PlaceId,
+        path: &[StructuralPathSegment],
+        case: StructuralCaseId,
+    ) -> Checked<Option<Proposition>> {
+        let concerns = Construct::Operation(operation.id);
+        let result = operation
+            .result
+            .scalar_ref()
+            .ok_or_else(|| self.foreign(concerns, "a membership test has no scalar result"))?;
+        let sum = self.stored_at(source, path, concerns)?;
+        if sum
+            .segments
+            .iter()
+            .any(|segment| matches!(segment, Segment::RuntimeIndex { .. }))
+        {
+            return Ok(None);
+        }
+        let (block, after) = self
+            .graph
+            .locate(ProgramPoint::AfterOperation(operation.id))?;
+        let up_to = after
+            .checked_sub(1)
+            .ok_or_else(|| self.foreign(concerns, "a membership test has no point before it"))?;
+        let mut held = Held {
+            point: None,
+            storage: self,
+            references,
+            tables,
+            place: &sum,
+            block,
+            up_to,
+            concerns,
+        };
+        Ok(match held.case_at(&sum, case)? {
+            Some(CaseAnswer::Named(name)) => Some(Proposition::Equal(
+                ScalarTerm::value(result.id, result.scalar_type),
+                ScalarTerm::value(name, ScalarType::Boolean),
+            )),
+            Some(CaseAnswer::Holds(_)) | None => None,
+        })
     }
 
     /// What a read learns from the type of the storage it reads: each
@@ -4701,10 +4963,12 @@ impl<'a> Storage<'a> {
                     ValueOrigin::MachineParameter { .. }
                     | ValueOrigin::MachineResult
                     | ValueOrigin::BlockParameter { .. }
-                    | ValueOrigin::Operation(_) => None,
+                    | ValueOrigin::Operation(_)
+                    | ValueOrigin::StorageCase { .. } => None,
                 }
             }
             Reached::Case(_)
+            | Reached::NamedCase { .. }
             | Reached::Input(_)
             | Reached::ExcludedCase
             | Reached::Zero(_)
@@ -4857,6 +5121,69 @@ impl<'a> Storage<'a> {
     /// payload read would get, for the form in which a dispatch delivers a
     /// payload (control_flow.md: "Selected payload fields become scalar
     /// parameters on that case's edge before cleanup.").
+    /// A dispatch on a sum that still holds the case it held at a storage
+    /// boundary selects, on each edge, the case that boundary's name of the
+    /// edge's case says it holds, so what a clause states over the names is
+    /// known in each arm: `(result in Result::Err) || P(result.value)` leaves
+    /// `P` in the `Ok` arm.
+    pub(crate) fn dispatch_case_names(
+        &self,
+        references: &mut DescriptorAnalysis<'a>,
+        tables: &MachineTables,
+        block: &Block,
+    ) -> Checked<Vec<(EdgeId, Proposition)>> {
+        let Terminator::StructuralCase {
+            source,
+            path,
+            cases,
+        } = &block.terminator
+        else {
+            return Ok(Vec::new());
+        };
+        let concerns = Construct::Block(block.id);
+        let subject = self.stored_at(*source, path, concerns)?;
+        if subject
+            .segments
+            .iter()
+            .any(|part| matches!(part, Segment::RuntimeIndex { .. }))
+        {
+            return Ok(Vec::new());
+        }
+        let Reached::NamedCase { place, after } = self.reaching(
+            references,
+            tables,
+            Asked::Case(&subject, None),
+            (block.id, usize::MAX),
+            &mut self.budget(),
+            concerns,
+        )?
+        else {
+            return Ok(Vec::new());
+        };
+        let names = match after {
+            None => Some(self.entry_case_names.as_slice()),
+            Some(call) => self
+                .returned_case_names
+                .get(index(call.get()))
+                .map(Vec::as_slice),
+        }
+        .unwrap_or_default();
+        Ok(cases
+            .iter()
+            .filter_map(|edge| {
+                case_name(names, place, edge.case).map(|name| {
+                    (
+                        edge.edge,
+                        Proposition::Equal(
+                            ScalarTerm::value(name, ScalarType::Boolean),
+                            ScalarTerm::Boolean(true),
+                        ),
+                    )
+                })
+            })
+            .collect())
+    }
+
     pub(crate) fn payload_equations(
         &self,
         references: &mut DescriptorAnalysis<'a>,
@@ -5356,7 +5683,7 @@ impl<'a> Storage<'a> {
                     up_to,
                     concerns,
                 };
-                if observation.case_at(&sum, *case)? != Some(true) {
+                if observation.case_at(&sum, *case)? != Some(CaseAnswer::Holds(true)) {
                     return Ok(Err(refusal(
                         RefusalReason::Unestablished,
                         self.machine,
@@ -6987,7 +7314,7 @@ impl<'a, Inputs: InputPlaces<'a>> crate::Bindings for Returned<'_, 'a, Inputs> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         case: StructuralCaseId,
-    ) -> Result<bool, crate::Unbound> {
+    ) -> Result<crate::CaseAnswer, crate::Unbound> {
         if self
             .structural
             .as_ref()
@@ -7148,10 +7475,11 @@ impl crate::Bindings for AtEntry<'_, '_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         case: StructuralCaseId,
-    ) -> Result<bool, crate::Unbound> {
+    ) -> Result<crate::CaseAnswer, crate::Unbound> {
         // The machine's own `requires` states this place's case outright, so
-        // it holds at entry. Nothing decides any other test in an entry
-        // clause.
+        // it holds at entry. Any other test in an entry clause is of the case
+        // the place's entry names stand for: `(outcome in Outcome::Good) ||
+        // flag` assumes a disjunction over that name, and decides nothing.
         let place = extended(
             Lineage {
                 root,
@@ -7159,13 +7487,21 @@ impl crate::Bindings for AtEntry<'_, '_> {
             },
             path,
         )?;
-        self.storage
+        if let Some((_, known)) = self
+            .storage
             .entry_cases
             .iter()
             .find(|(known, _)| known.root == place.root && known.segments == place.segments)
-            .map(|(_, known)| *known == case)
+        {
+            return Ok(crate::CaseAnswer::Holds(*known == case));
+        }
+        self.storage
+            .interned(self.tables, &place, Construct::Machine)
+            .map_err(crate::Unbound::Refused)?
+            .and_then(|exact| case_name(&self.storage.entry_case_names, exact, case))
+            .map(crate::CaseAnswer::Named)
             .ok_or(crate::Unbound::Unsupported(
-                "a case test in an entry clause",
+                "an entry clause tests the case of storage that has no entry name",
             ))
     }
 }
@@ -7937,7 +8273,7 @@ impl crate::Bindings for AtCall<'_, '_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         case: StructuralCaseId,
-    ) -> Result<bool, crate::Unbound> {
+    ) -> Result<crate::CaseAnswer, crate::Unbound> {
         // A callee's `requires` that tests a case is owed like any other
         // clause: what was stored in the argument must show that case.
         let actual = self.actual(root, path)?;
@@ -7945,7 +8281,7 @@ impl crate::Bindings for AtCall<'_, '_> {
             .case_at(&actual, case)
             .map_err(crate::Unbound::Refused)?
             .ok_or(crate::Unbound::Unproved(
-                "the case a requires clause tests is not established by structure at this call",
+                "nothing says which case the argument a requires clause tests holds at this call",
             ))
     }
 }
@@ -8260,7 +8596,7 @@ impl crate::Bindings for AtJoin<'_, '_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         case: StructuralCaseId,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<crate::CaseAnswer, Self::Error> {
         let actual = self.inputs.actual(root, path)?;
         crate::Bindings::case(
             &mut self.inputs.held_at(&actual),
@@ -8284,13 +8620,7 @@ impl crate::Bindings for AtJoin<'_, '_> {
             .iter()
             .any(|formal| formal.place == root)
         {
-            self.case(root, path, case).map(|holds| {
-                if holds {
-                    Proposition::Truth
-                } else {
-                    Proposition::Falsehood
-                }
-            })
+            self.case(root, path, case).map(crate::CaseAnswer::proposition)
         } else {
             Ok(Proposition::StructuralCaseMembership {
                 subject: semantic_vocabulary::StructuralCaseSubject::new(root, path.to_vec()),
@@ -8315,9 +8645,11 @@ impl<'a> InputPlaces<'a> for AtCall<'_, 'a> {
 }
 
 impl Held<'_, '_> {
-    /// A selected case answers directly. Otherwise, each other declared case
-    /// must be excluded on every arrival to the same storage.
-    fn case_at(&mut self, sum: &Lineage, case: StructuralCaseId) -> Checked<Option<bool>> {
+    /// A selected case answers directly, and a sum that keeps the case it
+    /// held at a storage boundary answers with that boundary's name of the
+    /// case. Otherwise, each other declared case must be excluded on every
+    /// arrival to the same storage.
+    fn case_at(&mut self, sum: &Lineage, case: StructuralCaseId) -> Checked<Option<CaseAnswer>> {
         let storage = self.storage;
         let concerns = self.concerns;
         let mut read = |excluded| {
@@ -8332,8 +8664,21 @@ impl Held<'_, '_> {
                 concerns,
             )
         };
-        if let Reached::Case(selected) = read(None)? {
-            return Ok(Some(selected == case));
+        match read(None)? {
+            Reached::Case(selected) => return Ok(Some(CaseAnswer::Holds(selected == case))),
+            Reached::NamedCase { place, after } => {
+                let names = match after {
+                    None => Some(storage.entry_case_names.as_slice()),
+                    Some(call) => storage
+                        .returned_case_names
+                        .get(index(call.get()))
+                        .map(Vec::as_slice),
+                };
+                return Ok(names
+                    .and_then(|names| case_name(names, place, case))
+                    .map(CaseAnswer::Named));
+            }
+            _ => {}
         }
 
         let Shape::Typed(sum_type) = storage.shape(sum, concerns)? else {
@@ -8347,14 +8692,14 @@ impl Held<'_, '_> {
             return Ok(None);
         }
         if read(Some(case))? == Reached::ExcludedCase {
-            return Ok(Some(false));
+            return Ok(Some(CaseAnswer::Holds(false)));
         }
         for other in cases.iter().filter(|declared| declared.id != case) {
             if read(Some(other.id))? != Reached::ExcludedCase {
                 return Ok(None);
             }
         }
-        Ok(Some(true))
+        Ok(Some(CaseAnswer::Holds(true)))
     }
 
     /// Scalar fields and descriptor lengths both use the contents reaching
@@ -8576,12 +8921,12 @@ impl crate::Bindings for Held<'_, '_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         case: StructuralCaseId,
-    ) -> Result<bool, crate::Unbound> {
+    ) -> Result<crate::CaseAnswer, crate::Unbound> {
         let sum = self.beneath(root, path)?;
         self.case_at(&sum, case)
             .map_err(crate::Unbound::Refused)?
             .ok_or(crate::Unbound::Unproved(
-                "the case the data requires clause tests is not established by structure here",
+                "nothing says which case the storage a contract clause tests holds here",
             ))
     }
 }
@@ -8691,7 +9036,7 @@ impl crate::Bindings for Named<'_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         _: StructuralCaseId,
-    ) -> Result<bool, crate::Unbound> {
+    ) -> Result<crate::CaseAnswer, crate::Unbound> {
         self.beneath(root, path)?;
         Err(crate::Unbound::Unproved(
             "a case test is recorded, not decided",
@@ -8754,7 +9099,7 @@ impl crate::Bindings for Observed<'_, '_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         case: StructuralCaseId,
-    ) -> Result<bool, crate::Unbound> {
+    ) -> Result<crate::CaseAnswer, crate::Unbound> {
         let place = self.selected.ok_or(crate::Unbound::Unproved(
             "the clause tests a case of a value above the storage the read observes",
         ))?;

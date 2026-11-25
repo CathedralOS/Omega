@@ -211,7 +211,7 @@ impl ClauseBindings for Missing {
         _: PlaceId,
         _: &[CanonicalStructuralPathSegment],
         _: StructuralCaseId,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<crate::CaseAnswer, Self::Error> {
         Err("case is not preserved across this transfer")
     }
 }

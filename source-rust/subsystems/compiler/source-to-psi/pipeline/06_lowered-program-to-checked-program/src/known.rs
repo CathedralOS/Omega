@@ -30,7 +30,7 @@ use semantic_vocabulary::{
     IntegerCarrier, IntegerMathTerm, Proposition, PropositionContext, ScalarApplicationId,
     ScalarTerm, ScalarType, ValueId,
 };
-use terminal_check_tables::values::{ValueOrigin, ValueRow};
+use terminal_check_tables::values::ValueRow;
 use terminal_psi::PrimitiveJudgment;
 
 /// Declaration terms have logical inputs even when they have no executable
@@ -61,7 +61,7 @@ impl ProofValues for IdTable<ValueId, ValueRow> {
 
     fn is_storage_content(&self, value: ValueId) -> bool {
         self.get(value)
-            .is_some_and(|row| matches!(row.origin, ValueOrigin::StorageContent { .. }))
+            .is_some_and(|row| row.origin.is_storage_observation())
     }
 }
 

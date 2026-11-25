@@ -275,7 +275,7 @@ impl terminal_semantics::substitution::clauses::ClauseBindings for ScalarFormals
         _: semantic_vocabulary::PlaceId,
         _: &[semantic_vocabulary::CanonicalStructuralPathSegment],
         _: semantic_vocabulary::StructuralCaseId,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<terminal_semantics::substitution::clauses::CaseAnswer, Self::Error> {
         Err("clause restatement has no captured structural entry case")
     }
 }

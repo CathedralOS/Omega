@@ -4784,9 +4784,21 @@ fn dispatch_premises(tables: &MachineTables) -> Vec<(EdgeId, Proposition)> {
             };
             assert_eq!(row.available_from, ProgramPoint::Edge(edge));
             let proposition = tables.propositions.get(row.proposition).unwrap().clone();
+            // Payload equations and the case an edge selects of a named sum
+            // are what the edge binds, not a clause it carries.
+            let case_name = |id| {
+                matches!(
+                    tables.values.get(id).map(|row| row.origin),
+                    Some(ValueOrigin::StorageCase { .. })
+                )
+            };
             (!matches!(
                 proposition,
                 Proposition::Equal(ScalarTerm::Value { .. }, ScalarTerm::Value { .. })
+            ) && !matches!(
+                proposition,
+                Proposition::Equal(ScalarTerm::Value { id, .. }, ScalarTerm::Boolean(true))
+                    if case_name(id)
             ))
             .then_some((edge, proposition))
         })

@@ -1285,6 +1285,18 @@ fn fill_knowledge<'a>(
             );
         }
     }
+    // A sum holds exactly one case at each boundary its case is named at.
+    for (point, after, premise) in storage.case_name_premises(tables)? {
+        push_knowledge(
+            tables,
+            premise,
+            point,
+            match after {
+                None => Justification::FormalType,
+                Some(call) => Justification::OperationSemantics(call),
+            },
+        );
+    }
     // Each readable record formal of the machine or of a loop head arrived
     // as a member of its type's domain, so the clauses of that type hold of
     // its entry contents, including a clause that relates several fields.
@@ -1373,9 +1385,12 @@ fn fill_knowledge<'a>(
                 Justification::ExcludedDispatchCase { edge, selected },
             );
         }
-        let equations = storage.payload_equations(references, tables, block)?;
+        let equations = storage
+            .payload_equations(references, tables, block)?
+            .into_iter()
+            .chain(storage.dispatch_case_names(references, tables, block)?);
         let premises = storage.payload_premises(references, tables, block)?;
-        for (edge, proposition) in equations.into_iter().chain(
+        for (edge, proposition) in equations.chain(
             premises
                 .into_iter()
                 .map(|(edge, _, premise)| (edge, premise)),
@@ -1899,7 +1914,8 @@ impl Unbound {
 
 use terminal_semantics::substitution::clauses::substitute_sufficient_clause;
 pub(crate) use terminal_semantics::substitution::clauses::{
-    ClauseBindings as Bindings, substitute_clause as substitute, substitute_clause_term as bound,
+    CaseAnswer, ClauseBindings as Bindings, substitute_clause as substitute,
+    substitute_clause_term as bound,
 };
 
 /// Express a machine input contract in the same vocabulary when assuming it
@@ -2180,7 +2196,7 @@ impl Bindings for ErasedTerms<'_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         case: StructuralCaseId,
-    ) -> Result<bool, Unbound> {
+    ) -> Result<crate::CaseAnswer, Unbound> {
         self.runtime.case(root, path, case)
     }
 }
@@ -2258,7 +2274,7 @@ impl Bindings for ScalarActuals<'_> {
         _: PlaceId,
         _: &[CanonicalStructuralPathSegment],
         _: StructuralCaseId,
-    ) -> Result<bool, Unbound> {
+    ) -> Result<crate::CaseAnswer, Unbound> {
         Err(Unbound::Unsupported(
             "clause form outside the scalar subset",
         ))

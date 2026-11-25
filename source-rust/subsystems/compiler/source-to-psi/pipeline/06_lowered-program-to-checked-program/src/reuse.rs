@@ -1683,10 +1683,7 @@ impl Carry<'_> {
                 self.tables.values.len() >= matched
                     && self.tables.values.iter().skip(matched).all(|(_, row)| {
                         row.rigid.is_none()
-                            && matches!(
-                                row.origin,
-                                terminal_check_tables::values::ValueOrigin::StorageContent { .. }
-                            )
+                            && row.origin.is_storage_observation()
                     })
             })
             && self.template.values.iter().all(|(value, theirs)| {

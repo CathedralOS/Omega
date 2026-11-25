@@ -1357,7 +1357,7 @@ fn values_are_declared(
                 }
             }
             None => {
-                if !matches!(row.origin, ValueOrigin::StorageContent { .. }) {
+                if !row.origin.is_storage_observation() {
                     return Err(foreign(
                         value,
                         "a value row that nothing in the lowered form declares",

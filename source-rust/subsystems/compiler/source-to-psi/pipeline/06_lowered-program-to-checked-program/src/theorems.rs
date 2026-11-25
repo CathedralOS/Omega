@@ -58,7 +58,9 @@ pub(crate) fn validate(
                     ValueOrigin::MachineParameter { .. } => ProgramPoint::BlockEntry(machine.entry),
                     ValueOrigin::BlockParameter { block, .. } => ProgramPoint::BlockEntry(block),
                     ValueOrigin::Operation(operation) => ProgramPoint::AfterOperation(operation),
-                    ValueOrigin::MachineResult | ValueOrigin::StorageContent { .. } => {
+                    ValueOrigin::MachineResult
+                    | ValueOrigin::StorageContent { .. }
+                    | ValueOrigin::StorageCase { .. } => {
                         failure = Some("logical subject is not a fixed available scalar");
                         return false;
                     }

@@ -1834,6 +1834,21 @@ impl<'a> Lowering<'a> {
         Ok(())
     }
 
+    /// Register a sum whose case a clause may test at a boundary. As for a
+    /// leaf, its names are allocated in exact-place order after lowering.
+    fn initial_case(&mut self, sum: ExactPlaceId, sum_type: StructuralTypeId) -> Checked<()> {
+        let index = usize::try_from(sum.get() - 1)
+            .map_err(|_| self.internal("place identity exceeds the address space"))?;
+        if self.demanded_cases.len() <= index {
+            self.demanded_cases.resize(index + 1, None);
+        }
+        if self.demanded_cases[index].is_some_and(|previous| previous != sum_type) {
+            return Err(self.internal("a demanded sum place has two types"));
+        }
+        self.demanded_cases[index] = Some(sum_type);
+        Ok(())
+    }
+
     /// Register the storage leaves a use or type contract observes. Calls and
     /// invocation entry supply identities only at independently checked boundaries.
     pub(super) fn name_contents(
@@ -1873,8 +1888,12 @@ impl<'a> Lowering<'a> {
                     self.name_contents(leaf, field.value_type)?;
                 }
                 // Which case an input or call result holds is not known, so
-                // every payload leaf gets an initial identity; the checker lets
-                // a read reach one only where that case is established.
+                // the sum gets one name per case, and every payload leaf an
+                // initial identity; the checker lets a read reach one only
+                // where that case is established.
+                if !data.cases().is_empty() {
+                    self.initial_case(place, record)?;
+                }
                 for case in data.cases().iter().filter(|case| !case.fields.is_empty()) {
                     let payload = self.project(place, Segment::Case(case.id))?;
                     for field in &case.fields {

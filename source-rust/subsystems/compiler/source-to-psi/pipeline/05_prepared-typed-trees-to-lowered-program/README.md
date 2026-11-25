@@ -225,8 +225,14 @@ with `>` and `>=` read as `<` and `<=` of the exchanged operands and `!=` as
 the negation of `==`. A comparison under an arithmetic policy is refused as
 an operand by name. A case test `x in S::C` is read in a machine clause as
 well as in a data clause, of a formal or of the result (`requires outcome in
-Outcome::Good`, `ensures result in Result::Ok`); stage 06 decides it and
-makes it known to the other side of the call.
+Outcome::Good`, `ensures result in Result::Ok`), beside an alternative
+(`(outcome in Outcome::Good) || flag`) and as an operand of `==` or `!=`
+(`flag == (outcome in Outcome::Good)`). It has no carrier value, so as an
+operand it is the proposition it states, and `L == R` is read as `(L && R)
+|| (!L && !R)` (`read_clause`); anywhere else a carrier value is needed it is
+refused by name. Stage 06 decides each test, or states it over the Boolean
+that names the sum's case at entry or after a call, which lowering names
+for every sum of an input or a call result (`ValueOrigin::StorageCase`).
 `tools/ratchets/clause_term_readers.txt` counts the functions in `read/` that
 return a clause term, so the number can only fall.
 

@@ -363,66 +363,7 @@ impl Lowering<'_> {
             };
             let leaf = ExactPlaceId::new(slot as u64 + 1)
                 .ok_or_else(|| self.internal("a storage observation identity overflow"))?;
-            let mut at = leaf;
-            let mut calls = Vec::<OperationId>::new();
-            let mut segments = Vec::new();
-            let root = loop {
-                let row = self
-                    .tables
-                    .places
-                    .get(at)
-                    .ok_or_else(|| self.internal("a demanded storage leaf has no place row"))?;
-                for write in &row.writes {
-                    let write = self
-                        .tables
-                        .writes
-                        .get(*write)
-                        .ok_or_else(|| self.internal("a storage write has no row"))?;
-                    if let (Content::Overwritten, ProgramPoint::AfterOperation(call)) =
-                        (write.content, write.at)
-                        && call_operations.binary_search(&call).is_ok()
-                    {
-                        calls.push(call);
-                    }
-                }
-                match row.origin {
-                    PlaceOrigin::Root(root) => break root,
-                    PlaceOrigin::Projection { parent, segment } => {
-                        segments.push(segment);
-                        at = parent;
-                    }
-                }
-            };
-            // Inference discovers a helper's condition after lowering. Every
-            // demanded, readable field therefore needs its entry name, even
-            // when no authored header clause named it. A selector must already
-            // be available when the formal receives its incoming storage.
-            let owner = self.roots.get(root).map(|(kind, _)| kind);
-            let named_entry = match owner.filter(|kind| {
-                segments.iter().all(|&step| {
-                    terminal_check_tables::bindings::entry_snapshot_segment(
-                        step,
-                        **kind,
-                        &self.tables.values,
-                    )
-                })
-            }) {
-                Some(StructuralPlaceKind::Parameter { .. }) => true,
-                Some(StructuralPlaceKind::BlockParameter { block, position }) => {
-                    let formal = machine
-                        .blocks
-                        .get(block.get() as usize - 1)
-                        .filter(|body| body.id == *block)
-                        .and_then(|body| body.structural_parameters.get(*position as usize))
-                        .filter(|formal| formal.place == root)
-                        .ok_or_else(|| self.internal("a block content has no structural formal"))?;
-                    terminal_psi::structural_access_covers(
-                        formal.access,
-                        terminal_psi::StructuralAccess::SharedBorrow,
-                    )
-                }
-                _ => false,
-            };
+            let (named_entry, calls) = self.snapshot_boundaries(machine, leaf, &call_operations)?;
             if named_entry {
                 self.value(
                     scalar_type,
@@ -432,22 +373,138 @@ impl Lowering<'_> {
                     },
                 );
             }
-            calls.sort_unstable();
-            for owners in calls.chunk_by(|left, right| left == right) {
-                // Overlapping exclusive arguments have no unique snapshot
-                // owner. Keep them unnamed so the loan checker reports the
-                // source conflict; a forged name is independently refused.
-                let [call] = owners else { continue };
+            for call in calls {
                 self.value(
                     scalar_type,
                     ValueOrigin::StorageContent {
                         place: leaf,
-                        after: Some(*call),
+                        after: Some(call),
                     },
                 );
             }
         }
+        // A sum's case is named at the same boundaries as a leaf's contents,
+        // one Boolean per declared case, in place, boundary and case order.
+        for slot in 0..self.demanded_cases.len() {
+            let Some(sum_type) = self.demanded_cases[slot] else {
+                continue;
+            };
+            let sum = ExactPlaceId::new(slot as u64 + 1)
+                .ok_or_else(|| self.internal("a storage observation identity overflow"))?;
+            let (named_entry, calls) = self.snapshot_boundaries(machine, sum, &call_operations)?;
+            let mut cases: Vec<_> = self
+                .record_type(sum_type)?
+                .cases()
+                .iter()
+                .map(|case| case.id)
+                .collect();
+            cases.sort_unstable();
+            // A block formal is bound anew on each arrival, and the checker
+            // names no case of it yet: only an invocation formal's entry.
+            let (root, _) = self.lineage(sum)?;
+            let invocation_formal = matches!(
+                self.roots.get(root),
+                Some((StructuralPlaceKind::Parameter { .. }, _))
+            );
+            let entry = (named_entry && invocation_formal).then_some(None);
+            for after in entry.into_iter().chain(calls.into_iter().map(Some)) {
+                for &case in &cases {
+                    self.value(
+                        ScalarType::Boolean,
+                        ValueOrigin::StorageCase {
+                            place: sum,
+                            case,
+                            after,
+                        },
+                    );
+                }
+            }
+        }
         Ok(())
+    }
+
+    /// Where the storage at `place` has a snapshot a logical name can stand
+    /// for: at entry, when its root is a readable formal, and at the normal
+    /// return of each call that alone overwrites it or a place above it, in
+    /// call order.
+    fn snapshot_boundaries(
+        &self,
+        machine: &terminal_psi::TerminalMachine,
+        place: ExactPlaceId,
+        call_operations: &[OperationId],
+    ) -> Checked<(bool, Vec<OperationId>)> {
+        let mut at = place;
+        let mut calls = Vec::<OperationId>::new();
+        let mut segments = Vec::new();
+        let root = loop {
+            let row = self
+                .tables
+                .places
+                .get(at)
+                .ok_or_else(|| self.internal("a demanded storage leaf has no place row"))?;
+            for write in &row.writes {
+                let write = self
+                    .tables
+                    .writes
+                    .get(*write)
+                    .ok_or_else(|| self.internal("a storage write has no row"))?;
+                if let (Content::Overwritten, ProgramPoint::AfterOperation(call)) =
+                    (write.content, write.at)
+                    && call_operations.binary_search(&call).is_ok()
+                {
+                    calls.push(call);
+                }
+            }
+            match row.origin {
+                PlaceOrigin::Root(root) => break root,
+                PlaceOrigin::Projection { parent, segment } => {
+                    segments.push(segment);
+                    at = parent;
+                }
+            }
+        };
+        // Inference discovers a helper's condition after lowering. Every
+        // demanded, readable field therefore needs its entry name, even
+        // when no authored header clause named it. A selector must already
+        // be available when the formal receives its incoming storage.
+        let owner = self.roots.get(root).map(|(kind, _)| kind);
+        let named_entry = match owner.filter(|kind| {
+            segments.iter().all(|&step| {
+                terminal_check_tables::bindings::entry_snapshot_segment(
+                    step,
+                    **kind,
+                    &self.tables.values,
+                )
+            })
+        }) {
+            Some(StructuralPlaceKind::Parameter { .. }) => true,
+            Some(StructuralPlaceKind::BlockParameter { block, position }) => {
+                let formal = machine
+                    .blocks
+                    .get(block.get() as usize - 1)
+                    .filter(|body| body.id == *block)
+                    .and_then(|body| body.structural_parameters.get(*position as usize))
+                    .filter(|formal| formal.place == root)
+                    .ok_or_else(|| self.internal("a block content has no structural formal"))?;
+                terminal_psi::structural_access_covers(
+                    formal.access,
+                    terminal_psi::StructuralAccess::SharedBorrow,
+                )
+            }
+            _ => false,
+        };
+        calls.sort_unstable();
+        // Overlapping exclusive arguments have no unique snapshot owner. Keep
+        // them unnamed so the loan checker reports the source conflict; a
+        // forged name is independently refused.
+        let unique = calls
+            .chunk_by(|left, right| left == right)
+            .filter_map(|owners| match owners {
+                [call] => Some(*call),
+                _ => None,
+            })
+            .collect();
+        Ok((named_entry, unique))
     }
 }
 

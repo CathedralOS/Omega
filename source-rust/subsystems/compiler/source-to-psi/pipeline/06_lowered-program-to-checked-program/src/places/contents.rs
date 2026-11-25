@@ -157,6 +157,10 @@ impl<'a> Storage<'a> {
         tables: &MachineTables,
     ) -> Checked<()> {
         for (value, row) in tables.values.iter() {
+            if let ValueOrigin::StorageCase { place, case, after } = row.origin {
+                self.case_name_is_declared(tables, value, row.scalar_type, place, case, after)?;
+                continue;
+            }
             let ValueOrigin::StorageContent { place, after } = row.origin else {
                 continue;
             };
@@ -214,6 +218,54 @@ impl<'a> Storage<'a> {
                         value,
                     });
             }
+        }
+        Ok(())
+    }
+
+    /// A case name stands for one declared case of a sum an invocation formal
+    /// supplies at entry, or a call establishes at its normal return. A block
+    /// formal is bound anew on each arrival, and nothing names its case yet.
+    fn case_name_is_declared(
+        &self,
+        tables: &MachineTables,
+        value: ValueId,
+        scalar_type: ScalarType,
+        place: ExactPlaceId,
+        case: StructuralCaseId,
+        after: Option<OperationId>,
+    ) -> Checked<()> {
+        let concerns = Construct::Value(value);
+        let sum = lineage(self.machine, &tables.places, place)?;
+        let supported = match after {
+            None => {
+                let owner = self.root_kind(sum.root, concerns)?;
+                matches!(owner, StructuralPlaceKind::Parameter { .. })
+                    && sum.segments.iter().all(|&segment| {
+                        terminal_check_tables::bindings::entry_snapshot_segment(
+                            segment,
+                            owner,
+                            &tables.values,
+                        )
+                    })
+            }
+            Some(call) => {
+                self.call_content_boundary(call, &sum, concerns)?;
+                true
+            }
+        };
+        let declared = match self.shape(&sum, concerns)? {
+            Shape::Typed(sum_type) => matches!(
+                &self.declaration(sum_type, concerns)?.shape,
+                StructuralTypeShape::Sum { cases }
+                    if cases.iter().any(|declared| declared.id == case)
+            ),
+            _ => false,
+        };
+        if !supported || !declared || scalar_type != ScalarType::Boolean {
+            return Err(self.foreign(
+                concerns,
+                "a case name of storage that is no sum of a formal or declared call result, or of a case it does not declare",
+            ));
         }
         Ok(())
     }
@@ -557,7 +609,7 @@ impl crate::Bindings for EntryOwner<'_, '_> {
         _: PlaceId,
         _: &[CanonicalStructuralPathSegment],
         _: StructuralCaseId,
-    ) -> Result<bool, crate::Unbound> {
+    ) -> Result<crate::CaseAnswer, crate::Unbound> {
         Err(crate::Unbound::Unproved(
             "which case a formal holds at entry is not established by structure",
         ))
