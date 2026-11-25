@@ -106,10 +106,6 @@ pub fn substitute_proposition_values_with<'input>(
                 right,
             }
         }
-        Proposition::ByteSequenceEqual { left, right } => Proposition::ByteSequenceEqual {
-            left: left.clone(),
-            right: right.clone(),
-        },
         Proposition::DeclarationIdentity(clause) => {
             let mut mapped = clause.clone();
             for value in &mut mapped.values {
@@ -295,17 +291,6 @@ fn substitute_structural_places<'input>(
                 format: *format,
                 left,
                 right,
-            }
-        }
-        Proposition::ByteSequenceEqual { left, right } => {
-            let rebase = |field: &semantic_vocabulary::ByteSequenceStructuralField| {
-                substitutions(field.root())
-                    .map(|(root, prefix)| field.rebase(*root, prefix))
-                    .unwrap_or_else(|| field.clone())
-            };
-            Proposition::ByteSequenceEqual {
-                left: rebase(left),
-                right: rebase(right),
             }
         }
         Proposition::StructuralCaseMembership { subject, case } => {

@@ -2198,7 +2198,6 @@ impl<'a> Prover<'a> {
                 .ok_or("mathematical strict order over open terms"),
             Proposition::Atom(_)
             | Proposition::IeeeFloatComparison { .. }
-            | Proposition::ByteSequenceEqual { .. }
             | Proposition::StructuralCaseMembership { .. }
             | Proposition::ContentConservation(_) => Err("goal form outside this prover"),
             Proposition::FloatMeaningEqual(_) => self.float_meaning(goal),

@@ -11,12 +11,11 @@ use abstract_operations::{AbstractFunctionResult, CompletionClaimSource, ValueBi
 use arena::NumericId;
 use optimization_core::OptimizationUnitIdentity;
 use semantic_vocabulary::{
-    ByteSequenceStructuralField, CanonicalStructuralPathSegment, ContentAlgebra,
-    ContentAlgebraKind, ContentConservation, ContentPlaceSegment, ContentPlaceVersion,
-    ContentProjectionExpression, ContentProjectionScalar, ContentStructuralPlace, ContentTerm,
-    IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatStructuralField, IntegerMathTerm,
-    IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType,
-    StructuralCaseSubject, StructuralPlaceKind,
+    CanonicalStructuralPathSegment, ContentAlgebra, ContentAlgebraKind, ContentConservation,
+    ContentPlaceSegment, ContentPlaceVersion, ContentProjectionExpression, ContentProjectionScalar,
+    ContentStructuralPlace, ContentTerm, IeeeFloatComparisonKind, IeeeFloatFormat,
+    IeeeFloatStructuralField, IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition,
+    ScalarTerm, ScalarType, StructuralCaseSubject, StructuralPlaceKind,
 };
 use terminal_psi::{
     BindingRelevance, BoundaryContentGuarantee, BoundaryMachineDeclaration, ByteSequenceCarrier,
@@ -259,9 +258,9 @@ pub(crate) mod proposition_encoding {
     };
     use super::structural_encoding::{encode_content_algebra, encode_content_place};
     use super::{
-        ByteSequenceStructuralField, CanonicalBytes, CanonicalStructuralPathSegment, ContentTerm,
-        IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatStructuralField, IntegerMathTerm,
-        IntegerType, Proposition, ScalarTerm, StructuralCaseSubject,
+        CanonicalBytes, CanonicalStructuralPathSegment, ContentTerm, IeeeFloatComparisonKind,
+        IeeeFloatFormat, IeeeFloatStructuralField, IntegerMathTerm, IntegerType, Proposition,
+        ScalarTerm, StructuralCaseSubject,
     };
     pub(super) fn encode_proposition(bytes: &mut CanonicalBytes, proposition: &Proposition) {
         match proposition {
@@ -329,11 +328,6 @@ pub(crate) mod proposition_encoding {
                 encode_float_format(bytes, *format);
                 encode_float_field(bytes, left);
                 encode_float_field(bytes, right);
-            }
-            Proposition::ByteSequenceEqual { left, right } => {
-                bytes.u8(12);
-                encode_byte_field(bytes, left);
-                encode_byte_field(bytes, right);
             }
             Proposition::StructuralCaseMembership { subject, case } => {
                 bytes.u8(13);
@@ -968,7 +962,6 @@ pub(crate) mod proposition_encoding {
     }
 
     encode_rooted_field!(encode_float_field, IeeeFloatStructuralField);
-    encode_rooted_field!(encode_byte_field, ByteSequenceStructuralField);
     encode_rooted_field!(encode_case_subject, StructuralCaseSubject);
 
     #[cfg(test)]

@@ -71,10 +71,6 @@ impl PredicateBudget {
                 self.count(left.path().len())?;
                 self.count(right.path().len())?;
             }
-            Proposition::ByteSequenceEqual { left, right } => {
-                self.count(left.path().len())?;
-                self.count(right.path().len())?;
-            }
             Proposition::StructuralCaseMembership { subject, .. } => {
                 self.count(subject.path().len())?
             }

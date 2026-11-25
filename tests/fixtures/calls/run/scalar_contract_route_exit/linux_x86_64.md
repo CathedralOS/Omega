@@ -8,12 +8,12 @@ From the repository root, publish the fixture with this command.
 omega --emit-psi /tmp/linux_x86_64.psi --target linux_x86_64 tests/fixtures/calls/run/scalar_contract_route_exit/main.omg
 ```
 
-It was published from commit `a55ea20c4bf0` with the change that introduced semantic format marker 294, under that marker. The bundled `source/library` tree is Git object `fa9e604f2d73cf878c1a7ffa764e27f34f7122ae`.
+It was published from commit `bac23081514b` with the change that introduced semantic format marker 295, under that marker. The bundled `source/library` tree is Git object `fa9e604f2d73cf878c1a7ffa764e27f34f7122ae`.
 
 | Input or receipt | Digest |
 | --- | --- |
-| Canonical artifact manifest | `1edbed5eec55a65b7193452a8bbbf6d0891395e178f7597d105d71cda54693fa` |
-| Saved file SHA-256, 228690 bytes | `97774b53f14163ea0196605bc5aa59ac04b9f03d67c626dba16f23e525c84ed7` |
+| Canonical artifact manifest | `953a492a8d46f243afb26b5eeb9fafb7b45651a3ee364dcb8ccb9c116554533a` |
+| Saved file SHA-256, 228690 bytes | `ec402e606199453979f5aee8dc9b6947b555e45825ee39408d78a9f52c66fbd8` |
 | main.omg SHA-256 | `073768333496caabb3c28a753482d2888a9a527b0765f7f12941332eba6c8e58` |
 | build.omg SHA-256 | `9483243b6476c41b95be5c949a0e39901e44096d881995872d51df51683d3d5d` |
 | `source/library/std/targets/linux_x86_64/entry.omg` SHA-256 | `cce757bb5e3cc2ddbfe2db44fe03510a97b56fa6cc80db210d4d0402bdb2878b` |
