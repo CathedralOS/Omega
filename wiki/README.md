@@ -170,7 +170,6 @@ public spellings.
   [hardware materialization](spec/build/hardware_materialization.md), and
   [executable installation](spec/build/executable_installation.md).
 - Packages: [source selection](spec/packages/sources.md),
-  [checked boundary topology](spec/packages/topology.md),
   [project locks](spec/packages/locks.md),
   [declaration and carried-type boundaries](spec/packages/boundaries.md),
   [core and ordinary libraries](spec/packages/toolchain.md),

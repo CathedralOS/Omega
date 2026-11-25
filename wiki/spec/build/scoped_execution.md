@@ -25,7 +25,7 @@ explains why the compiler owns the boundaries but not application-specific work.
 
 ## Problem and scope
 
-A build should be able to import a third-party code generator or topology checker
+A build should be able to import a third-party helper
 without granting application source access to that package, requiring it to run
 on the application's target, or giving it ambient access to the developer's
 machine. The helper should read explicit inputs, compute using ordinary Omega,
@@ -45,11 +45,8 @@ Use one ordinary Build activation with:
 4. Generic required output publication, including artifact-only builds, without
    compiler knowledge of a package's artifact format or policy algorithms.
 
-The customers are code generation and
-[the topology package](../packages/topology.md). Neither needs
-topology syntax, a plugin registry, native execution of arbitrary downloaded
-code, or compiler-specific graph policies. Reflection is optional for authoring
-helpers, not a dependency of this contract.
+A generator can write a file into its supplied filesystem for the next stage
+to import. Build helpers may use reflection when their own algorithms need it.
 
 ## Existing owners
 
@@ -68,8 +65,7 @@ or evidence systems:
 - [Package acceptance](../packages/acceptance.md): independently accepted
   policy, immutable dependencies, and separation from resolver authority.
 - [Component publication](component_publication.md): complete
-  component interfaces and installation requirements. This contract supplies
-  no replacement topology or deployment semantics.
+  component interfaces and installation requirements.
 
 ## Dependency declarations and binding
 
@@ -78,13 +74,13 @@ supplies the bindings for each child Build when configuring the child's request.
 Each child gets its own scope. Supplying a library grants no host access and
 adds no library to the child's product. Local files use ordinary package-relative
 imports. External files use the package alias supplied for that Build. Given the
-binding `topology`, a helper can call that library on its first line:
+binding `layout`, a helper can call the supplied library as soon as its Build starts.
 
 ```omega
-use {topology}/api.omg as topology;
+use {layout}/api.omg as layout;
 
 machine configure(builder: @mutable Build) {
-    |topology|::configure_products(builder);
+    |layout|::configure_product(builder);
 }
 ```
 
@@ -680,10 +676,8 @@ mandatory roots even when they also publish artifacts.
 Artifact formats, codecs, graph policies, policy evidence, and installers belong
 to packages. Build records the admitted execution, exact inputs, dependencies,
 and outputs through its generic provenance machinery. Publishing bytes is not
-proof that a graph models a component or that a deployment is confined. No new
-compiler callback that recognizes a topology verifier or arbitrary native plugin
-is introduced. A separately selected installer receives its own explicit runtime
-authority and independently validates package-defined artifacts before activation.
+evidence of a file's semantic validity. A separately selected installer receives
+its own explicit runtime authority and validates package-defined artifacts before activation.
 
 ## Target inspection and reflection
 
@@ -727,8 +721,8 @@ resolve Build imports against supplied bindings, check and admit the Build
 
 Previously completed independent components may feed this sequence as explicit
 immutable input artifacts. Inspecting this invocation's final component during
-its own build is a cycle. A topology project that inspects freshly built services
-therefore receives their published artifacts from the
+its own build is a cycle. A project that packages independently built products
+receives their published artifacts from the
 [release program coordinating the builds](declarations.md#releases-with-independent-products).
 A build cannot rewrite its own dependency or input frontier by serializing
 a new manifest as output.
@@ -769,7 +763,7 @@ a new manifest as output.
 | One output complete and another failed; or later generated source is invalid | No new committed successful product set. |
 | Conditional branch never registers an invocation-required output | Final result rejects the missing requested member. |
 | Artifact-only build versus executable missing an entry | Only the explicit artifact-only intent may omit executable roots. |
-| Validly published file contains a forged topology verdict | Package verifier/installer rejects; publication is not semantic approval. |
+| Validly published file contains a forged installation claim | Package verifier/installer rejects; publication is not semantic approval. |
 | Sealed or completed output has a surviving attempted writer | Reject the mutation; the completion receipt keeps the same immutable bytes. |
 
 Run actual acquisition, multi-file build execution, and generated-source checks,
@@ -800,7 +794,7 @@ changes; reject or explicitly migrate old records rather than reinterpret their 
 
 Demonstrate a generator reading a template through a narrowed snapshot and
 completing a required file, a multi-file helper taking a restricted product entry
-reference, and the topology composition build receiving prebuilt components.
+reference, and a packaging build receiving prebuilt components.
 Measure retained input/output state and compare the added compiler mechanisms
 with a separate build-tool-package route. These examples validate usability and
 enforcement. They may expose a new design choice; raise any semantic or trust
@@ -808,9 +802,7 @@ amendment in [owner questions](../../../OWNER_QUESTIONS.md) before relying on it
 
 Live-host grant extension, symbolic generated-root
 binding, concurrent filesystem operations, dependency inference from imports,
-and native plugin execution are deferred. This leaves code generation and
-topology composition usable without requiring a virtual operating system or
-action DSL.
+and native plugin execution are deferred.
 
 ## Comparison and mechanism choice
 

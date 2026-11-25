@@ -438,55 +438,6 @@ and [provider selection under build policy](wiki/language_guide/chapter_19_capab
 [Concurrency](wiki/language_guide/chapter_18_concurrency.md)
 
 
-## Checks across multiple binaries & services
-
-API, Authorization, and My Account will be independently built services.
-Omega will check that every permitted invocation route from API to My Account
-passes through Authorization:
-
-```mermaid
-flowchart LR
-        api[API] --> authorization[Authorization] --> account[My Account]
-        api -. rejected bypass .-> account
-```
-
-An ordinary build-time topology library will state the rule over verified
-components. In outline:
-
-```text
-bind API.authorization -> Authorization.requests
-bind Authorization.account -> MyAccount.requests
-require only_via({API}, {MyAccount}, {Authorization})
-```
-
-Adding `API -> Logging -> MyAccount` will fail too. Disconnecting My Account
-will not make the rule pass: `only_via` also requires a route to exist.
-
-The check will extend beyond the diagram:
-
-- **Check independently built code.** Component evidence will list all
-    entry points and outgoing authority, including callbacks, cleanup, and
-    selected providers. A separate consumer will check it without merging the
-    services' source.
-- **Run the checker as ordinary build code.** The invoker supplies the topology library
-    before the Build starts. The Build can import it directly. The helper will
-    receive captured component inputs and one required output, not
-    deployment credentials.
-- **Enforce the actual connections.** The installer will receive the owner's
-    policy separately from the plan, recheck it, and bind every endpoint before
-    the application starts. Publishing a plan will grant no authority.
-
-Graph algorithms and codecs will stay in a library. The compiler will produce
-complete component facts; selected providers will enforce the
-connections under explicit OS and transport contracts.
-
-The topology will make Authorization unavoidable. Its own contracts must still
-decide which user may do what to which account.
-
-[Topology contract](wiki/spec/packages/topology.md) ·
-[Build isolation and outputs](wiki/spec/build/scoped_execution.md) ·
-[Implementation work](TASKS.md#checked-boundary-topology)
-
 ## Omega's big bets
 
 | The bet | What it demands |

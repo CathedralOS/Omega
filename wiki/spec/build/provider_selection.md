@@ -282,16 +282,15 @@ selecting one benign provider now does not certify every later binding.
 The caller supplies the Build program's libraries before entry. Both the exact
 boundary requirement application and the selected implementation must be
 resolvable when the compiler checks the Build. For example, a caller can
-supply the topology interface and its diagnostic implementation from distinct
+supply the interface and its selected implementation from distinct
 packages. The compiler checks ownership, visibility and satisfaction of the
 whole requirement. Missing, incompatible or unauthorized supply rejects.
 
 The `explicit-build-provider-backing` decision requires an explicit
 implementation even if only one visible provider fits. Readiness of an already
 selected provider may require waiting. For example, when the invocation supplies
-the exact interface and implementation, a Build can wait on the existing
-`Build::await_provider::<|api|::TopologyBuild, |diagnostic|::DiagnosticTopology>(builder)`
-operation. Both operands resolve before entry. That wait never adds names or changes
+a requirement `R` and its implementation `I`, the Build can wait with
+`Build::await_provider::<R, I>(builder)`. Both operands resolve before entry. That wait never adds names or changes
 the program being resumed. Product provider selections and delegated host
 capabilities have their own checks. See [Build admission](execution.md#admission-before-execution).
 

@@ -13,7 +13,6 @@
 1 wiki/spec/layouts/recasts.md
 1 wiki/spec/packages/resolver_security.md
 1 wiki/spec/packages/review.md
-2 wiki/spec/packages/topology.md
 1 wiki/spec/resources/allocation.md
 1 wiki/spec/terminal-psi/byte_views.md
 1 wiki/spec/terminal-psi/fact_validity.md
