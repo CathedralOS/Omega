@@ -701,3 +701,80 @@ fn a_theorem_that_cites_itself_states_its_rank() {
         "{verdicts:?}"
     );
 }
+
+const IN_A_FIELD: &str =
+    include_str!("../../tests/fixtures/indexed_family/pass/evidence_in_a_field/main.omg");
+const IN_A_FIELD_UNBOUNDED: &str =
+    include_str!("../../tests/fixtures/indexed_family/fail/evidence_in_a_field_unbounded/main.omg");
+
+/// Evidence held in an erased field of other data is evidence like an
+/// erased formal: `remaining` cites the bound at `measured.evidence`, at the
+/// index `Measured<Length, Total>` gives the field, and that bound proves
+/// `80 - measured.total` fits. `main` builds the record with evidence at
+/// the index its type gives the field.
+#[test]
+fn evidence_in_a_field_is_cited_at_the_index_its_record_gives_it() {
+    let verdicts = judged(IN_A_FIELD);
+    for verdict in &verdicts {
+        assert!(
+            matches!(verdict, RouteVerdict::Accepted(_) | RouteVerdict::Laws(_)),
+            "every part must be accepted: {verdict:?}"
+        );
+    }
+    assert_eq!(closures(&verdicts, "vector_bound").len(), 1);
+}
+
+/// The twin admits a length of nine, one input apart, where the bound lets
+/// the total reach ninety.
+#[test]
+fn evidence_in_a_field_proves_no_more_than_its_bound() {
+    let body = |source: &str| source.lines().skip(4).collect::<Vec<_>>().join("\n");
+    assert_eq!(
+        body(IN_A_FIELD_UNBOUNDED),
+        body(IN_A_FIELD).replace(
+            "requires Length <= 8 && measured.total",
+            "requires Length <= 9 && measured.total"
+        )
+    );
+    let verdicts = judged(IN_A_FIELD_UNBOUNDED);
+    assert!(
+        verdicts.iter().any(|verdict| matches!(verdict,
+        RouteVerdict::Rejected { unproved, .. } if unproved.iter().any(|failure| {
+            failure.statement.starts_with(
+                "exact arithmetic in machine `remaining` state `entry` return value may \
+                 overflow `u64`",
+            )
+        }))),
+        "{verdicts:?}"
+    );
+}
+
+/// Evidence in a field is evidence wherever it is used: cited at another
+/// index, or handed to an erased local that takes no evidence, it is
+/// refused. (A literal that builds the record at another index than its
+/// evidence has is already a type mismatch.)
+#[test]
+fn evidence_in_a_field_is_refused_where_it_is_not_evidence_of_that_index() {
+    let refused_with = |from: &str, to: &str, detail: &str| {
+        assert_eq!(IN_A_FIELD.matches(from).count(), 1, "{from}");
+        let verdicts = judged(&IN_A_FIELD.replace(from, to));
+        assert!(
+            refused(&verdicts)
+                .iter()
+                .any(|refused| refused.contains(detail)),
+            "{verdicts:?}"
+        );
+    };
+    let citation = "    vector_bound::<Length, Total>(measured.evidence);\n";
+    refused_with(
+        citation,
+        "    vector_bound::<Total, Length>(measured.evidence);\n",
+        "evidence passed at another index than the formal takes",
+    );
+    refused_with(
+        citation,
+        "    vector_bound::<Length, Total>(measured.evidence);\n    \
+         let flag [erased]: bool = measured.evidence;\n",
+        "evidence held in a local that takes none",
+    );
+}

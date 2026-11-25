@@ -93,6 +93,7 @@ pub(super) struct DeclaredErased {
     identity: String,
     type_identity: String,
     value_type: ValueType,
+    evidence: bool,
     case: Option<usize>,
     position: usize,
     symbol: SymbolHandle,
@@ -546,6 +547,7 @@ impl Program<'_> {
                         identity: next.identity,
                         type_identity: next.type_identity,
                         value_type: next.value_type,
+                        evidence: next.evidence,
                         case: next.case,
                         position: next.position,
                     });
@@ -926,12 +928,21 @@ impl Program<'_> {
                 Unserved::Spelling("field without a symbol"),
             ));
         }
-        if self.names_indexed_data(field.type_reference) {
+        // Evidence of indexed data has no layout and no term here: a
+        // literal's evidence and every use of it are checked where the
+        // mathematical signature reads evidence (`families::evidence_uses`).
+        // Only a record's own field is read there.
+        let evidence = self.names_indexed_data(field.type_reference);
+        if evidence && case.is_some() {
             return Err(unserved(
-                "data with an erased field of data indexed by values",
+                "data with an erased payload field of data indexed by values",
             ));
         }
-        let value_type = self.value_type(id, field.type_reference)?;
+        let value_type = if evidence {
+            super::families::evidence_witness()
+        } else {
+            self.value_type(id, field.type_reference)?
+        };
         if !matches!(value_type, ValueType::Scalar(_, Qualification::NONE)) {
             return Err(unserved(
                 "data with an erased field that is not a plain scalar",
@@ -954,6 +965,7 @@ impl Program<'_> {
             identity,
             type_identity,
             value_type,
+            evidence,
             case,
             position,
             symbol: field.symbol,
@@ -1789,7 +1801,9 @@ impl Program<'_> {
     /// initializer: a literal, a binding or a denotational call, whose
     /// formation that reader checks. It is not kept. Terminal Psi holds no
     /// value for an erased field, and every read of one, at runtime or in a
-    /// clause, is refused (`member_of`), so nothing can observe it.
+    /// clause, is refused (`member_of`), so nothing can observe it. Evidence
+    /// is not read here: the mathematical signature checks that a literal
+    /// supplies evidence at the field's index (`families::evidence_uses`).
     fn erased_field_term(
         &mut self,
         id: MachineId,
@@ -1798,7 +1812,7 @@ impl Program<'_> {
         position: usize,
         value: crate::source_state::expression::ExpressionHandle,
     ) -> Checked<()> {
-        let value_type = self
+        let erased = self
             .data_type(id, record)?
             .erased
             .get(position)
@@ -1808,8 +1822,11 @@ impl Program<'_> {
                     Construct::Machine,
                     Unserved::Typing("erased field position"),
                 )
-            })?
-            .value_type;
+            })?;
+        if erased.evidence {
+            return Ok(());
+        }
+        let value_type = erased.value_type;
         let term = self.erased_term(id, slots, value, value_type.scalar())?;
         if term.result != Some(value_type) {
             return Err(refuse(

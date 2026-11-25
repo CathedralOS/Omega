@@ -366,8 +366,14 @@ pub struct ErasedField {
     /// The text of the field's exact normalized type identity, which is all
     /// Terminal Psi keeps of its type (`StructuralFieldType::Erased`).
     pub type_identity: String,
-    /// The plain scalar type of the term a literal supplies for it.
+    /// The plain scalar type of the term a literal supplies for it, or the
+    /// erased Boolean that stands for evidence (`evidence`).
     pub value_type: ValueType,
+    /// The field holds evidence of data indexed by values. What it is
+    /// evidence of is the mathematical signature's to check
+    /// (`read::families`); a running machine passes it as a witness nothing
+    /// reads.
+    pub evidence: bool,
     /// The case whose payload it belongs to, or `None` for a record field.
     pub case: Option<usize>,
     /// Its position among the authored members of its record or payload,
