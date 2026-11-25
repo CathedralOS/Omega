@@ -17,7 +17,8 @@ pub use package_review::CheckedPackagePolicy;
 #[path = "planning/source.rs"]
 mod source;
 pub use source::{
-    PlannedProduct, PlanningRequest, PlanningSources, PreparedPlanningStage, prepare,
+    BuildRechecks, CheckedRechecks, PendingProduct, PlannedProduct, PlanningRequest,
+    PlanningSources, PreparedPlanningStage, prepare, with_build_rechecks,
 };
 
 use build_declarations::BuildRequest;
@@ -98,26 +99,33 @@ impl SettledDependency {
         &self,
         inputs: PackageCompilationInputs,
     ) -> Result<PlannedProduct, CompileFailure> {
-        self.open_product_alongside(inputs, |_| Ok(()))
-            .map(|(product, ())| product)
+        self.require_own_graph(&inputs)?;
+        self.source
+            .clone()
+            .open_product(self.evaluated.clone(), Some(&inputs))
     }
 
-    /// Open the Product and run `alongside` on it while this Build is checked
-    /// again on the Product's sources. The Product is returned only after that
-    /// check passes.
-    pub fn open_product_alongside<T: Send>(
+    /// Open the Product while this Build is checked again on the Product's
+    /// sources in `rechecks`. Its handoff can be formed at once; the Product
+    /// itself is released only after that check passes.
+    pub fn open_pending(
         &self,
         inputs: PackageCompilationInputs,
-        alongside: impl FnOnce(&PlannedProduct) -> Result<T, CompileFailure> + Send,
-    ) -> Result<(PlannedProduct, T), CompileFailure> {
+        rechecks: &BuildRechecks<'_, '_>,
+    ) -> Result<PendingProduct, CompileFailure> {
+        self.require_own_graph(&inputs)?;
+        self.source
+            .clone()
+            .open_pending(self.evaluated.clone(), Some(&inputs), rechecks)
+    }
+
+    fn require_own_graph(&self, inputs: &PackageCompilationInputs) -> Result<(), CompileFailure> {
         if inputs.source_inputs() != self.inputs.source_inputs() {
             return Err(refusal(
                 "Product handoffs belong to another acquired source graph".into(),
             ));
         }
-        self.source
-            .clone()
-            .open_product_alongside(self.evaluated.clone(), Some(&inputs), alongside)
+        Ok(())
     }
 }
 

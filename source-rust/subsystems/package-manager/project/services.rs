@@ -302,6 +302,9 @@ pub(super) struct DependencyProducts {
     independent_target: Option<target::TargetProfile>,
     /// The measured Build work of every dependency Product opened for this traversal.
     timings: Option<artifacts::compile_timings::CompileTimings>,
+    /// Products opened in this traversal, in opening order, whose Build
+    /// rechecks may still be running.
+    pending: Vec<PendingDependency>,
 }
 
 struct CompletedDependency {
@@ -309,7 +312,34 @@ struct CompletedDependency {
     supplier: Option<project_build::PlannedProduct>,
 }
 
+struct PendingDependency {
+    product: project_build::PendingProduct,
+    /// The row that keeps this Product as a supplier, once its handoff formed.
+    supplier: Option<(semantic_vocabulary::PackageKeyIdentity, usize)>,
+}
+
 impl DependencyProducts {
+    /// Settle every Product this traversal opened, in opening order, so the
+    /// first refused recheck is the one a sequential traversal would report.
+    fn settle(
+        &mut self,
+        checked: &mut project_build::CheckedRechecks,
+    ) -> Result<(), CompileFailure> {
+        for pending in std::mem::take(&mut self.pending) {
+            let product = pending.product.settle(checked)?;
+            self.record_timings(&product);
+            if let Some((package, row)) = pending.supplier
+                && let Some(row) = self
+                    .by_package
+                    .get_mut(&package)
+                    .and_then(|rows| rows.get_mut(row))
+            {
+                row.supplier = Some(product);
+            }
+        }
+        Ok(())
+    }
+
     fn record_timings(&mut self, product: &project_build::PlannedProduct) {
         if product.timings().is_enabled() {
             self.timings
@@ -368,6 +398,9 @@ impl HandoffSources<'_> {
     }
 
     /// Open the Product of `settled` after forming the handoffs of its dependencies.
+    /// Each dependency's Build is checked again on its Product's sources while
+    /// the traversal continues and this Product opens. Every one of those
+    /// checks passes before this Product is returned.
     pub(super) fn dependency_product(
         &self,
         settled: &project_build::SettledDependency,
@@ -375,8 +408,12 @@ impl HandoffSources<'_> {
         target: target::TargetProfile,
         products: &mut DependencyProducts,
     ) -> Result<project_build::PlannedProduct, CompileFailure> {
-        let inputs = self.dependency_inputs(settled, purpose, target, products)?;
-        settled.open_product(inputs)
+        let (opened, mut checked) = project_build::with_build_rechecks(|rechecks| {
+            let inputs = self.dependency_inputs(settled, purpose, target, products, rechecks)?;
+            settled.open_product(inputs)
+        });
+        products.settle(&mut checked)?;
+        opened
     }
 
     /// Open the Product of `settled` and form its Build handoff for `target`.
@@ -389,8 +426,17 @@ impl HandoffSources<'_> {
         target: target::TargetProfile,
         products: &mut DependencyProducts,
     ) -> Result<(project_build::PlannedProduct, PackageBuildHandoff), CompileFailure> {
-        let inputs = self.dependency_inputs(settled, purpose, target, products)?;
-        settled.open_product_alongside(inputs, |product| product.build_handoff(target))
+        let (opened, mut checked) = project_build::with_build_rechecks(|rechecks| {
+            let inputs = self.dependency_inputs(settled, purpose, target, products, rechecks)?;
+            let pending = settled.open_pending(inputs, rechecks)?;
+            let handoff = pending.build_handoff(target);
+            Ok::<_, CompileFailure>((pending, handoff))
+        });
+        products.settle(&mut checked)?;
+        let (pending, handoff) = opened?;
+        // A refused recheck is reported before a refused handoff.
+        let product = pending.settle(&mut checked)?;
+        Ok((product, handoff?))
     }
 
     /// Recursively form each package/purpose/target handoff once from that dependency's
@@ -401,6 +447,7 @@ impl HandoffSources<'_> {
         purpose: DependencyPurpose,
         target: target::TargetProfile,
         products: &mut DependencyProducts,
+        rechecks: &project_build::BuildRechecks<'_, '_>,
     ) -> Result<PackageCompilationInputs, CompileFailure> {
         let inputs = settled
             .inputs()
@@ -436,20 +483,28 @@ impl HandoffSources<'_> {
                 .iter()
                 .find(|child| child.declaration.identity() == package)
                 .ok_or_else(|| refused("dependency graph has no corresponding settled Build"))?;
-            let (product, bundle) =
-                self.dependency_handoff(&child.build, purpose, deployment, products)?;
-            products.record_timings(&product);
-            let supplier = (purpose == DependencyPurpose::Product
-                && products.independent_target == Some(deployment))
-            .then_some(product);
-            products
-                .by_package
-                .entry(package)
-                .or_default()
-                .push(CompletedDependency {
-                    handoff: bundle.clone(),
-                    supplier,
-                });
+            let child_inputs =
+                self.dependency_inputs(&child.build, purpose, deployment, products, rechecks)?;
+            let product = child.build.open_pending(child_inputs, rechecks)?;
+            let bundle = product.build_handoff(deployment);
+            // Keep the Product before its handoff can fail, so its recheck is
+            // settled, and reported first, either way.
+            let index = products.pending.len();
+            products.pending.push(PendingDependency {
+                product,
+                supplier: None,
+            });
+            let bundle = bundle?;
+            let rows = products.by_package.entry(package).or_default();
+            if purpose == DependencyPurpose::Product
+                && products.independent_target == Some(deployment)
+            {
+                products.pending[index].supplier = Some((package, rows.len()));
+            }
+            rows.push(CompletedDependency {
+                handoff: bundle.clone(),
+                supplier: None,
+            });
             bundles.push(bundle);
         }
         let inputs = inputs
