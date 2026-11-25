@@ -128,7 +128,7 @@ Mutual soundness negative checks (4/4 refused): mutual negative cycle (`A { MkA(
 
 ## Follow-up: well-founded recursion (`Acc`) and `div`/`mod` without fuel (`opt_c_wf`)
 
-To test higher-order, indexed, universe-polymorphic inductives—and check whether Option C solves [decrease of a computed subject](../../../OWNER_QUESTIONS.md#decrease-of-a-computed-subject) without the fuel shortcut—we declared `Acc<u, v> (A : Type u) (R : A -> A -> Type v) : A -> Type max(u, v)` (`Acc.intro : Π(x : A). (Π(y : A). R y x -> Acc A R y) -> Acc A R x`) in `opt_c_wf` with **0 kernel changes** and **0 assumptions**. All **157/157** tests passed:
+To test higher-order, indexed, universe-polymorphic inductives—and check whether Option C solves [the computed descent obligation](../../spec/language/termination.md#computed-recursive-arguments-in-proofs) without the fuel shortcut—we declared `Acc<u, v> (A : Type u) (R : A -> A -> Type v) : A -> Type max(u, v)` (`Acc.intro : Π(x : A). (Π(y : A). R y x -> Acc A R y) -> Acc A R x`) in `opt_c_wf` with **0 kernel changes** and **0 assumptions**. All **157/157** tests passed:
 
 | Stage / Check | Steps | Arena Terms | Wall-Clock (ms) | Fits `65,536` | Assumptions |
 |---|---:|---:|---:|:---:|:---:|

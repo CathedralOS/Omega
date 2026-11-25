@@ -837,6 +837,22 @@ A separately named Euclidean modulo operation remains deferred with no selected
 spelling. There is no context-selected second meaning of `%`, or anonymous
 Euclidean-remainder warning: the untyped operation rejects.
 
+#### Core unary natural division
+
+Core implements `div(a, b)` and `mod(a, b)` for unary mathematical naturals
+using one structurally recursive division helper. Both require a positive
+divisor. For `b = Succ(k)`, start with quotient zero and countdown `k`.
+Each step consumes one successor of the dividend. If the countdown is zero,
+increment the quotient and reset the countdown to `k`. Otherwise take its
+predecessor. When the dividend is exhausted, the quotient is the one
+accumulated and the remainder is `k - countdown`.
+
+After consuming `n` successors, the invariant is
+`countdown <= k` and `n = quotient * b + (k - countdown)`. The two library
+operations project the corresponding results. This gives `mod(a, b) < b`
+and `div(a, b) * b + mod(a, b) = a` under the existing premise.
+[Core arithmetic](../../../source/library/core/nat.omg) · [Rocq algorithm](https://github.com/rocq-prover/rocq/blob/master/theories/Corelib/Init/Nat.v#L268-L295)
+
 ### Shift counts
 
 These word-operation rows apply to fixed-width carriers. They do not infer a

@@ -1259,9 +1259,9 @@ starts with records.
   price: a law about such a machine is provable only if it holds for every
   amount of fuel, as `mod`'s bound does; a law that needs the fuel to be
   enough, such as `div(a, b) * b + mod(a, b) = a`, is not provable this way
-  and is refused. Whether the ranked argument really gets smaller at each
-  call is not checked for these machines
-  ([decrease obligation question](../../../OWNER_QUESTIONS.md#decrease-of-a-computed-subject)).
+  and is refused. This implementation omitted the per-call decrease check. The
+  [computed descent ruling](../../spec/language/termination.md#computed-recursive-arguments-in-proofs)
+  requires it and specifies when an internal bound is sound.
 - **A choice by a computed value** (`rat_eq`, `mod`) is a definition by
   cases of its own over its subject and the variables in scope, so the
   prover computes with it as with any other. In a law, a split on a computed
