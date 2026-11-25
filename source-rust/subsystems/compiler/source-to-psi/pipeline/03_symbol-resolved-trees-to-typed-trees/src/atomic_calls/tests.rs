@@ -2,7 +2,7 @@ use super::*;
 
 fn type_source(source: &str) -> Result<crate::source_state::TypedTrees, Diagnostic> {
     let trees = crate::resolve_fixture(source);
-    crate::typing::lower_symbol_resolved_trees(&trees)
+    crate::lower_symbol_resolved_trees(&trees)
 }
 
 #[test]
@@ -130,7 +130,7 @@ fn source_calls_publish_the_selected_atomic_member() {
         let prior: u32 = cell.fetch_add(5u32, NoOrdering);
         let current: u32 = cell.load(Receive);
     }";
-    let typed = crate::typing::qualified_operator_home_tests::packages(
+    let typed = crate::qualified_operator_home_tests::packages(
         &[(1, "main.omg", source)],
         &[],
         &[],

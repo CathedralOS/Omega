@@ -29,10 +29,21 @@ use toolchain::{append_build_prelude, seed_core_vocabulary, sources_mention_floa
 #[derive(Clone)]
 pub struct BuildStageAcquisition {
     capture: crate::CapturedLocalSource,
+    supplied_libraries: Arc<[crate::source_imports::SuppliedBuildLibrary]>,
     sources: Arc<source_compiler::representations::source_inputs::SourceMap>,
 }
 
 impl BuildStageAcquisition {
+    /// Caller bindings belong to the particular capture and typed source map that selected them.
+    pub fn supplied_libraries_for(
+        &self,
+        capture: &crate::CapturedLocalSource,
+        typed: &source_compiler::representations::source_state::TypedTrees,
+    ) -> Option<Arc<[crate::source_imports::SuppliedBuildLibrary]>> {
+        self.retains(capture, typed)
+            .then(|| Arc::clone(&self.supplied_libraries))
+    }
+
     pub fn retains(
         &self,
         capture: &crate::CapturedLocalSource,

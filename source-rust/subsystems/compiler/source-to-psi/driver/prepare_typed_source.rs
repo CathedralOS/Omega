@@ -54,7 +54,7 @@ pub struct SourcePreparationRequest<'request> {
     pub program: crate::source_state::TypedTrees,
     pub admission: SourceAdmission<'request>,
     /// The exact entries, subjects, bindings and supplies later judged.
-    pub compilation: checked_program_to_psi::production::TerminalSourceCompilation<'request>,
+    pub compilation: checked_program_to_psi::TerminalSourceCompilation<'request>,
     pub accounting: crate::compile_time_invocations::SourceCompletionAccounting,
 }
 
@@ -164,7 +164,7 @@ mod tests {
         let prepared = SourcePreparationRequest {
             program: crate::source_state::TypedTrees::default(),
             accounting: Default::default(),
-            compilation: checked_program_to_psi::production::TerminalSourceCompilation {
+            compilation: checked_program_to_psi::TerminalSourceCompilation {
                 calling: None,
                 providers: None,
                 declaration_metadata: &[],
@@ -202,7 +202,7 @@ mod tests {
             },
             program: Default::default(),
             accounting: Default::default(),
-            compilation: checked_program_to_psi::production::TerminalSourceCompilation {
+            compilation: checked_program_to_psi::TerminalSourceCompilation {
                 entries: &[],
                 subjects: &[],
                 purpose: source_provenance::DependencyScope::Product,
@@ -229,7 +229,7 @@ mod tests {
         let result = SourcePreparationRequest {
             program: crate::source_state::TypedTrees::default(),
             accounting: Default::default(),
-            compilation: checked_program_to_psi::production::TerminalSourceCompilation {
+            compilation: checked_program_to_psi::TerminalSourceCompilation {
                 calling: None,
                 providers: None,
                 declaration_metadata: &[],
@@ -320,7 +320,7 @@ mod tests {
             let result = SourcePreparationRequest {
                 program: crate::source_state::TypedTrees::default(),
                 accounting: Default::default(),
-                compilation: checked_program_to_psi::production::TerminalSourceCompilation {
+                compilation: checked_program_to_psi::TerminalSourceCompilation {
                     calling: None,
                     providers: None,
                     declaration_metadata: &[],
@@ -378,7 +378,7 @@ mod tests {
         SourcePreparationRequest {
             program: crate::source_state::TypedTrees::default(),
             accounting: Default::default(),
-            compilation: checked_program_to_psi::production::TerminalSourceCompilation {
+            compilation: checked_program_to_psi::TerminalSourceCompilation {
                 calling: None,
                 providers: None,
                 declaration_metadata: &[],

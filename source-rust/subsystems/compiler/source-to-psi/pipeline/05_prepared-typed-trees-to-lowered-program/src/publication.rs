@@ -1,6 +1,6 @@
 //! Source correspondence retained by the driver, outside Terminal judgments.
 
-use crate::lowering::Elaboration;
+use crate::Elaboration;
 use semantic_vocabulary::MachineId;
 
 pub use lowered_source_publication::{
@@ -10,10 +10,10 @@ pub use lowered_source_publication::{
 
 pub(crate) struct PreparedProgram<'source> {
     pub program: Elaboration,
-    pub outcomes: arena::IdTable<MachineId, crate::lowering::outcome::Outcome>,
+    pub outcomes: arena::IdTable<MachineId, crate::outcome::Outcome>,
     pub source: SourceFormCorrespondence,
-    pub selected_calls: Vec<crate::lowering::compilation::SelectedSourceCall<'source>>,
-    pub prepared_applications: Vec<(MachineId, crate::lowering::declare::PreparedApplication)>,
+    pub selected_calls: Vec<crate::compilation::SelectedSourceCall<'source>>,
+    pub prepared_applications: Vec<(MachineId, crate::declare::PreparedApplication)>,
     pub pending_publication: Option<PendingSourcePublication<'source>>,
 }
 
@@ -23,10 +23,10 @@ pub(crate) struct PendingSourcePublication<'source> {
     pub source: &'source crate::source_state::TypedTrees,
     pub context: MachineId,
     pub calling: Option<(
-        crate::lowering::read::calling::SourceCallingPolicies,
-        crate::lowering::read::storage_metadata::PreparedCallingDescriptions,
+        crate::read::calling::SourceCallingPolicies,
+        crate::read::storage_metadata::PreparedCallingDescriptions,
     )>,
-    pub providers: Option<crate::lowering::provider_selections::SourceProviderSelections<'source>>,
+    pub providers: Option<crate::provider_selections::SourceProviderSelections<'source>>,
 }
 
 impl PreparedProgram<'_> {
@@ -47,7 +47,7 @@ impl PreparedProgram<'_> {
                 .as_ref()
                 .is_some_and(|prepared| !prepared.rows.is_empty());
             if calling || providers {
-                return Err(crate::lowering::read::services::unavailable(
+                return Err(crate::read::services::unavailable(
                     pending.context,
                     format!(
                         "a check form still owes source publication (calling declarations: {calling}; provider declarations: {providers}); actual proof-scope publication is required"
@@ -56,7 +56,7 @@ impl PreparedProgram<'_> {
             }
         }
         if let Some(selected) = self.selected_calls.first() {
-            return Err(crate::lowering::read::services::unavailable(
+            return Err(crate::read::services::unavailable(
                 selected.key.0,
                 "a check form still has exact selected-call publication associations",
             ));
@@ -66,7 +66,7 @@ impl PreparedProgram<'_> {
 
     pub(crate) fn finalize_check_form(mut self) -> terminal_check_tables::Checked<Self> {
         if let Some((owner, _)) = self.prepared_applications.first() {
-            return Err(crate::lowering::read::services::unavailable(
+            return Err(crate::read::services::unavailable(
                 *owner,
                 "check-form source publication needs its completed specialization headers",
             ));
@@ -77,7 +77,7 @@ impl PreparedProgram<'_> {
         };
         let typed = pending.source;
         if self.selected_calls.is_empty() {
-            self.selected_calls = crate::lowering::compilation::prepare_selected_signatures(
+            self.selected_calls = crate::compilation::prepare_selected_signatures(
                 typed,
                 &self.program,
                 &self.source,
@@ -104,21 +104,21 @@ impl PreparedProgram<'_> {
 pub(crate) fn finalize_source(
     typed: &crate::source_state::TypedTrees,
     program: &mut Elaboration,
-    selected_calls: &[crate::lowering::compilation::SelectedSourceCall<'_>],
+    selected_calls: &[crate::compilation::SelectedSourceCall<'_>],
     pending: Option<PendingSourcePublication<'_>>,
 ) -> terminal_check_tables::Checked<()> {
     if let Some(pending) = &pending
         && !std::ptr::eq(typed, pending.source)
     {
-        return Err(crate::lowering::read::services::unavailable(
+        return Err(crate::read::services::unavailable(
             pending.context,
             "pending source publication belongs to another frozen source owner",
         ));
     }
-    crate::lowering::proof_scope::declare(typed, program, selected_calls)?;
+    crate::proof_scope::declare(typed, program, selected_calls)?;
     if let Some(pending) = pending {
         if let Some((policies, descriptions)) = pending.calling {
-            crate::lowering::calling_publication::publish(
+            crate::calling_publication::publish(
                 typed,
                 pending.context,
                 &policies,
@@ -127,7 +127,7 @@ pub(crate) fn finalize_source(
             )?;
         }
         if let Some(providers) = pending.providers {
-            crate::lowering::provider_selections::publish(pending.context, &providers, program)?;
+            crate::provider_selections::publish(pending.context, &providers, program)?;
         }
     }
     Ok(())
@@ -145,7 +145,7 @@ pub enum SourceOrigin {
         node: crate::source_state::SourceNode,
         span: Option<source_text::SourceSpan>,
     },
-    Unpositioned(crate::lowering::Unpositioned),
+    Unpositioned(crate::Unpositioned),
 }
 
 impl SourceOrigin {
@@ -175,7 +175,7 @@ impl SourceOrigin {
         if span.span.start < span.span.end {
             Self::Authored(span)
         } else {
-            Self::Unpositioned(crate::lowering::Unpositioned::SpanAbsent)
+            Self::Unpositioned(crate::Unpositioned::SpanAbsent)
         }
     }
 }
@@ -188,7 +188,7 @@ impl From<SourceOrigin> for terminal_check_tables::program::SourceOrigin {
                 span: Some(span), ..
             } => Self::Authored(span),
             SourceOrigin::AuthoredNode { span: None, .. } => {
-                Self::Unpositioned(crate::lowering::Unpositioned::SpanAbsent)
+                Self::Unpositioned(crate::Unpositioned::SpanAbsent)
             }
             SourceOrigin::Unpositioned(reason) => Self::Unpositioned(reason),
         }

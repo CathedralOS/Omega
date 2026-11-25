@@ -1,7 +1,7 @@
 //! Byte literals and views use Terminal's byte carrier and real immutable
 //! backing. They have no nominal data declaration or layout authority.
 
-use crate::lowering::body::Qualification;
+use crate::body::Qualification;
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use language_core::ReferenceAccess;
 use semantic_vocabulary::ByteSequencePredicateSet;
@@ -11,7 +11,7 @@ use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
 
 use super::{Program, places::RecordSource};
-use crate::lowering::{
+use crate::{
     Expression, ExpressionKind, RecordType, SourceOrigin, StorageShape, Unserved, ValueType, refuse,
 };
 
@@ -100,7 +100,7 @@ pub(super) fn source_byte_view(
 pub(super) struct SourceByteView {
     pub(super) carrier: ByteSequenceCarrier,
     pub(super) identity: String,
-    pub(super) domains: Vec<crate::lowering::body::DomainInstance>,
+    pub(super) domains: Vec<crate::body::DomainInstance>,
     pub(super) element_type: TypeReferenceHandle,
 }
 
@@ -201,7 +201,7 @@ fn byte_view_domains(
     typed: &crate::source_state::TypedTrees,
     referee: &crate::source_state::SourceTypeApplication,
     machine: MachineId,
-) -> Checked<Vec<crate::lowering::body::DomainInstance>> {
+) -> Checked<Vec<crate::body::DomainInstance>> {
     use crate::source_state::byte_predicates::{
         ByteSequencePredicate, byte_slice_domain_predicate,
     };
@@ -244,7 +244,7 @@ fn byte_view_domains(
                 Some(_) => {}
                 None => {}
             }
-            let instance = crate::lowering::body::DomainInstance {
+            let instance = crate::body::DomainInstance {
                 declaration: domain.symbol,
                 identity: domain.semantic_id,
             };
@@ -496,7 +496,7 @@ impl Program<'_> {
             end = Some(Box::new(Expression {
                 call_context: None,
                 kind: ExpressionKind::Strict {
-                    operation: crate::lowering::body::Strict::Add,
+                    operation: crate::body::Strict::Add,
                     policy: None,
                     left: last,
                     right: Box::new(Expression {
@@ -879,11 +879,11 @@ impl Program<'_> {
                     source,
                     ValueType::record(carrier),
                     definition.target_type,
-                    SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent),
+                    SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
                 )?;
                 continue;
             };
-            let row = crate::lowering::body::SourceByteDomain {
+            let row = crate::body::SourceByteDomain {
                 source,
                 carrier,
                 predicate,
@@ -937,7 +937,7 @@ impl Program<'_> {
             // scalar place in every program. A record destination (another
             // view, a view under a domain) stays a refusal.
             Some(ValueType::Scalar(scalar, _)) => {
-                return Err(crate::lowering::reject(
+                return Err(crate::reject(
                     machine,
                     source,
                     format!(
@@ -957,10 +957,10 @@ impl Program<'_> {
             }
             None => (
                 self.byte_view_record(carrier, None),
-                crate::lowering::body::Regions::NONE,
+                crate::body::Regions::NONE,
             ),
         };
-        let regions = if regions == crate::lowering::body::Regions::NONE {
+        let regions = if regions == crate::body::Regions::NONE {
             // A projection can be the first use of a literal. Its immutable
             // image backing satisfies the lifetime that projection infers.
             let lifetime = self.fresh_region();
@@ -1247,7 +1247,7 @@ mod tests {
         let missing = view(first, "missing");
         let mut program = Program::new(&typed, false);
         let machine = MachineId::new(1).unwrap();
-        let origin = SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent);
+        let origin = SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
         let quote = |program: &mut Program<'_>| {
             let literal = program.byte_literal(machine, b"A", None, origin).unwrap();
             let Some(ValueType::Record(row, Qualification::NONE, regions)) = literal.result else {
@@ -1430,7 +1430,7 @@ mod tests {
         let qualified = ValueType::Record(
             record,
             Qualification {
-                policy: Some(crate::lowering::body::Policy::Wrapping),
+                policy: Some(crate::body::Policy::Wrapping),
                 ..qualification
             },
             regions,

@@ -2,8 +2,8 @@
 //! contract without registering a runtime callable or borrowing its authority.
 
 use super::{Program, span};
-use crate::lowering::body::{Ceiling, CrashCeiling, Qualification, ValueType};
-use crate::lowering::{Unserved, refuse};
+use crate::body::{Ceiling, CrashCeiling, Qualification, ValueType};
+use crate::{Unserved, refuse};
 use crate::source_state::domain::ProofFact;
 use crate::source_state::signature::{SignatureContractKind, StateSignature};
 use semantic_vocabulary::{MachineId, ScalarType, ValueId};

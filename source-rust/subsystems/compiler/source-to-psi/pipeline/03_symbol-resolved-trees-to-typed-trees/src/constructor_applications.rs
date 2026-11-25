@@ -60,7 +60,7 @@ pub(crate) fn prepare(
         if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) {
             let collection = indexed.collection;
             let Some(collection) =
-                crate::typing::typing_queries::DeclaredExpressionTypes::default()
+                crate::typing_queries::DeclaredExpressionTypes::default()
                     .get(program, caller, collection)
             else {
                 continue;
@@ -73,7 +73,7 @@ pub(crate) fn prepare(
             // The destination may attenuate this reference. Retain the type
             // of the written formation first, so lowering can form its actual
             // parent loan before lending a weaker child to that destination.
-            let referent = match crate::typing::typing_queries::declared_expression_type(
+            let referent = match crate::typing_queries::declared_expression_type(
                 program, caller, target,
             ) {
                 Some(reference) => Some(reference),
@@ -252,7 +252,7 @@ pub(crate) fn retain_indexed_operand_types(
         })
         .collect::<Vec<_>>();
     let owners = crate::source_state::references::collect_program_operand_owners(program);
-    let mut declared = crate::typing::typing_queries::DeclaredExpressionTypes::default();
+    let mut declared = crate::typing_queries::DeclaredExpressionTypes::default();
     for expression in operands {
         retain_indexed_operand_type(program, &owners, &mut declared, expression)?;
     }
@@ -262,7 +262,7 @@ pub(crate) fn retain_indexed_operand_types(
 pub(crate) fn retain_indexed_operand_type(
     program: &mut TypedTrees,
     owners: &crate::source_state::references::ProgramOperandOwners,
-    declared: &mut crate::typing::typing_queries::DeclaredExpressionTypes,
+    declared: &mut crate::typing_queries::DeclaredExpressionTypes,
     expression: ExpressionHandle,
 ) -> Result<(), Diagnostic> {
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
@@ -332,7 +332,7 @@ fn retain_builtin_range_type(
         return Ok(());
     }
     let Ok(element_type) =
-        crate::typing::typing_queries::collection_element_type(program, collection)
+        crate::typing_queries::collection_element_type(program, collection)
     else {
         return Ok(());
     };
@@ -550,7 +550,7 @@ fn select_call(
         && let Some(target) = select_closed_call(program, call, caller, call.expected_result)?
     {
         if let Some(occurrence) = call.selection {
-            crate::typing::call_and_product_selections::bind_generated_call_selection(
+            crate::call_and_product_selections::bind_generated_call_selection(
                 program, occurrence, target,
             )?;
         }
@@ -915,7 +915,7 @@ fn infer(
                         .struct_fields(literal.fields)
                         .to_vec();
                     for field in fields {
-                        if let Some(declared) = crate::typing::typing_queries::exact_declared_field(
+                        if let Some(declared) = crate::typing_queries::exact_declared_field(
                             program,
                             field.field_symbol,
                         )
@@ -998,7 +998,7 @@ fn infer(
                 program,
                 crate::source_state::types::builtin_type_atom(landing.landed_type),
             )?;
-            crate::typing::type_reference::retain_arithmetic_result_type(
+            crate::type_reference::retain_arithmetic_result_type(
                 &program.symbols,
                 &mut program.tables.type_reference_table,
                 reference,
@@ -1016,7 +1016,7 @@ fn infer(
         ExpressionNode::Float(literal) => literal.landing().and_then(|format| {
             builtin(
                 program,
-                crate::typing::typing_queries::float_literal_atom(format),
+                crate::typing_queries::float_literal_atom(format),
             )
         }),
         ExpressionNode::Boolean(_) => builtin(program, BuiltinTypeAtom::Bool),
@@ -1031,7 +1031,7 @@ fn infer(
                             .machine_by_symbol(owner)
                             .and_then(|machine| program.machine_states(machine).first())
                     })?;
-                    crate::typing::typing_queries::declared_place_type(program, state, value).ok()
+                    crate::typing_queries::declared_place_type(program, state, value).ok()
                 })
             }
         }
@@ -1102,7 +1102,7 @@ fn infer_array(
     active: &mut Vec<ExpressionHandle>,
 ) -> Result<Option<TypeReferenceHandle>, Diagnostic> {
     let receiving = destination.and_then(|destination| {
-        crate::typing::expressions::construction_destinations::array_literal_destination(
+        crate::expressions::construction_destinations::array_literal_destination(
             program,
             value,
             destination,
@@ -1394,7 +1394,7 @@ mod tests {
     use super::*;
     use crate::source_selections::AuthoredDeclarationSelectionOccurrenceId;
     use crate::source_state::statement::{StatementNode, TransitionTargetNode};
-    use crate::typing::qualified_operator_home_tests::checked;
+    use crate::qualified_operator_home_tests::checked;
 
     /// `path[0..0]` on a `Marked` slice view selects the `[..]` declared over
     /// that exact type, so typing replaces the range with a call of

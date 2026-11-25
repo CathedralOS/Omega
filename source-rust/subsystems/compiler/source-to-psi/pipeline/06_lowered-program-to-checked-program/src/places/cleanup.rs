@@ -38,7 +38,7 @@ impl<'a> Storage<'a> {
                 storage: self,
                 references,
                 tables,
-                scalars: crate::checking::scalar_actuals(actuals),
+                scalars: crate::scalar_actuals(actuals),
                 places,
                 callee_formals: formals,
                 extent_owner,
@@ -93,7 +93,7 @@ impl<'a> Storage<'a> {
         let addresses = references
             .captured_storage_family_at(
                 self.machine,
-                (block, crate::checking::position(before, self.machine)?),
+                (block, crate::position(before, self.machine)?),
                 terminal_psi::InvocationOwner::Cleanup {
                     edge,
                     action_ordinal: ordinal,
@@ -296,8 +296,8 @@ fn cleanup_write_ends(asked: Asked<'_>, watched: &Backing, written: &Backing) ->
     }
 }
 
-impl crate::checking::Bindings for AtCleanupCall<'_, '_> {
-    type Error = crate::checking::Unbound;
+impl crate::Bindings for AtCleanupCall<'_, '_> {
+    type Error = crate::Unbound;
     fn value(&mut self, id: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Self::Error> {
         self.inputs.value(id, scalar_type)
     }
@@ -319,9 +319,9 @@ impl crate::checking::Bindings for AtCleanupCall<'_, '_> {
                 self.action_ordinal,
                 self.inputs.concerns,
             )
-            .map_err(crate::checking::Unbound::Refused)?
+            .map_err(crate::Unbound::Refused)?
         {
-            return Err(crate::checking::Unbound::Unproved(
+            return Err(crate::Unbound::Unproved(
                 "cleanup requirement needs a fresh value after a preceding action's write",
             ));
         }
@@ -335,7 +335,7 @@ impl crate::checking::Bindings for AtCleanupCall<'_, '_> {
                 self.action_ordinal,
                 self.inputs.concerns,
             )
-            .map_err(crate::checking::Unbound::Refused)?;
+            .map_err(crate::Unbound::Refused)?;
         let mut held = self.inputs.held_at(&actual.place);
         held.point = Some(ProgramPoint::BeforeCleanup {
             edge: self.edge,
@@ -360,9 +360,9 @@ impl crate::checking::Bindings for AtCleanupCall<'_, '_> {
                 self.action_ordinal,
                 self.inputs.concerns,
             )
-            .map_err(crate::checking::Unbound::Refused)?
+            .map_err(crate::Unbound::Refused)?
         {
-            return Err(crate::checking::Unbound::Unproved(
+            return Err(crate::Unbound::Unproved(
                 "cleanup extent changed in a preceding action",
             ));
         }
@@ -376,7 +376,7 @@ impl crate::checking::Bindings for AtCleanupCall<'_, '_> {
                 self.action_ordinal,
                 self.inputs.concerns,
             )
-            .map_err(crate::checking::Unbound::Refused)?;
+            .map_err(crate::Unbound::Refused)?;
         let mut held = self.inputs.held_at(&actual.place);
         held.point = Some(ProgramPoint::BeforeCleanup {
             edge: self.edge,

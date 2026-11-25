@@ -74,7 +74,7 @@ use terminal_check_tables::{
 use terminal_psi::{ContractClause, TerminalMachine, TerminalMachineResult, Terminator};
 use terminal_semantics::CanonicalScalarGoal;
 
-use crate::checking::{
+use crate::{
     Bindings, Unbound, decide, entry_inputs, hypotheses, joins, prepare_with_inhabitation, prove,
     refusal, returned_for_result, terminal_machine,
 };
@@ -82,10 +82,10 @@ use crate::checking::{
 /// Adds a proved result summary to the contract of each machine in
 /// `Elaboration::local_results` that has one, callees first.
 pub(crate) fn infer(
-    scope: &mut crate::checking::ReplayScope<'_>,
-    unreached: &mut crate::checking::Unreached,
+    scope: &mut crate::ReplayScope<'_>,
+    unreached: &mut crate::Unreached,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
-    activity: &mut crate::checking::ProofSearchActivity,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     let elaboration = scope.source();
     if elaboration.local_results.is_empty() {
@@ -111,7 +111,7 @@ fn foreign(id: MachineId, detail: &str) -> terminal_check_tables::Refusal {
 pub(super) fn checked_results(
     inferred: Vec<(MachineId, u32, ContractClause)>,
     program: &Elaboration,
-    discharge: &crate::checking::Discharge,
+    discharge: &crate::Discharge,
 ) -> Checked<Vec<terminal_psi::InvocationPrivateResult>> {
     let mut rows = Vec::with_capacity(inferred.len());
     for (id, ordinal, clause) in inferred {
@@ -127,7 +127,7 @@ pub(super) fn checked_results(
         {
             return Err(missing());
         }
-        let Some(Ok(crate::checking::Discharged::EveryExit(exits))) = checked.get(published) else {
+        let Some(Ok(crate::Discharged::EveryExit(exits))) = checked.get(published) else {
             return Err(missing());
         };
         let mut proved = Vec::with_capacity(exits.len());
@@ -146,7 +146,7 @@ pub(super) fn checked_results(
                 || row.created_at != ProgramPoint::Edge(exit)
                 || !matches!(
                     checked.get(receipt),
-                    Some(Ok(crate::checking::Discharged::Certificate(_)))
+                    Some(Ok(crate::Discharged::Certificate(_)))
                 )
             {
                 return Err(missing());
@@ -392,11 +392,11 @@ fn with_formation_conditions(parts: Vec<Proposition>) -> Vec<Proposition> {
 }
 
 fn summarize(
-    scope: &mut crate::checking::ReplayScope<'_>,
+    scope: &mut crate::ReplayScope<'_>,
     id: MachineId,
-    unreached: &mut crate::checking::Unreached,
+    unreached: &mut crate::Unreached,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
-    activity: &mut crate::checking::ProofSearchActivity,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     let elaboration = scope.source();
     let module = &elaboration.module;
@@ -442,7 +442,7 @@ fn summarize(
         inhabitation,
     )?;
     let mut references = prepared.references(&module.types.structural_types);
-    let storage = crate::checking::places::Storage::new(
+    let storage = crate::places::Storage::new(
         id,
         lowered,
         module,
@@ -623,11 +623,11 @@ pub(super) fn publish(
     id: MachineId,
     summary: Proposition,
     exits: &[(EdgeId, ValueId)],
-    activity: &mut crate::checking::ProofSearchActivity,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     let lowered = terminal_machine(&elaboration.module.machines, id, id)?;
     let entry = lowered.entry;
-    let clause = crate::checking::position(lowered.contract.ensures.len(), id)?;
+    let clause = crate::position(lowered.contract.ensures.len(), id)?;
     // Later callers consume this guarantee during the same inference pass.
     // Proving its truth does not excuse an unformed term in the guarantee.
     let mut proposed = lowered.contract.clone();
@@ -635,7 +635,7 @@ pub(super) fn publish(
         obligation: ObligationId::new(1).expect("nonzero diagnostic identity"),
         proposition: summary.clone(),
     });
-    crate::checking::formation::contract(&elaboration.module, id, &proposed, activity)?;
+    crate::formation::contract(&elaboration.module, id, &proposed, activity)?;
     let tables = elaboration
         .tables
         .machines

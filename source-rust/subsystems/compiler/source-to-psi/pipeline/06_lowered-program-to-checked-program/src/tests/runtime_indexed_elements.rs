@@ -23,7 +23,7 @@ machine keep(table: Table) { }
 /// the refusal's text.
 fn verdict(build: &str) -> String {
     match judge_build(build) {
-        Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+        Err(crate::CompilationRefusal::Elaboration(refusal))
         | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
         Ok(RouteVerdict::Accepted(accepted)) => {
             terminal_codec::EvidenceSealValidator::new(

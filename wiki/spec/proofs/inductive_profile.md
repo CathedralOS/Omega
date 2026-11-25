@@ -1,14 +1,17 @@
-# W-based inductive profile
+# Unified native inductive profile
 
 ## Scope and checking authority
 
-This is the selected extension of the [predicative reference core](foundation.md).
-It adds typed function eta, relevant identity, a two-element type and W-types.
-Indexed families are checked derived constructions, not a second primitive
-inductive-declaration mechanism. It adds no source keyword, anonymous machine
-or authored `-> Prop`.
-Source-level mathematical binders follow the
-[mathematical source contract](mathematical_bindings.md).
+Omega selects unified native inductive declarations (Option C) for the
+mathematical kernel. Ordinary recursive `data`, indexed families and mutually
+recursive declarations use the same checked declaration mechanism. For example,
+core declares `Nat` with ordinary `Zero` and `Succ(prev: Nat)` cases. The
+kernel obtains induction from those constructors. No boundary declaration,
+runtime representation or foreign binding is involved.
+
+The [predicative reference core](foundation.md) is extended with typed function
+eta, relevant identity, the two-element type and checked inductive declarations.
+Source binders follow the [mathematical source contract](mathematical_bindings.md).
 
 A complete verified-profile claim requires checked rules, their combined
 metatheoretic justification and faithful source integration. A profile name or
@@ -55,7 +58,6 @@ in another proof assistant is not that justification.
 | --- | --- | --- |
 | `Id` | For `A : Type u` and `x,y : A`, `Id A x y : Type u`; `refl x : Id A x x`. | Dependent identity elimination `J`, computing only on reflexivity. No K/UIP or identity-proof irrelevance. |
 | `Two` | `Two : Type 0`, with `zero, one : Two`. | Dependent case analysis, computing to the corresponding branch on each constructor. |
-| `W` | For `A : Type u` and `B : A → Type v`, `W(A,B) : Type max(u,v)`; `sup(a,k)` for `a : A`, `k : B(a) → W(A,B)`. | Dependent induction with an induction hypothesis for every child, computing on `sup`. |
 
 For fixed `A` and `x : A`, identity elimination takes
 `C : (y : A) → Id A x y → Type w` and `d : C(x,refl x)`:
@@ -73,101 +75,48 @@ caseTwo(C,d0,d1,zero) ≡ d0
 caseTwo(C,d0,d1,one)  ≡ d1
 ```
 
-For `P : W(A,B) → Type w`, the induction step has type:
+The motive level is independently checked. Relevant identity and two-element
+elimination target relevant `Type`. Strict targets use the existing
+`Box`/unboxing rules. Relevant empty and unit types can still be derived from
+strict empty/unit and boxing.
 
-```text
-step : (a : A) → (k : B(a) → W(A,B))
-       → ((b : B(a)) → P(k(b))) → P(sup(a,k))
+<a id="derived-indexed-families"></a>
 
-indW(P,step,t) : P(t)
-indW(P,step,sup(a,k)) ≡ step(a,k,b ↦ indW(P,step,k(b)))
-```
+## Native inductive declarations
 
-The motive level `w` is independently checked; elimination is not confined to
-the input's level. The new primitive eliminators above target relevant `Type`.
-Strict targets are handled through the existing `Box`/unboxing rules. Add no
-new definitional eta rule for `Two`, `Id` or `W`. There is no recursion equation
-for arbitrary axiomatic terms and no general user-authored rewrite rule.
+The kernel checks each declaration block before extending its signature with
+the families, constructors and their dependent induction principles (recursors).
+This applies equally to a plain type, a type with uniform parameters such as
+`Seq<T>`, a family indexed by values such as `Vector<Length, Total>`, and a
+mutual block. Each constructor must return the declared family at the declared
+uniform parameters and well-typed result indices. Check the payload types,
+universe bounds and strict positivity of all recursive occurrences across the
+whole block. A recursive occurrence as the input to a stored function is a
+standard negative case.
 
-Relevant empty and unit types are derived from the reference core's strict
-empty/unit and boxing. Constructor alternatives use `Two` and dependent sums;
-records use dependent sums. These mathematical encodings do not select native
-tags, memory layout or nominal Omega type identity.
-
-## Derived indexed families
-
-The selected construction uses unindexed trees with a recursively defined
-indexing condition. Given:
-
-```text
-I : Type l                    indices
-A : Type u                    constructor labels and payloads
-B : A → Type v                child positions
-out : A → I                   index at a node
-next : (a : A) → B(a) → I      required index of each child
-```
-
-define by W-induction, then dependent pairing:
-
-```text
-IndexedAt(i, sup(a,k)) =
-    Id I (out(a)) i × ((b : B(a)) → IndexedAt(next(a,b), k(b)))
-
-IW(i) = Σ (t : W(A,B)). IndexedAt(i,t)
-```
-
-The displayed `=` introduces definitions, not equality-reflection rules.
-`IW(i)` fits `Type max(l,u,v)`; any lift needed by the core's universe rules is
-explicit. Constructor and dependent induction terms must be derived with their
-constructor computation judgment checked definitionally, not postulated as a law.
-The indexing evidence is relevant identity, not a squashed substitute.
-
-The [checked HoTT construction](https://hott.github.io/Coq-HoTT/coqdoc-html/HoTT.Types.IWType.html)
-is a construction reference, not an imported acceptance verdict. Its basic
-encoding/induction precedes the function-extensionality-dependent equivalence
-theorem. Do not import that extra assumption into the basic construction.
-Transplantation must justify the rules in this exact theory, including strict
-contexts, universes, substitution and conversion.
-
-The construction rebuilds a child function as `b ↦ (fst(g(b)),snd(g(b)))`.
-Pair eta identifies this with `b ↦ g(b)`; the selected typed function eta closes
-it to `g`, even when `g` is an arbitrary variable. This conversion dependency
-and its justification cost are part of the profile, not an imported Coq default.
-Concrete instances may already compute without this step; the requirement is
-the general dependent computation judgment. Merely replacing that judgment with
-a propositional law would change the contract, and such a law itself needs proof.
+The kernel derives each recursor's type and constructor computation rules from
+the admitted block. Eliminating a constructor computes its corresponding branch
+with the constructor arguments and the induction hypotheses for its recursive
+children at their actual indices. For `Nat`, the `Zero` branch receives no
+induction hypothesis and the `Succ(prev)` branch receives one for `prev`.
+For a mutual family, each hypothesis uses its child's family and motive.
+An application to a neutral subject may stay neutral. A producer cannot supply
+a new reduction rule by naming a recursor in a proof artifact.
 
 ## Declaration correspondence and strict logic
 
-Source declarations elaborate to checked terms and constructor/eliminator
-applications. A source positivity check may diagnose an invalid declaration;
-its success does not authorize a new kernel rule. A well-typed W term may encode
-the wrong source declaration. Therefore both are required:
+Elaboration must preserve the source declaration's nominal identity, binders,
+parameters, indices, payloads, recursive uses and case-conditional default-domain
+predicates. Those predicates retain their ordinary construction and elimination
+obligations. Independently check the correspondence between the source and
+kernel declarations. Kernel admission alone proves only the declaration supplied
+to it. Data layout, ownership and source visibility follow their existing rules.
 
-- A justification of the encoding scheme preserving formation, constructors,
-  dependent induction and computation.
-- Independently checked application of that scheme to the exact declaration,
-  including parameters, indices, payloads, case-conditional default-domain
-  predicates and recursive uses. These predicates use the ordinary domain
-  interpretation; removing case-local clauses does not remove constrained
-  construction, dependent elimination or their correspondence obligations.
-
-Round-trip decoding or structural comparison may check retained structure; it
-does not prove semantic preservation. Primitive inductives would also require
-source elaboration correctness. No trust-class improvement follows merely from
-moving a check out of the kernel. Statement fidelity, nominal identity, ownership
-and lowering correspondence remain their existing owners' obligations.
-
-There is no second general strict-inductive primitive. Logical inductive
-relations may use a relevant derivation family and `Squash` when their intended
-meaning is existence without witness access. Stronger eliminators require checked
-constructions from the selected rules, not a constructor-count exception. The
-reference paper's section 5 is not an automatic elimination permission.
-
-Diagnostics distinguish an invalid declaration, an unsupported valid encoding
-and malformed compiler-generated evidence. Report source-level failures at their
-declaration/field/index occurrence; do not turn encoding failure into a source
-positivity verdict or expose only an internal W-unification error.
+Inductive families inhabit relevant `Type`. Logical derivations can use a
+relevant family and `Squash` when only existence is observable. Native induction
+adds no route for extracting a relevant witness from strict evidence. Diagnostics
+identify the offending declaration, field or index and distinguish invalid
+source from an unsupported elaboration or malformed compiler evidence.
 
 ## Required evidence and measurements
 
@@ -186,14 +135,13 @@ pointwise equality evidence into function equality. The eliminator need not
 reduce on an entirely neutral tree. Successful concrete evaluation is not a
 substitute for the general constructor-computation check.
 
-Justification includes the added kernel rules, the indexed scheme and its
-applications; no single example discharges preservation, conversion decidability
-or implementation correctness. Record term size, retained storage and checking
-cost in the environment actually checking application proofs. Bootstrap costs
-need a separately named bootstrap customer; nested interpretation is not the
-default application cost model.
-
-W is selected now. Reopen only on demonstrated coverage/computation failure,
-unacceptable measured cost or established audit burden, not speculative primitive
-counts, a difficult proof attempt or first-implementation slowness. Such a change
-belongs in `OWNER_QUESTIONS.md`; it is not an automatic fallback.
+Justify substitution, preservation, normalization and decidable conversion for
+the admitted blocks and generated reductions together with the rest of the
+calculus. The implementation's existing [W/IW metatheory](kernel_metatheory.md)
+documents its earlier encoding. The [kernel prototypes](../../drafts/designs/recursive_data_encoding_experiments.md)
+supply comparative evidence. End-to-end acceptance requires checking authored
+declarations through elaboration and Psi publication/consumption under the
+existing admission rules. Retire the production W/IW encoding once this path
+preserves constructor computation, induction, index checks and refusal of
+malformed declarations and forged recursors. Track conversion steps, allocation
+and checking time on the same declarations and proofs during migration.

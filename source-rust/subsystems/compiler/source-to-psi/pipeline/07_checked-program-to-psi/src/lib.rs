@@ -10,6 +10,47 @@ The obsolete checked-source production request interfaces have been removed.
 
 #![forbid(unsafe_code)]
 
+// Crate-wide aliases for sibling stages and the shared test fixtures.
+mod package_review;
+mod source_publication;
+pub use source_publication::SourcePublication;
+pub mod provider_choice_inputs;
+pub mod provider_supply;
+#[cfg(test)]
+use lowered_program_to_checked_program as checking;
+#[cfg(test)]
+use source_admission::LoadedSource;
+use source_declarations::declaration_selection;
+#[cfg(test)]
+use source_lexer as lexing;
+#[cfg(test)]
+use source_parser as parsing;
+use lowered_source_publication::source_roster::SourceCompilationRoster;
+use source_symbol_table::{source_inputs, source_symbols};
+#[cfg(test)]
+use symbol_resolved_trees_to_typed_trees as typing;
+#[cfg(test)]
+use syntax_trees_to_symbol_resolved_trees::resolution;
+use typed_trees::source_state;
+#[cfg(test)]
+use prepared_typed_trees_to_lowered_program as lowering;
+#[cfg(test)]
+use typed_trees_to_prepared_typed_trees as preparation;
+#[cfg(test)]
+#[path = "../../../../../../../tests/support/frontend_operations.rs"]
+mod frontend_fixture;
+
+#[cfg(test)]
+fn judge_fixture(
+    source: lowering::PreparedTypedTrees,
+    compilation: lowering::Compilation<'_>,
+    publication: terminal_codec::TerminalPublication,
+) -> Result<AcceptedTerminalSource, Vec<diagnostics::Diagnostic>> {
+    let lowered = lowering::lower_for_publication(source, compilation, publication)?;
+    let (judgment, _) = checking::judge_publication(lowered, Default::default())?;
+    AcceptedTerminalSource::from_judgment(judgment)
+}
+
 mod accepted;
 #[cfg(test)]
 pub(crate) use accepted::DeclaredRequirementApplication;
@@ -115,6 +156,3 @@ pub use terminal_codec::entry_receipt::application::{
     TerminalAdmissionRoot, TerminalApplicationCustody, TerminalCompositionRoots,
 };
 pub use terminal_psi::PreparedTerminalRoots;
-
-#[cfg(test)]
-use crate::frontend_fixture;

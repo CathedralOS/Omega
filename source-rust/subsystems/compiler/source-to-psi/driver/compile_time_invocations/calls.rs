@@ -3,7 +3,7 @@
 use crate::driver::judge_lowered_source;
 use declaration_scope::PackageDeclarationScope;
 use crate::source_state::TypedTrees;
-use checked_program_to_psi::production;
+use checked_program_to_psi as production;
 use diagnostics::Diagnostic;
 use source_completion_accounting::SourceInvocationInputs;
 use std::sync::Arc;

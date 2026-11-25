@@ -13,8 +13,8 @@ use semantic_vocabulary::{IeeeFloatValue, IntegerValue, MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
 
 use super::Program;
-use crate::lowering::body::{Expression, ExpressionKind, ValueType};
-use crate::lowering::{Unserved, refuse};
+use crate::body::{Expression, ExpressionKind, ValueType};
+use crate::{Unserved, refuse};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ScalarApplicationSource {
@@ -131,7 +131,7 @@ impl Program<'_> {
                 "scalar evaluation differs from its retained computation",
             ));
         }
-        let ValueType::Scalar(scalar_type, crate::lowering::body::Qualification::NONE) =
+        let ValueType::Scalar(scalar_type, crate::body::Qualification::NONE) =
             self.value_type(id, result_type)?
         else {
             return Err(unserved(
@@ -192,9 +192,9 @@ impl Program<'_> {
         if self.typed.stored_value_multiplicity(constant.declared_type)
             != language_core::Multiplicity::Unrestricted
         {
-            return Err(crate::lowering::reject(
+            return Err(crate::reject(
                 id,
-                crate::lowering::SourceOrigin::of(constant.initializer_source_span),
+                crate::SourceOrigin::of(constant.initializer_source_span),
                 "a constant's type must permit copying",
             ));
         }

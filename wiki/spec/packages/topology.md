@@ -117,9 +117,10 @@ machine build(builder: @mutable Build) {
     Build::application(builder, "payments_deployment");
     Build::artifact_only(builder);
 
-    let inputs = deployment_inputs(@mutable builder.source);
-    let output = builder.output.require("payments.plan");
-    |deployment|::compose_payments(inputs, output);
+    |deployment|::compose_payments(
+        deployment_inputs(@mutable builder.source),
+        builder.output.require("payments.plan")
+    );
 }
 ```
 

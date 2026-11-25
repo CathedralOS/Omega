@@ -100,7 +100,7 @@ public spellings.
   [recasts](spec/layouts/recasts.md), and [codecs](spec/layouts/codecs.md).
 - Mathematical proofs: [foundation and checking judgments](spec/proofs/foundation.md),
   [mathematical bindings and logical hypotheses](spec/proofs/mathematical_bindings.md),
-  [W-based induction and indexed encoding](spec/proofs/inductive_profile.md),
+  [native inductive profile](spec/proofs/inductive_profile.md),
   [contracts, bundles, normalization and trust](spec/proofs/contracts.md),
   [stable index identity and proved compatibility](spec/proofs/contracts.md#licensed-normalization),
   and [relations and quotients](spec/proofs/quotients.md).
@@ -182,6 +182,9 @@ Bootstrap contracts live beside the chain; start at
 [edge contracts](../bootstrap/CONTRACT.md) and
 [minimization](../bootstrap/MINIMIZATION.md). Alternative-chain tradeoffs are
 [reference notes](drafts/reference/bootstrap_chain_alternatives.md), not a replacement proposal.
+
+For AI researchers curating corpora, designing RL verifiers, or evaluating
+models on Omega, see the [AI training guide](development/ai_training_guide.md).
 
 [Execution tasks](../TASKS.md) track implementation;
 [owner questions](../OWNER_QUESTIONS.md) hold unresolved decisions.

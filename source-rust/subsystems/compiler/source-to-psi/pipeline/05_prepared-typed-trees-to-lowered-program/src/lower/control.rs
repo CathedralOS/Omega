@@ -21,12 +21,12 @@ use terminal_psi::{
 use super::join_reads::{BeforeArms, JoinReads};
 use super::places::Bound;
 use super::{Draft, Evaluation, Lowering, Reached, Value, declaration, successor};
-use crate::lowering::body::{
+use crate::body::{
     ArmGuard, CaseSelector, Expression, ExpressionKind, Selector, Statement, Strict, Target,
     ValueType,
 };
-use crate::lowering::canonical;
-use crate::lowering::{SourceOrigin, Unpositioned, Unserved, refuse};
+use crate::canonical;
+use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 
 impl Lowering<'_> {
     pub(super) fn block(&mut self, source: SourceOrigin) -> BlockId {
@@ -217,7 +217,7 @@ impl Lowering<'_> {
     fn loops<'e>(&self, expression: &'e Expression) -> Option<(MachineId, &'e [Expression])> {
         match &expression.kind {
             ExpressionKind::Call {
-                callee: crate::lowering::body::CallTarget::Machine(callee),
+                callee: crate::body::CallTarget::Machine(callee),
                 arguments,
                 ..
             } if self.heads.iter().any(|head| head.member == *callee) => Some((*callee, arguments)),
@@ -410,7 +410,7 @@ impl Lowering<'_> {
                     Reached::Value(_) if expression.result.is_none() || *discards_result => {
                         Ok(Reached::Value(()))
                     }
-                    Reached::Value(_) => Err(crate::lowering::reject(
+                    Reached::Value(_) => Err(crate::reject(
                         self.id,
                         expression.source,
                         "use the returned value or explicitly discard it with `_ =`",
@@ -433,7 +433,7 @@ impl Lowering<'_> {
                 // this arm, and the arm after it when that one takes
                 // whatever this guard turned away.
                 self.authored_arm(arm, decided_in, *source, guard.source);
-                self.fallthrough = self.owns_body.then_some(crate::lowering::Branch {
+                self.fallthrough = self.owns_body.then_some(crate::Branch {
                     block: rest,
                     decided_in,
                     arm: (*source).into(),
@@ -476,7 +476,7 @@ impl Lowering<'_> {
                 if let Some(fallthrough) = self.fallthrough.take()
                     && self.point == Some(ProgramPoint::BlockEntry(fallthrough.block))
                 {
-                    self.sources.branches.push(crate::lowering::Branch {
+                    self.sources.branches.push(crate::Branch {
                         arm: (*source).into(),
                         ..fallthrough
                     });
@@ -1048,7 +1048,7 @@ impl Lowering<'_> {
         if !self.owns_body {
             return;
         }
-        self.sources.branches.push(crate::lowering::Branch {
+        self.sources.branches.push(crate::Branch {
             block,
             decided_in,
             arm: arm.into(),
@@ -1236,7 +1236,7 @@ impl Lowering<'_> {
         &mut self,
         operand: ValueId,
         scalar_type: ScalarType,
-        qualification: crate::lowering::body::Qualification,
+        qualification: crate::body::Qualification,
         clauses: &[Proposition],
         stated: Option<&terminal_check_tables::program::EstablishedCondition>,
         source: SourceOrigin,

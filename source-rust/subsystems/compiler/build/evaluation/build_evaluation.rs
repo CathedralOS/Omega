@@ -29,8 +29,7 @@ authored `build.omg` code can run:
 `PreparedBuildEvaluation` holds the admitted execution
 without borrowing the source map or compiler session, allowing the project Build driver
 to compile dependency packages while the activation is suspended and then rejoin
-the returned activation via `validate_return`, `source_result`,
-`validate_source_join`, and `complete`.
+its returned activation with the acquired source graph in `complete_with_sources`.
 */
 
 use crate::PreparedBuildExecution;
@@ -60,6 +59,8 @@ pub struct BuildEvaluationRequest<'request> {
     pub anonymous_source: Option<&'request package_compilation::AnonymousSourceCapture>,
     pub generated_source_custody:
         &'request [(source_text::SourceId, build_output::PackageGeneratedSource)],
+    pub source_acquisition:
+        Option<&'request package_compilation::source_assembly::BuildStageAcquisition>,
     pub execution: BuildExecutionInputs,
     pub artifact_only: bool,
 }
@@ -113,13 +114,13 @@ impl PreparedBuildEvaluation {
         let typed = interval.program.as_ref();
         let acquisition = self
             .execution
-            .unbound_acquisition
+            .original_sources
             .as_ref()
             .filter(|capture| match source_acquisition {
-                Some(stage) => stage.retains(capture, typed),
+                Some(stage) => stage.retains(&capture.capture, typed),
                 None if package_inputs.is_none() => {
                     anonymous_source.and_then(|owner| owner.acquired_for(typed))
-                        == Some(capture.as_ref())
+                        == Some(&capture.capture)
                 }
                 None => false,
             })
@@ -136,6 +137,7 @@ impl PreparedBuildEvaluation {
                 selected_machine,
                 package_inputs,
                 anonymous_source,
+                &Arc::default(),
                 self.subject_validation == BuildSubjectValidation::Checked,
                 timings,
             )
@@ -188,7 +190,7 @@ impl PreparedBuildEvaluation {
         Ok(())
     }
 
-    pub fn validate_return(&self, returned: &crate::ReturnedBuild) -> Result<(), CompileFailure> {
+    fn validate_return(&self, returned: &crate::ReturnedBuild) -> Result<(), CompileFailure> {
         self.execution
             .validate_return(returned)
             .map_err(|diagnostics| {
@@ -200,49 +202,15 @@ impl PreparedBuildEvaluation {
     }
 
     pub fn source_result<'result>(
-        &'result mut self,
-        returned: Option<&'result mut crate::ReturnedBuild>,
+        &self,
+        returned: &'result mut crate::ReturnedBuild,
     ) -> Result<crate::BuildSourceResult<'result>, CompileFailure> {
-        let failure = |diagnostics| {
-            CompileFailure::source_completion(
-                diagnostics,
-                self.source_completion_accounting.clone(),
-            )
-        };
-        let returned = returned.ok_or_else(|| {
-            failure(vec![Diagnostic::error(
-                "Build source result requires its executed activation",
-            )])
-        })?;
-        self.execution.validate_return(returned).map_err(failure)?;
+        self.validate_return(returned)?;
         Ok(crate::BuildSourceResult::executed(returned))
     }
 
-    pub fn validate_source_join(
-        &self,
-        returned: Option<&crate::ReturnedBuild>,
-        inputs: Option<&PackageCompilationInputs>,
-        initially_unbound: bool,
-    ) -> Result<(), CompileFailure> {
-        let failure = |diagnostics| {
-            CompileFailure::source_completion(
-                diagnostics,
-                self.source_completion_accounting.clone(),
-            )
-        };
-        let returned = returned.ok_or_else(|| {
-            failure(vec![Diagnostic::error(
-                "Build source join requires its executed activation",
-            )])
-        })?;
-        self.execution.validate_return(returned).map_err(failure)?;
-        returned
-            .validate_source_join(inputs, initially_unbound)
-            .map_err(|reason| failure(vec![Diagnostic::error(reason)]))
-    }
-
-    pub fn execution(&mut self) -> Option<&mut PreparedBuildExecution> {
-        Some(&mut self.execution)
+    pub fn execution(&mut self) -> &mut PreparedBuildExecution {
+        &mut self.execution
     }
 
     /// Settle the returned activation against the source graph supplied for Product.
@@ -251,18 +219,25 @@ impl PreparedBuildEvaluation {
         returned: crate::ReturnedBuild,
         inputs: Option<&PackageCompilationInputs>,
     ) -> Result<EvaluatedBuild, CompileFailure> {
-        self.validate_source_join(
-            Some(&returned),
-            inputs,
-            self.base_source_consumption_commitment.is_none(),
-        )?;
-        self.complete(Some(returned))
+        let initially_unbound = self.base_source_consumption_commitment.is_none();
+        self.settle(returned, inputs, initially_unbound)
     }
 
-    pub fn complete(
+    fn settle(
         self,
-        returned: Option<crate::ReturnedBuild>,
+        returned: crate::ReturnedBuild,
+        inputs: Option<&PackageCompilationInputs>,
+        initially_unbound: bool,
     ) -> Result<EvaluatedBuild, CompileFailure> {
+        self.validate_return(&returned)?;
+        returned
+            .validate_source_join(inputs, initially_unbound)
+            .map_err(|reason| {
+                CompileFailure::source_completion(
+                    vec![Diagnostic::error(reason)],
+                    self.source_completion_accounting.clone(),
+                )
+            })?;
         let Self {
             execution,
             restricted_build_requests,
@@ -275,11 +250,6 @@ impl PreparedBuildEvaluation {
         let failure = |diagnostics| {
             CompileFailure::source_completion(diagnostics, source_completion_accounting.clone())
         };
-        let returned = returned.ok_or_else(|| {
-            failure(vec![Diagnostic::error(
-                "Build completion requires its returned activation",
-            )])
-        })?;
         let configuration = Arc::new(execution.complete(returned).map_err(failure)?);
         let last = configuration.accepted_builds.last().ok_or_else(|| {
             failure(vec![Diagnostic::error(
@@ -319,6 +289,7 @@ pub fn prepare_build_evaluation(
         package_inputs,
         anonymous_source,
         generated_source_custody,
+        source_acquisition,
         execution,
         artifact_only,
     } = request;
@@ -384,12 +355,26 @@ pub fn prepare_build_evaluation(
     } else {
         BuildSubjectValidation::Checked
     };
+    let capture = anonymous_source
+        .filter(|owner| package_inputs.is_none() && std::ptr::eq(owner.sources().as_ref(), sources))
+        .and_then(|owner| owner.acquired_for(typed));
+    let libraries = match source_acquisition {
+        Some(stage) => capture
+            .and_then(|capture| stage.supplied_libraries_for(capture, typed))
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "the Build library inputs belong to another source activation",
+                )]
+            })?,
+        None => Arc::default(),
+    };
     let (prepared, providers, entry_constants, source_completion_accounting) =
         crate::admission::checking::prepare_admitted_build(
             typed,
             selected_machine,
             package_inputs,
             anonymous_source,
+            &libraries,
             subject_validation == BuildSubjectValidation::Checked,
             timings,
         )?;
@@ -399,6 +384,7 @@ pub fn prepare_build_evaluation(
             typed,
             build_source,
             capture,
+            &libraries,
             timings,
         )
         .map_err(|failure| {
@@ -439,15 +425,14 @@ pub fn prepare_build_evaluation(
                 accounting: source_completion_accounting.clone(),
             });
         }
-        let unbound_acquisition = anonymous_source
-            .filter(|owner| {
-                package_inputs.is_none() && std::ptr::eq(owner.sources().as_ref(), sources)
+        let original_sources = capture.map(|capture| {
+            Arc::new(crate::activation::OriginalBuildSources {
+                capture: capture.clone(),
+                libraries,
             })
-            .and_then(|owner| owner.acquired_for(typed))
-            .cloned()
-            .map(Arc::new);
+        });
         let execution =
-            PreparedBuildExecution::prepare(admitted, execution_purpose, unbound_acquisition)?;
+            PreparedBuildExecution::prepare(admitted, execution_purpose, original_sources)?;
         Ok(PreparedBuildEvaluation {
             execution,
             restricted_build_requests,

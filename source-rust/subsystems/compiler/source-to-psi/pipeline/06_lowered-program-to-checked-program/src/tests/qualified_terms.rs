@@ -513,19 +513,28 @@ machine entry() -> bool {{ farther(issue(8), issue(7)) }}
 }
 
 #[test]
-fn removing_a_domain_does_not_authorize_its_reintroduction() {
-    let source = format!(
-        r#"
+fn a_removed_domain_can_be_restored_only_on_the_value_that_carried_it() {
+    let source = |value| {
+        format!(
+            r#"
 {DOMAIN}
 machine rebuild(handle: i64 in Classified) -> i64 in Classified {{
-    handle as -Classified as +Classified
+    let plain: i64 = handle as -Classified;
+    {value} as +Classified
 }}
 machine entry() -> i64 in Classified {{ rebuild(issue(7)) }}
 "#
+        )
+    };
+    let restored = judge(invocation(&source("plain"))).unwrap();
+    assert!(
+        matches!(restored, RouteVerdict::Accepted(_)),
+        "{restored:?}"
     );
-    let verdict = judge(invocation(&source)).unwrap();
-    let RouteVerdict::Rejected { violations, .. } = verdict else {
-        panic!("the checker must reject reintroduction without authority");
+
+    let other = judge(invocation(&source("7"))).unwrap();
+    let RouteVerdict::Rejected { violations, .. } = other else {
+        panic!("a separate value must have its own establishment evidence: {other:?}");
     };
     assert!(
         violations.iter().any(|row| row
@@ -1225,7 +1234,7 @@ fn a_view_used_after_a_cyclic_byte_write_keeps_its_loan() {
     let verdict = judge(invocation(&retained)).unwrap();
     assert!(
         matches!(verdict, RouteVerdict::Rejected { ref conflicts, .. }
-        if conflicts.iter().any(|row| row.conflict == crate::checking::LoanConflict::ExclusiveAndShared)),
+        if conflicts.iter().any(|row| row.conflict == crate::LoanConflict::ExclusiveAndShared)),
         "a prior view used after the write must keep its loan: {verdict:?}"
     );
 }

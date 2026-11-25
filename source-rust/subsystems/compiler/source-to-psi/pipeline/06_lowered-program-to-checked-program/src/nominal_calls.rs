@@ -1,6 +1,6 @@
 //! Authenticate open nominal call correspondence before using call contracts.
 
-use crate::checking::{Elaboration, refusal};
+use crate::{Elaboration, refusal};
 use semantic_vocabulary::{MachineId, TargetMachineCallable};
 use terminal_check_tables::{Checked, Construct, RefusalReason};
 

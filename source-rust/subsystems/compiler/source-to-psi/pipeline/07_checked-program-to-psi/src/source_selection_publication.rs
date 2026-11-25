@@ -28,7 +28,7 @@ use semantic_vocabulary::{
 use symbols::{SymbolHandle, SymbolKind};
 use terminal_psi::{OperationKind, TerminalModule};
 
-use crate::production::AcceptedTerminalSource;
+use crate::AcceptedTerminalSource;
 
 // The source arena bounds the slot table. Each occupied row retains the full
 // handle so a reused arena slot cannot name an earlier declaration generation.
@@ -254,6 +254,19 @@ impl<'source> Questions<'source> {
                             if selected_row.purpose == SelectionPurpose::Build =>
                         {
                             self.declarations.source_span(*selected)?
+                        }
+                        DeclarationCustody::Package(_)
+                            if selected_row.purpose == SelectionPurpose::Product =>
+                        {
+                            let selected_span = self.declarations.source_span(*selected)?;
+                            if consent.allows_supplied_library(
+                                &sources,
+                                requester_span,
+                                selected_span,
+                            ) {
+                                questions.push(id);
+                            }
+                            continue;
                         }
                         DeclarationCustody::Toolchain => requester_span,
                         _ => continue,
@@ -2185,11 +2198,11 @@ machine entry() -> u64 crashes none {
                 source_provenance::DependencyScope::Product,
             )
             .source_id;
-        let tokens = crate::production::frontend_fixture::Lexer::new(text)
+        let tokens = crate::frontend_fixture::Lexer::new(text)
             .tokenize()
             .unwrap();
         let mut syntax =
-            crate::production::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
+            crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../../../../../source/library/core");
         let mut bindings = Vec::new();
@@ -2204,10 +2217,10 @@ machine entry() -> u64 crashes none {
                     source_admission::SourceOrigin::Toolchain,
                 )
                 .source_id;
-            let tokens = crate::production::frontend_fixture::Lexer::new(text)
+            let tokens = crate::frontend_fixture::Lexer::new(text)
                 .tokenize()
                 .unwrap();
-            crate::production::frontend_fixture::parse(&mut syntax, source, &tokens).unwrap();
+            crate::frontend_fixture::parse(&mut syntax, source, &tokens).unwrap();
             bindings.push(
                 crate::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
                     id,
@@ -2327,20 +2340,20 @@ machine entry() -> u32 crashes none {{
             if scope == source_provenance::DependencyScope::Build {
                 build_source = Some(id);
             }
-            let tokens = crate::production::frontend_fixture::Lexer::new(text)
+            let tokens = crate::frontend_fixture::Lexer::new(text)
                 .tokenize()
                 .unwrap();
             match &mut syntax {
                 None => {
                     syntax = Some(
-                        crate::production::frontend_fixture::parse_syntax_trees_with_id(
+                        crate::frontend_fixture::parse_syntax_trees_with_id(
                             id, &tokens,
                         )
                         .unwrap(),
                     )
                 }
                 Some(syntax) => {
-                    crate::production::frontend_fixture::parse(syntax, id, &tokens).unwrap();
+                    crate::frontend_fixture::parse(syntax, id, &tokens).unwrap();
                 }
             }
         }
@@ -3102,7 +3115,7 @@ machine entry() reaches Input {}
         let source = named_calls();
         let published = source
             .produce(
-                crate::production::TerminalProductionCustody::default(),
+                crate::TerminalProductionCustody::default(),
                 &mut artifacts::compile_timings::CompileTimings::default(),
             )
             .unwrap();

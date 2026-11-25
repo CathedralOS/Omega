@@ -22,7 +22,7 @@ use semantic_vocabulary::{
 use terminal_check_tables::values::RigidType;
 use terminal_psi::CrashRouteBucket;
 
-use crate::lowering::SourceOrigin;
+use crate::SourceOrigin;
 pub use terminal_check_tables::contracts::{Ceiling, CrashCeiling};
 
 /// The type of a formal, local, result or expression: a carrier (a builtin
@@ -618,7 +618,7 @@ pub(crate) struct Signatures<'a> {
     pub declarations: &'a IdTable<semantic_vocabulary::ContractId, Signature>,
     pub declaration_aliases:
         Option<&'a IdTable<semantic_vocabulary::ContractId, semantic_vocabulary::ContractId>>,
-    pub boundaries: &'a crate::lowering::boundaries::BoundaryNamespace,
+    pub boundaries: &'a crate::boundaries::BoundaryNamespace,
 }
 
 impl<'a> Signatures<'a> {
@@ -665,10 +665,10 @@ impl<'a> Signatures<'a> {
         caller: MachineId,
     ) -> terminal_check_tables::Checked<semantic_vocabulary::BoundaryCompletion> {
         self.boundaries.completion(boundary).ok_or_else(|| {
-            crate::lowering::refuse(
+            crate::refuse(
                 caller,
                 terminal_check_tables::Construct::Machine,
-                crate::lowering::Unserved::Call("boundary has no retained completion contract"),
+                crate::Unserved::Call("boundary has no retained completion contract"),
             )
         })
     }
@@ -687,10 +687,10 @@ impl<'a> Signatures<'a> {
             ),
             TargetMachineCallable::Boundary(boundary) => {
                 self.boundaries.signature(boundary).ok_or_else(|| {
-                    crate::lowering::refuse(
+                    crate::refuse(
                         caller,
                         terminal_check_tables::Construct::Machine,
-                        crate::lowering::Unserved::Call("boundary has no exact retained signature"),
+                        crate::Unserved::Call("boundary has no exact retained signature"),
                     )
                 })
             }
@@ -1144,8 +1144,12 @@ pub enum ExpressionKind {
     /// Operand indices refer to the event's source evaluation order.
     Atomic(AtomicOperation),
     /// Apply the supplied implication to fixed subjects without executing a call.
+    /// `source` is one of the machine's proof formals, or a named machine
+    /// that does no work, a theorem over indexed data, whose citation is a
+    /// fact-only invocation. For a named machine `arguments` are the call's
+    /// own, one per formal of the machine.
     TheoremApplication {
-        proof_position: u32,
+        source: terminal_psi::TheoremSource,
         arguments: Vec<Expression>,
     },
     /// The enclosing match's already captured place, never its selector again.
@@ -1412,7 +1416,7 @@ impl From<MachineId> for CallTarget {
     }
 }
 
-pub use crate::lowering::publication::DesignatedOperands;
+pub use crate::publication::DesignatedOperands;
 
 /// What one arm of a value-position `match` selects.
 #[derive(Debug, Clone, PartialEq)]

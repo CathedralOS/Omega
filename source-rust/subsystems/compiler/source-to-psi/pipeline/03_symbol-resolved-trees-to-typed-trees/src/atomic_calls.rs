@@ -7,11 +7,11 @@ use crate::source_state::expression::{
     TableNamePath,
 };
 use crate::source_state::statement::{StatementNode, TableAssignment, TableLocalData};
-use crate::typing::expressions::call_results::peel;
-use crate::typing::expressions::expression::table::member_binding::declared_type;
-use crate::typing::expressions::statement::arguments::lower_statement_expression;
-use crate::typing::lowerer::Lowerer;
-use crate::typing::tables::{resolved_expressions, resolved_statements};
+use crate::expressions::call_results::peel;
+use crate::expressions::expression::table::member_binding::declared_type;
+use crate::expressions::statement::arguments::lower_statement_expression;
+use crate::lowerer::Lowerer;
+use crate::tables::{resolved_expressions, resolved_statements};
 use diagnostics::Diagnostic;
 use language_core::atomic::{
     AtomicCompareExchangeOnceResultCustody, AtomicExpressionResultCustody, AtomicOrderingPlan,

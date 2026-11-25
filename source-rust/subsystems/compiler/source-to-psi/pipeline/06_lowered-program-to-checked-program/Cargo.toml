@@ -7,9 +7,6 @@ autotests = false
 autoexamples = false
 autobenches = false
 
-[lib]
-path = "lib.rs"
-
 [features]
 test-support = []
 

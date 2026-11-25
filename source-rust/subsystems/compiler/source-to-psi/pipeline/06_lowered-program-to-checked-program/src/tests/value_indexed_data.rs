@@ -41,7 +41,7 @@ fn verdict(source: &str) -> String {
         {
             "data domain unproved".to_owned()
         }
-        Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+        Err(crate::CompilationRefusal::Elaboration(refusal))
         | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
         other => panic!("{other:?}"),
     }

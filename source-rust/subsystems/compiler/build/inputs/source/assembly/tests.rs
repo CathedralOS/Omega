@@ -195,41 +195,99 @@ fn original_build_bindings_retain_their_real_toolchain_requirement_calls() {
 }
 
 #[test]
-fn checked_build_receives_the_import_which_waits_for_its_registration() {
-    let root = fixture_repository::root()
-        .join(
-            "source-rust/application/tests/fixtures/build/run/borrowed_field_after_mount/build.omg",
-        )
-        .canonicalize()
-        .unwrap();
-    let mut catalogue = source_compiler::representations::source_inputs::SourceCatalogue::default();
-    let mut timings = CompileTimings::default();
-    let capture = crate::capture_anonymous_compilation_source(&root).unwrap();
-    let checkpoint = ImmutableSourceParseCheckpoint::prepare_from_sources(
-        &root,
-        None,
-        Some(&capture),
-        &mut timings,
-        &mut catalogue,
+fn build_imports_are_fixed_before_a_conditional_dependency_wait() {
+    let conditional = r#"use {scores}/value.omg as scores;
+machine build(builder: @mutable Build) suspends {
+    Build::application(builder, "fixed_wait");
+    let path: BuildPath = BuildOutput::resolve(@builder.output, "ran.txt");
+    let writer: i32 = BuildOutput::create(@mutable builder.output, path, 0);
+    _ = BuildOutput::write(@mutable builder.output, writer, "ran");
+    _ = BuildOutput::close(@mutable builder.output, writer);
+    builder.tests.disabled = false;
+    transition builder.tests.disabled {
+        true -> suspend later(builder),
+        _ -> done(builder)
+    }
+    machine later(builder: @mutable Build) suspends {
+        let request: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "lib" }));
+        suspend Build::prepare_dependency(builder, request);
+        let value: i32 = |scores|::value();
+    }
+    machine done(builder: @mutable Build) {
+        Build::bind(builder, linux_x86_64\ProgramEntry, main);
+    }
+}
+"#;
+    let product_only = r#"use {scores}/value.omg as scores;
+machine build(builder: @mutable Build) {
+    Build::bind(builder, linux_x86_64\ProgramEntry, |scores|::main);
+}
+"#;
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "conditional-build-imports",
+        false,
     )
     .unwrap();
-    let (_, assembled) = checkpoint
-        .assemble(None, &mut timings, &mut catalogue)
+    let root = temporary.path().join("build.omg");
+    std::fs::write(temporary.path().join("main.omg"), "machine main() {}\n").unwrap();
+    std::fs::write(
+        temporary.path().join("value.omg"),
+        "public machine value() -> i32 { 7 }\n",
+    )
+    .unwrap();
+    let local = conditional.replace("{scores}/value.omg", "value.omg");
+    for (build, required) in [
+        (conditional, true),
+        (local.as_str(), false),
+        (product_only, false),
+    ] {
+        std::fs::write(&root, build).unwrap();
+        let mut catalogue =
+            source_compiler::representations::source_inputs::SourceCatalogue::default();
+        let mut timings = CompileTimings::default();
+        let capture = crate::capture_anonymous_compilation_source(&root).unwrap();
+        let checkpoint = ImmutableSourceParseCheckpoint::prepare_from_sources(
+            &root,
+            None,
+            Some(&capture),
+            &mut timings,
+            &mut catalogue,
+        )
         .unwrap();
-    let source = assembled.build_stage_source().unwrap();
-    assert!(
-        source
-            .pending_imports
-            .iter()
-            .any(|item| matches!(&item.target, source_compiler::SourceImportTarget::Namespace(path) if path == &["kit"]) && item.source == source.entry.source_id),
-        "expected the selected Build's kit import among {:?}",
-        source.pending_imports
-    );
-    let interval = source
-        .prepare(None, &Default::default(), "linux_x86_64", None)
-        .unwrap();
-    assert_eq!(
-        interval.plan.outgoing_preparation_path().map(<[_]>::len),
-        Some(1)
-    );
+        let (_, assembled) = checkpoint
+            .assemble(None, &mut timings, &mut catalogue)
+            .unwrap();
+        let source = assembled.build_stage_source().unwrap();
+        if required {
+            let [import] = source.pending_imports.as_slice() else {
+                panic!(
+                    "expected exactly one unbound Build import: {:?}",
+                    source.pending_imports
+                );
+            };
+            assert_eq!(import.source, source.entry.source_id);
+            assert_eq!(import.target.to_string(), "{scores}/value.omg as scores");
+            assert_eq!(import.span.start, 4);
+            let authored = source_text::SourceSpan::new(import.source, import.span);
+            let Err(errors) = source.prepare(None, &Default::default(), "linux_x86_64", None)
+            else {
+                panic!("a conditional wait admitted an unbound Build import");
+            };
+            assert_eq!(errors.len(), 1);
+            assert_eq!(errors[0].source_span, Some(authored));
+            assert_eq!(
+                errors[0].message,
+                "Build import `{scores}/value.omg as scores` has no supplied source"
+            );
+        } else {
+            assert!(
+                source.pending_imports.is_empty(),
+                "{:?}",
+                source.pending_imports
+            );
+            source
+                .prepare(None, &Default::default(), "linux_x86_64", None)
+                .expect("local Build code and deferred Product operands both prepare");
+        }
+    }
 }

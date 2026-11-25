@@ -7,7 +7,7 @@ use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
 
 use super::{Program, services};
-use crate::lowering::{Signature, boundaries::BoundarySource};
+use crate::{Signature, boundaries::BoundarySource};
 
 impl Program<'_> {
     pub(super) fn names_boundary_carrier(
@@ -166,7 +166,7 @@ impl Program<'_> {
                 })?;
             let (signature, _) = self.boundary_signature(context, &declared)?;
             let envelope = self.signature_envelope(context, &declared)?;
-            let declaration = crate::lowering::declare::intrinsic_boundary_source(typed, target)
+            let declaration = crate::declare::intrinsic_boundary_source(typed, target)
                 .map_err(|reason| services::unavailable(context, reason))?;
             let id = self.boundaries.rows.push(BoundarySource {
                 source: target,
@@ -185,7 +185,7 @@ impl Program<'_> {
             == Some(language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement)
         {
             let signature = self.numeric_primitive_signature(context, target)?;
-            let declaration = crate::lowering::declare::intrinsic_boundary_source(typed, target)
+            let declaration = crate::declare::intrinsic_boundary_source(typed, target)
                 .map_err(|reason| services::unavailable(context, reason))?;
             let intrinsic =
                 crate::source_state::declarations::intrinsic_requirements::IntrinsicRequirement::by_symbol(
@@ -203,7 +203,7 @@ impl Program<'_> {
                 kind,
                 owner: target,
                 signature: signature.clone(),
-                envelope: crate::lowering::reach::SourceEnvelope {
+                envelope: crate::reach::SourceEnvelope {
                     service_reach: Vec::new(),
                     invocations: Vec::new(),
                     suspends: false,
@@ -275,7 +275,7 @@ impl Program<'_> {
             source.owner = target;
             source.kind = semantic_vocabulary::BoundaryRequirementKind::Machine;
             source.owning_service = None;
-            source.declaration = crate::lowering::declare::intrinsic_boundary_source(typed, target)
+            source.declaration = crate::declare::intrinsic_boundary_source(typed, target)
                 .map_err(|reason| services::unavailable(context, reason))?;
             self.admitted_declarations.include(target);
             let id = self.boundaries.rows.push(source);
@@ -305,7 +305,7 @@ impl Program<'_> {
         };
         self.require_closed_callable(context, declared, "boundary requirement")?;
         let envelope = self.signature_envelope(context, declared)?;
-        let declaration = crate::lowering::declare::boundary_source(
+        let declaration = crate::declare::boundary_source(
             self.typed,
             target,
             owner.symbol,

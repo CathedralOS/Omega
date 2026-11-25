@@ -2,31 +2,30 @@
 #[path = "support/program.rs"]
 mod program;
 
-const FORWARD: &str = r#"use {omega}/language/core/extent.omg as extent;
+const DOMAINS: &str = r#"use {omega}/language/core/extent.omg as extent;
 use {omega}/language/core/layout.omg as layout;
 use {omega}/language/core/access/access.omg as access;
 use {omega}/language/core/reflect/reflect.omg as reflect;
+use {omega}/language/core/run.omg as run;
 
 data Word { value: u64; }
-domain Word::Placed access Allow;
-domain Word::Other access Deny;
+domain Word::Placed access WordAccess;
+domain Word::Other access WordAccess;
 data WordPlacement = Word in Word::Placed;
-Allow satisfies |layout|::AccessPolicy {
+WordAccess satisfies |layout|::AccessPolicy {
     machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan reaches none crashes none terminates {
         |access|::new_plan(@schema, |layout|::Issuance::Unrestricted)
     }
 }
-Deny satisfies |layout|::AccessPolicy {
-    machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan reaches none crashes none terminates {
-        let mutable policy = |access|::new_plan(@schema, |layout|::Issuance::Unrestricted);
-        |access|::observe(@mutable policy, |reflect|::field(Word::value), |layout|::FieldAccess::Inaccessible);
-        policy
-    }
-}
-machine carry(input: @|extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Resident<WordPlacement, Word>)
-    -> @|extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Resident<Word in Word::Placed, Word> { input }
-machine main() {}
 "#;
+
+const RESIDENT_RETURN: &str = r#"machine carry(input: @|extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Resident<WordPlacement, Word>)
+    -> @|extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Resident<Word in Word::Placed, Word> { input }"#;
+
+fn inspect(declaration: &str) -> (std::process::Output, String) {
+    let source = format!("{DOMAINS}\n{declaration}\nmachine main() {{}}");
+    program::invoke(&source, &["psi", "inspect", "--machine", "carry"])
+}
 
 fn change_result(source: &str) -> String {
     source.replace(
@@ -37,24 +36,22 @@ fn change_result(source: &str) -> String {
 
 #[test]
 fn a_resident_forward_preserves_its_exact_domain_argument() {
-    let inspect = &["psi", "inspect", "--machine", "carry"];
-    let (output, report) = program::invoke(FORWARD, inspect);
+    let (output, report) = inspect(RESIDENT_RETURN);
     assert!(output.status.success(), "{report}");
     assert!(report.contains("psi selected_machine=carry"), "{report}");
 
-    let (output, report) = program::invoke(&change_result(FORWARD), inspect);
+    let (output, report) = inspect(&change_result(RESIDENT_RETURN));
     assert!(!output.status.success(), "{report}");
     assert!(report.contains("changes its referent type"), "{report}");
 }
 
 #[test]
 fn an_owned_resident_return_names_both_mismatched_domain_arguments() {
-    let owned = FORWARD.replace("@|extent|::Extent", "|extent|::Extent");
-    let inspect = &["psi", "inspect", "--machine", "carry"];
-    let (output, report) = program::invoke(&owned, inspect);
+    let owned = RESIDENT_RETURN.replace("@|extent|::Extent", "|extent|::Extent");
+    let (output, report) = inspect(&owned);
     assert!(output.status.success(), "{report}");
 
-    let (output, report) = program::invoke(&change_result(&owned), inspect);
+    let (output, report) = inspect(&change_result(&owned));
     assert!(!output.status.success(), "{report}");
     let (carried, expected) = report
         .lines()
@@ -62,4 +59,28 @@ fn an_owned_resident_return_names_both_mismatched_domain_arguments() {
         .expect(&report);
     assert!(carried.contains("Word::Placed"), "{report}");
     assert!(expected.contains("Word::Other"), "{report}");
+}
+
+#[test]
+fn an_owned_run_keeps_its_domain_index_when_transferred() {
+    let carry = |index| {
+        format!(
+            "machine carry(input: |run|::Run<WordPlacement, Word>) -> |run|::Run<{index}, Word> {{ input }}"
+        )
+    };
+    let (output, report) = inspect(&carry("Word in Word::Placed"));
+    assert!(output.status.success(), "{report}");
+    assert!(report.contains("psi selected_machine=carry"), "{report}");
+
+    let (output, report) = inspect(&carry("Word in Word::Other"));
+    assert!(!output.status.success(), "{report}");
+    let (expected, carried) = report
+        .lines()
+        .find_map(|line| line.split_once("but this value carries"))
+        .expect(&report);
+    assert!(
+        expected.contains("Run") && expected.contains("Word::Other"),
+        "{report}"
+    );
+    assert!(carried.contains("Word::Placed"), "{report}");
 }

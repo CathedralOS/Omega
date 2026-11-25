@@ -4,7 +4,7 @@ These are proof-only denotations, not runtime values or source declaration
 syntax. They support the [fact-validity rules](fact_validity.md).
 
 The bounded vocabularies below are interpreted into the common
-[foundation](../proofs/foundation.md) and [W-based profile](../proofs/inductive_profile.md)
+[foundation](../proofs/foundation.md) and [native inductive profile](../proofs/inductive_profile.md)
 for general evidence; they are not an independent general calculus. Retain exact
 declaration/encoding correspondence and assumed-law dependencies. A valid encoded
 term alone does not establish that it represents the artifact's required question.

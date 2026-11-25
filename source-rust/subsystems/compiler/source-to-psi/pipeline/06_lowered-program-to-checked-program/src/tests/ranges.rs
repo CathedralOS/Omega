@@ -73,13 +73,13 @@ fn an_exact_cast_transports_the_guard_for_the_same_byte_slice() {
         refused => panic!("a value-preserving cast keeps the guarded order: {refused:?}"),
     };
     let mut source = checked.elaboration.clone();
-    let mut activity = crate::checking::ProofSearchActivity::default();
-    let mut replay = crate::checking::prepare_replay(&mut source, &mut activity).unwrap();
+    let mut activity = crate::ProofSearchActivity::default();
+    let mut replay = crate::prepare_replay(&mut source, &mut activity).unwrap();
     let mut proofs = 0;
     for (machine, discharge) in checked.discharge.machines.iter() {
         for (obligation, result) in discharge.verdicts.iter() {
             if let Ok(Discharged::Certificate(evidence)) = result {
-                crate::checking::reverify(
+                crate::reverify(
                     &mut replay,
                     machine,
                     obligation,
@@ -770,13 +770,13 @@ fn a_positive_gap_and_quotient_certify_an_interior_probe() {
         verdict => panic!("the probe must stay inside the open upper bound: {verdict:?}"),
     };
     let mut source = checked.elaboration.clone();
-    let mut activity = crate::checking::ProofSearchActivity::default();
-    let mut replay = crate::checking::prepare_replay(&mut source, &mut activity).unwrap();
+    let mut activity = crate::ProofSearchActivity::default();
+    let mut replay = crate::prepare_replay(&mut source, &mut activity).unwrap();
     let mut proofs = 0;
     for (machine, discharge) in checked.discharge.machines.iter() {
         for (id, verdict) in discharge.verdicts.iter() {
             if let Ok(Discharged::Certificate(evidence)) = verdict {
-                crate::checking::reverify(
+                crate::reverify(
                     &mut replay,
                     machine,
                     id,

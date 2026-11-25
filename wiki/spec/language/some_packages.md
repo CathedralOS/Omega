@@ -7,7 +7,7 @@ choices can therefore inhabit one array or growable container.
 
 Ratified 2026-11-06 with [runtime machine values](machine_values.md). This replaces
 captured `dyn` and its compiler-derived global roster. The spelling `some` is a
-data binder, not visibility, an inference hole, a universal type, or a runtime
+package witness binder, not visibility, an inference hole, a universal type, or a runtime
 type object.
 
 ## Declaration and construction
@@ -105,6 +105,36 @@ explicit checked type equality may justify transport; equal sizes, erased
 addresses or equal runtime tags cannot manufacture that evidence.
 No executable cross-package type comparison or synthesized structural comparison
 is introduced merely by having a `some` binder.
+
+### Naming an opened witness
+
+A parameter or local annotation may name the witness at the corresponding
+`some` position of the package declaration. In `reader: @mutable Reader<some S>`,
+`S` names the abstract type of this reader's state within the machine. A caller
+passes the same `Reader` as in `read_one` above. A local opening makes the
+same relationship explicit for one element of a heterogeneous array:
+
+```omega
+machine read_at(readers: @mutable [Reader], i: u64, output: @mutable [u8]) -> u64
+requires i < readers.length
+ensures result <= output.length
+{
+    let reader: @mutable Reader<some S> = @mutable readers[i];
+    let read: ReadInto<S> = reader.read;
+    (read)(reader.state, output)
+}
+```
+
+The local introduces `S` for subsequent declarations in its lexical scope while
+that opening remains valid. In both forms the name denotes the existing witness
+of the bound subject. The callable and state agree because they came from the
+same reader. Another element may carry a different witness. The ordinary generic
+alias `ReadInto<S>` uses the name already in scope. Writing `ReadInto<some S>`
+there rejects because its declaration has no packaged parameter to open.
+
+Naming a witness changes neither the external type nor its representation.
+The stable-subject, replacement, uniformity and escape rules apply equally to
+named and unnamed openings.
 
 ## Scope, escape and borrowing
 

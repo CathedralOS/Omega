@@ -49,7 +49,7 @@ fn sequence_calls_keep_outer_and_element_regions_on_one_erased_row() {
         "right: @'left [Cell<'right>]",
     );
     let refusal = match judge_build(&changed) {
-        Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+        Err(crate::CompilationRefusal::Elaboration(refusal))
         | Ok(RouteVerdict::FallBack(refusal)) => refusal,
         other => panic!("{other:?}"),
     };
@@ -345,7 +345,7 @@ fn a_returned_slice_element_keeps_the_region_of_its_backing_array() {
 
     let out_of_range = source.replace("@mutable cells[0]", "@mutable cells[1]");
     let refusal = match judge_build(&out_of_range) {
-        Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+        Err(crate::CompilationRefusal::Elaboration(refusal))
         | Ok(RouteVerdict::FallBack(refusal)) => refusal,
         other => panic!("{other:?}"),
     };
@@ -480,7 +480,7 @@ fn inferred_array_extent_is_retained_in_a_lexical_child() {
     let typed = super::build_purpose::frontier_of("machine product_entry() {}", source);
     let typed = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
     let entry = super::build_purpose::symbol(typed.trees(), "build_entry");
-    let mut verdicts = crate::checking::judge_compilation(
+    let mut verdicts = crate::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
             super::build_purpose::roster(
@@ -501,7 +501,7 @@ fn inferred_array_extent_is_retained_in_a_lexical_child() {
 }
 
 fn execute(
-    accepted: crate::checking::AcceptedClosure,
+    accepted: crate::AcceptedClosure,
     budget: u64,
 ) -> terminal_interpreter::TerminalExecutionStatus {
     let publication = accepted.publish_invocation().unwrap();
@@ -512,7 +512,7 @@ fn execute(
         .unwrap()
 }
 
-fn assert_integer_result(accepted: crate::checking::AcceptedClosure, expected: u128) {
+fn assert_integer_result(accepted: crate::AcceptedClosure, expected: u128) {
     let status = execute(accepted, 1_000);
     assert!(
         matches!(status,

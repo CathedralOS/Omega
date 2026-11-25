@@ -3,10 +3,10 @@
 //! compiler ranking theory.
 
 use super::{Program, Slot};
-use crate::lowering::body::{
+use crate::body::{
     Expression, ExpressionKind, Policy, RankRange, Ranking, Strict, ValueType,
 };
-use crate::lowering::{Unserved, refuse};
+use crate::{Unserved, refuse};
 use crate::source_state::machine::Machine;
 use semantic_vocabulary::RankingViewId;
 use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType};

@@ -15,8 +15,8 @@ use terminal_psi::{
     TerminalIdentityTable, TerminalIdentityTableBuilder,
 };
 
-use crate::lowering::body::{DomainInstance, DomainSet, Policy, Qualification, ValueType};
-use crate::lowering::{Unserved, refuse};
+use crate::body::{DomainInstance, DomainSet, Policy, Qualification, ValueType};
+use crate::{Unserved, refuse};
 
 /// Structural declarations retain the exact source and carrier that produced
 /// each row. The qualification owner extends this catalog during lowering.
@@ -33,7 +33,7 @@ pub(crate) fn domain_identity(
     identities: &mut TerminalIdentityTableBuilder,
 ) -> Result<terminal_psi::TerminalIdentityIndex, &'static str> {
     let declaration =
-        crate::lowering::declare::nominal(typed, sources, instance.declaration, identities)?;
+        crate::declare::nominal(typed, sources, instance.declaration, identities)?;
     let exact = identities
         .text(declaration)
         .ok_or("domain application lost its retained declaration identity")?;
@@ -64,7 +64,7 @@ pub(crate) fn explain_policy_refusal(
 /// normal lowering; the snapshot's descriptive bytes alone grant nothing.
 pub(crate) fn publish_access_plans(
     diagnostic: MachineId,
-    source: &crate::lowering::read::Program<'_>,
+    source: &crate::read::Program<'_>,
     module: &mut terminal_psi::TerminalModule,
 ) -> Checked<()> {
     let unavailable = |detail| {
@@ -116,7 +116,7 @@ pub(crate) fn publish_access_plans(
                     .structural_type(carrier)
                     .ok_or_else(|| unavailable("byte access rules lost their exact carrier"))?
                     .identity;
-                crate::lowering::lower::places::byte_domain_identity(
+                crate::lower::places::byte_domain_identity(
                     &mut identities,
                     identity,
                     carrier_identity,
@@ -179,7 +179,7 @@ pub(crate) fn publish_access_plans(
                 })?;
             let mut callers = Vec::with_capacity(bindings.len());
             for (description, selected, _) in bindings {
-                let route = crate::lowering::declare::access_caller_route(
+                let route = crate::declare::access_caller_route(
                     typed,
                     &sources,
                     &selected,
@@ -241,7 +241,7 @@ struct EstablishmentRoutes {
 /// have the same routes.
 fn establishment_routes(
     typed: &crate::source_state::TypedTrees,
-    source: &crate::lowering::read::Program<'_>,
+    source: &crate::read::Program<'_>,
     sources: &[(source_text::SourceId, [u8; 32])],
     builder: &mut TerminalIdentityTableBuilder,
     definition: &crate::source_state::domain::DomainDefinition,
@@ -270,7 +270,7 @@ fn establishment_routes(
                     }),
                 );
                 let declaration =
-                    crate::lowering::declare::semantic_identity(typed, *machine, builder)
+                    crate::declare::semantic_identity(typed, *machine, builder)
                         .map_err(unavailable)?;
                 let machine = typed
                     .machine_by_symbol(*machine)
@@ -309,7 +309,7 @@ fn establishment_routes(
                     return Err(unavailable("domain requirement has no callable identity"));
                 }
                 let declaration = NominalDeclarationIdentity::new(
-                    crate::lowering::declare::nominal(typed, sources, *requirement, builder)
+                    crate::declare::nominal(typed, sources, *requirement, builder)
                         .map_err(unavailable)?,
                 );
                 let requirement_identity = builder.intern(&callable);
@@ -364,9 +364,9 @@ impl Qualifications {
     pub fn runtime_membership(
         &self,
         machine: MachineId,
-        membership: &crate::lowering::body::RuntimeMembership,
+        membership: &crate::body::RuntimeMembership,
     ) -> Checked<terminal_psi::RuntimeDomainMembership> {
-        use crate::lowering::body::RuntimeMembershipSubject;
+        use crate::body::RuntimeMembershipSubject;
         let unavailable = |what| refuse(machine, Construct::Machine, Unserved::Contract(what));
         Ok(match &membership.subject {
             RuntimeMembershipSubject::Scalar(subject) => {
@@ -413,7 +413,7 @@ impl Qualifications {
 
     pub fn declare(
         diagnostic: MachineId,
-        source: Option<&crate::lowering::read::Program<'_>>,
+        source: Option<&crate::read::Program<'_>>,
         identities: TerminalIdentityTable,
         structural: StructuralDomains,
     ) -> Checked<Self> {
@@ -751,9 +751,9 @@ impl Qualifications {
     fn declare_structural(
         &mut self,
         diagnostic: MachineId,
-        source: &crate::lowering::read::Program<'_>,
+        source: &crate::read::Program<'_>,
         sources: &[(source_text::SourceId, [u8; 32])],
-        declared: &crate::lowering::read::DeclaredDomain,
+        declared: &crate::read::DeclaredDomain,
         semantic_domain: DomainSemanticId,
     ) -> Checked<()> {
         let typed = source.typed;
@@ -781,7 +781,7 @@ impl Qualifications {
             })
             .map(|proposition| {
                 Ok::<_, terminal_check_tables::Refusal>(StructuralDomainPredicate {
-                    subject: crate::lowering::body::self_place()
+                    subject: crate::body::self_place()
                         .ok_or_else(|| unavailable("record domain subject identity"))?,
                     proposition,
                 })
@@ -793,7 +793,7 @@ impl Qualifications {
             domain_identity(typed, sources, symbol, &mut self.identities).map_err(unavailable)?;
         let identity = if source.records.get(carrier).is_some_and(|record| {
             matches!(record.shape,
-            crate::lowering::StorageShape::ByteSequence(bytes) if bytes.is_shared_readable_view())
+            crate::StorageShape::ByteSequence(bytes) if bytes.is_shared_readable_view())
         }) {
             let carrier_identity = self.identities.intern(
                 &source
@@ -802,7 +802,7 @@ impl Qualifications {
                     .ok_or_else(|| unavailable("byte domain lost its descriptor carrier"))?
                     .identity,
             );
-            crate::lowering::lower::places::byte_domain_identity(
+            crate::lower::places::byte_domain_identity(
                 &mut self.identities,
                 identity,
                 carrier_identity,
@@ -861,7 +861,26 @@ impl Qualifications {
             semantic_domain,
             identity,
             carrier,
-            content_projection: None,
+            content_projection: declared
+                .content_projection
+                .as_ref()
+                .map(|projection| {
+                    let domain = semantic_vocabulary::ContentDomainId::new(semantic_domain.get())
+                        .ok_or_else(|| {
+                        unavailable("content projection lost its semantic domain")
+                    })?;
+                    Ok(terminal_psi::StructuralContentProjection {
+                        identity: semantic_vocabulary::ContentProjectionIdentity {
+                            domain,
+                            projection_report_fingerprint: projection
+                                .expression
+                                .report_fingerprint(&projection.algebra),
+                        },
+                        algebra: projection.algebra.clone(),
+                        expression: projection.expression.clone(),
+                    })
+                })
+                .transpose()?,
             byte_predicate: None,
             establishment_routes,
         });

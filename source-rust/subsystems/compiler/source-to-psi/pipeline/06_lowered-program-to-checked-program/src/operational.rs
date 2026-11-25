@@ -13,7 +13,7 @@ use terminal_check_tables::edges::Callee;
 use terminal_check_tables::{Checked, Construct, RefusalReason};
 use terminal_psi::{CallAcknowledgement, CallOrigin, CallSite, TerminalMachine, Terminator};
 
-use crate::checking::{Elaboration, refusal};
+use crate::{Elaboration, refusal};
 
 #[derive(Clone, Copy)]
 struct Call {
@@ -77,14 +77,14 @@ fn calls(elaboration: &Elaboration, machine: &TerminalMachine) -> Checked<Vec<Ca
                 "operational call has no unique exact invocation row",
             ));
         };
-        crate::checking::call_contracts::invocation(&elaboration.module, machine, tables, id, row)
+        crate::call_contracts::invocation(&elaboration.module, machine, tables, id, row)
     };
-    let tails = crate::checking::call_contracts::TailCallSites::new(machine);
+    let tails = crate::call_contracts::TailCallSites::new(machine);
     let mut calls = Vec::new();
     for block in &machine.blocks {
         for operation in &block.operations {
             let site = InvocationSite::Operation(operation.id);
-            if crate::checking::call_contracts::inputs_at(machine, site)?.is_some() {
+            if crate::call_contracts::inputs_at(machine, site)?.is_some() {
                 let actual = invocation(site)?;
                 calls.push(Call {
                     site: CallSite::Operation(operation.id),
@@ -96,7 +96,7 @@ fn calls(elaboration: &Elaboration, machine: &TerminalMachine) -> Checked<Vec<Ca
                 });
             }
         }
-        if let Some(site) = crate::checking::call_contracts::terminator_site(&block.terminator) {
+        if let Some(site) = crate::call_contracts::terminator_site(&block.terminator) {
             let actual = invocation(site)?;
             calls.push(Call {
                 site: CallSite::Edge(block.terminator.edge()),
@@ -110,7 +110,7 @@ fn calls(elaboration: &Elaboration, machine: &TerminalMachine) -> Checked<Vec<Ca
             && let Some(row) = formation(CallSite::Edge(*edge))
             && let Some(callee) = row.tail_callee
         {
-            let tail = crate::checking::call_contracts::tail_call(
+            let tail = crate::call_contracts::tail_call(
                 &elaboration.module,
                 &tails,
                 callee,

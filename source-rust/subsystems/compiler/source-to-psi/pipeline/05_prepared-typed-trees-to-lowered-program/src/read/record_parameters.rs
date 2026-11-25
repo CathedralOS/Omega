@@ -2,7 +2,7 @@
 //! keep the public requirement separate from the selected implementation.
 
 use super::Program;
-use crate::lowering::static_contracts::SourceRecordBinding;
+use crate::static_contracts::SourceRecordBinding;
 use crate::source_state::data::TypeParameter;
 use crate::source_state::signature::StateSignature;
 use crate::source_state::trait_definition::AppliedTraitScope;
@@ -897,7 +897,7 @@ mod tests {
             .trait_machine_signature(fixture.requirement)
             .unwrap();
         let callable = program
-            .callable_contract(crate::lowering::CallableDeclaration::Signature(declared))
+            .callable_contract(crate::CallableDeclaration::Signature(declared))
             .unwrap();
         let record = program
             .record_requirement(fixture.parameters[0], position, &signature, &[])
@@ -927,7 +927,7 @@ mod tests {
 
     #[test]
     fn finite_requirement_policies_complete_generic_helpers_without_closing_omitted_reach() {
-        use crate::lowering::body::{Body, Expression, ExpressionKind, Statement};
+        use crate::body::{Body, Expression, ExpressionKind, Statement};
         use arena::IdTable;
 
         for authored_reach in [true, false] {
@@ -952,8 +952,8 @@ mod tests {
                 .record_requirement(fixture.parameters[0], position, &signature, &[])
                 .unwrap();
             assert_ne!(ordinary, record);
-            let source = crate::lowering::SourceOrigin::Unpositioned(
-                crate::lowering::Unpositioned::SpanAbsent,
+            let source = crate::SourceOrigin::Unpositioned(
+                crate::Unpositioned::SpanAbsent,
             );
             let call = |callee: MachineId| {
                 Statement::discard(Expression {
@@ -977,14 +977,14 @@ mod tests {
             });
             bodies.get_mut(caller).unwrap().statements = vec![call(helper)];
             bodies.get_mut(helper).unwrap().statements = vec![call(ordinary), call(record)];
-            let components = crate::lowering::components::discover(&bodies).unwrap();
+            let components = crate::components::discover(&bodies).unwrap();
             program
                 .finish_operational_envelopes(&bodies, &components)
                 .unwrap();
             if !authored_reach {
                 assert!(matches!(
                     program.signatures.get(record).unwrap().reaches,
-                    crate::lowering::Ceiling::Inferred
+                    crate::Ceiling::Inferred
                 ));
                 assert!(!matches!(
                     program.callables.envelopes.get(record),
@@ -1020,7 +1020,7 @@ mod tests {
                 );
             }
             let prepared =
-                crate::lowering::finish_reading(program, Some(caller), bodies, None, None, None)
+                crate::finish_reading(program, Some(caller), bodies, None, None, None)
                     .unwrap();
             let entry = prepared
                 .program
@@ -1080,7 +1080,7 @@ mod tests {
                         .get(requirement)
                         .unwrap()
                         .reaches,
-                    crate::lowering::Ceiling::Authored(entry.published_service_ceiling.clone())
+                    crate::Ceiling::Authored(entry.published_service_ceiling.clone())
                 );
             }
         }

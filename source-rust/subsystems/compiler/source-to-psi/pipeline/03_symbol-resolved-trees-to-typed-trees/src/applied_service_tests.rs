@@ -16,7 +16,7 @@ fn applied_service_reach_uses_the_declared_parent_argument_and_invokes_only_its_
         machine symbolic<const K: u64>() reaches Forward<K> {}
     "#,
     );
-    let typed = crate::typing::lower_symbol_resolved_trees(&source).unwrap();
+    let typed = crate::lower_symbol_resolved_trees(&source).unwrap();
     let machine = |name: &str| {
         typed
             .machines()
@@ -74,7 +74,7 @@ fn applied_service_rejects_a_const_from_the_wrong_integer_carrier() {
         "boundary trait Sensor<const Id: u64> {} machine invalid() reaches Sensor<17u32> {}",
     );
     let error =
-        crate::typing::lower_symbol_resolved_trees(&source).expect_err("wrong integer carrier");
+        crate::lower_symbol_resolved_trees(&source).expect_err("wrong integer carrier");
     assert!(
         error
             .message

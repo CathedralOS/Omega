@@ -20,7 +20,7 @@ use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::Justification;
 use terminal_check_tables::{Checked, ProgramPoint, RefusalReason};
 
-use crate::checking::{
+use crate::{
     Discharge, Discharged, Evidence, RouteVerdict, UnprovedObligation, discharge, judge,
 };
 use terminal_check_tables::{Construct, Refusal, UnprovedCause};
@@ -112,6 +112,7 @@ mod sum_hypothesis;
 mod termination;
 mod type_parameters;
 mod uninhabited_results;
+mod unjudged_certificates;
 mod value_indexed_data;
 mod value_parameters;
 mod width_parameters;
@@ -696,7 +697,7 @@ fn knowledge_after_an_arm_operation_is_not_available_after_the_guard() {
     let (elaboration, result) = run(vec![guarded]);
     let tables = elaboration.tables.machines.get(id(1)).unwrap();
     let lowered = &elaboration.module.machines[0];
-    let graph = crate::checking::graph::Graph::new(id(1), lowered, tables).unwrap();
+    let graph = crate::graph::Graph::new(id(1), lowered, tables).unwrap();
     let arm = &lowered.blocks[1];
     let rest = &lowered.blocks[2];
     let in_arm = ProgramPoint::AfterOperation(arm.operations[0].id);
@@ -1140,7 +1141,7 @@ fn a_published_clause_with_no_normal_return_holds_vacuously() {
             kind: ObligationKind::PublishedGuarantee { clause: 0 },
             created_at: ProgramPoint::BlockEntry(id(1)),
         });
-    let verdict = crate::checking::published(&tables, id(1), clause, 0, &[None]);
+    let verdict = crate::published(&tables, id(1), clause, 0, &[None]);
     assert_eq!(verdict, Ok(Discharged::EveryExit(Vec::new())));
 }
 
@@ -1314,17 +1315,17 @@ fn bool_requirement(add: bool) -> Vec<Machine> {
 fn the_prover_has_rules_for_integer_goals_and_not_for_other_forms() {
     let value = formal(1, u32_type());
     let flag = formal(1, bool_type());
-    assert!(crate::checking::has_rules_for(&at_most(1, 10)));
-    assert!(crate::checking::has_rules_for(&Proposition::Equal(
+    assert!(crate::has_rules_for(&at_most(1, 10)));
+    assert!(crate::has_rules_for(&Proposition::Equal(
         value.clone(),
         bound(u32_type(), IntegerValue::Unsigned(3)),
     )));
-    assert!(!crate::checking::has_rules_for(&Proposition::Equal(
+    assert!(!crate::has_rules_for(&Proposition::Equal(
         flag.clone(),
         ScalarTerm::boolean(false),
     )));
     // One uncovered part leaves the whole goal without a rule.
-    assert!(!crate::checking::has_rules_for(&Proposition::Conjunction(
+    assert!(!crate::has_rules_for(&Proposition::Conjunction(
         vec![
             at_most(1, 10),
             Proposition::Equal(flag, ScalarTerm::boolean(true)),
@@ -1340,11 +1341,11 @@ fn the_prover_has_rules_for_integer_goals_and_not_for_other_forms() {
     let wrapped =
         ScalarTerm::wrapping_integer_add(carrier, value.clone(), formal(2, u32_type())).unwrap();
     let three = bound(u32_type(), IntegerValue::Unsigned(3));
-    assert!(!crate::checking::has_rules_for(&Proposition::Equal(
+    assert!(!crate::has_rules_for(&Proposition::Equal(
         wrapped.clone(),
         three.clone()
     )));
-    assert!(!crate::checking::has_rules_for(&Proposition::LessOrEqual(
+    assert!(!crate::has_rules_for(&Proposition::LessOrEqual(
         three,
         ScalarTerm::saturating_integer_subtract(carrier, wrapped, value).unwrap(),
     )));
@@ -2462,9 +2463,9 @@ fn sibling_fields_are_disjoint_and_ancestors_overlap() {
     }]);
     let tables = elaboration.tables.machines.get(id(1)).unwrap();
     let overlap = |left, right| {
-        let of = |place| crate::checking::places::lineage(id(1), &tables.places, place).unwrap();
-        let forward = crate::checking::places::overlap(&of(left), &of(right));
-        let backward = crate::checking::places::overlap(&of(right), &of(left));
+        let of = |place| crate::places::lineage(id(1), &tables.places, place).unwrap();
+        let forward = crate::places::overlap(&of(left), &of(right));
+        let backward = crate::places::overlap(&of(right), &of(left));
         assert_eq!(forward, backward, "overlap is symmetric");
         forward
     };
@@ -2504,8 +2505,8 @@ fn sibling_fields_are_disjoint_and_ancestors_overlap() {
     let field = child(Segment::Field(id(1)));
     let first_index = child(Segment::FixedIndex(0));
     let second_index = child(Segment::FixedIndex(1));
-    let of = |place| crate::checking::places::lineage(id(1), &places, place).unwrap();
-    let may = |left, right| crate::checking::places::overlap(&of(left), &of(right));
+    let of = |place| crate::places::lineage(id(1), &places, place).unwrap();
+    let may = |left, right| crate::places::overlap(&of(left), &of(right));
     assert!(may(first_case, second_case));
     assert!(may(first_case, field));
     assert!(may(field, first_case));
@@ -3598,9 +3599,9 @@ fn a_bound_payload_is_what_its_leaf_was_constructed_with_and_nothing_from_a_sibl
                 .unwrap();
             place = children[found].1;
         }
-        crate::checking::places::lineage(id(1), &tables.places, place).unwrap()
+        crate::places::lineage(id(1), &tables.places, place).unwrap()
     };
-    assert!(!crate::checking::places::overlap(&leaf(2, 4), &leaf(2, 5)));
+    assert!(!crate::places::overlap(&leaf(2, 4), &leaf(2, 5)));
 }
 
 #[test]
@@ -3621,12 +3622,12 @@ fn payloads_of_two_cases_under_one_sum_overlap() {
     let at = child(dot, Segment::Field(id(3)));
     let l = child(pair, Segment::Field(id(4)));
     let r = child(pair, Segment::Field(id(5)));
-    let of = |place| crate::checking::places::lineage(id(1), &places, place).unwrap();
+    let of = |place| crate::places::lineage(id(1), &places, place).unwrap();
     let may = |left, right| {
-        let forward = crate::checking::places::overlap(&of(left), &of(right));
+        let forward = crate::places::overlap(&of(left), &of(right));
         assert_eq!(
             forward,
-            crate::checking::places::overlap(&of(right), &of(left))
+            crate::places::overlap(&of(right), &of(left))
         );
         forward
     };
@@ -5148,7 +5149,7 @@ mod table_faults;
 // the place, whose actual new contents remain available to ordinary flow
 // reasoning. The domain must be proved again at the next consumption point".
 
-use crate::checking::WindowUse;
+use crate::WindowUse;
 
 /// The route accepts the closure; otherwise the verdict is the message.
 fn assert_accepted(elaboration: crate::lowering::Elaboration) {
@@ -6084,8 +6085,8 @@ mod reuse {
     // hypotheses from its own program; the saved evidence supplies only the
     // certificate, and the kernel decides it. No search runs on reuse.
     use super::*;
-    use crate::checking::ProofSearchActivity;
-    use crate::checking::{prepare_replay, reverify, reverify_at_call};
+    use crate::ProofSearchActivity;
+    use crate::{prepare_replay, reverify, reverify_at_call};
 
     /// `add(a, b) requires a <= bound, b <= 100 { return a + b }`.
     fn add(bound: u128) -> Machine {
@@ -6374,8 +6375,8 @@ mod generic_bodies {
     //         requires start <= 10 ensures result <= 21
     //     { Selected::apply(start) + 1 }
     use super::*;
-    use crate::checking::ProofSearchActivity;
-    use crate::checking::{
+    use crate::ProofSearchActivity;
+    use crate::{
         Carried, CarriedForm, Selection, discharge_carrying, reverify_specialization,
     };
 
@@ -6557,10 +6558,10 @@ mod generic_bodies {
         let check = |selections| {
             let prepared =
                 prepared_refinement(selections, double(), lower(vec![witness(), double()]));
-            let mut activity = crate::checking::ProofSearchActivity::default();
+            let mut activity = crate::ProofSearchActivity::default();
             let before = activity.started();
             let verdicts =
-                crate::checking::verdict::judge_compilation_with_activity(prepared, &mut activity);
+                crate::verdict::judge_compilation_with_activity(prepared, &mut activity);
             assert_eq!(verdicts.len(), 3);
             assert!(
                 verdicts
@@ -6579,7 +6580,7 @@ mod generic_bodies {
     #[test]
     fn compilation_keeps_the_failed_verdict_of_a_reused_witness() {
         let prepared = prepared_refinement(2, wide(), lower(vec![witness(), wide()]));
-        let verdicts = crate::checking::judge_compilation(prepared);
+        let verdicts = crate::judge_compilation(prepared);
         assert_eq!(verdicts.len(), 3);
         assert!(matches!(verdicts[2], Ok(RouteVerdict::Rejected { .. })));
 
@@ -6590,7 +6591,7 @@ mod generic_bodies {
             detail: "refinement unavailable".to_owned(),
         };
         let verdicts =
-            crate::checking::judge_compilation(prepared_refinement(2, double(), Err(refused)));
+            crate::judge_compilation(prepared_refinement(2, double(), Err(refused)));
         assert_eq!(verdicts.len(), 3);
         assert!(matches!(
             &verdicts[2],
@@ -6613,8 +6614,8 @@ mod generic_bodies {
         let (witnessed, refinement) = run(vec![witness(), refines]);
         let mut consumer = lower(vec![advance(bound), implementation]).unwrap();
         let mut activity = ProofSearchActivity::default();
-        let generic = crate::checking::prepare_replay(&mut form, &mut activity).unwrap();
-        let mut replay = crate::checking::prepare_replay(&mut consumer, &mut activity).unwrap();
+        let generic = crate::prepare_replay(&mut form, &mut activity).unwrap();
+        let mut replay = crate::prepare_replay(&mut consumer, &mut activity).unwrap();
         let before = activity.started();
         let verdicts = reverify_specialization(
             &generic,

@@ -259,7 +259,7 @@ fn declared_refinement_module() -> TerminalModule {
             bindings: &[],
         },
     );
-    let verdict = crate::checking::judge(elaborated).unwrap();
+    let verdict = crate::judge(elaborated).unwrap();
     let RouteVerdict::Accepted(closure) = verdict else {
         panic!("the source-owned selected body must be accepted: {verdict:?}");
     };
@@ -329,7 +329,7 @@ fn derive_refinements(
     descriptor_refinement_goals(module, id(1))?
         .into_iter()
         .map(|(id, goal)| {
-            crate::checking::derive_contract_obligation(
+            crate::derive_contract_obligation(
                 terminal_check_tables::RefusalSite::Program,
                 &context,
                 id,
@@ -344,7 +344,7 @@ fn derive_refinements(
 
 #[test]
 fn a_malformed_contract_formal_is_a_checker_defect() {
-    let refusal = crate::checking::derive_contract_obligation(
+    let refusal = crate::derive_contract_obligation(
         terminal_check_tables::RefusalSite::Program,
         &semantic_vocabulary::PropositionContext::default(),
         id(1),
@@ -392,14 +392,14 @@ fn callable_refinement_proves_input_weakening_and_remaps_result_formals() {
 #[test]
 fn checker_finalizes_descriptors_and_refuses_mutated_retained_certificates() {
     let mut module = declared_refinement_module();
-    crate::checking::finalize_callable_refinements(&mut module, &mut Default::default()).unwrap();
+    crate::finalize_callable_refinements(&mut module, &mut Default::default()).unwrap();
     assert!(
         !module.execution.callables.descriptors[0]
             .refinement_evidence
             .is_empty()
     );
     let retained = module.execution.callables.descriptors[0].refinement_evidence.clone();
-    crate::checking::finalize_callable_refinements(&mut module, &mut Default::default()).unwrap();
+    crate::finalize_callable_refinements(&mut module, &mut Default::default()).unwrap();
     assert_eq!(
         module.execution.callables.descriptors[0].refinement_evidence,
         retained
@@ -408,7 +408,7 @@ fn checker_finalizes_descriptors_and_refuses_mutated_retained_certificates() {
         .proof
         .conclusion = Proposition::Falsehood;
     assert!(
-        crate::checking::finalize_callable_refinements(&mut module, &mut Default::default(),)
+        crate::finalize_callable_refinements(&mut module, &mut Default::default(),)
             .is_err()
     );
 }
@@ -416,7 +416,7 @@ fn checker_finalizes_descriptors_and_refuses_mutated_retained_certificates() {
 #[test]
 fn checker_refuses_operational_strengthening_before_publication() {
     let mut module = declared_refinement_module();
-    crate::checking::finalize_callable_refinements(&mut module, &mut Default::default()).unwrap();
+    crate::finalize_callable_refinements(&mut module, &mut Default::default()).unwrap();
     module.execution.callables.machine_envelopes[0]
         .as_mut()
         .unwrap()
@@ -428,7 +428,7 @@ fn checker_refuses_operational_strengthening_before_publication() {
         .unwrap()
         .published_may_block = true;
     let refusal =
-        crate::checking::finalize_callable_refinements(&mut module, &mut Default::default())
+        crate::finalize_callable_refinements(&mut module, &mut Default::default())
             .unwrap_err();
     assert_eq!(
         refusal.detail,
@@ -438,7 +438,7 @@ fn checker_refuses_operational_strengthening_before_publication() {
     let mut abstract_form = refinement_module();
     abstract_form.execution.callables.descriptors.clear();
     assert!(abstract_form.machines[0].declaration.is_none());
-    crate::checking::finalize_callable_refinements(&mut abstract_form, &mut Default::default())
+    crate::finalize_callable_refinements(&mut abstract_form, &mut Default::default())
         .unwrap();
 }
 
@@ -627,11 +627,11 @@ fn assert_scalar_callee_refused(negative: &str) {
             source_provenance::DependencyScope::Build,
         )
         .source_id;
-    let tokens = crate::checking::frontend_fixture::Lexer::new(negative)
+    let tokens = crate::frontend_fixture::Lexer::new(negative)
         .tokenize()
         .unwrap();
     let syntax =
-        crate::checking::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+        crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
     let mut request = crate::resolution::ResolutionRequest::new(syntax);
     request.sources = Some(std::sync::Arc::new(sources));
     let resolved = crate::resolution::resolve(request).unwrap();
@@ -706,7 +706,7 @@ machine build_entry(value: u32) -> u32 crashes none { ACK Probe::read(value) }
             changed > 0,
             "{label} must have its actual call acknowledgement"
         );
-        let refusal = crate::checking::operational::judge(&missing_audit).unwrap_err();
+        let refusal = crate::operational::judge(&missing_audit).unwrap_err();
         assert!(
             matches!(refusal.reason, RefusalReason::Violation),
             "{refusal:?}"

@@ -373,6 +373,32 @@ fn only_the_declaring_domain_owns_a_core_content_projection() {
         .find(|machine| machine.name.as_str() == "Owned::measure")
         .unwrap();
     assert_eq!(projection.attached_domain_symbol, owner.symbol);
+    assert_eq!(owner.content_projections, [projection.symbol]);
+
+    let second = declaration[declaration.find("machine Owned::measure").unwrap()..]
+        .replace("Owned::measure", "Owned::another");
+    let twice = format!("{declaration}\n{second}");
+    let errors = selected(&twice).expect_err("one exact domain may publish only one projection");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("only one core Content projection")),
+        "{errors:?}"
+    );
+    let separate = format!(
+        "{declaration}\ndomain Region::Other;\n{}",
+        second.replace("Owned::another", "Other::another")
+    );
+    let separate =
+        selected(&separate).expect("two qualifications can each publish their own projection");
+    assert_eq!(
+        separate
+            .domain_definitions
+            .iter()
+            .filter(|domain| domain.content_projections.len() == 1)
+            .count(),
+        2
+    );
 
     let unowned = declaration.replace("machine Owned::measure", "machine measure");
     let errors = selected(&unowned).expect_err("a free machine has no domain owner");
@@ -441,18 +467,46 @@ fn a_file_import_can_name_a_domain_but_only_its_package_can_publish_the_projecti
             ],
         )
     };
-    let owned = check("resource/projection.omg")
+    let mut owned = check("resource/projection.omg")
         .expect("the owner package can define the projection in a sibling file");
     let domain = owned
         .domain_definitions
         .iter()
         .find(|domain| domain.name.as_str() == "Region::Owned")
         .expect("the domain in the imported file");
-    assert!(
+    let domain_symbol = domain.symbol;
+    let [projection_symbol] = domain.content_projections.as_slice() else {
+        panic!("the domain must retain its sibling file's projection")
+    };
+    let projection_symbol = *projection_symbol;
+    assert_eq!(
         owned
-            .machines
-            .iter()
-            .any(|machine| machine.attached_domain_symbol == domain.symbol)
+            .machine(projection_symbol)
+            .unwrap()
+            .attached_domain_symbol,
+        domain_symbol,
+    );
+    let mut sources = owned.symbols.source_map().unwrap().as_ref().clone();
+    let projection_source = owned
+        .symbols
+        .symbol_source_span(projection_symbol)
+        .unwrap()
+        .source_id;
+    sources.retain_selected_sources(|file| file.source_id != projection_source);
+    owned.symbols = owned
+        .symbols
+        .begin_source_activation(std::sync::Arc::new(sources), Vec::new())
+        .unwrap()
+        .finish();
+    crate::resolution::names::domain_attachments::resolve_machine_domain_homes(&mut owned)
+        .expect("retained declarations keep the authored projection dependency");
+    assert!(!owned.symbols.symbol_source_is_selected(projection_symbol));
+    assert_eq!(
+        owned
+            .domain_definition_by_symbol(domain_symbol)
+            .unwrap()
+            .content_projections,
+        [projection_symbol],
     );
     let errors = check("consumer/projection.omg")
         .expect_err("moving the same projection to another package must refuse");

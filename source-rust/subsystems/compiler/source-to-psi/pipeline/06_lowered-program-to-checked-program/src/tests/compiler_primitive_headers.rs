@@ -33,10 +33,10 @@ fn typed_at(
             source_provenance::DependencyScope::Product,
         )
         .source_id;
-    let tokens = crate::checking::frontend_fixture::Lexer::new(text)
+    let tokens = crate::frontend_fixture::Lexer::new(text)
         .tokenize()
         .expect("catalog source tokenizes");
-    let syntax = crate::checking::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
+    let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
         .expect("catalog source parses");
     let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
         syntax,
@@ -250,10 +250,10 @@ fn observed_typed(text: &str) -> crate::source_state::TypedTrees {
 
 fn judge_observed(
     typed: &crate::source_state::TypedTrees,
-) -> Vec<Result<crate::checking::RouteVerdict, crate::checking::CompilationRefusal>> {
+) -> Vec<Result<crate::RouteVerdict, crate::CompilationRefusal>> {
     let typed = &crate::prepare_fixture(typed.clone());
     let entry = super::build_purpose::symbol(typed.trees(), "main");
-    crate::checking::judge_compilation(
+    crate::judge_compilation(
         crate::lowering::prepare_compilation(
             typed,
             super::build_purpose::roster(
@@ -270,11 +270,11 @@ fn judge_observed(
 
 fn observed_program(
     text: &str,
-) -> Vec<Result<crate::checking::RouteVerdict, crate::checking::CompilationRefusal>> {
+) -> Vec<Result<crate::RouteVerdict, crate::CompilationRefusal>> {
     judge_observed(&observed_typed(text))
 }
 
-fn execute_observed(accepted: Box<crate::checking::AcceptedClosure>) {
+fn execute_observed(accepted: Box<crate::AcceptedClosure>) {
     let publication = accepted
         .publish_invocation()
         .expect("ordinary receiving validation");
@@ -309,7 +309,7 @@ machine main() crashes Trap {
     );
     assert!(!verdicts.is_empty(), "the entry needs a checker verdict");
     for verdict in verdicts {
-        let Ok(crate::checking::RouteVerdict::Accepted(accepted)) = verdict else {
+        let Ok(crate::RouteVerdict::Accepted(accepted)) = verdict else {
             panic!(
                 "an authenticated observation and its ordinary equivalence must be checked: {verdict:?}"
             );
@@ -341,8 +341,8 @@ machine main() {{ let valid: bool = checked("Room A1"); }}
             // A symbolic byte predicate can leave the guarantee unproved.
             // Pin that authored guarantee, including an incomplete derivation.
             let unproved = match verdict {
-                Ok(crate::checking::RouteVerdict::Incomplete(unproved)) => unproved,
-                Ok(crate::checking::RouteVerdict::Rejected {
+                Ok(crate::RouteVerdict::Incomplete(unproved)) => unproved,
+                Ok(crate::RouteVerdict::Rejected {
                     formations,
                     violations,
                     unproved,
@@ -433,7 +433,7 @@ machine main() { let valid: bool = byte_observation\ascii_only("Room A1"); }
         assert!(
             verdicts
                 .iter()
-                .any(|verdict| !matches!(verdict, Ok(crate::checking::RouteVerdict::Accepted(_)))),
+                .any(|verdict| !matches!(verdict, Ok(crate::RouteVerdict::Accepted(_)))),
             "catalog custody must not erase actual header differences: {verdicts:?}"
         );
     }
@@ -453,7 +453,7 @@ machine main() {{ let plain: [u8; 2] = [65u8, 66u8]; let holder: Holder = Holder
         assert_eq!(
             verdicts
                 .iter()
-                .all(|verdict| matches!(verdict, Ok(crate::checking::RouteVerdict::Accepted(_)))),
+                .all(|verdict| matches!(verdict, Ok(crate::RouteVerdict::Accepted(_)))),
             accepted,
             "a logical subject grants no implicit loan: {argument}: {verdicts:?}"
         );
@@ -483,7 +483,7 @@ machine main() crashes Trap {
     // cast or observation is visible rather than counted as a store refusal.
     for (label, verdicts) in [("positive", &positive), ("negative", &negative)] {
         for verdict in verdicts {
-            if matches!(verdict, Ok(crate::checking::RouteVerdict::Accepted(_))) {
+            if matches!(verdict, Ok(crate::RouteVerdict::Accepted(_))) {
                 eprintln!("UTF-8 store {label}: accepted");
             } else {
                 eprintln!("UTF-8 store {label}: {verdict:?}");
@@ -493,12 +493,12 @@ machine main() crashes Trap {
     assert_eq!(positive.len(), 1, "one ordinary positive entry verdict");
     assert_eq!(negative.len(), 1, "one ordinary negative entry verdict");
     let accepted = match positive.remove(0) {
-        Ok(crate::checking::RouteVerdict::Accepted(accepted)) => accepted,
+        Ok(crate::RouteVerdict::Accepted(accepted)) => accepted,
         other => panic!("the same write over an ASCII UTF-8 array must check: {other:?}"),
     };
     execute_observed(accepted);
     match negative.remove(0) {
-        Ok(crate::checking::RouteVerdict::Rejected {
+        Ok(crate::RouteVerdict::Rejected {
             formations,
             violations,
             unproved,
@@ -556,7 +556,7 @@ machine main() crashes Trap {
     let verdicts = observed_program(program);
     assert!(!verdicts.is_empty());
     for verdict in verdicts {
-        let Ok(crate::checking::RouteVerdict::Accepted(accepted)) = verdict else {
+        let Ok(crate::RouteVerdict::Accepted(accepted)) = verdict else {
             panic!("the complete qualified window must be checked: {verdict:?}");
         };
         for operation in accepted.elaboration.module.operations() {
@@ -582,7 +582,7 @@ machine main() crashes Trap {
     let refused = observed_program(&partial);
     assert!(!refused.is_empty());
     for verdict in refused {
-        let Ok(crate::checking::RouteVerdict::Rejected { unproved, .. }) = verdict else {
+        let Ok(crate::RouteVerdict::Rejected { unproved, .. }) = verdict else {
             panic!("a cut inside the UTF-8 encoding must fail its cast: {verdict:?}");
         };
         assert!(
@@ -611,7 +611,7 @@ fn bounded_concat_keeps_its_original_room_a1_execution_oracle() {
     let typed = observed_typed(&source);
     let mut verdicts = judge_observed(&typed);
     let accepted = match verdicts.remove(0) {
-        Ok(crate::checking::RouteVerdict::Accepted(accepted)) => accepted,
+        Ok(crate::RouteVerdict::Accepted(accepted)) => accepted,
         other => {
             // Keep the failed original program diagnosable without reducing
             // it to a different buffer example or erasing its requirements.
@@ -668,7 +668,7 @@ fn bounded_concat_keeps_its_original_room_a1_execution_oracle() {
     assert!(
         verdicts
             .iter()
-            .all(|verdict| matches!(verdict, Ok(crate::checking::RouteVerdict::Accepted(_)))),
+            .all(|verdict| matches!(verdict, Ok(crate::RouteVerdict::Accepted(_)))),
         "{verdicts:?}"
     );
     execute_observed(accepted);
@@ -692,7 +692,7 @@ machine main() crashes Trap {
 "#;
     let mut checked = observed_program(positive);
     let accepted = match checked.remove(0) {
-        Ok(crate::checking::RouteVerdict::Accepted(accepted)) => accepted,
+        Ok(crate::RouteVerdict::Accepted(accepted)) => accepted,
         other => panic!("an indexed store must preserve the proved byte bound: {other:?}"),
     };
     execute_observed(accepted);
@@ -705,7 +705,7 @@ machine main() crashes Trap {
     ] {
         let verdicts = observed_program(&negative);
         assert!(verdicts.iter().any(|verdict| matches!(verdict,
-            Ok(crate::checking::RouteVerdict::Rejected { formations, violations, unproved, unestablished, conflicts, exceeded })
+            Ok(crate::RouteVerdict::Rejected { formations, violations, unproved, unestablished, conflicts, exceeded })
                 if formations.is_empty() && violations.is_empty() && unestablished.is_empty()
                     && conflicts.is_empty() && exceeded.is_empty()
                     && unproved.iter().any(|failure| matches!(failure.kind,

@@ -305,13 +305,11 @@ through helpers and appear in the full reach report.
 Ordinary allocation of non-executable storage has its allocator's own reach.
 Executable installation of a native image reports `NativeImageLoad` even when
 a target implements it through several lower-level operations. A backing that
-enters a foreign SDK also reports that foreign call. Redirecting a slot between
-two already installed, admitted exports adds neither reach by itself. The
-selected updater reports the union of the operations it can perform, and the
-Build must separately supply the required authority.
-
-The receiver separately enforces [executable installation](../build/executable_installation.md)
-and the slot owner authorizes [publication](../build/component_publication.md#first-binding-of-a-runtime-bound-slot).
+enters a foreign SDK also reports that foreign call. Moving or replacing an
+already loaded provider adds neither reach by itself. Calling its projected
+operation retains the operation's declared reach. Cleanup retains its own effects.
+The receiver enforces [executable installation](../build/executable_installation.md)
+and the owner needs exclusive access to replace an [owned provider](../build/component_publication.md#owned-runtime-providers).
 
 ## Process-exit reach
 

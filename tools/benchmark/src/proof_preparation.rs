@@ -66,11 +66,8 @@ fn make_plan(arguments: &[String], working_directory: &Path) -> Result<(Plan, Pa
     let target = options
         .get("--target")
         .ok_or("source mode requires an explicit --target")?;
-    if !matches!(
-        *target,
-        "windows_x86_64" | "linux_x86_64" | "linux_arm64" | "macos_arm64"
-    ) {
-        return Err("--target must name one of the four hosted targets".into());
+    if !crate::plan::HOSTED_TARGETS.contains(target) {
+        return Err("--target must name one of the five hosted targets".into());
     }
     let mut environment = BTreeMap::new();
     environment.insert("OMEGA_LIBRARY_ROOT".into(), path_text(&library)?.into());
@@ -327,6 +324,17 @@ mod tests {
                 plan.baseline.arguments[0], plan.baseline.arguments[0]
             )
         );
+    }
+
+    #[test]
+    fn source_plan_accepts_every_hosted_target() {
+        let directory = Directory::new();
+        for target in crate::plan::HOSTED_TARGETS {
+            let mut arguments = directory.arguments("source");
+            arguments.extend(["--target", target].map(str::to_owned));
+            let (plan, _) = make_plan(&arguments, &directory.0).unwrap();
+            assert_eq!(plan.baseline.arguments.last().unwrap(), target);
+        }
     }
 
     #[test]

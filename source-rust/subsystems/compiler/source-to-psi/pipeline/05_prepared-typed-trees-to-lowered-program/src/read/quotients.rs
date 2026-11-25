@@ -37,8 +37,8 @@ use terminal_check_tables::{Checked, Construct};
 use super::contracts::{AppliedProposition, ClauseScope, ResultTerm};
 use super::places::RecordSource;
 use super::{Program, Slot};
-use crate::lowering::body::{RecordType, StorageShape, ValueType};
-use crate::lowering::{Unserved, refuse};
+use crate::body::{RecordType, StorageShape, ValueType};
+use crate::{Unserved, refuse};
 
 /// A quotient of mathematical data, as the signature needs it.
 #[derive(Debug, Clone)]
@@ -264,7 +264,7 @@ impl Program<'_> {
                 homed: false,
                 erased: false,
                 borrowed: None,
-                borrowed_regions: crate::lowering::body::Regions::NONE,
+                borrowed_regions: crate::body::Regions::NONE,
             });
         }
         if slots.len() != 2 {
@@ -272,7 +272,7 @@ impl Program<'_> {
                 "quotient relation over something other than two values of its carrier",
             ));
         }
-        let values = crate::lowering::body::formal_values(
+        let values = crate::body::formal_values(
             slots
                 .iter()
                 .map(|slot| (slot.value_type, slot.erased, slot.borrowed.is_some())),
@@ -314,7 +314,7 @@ impl Program<'_> {
             })
             .collect();
         let record = self.records.push(RecordType {
-            multiplicity: crate::lowering::body::source_multiplicity(data.properties.multiplicity),
+            multiplicity: crate::body::source_multiplicity(data.properties.multiplicity),
             cleanup: None,
             identity: identity.clone(),
             shape: StorageShape::Sum(Vec::new()),

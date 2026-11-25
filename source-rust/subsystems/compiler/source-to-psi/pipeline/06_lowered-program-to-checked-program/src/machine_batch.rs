@@ -10,11 +10,11 @@ use terminal_check_tables::{Checked, Construct, MachineTables, RefusalReason};
 
 pub(super) fn check<T: Send>(
     tables: &mut IdTable<MachineId, MachineTables>,
-    activity: &mut crate::checking::ProofSearchActivity,
+    activity: &mut crate::ProofSearchActivity,
     check: impl Fn(
         MachineId,
         &mut MachineTables,
-        &mut crate::checking::ProofSearchActivity,
+        &mut crate::ProofSearchActivity,
     ) -> Checked<T>
     + Sync,
 ) -> Checked<IdTable<MachineId, T>> {
@@ -34,7 +34,7 @@ pub(super) fn check<T: Send>(
         .into_par_iter()
         .with_max_len(1)
         .map(|(id, tables)| {
-            let mut activity = crate::checking::ProofSearchActivity::default();
+            let mut activity = crate::ProofSearchActivity::default();
             if id.get() > first_failure.load(Ordering::Relaxed) {
                 return (id, Ok(None), activity);
             }
@@ -56,7 +56,7 @@ pub(super) fn check<T: Send>(
         let checked = checked?.ok_or_else(|| {
             // A skipped row must follow the error that canceled it. Never
             // expose an incomplete batch as a successful checking product.
-            crate::checking::refusal(
+            crate::refusal(
                 RefusalReason::Unsupported,
                 id,
                 Construct::Machine,
@@ -86,12 +86,12 @@ mod tests {
                 for _ in 0..64 {
                     tables.push(MachineTables::default());
                 }
-                let mut activity = crate::checking::ProofSearchActivity::default();
+                let mut activity = crate::ProofSearchActivity::default();
                 let context = semantic_vocabulary::PropositionContext::default();
                 let completed = AtomicUsize::new(0);
                 let result = check(&mut tables, &mut activity, |id, tables, activity| {
                     assert!(worker_budget::on_budget_worker());
-                    let _ = crate::checking::prove::Prover::new(
+                    let _ = crate::prove::Prover::new(
                         &context,
                         &[],
                         &[],
@@ -107,7 +107,7 @@ mod tests {
                     }
                     active.fetch_sub(1, Ordering::SeqCst);
                     if matches!(id.get(), 3 | 8 | 40) {
-                        Err(crate::checking::refusal(
+                        Err(crate::refusal(
                             RefusalReason::Unsupported,
                             id,
                             Construct::Machine,

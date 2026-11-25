@@ -10,8 +10,8 @@ use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
 
 use super::{Program, services};
-use crate::lowering::body::ValueType;
-use crate::lowering::static_contracts::{
+use crate::body::ValueType;
+use crate::static_contracts::{
     SourceConformance, SourceImplementation, SourceSchema, SourceSchemaRequirement,
     SourceServiceCeiling, StaticProviderCandidate, StaticSourceEnvelope,
 };
@@ -170,7 +170,7 @@ impl<'program> Program<'program> {
         boundary: bool,
     ) -> Checked<StaticSourceEnvelope> {
         let written =
-            crate::lowering::reach::has_authored_ceiling(self.typed, context, signature.symbol)?;
+            crate::reach::has_authored_ceiling(self.typed, context, signature.symbol)?;
         let service_reach = if written {
             if signature.service_reach_is_installation_bound && !boundary {
                 return Err(services::unavailable(
@@ -701,7 +701,7 @@ impl<'program> Program<'program> {
             {
                 self.generic_templates.push(row.realization_machine);
             }
-            let witness = crate::lowering::ConformanceWitness {
+            let witness = crate::ConformanceWitness {
                 declaring_trait: row.declaring_trait,
                 requirement: row.requirement,
                 implementation: row.realization_machine,
@@ -787,7 +787,7 @@ impl<'program> Program<'program> {
             let start = self.static_contracts.conformances.len();
             self.static_contracts.formed.insert(
                 position,
-                crate::lowering::static_contracts::FormedConformance {
+                crate::static_contracts::FormedConformance {
                     declaration: symbol,
                     application: selected_identity.map(str::to_owned),
                     questions: start..start,
@@ -1062,7 +1062,7 @@ impl<'program> Program<'program> {
         self.static_contracts.conformances.extend(questions);
         self.static_contracts.formed.insert(
             position,
-            crate::lowering::static_contracts::FormedConformance {
+            crate::static_contracts::FormedConformance {
                 declaration: symbol,
                 application: selected_identity.map(str::to_owned),
                 questions: start..self.static_contracts.conformances.len(),

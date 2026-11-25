@@ -1,6 +1,6 @@
 //! Match an authored Build preparation to its checked call in the entry body.
 
-use checked_program_to_psi::production::AcceptedTerminalSource;
+use checked_program_to_psi::AcceptedTerminalSource;
 use semantic_vocabulary::InvocationSite;
 use semantic_vocabulary::{MachineId, OperationId};
 use source_text::Span;

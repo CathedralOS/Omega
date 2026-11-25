@@ -86,7 +86,7 @@ fn supplied_with_subjects(
         slot,
         provider: declared(trees, "Native"),
     }];
-    let verdicts = crate::checking::judge_compilation(
+    let verdicts = crate::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
             crate::lowering::Compilation {
@@ -128,24 +128,24 @@ fn supplied_with_subjects(
                     .chain(
                         violations
                             .iter()
-                            .map(crate::checking::RuleViolation::message),
+                            .map(crate::RuleViolation::message),
                     )
                     .chain(
                         unproved
                             .iter()
-                            .map(crate::checking::UnprovedObligation::message),
+                            .map(crate::UnprovedObligation::message),
                     )
                     .chain(
                         unestablished
                             .iter()
-                            .map(crate::checking::UnestablishedUse::message),
+                            .map(crate::UnestablishedUse::message),
                     )
                     .chain(
                         conflicts
                             .iter()
-                            .map(crate::checking::ConflictingUse::message),
+                            .map(crate::ConflictingUse::message),
                     )
-                    .chain(exceeded.iter().map(crate::checking::ExceededReach::message))
+                    .chain(exceeded.iter().map(crate::ExceededReach::message))
                     .collect::<Vec<_>>();
                 assert!(
                     !messages.is_empty(),
@@ -211,7 +211,7 @@ fn multiple_provider_declarations_publish_in_portable_order() {
     )
     .expect("fixture must lower to checker input");
     let mut accepted = None;
-    for (part, verdict) in crate::checking::judge_compilation(prepared.program)
+    for (part, verdict) in crate::judge_compilation(prepared.program)
         .into_iter()
         .enumerate()
     {
@@ -351,7 +351,7 @@ fn a_provider_that_refines_its_requirement_is_judged_as_a_root() {
     }
     // Without the supply the provider is no part of the compilation.
     let typed = crate::prepare_fixture(typed(&text));
-    let verdicts = crate::checking::judge_compilation(
+    let verdicts = crate::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
             crate::lowering::Compilation {
@@ -579,7 +579,7 @@ fn a_supplied_body_has_no_cached_or_selected_named_entry() {
         slot: declared(trees, "Service"),
         provider: declared(trees, "Native"),
     }];
-    let verdicts = crate::checking::judge_compilation(
+    let verdicts = crate::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
             crate::lowering::Compilation {

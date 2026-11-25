@@ -69,9 +69,9 @@ the exact registration available to the builder. It cannot add an import.
 ```omega
 machine build(builder: @mutable Build) {
     Build::application(builder, "app");
-    let mutable description = dependency\from_source(Source::Path { location: "producer" });
+    let mutable description: DependencyDescription = dependency\from_source(Source::Path { location: "producer" });
     dependency\with_alias(@mutable description, "producer");
-    let registered = Build::dependency(builder, description);
+    let registered: DependencyRegistration = Build::dependency(builder, description);
     Build::validate(builder, @registered);
     Build::bind(builder, linux_x86_64\ProgramEntry, main);
 }

@@ -36,11 +36,11 @@ fn try_typed_in_package(
             source_provenance::DependencyScope::Product,
         )
         .source_id;
-    let tokens = crate::checking::frontend_fixture::Lexer::new(text)
+    let tokens = crate::frontend_fixture::Lexer::new(text)
         .tokenize()
         .unwrap();
     let syntax =
-        crate::checking::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
+        crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
     let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
         syntax,
         sources: Some(Arc::new(sources)),
@@ -133,11 +133,11 @@ fn a_source_boundary_requires_an_explicit_reach_ceiling() {
     let source = sources
         .add("boundary_calls/omitted.omg".into(), text.clone())
         .source_id;
-    let tokens = crate::checking::frontend_fixture::Lexer::new(&text)
+    let tokens = crate::frontend_fixture::Lexer::new(&text)
         .tokenize()
         .unwrap();
     let refusal =
-        match crate::checking::frontend_fixture::parse_syntax_trees_with_id(source, &tokens) {
+        match crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens) {
             Ok(_) => panic!("an open boundary reach contract must refuse"),
             Err(refusal) => refusal,
         };
@@ -1718,7 +1718,7 @@ machine entry() -> u32 crashes none {
             publication,
         )
         .expect("fixture must lower to checker input");
-        let mut verdicts = crate::checking::judge_compilation(compilation.program).into_iter();
+        let mut verdicts = crate::judge_compilation(compilation.program).into_iter();
         let Ok(RouteVerdict::Accepted(executable)) = verdicts.next().unwrap() else {
             panic!("the package's closed caller must be accepted");
         };
@@ -1824,7 +1824,7 @@ fn changed_boundary_effects_must_match_the_published_call_envelope() {
         declaration.published_may_suspend = !blocks;
         let refusal = discharge(
             &mut elaboration,
-            &mut crate::checking::ProofSearchActivity::default(),
+            &mut crate::ProofSearchActivity::default(),
         )
         .unwrap_err();
         assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
@@ -1852,7 +1852,7 @@ fn source_boundary_effects_still_require_their_invocation_proof() {
         assert_eq!(published.published_may_block, effect == "blocks");
         let refusal = discharge(
             &mut elaboration,
-            &mut crate::checking::ProofSearchActivity::default(),
+            &mut crate::ProofSearchActivity::default(),
         )
         .unwrap_err();
         assert_eq!(refusal.reason, RefusalReason::Violation);
@@ -1972,7 +1972,7 @@ fn borrowed_generic_requirements_preserve_input_proofs_and_exclusive_loans() {
     let mut valid = borrowed_requirement("right", "< 10");
     let discharged = discharge(
         &mut valid,
-        &mut crate::checking::ProofSearchActivity::default(),
+        &mut crate::ProofSearchActivity::default(),
     )
     .unwrap();
     let entry = discharged.machines.get(id(1)).unwrap();
@@ -1987,7 +1987,7 @@ fn borrowed_generic_requirements_preserve_input_proofs_and_exclusive_loans() {
     let mut missing_input = borrowed_requirement("right", "<= 10");
     let discharged = discharge(
         &mut missing_input,
-        &mut crate::checking::ProofSearchActivity::default(),
+        &mut crate::ProofSearchActivity::default(),
     )
     .unwrap();
     assert!(
@@ -2003,7 +2003,7 @@ fn borrowed_generic_requirements_preserve_input_proofs_and_exclusive_loans() {
     let mut alias = borrowed_requirement("left", "< 10");
     let discharged = discharge(
         &mut alias,
-        &mut crate::checking::ProofSearchActivity::default(),
+        &mut crate::ProofSearchActivity::default(),
     )
     .unwrap();
     assert!(!discharged.machines.get(id(1)).unwrap().conflicts.is_empty());
@@ -2133,14 +2133,14 @@ fn compilation_verdicts_of(typed: &crate::preparation::PreparedTypedTrees) -> Ve
 
 pub(super) fn compilation_results_of(
     typed: &crate::source_state::TypedTrees,
-) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
+) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     compilation_results_for_subjects(&crate::prepare_fixture(typed.clone()), &[])
 }
 
 pub(super) fn compilation_results_for_subjects(
     typed: &crate::preparation::PreparedTypedTrees,
     subjects: &[Option<semantic_vocabulary::PackageKeyIdentity>],
-) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
+) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     let entry = entry(typed.trees());
     let prepared = crate::lowering::prepare_compilation(
         typed,
@@ -2168,7 +2168,7 @@ pub(super) fn compilation_results_for_subjects(
         }
         _ => 1,
     };
-    let verdicts = crate::checking::judge_compilation(prepared);
+    let verdicts = crate::judge_compilation(prepared);
     assert_eq!(verdicts.len(), expected_verdicts);
     verdicts
 }
@@ -2302,7 +2302,7 @@ fn recursive_named_calls_in_a_body_witness_keep_the_requirement_inputs() {
     .unwrap();
     let discharged = discharge(
         &mut witness,
-        &mut crate::checking::ProofSearchActivity::default(),
+        &mut crate::ProofSearchActivity::default(),
     )
     .unwrap();
     let body = id(2);
@@ -2327,7 +2327,7 @@ fn a_boundary_conformer_is_not_a_named_direct_entry() {
         .replacen("requires value > 0", "reaches none requires value > 0", 1);
     let typed = crate::prepare_fixture(typed(&text));
     let entry = entry(typed.trees());
-    let verdicts = crate::checking::judge_compilation(
+    let verdicts = crate::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
             crate::lowering::Compilation {
@@ -2367,7 +2367,7 @@ machine entry() -> u32 reaches none crashes none { chosen() }
 "#,
     ));
     let entry = entry(typed.trees());
-    let verdicts = crate::checking::judge_compilation(
+    let verdicts = crate::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
             crate::lowering::Compilation {
@@ -2412,7 +2412,7 @@ fn named_selected_calls_keep_their_public_reach_ceiling() {
              machine entry() -> u32 reaches {ceiling} crashes none {{ Named::value() }}"
         )));
         let entry = entry(typed.trees());
-        let verdicts = crate::checking::judge_compilation(
+        let verdicts = crate::judge_compilation(
             crate::lowering::prepare_compilation(
                 &typed,
                 crate::lowering::Compilation {
@@ -2470,7 +2470,7 @@ Rebound satisfies Other { Other::apply = previous; }
     let typed = crate::prepare_fixture(typed(&text));
     let trees = typed.trees();
     let entry = entry(trees);
-    let verdicts = crate::checking::judge_compilation(
+    let verdicts = crate::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
             crate::lowering::Compilation {
@@ -2540,7 +2540,7 @@ machine entry() -> u32 reaches none crashes none {{ 7 }}
 "#
         );
         let typed = crate::prepare_fixture(typed(&text));
-        let verdicts = crate::checking::judge_compilation(
+        let verdicts = crate::judge_compilation(
             crate::lowering::prepare_compilation(
                 &typed,
                 crate::lowering::Compilation {
@@ -2687,7 +2687,7 @@ fn an_owned_inline_parameter_dispatch_owes_the_requirement_inputs() {
         let caller = elaboration.selections[0].caller;
         let found = discharge(
             &mut elaboration,
-            &mut crate::checking::ProofSearchActivity::default(),
+            &mut crate::ProofSearchActivity::default(),
         )
         .unwrap();
         let tables = elaboration.tables.machines.get(caller).unwrap();
@@ -2715,7 +2715,7 @@ fn an_owned_inline_parameter_dispatch_exposes_only_the_requirement_guarantee() {
     let caller = elaboration.selections[0].caller;
     let found = discharge(
         &mut elaboration,
-        &mut crate::checking::ProofSearchActivity::default(),
+        &mut crate::ProofSearchActivity::default(),
     )
     .unwrap();
     let tables = elaboration.tables.machines.get(caller).unwrap();
@@ -3082,7 +3082,7 @@ fn a_named_owned_member_keeps_public_inputs_and_guarantees() {
                 "each witness checks the exact authored Inline body"
             );
         }
-        let verdicts = crate::checking::judge_compilation(
+        let verdicts = crate::judge_compilation(
             terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared),
         )
         .into_iter()
@@ -3211,14 +3211,14 @@ fn named_two_packages(public_map: bool) -> crate::source_state::TypedTrees {
             )
             .source_id;
         source_ids.push(id);
-        let tokens = crate::checking::frontend_fixture::Lexer::new(text)
+        let tokens = crate::frontend_fixture::Lexer::new(text)
             .tokenize()
             .unwrap();
         if let Some(syntax) = &mut syntax {
-            crate::checking::frontend_fixture::parse(syntax, id, &tokens).unwrap();
+            crate::frontend_fixture::parse(syntax, id, &tokens).unwrap();
         } else {
             syntax = Some(
-                crate::checking::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap(),
+                crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap(),
             );
         }
     }
@@ -3646,7 +3646,7 @@ fn generic_named_map_body_uses_its_own_rigid_telescope() {
     let mut form = crate::lowering::elaborate_generic(&program, row.realization_machine).unwrap();
     let discharged = discharge(
         &mut form,
-        &mut crate::checking::ProofSearchActivity::default(),
+        &mut crate::ProofSearchActivity::default(),
     )
     .unwrap();
     let root = discharged
@@ -4315,7 +4315,7 @@ fn generic_named_map_closed_call_also_judges_its_original_template() {
 }
 
 fn full_named_map_verdicts(typed: &crate::preparation::PreparedTypedTrees) -> Vec<RouteVerdict> {
-    crate::checking::judge_compilation(
+    crate::judge_compilation(
         crate::lowering::prepare_compilation(
             typed,
             crate::lowering::Compilation {

@@ -71,7 +71,7 @@ impl SourceServices<'_, '_, '_> {
                 self.host.select_workspace(workspace).map_err(failure)?
             }
         };
-        let index = self.settle_dependency(&child)?;
+        let index = self.host.settle_dependency(&child)?;
         self.requests.insert(
             (purpose, ordinal),
             PreparedRequest {
@@ -81,33 +81,117 @@ impl SourceServices<'_, '_, '_> {
         );
         Ok(index)
     }
+}
+
+impl SourceHost<'_, '_> {
+    fn library_input(
+        &self,
+        settled: &SettledSource,
+        purpose: DependencyPurpose,
+        alias: String,
+    ) -> Result<ProductQueryDependency, CompileFailure> {
+        let child_build_source = settled.build.evaluated().base_source_consumption_commitment;
+        if purpose == DependencyPurpose::Product {
+            // Its Build has returned. The Product's consumer will choose its deployment.
+            return Ok(ProductQueryDependency {
+                alias,
+                child_build_source,
+                inputs: settled.build.inputs().clone(),
+                generated: None,
+            });
+        }
+        let product = self.handoffs().dependency_product(
+            &settled.build,
+            purpose,
+            self.profile,
+            &mut DependencyProducts::default(),
+        )?;
+        Ok(ProductQueryDependency {
+            alias,
+            child_build_source,
+            inputs: product
+                .package_inputs()
+                .ok_or_else(|| refused("prepared dependency lost its package source"))?
+                .clone(),
+            generated: Some(product.build_handoff(self.profile)?),
+        })
+    }
+
+    pub(super) fn supplied_libraries(
+        &mut self,
+        receiver: &AcquiredBuildSource,
+        libraries: &[super::BuildLibraryRequest],
+    ) -> Result<Vec<package_compilation::source_imports::SuppliedBuildLibrary>, PackageCommandError>
+    {
+        use package_compilation::source_imports::SuppliedBuildLibrary;
+        let mut aliases = std::collections::BTreeSet::new();
+        for library in libraries {
+            if !aliases.insert(&library.alias) {
+                return Err(format!(
+                    "duplicate supplied Build library alias `{}`",
+                    library.alias.as_str()
+                )
+                .into());
+            }
+        }
+        let requests: Vec<_> = libraries
+            .iter()
+            .map(|library| BuildRequest::Dependency {
+                purpose: DependencyPurpose::Build,
+                alias: Some(library.alias.clone()),
+                source: library.source.clone(),
+            })
+            .collect();
+        let mut supplied = Vec::with_capacity(libraries.len());
+        for (ordinal, library) in libraries.iter().enumerate() {
+            let chosen = self.acquisitions.acquire_requests(
+                receiver,
+                requests.iter(),
+                DependencyPurpose::Build,
+                ordinal,
+            )?;
+            let child = match chosen {
+                AcquiredSourceSelection::Source(child) => child,
+                AcquiredSourceSelection::Workspace(workspace) => {
+                    self.select_workspace(workspace)?
+                }
+            };
+            let index = self.settle_dependency(&child)?;
+            let input = self.library_input(
+                &self.settled[index],
+                DependencyPurpose::Build,
+                library.alias.as_str().to_owned(),
+            )?;
+            supplied.push(SuppliedBuildLibrary::new(library.source.clone(), input)?);
+        }
+        Ok(supplied)
+    }
 
     fn settle_dependency(&mut self, child: &AcquiredBuildSource) -> Result<usize, CompileFailure> {
-        self.host
+        self
             .acquisitions
-            .admit_build_descent(&self.host.active, child)
+            .admit_build_descent(&self.active, child)
             .map_err(refused)?;
         if let Some(i) = self
-            .host
             .settled
             .iter()
             .position(|settled| settled.source.same_source(child))
         {
             child
-                .verify_reused_capture(&self.host.settled[i].source)
+                .verify_reused_capture(&self.settled[i].source)
                 .map_err(refused)?;
             return Ok(i);
         }
-        let stage = self.host.member_or_execute(child).map_err(failure)?.stage;
+        let stage = self.member_or_execute(child).map_err(failure)?.stage;
         let declared = child.declare_build(stage.returned()).map_err(refused)?;
         declared.require_dependency().map_err(refused)?;
-        let resolved = self.host.join(child.clone(), stage).map_err(failure)?;
+        let resolved = self.join(child.clone(), stage).map_err(failure)?;
         let settled = resolved.root.settle_dependency(resolved.inputs)?;
-        self.host
+        self
             .session
             .record_source_completion(settled.evaluated().source_completion_accounting.clone());
-        let i = self.host.settled.len();
-        self.host.settled.push(SettledSource {
+        let i = self.settled.len();
+        self.settled.push(SettledSource {
             source: child.clone(),
             declaration: declared,
             build: settled,
@@ -135,36 +219,12 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
     ) -> Result<ProductQueryDependency, CompileFailure> {
         let i = self.dependency(activation, request.purpose, request.request_ordinal)?;
         let settled = &self.host.settled[i];
-        let child_build_source = settled.build.evaluated().base_source_consumption_commitment;
         let alias = aliases(activation, request.purpose)
             .nth(request.request_ordinal)
             .ok_or_else(|| refused("Build preparation names no issued dependency"))?
             .unwrap_or_else(|| settled.declaration.package_name())
             .to_owned();
-        if request.purpose == DependencyPurpose::Product {
-            // Its Build has returned. The Product's consumer will choose its deployment.
-            return Ok(ProductQueryDependency {
-                alias,
-                child_build_source,
-                inputs: settled.build.inputs().clone(),
-                generated: None,
-            });
-        }
-        let product = self.host.handoffs().dependency_product(
-            &settled.build,
-            request.purpose,
-            self.host.profile,
-            &mut DependencyProducts::default(),
-        )?;
-        Ok(ProductQueryDependency {
-            alias,
-            child_build_source,
-            inputs: product
-                .package_inputs()
-                .ok_or_else(|| refused("prepared dependency lost its package source"))?
-                .clone(),
-            generated: Some(product.build_handoff(self.host.profile)?),
-        })
+        self.host.library_input(settled, request.purpose, alias)
     }
 
     fn query_dependencies(

@@ -8,8 +8,8 @@ use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
 use terminal_psi::{TerminalCallableInvocation, TerminalCallableTermination, TerminalModule};
 
-use crate::lowering::reach::{ServiceMap, SourceInvocation};
-use crate::lowering::{Signature, Unserved, refuse};
+use crate::reach::{ServiceMap, SourceInvocation};
+use crate::{Signature, Unserved, refuse};
 
 pub use terminal_check_tables::contracts::{
     StaticCallableEnvelope, StaticConformanceQuestion, StaticImplementation,
@@ -240,15 +240,15 @@ impl StaticContracts {
         &self,
         context: MachineId,
         signatures: &IdTable<MachineId, Signature>,
-        outcomes: &IdTable<MachineId, crate::lowering::Outcome>,
-        records: &crate::lowering::lower::places::Records<'_>,
-        callables: &crate::lowering::callables::CallableNamespace,
-        boundaries: &crate::lowering::boundaries::BoundaryNamespace,
+        outcomes: &IdTable<MachineId, crate::Outcome>,
+        records: &crate::lower::places::Records<'_>,
+        callables: &crate::callables::CallableNamespace,
+        boundaries: &crate::boundaries::BoundaryNamespace,
         services: &ServiceMap,
-        qualifications: &mut crate::lowering::qualifications::Qualifications,
+        qualifications: &mut crate::qualifications::Qualifications,
         module: &mut TerminalModule,
-        source_reader: Option<&crate::lowering::read::Program<'_>>,
-        native: &[crate::lowering::ExternalProviderCandidate],
+        source_reader: Option<&crate::read::Program<'_>>,
+        native: &[crate::ExternalProviderCandidate],
     ) -> Checked<(Vec<StaticSchemaQuestion>, Vec<StaticConformanceQuestion>)> {
         qualifications.identities = std::mem::take(&mut module.identities).into_builder();
         let schemas = self
@@ -297,13 +297,13 @@ impl StaticContracts {
                                         )
                                     })?;
                                     let reader = source_reader.ok_or_else(|| {
-                                        crate::lowering::read::services::unavailable(machine,
+                                        crate::read::services::unavailable(machine,
                                             "requirement instance lost its source identity owner")
                                     })?;
-                                    let member = crate::lowering::declare::semantic_identity(
+                                    let member = crate::declare::semantic_identity(
                                         reader.typed, requirement.declaration, &mut qualifications.identities,
-                                    ).map_err(|reason| crate::lowering::read::services::unavailable(machine, reason))?;
-                                    crate::lowering::lower::static_signature_header(
+                                    ).map_err(|reason| crate::read::services::unavailable(machine, reason))?;
+                                    crate::lower::static_signature_header(
                                         machine,
                                         contract,
                                         signature,
@@ -336,7 +336,7 @@ impl StaticContracts {
         for source in &self.conformances {
             // A conformance signature has no published machine contract.
             // Keep its proof tied to this local context.
-            let required = crate::lowering::lower::static_signature_header(
+            let required = crate::lower::static_signature_header(
                 context,
                 semantic_vocabulary::ContractId::new(context.get())
                     .expect("a machine context is nonzero"),
@@ -387,25 +387,25 @@ impl StaticContracts {
                     .as_ref()
                     .map(|provider| -> Checked<StaticProviderCandidate> {
                         let reader = source_reader.ok_or_else(|| {
-                            crate::lowering::read::services::unavailable(
+                            crate::read::services::unavailable(
                                 context,
                                 "static provider lost its immutable source declaration table",
                             )
                         })?;
                         let sources = reader.exact_toolchain_sources().map_err(|_| {
-                            crate::lowering::read::services::unavailable(
+                            crate::read::services::unavailable(
                                 context,
                                 "static provider lost its exact toolchain source identities",
                             )
                         })?;
-                        let identity = crate::lowering::declare::nominal(
+                        let identity = crate::declare::nominal(
                             reader.typed,
                             sources,
                             provider.declaration,
                             &mut qualifications.identities,
                         )
                         .map_err(|reason| {
-                            crate::lowering::read::services::unavailable(context, reason)
+                            crate::read::services::unavailable(context, reason)
                         })?;
                         Ok(StaticProviderCandidate {
                             boundary: provider.boundary,

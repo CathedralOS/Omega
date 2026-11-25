@@ -1,7 +1,7 @@
 //! Warnings about a compilation the checker accepted, computed on first read.
 use super::AcceptedClosure;
-use crate::checking::Discharge;
-use crate::checking::verdict::AcceptedProgram;
+use crate::Discharge;
+use crate::verdict::AcceptedProgram;
 use checked_program::CheckedProgram;
 use diagnostics::Diagnostic;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -76,7 +76,7 @@ impl AcceptedAdvisories {
                 .advisories(),
                 (None, None) => Vec::new(),
             };
-            let result = aggregate(std::iter::once(first).chain(pending.additional.iter().map(
+            let mut result = aggregate(std::iter::once(first).chain(pending.additional.iter().map(
                 |(elaboration, discharge)| {
                     AcceptedProgram {
                         elaboration,
@@ -85,6 +85,19 @@ impl AcceptedAdvisories {
                     .advisories()
                 },
             )));
+            // How many accepted certificates the mathematical kernel did not
+            // judge, over every part (`crate::unjudged`).
+            let mut unjudged = Vec::new();
+            if let Some(original) = &pending.original {
+                crate::unjudged::count(&original.elaboration, &original.discharge, &mut unjudged);
+            }
+            if let Some((program, discharge)) = &pending.root {
+                crate::unjudged::count(program.elaboration(), discharge, &mut unjudged);
+            }
+            for (elaboration, discharge) in &pending.additional {
+                crate::unjudged::count(elaboration, discharge, &mut unjudged);
+            }
+            result.extend(crate::unjudged::note(unjudged));
             *pending = AdvisoryParts::default();
             result
         })
@@ -173,8 +186,7 @@ mod tests {
             terminal_codec::TerminalPublication::Invocation,
         )
         .unwrap();
-        let (_, advisories) =
-            crate::checking::judge_publication(lowered, Default::default()).unwrap();
+        let (_, advisories) = crate::judge_publication(lowered, Default::default()).unwrap();
         advisories
     }
 

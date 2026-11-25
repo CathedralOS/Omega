@@ -1,12 +1,12 @@
 //! Compare array types at a call using the scalar arguments that supply their lengths.
 
-use crate::lowering::body::{Signature, StorageShape, ValueType};
+use crate::body::{Signature, StorageShape, ValueType};
 use super::Program;
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use terminal_psi::ArrayExtent;
 
 impl Program<'_> {
-    pub(in crate::lowering::read) fn array_argument_storage_matches(
+    pub(in crate::read) fn array_argument_storage_matches(
         &self,
         mut actual: StructuralTypeId,
         mut expected: StructuralTypeId,

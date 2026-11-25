@@ -17,7 +17,7 @@
 //! needs four addends reordered under commutativity and associativity.
 
 use super::*;
-use crate::checking::laws::{SignatureJudgment, UnprovedLaw};
+use crate::laws::{SignatureJudgment, UnprovedLaw};
 
 const CONFORMING: &str =
     include_str!("../../tests/fixtures/ring_law/pass/ring_law_conformance/main.omg");
@@ -55,7 +55,7 @@ fn judged(source: &str) -> Vec<RouteVerdict> {
         terminal_codec::TerminalPublication::Invocation,
     )
     .unwrap();
-    crate::checking::judge_compilation(compilation.program)
+    crate::judge_compilation(compilation.program)
         .into_iter()
         .map(|verdict| verdict.expect("a judged part"))
         .collect()
@@ -511,7 +511,7 @@ fn operands_are_reordered_only_under_a_commutativity_law() {
     // kernel audit's step 3a notes say why). So the laws here are
     // assumptions of a bare signature: a type, one operation on it, four
     // values, and the two laws.
-    use crate::checking::equality::{Definitions, License, SearchError, prove_under};
+    use crate::equality::{Definitions, License, SearchError, prove_under};
     use proof_admission::{
         Budget, Context, Declaration, Level, Sort, Term, TermArena, check_signature, check_type,
     };

@@ -6,7 +6,7 @@ use semantic_vocabulary::MachineId;
 use terminal_check_tables::Checked;
 use terminal_psi::{CallAcknowledgement, CallOrigin};
 
-use crate::lowering::body::{Body, Expression, ExpressionKind, Statement, Target};
+use crate::body::{Body, Expression, ExpressionKind, Statement, Target};
 
 pub(crate) fn retain(
     expression: &mut Expression,
@@ -148,7 +148,7 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
             && context.acknowledges_suspend
             && !context.suspension_position
     }) {
-        return Err(crate::lowering::reject(machine, value.source,
+        return Err(crate::reject(machine, value.source,
             "a suspend-marked call must be a complete statement, simple let initializer, transition subject or terminal expression".to_owned()));
     }
     match &value.kind {
@@ -188,7 +188,7 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
         ExpressionKind::Call {
             callee, arguments, ..
         } => {
-            if let crate::lowering::body::CallTarget::Selected { callable, .. } = callee {
+            if let crate::body::CallTarget::Selected { callable, .. } = callee {
                 expression(machine, callable)?;
             }
             for argument in arguments {

@@ -58,8 +58,8 @@ use terminal_check_tables::{Checked, Construct};
 use super::Program;
 use super::contracts::{ClauseScope, DataSubject, ResultTerm};
 use super::places::RecordSource;
-use crate::lowering::body::{CaseType, RecordField, RecordType, StorageShape, ValueType};
-use crate::lowering::{Unserved, refuse};
+use crate::body::{CaseType, RecordField, RecordType, StorageShape, ValueType};
+use crate::{Unserved, refuse};
 
 /// A data declaration indexed by values, as the signature needs it.
 #[derive(Debug, Clone)]
@@ -193,7 +193,7 @@ pub(crate) struct FamilyTheoremCase {
 pub(super) fn evidence_witness() -> ValueType {
     ValueType::Scalar(
         ScalarType::Boolean,
-        crate::lowering::body::Qualification::NONE,
+        crate::body::Qualification::NONE,
     )
 }
 
@@ -610,7 +610,7 @@ impl Program<'_> {
                     *symbol,
                     ScalarTerm::IntegerField {
                         version: ContentPlaceVersion::Current,
-                        root: crate::lowering::body::self_place()
+                        root: crate::body::self_place()
                             .ok_or_else(|| unserved("self place identity"))?,
                         path: vec![
                             CanonicalStructuralPathSegment::Case(case.case),
@@ -938,7 +938,7 @@ impl Program<'_> {
         // The record is reserved before the cases are read, so that a child
         // of the family's own type resolves to it.
         let record = self.records.push(RecordType {
-            multiplicity: crate::lowering::body::source_multiplicity(data.properties.multiplicity),
+            multiplicity: crate::body::source_multiplicity(data.properties.multiplicity),
             cleanup: None,
             identity,
             shape: StorageShape::Sum(Vec::new()),
@@ -1092,7 +1092,7 @@ impl Program<'_> {
             ));
         }
         let root =
-            crate::lowering::body::self_place().ok_or_else(|| unserved("self place identity"))?;
+            crate::body::self_place().ok_or_else(|| unserved("self place identity"))?;
         let scope = ClauseScope {
             slots: &[],
             values: &[],

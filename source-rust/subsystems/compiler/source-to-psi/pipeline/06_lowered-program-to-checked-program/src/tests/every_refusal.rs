@@ -25,10 +25,10 @@ machine entry() -> u32 {
 "#;
 
 /// The entry closure's verdicts, as `judge_compilation` lists them.
-fn verdicts(text: &str) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
+fn verdicts(text: &str) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     let typed = crate::prepare_fixture(boundary_calls::typed(text));
     let entry = boundary_calls::entry(typed.trees());
-    crate::checking::judge_compilation(
+    crate::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
             crate::lowering::Compilation {
@@ -51,7 +51,7 @@ fn verdicts(text: &str) -> Vec<Result<RouteVerdict, crate::checking::Compilation
 
 /// The detail of each verdict that refuses a construct as not supported.
 fn not_supported(
-    verdicts: &[Result<RouteVerdict, crate::checking::CompilationRefusal>],
+    verdicts: &[Result<RouteVerdict, crate::CompilationRefusal>],
 ) -> Vec<String> {
     verdicts
         .iter()
@@ -188,7 +188,7 @@ fn every_machine_lowering_cannot_plan_is_its_own_verdict() {
         take("take_again"),
     );
     let typed = crate::prepare_fixture(boundary_calls::typed(&source));
-    let verdicts = crate::checking::judge_compilation(
+    let verdicts = crate::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
             crate::lowering::Compilation {

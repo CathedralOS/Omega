@@ -9,8 +9,8 @@ use crate::driver::prepare_typed_source::{
 use crate::driver::resolve_and_type::ResolveAndTypeRequest;
 use crate::source_state::TypedTrees;
 use crate::{CompileTimings, ParsedStageSources, SourcePreparation};
-use checked_program_to_psi::production;
-use checked_program_to_psi::production::{
+use checked_program_to_psi as production;
+use checked_program_to_psi::{
     AcceptedTerminalSource, BuildProtocolUse, ConstantRead, PreparedTerminalPublication,
     ProducedTerminalProgram, TerminalSourceCompilation,
 };
@@ -73,6 +73,19 @@ impl BuildStageSource {
         host: &'static str,
         authority: Option<Arc<PackageDeclarationScope>>,
     ) -> Result<TypedBuildInterval, Vec<Diagnostic>> {
+        if !self.pending_imports.is_empty() {
+            return Err(self
+                .pending_imports
+                .into_iter()
+                .map(|import| {
+                    Diagnostic::error(format!(
+                        "Build import `{}` has no supplied source",
+                        import.target
+                    ))
+                    .with_source_span(source_text::SourceSpan::new(import.source, import.span))
+                })
+                .collect());
+        }
         let entry = self.entry;
         let mut selected = self;
         let imports = std::mem::take(&mut selected.pending_imports);
@@ -177,6 +190,7 @@ impl CheckedBuildInvocation {
         typed: &TypedTrees,
         entry: SymbolHandle,
         subjects: &[Option<PackageKeyIdentity>],
+        declaration_scope: Option<Arc<PackageDeclarationScope>>,
         invocation_sources: Option<Arc<dyn InvocationSourceConsent>>,
     ) -> Result<BuildInvocationJudgment, SourcePreparationFailure> {
         let subjects = if let Some(prefix) = typed.roots.partial_build_entry {
@@ -197,6 +211,7 @@ impl CheckedBuildInvocation {
             accounting: Default::default(),
             admission: SourceAdmission {
                 invocation_sources: invocation_sources.clone(),
+                layout_selection_authority: declaration_scope,
                 ..Default::default()
             },
             compilation: TerminalSourceCompilation {

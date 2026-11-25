@@ -602,7 +602,11 @@ What the code shows:
   of an integer whose width is a parameter"). Admission then records
   `MathematicalCoreDecision::Refused` and still accepts the certificate on
   the bounded rule (`bounded/proof.rs:257-259`). Nothing in `source-to-psi`
-  reads that decision, so nobody counts these.
+  read that decision, so nobody counted these. Since 2026-11-24 stage 06
+  counts them per obligation kind and shape (`unjudged.rs`) and adds a note
+  to an accepted compilation's advisories, which `omega --check` prints and
+  `xtask sweep` records per program; there were 14 such return sites then.
+  Closing or refusing the shapes is still owed (`TASKS.md`).
 - **Terminal Psi has one slot per construct.** `mathematical_carriers`,
   `identity_formations` and `indexed_theorems` each carry one kind of
   declaration, and none has a writer.
@@ -1118,8 +1122,8 @@ kernel, from the library file as it stands.
   to 816, four unary cases 59,242 to 10,463. What remains is the price of
   the encoding itself: under raw trees the associativity law took 1,148, and
   one computation is still hundreds of steps where a built-in inductive
-  type would take about one. Whether to keep W types on that measurement is
-  [recursive data encoding question](../../../OWNER_QUESTIONS.md#recursive-data-as-w-types).
+  type would take about one. The [native inductive ruling](../../spec/proofs/inductive_profile.md#native-inductive-declarations)
+  supersedes the W/IW implementation plan recorded in this audit.
   Each law still re-checks the declarations before it, about 1,000 steps a
   law, which a shared check would remove.
 - **`mod`, `div` and `gcd`** were not read at this step: their recursion is
@@ -1547,9 +1551,11 @@ stages 03 and 04. What is built:
   the proof of its guarantee, so the guarantee is never assumed: with no
   proof of the theorem, the program is refused. (Until 2026-11-24 the
   guarantee was instead added to the citing machine's `requires`, which
-  the specification does not allow.) Not done: the specification erases
-  a call made only for its guarantee, and the call still runs, as an empty
-  machine.
+  the specification does not allow.) The citation emits no call: it is a
+  theorem application that names the theorem's machine, a jump that owes
+  the theorem's `requires` on its edge and has its `ensures` after it.
+  Terminal Psi lets an application name a machine only when that machine's
+  body does nothing.
 - **A type parameter beside the indices.** `Vector<T [copy], Length, Total>`
   with a field `marker: T` is the same kernel family as without `T`: no
   clause can say anything of a value of type `T` and no index depends on
@@ -1623,6 +1629,12 @@ items.
 
 ## Open questions
 
+The [record identity ruling](../../spec/proofs/contracts.md#record-identity-from-field-identities)
+settled the earlier question about leaf equalities. A concrete record's field
+proofs can be assembled automatically into one checked kernel `Id` proof.
+Slice 7 of the [proofs plan](proofs_evidence_lane.md) concerns executable
+comparisons.
+
 Recorded, not answered:
 
 1. **Level binder spelling.** [modules.md#builtin-type-names](../../spec/language/modules.md#builtin-type-names)
@@ -1632,17 +1644,7 @@ Recorded, not answered:
    Is a level argument a type position, and may a level binder be named `u`?
    The library declares no level binder, so this blocks only
    `representation_agreement`, not steps 1-3.
-2. **One mechanism for Identity over data.** The spec forms `core\Identity`
-   with the kernel's `Id` rules ([mathematical_bindings.md#scope](../../spec/proofs/mathematical_bindings.md#scope));
-   the [proofs lane](proofs_evidence_lane.md) slice 7 expands it into leaf
-   equalities over values. Which one is the route, and does the other remain?
-   This audit's reading: `Id` is the route, because a generic `T`
-   (`core/algebra.omg`) has no fields to expand; leaf equalities would then
-   be a consequence the kernel proves for a concrete record, not a second
-   route. If that reading is taken, the "values only in knowledge" rule of
-   [the proofs lane](proofs_evidence_lane.md) changes with it in the same
-   pull request, so the two notes do not disagree.
-3. **Where the signature lives.** Terminal Psi has `mathematical_carriers`,
+2. **Where the signature lives.** Terminal Psi has `mathematical_carriers`,
    `identity_formations` and `indexed_theorems` slots. Stage 05 writes
    carriers for theorem parameters (`read/theorems.rs`) and stage 06 writes
    one for each data declaration; nothing writes the other two. Is R1's
@@ -1654,18 +1656,18 @@ Recorded, not answered:
    judged law over plain data publishes is no longer open: the owner decided
    on 2026-11-23 that such laws are not published (step 2's publication
    bullet above says why).
-4. **Floor scope.** Does "the tightest literal bounds order reasoning gives
+3. **Floor scope.** Does "the tightest literal bounds order reasoning gives
    it" ([contracts.md#required-automatic-discharge](../../spec/proofs/contracts.md#required-automatic-discharge))
    require landing an operand on bounds proved equal (`(prefix - 360) + last`,
    S06 README:1061-1072)? Does the 64 limit count arm combinations, as the
    spec says, or branches, as `prove.rs:84` does?
-5. **Float ranges.** The floor is integer-only. Confirm that no page requires
+4. **Float ranges.** The floor is integer-only. Confirm that no page requires
    automatic interval propagation through float arithmetic, which the old
    checker did without certificates.
-6. **A `requires` that can never hold.** The old judge accepted every goal
+5. **A `requires` that can never hold.** The old judge accepted every goal
    on a path whose hypotheses it found contradictory and reported nothing.
    Should a machine whose `requires` is provably false be a warning?
-7. **Boundary calls while storage is vacant.** With an owned field moved
+6. **Boundary calls while storage is vacant.** With an owned field moved
    out of borrowed storage, the compiler accepts a boundary call that
    reaches a service and a blocking boundary call
    ([probes](#what-todays-compiler-does-with-the-old-rules)). Does a

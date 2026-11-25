@@ -292,10 +292,10 @@ impl<'a> Storage<'a> {
                     up_to,
                     concerns,
                 };
-                match crate::checking::substitute(clause, &mut held) {
+                match crate::substitute(clause, &mut held) {
                     Ok(Proposition::Truth | Proposition::Falsehood) => {}
                     Ok(premise) => premises.push(premise),
-                    Err(crate::checking::Unbound::Unproved(_)) => {}
+                    Err(crate::Unbound::Unproved(_)) => {}
                     Err(unbound) => return Err(unbound.refusal(self.machine, concerns)),
                 }
             }
@@ -435,17 +435,17 @@ impl<'a> Storage<'a> {
                     tables,
                     place: &owner,
                 };
-                match crate::checking::substitute(clause, &mut entry) {
+                match crate::substitute(clause, &mut entry) {
                     Ok(Proposition::Truth | Proposition::Falsehood) => {}
                     Ok(premise) => premises.push((block, premise)),
                     // A name with no entry value, or a form this binding
                     // does not serve, leaves the clause unstated: no
                     // premise, and nothing assumed in its place.
                     Err(
-                        crate::checking::Unbound::Unproved(_)
-                        | crate::checking::Unbound::Unsupported(_),
+                        crate::Unbound::Unproved(_)
+                        | crate::Unbound::Unsupported(_),
                     ) => {}
-                    Err(crate::checking::Unbound::Refused(refused)) => return Err(refused),
+                    Err(crate::Unbound::Refused(refused)) => return Err(refused),
                 }
             }
         }
@@ -469,9 +469,9 @@ impl EntryOwner<'_, '_> {
         &self,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
-    ) -> Result<Lineage, crate::checking::Unbound> {
+    ) -> Result<Lineage, crate::Unbound> {
         if Some(root) != terminal_check_tables::program::self_place() {
-            return Err(crate::checking::Unbound::Unsupported(
+            return Err(crate::Unbound::Unsupported(
                 "a data clause names storage other than its own value",
             ));
         }
@@ -482,33 +482,33 @@ impl EntryOwner<'_, '_> {
         &self,
         leaf: &Lineage,
         scalar_type: ScalarType,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         let storage = self.storage;
         let concerns = Construct::Machine;
         if !matches!(
             storage
                 .shape(leaf, concerns)
-                .map_err(crate::checking::Unbound::Refused)?,
+                .map_err(crate::Unbound::Refused)?,
             Shape::Scalar(declared) if declared == scalar_type
         ) {
-            return Err(crate::checking::Unbound::Unsupported(
+            return Err(crate::Unbound::Unsupported(
                 "a clause names storage with another scalar type",
             ));
         }
         let held = storage
             .interned(self.tables, leaf, concerns)
-            .map_err(crate::checking::Unbound::Refused)?
+            .map_err(crate::Unbound::Refused)?
             .and_then(|place| storage.initial_contents.get(index(place.get())).copied())
             .flatten()
-            .ok_or(crate::checking::Unbound::Unproved(
+            .ok_or(crate::Unbound::Unproved(
                 "no operation names the field, so its entry content has no value identity",
             ))?;
         let held_type =
             terminal_check_tables::row(&self.tables.values, held, storage.machine, concerns)
-                .map_err(crate::checking::Unbound::Refused)?
+                .map_err(crate::Unbound::Refused)?
                 .scalar_type;
         if held_type != scalar_type {
-            return Err(crate::checking::Unbound::Unsupported(
+            return Err(crate::Unbound::Unsupported(
                 "a formal's field holds a value of another type than its clause term",
             ));
         }
@@ -516,13 +516,13 @@ impl EntryOwner<'_, '_> {
     }
 }
 
-impl crate::checking::Bindings for EntryOwner<'_, '_> {
-    type Error = crate::checking::Unbound;
+impl crate::Bindings for EntryOwner<'_, '_> {
+    type Error = crate::Unbound;
     fn value(
         &mut self,
         value: ValueId,
         scalar_type: ScalarType,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         super::clause_input(self.tables, value, scalar_type)
     }
 
@@ -532,9 +532,9 @@ impl crate::checking::Bindings for EntryOwner<'_, '_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         if version != semantic_vocabulary::ContentPlaceVersion::Current {
-            return Err(crate::checking::Unbound::Unsupported(
+            return Err(crate::Unbound::Unsupported(
                 "a data predicate has no invocation-entry contents",
             ));
         }
@@ -546,7 +546,7 @@ impl crate::checking::Bindings for EntryOwner<'_, '_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         scalar_type: semantic_vocabulary::IntegerType,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         let mut leaf = self.beneath(root, path)?;
         leaf.segments.push(Segment::Extent);
         self.observation(&leaf, ScalarType::Integer(scalar_type))
@@ -557,8 +557,8 @@ impl crate::checking::Bindings for EntryOwner<'_, '_> {
         _: PlaceId,
         _: &[CanonicalStructuralPathSegment],
         _: StructuralCaseId,
-    ) -> Result<bool, crate::checking::Unbound> {
-        Err(crate::checking::Unbound::Unproved(
+    ) -> Result<bool, crate::Unbound> {
+        Err(crate::Unbound::Unproved(
             "which case a formal holds at entry is not established by structure",
         ))
     }

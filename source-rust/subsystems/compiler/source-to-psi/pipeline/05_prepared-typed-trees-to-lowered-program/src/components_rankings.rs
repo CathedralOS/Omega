@@ -3,7 +3,7 @@
 //! the completed component still proves every preserving or decreasing edge.
 
 use super::{CallGraph, Components, index};
-use crate::lowering::body::{Expression, ExpressionKind, Ranking, Signature, Strict, ValueType};
+use crate::body::{Expression, ExpressionKind, Ranking, Signature, Strict, ValueType};
 use arena::IdTable;
 use semantic_vocabulary::{MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
@@ -253,8 +253,8 @@ mod tests {
             call_context: None,
             kind: ExpressionKind::Slot(slot),
             result: Some(ty),
-            source: crate::lowering::SourceOrigin::Unpositioned(
-                crate::lowering::Unpositioned::SpanAbsent,
+            source: crate::SourceOrigin::Unpositioned(
+                crate::Unpositioned::SpanAbsent,
             ),
         };
         let ambiguous = forwarded_inputs(&[ty], &[ty, ty], &[slot(0), slot(0)]);

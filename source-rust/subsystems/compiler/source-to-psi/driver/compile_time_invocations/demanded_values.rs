@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use checked_program_to_psi::production;
+use checked_program_to_psi as production;
 use declaration_scope::PackageDeclarationScope;
 use diagnostics::Diagnostic;
 use source_text::SourceSpan;

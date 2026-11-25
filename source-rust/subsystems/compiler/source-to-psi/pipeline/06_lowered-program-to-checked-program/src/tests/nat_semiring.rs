@@ -10,7 +10,7 @@
 //! this way.
 
 use super::*;
-use crate::checking::laws::{SignatureJudgment, UnprovedLaw};
+use crate::laws::{SignatureJudgment, UnprovedLaw};
 
 const LICENSED: &str =
     include_str!("../../tests/fixtures/nat_semiring/pass/library_conformance/main.omg");
@@ -62,7 +62,7 @@ fn judged(source: &str) -> Vec<RouteVerdict> {
         terminal_codec::TerminalPublication::Invocation,
     )
     .unwrap();
-    crate::checking::judge_compilation(compilation.program)
+    crate::judge_compilation(compilation.program)
         .into_iter()
         .map(|verdict| verdict.expect("a judged part"))
         .collect()
@@ -229,7 +229,7 @@ fn every_law_of_nat_but_three_recursions_is_judged() {
         terminal_codec::TerminalPublication::Invocation,
     )
     .unwrap();
-    let verdicts: Vec<_> = crate::checking::judge_compilation(compilation.program)
+    let verdicts: Vec<_> = crate::judge_compilation(compilation.program)
         .into_iter()
         .map(|verdict| verdict.expect("a judged part"))
         .collect();

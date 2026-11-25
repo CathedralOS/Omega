@@ -25,8 +25,8 @@ The compiler-known core query `address_of` exposes an ordinary storage
 reference's referent or one selected executable machine application:
 
 ```omega
-let storage_address = address_of(@myVar);
-let machine_address = address_of::<Something::SomeFunc<u32>>();
+let storage_address: addr = address_of(@myVar);
+let machine_address: addr = address_of::<Something::SomeFunc<u32>>();
 ```
 
 The storage operand identifies the referent, not the temporary reference
@@ -220,7 +220,7 @@ the exact [assumed contract](../build/assumed_binding_contracts.md), if any.
 An ordinary range may describe bytes beginning at an entry:
 
 ```omega
-let region = Extent {
+let region: Extent = Extent {
     base: address_of::<Obstacle::check>(),
     length: 2048
 };

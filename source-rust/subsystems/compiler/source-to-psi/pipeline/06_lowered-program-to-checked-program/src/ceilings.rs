@@ -19,7 +19,7 @@ use terminal_semantics::callable_values::{
     CallableValueProgram, CallableValueQuery, resolve_callable_value, terminal_callable_values,
 };
 
-use crate::checking::refusal;
+use crate::refusal;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Axis {
@@ -258,7 +258,7 @@ fn machine_envelope<'a>(
 fn envelope_for<'a>(
     elaboration: &'a terminal_check_tables::program::Elaboration,
     caller: MachineId,
-    inputs: crate::checking::call_contracts::Inputs<'_>,
+    inputs: crate::call_contracts::Inputs<'_>,
 ) -> Checked<Envelope<'a>> {
     let module = &elaboration.module;
     match inputs.callee {
@@ -525,7 +525,7 @@ impl Calls<'_> {
         &self,
         position: u32,
         site: InvocationSite,
-        call: &crate::checking::call_contracts::Invocation<'_>,
+        call: &crate::call_contracts::Invocation<'_>,
         reached: &mut Contributions,
     ) -> Checked<()> {
         let position = usize::try_from(position)
@@ -623,7 +623,7 @@ impl Calls<'_> {
     fn tail_parameter(
         &self,
         position: u32,
-        call: &crate::checking::call_contracts::TailCall<'_>,
+        call: &crate::call_contracts::TailCall<'_>,
         reached: &mut Contributions,
     ) -> Checked<()> {
         let position = usize::try_from(position)
@@ -831,7 +831,7 @@ fn validate_requirement_envelopes(
     let module = &elaboration.module;
     let mut requirements = elaboration.requirements.clone();
     requirements.sort_unstable();
-    let declarations = crate::checking::static_contracts::requirement_declarations(elaboration)?;
+    let declarations = crate::static_contracts::requirement_declarations(elaboration)?;
     for (id, row) in elaboration.requirement_ceilings.iter() {
         let declaration = declarations.get(id).and_then(|source| *source);
         let Some(envelope) = &row.envelope else {
@@ -1168,7 +1168,7 @@ fn judge_axes(
                 | InvocationSite::Cleanup { edge, .. } => Construct::Edge(edge),
             };
             let call =
-                crate::checking::call_contracts::invocation(module, caller, rows, invocation, row)?;
+                crate::call_contracts::invocation(module, caller, rows, invocation, row)?;
             let envelope = envelope_for(elaboration, caller.id, call.inputs)?;
             let context = Calls {
                 module,
@@ -1179,7 +1179,7 @@ fn judge_axes(
                 at,
             };
             let mut reached = Contributions::default();
-            if let Some(applied) = crate::checking::static_reach::call_reach(
+            if let Some(applied) = crate::static_reach::call_reach(
                 elaboration,
                 caller.id,
                 row.site,
@@ -1261,7 +1261,7 @@ fn judge_axes(
                 axes,
             );
         }
-        let tails = crate::checking::call_contracts::TailCallSites::new(caller);
+        let tails = crate::call_contracts::TailCallSites::new(caller);
         for formation in &caller.call_formations {
             if let (terminal_psi::CallSite::Edge(edge), Some(callee)) =
                 (formation.site, formation.tail_callee)
@@ -1325,7 +1325,7 @@ fn contain(
 fn tail_contribution(
     elaboration: &terminal_check_tables::program::Elaboration,
     context: Calls<'_>,
-    tails: &crate::checking::call_contracts::TailCallSites<'_>,
+    tails: &crate::call_contracts::TailCallSites<'_>,
     callee: MachineId,
     edge: semantic_vocabulary::EdgeId,
     found: &mut Vec<Excess>,
@@ -1334,7 +1334,7 @@ fn tail_contribution(
     let caller = context.caller;
     let at = context.at;
     let ceiling = context.ceiling;
-    let tail = crate::checking::call_contracts::tail_call(module, tails, callee, edge)?;
+    let tail = crate::call_contracts::tail_call(module, tails, callee, edge)?;
     let envelope = machine_envelope(elaboration, callee)?;
     let mut reached = Contributions::default();
     if let Some(reach) = envelope.reach() {
@@ -1427,7 +1427,7 @@ fn fixed_refinement_reach(
                 if std::mem::replace(seen, true) {
                     continue;
                 }
-                let body = crate::checking::terminal_machine(&module.machines, id, from)?;
+                let body = crate::terminal_machine(&module.machines, id, from)?;
                 if body.blocks.is_empty() {
                     return Err(fault(from, "inferred reach has no executable body"));
                 }

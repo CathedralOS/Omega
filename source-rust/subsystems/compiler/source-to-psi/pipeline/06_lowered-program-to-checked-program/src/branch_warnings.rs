@@ -15,8 +15,8 @@ use terminal_check_tables::values::Justification;
 use terminal_check_tables::{KnowledgeId, MachineTables, ProgramPoint};
 use terminal_psi::TerminalMachine;
 
-use crate::checking::graph::Graph;
-use crate::checking::{ImpossibleArm, ProofSearchActivity, hypotheses, prove};
+use crate::graph::Graph;
+use crate::{ImpossibleArm, ProofSearchActivity, hypotheses, prove};
 
 /// Keep this machine's prepared proof inputs until accepted diagnostics need them.
 /// Repeated requests reuse the warning results and release the prepared inputs.

@@ -3,7 +3,7 @@ A two-child Tree constructor preserves Total <= 10 * Nodes; Nodes <= 8 proves ex
 This fact advances **PROOF-KERNEL-CORE** and **PROOF-CONTRACT-MIGRATION** in
 [TASKS.md](../../../../TASKS.md). It exercises the source constructor's dependent
 child-position function, beyond the zero/one-child vector fragment. The
-[W-based profile](../../../../wiki/spec/proofs/inductive_profile.md) requires an
+[native inductive profile](../../../../wiki/spec/proofs/inductive_profile.md) requires an
 independently checked child in the indexed fiber of **every** position, and an
 induction hypothesis for every recursive child. This is the existing calculus;
 source positivity or a successful source predicate does not admit a new rule.

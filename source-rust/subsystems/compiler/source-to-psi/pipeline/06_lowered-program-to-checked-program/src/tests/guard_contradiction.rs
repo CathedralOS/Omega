@@ -221,13 +221,13 @@ fn a_closed_arithmetic_disequality_has_a_kernel_checked_contradiction() {
     let context = PropositionContext::from_value_types(std::iter::empty()).unwrap();
     let values = IdTable::default();
     for endpoint in [15, 16] {
-        let mut activity = crate::checking::ProofSearchActivity::default();
+        let mut activity = crate::ProofSearchActivity::default();
         let assumptions = [Proposition::Disjunction(vec![
             Proposition::LessThan(sum.clone(), literal(endpoint)),
             Proposition::LessThan(literal(endpoint), sum.clone()),
         ])];
         let goal = Proposition::Falsehood;
-        let proof = crate::checking::prove::Prover::new(
+        let proof = crate::prove::Prover::new(
             &context,
             &assumptions,
             &[],

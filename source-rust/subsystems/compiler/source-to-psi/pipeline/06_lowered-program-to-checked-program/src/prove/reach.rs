@@ -35,7 +35,7 @@ Two kinds of value have no defining operation in the machine that names them
 and can still stand for one the rules do not reach: a formal whose input
 condition was inferred from a caller's unreached actual, and the result of a
 call to a private helper whose body returns such a value. Those are passed
-in as `unreached` (`crate::checking::Unreached`).
+in as `unreached` (`crate::Unreached`).
 */
 
 use semantic_vocabulary::{Proposition, ScalarTerm, ValueId};

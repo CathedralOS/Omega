@@ -12,7 +12,7 @@ Collection recasts retain their written reference type and use collection-view
 formation. Other storage recasts require an explicit reference formation.
 */
 
-use crate::lowering::qualifications::explain_policy_refusal;
+use crate::qualifications::explain_policy_refusal;
 use crate::source_state::expression::{ExpressionHandle, TableCastExpression};
 use crate::source_state::types::TypeReferenceNode;
 use language_core::ReferenceAccess;
@@ -20,8 +20,8 @@ use semantic_vocabulary::{MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
 
 use super::{Program, Slot};
-use crate::lowering::body::{Expression, ExpressionKind, Policy, Qualification, ValueType};
-use crate::lowering::{SourceOrigin, Unserved, refuse, reject};
+use crate::body::{Expression, ExpressionKind, Policy, Qualification, ValueType};
+use crate::{SourceOrigin, Unserved, refuse, reject};
 
 impl Program<'_> {
     pub(super) fn cast(
@@ -374,7 +374,7 @@ impl Program<'_> {
         Ok(Expression {
             call_context: None,
             kind: ExpressionKind::Call {
-                callee: crate::lowering::body::CallTarget::Boundary { boundary },
+                callee: crate::body::CallTarget::Boundary { boundary },
                 required_contract: None,
                 static_reach_binding: None,
                 static_reach_arguments: Vec::new(),
@@ -478,7 +478,7 @@ impl Program<'_> {
             {
                 return Err(unavailable());
             }
-            let domain = crate::lowering::body::DomainInstance {
+            let domain = crate::body::DomainInstance {
                 declaration: cast.semantic_domain_symbol,
                 identity: cast.semantic_domain_id,
             };
@@ -546,7 +546,7 @@ impl Program<'_> {
         id: MachineId,
         operand: Expression,
         result: ValueType,
-        domain: crate::lowering::body::DomainInstance,
+        domain: crate::body::DomainInstance,
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
@@ -555,7 +555,7 @@ impl Program<'_> {
         // checking judges that distinction on the actual lowered value.
         self.domain_theory(id, domain)?;
         // "Has predicates | Prove them for this value."
-        let (clauses, stated) = match (result, crate::lowering::body::DomainSet::EMPTY.with(domain))
+        let (clauses, stated) = match (result, crate::body::DomainSet::EMPTY.with(domain))
         {
             (ValueType::Scalar(carrier, _), Some(domains)) => self.cast_predicates(
                 id,
@@ -621,7 +621,7 @@ impl Program<'_> {
         result: ValueType,
         cast: &TableCastExpression,
         entry: language_core::cast_form::CastEntry,
-    ) -> Checked<Option<crate::lowering::body::DomainInstance>> {
+    ) -> Checked<Option<crate::body::DomainInstance>> {
         use language_core::cast_form::CastEntryKind;
         let mistyped = |what| refuse(id, Construct::Machine, Unserved::Typing(what));
         if operand.qualified(Qualification::NONE) != result.qualified(Qualification::NONE)
@@ -640,7 +640,7 @@ impl Program<'_> {
                 .is_some()
                 && !before
                     .domains
-                    .contains(crate::lowering::body::DomainInstance {
+                    .contains(crate::body::DomainInstance {
                         declaration: cast.semantic_domain_symbol,
                         identity: cast.semantic_domain_id,
                     })
@@ -688,7 +688,7 @@ impl Program<'_> {
     pub(super) fn domain_removal(
         &self,
         id: MachineId,
-        domain: crate::lowering::body::DomainInstance,
+        domain: crate::body::DomainInstance,
         operand: ValueType,
         source: SourceOrigin,
     ) -> Checked<()> {
@@ -707,11 +707,11 @@ impl Program<'_> {
         if let ValueType::Record(row, _, _) = operand
             && matches!(
                 self.data_type(id, row)?.shape,
-                crate::lowering::StorageShape::Reference {
+                crate::StorageShape::Reference {
                     access: terminal_psi::StructuralAccess::MutableBorrow
                         | terminal_psi::StructuralAccess::WriteOnlyBorrow,
                     ..
-                } | crate::lowering::StorageShape::ByteSequence(
+                } | crate::StorageShape::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BorrowedView {
                         access: Some(
                             terminal_psi::StructuralAccess::MutableBorrow
@@ -724,7 +724,7 @@ impl Program<'_> {
                         ),
                         ..
                     }
-                ) | crate::lowering::StorageShape::ElementView {
+                ) | crate::StorageShape::ElementView {
                     access: Some(
                         terminal_psi::StructuralAccess::MutableBorrow
                             | terminal_psi::StructuralAccess::WriteOnlyBorrow
@@ -744,7 +744,7 @@ impl Program<'_> {
     pub(super) fn issue(
         &self,
         id: MachineId,
-        domain: crate::lowering::body::DomainInstance,
+        domain: crate::body::DomainInstance,
         source: SourceOrigin,
     ) -> Checked<()> {
         use crate::source_state::domain::DomainIssuance;

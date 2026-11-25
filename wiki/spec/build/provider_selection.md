@@ -114,7 +114,7 @@ compose checked target-specific leaves.
 An exact call to a realization machine delegates directly; spelling its operator
 inside the provider redispatches and can recurse.
 
-### Independent library exports and runtime publishers
+### Independent library exports and owned providers
 
 A supplier's Build selects which closed satisfaction its library exports.
 For example, the quiet console library declares its output with
@@ -130,46 +130,23 @@ selection rules. This declaration roots that satisfaction in the library
 output. Internal provider selections can supply its dependencies without
 adding them as export roots. The consumer decides whether its slot is replaceable.
 
-The host product's root Build names the operation allowed to publish into
-an initially empty slot. An editor that always uses the same installer writes
+A host can load the library as an [owned provider](component_publication.md#owned-runtime-providers)
+without a Build row for the resulting variable. Its Build and receiver policy
+still govern available loading services, authority and accepted components.
+The host may independently select a backing for ordinary static calls:
 
 ```omega
 // editor/build.omg
-Build::select_provider::<Console>(b, Runtime { publisher: EditorConsoleInstaller::install });
+Build::select_provider::<Console, TerminalConsole>(b);
 ```
 
-Here `EditorConsoleInstaller::install` designates the concrete implementation
-of the core boundary requirement `ProviderInstaller<Console>::install`. The
-checker resolves that member through the exact satisfaction. A machine with
-the same signature alone cannot serve as publisher. Direct designation
-requires no separate selection for the installer requirement.
-
-A host that selects the installer through a requirement uses these two
-declarations instead. The installer follows ordinary selection, including
-target-specific backings.
-
-```omega
-// editor/build.omg
-Build::select_provider::<Console>(b, Runtime { publisher: ProviderInstaller<Console>::install });
-Build::select_provider::<ProviderInstaller<Console>, EditorConsoleInstaller>(b);
-```
-
-For either form, `Runtime` explicitly selects an independent slot with an empty
-initial binding. It takes precedence over a target default. An explicit
-build-time first provider and an explicit runtime selection for the same slot
-in the same product on the same target conflict and must be rejected. A host
-that wants a build-selected first provider followed by runtime replacement
-can still use `CompositionMode::Independent` with that provider.
-
-The host Build freezes the slot's envelope within consumer acceptance. A
-supplier built later can qualify without its name appearing in the host.
-The installer and its dependencies must be available before use. A concrete
-installer can call a target-selected placement service. Designation grants
-neither executable placement authority nor access to another installation's
-slot. The [first-binding rules](component_publication.md#first-binding-of-a-runtime-bound-slot)
-govern use of the slot. The [instance authority](../../../OWNER_QUESTIONS.md#component-publication-authority)
-and [successful publication](../../../OWNER_QUESTIONS.md#component-first-binding-proof)
-questions cover the install operation's parameters and result contract.
+A bare `Console::write_line` uses that selection (or the target default).
+Passing `Console` as the static requirement argument of `Provider<Console>`
+identifies the export contract to match. Loading or replacing an owned value
+leaves static calls and other owned values alone. The former
+`Runtime { publisher: ... }` selection is retired. Explicit Independent
+composition with a selected supplier and Build provider readiness keep their
+existing installation contracts.
 
 ### Build-owned target selection
 

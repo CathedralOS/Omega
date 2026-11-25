@@ -11,7 +11,7 @@ use terminal_psi::{
     ByteSequenceCarrier, OperationKind, StructuralAccess, StructuralFieldType, StructuralTypeShape,
 };
 
-fn accepted(build: &str) -> crate::checking::AcceptedClosure {
+fn accepted(build: &str) -> crate::AcceptedClosure {
     match judge_build(build).unwrap() {
         RouteVerdict::Accepted(accepted) => *accepted,
         other => panic!("{other:?}"),
@@ -20,7 +20,7 @@ fn accepted(build: &str) -> crate::checking::AcceptedClosure {
 
 fn refusal(build: &str) -> String {
     match judge_build(build) {
-        Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+        Err(crate::CompilationRefusal::Elaboration(refusal))
         | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
         // A program the compiler rejects reads as its one violation.
         Ok(RouteVerdict::Rejected { violations, .. }) if violations.len() == 1 => {
@@ -32,7 +32,7 @@ fn refusal(build: &str) -> String {
 
 /// How each record field of the lowered module that is no scalar is
 /// declared: `true` for a byte field holding a shared view.
-fn stored_fields(accepted: &crate::checking::AcceptedClosure) -> Vec<bool> {
+fn stored_fields(accepted: &crate::AcceptedClosure) -> Vec<bool> {
     let shared = ByteSequenceCarrier::BorrowedView {
         access: Some(StructuralAccess::SharedBorrow),
     };
@@ -51,7 +51,7 @@ fn stored_fields(accepted: &crate::checking::AcceptedClosure) -> Vec<bool> {
         .collect()
 }
 
-fn operations(accepted: &crate::checking::AcceptedClosure) -> Vec<&OperationKind> {
+fn operations(accepted: &crate::AcceptedClosure) -> Vec<&OperationKind> {
     accepted
         .elaboration
         .module

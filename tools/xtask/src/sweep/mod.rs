@@ -223,6 +223,26 @@ struct Row {
     detail: String,
     /// Its own files say `--check` must refuse it.
     reject: bool,
+    /// How many accepted certificates the mathematical kernel did not judge,
+    /// from the checker's note (`unjudged`).
+    unjudged: u32,
+}
+
+/// The count in the checker's note on certificates the mathematical kernel
+/// did not judge: "N accepted certificate(s) rest on the bounded checker
+/// alone, ...". Zero without the note.
+fn unjudged(output: &str) -> u32 {
+    output
+        .lines()
+        .filter_map(|line| {
+            line.trim_start()
+                .strip_prefix("note: ")?
+                .split_once(" accepted certificate(s) rest on the bounded checker alone")?
+                .0
+                .parse::<u32>()
+                .ok()
+        })
+        .sum()
 }
 
 /// The error that stopped a program: the first error indented under the
@@ -353,6 +373,7 @@ fn judged(
             cause: String::new(),
             detail: String::new(),
             reject,
+            unjudged: unjudged(output),
         };
     }
     let (top, cause) = first_error(output);
@@ -381,6 +402,7 @@ fn judged(
         reject,
         cause: pattern(&cause),
         detail: cause.chars().take(300).collect(),
+        unjudged: 0,
     }
 }
 
@@ -857,6 +879,14 @@ fn summary(rows: &[Row]) -> String {
             text.push_str(&format!("{n:>7}  {cause}\n"));
         }
     }
+    let unjudged: Vec<_> = rows.iter().filter(|row| row.unjudged > 0).collect();
+    if !unjudged.is_empty() {
+        text.push_str(&format!(
+            "\naccepted with certificates the mathematical kernel did not judge: {} programs, {} certificates\n",
+            unjudged.len(),
+            unjudged.iter().map(|row| u64::from(row.unjudged)).sum::<u64>()
+        ));
+    }
     let wrong: Vec<_> = rows
         .iter()
         .filter(|row| row.outcome == "Accepted a wrong program")
@@ -1277,6 +1307,35 @@ mod tests {
         assert_eq!(row.stage, "Build program");
         assert_eq!(row.cause, "not supported yet: call late-bound selection");
         assert_eq!(row.outcome, "Blocked");
+    }
+
+    #[test]
+    fn a_checked_program_records_the_certificates_the_kernel_did_not_judge() {
+        let output = "note: 3 accepted certificate(s) rest on the bounded checker alone, because \
+                      the mathematical kernel cannot judge their shape yet: 2 for an \
+                      operation's safety (a), 1 for a call's requires (b)\n\
+                      compiled 4 source file(s) from x/main.omg; wrote_output=false\n";
+        let noted = row("samples/cli/x/main.omg", 0, 10, output);
+        assert_eq!(noted.outcome, "Checks");
+        assert_eq!(noted.unjudged, 3);
+        let read = record::row_from_json(&record::row_json(&noted)).unwrap();
+        assert_eq!(read, noted);
+        assert!(summary(std::slice::from_ref(&noted)).contains(
+            "accepted with certificates the mathematical kernel did not judge: 1 programs, 3 certificates"
+        ));
+        let plain = row(
+            "samples/cli/y/main.omg",
+            0,
+            10,
+            "compiled 4 source file(s) from y/main.omg; wrote_output=false\n",
+        );
+        assert_eq!(plain.unjudged, 0);
+        assert!(
+            !record::row_json(&plain)
+                .as_object()
+                .unwrap()
+                .contains_key("unjudged")
+        );
     }
 
     #[test]

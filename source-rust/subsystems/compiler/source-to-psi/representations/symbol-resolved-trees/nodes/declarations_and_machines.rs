@@ -292,6 +292,8 @@ pub mod declarations {
             pub semantic_id: semantic_vocabulary::SemanticDomainId,
             pub semantic_roles: source_declarations::DomainSemanticRoles,
             pub establishment_routes: Vec<source_declarations::DomainEstablishmentRoute>,
+            /// Authored core Content projections must be checked against their applied owner and algebra.
+            pub content_projections: Vec<SymbolHandle>,
         }
 
         impl DomainDefinition {

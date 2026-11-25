@@ -77,7 +77,9 @@ construct. Nothing is skipped.
   so it sees values and propositions.
 - **Knowledge describes values.** A structural comparison exposes the
   selected comparisons of its fields. An explicit `core\Identity::<T>`
-  states kernel `Id` over its two operand values. When a citation passes a
+  states kernel `Id` over its two operand values. For a concrete record fully
+  determined by its fields, the checker assembles valid field identity proofs
+  into a proof of that goal under the [record identity rule](../../spec/proofs/contracts.md#record-identity-from-field-identities). When a citation passes a
   value through storage, its evidence concerns the value supplied at that
   invocation. Deriving identity from an executable comparison requires
   checked evidence. [Data identity in facts](../../spec/proofs/contracts.md#data-identity-in-facts)

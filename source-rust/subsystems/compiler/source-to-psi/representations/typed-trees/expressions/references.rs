@@ -3027,6 +3027,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         }
         visit_proof_facts(program, retained, domain.facts);
         visit_domain_establishment_routes(retained, &domain.establishment_routes);
+        retained.extend(domain.content_projections.iter().copied());
         // A reached domain reaches the policy that states its issuance, as
         // it reaches its routes.
         if let Some(policy) = &domain.access_policy {
@@ -3053,6 +3054,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         visit_type_reference(program, retained, theory.target_type);
         visit_proof_facts(program, retained, theory.facts);
         visit_domain_establishment_routes(retained, &theory.establishment_routes);
+        retained.extend(theory.content_projections.iter().copied());
         if let Some(selection) = &theory.cleanup_selection {
             visit_cleanup_selection(program, retained, selection);
         }
@@ -5377,5 +5379,56 @@ mod formation_owner_tests {
                 "missing {required:?}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod content_projection_dependencies {
+    use super::*;
+
+    #[test]
+    fn a_retained_domain_reaches_its_publisher_after_a_checked_extension() {
+        use crate::source_state::domain::DomainDefinition;
+        use symbols::{SymbolKind, SymbolNameRef};
+
+        let mut builder = crate::source_symbols::SymbolTableBuilder::default();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let names = builder.insert_children(
+            root,
+            [
+                (SymbolKind::Domain, SymbolNameRef::Static("Owned")),
+                (SymbolKind::Machine, SymbolNameRef::Static("measure")),
+                (SymbolKind::Machine, SymbolNameRef::Static("other")),
+            ],
+        );
+        let (domain, projection, other) =
+            (names.handle_at(0), names.handle_at(1), names.handle_at(2));
+        let mut program = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        program.push_domain_definition(DomainDefinition {
+            symbol: domain,
+            ..Default::default()
+        });
+        program
+            .extend_retained_domain_projections(domain, &[projection])
+            .unwrap();
+        program
+            .extend_retained_domain_projections(domain, &[projection])
+            .unwrap();
+        assert!(
+            program
+                .extend_retained_domain_projections(domain, &[other])
+                .is_err()
+        );
+        let reads = |selected| {
+            collect_selected_program_references(
+                &program,
+                &DeclarationSelection::from_symbols([selected]),
+            )
+        };
+        assert!(reads(domain).symbols.contains(&projection));
+        assert!(!reads(other).symbols.contains(&projection));
     }
 }

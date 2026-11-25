@@ -117,9 +117,9 @@ impl Program<'_> {
                             .is_valid()
                             .then(|| typed.symbols.symbol_source_span(owner))
                             .flatten();
-                        crate::lowering::reject(
+                        crate::reject(
                             machine,
-                            crate::lowering::SourceOrigin::of(span.unwrap_or_default()),
+                            crate::SourceOrigin::of(span.unwrap_or_default()),
                             issue.message(),
                         )
                     }
@@ -335,7 +335,7 @@ fn target_geometry(
 
 fn field_coordinates(
     symbols: &[SymbolHandle],
-    fields: &[crate::lowering::body::RecordField],
+    fields: &[crate::body::RecordField],
     machine: MachineId,
 ) -> Checked<Vec<(SymbolHandle, StructuralFieldId)>> {
     if symbols.len() != fields.len() {

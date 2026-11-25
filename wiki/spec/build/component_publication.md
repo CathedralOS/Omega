@@ -37,7 +37,7 @@ families use ordinary closed static arguments with nominal or declared-domain
 identity, not strings, ordinals, vtable indices, addresses, or artifact generations.
 A package may contribute several independent roots.
 
-For a standalone supplier library, [`Build::export_provider`](provider_selection.md#independent-library-exports-and-runtime-publishers)
+For a standalone supplier library, [`Build::export_provider`](provider_selection.md#independent-library-exports-and-owned-providers)
 selects a satisfied requirement as an export root. Derive its export contract
 from that satisfaction and its imports from requirement calls leaving the closure. Concrete-identity edges remain inside, pull in their
 targets when legal, or reject. Duplicable immutable dependencies may be shared or
@@ -268,8 +268,7 @@ legacy core carrier, compiler paths, authored fields/parameters, and fixtures.
 An exact closed boundary-trait application is a static provider slot. Source
 calls its requirements directly, for example `Console::write(bytes)`. Checked
 source retains the exact requirement application and call occurrence; provider
-planning records each demanded slot and whether composition selects its first
-provider or explicitly leaves it runtime-bound. Every call must enter one
+planning records the selected supply for each demanded static slot. Every call must enter one
 admitted realization. Missing, ambiguous, wrong-target, incompatible or
 unauthorized supply prevents entry into code that requires the slot.
 
@@ -307,42 +306,60 @@ from complete entry/leave work, stack, suspension, blocking, reach/authority,
 and calling/state contracts, not an `isr_safe` switch. RCU, epochs, counters, or
 hazards are runtime choices.
 
-### First binding of a runtime-bound slot
+### Owned runtime providers
 
-A Build may describe an independent slot without selecting its first provider.
-Composition fixes its exact requirement and permitted envelope. Runtime binding
-must be explicit. Omitting a required build-time selection still rejects.
-An authorized application or installer supplies the first compatible provider
-for that installation. Loading a candidate makes it available for installation.
-Binding publishes its admitted export to this particular slot. The installation
-owns the slot storage and gives its designated supervisor sole update authority
-for that occurrence. Publication requires both this authority and the admitted
-export backed by the installed realization. Success atomically redirects future
-entries from every caller wired to that occurrence. Another installation of the
-same program has its own occurrence. The right to call the requirement, possession
-of the image, and the ability to load native code each confer no publication right.
+An application that chooses a supplier at runtime owns a core `Provider<R>`
+value in ordinary storage. `R` names an exact closed requirement with a
+runtime-materializable [operation record](../language/machine_values.md#static-callable-selections).
+The value owns callable access to one admitted, installed export and retains
+its installation for the lifetime of that access. Every established value is
+callable. An application can represent absence with an ordinary sum or exit on
+load failure before initializing the variable.
 
-Startup can run while the slot is empty. Every path into code that requires
-the slot, including through a helper or callback, must establish successful
-binding before entry. The checker rejects a path that could enter the consumer
-unbound. The installer checks the actual candidate at runtime. Failed first
-binding leaves the slot empty and preserves the caller's authority to retry,
-bind a separately admitted built-in provider, or exit. An empty slot performs
-no implicit no-op. A successful bind lets ordinary callers use the declared
-requirement directly.
+**Construction.** A successful `load_provider::<R>(image, description)` binds the export of that
+requirement to the exact installed realization that backs its operations.
+Decoding image or description bytes yields a candidate. Admission checks the
+description against the image, target, complete requirement contract, imports,
+resource demands and receiver policy. Native placement needs its own authority
+and must finish [executable installation](executable_installation.md#placement-lifecycle).
+Deriving the bound export from matching custody is an ordinary checked operation.
+Only authorized routes may establish fresh admission and executable installation
+under the [authority rules](../resources/authority.md#establishment-routes). A
+description for A cannot authorize calling B, even when both export R. Private
+code addresses, a copied qualification or a matching display name cannot
+construct this value. Failure returns no provider and accounts for any staged
+resources. The receiver's [native evidence and opaque-code rules](#candidate-acceptance-and-resources)
+apply at this boundary. Code may receive or move an established provider under
+ordinary ownership rules.
 
-The success path of first publication establishes a bound-slot fact for that
-occurrence. A wrapper promising first binding must establish that fact on
-every successful return. Returning a success variant alone proves nothing.
-At a control-flow join, every incoming path that continues to a consumer must
-establish supply. This applies to error reporting, callbacks and the installer's
-own transitive callees. An installer cannot use the empty Console to report
-its first load failure. It can exit or retry without entering a Console consumer.
+**Calling.** `Provider::get(@provider)` takes `@Provider<R>` and returns `@R`
+borrowed from that same owner. It projects the operation record already bound
+at construction. Each field keeps its nominal requirement, argument, result,
+reach and other call contracts. The record supplies no implicit receiver. A
+projected callable carries the loan even when extracted into a local, passed to
+a helper, or returned. The borrow covers the whole invocation, including any
+suspension or re-entry. The following access conflict must reject:
 
-Replacing a bound provider keeps the slot bound throughout cutover. On failure
-the previous provider continues serving. New calls enter a successfully
-published replacement. Outstanding calls and sessions retain their existing
-version under the custody rules below.
+```omega
+let ops: @Console = Provider::get(@preview);
+let write: Console::write_line = ops.write_line;
+preview = next;                 // exclusive write conflicts with the later call
+write("still using preview");
+```
+
+**Replacement.** Once all dependent loans have ended, the owner can move or
+replace the value in a mutable place under the ordinary [ownership and
+cleanup rules](../language/ownership.md). Loading the next value before
+replacement keeps the current provider usable on load failure. No call to a
+designated publisher, reach atom for assignment, or global readiness fact is
+involved. A program can hold two exports of R and use either independently of
+the Build-selected backing of `R::operation`.
+
+This rule covers sequential replacement. A callback, returned session, foreign
+registration or other outstanding user of old code or state must retain its
+borrow or separately own an accounted claim under the custody rules below.
+Replacing a local value supplies no automatic unload, state migration or
+concurrent redirection guarantee.
 
 ### Returned values and custody
 
@@ -435,10 +452,11 @@ migrated, or admitted for indefinite retention. Routing and reclamation are
 separate completion states. Independently reclaimable mappings cannot share a
 page that one owner expects to unmap.
 
-Initial composition defines the stable slot and its envelope. A build-bound
-selection supplies the first provider. An explicitly runtime-bound slot follows
-the first-binding rules above. The installation supplies required instance data
-and gives one designated supervisor linear update authority for that occurrence.
+For an independently deployed component with shared routing, initial composition
+defines the stable slot, first supplier and replacement envelope. The installation
+supplies the instance data and its owner delegates linear update authority for
+that occurrence. Ordinary replacement of an owned provider needs only exclusive
+access to its place.
 Candidates cannot publish themselves. The installer checks the frozen envelope and returns
 staged lifecycle custody; publication, entry freeze, roots, retirement, and
 release are operational Type-side tokens, never erased theorem conclusions.

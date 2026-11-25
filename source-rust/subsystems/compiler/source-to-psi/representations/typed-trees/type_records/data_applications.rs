@@ -420,6 +420,93 @@ impl<'source> ApplicationPreparation<'source> {
         }
     }
 
+    /// A selected implementation closes a data argument only at its declared trait application.
+    /// The trait's type arguments are interpreted under this data application's telescope.
+    fn closed_implementation(
+        &self,
+        application: TypeReferenceHandle,
+        data: &crate::source_state::data::DataDefinition,
+        parameter: &crate::source_state::data::TypeParameter,
+        argument: TypeReferenceHandle,
+    ) -> Result<bool, String> {
+        use crate::source_state::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
+
+        let program = &*self.source;
+        if !crate::source_state::domain::index_argument_is_closed(program, application) {
+            return Ok(false);
+        }
+        let (requirement, arguments, lifetimes) = match parameter.kind {
+            TypeParameterKind::Implementation => {
+                let mut bounds = data
+                    .conformance_bounds
+                    .iter()
+                    .filter(|bound| bound.binder == parameter.symbol);
+                let (Some(bound), None) = (bounds.next(), bounds.next()) else {
+                    return Err(
+                        "data implementation parameter must have one declared requirement".into(),
+                    );
+                };
+                (
+                    bound.trait_symbol,
+                    bound.arguments.as_slice(),
+                    bound.lifetime_arguments.as_slice(),
+                )
+            }
+            TypeParameterKind::Const { type_reference } => {
+                match program.type_reference_table.type_reference(type_reference) {
+                    TypeReferenceNode::Named { symbol, .. } => (*symbol, &[][..], &[][..]),
+                    TypeReferenceNode::Generic {
+                        base_symbol,
+                        arguments,
+                        lifetime_arguments,
+                        ..
+                    } => (
+                        *base_symbol,
+                        program.type_reference_handles(*arguments),
+                        lifetime_arguments.as_slice(),
+                    ),
+                    _ => return Ok(false),
+                }
+            }
+            _ => return Ok(false),
+        };
+        let requirement = program
+            .trait_definition_by_symbol(requirement)
+            .ok_or("data implementation parameter lost its declared requirement")?;
+        let expected = AppliedTraitScope::new(
+            program,
+            requirement,
+            TraitApplicationArguments {
+                lexical_owner: data.symbol,
+                enclosing_data_applications: &[application],
+                arguments,
+                lifetimes,
+            },
+        )
+        .ok_or("data implementation parameter lost its requirement arguments")?;
+        let symbol = program.type_reference_table.type_symbol(argument);
+        if program.conformance_by_symbol(symbol).is_none() {
+            // A computed const record can still acquire its value during evaluation.
+            return if matches!(parameter.kind, TypeParameterKind::Const { .. }) {
+                Ok(false)
+            } else {
+                Err("data implementation argument must name a selected implementation".into())
+            };
+        }
+        let actual = program
+            .applied_requirement_scope(data.symbol, argument)
+            .ok_or("data implementation argument lacks a complete selected application")?;
+        if !expected.same_application(program, &actual) {
+            return Err(format!(
+                "implementation `{}` does not supply the declared `{}` application of `{}`",
+                program.display_type_reference(argument),
+                requirement.name.as_str(),
+                data.name.as_str()
+            ));
+        }
+        Ok(true)
+    }
+
     fn application(
         &mut self,
         reference: TypeReferenceHandle,
@@ -449,6 +536,7 @@ impl<'source> ApplicationPreparation<'source> {
                 !matches!(
                     parameter.kind,
                     TypeParameterKind::Type
+                        | TypeParameterKind::Implementation
                         | TypeParameterKind::Const { .. }
                         | TypeParameterKind::Value { .. }
                 )
@@ -458,13 +546,18 @@ impl<'source> ApplicationPreparation<'source> {
         }
         let mut substitutions = Vec::with_capacity(parameters.len());
         for (parameter, argument) in parameters.iter().zip(arguments) {
+            let symbol_kind = if parameter.kind == TypeParameterKind::Implementation {
+                SymbolKind::ConformanceParameter
+            } else {
+                SymbolKind::TypeParameter
+            };
             if !self
                 .source
                 .symbols
                 .symbols()
                 .nodes()
                 .is_valid(parameter.symbol)
-                || self.source.symbols.get(parameter.symbol).kind != SymbolKind::TypeParameter
+                || self.source.symbols.get(parameter.symbol).kind != symbol_kind
                 || self.source.symbols.get(parameter.symbol).parent != owner
                 || substitutions
                     .iter()
@@ -521,6 +614,17 @@ impl<'source> ApplicationPreparation<'source> {
         for (parameter, (_, argument)) in parameters.iter().zip(&substitutions) {
             closed &= match parameter.kind {
                 TypeParameterKind::Type => self.reference(*argument)?,
+                TypeParameterKind::Implementation => {
+                    self.closed_implementation(reference, &definition, parameter, *argument)?
+                }
+                TypeParameterKind::Const { type_reference }
+                    if self
+                        .source
+                        .static_record_schema(type_reference, owner)
+                        .is_some() =>
+                {
+                    self.closed_implementation(reference, &definition, parameter, *argument)?
+                }
                 TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
                     self.source
                         .static_const_literal_from_type_reference(*argument)

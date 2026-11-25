@@ -41,8 +41,8 @@ use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 
 use super::Program;
-use crate::lowering::body::{Regions, ValueType};
-use crate::lowering::{Unserved, refuse};
+use crate::body::{Regions, ValueType};
+use crate::{Unserved, refuse};
 
 mod result_lifetimes;
 
@@ -629,13 +629,13 @@ impl Program<'_> {
         if !matches!(actual, ValueType::Record(..)) {
             return false;
         }
-        let contracts = crate::lowering::inhabitation::SourceContracts(&self.records);
+        let contracts = crate::inhabitation::SourceContracts(&self.records);
         if self.inhabitation.extend(&contracts).is_err() {
             // Missing type metadata supplies no coercion. Ordinary typing
             // will retain its exact-type rule and refuse a mismatch.
             return false;
         }
-        crate::lowering::inhabitation::excludes_result(&self.inhabitation, Some(actual))
+        crate::inhabitation::excludes_result(&self.inhabitation, Some(actual))
     }
 }
 
@@ -684,8 +684,8 @@ impl Program<'_> {
     pub(crate) fn same_signature(
         &mut self,
         id: MachineId,
-        required: &crate::lowering::body::Signature,
-        supplied: &crate::lowering::body::Signature,
+        required: &crate::body::Signature,
+        supplied: &crate::body::Signature,
         supplied_machine: SymbolHandle,
     ) -> Checked<bool> {
         if required.parameters.len() != supplied.parameters.len()
@@ -801,9 +801,9 @@ impl Program<'_> {
     pub(super) fn direct_element_view_formal(
         &self,
         slots: &[super::Slot],
-        place: &crate::lowering::Expression,
+        place: &crate::Expression,
     ) -> bool {
-        let (crate::lowering::ExpressionKind::Slot(slot), Some(ValueType::Record(row, _, _))) =
+        let (crate::ExpressionKind::Slot(slot), Some(ValueType::Record(row, _, _))) =
             (&place.kind, place.result)
         else {
             return false;
@@ -812,7 +812,7 @@ impl Program<'_> {
             && self.records.get(row).is_some_and(|row| {
                 matches!(
                     row.shape,
-                    crate::lowering::StorageShape::ElementView { access: None, .. }
+                    crate::StorageShape::ElementView { access: None, .. }
                 )
             })
     }
@@ -830,7 +830,7 @@ impl Program<'_> {
         let borrowed = direct_formal
             || matches!(
                 self.data_type(id, collection)?.shape,
-                crate::lowering::StorageShape::ElementView {
+                crate::StorageShape::ElementView {
                     access: Some(_),
                     ..
                 }

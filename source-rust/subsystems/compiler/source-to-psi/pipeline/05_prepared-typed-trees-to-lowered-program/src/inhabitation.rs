@@ -6,7 +6,7 @@ use arena::IdTable;
 use semantic_vocabulary::{Proposition, StructuralTypeId};
 use terminal_semantics::inhabitation::{Inhabitation, Status, TypeContracts};
 
-use crate::lowering::body::{RecordType, StorageShape, ValueType};
+use crate::body::{RecordType, StorageShape, ValueType};
 
 pub(crate) struct SourceContracts<'a>(pub &'a IdTable<StructuralTypeId, RecordType>);
 

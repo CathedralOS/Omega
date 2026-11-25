@@ -63,7 +63,7 @@ fn subject_path(
     argument: &StructuralArgument,
 ) -> Checked<Vec<terminal_check_tables::bindings::Segment>> {
     let fail = || {
-        crate::checking::refusal(
+        crate::refusal(
             RefusalReason::ForeignIdentity,
             machine.id,
             Construct::Machine,
@@ -100,7 +100,7 @@ pub(crate) fn exact_place(
     argument: &StructuralArgument,
 ) -> Checked<ExactPlaceId> {
     let fail = || {
-        crate::checking::refusal(
+        crate::refusal(
             RefusalReason::ForeignIdentity,
             machine.id,
             Construct::Machine,
@@ -127,7 +127,7 @@ fn intern_actual(
     argument: &StructuralArgument,
 ) -> Checked<ExactPlaceId> {
     let mut place = *tables.roots.get(argument.place).ok_or_else(|| {
-        crate::checking::refusal(
+        crate::refusal(
             RefusalReason::ForeignIdentity,
             machine.id,
             Construct::Machine,
@@ -150,7 +150,7 @@ fn intern_actual(
 /// validates the same rows without calling this producer routine.
 pub(crate) fn materialize(elaboration: &mut Elaboration) -> Checked<()> {
     let catalog = Catalog::new(&elaboration.module).map_err(|detail| {
-        crate::checking::refusal(
+        crate::refusal(
             RefusalReason::ForeignIdentity,
             elaboration
                 .module
@@ -170,9 +170,9 @@ pub(crate) fn materialize(elaboration: &mut Elaboration) -> Checked<()> {
                     let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action else {
                         continue;
                     };
-                    let ordinal = crate::checking::position(ordinal, machine.id)?;
+                    let ordinal = crate::position(ordinal, machine.id)?;
                     let target = catalog.target(cleanup).map_err(|detail| {
-                        crate::checking::refusal(
+                        crate::refusal(
                             RefusalReason::ForeignIdentity,
                             machine.id,
                             Construct::Edge(edge),
@@ -182,7 +182,7 @@ pub(crate) fn materialize(elaboration: &mut Elaboration) -> Checked<()> {
                     if !target.contract.erased_scalar_formals.is_empty()
                         || !target.contract.erased_proof_formals.is_empty()
                     {
-                        return Err(crate::checking::refusal(
+                        return Err(crate::refusal(
                             RefusalReason::Unsupported,
                             machine.id,
                             Construct::Edge(edge),
@@ -216,7 +216,7 @@ pub(crate) fn materialize(elaboration: &mut Elaboration) -> Checked<()> {
             action_ordinal,
         };
         let tables = elaboration.tables.machines.get_mut(id).ok_or_else(|| {
-            crate::checking::refusal(
+            crate::refusal(
                 RefusalReason::ForeignIdentity,
                 id,
                 Construct::Machine,
@@ -230,7 +230,7 @@ pub(crate) fn materialize(elaboration: &mut Elaboration) -> Checked<()> {
             .unwrap_or(0);
         if existing != 0 {
             if existing != 1 {
-                return Err(crate::checking::refusal(
+                return Err(crate::refusal(
                     RefusalReason::ForeignIdentity,
                     id,
                     Construct::Edge(edge),
@@ -240,7 +240,7 @@ pub(crate) fn materialize(elaboration: &mut Elaboration) -> Checked<()> {
             continue;
         }
         if !cleanup.requirement_obligations.is_empty() {
-            return Err(crate::checking::refusal(
+            return Err(crate::refusal(
                 RefusalReason::ForeignIdentity,
                 id,
                 Construct::Edge(edge),
@@ -253,7 +253,7 @@ pub(crate) fn materialize(elaboration: &mut Elaboration) -> Checked<()> {
             .get(machine_index)
             .filter(|caller| caller.id == id)
             .ok_or_else(|| {
-                crate::checking::refusal(
+                crate::refusal(
                     RefusalReason::ForeignIdentity,
                     id,
                     Construct::Machine,
@@ -275,7 +275,7 @@ pub(crate) fn materialize(elaboration: &mut Elaboration) -> Checked<()> {
             requirements: Vec::new(),
         });
         let sources = elaboration.sources.get_mut(id).ok_or_else(|| {
-            crate::checking::refusal(
+            crate::refusal(
                 RefusalReason::ForeignIdentity,
                 id,
                 Construct::Edge(edge),
@@ -288,7 +288,7 @@ pub(crate) fn materialize(elaboration: &mut Elaboration) -> Checked<()> {
             let obligation = tables.obligations.push(ObligationRow {
                 kind: ObligationKind::CallRequirement {
                     invocation,
-                    clause: crate::checking::position(clause, id)?,
+                    clause: crate::position(clause, id)?,
                 },
                 created_at: ProgramPoint::BeforeCleanup {
                     edge,
@@ -296,7 +296,7 @@ pub(crate) fn materialize(elaboration: &mut Elaboration) -> Checked<()> {
                 },
             });
             if sources.obligations.push(source) != obligation {
-                return Err(crate::checking::refusal(
+                return Err(crate::refusal(
                     RefusalReason::ForeignIdentity,
                     id,
                     Construct::Edge(edge),
@@ -317,7 +317,7 @@ pub(crate) fn materialize(elaboration: &mut Elaboration) -> Checked<()> {
             .cleanup_rosters_mut()
             .find_map(|(selected, actions)| (selected == edge).then_some(actions))
             .ok_or_else(|| {
-                crate::checking::refusal(
+                crate::refusal(
                     RefusalReason::ForeignIdentity,
                     id,
                     Construct::Edge(edge),
@@ -327,7 +327,7 @@ pub(crate) fn materialize(elaboration: &mut Elaboration) -> Checked<()> {
         let TerminalAffineCleanupAction::InvokeOwned(actual) =
             &mut actions[action_ordinal as usize]
         else {
-            return Err(crate::checking::refusal(
+            return Err(crate::refusal(
                 RefusalReason::ForeignIdentity,
                 id,
                 Construct::Edge(edge),
@@ -371,7 +371,7 @@ pub(crate) fn writes(
         return Ok(writes);
     }
     let catalog = Catalog::new(module).map_err(|detail| {
-        crate::checking::refusal(
+        crate::refusal(
             RefusalReason::ForeignIdentity,
             caller.id,
             Construct::Machine,
@@ -381,11 +381,11 @@ pub(crate) fn writes(
     for block in &caller.blocks {
         let point = (
             block.id,
-            crate::checking::position(block.operations.len(), caller.id)?,
+            crate::position(block.operations.len(), caller.id)?,
         );
         for (edge, actions) in block.terminator.cleanup_rosters() {
             let fail = |detail| {
-                crate::checking::refusal(
+                crate::refusal(
                     RefusalReason::Unsupported,
                     caller.id,
                     Construct::Edge(edge),
@@ -396,7 +396,7 @@ pub(crate) fn writes(
                 let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action else {
                     continue;
                 };
-                let action_ordinal = crate::checking::position(ordinal, caller.id)?;
+                let action_ordinal = crate::position(ordinal, caller.id)?;
                 let owner = terminal_psi::InvocationOwner::Cleanup {
                     edge,
                     action_ordinal,
@@ -555,7 +555,7 @@ pub(crate) fn writes(
 fn materialize_writes(elaboration: &mut Elaboration) -> Checked<()> {
     let mut pending = Vec::new();
     for caller in &elaboration.module.machines {
-        let graph = crate::checking::places::reference_graph_with_nominal_calls(
+        let graph = crate::places::reference_graph_with_nominal_calls(
             &elaboration.module,
             caller.id,
             &elaboration.nominal_calls,
@@ -572,7 +572,7 @@ fn materialize_writes(elaboration: &mut Elaboration) -> Checked<()> {
     }
     for (id, writes) in pending {
         let tables = elaboration.tables.machines.get_mut(id).ok_or_else(|| {
-            crate::checking::refusal(
+            crate::refusal(
                 RefusalReason::ForeignIdentity,
                 id,
                 Construct::Machine,
@@ -588,7 +588,7 @@ fn materialize_writes(elaboration: &mut Elaboration) -> Checked<()> {
         }
         for write in writes {
             let mut place = *tables.roots.get(write.captured.root).ok_or_else(|| {
-                crate::checking::refusal(
+                crate::refusal(
                     RefusalReason::ForeignIdentity,
                     id,
                     Construct::Edge(write.edge),
@@ -629,7 +629,7 @@ pub(crate) fn edge_entry_points(
     for block in &machine.blocks {
         for (edge, actions) in block.terminator.cleanup_rosters() {
             let fail = |detail| {
-                crate::checking::refusal(
+                crate::refusal(
                     RefusalReason::ForeignIdentity,
                     machine.id,
                     Construct::Edge(edge),

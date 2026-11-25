@@ -483,10 +483,10 @@ impl Program<'_> {
             _ => (
                 reference,
                 StructuralAccess::Owned,
-                crate::lowering::body::BorrowedReferent::Value,
+                crate::body::BorrowedReferent::Value,
             ),
         };
-        let structural_type = if referent == crate::lowering::body::BorrowedReferent::Slice
+        let structural_type = if referent == crate::body::BorrowedReferent::Slice
             && access == StructuralAccess::MutableBorrow
         {
             let value = self
@@ -549,7 +549,7 @@ impl PreparedCallingAbis {
             .collect::<Vec<_>>();
         module.identities = identities.build();
         module.interfaces.calling_abi_signatures =
-            crate::lowering::calling_publication::join_abi_declarations(
+            crate::calling_publication::join_abi_declarations(
                 self.entry,
                 &module.identities,
                 &module.types.structural_types,
@@ -828,17 +828,17 @@ mod descriptor_storage_tests {
                 .formal_value_type(
                     entry,
                     reference,
-                    crate::lowering::body::BorrowedReferent::Slice,
+                    crate::body::BorrowedReferent::Slice,
                 )
                 .unwrap();
-            let crate::lowering::ValueType::Record(carrier, _, _) = formal else {
+            let crate::ValueType::Record(carrier, _, _) = formal else {
                 panic!("a borrowed slice has structural descriptor storage");
             };
             if access == StructuralAccess::MutableBorrow {
                 assert_ne!(formal, ordinary);
                 assert_eq!(
                     program.data_type(entry, carrier).unwrap().shape,
-                    crate::lowering::StorageShape::ByteSequence(
+                    crate::StorageShape::ByteSequence(
                         terminal_psi::ByteSequenceCarrier::BorrowedView { access: None }
                     )
                 );
@@ -847,7 +847,7 @@ mod descriptor_storage_tests {
             }
             carrier
         });
-        let crate::lowering::ValueType::Record(stored_carrier, _, _) =
+        let crate::ValueType::Record(stored_carrier, _, _) =
             program.value_type(entry, written[1].0).unwrap()
         else {
             panic!("a stored view has structural descriptor storage");
@@ -947,7 +947,7 @@ mod descriptor_storage_tests {
         assert_ne!(descriptor.structural_type, owned.structural_type);
         assert!(
             matches!(program.records.get(descriptor.structural_type).unwrap().shape,
-            crate::lowering::body::StorageShape::Reference { referent, access: StructuralAccess::SharedBorrow }
+            crate::body::StorageShape::Reference { referent, access: StructuralAccess::SharedBorrow }
                 if referent == owned.structural_type)
         );
     }
@@ -966,7 +966,7 @@ mod descriptor_storage_tests {
                 IntegerType::supported_address_representation()
             ))
         );
-        let crate::lowering::ValueType::Record(value_record, _, _) =
+        let crate::ValueType::Record(value_record, _, _) =
             executable.value_type(entry, record).unwrap()
         else {
             panic!("a linear value retains its declared structural carrier");
@@ -1006,11 +1006,11 @@ mod descriptor_storage_tests {
         );
         let bodies = IdTable::default();
 
-        let declared = crate::lowering::lower::places::declare(
+        let declared = crate::lower::places::declare(
             entry,
             &program.records,
             &bodies,
-            std::iter::empty::<&crate::lowering::Signature>(),
+            std::iter::empty::<&crate::Signature>(),
             &program.byte_domains,
             Some(program.typed),
             TerminalIdentityTableBuilder::default(),
@@ -1169,7 +1169,7 @@ mod tests {
             let entry = MachineId::new(1).unwrap();
             program.begin_declaration_storage(entry, 0).unwrap();
             let storage = program.calling_abi_projected_storage(entry, &row).unwrap();
-            let crate::lowering::StorageShape::PrimitiveScalar {
+            let crate::StorageShape::PrimitiveScalar {
                 scalar_type: semantic_vocabulary::ScalarType::Integer(integer),
                 ..
             } = program.records.get(storage.result.unwrap()).unwrap().shape
@@ -1238,7 +1238,7 @@ mod tests {
         // reading that asks for boundary metadata must borrow the catalog the
         // first prepared instead of building another one.
         let (typed, row, _) = fixture();
-        let shared = crate::lowering::shared_reading(&typed);
+        let shared = crate::shared_reading(&typed);
         let entry = MachineId::new(1).unwrap();
         let boundary = [row.projections[0].source];
         let mut refusals = Vec::new();

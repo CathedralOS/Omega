@@ -7,7 +7,7 @@ with `self` and its fields as the names in scope (`ClauseScope::subject`).
 
 mod identity_type;
 
-use crate::lowering::body::Qualification;
+use crate::body::Qualification;
 use crate::source_state::domain::ProofFact;
 use crate::source_state::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression, UnaryOperator,
@@ -25,10 +25,10 @@ use super::clause_terms::{ClauseTerm, ClauseUse};
 use super::places::Member;
 use super::types::TypeTruth;
 use super::{Program, Slot};
-use crate::lowering::StorageShape;
-use crate::lowering::body::ValueType;
-use crate::lowering::canonical::{self, Repeated};
-use crate::lowering::{ClauseText, Piece, SourceOrigin, Unserved, refuse, reject};
+use crate::StorageShape;
+use crate::body::ValueType;
+use crate::canonical::{self, Repeated};
+use crate::{ClauseText, Piece, SourceOrigin, Unserved, refuse, reject};
 
 /// Names a clause is being read through, each standing for an expression.
 /// For a named proposition: its declaration, which owns what its formula

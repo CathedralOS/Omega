@@ -1,7 +1,7 @@
 //! Keep the origin of new input requirements through canonical clause reordering.
 //! Only final, discharged calls appear in the retained invocation.
 use super::{Arrival, CallPosition};
-use crate::checking::{Discharge, Discharged, refusal};
+use crate::{Discharge, Discharged, refusal};
 use semantic_vocabulary::{
     InvocationSite, MachineId, ObligationId, Proposition, TargetMachineCallable,
 };
@@ -11,7 +11,7 @@ use terminal_check_tables::{
 };
 
 #[derive(Debug, Default)]
-pub(in crate::checking) struct InferredCalls {
+pub(in crate) struct InferredCalls {
     clauses: Vec<(MachineId, Proposition)>,
     calls: Vec<AddedCall>,
 }
@@ -44,7 +44,7 @@ impl InferredCalls {
         });
     }
 
-    pub(in crate::checking) fn checked(
+    pub(in crate) fn checked(
         self,
         program: &Elaboration,
         discharge: &Discharge,

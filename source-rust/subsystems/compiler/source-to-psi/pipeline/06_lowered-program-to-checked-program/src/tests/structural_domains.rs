@@ -1084,7 +1084,7 @@ machine entry() -> u64 reaches Service { Service::tick() }
         "{positive_name}"
     );
     let refusal = match negative {
-        Err(crate::checking::CompilationRefusal::Elaboration(refusal)) => refusal,
+        Err(crate::CompilationRefusal::Elaboration(refusal)) => refusal,
         other => panic!("{negative_name}: {other:?}"),
     };
     assert!(

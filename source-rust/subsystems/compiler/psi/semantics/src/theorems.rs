@@ -7,9 +7,10 @@ use semantic_vocabulary::{
     CanonicalStructuralPathSegment, ContentPlaceVersion, MachineId, PlaceId, Proposition,
     PropositionContext, ScalarTerm, ScalarType, StructuralCaseId, ValueId,
 };
+use std::borrow::Cow;
 use terminal_psi::{
     ProofFormalSource, TerminalMachine, TerminalModule, Terminator, TheoremApplication,
-    TheoremContract, TheoremParameter,
+    TheoremContract, TheoremParameter, TheoremSource,
 };
 
 pub fn contract_type(
@@ -110,27 +111,109 @@ pub fn parameter(
     Ok(parameter)
 }
 
+/// The implication a named machine states, when the machine does no work:
+/// a citation of it is a fact-only invocation, which emits no call
+/// (contracts.md, "Citation and induction": "erase the call if fact-only").
+/// Its subjects are its scalar formals and then its erased scalar formals,
+/// numbered from one, and its implication is its `requires` and `ensures`.
+/// The named machine is checked as any machine is, so its `ensures` hold
+/// wherever its `requires` do.
+pub fn named_contract(
+    module: &TerminalModule,
+    owner: MachineId,
+    named: MachineId,
+) -> Result<TheoremContract, &'static str> {
+    if named == owner {
+        return Err("named theorem application cites its own machine");
+    }
+    let machine = module
+        .machine(named)
+        .ok_or("named theorem application has no machine")?;
+    let contract = &machine.contract;
+    let refusal = if !matches!(contract.result, terminal_psi::TerminalMachineResult::Unit) {
+        Some("named theorem application names a machine with a result")
+    } else if !contract.structural_parameters.is_empty() {
+        Some("named theorem application names a machine with a structural formal")
+    } else if !contract.erased_proof_formals.is_empty() {
+        Some("named theorem application names a machine with a proof formal")
+    } else if !contract.crash_routes.is_empty() {
+        Some("named theorem application names a machine that may crash")
+    } else if !contract.published_service_ceiling.is_empty()
+        || !contract.published_synchronous_entries.is_empty()
+        || contract.published_may_suspend
+        || contract.published_may_block
+    {
+        Some("named theorem application names a machine with reach, suspension or blocking")
+    } else if !contract.outcome_specific_ensures.is_empty()
+        || !contract.membership_ensures.is_empty()
+    {
+        Some("named theorem application names a machine with a guarantee about its outcome")
+    } else if !matches!(machine.blocks.as_slice(), [block]
+        // One block with no operations that returns: the body does nothing
+        // and terminates, whatever termination the contract publishes.
+        if block.id == machine.entry
+            && block.operations.is_empty()
+            && matches!(block.terminator, Terminator::ReturnUnit { ref cleanup_actions, .. }
+                if cleanup_actions.is_empty()))
+    {
+        Some("named theorem application names a machine whose body does work")
+    } else {
+        None
+    };
+    if let Some(refusal) = refusal {
+        return Err(refusal);
+    }
+    let parameters: Vec<_> = contract
+        .parameters
+        .iter()
+        .chain(&contract.erased_scalar_formals)
+        .cloned()
+        .collect();
+    let named = TheoremContract {
+        parameters,
+        requires: contract.requires.clone(),
+        ensures: contract
+            .ensures
+            .iter()
+            .map(|clause| clause.proposition.clone())
+            .collect(),
+    };
+    contract_subjects(&named)?;
+    Ok(named)
+}
+
+/// The implication an application applies: the declared proof formal's
+/// contract, or the named machine's (`named_contract`).
+pub fn applied<'a>(
+    module: &'a TerminalModule,
+    owner: MachineId,
+    source: TheoremSource,
+) -> Result<Cow<'a, TheoremContract>, &'static str> {
+    match source {
+        TheoremSource::Formal(position) => {
+            Ok(Cow::Borrowed(&parameter(module, owner, position)?.contract))
+        }
+        TheoremSource::Named(named) => Ok(Cow::Owned(named_contract(module, owner, named)?)),
+    }
+}
+
 /// The successor cannot obtain a conclusion by arriving through another edge.
 /// The ordinary edge still carries every ownership and cleanup obligation.
 pub fn application<'a>(
     module: &'a TerminalModule,
     machine: &TerminalMachine,
     application: &TheoremApplication,
-) -> Result<&'a TheoremParameter, &'static str> {
+) -> Result<Cow<'a, TheoremContract>, &'static str> {
     if application.machine != machine.id {
         return Err("logical use belongs to another machine");
     }
-    let formal = parameter(module, machine.id, application.proof_position)?;
-    if application.arguments.len() != formal.contract.parameters.len()
-        || application.requirements.len() != formal.contract.requires.len()
+    let formal = applied(module, machine.id, application.source)?;
+    if application.arguments.len() != formal.parameters.len()
+        || application.requirements.len() != formal.requires.len()
     {
         return Err("logical use lost a subject or premise");
     }
-    for (argument, formal) in application
-        .arguments
-        .iter()
-        .zip(&formal.contract.parameters)
-    {
+    for (argument, formal) in application.arguments.iter().zip(&formal.parameters) {
         argument
             .validate_after_operands()
             .map_err(|_| "logical subject has a malformed scalar term")?;

@@ -41,19 +41,35 @@ pub(crate) fn publish(diagnostic: MachineId, module: &mut TerminalModule) -> Che
     // Complete every public header before deriving call rows. The body and a
     // selected requirement can expose different contracts; neither borrows the
     // other's private promises. Boundary custody is separately authenticated.
-    for contract in &mut module.execution.declaration_contracts {
+    for (machine, contract) in module
+        .execution
+        .declaration_contracts
+        .iter_mut()
+        .map(|contract| (diagnostic, contract))
+        .chain(
+            module
+                .machines
+                .iter_mut()
+                .map(|machine| (machine.id, &mut machine.contract)),
+        )
+    {
         terminal_semantics::plain_affine::publish_contract_claims(
             contract,
             &module.types.structural_types,
         )
-        .map_err(|error| preparation_error(diagnostic, error))?;
-    }
-    for machine in &mut module.machines {
-        terminal_semantics::plain_affine::publish_contract_claims(
-            &mut machine.contract,
+        .map_err(|error| preparation_error(machine, error))?;
+        terminal_semantics::content_transformations::entry_claims::publish_declared_entry_contents(
             &module.types.structural_types,
+            &module.types.structural_domains,
+            &module.identities,
+            contract,
         )
-        .map_err(|error| preparation_error(machine.id, error))?;
+        .map_err(|detail| Refusal {
+            reason: RefusalReason::ForeignIdentity,
+            site: terminal_check_tables::RefusalSite::Machine(machine, Construct::Machine),
+            source_span: None,
+            detail: detail.into(),
+        })?;
     }
     for ordinal in 0..module.machines.len() {
         let identity = module.machines[ordinal].id;

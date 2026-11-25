@@ -1,7 +1,7 @@
 //! Transport private member inputs along the lowered component's actual edges.
 
 use super::{CallSites, canonical, conjuncts, describe_calls};
-use crate::checking::{ProofSearchActivity, ReplayScope, Unreached, joins, terminal_machine};
+use crate::{ProofSearchActivity, ReplayScope, Unreached, joins, terminal_machine};
 use arena::IdTable;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, ContentPlaceVersion, MachineId, PlaceId, Proposition,
@@ -22,6 +22,35 @@ struct Transfer {
     preserved: Vec<(ScalarTerm, ScalarTerm)>,
 }
 pub(super) struct Transfers(IdTable<MachineId, Vec<Transfer>>);
+
+/// Membership for one arrival. Its original condition remains in proof order
+/// for later consumers. Only facts learned through recursion need new owners.
+struct ArrivalFacts<'a> {
+    original: Box<[&'a Proposition]>,
+    inferred: BTreeSet<Proposition>,
+}
+
+impl<'a> ArrivalFacts<'a> {
+    fn new(predicate: &'a Proposition) -> Self {
+        let mut original: Box<[_]> = conjuncts(predicate).iter().collect();
+        original.sort_unstable();
+        Self {
+            original,
+            inferred: BTreeSet::new(),
+        }
+    }
+
+    fn contains(&self, fact: &Proposition) -> bool {
+        self.original.binary_search(&fact).is_ok() || self.inferred.contains(fact)
+    }
+
+    fn insert(&mut self, fact: &Proposition) -> bool {
+        if self.contains(fact) {
+            return false;
+        }
+        self.inferred.insert(fact.clone())
+    }
+}
 
 impl Transfers {
     pub(super) fn insert(
@@ -68,17 +97,7 @@ pub(super) fn infer(
 
     // Every arrival counts, including ordinary calls from outside the component.
     // An impossible edge owes every predicate by its own checked unreachability.
-    let mut available = incoming.map(|_, arrivals| {
-        arrivals
-            .iter()
-            .map(|predicate| {
-                conjuncts(predicate)
-                    .iter()
-                    .cloned()
-                    .collect::<BTreeSet<_>>()
-            })
-            .collect::<Vec<_>>()
-    });
+    let mut available = incoming.map(|_, _| Vec::new());
     let mut offered = incoming.map(|_, _| BTreeSet::new());
     let mut sent = incoming.map(|_, _| BTreeSet::new());
     let mut pending = VecDeque::new();
@@ -87,6 +106,8 @@ pub(super) fn infer(
             continue;
         }
         if !arrivals.is_empty() {
+            *available.get_mut(callee).expect("member indexed") =
+                arrivals.iter().map(ArrivalFacts::new).collect();
             let predicate = canonical(joins::connective(arrivals.clone(), false), callee)?;
             if predicate != Proposition::Truth {
                 offered
@@ -117,7 +138,7 @@ pub(super) fn infer(
                 continue;
             }
             let arrivals = available.get_mut(edge.callee).expect("callee indexed");
-            if !arrivals[edge.arrival].insert(image.clone())
+            if !arrivals[edge.arrival].insert(&image)
                 || sent
                     .get(edge.callee)
                     .expect("callee indexed")
@@ -192,5 +213,33 @@ impl ClauseBindings for Missing {
         _: StructuralCaseId,
     ) -> Result<bool, Self::Error> {
         Err("case is not preserved across this transfer")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use Proposition::{Conjunction, Disjunction, Falsehood, Truth};
+
+    #[test]
+    fn arrival_facts_preserve_membership_and_original_proof_order() {
+        let nested = Disjunction(vec![Falsehood, Truth]);
+        let arrivals = [
+            Conjunction(vec![nested.clone(), Falsehood, nested.clone()]),
+            nested.clone(),
+            Falsehood,
+            Conjunction(vec![]),
+        ];
+        let originals = arrivals.clone();
+        for arrival in &arrivals {
+            let mut index = ArrivalFacts::new(arrival);
+            let mut previous: BTreeSet<_> = conjuncts(arrival).iter().cloned().collect();
+            for fact in [&Truth, &nested, &Falsehood, &Truth, &nested] {
+                assert_eq!(index.contains(fact), previous.contains(fact));
+                assert_eq!(index.insert(fact), previous.insert(fact.clone()));
+                assert!(index.contains(fact));
+            }
+        }
+        assert_eq!(arrivals, originals);
     }
 }

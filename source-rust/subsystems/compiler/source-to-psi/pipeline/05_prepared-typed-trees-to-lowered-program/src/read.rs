@@ -41,6 +41,7 @@ mod casts;
 mod clause_calls;
 mod clause_terms;
 mod constant_values;
+mod content_projections;
 mod contracts;
 mod expressions;
 pub(crate) mod families;
@@ -89,8 +90,8 @@ use semantic_vocabulary::{CrashCause, MachineId, PackageKeyIdentity, StructuralT
 use symbols::{SymbolHandle, SymbolKind};
 use terminal_check_tables::{Checked, Construct};
 
-use crate::lowering::body::{RecordType, Signature, ValueType};
-use crate::lowering::{Unserved, refuse};
+use crate::body::{RecordType, Signature, ValueType};
+use crate::{Unserved, refuse};
 
 /// One member of a complete static type partition. An opaque remainder
 /// excludes exactly the closed types checked by the other members, so an
@@ -149,9 +150,10 @@ impl LocalSummaryScope {
 pub(crate) struct DeclaredDomain {
     /// Rigid indices remain in the declaring schema when its predicates are read.
     schema_scope: Option<traits::RequirementTypeScope>,
-    pub instance: crate::lowering::body::DomainInstance,
+    pub instance: crate::body::DomainInstance,
     pub carrier: ValueType,
     pub predicate: Option<semantic_vocabulary::Proposition>,
+    pub content_projection: Option<content_projections::Definition>,
     pub complete_predicate_theory: bool,
 }
 
@@ -194,12 +196,12 @@ pub(crate) struct Program<'t> {
     pub(crate) boundary_parent_contracts:
         Vec<crate::source_state::trait_definition::TraitApplicationEnvironment>,
     /// Choices made by this reader, prepared once before source admission.
-    pub(crate) completed_operators: crate::lowering::selection_questions::CompletedOperators,
+    pub(crate) completed_operators: crate::selection_questions::CompletedOperators,
     pub purpose: source_provenance::DependencyScope,
     /// One output slot per source mathematical declaration, not per call.
     /// Publication assigns portable identities to the prepared definitions.
     pub predicate_definitions: Vec<Option<PredicateDefinition>>,
-    shared: crate::lowering::SharedReading,
+    shared: crate::SharedReading,
     calling_policy_boundaries: Vec<SymbolHandle>,
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
@@ -212,17 +214,17 @@ pub(crate) struct Program<'t> {
     /// Known invocation and operational limits survive an unrelated open reach.
     /// These checking headers never enter the executable callable catalog.
     pub(crate) checking_envelopes:
-        IdTable<MachineId, Option<crate::lowering::static_contracts::StaticSourceEnvelope>>,
+        IdTable<MachineId, Option<crate::static_contracts::StaticSourceEnvelope>>,
     /// Contracts and exact code selections named by the read program. A
     /// selection retains code without adding an invocation to its call graph.
-    pub callables: crate::lowering::callables::CallableNamespace,
-    pub boundaries: crate::lowering::boundaries::BoundaryNamespace,
-    pub external_providers: crate::lowering::external_providers::ExternalProviderNamespace,
-    pub static_contracts: crate::lowering::static_contracts::StaticContracts,
+    pub callables: crate::callables::CallableNamespace,
+    pub boundaries: crate::boundaries::BoundaryNamespace,
+    pub external_providers: crate::external_providers::ExternalProviderNamespace,
+    pub static_contracts: crate::static_contracts::StaticContracts,
     pub declaration_metadata: Vec<SymbolHandle>,
     pub declaration_signatures: IdTable<semantic_vocabulary::ContractId, Signature>,
     pub declaration_envelopes:
-        IdTable<semantic_vocabulary::ContractId, crate::lowering::reach::SourceEnvelope>,
+        IdTable<semantic_vocabulary::ContractId, crate::reach::SourceEnvelope>,
     pub declaration_sources: IdTable<
         semantic_vocabulary::ContractId,
         &'t crate::source_state::signature::StateSignature,
@@ -291,7 +293,7 @@ pub(crate) struct Program<'t> {
     readiness: Vec<semantic_vocabulary::ServiceId>,
     /// What diagnostics call each machine's constructs, pushed with its
     /// signature and completed as its body is read.
-    pub names: IdTable<MachineId, crate::lowering::MachineNames>,
+    pub names: IdTable<MachineId, crate::MachineNames>,
     /// Whether this is a generic check form: the entry's implementation
     /// parameters stay rigid, and a call through one names the requirement.
     rigid: bool,
@@ -311,7 +313,7 @@ pub(crate) struct Program<'t> {
     /// Neither form supplies the complete caller roster for input inference.
     pub(super) local_summary_scope: Option<LocalSummaryScope>,
     /// Every call through an implementation parameter read so far.
-    pub selections: Vec<crate::lowering::Selected>,
+    pub selections: Vec<crate::Selected>,
     /// What each type parameter in scope stands for while one machine's
     /// signature or body is read: a type parameter of a generic check
     /// form's entry is rigid, and a type parameter of a generic machine the
@@ -375,7 +377,7 @@ pub(crate) struct Program<'t> {
     /// Every record type a formal, local, result, field or literal named, in
     /// discovery order; a nested record is discovered before its owner.
     pub records: IdTable<StructuralTypeId, RecordType>,
-    pub byte_domains: Vec<crate::lowering::body::SourceByteDomain>,
+    pub byte_domains: Vec<crate::body::SourceByteDomain>,
     /// Resolve selected consumers after the current signature is registered;
     /// a record used by its own cleanup must not allocate that machine twice.
     pending_cleanup: Vec<(StructuralTypeId, SymbolHandle)>,
@@ -395,7 +397,7 @@ pub(crate) struct Program<'t> {
         Option<crate::source_state::SourceTypeApplication>,
     )>,
     /// Set for the reader of the compilation's mathematical declarations
-    /// (`crate::lowering::mathematics`). Only that reader admits data that
+    /// (`crate::mathematics`). Only that reader admits data that
     /// contains itself and the machines over it; it lowers nothing.
     pub(crate) mathematical: bool,
     /// The records of data that contains itself, in identity order. Such a
@@ -433,16 +435,16 @@ pub(crate) struct Program<'t> {
     /// match and every `SavedSubject` node of its arms.
     captures: Vec<(
         arena::Handle<crate::source_state::expression::CompletedValueCapture>,
-        crate::lowering::body::Expression,
+        crate::body::Expression,
     )>,
     /// The subject's generic machines, set aside by `subject_declarations`.
     pub generic_templates: Vec<SymbolHandle>,
     /// The operations the subject's implementations select, set aside by
     /// `subject_declarations`.
-    pub conformance_witnesses: Vec<crate::lowering::ConformanceWitness>,
+    pub conformance_witnesses: Vec<crate::ConformanceWitness>,
     /// The machine each chosen provider gives each requirement it supplies,
     /// recorded by `supplied_slots`.
-    pub supplied: Vec<crate::lowering::SuppliedRequirement>,
+    pub supplied: Vec<crate::SuppliedRequirement>,
     /// `Some` while a compilation reports every refusal it meets
     /// (`elaborate_source_for`): a declaration or body that is refused is
     /// recorded here and reading goes on with the next one, so one run names
@@ -481,7 +483,7 @@ struct Slot {
     /// `value_type` is the referent's: the slot names the caller's storage, read and (for
     /// `@mutable`) written in place, never an SSA value or a root of its own.
     borrowed: Option<language_core::ReferenceAccess>,
-    borrowed_regions: crate::lowering::body::Regions,
+    borrowed_regions: crate::body::Regions,
 }
 /// The closed crash cause of a `crashes` clause or `crash` statement.
 fn crash_cause(cause: crate::source_state::signature::CrashCause) -> CrashCause {
@@ -530,7 +532,7 @@ impl<'t> Program<'t> {
             typed,
             rigid,
             source_provenance::DependencyScope::Product,
-            crate::lowering::shared_reading(typed),
+            crate::shared_reading(typed),
         )
     }
 
@@ -546,7 +548,7 @@ impl<'t> Program<'t> {
         typed: &'t TypedTrees,
         rigid: bool,
         purpose: source_provenance::DependencyScope,
-        shared: crate::lowering::SharedReading,
+        shared: crate::SharedReading,
     ) -> Self {
         Self {
             publication: terminal_codec::TerminalPublication::Portable,
@@ -566,7 +568,7 @@ impl<'t> Program<'t> {
             admitted_signature_view_owners: Vec::new(),
             signature_view_owner: None,
             boundary_parent_contracts: Vec::new(),
-            completed_operators: crate::lowering::selection_questions::CompletedOperators::default(
+            completed_operators: crate::selection_questions::CompletedOperators::default(
             ),
             shared,
             symbols: IdTable::default(),
@@ -575,11 +577,11 @@ impl<'t> Program<'t> {
             theorem_parameter_sources: Vec::new(),
             declared_envelope_policies: IdTable::default(),
             checking_envelopes: IdTable::default(),
-            callables: crate::lowering::callables::CallableNamespace::default(),
-            boundaries: crate::lowering::boundaries::BoundaryNamespace::default(),
+            callables: crate::callables::CallableNamespace::default(),
+            boundaries: crate::boundaries::BoundaryNamespace::default(),
             external_providers:
-                crate::lowering::external_providers::ExternalProviderNamespace::default(),
-            static_contracts: crate::lowering::static_contracts::StaticContracts::default(),
+                crate::external_providers::ExternalProviderNamespace::default(),
+            static_contracts: crate::static_contracts::StaticContracts::default(),
             declaration_signatures: IdTable::default(),
             declaration_envelopes: IdTable::default(),
             declaration_sources: IdTable::default(),
@@ -824,7 +826,7 @@ mod tests {
     use super::clause_terms::ClauseUse;
     use super::contracts::{ClauseScope, ResultTerm};
     use super::*;
-    use crate::lowering::body::ExpressionKind;
+    use crate::body::ExpressionKind;
     use crate::source_state::expression::{
         BinaryOperator, ExpressionHandle, ExpressionNode, TableNamePath,
     };
@@ -915,7 +917,7 @@ mod tests {
             multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             cleanup: None,
             identity: String::from("point"),
-            shape: crate::lowering::StorageShape::Record(Vec::new()),
+            shape: crate::StorageShape::Record(Vec::new()),
             requires: Vec::new(),
             authored_layout: false,
         }
@@ -927,7 +929,7 @@ mod tests {
         let typed = TypedTrees::default();
         let mut program = Program::new(&typed, false);
         let source =
-            crate::lowering::SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent);
+            crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
         let empty = program.records.push(plain_record());
         program.record_sources.push(places::RecordSource {
             constant_input_owner: None,
@@ -947,22 +949,22 @@ mod tests {
         ));
         for (shape, expected) in [
             (
-                crate::lowering::StorageShape::Reference {
+                crate::StorageShape::Reference {
                     referent: empty,
                     access: StructuralAccess::SharedBorrow,
                 },
                 "zero-established reference without backing",
             ),
             (
-                crate::lowering::StorageShape::ElementView {
+                crate::StorageShape::ElementView {
                     element: empty,
-                    qualification: crate::lowering::body::Qualification::NONE,
+                    qualification: crate::body::Qualification::NONE,
                     access: Some(StructuralAccess::MutableBorrow),
                 },
                 "zero-established mutable sequence",
             ),
             (
-                crate::lowering::StorageShape::Opaque,
+                crate::StorageShape::Opaque,
                 "opaque initialization requires boundary-supplied contents",
             ),
         ] {
@@ -1086,7 +1088,7 @@ mod tests {
                 ..Default::default()
             });
         }
-        let unprepared_instance = crate::lowering::body::DomainInstance {
+        let unprepared_instance = crate::body::DomainInstance {
             declaration: domains[0],
             identity: typed.semantic_domains.intern("unprepared instance"),
         };
@@ -1096,23 +1098,24 @@ mod tests {
             .declared_domains
             .extend(domains.iter().map(|&symbol| DeclaredDomain {
                 schema_scope: None,
-                instance: crate::lowering::body::DomainInstance {
+                instance: crate::body::DomainInstance {
                     declaration: symbol,
                     identity: typed.domain_definition(symbol).unwrap().semantic_id,
                 },
                 carrier,
                 predicate: None,
+                content_projection: None,
                 complete_predicate_theory: false,
             }));
         let bodies = arena::IdTable::default();
         let components =
-            crate::lowering::prepare_call_components(&bodies, &mut program.signatures).unwrap();
+            crate::prepare_call_components(&bodies, &mut program.signatures).unwrap();
         program.prepare_domain_predicates(machine()).unwrap();
-        let elaboration = crate::lowering::lower_program(
+        let elaboration = crate::lower_program(
             None,
             &bodies,
             &components,
-            crate::lowering::body::Signatures {
+            crate::body::Signatures {
                 theorems: &program.theorem_parameters,
                 machines: &program.signatures,
                 declarations: &program.declaration_signatures,
@@ -1123,7 +1126,7 @@ mod tests {
             &[],
             &program.callables,
             &program.boundaries,
-            &crate::lowering::reach::ServiceMap::default(),
+            &crate::reach::ServiceMap::default(),
             &program.external_providers,
             &program.static_contracts,
             terminal_codec::TerminalPublication::Invocation,
@@ -1175,6 +1178,7 @@ mod tests {
             instance: unprepared_instance,
             carrier,
             predicate: None,
+            content_projection: None,
             complete_predicate_theory: false,
         });
         assert_eq!(
@@ -1462,7 +1466,7 @@ mod tests {
                 homed: false,
                 erased: false,
                 borrowed: None,
-                borrowed_regions: crate::lowering::body::Regions::NONE,
+                borrowed_regions: crate::body::Regions::NONE,
             }];
             let read = match node {
                 crate::source_state::SourceNode::Expression(handle) => {
@@ -1476,12 +1480,12 @@ mod tests {
             assert!(matches!(
                 read.kind,
                 ExpressionKind::Call {
-                    callee: crate::lowering::body::CallTarget::Selected { .. },
+                    callee: crate::body::CallTarget::Selected { .. },
                     ..
                 }
             ));
             assert!(
-                matches!(read.source, crate::lowering::SourceOrigin::AuthoredNode {
+                matches!(read.source, crate::SourceOrigin::AuthoredNode {
                 source_member, owner, node: source_node, ..
             } if source_member == id && owner == caller && source_node == node)
             );
@@ -1558,7 +1562,7 @@ mod tests {
                 handle,
                 Some(ValueType::Scalar(
                     i32_type,
-                    crate::lowering::body::Qualification::NONE,
+                    crate::body::Qualification::NONE,
                 )),
             )
         };
@@ -1571,7 +1575,7 @@ mod tests {
             landed.result,
             Some(ValueType::Scalar(
                 i32_type,
-                crate::lowering::body::Qualification::NONE
+                crate::body::Qualification::NONE
             ))
         );
         // The spec makes the first three errors in the program, so they are
@@ -1669,7 +1673,7 @@ mod tests {
             values: &[],
             bound: &[],
             owner,
-            result: ResultTerm::Named(result, u32_type, crate::lowering::body::Qualification::NONE),
+            result: ResultTerm::Named(result, u32_type, crate::body::Qualification::NONE),
         };
         let entry = ClauseScope {
             result: ResultTerm::Absent("result in an entry clause"),
@@ -1775,12 +1779,12 @@ mod tests {
         let value = ValueId::new(1).unwrap();
         let slot = |assignable| Slot {
             symbol: formal,
-            value_type: ValueType::Scalar(u32_type, crate::lowering::body::Qualification::NONE),
+            value_type: ValueType::Scalar(u32_type, crate::body::Qualification::NONE),
             assignable,
             homed: false,
             erased: false,
             borrowed: None,
-            borrowed_regions: crate::lowering::body::Regions::NONE,
+            borrowed_regions: crate::body::Regions::NONE,
         };
         let (mutable, immutable) = ([slot(true)], [slot(false)]);
         let values = [Some(value)];
@@ -1830,7 +1834,7 @@ mod tests {
 
     #[test]
     fn old_retains_the_existing_scalar_or_storage_input_and_its_policy() {
-        use crate::lowering::body::{DomainSet, Policy, Qualification};
+        use crate::body::{DomainSet, Policy, Qualification};
         use crate::source_state::expression::TableCallExpression;
         use crate::source_state::name::Identifier;
         use crate::source_symbols::builtin_function_symbols;
@@ -1982,7 +1986,7 @@ mod tests {
             homed: false,
             erased: false,
             borrowed: None,
-            borrowed_regions: crate::lowering::body::Regions::NONE,
+            borrowed_regions: crate::body::Regions::NONE,
         };
         let slots = [slot()];
         let values = [Some(value)];
@@ -2082,7 +2086,7 @@ mod tests {
                     refusal.reason,
                     terminal_check_tables::RefusalReason::Violation
                 ));
-                assert_eq!(refusal.detail, crate::lowering::policy::QUALIFIED_OPERAND);
+                assert_eq!(refusal.detail, crate::policy::QUALIFIED_OPERAND);
             };
         let no_input = "contract old of a subject without an admitted invocation input";
         assert_eq!(
@@ -2259,7 +2263,7 @@ mod tests {
                 Qualification {
                     policy: None,
                     domains: DomainSet::EMPTY
-                        .with(crate::lowering::body::DomainInstance {
+                        .with(crate::body::DomainInstance {
                             declaration: foreign,
                             identity: semantic_vocabulary::SemanticDomainId::NULL,
                         })
@@ -2370,14 +2374,14 @@ mod tests {
         );
         assert_eq!(names.ensures.len(), 1);
         let callee = MachineId::new(2).unwrap();
-        let source = crate::lowering::SourceOrigin::Unpositioned(
-            crate::lowering::Unpositioned::ConformanceWitness,
+        let source = crate::SourceOrigin::Unpositioned(
+            crate::Unpositioned::ConformanceWitness,
         );
-        let call = crate::lowering::body::Expression {
+        let call = crate::body::Expression {
             call_context: None,
             kind: ExpressionKind::Call {
                 callee: callee.into(),
-                arguments: vec![crate::lowering::body::Expression {
+                arguments: vec![crate::body::Expression {
                     call_context: None,
                     kind: ExpressionKind::Slot(0),
                     result: Some(ValueType::plain(scalar_type)),
@@ -2394,17 +2398,17 @@ mod tests {
         };
         let mut signatures = IdTable::default();
         signatures.push(signature.clone());
-        signatures.push(crate::lowering::body::Signature {
+        signatures.push(crate::body::Signature {
             ensures: Vec::new(),
             ..signature.clone()
         });
         let mut bodies = IdTable::default();
-        bodies.push(crate::lowering::callable_refinement_body(&signature, call));
-        bodies.push(crate::lowering::body::Body {
+        bodies.push(crate::callable_refinement_body(&signature, call));
+        bodies.push(crate::body::Body {
             slots: signature.parameters.clone(),
             statements: Vec::new(),
         });
-        let lowered = crate::lowering::lower_generic(
+        let lowered = crate::lower_generic(
             machine(),
             &bodies,
             &signatures,
@@ -2543,8 +2547,8 @@ mod tests {
                     machine(),
                     record,
                     &pattern,
-                    crate::lowering::SourceOrigin::Unpositioned(
-                        crate::lowering::Unpositioned::SpanAbsent,
+                    crate::SourceOrigin::Unpositioned(
+                        crate::Unpositioned::SpanAbsent,
                     ),
                 )
                 .unwrap_err();
@@ -2624,7 +2628,7 @@ mod tests {
             homed: false,
             erased: false,
             borrowed: None,
-            borrowed_regions: crate::lowering::body::Regions::NONE,
+            borrowed_regions: crate::body::Regions::NONE,
         }];
         let mut program = Program::new(&typed, false);
         program.records.push(plain_record());
@@ -2648,7 +2652,7 @@ mod tests {
             homed: false,
             erased: false,
             borrowed: None,
-            borrowed_regions: crate::lowering::body::Regions::NONE,
+            borrowed_regions: crate::body::Regions::NONE,
         }];
         let refused = program
             .assignment(
@@ -2716,7 +2720,7 @@ mod tests {
         );
         // A contract clause can neither name a record formal whole nor
         // project it: clauses over places belong to a later slice.
-        let values = crate::lowering::body::formal_values(
+        let values = crate::body::formal_values(
             slots
                 .iter()
                 .map(|slot| (slot.value_type, slot.erased, slot.borrowed.is_some())),
@@ -2832,7 +2836,7 @@ mod tests {
             homed: false,
             erased: false,
             borrowed: None,
-            borrowed_regions: crate::lowering::body::Regions::NONE,
+            borrowed_regions: crate::body::Regions::NONE,
         }];
         let mut program = Program::new(&typed, false);
         program.records.push(plain_record());
@@ -2858,7 +2862,7 @@ mod tests {
                 },
             )
         };
-        let crate::lowering::body::Statement::Decompose {
+        let crate::body::Statement::Decompose {
             subject: decomposed,
         } = read(point, full, subject)
             .unwrap()
@@ -2868,7 +2872,7 @@ mod tests {
         };
         assert!(matches!(
             decomposed.kind,
-            crate::lowering::body::ExpressionKind::Slot(0)
+            crate::body::ExpressionKind::Slot(0)
         ));
         assert_eq!(decomposed.result, Some(slots[0].value_type));
         let mut detail = |pattern_subject, pattern_fields, initial_value| {
@@ -2982,7 +2986,7 @@ mod tests {
             homed: true,
             erased: false,
             borrowed: Some(ReferenceAccess::Shared),
-            borrowed_regions: crate::lowering::body::Regions::NONE,
+            borrowed_regions: crate::body::Regions::NONE,
         }];
         let local = TableLocalData {
             symbol: local_symbol,
@@ -3003,7 +3007,7 @@ mod tests {
         assert!(!slot.assignable && !slot.homed && slot.borrowed.is_none());
         assert!(matches!(
             statement,
-            crate::lowering::Statement::Bind { slot: 0, .. }
+            crate::Statement::Bind { slot: 0, .. }
         ));
         let (computed_slot, statement) = program
             .local(
@@ -3023,10 +3027,10 @@ mod tests {
         assert_eq!(computed_slot.value_type, slot.value_type);
         assert!(matches!(
             statement,
-            crate::lowering::Statement::Bind {
+            crate::Statement::Bind {
                 slot: 1,
-                value: crate::lowering::Expression {
-                    kind: crate::lowering::ExpressionKind::Strict { .. },
+                value: crate::Expression {
+                    kind: crate::ExpressionKind::Strict { .. },
                     ..
                 }
             }
@@ -3046,7 +3050,7 @@ mod tests {
         assert!(captured.homed);
         assert!(matches!(
             statement,
-            crate::lowering::Statement::CaptureReference {
+            crate::Statement::CaptureReference {
                 slot: 1,
                 original: 0
             }
@@ -3314,12 +3318,12 @@ mod tests {
         let u8_type = ScalarType::Integer(carrier_type);
         let slot = |symbol| Slot {
             symbol,
-            value_type: ValueType::Scalar(u8_type, crate::lowering::body::Qualification::NONE),
+            value_type: ValueType::Scalar(u8_type, crate::body::Qualification::NONE),
             assignable: false,
             homed: false,
             erased: false,
             borrowed: None,
-            borrowed_regions: crate::lowering::body::Regions::NONE,
+            borrowed_regions: crate::body::Regions::NONE,
         };
         let slots = [slot(rest), slot(count)];
         let values = [ValueId::new(1), ValueId::new(2)];

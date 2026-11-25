@@ -13,14 +13,14 @@ pub use lowered_source_publication::source_roster::{
 /// substitute different roots.
 pub fn lower_roster(
     roster: SourceCompilationRoster,
-    typed: crate::lowering::PreparedTypedTrees,
-) -> Result<crate::lowering::LoweredSourcePublication, Vec<Diagnostic>> {
+    typed: crate::PreparedTypedTrees,
+) -> Result<crate::LoweredSourcePublication, Vec<Diagnostic>> {
     let publication = terminal_codec::TerminalPublication::Portable;
     let prepared = {
         let calling = roster.normalization.calling.borrow(typed.trees());
-        crate::lowering::prepare_compilation(
+        crate::prepare_compilation(
             &typed,
-            crate::lowering::Compilation {
+            crate::Compilation {
                 declaration_metadata: &roster.declaration_metadata,
                 entries: roster.publication_entries(),
                 subjects: std::slice::from_ref(&roster.subject),
@@ -34,7 +34,7 @@ pub fn lower_roster(
             publication,
         )?
     };
-    Ok(crate::lowering::compilation::bind_source(
+    Ok(crate::compilation::bind_source(
         typed,
         publication,
         prepared,

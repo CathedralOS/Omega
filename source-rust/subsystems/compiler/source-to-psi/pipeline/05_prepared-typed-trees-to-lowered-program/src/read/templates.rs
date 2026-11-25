@@ -27,8 +27,8 @@ use terminal_check_tables::{Checked, Construct};
 use super::Program;
 use super::clause_terms::ClauseUse;
 use super::contracts::{AppliedProposition, ClauseScope};
-use crate::lowering::body::ValueType;
-use crate::lowering::{Unserved, refuse};
+use crate::body::ValueType;
+use crate::{Unserved, refuse};
 
 /// A machine parameter as the signature needs it: a function from its
 /// parameters to its result.

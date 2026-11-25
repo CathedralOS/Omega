@@ -13,7 +13,7 @@ use super::*;
 /// refusal's text.
 fn verdict(build: &str) -> String {
     match judge_build(build) {
-        Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+        Err(crate::CompilationRefusal::Elaboration(refusal))
         | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
         Ok(RouteVerdict::Accepted(accepted)) => {
             accepted.publish_invocation().unwrap();
@@ -139,11 +139,11 @@ fn a_rigid_array_extent_cannot_name_another_machine_or_an_undeclared_input() {
     }
 }
 
-fn array_subject(text: &str) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
+fn array_subject(text: &str) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     let typed =
         crate::preparation::prepare_typed_trees(super::boundary_calls::typed(text), &[], &[]).unwrap();
     let entry = super::boundary_calls::entry(typed.trees());
-    crate::checking::judge_compilation(
+    crate::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
             crate::lowering::Compilation {
@@ -201,7 +201,7 @@ fn a_closed_array_equation_cannot_prove_unequal_extents() {
 }
 
 fn assert_array_invocation_value(
-    mut verdicts: Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>>,
+    mut verdicts: Vec<Result<RouteVerdict, crate::CompilationRefusal>>,
     expected: u128,
 ) {
     let Ok(RouteVerdict::Accepted(accepted)) = verdicts.remove(0) else {
@@ -274,7 +274,7 @@ fn shared_array_inputs_bind_one_consistent_extent_for_structural_specialization(
     );
     let found = discharge(&mut generic, &mut Default::default()).unwrap();
     let generic_scope =
-        crate::checking::prepare_replay(&mut generic, &mut Default::default()).unwrap();
+        crate::prepare_replay(&mut generic, &mut Default::default()).unwrap();
     for (first, second, element, admitted) in [
         (0, 0, "u8", true),
         (3, 3, "u8", true),
@@ -285,8 +285,8 @@ fn shared_array_inputs_bind_one_consistent_extent_for_structural_specialization(
             "machine entry(first: @[u8; {first}], second: @[{element}; {second}], value: u64) -> u64 requires value <= {first}u64 ensures result <= {first}u64 {{ value }}"
         ));
         let mut actual_scope =
-            crate::checking::prepare_replay(&mut actual, &mut Default::default()).unwrap();
-        let result = crate::checking::reverify_specialization(
+            crate::prepare_replay(&mut actual, &mut Default::default()).unwrap();
+        let result = crate::reverify_specialization(
             &generic_scope,
             &found,
             id(1),
@@ -480,6 +480,96 @@ machine entry<const N: u64, const M: u64>(token: @Token<N>) -> u64 {
 }
 
 #[test]
+fn a_const_record_requirement_follows_the_callers_bound_value() {
+    let source = "
+data Slots<const Count: u64> requires Count >= 1, active < Count {
+    items: [u64; Count];
+    active: u64;
+    other: u64;
+}
+machine entry<const Count: u64>(slots: @Slots<Count>) -> u64
+requires Count >= 1 {
+    read_slot(slots, 0)
+    machine read_slot(slots: @Slots<Count>, index: u64) -> u64
+    requires Count >= 1 && index < Count { slots.items[index] }
+}";
+    let baseline = rigid_array_form(source);
+    let mut valid = baseline.clone();
+    let checked = discharge(&mut valid, &mut Default::default()).unwrap();
+    assert!(
+        checked
+            .machines
+            .iter()
+            .all(|(_, machine)| machine.verdicts.iter().all(|(_, verdict)| verdict.is_ok())),
+        "{checked:?}"
+    );
+
+    let mut changed = baseline;
+    let expected = changed.nominal_calls[0].expected_constructor;
+    let declaration = changed
+        .module
+        .types
+        .structural_types
+        .iter_mut()
+        .find(|declaration| declaration.id == expected)
+        .unwrap();
+    let semantic_vocabulary::Proposition::LessThan(
+        semantic_vocabulary::ScalarTerm::IntegerField { path, scalar_type, .. },
+        _,
+    ) = &mut declaration.requires[1]
+    else {
+        panic!("the record must retain its field bound");
+    };
+    let [semantic_vocabulary::CanonicalStructuralPathSegment::Field(field)] = path.as_mut_slice()
+    else {
+        panic!("the bound must name one field");
+    };
+    *field = declaration
+        .shape
+        .fields()
+        .find(|other| {
+            other.id != *field
+                && other.field_type
+                    == terminal_psi::StructuralFieldType::Scalar(
+                        semantic_vocabulary::ScalarType::Integer(*scalar_type),
+                    )
+        })
+        .expect("the alternate field should have the original carrier")
+        .id;
+    let error = discharge(&mut changed, &mut Default::default()).unwrap_err();
+    assert!(
+        error
+            .detail
+            .contains("nominal call input changed its complete type or const actuals"),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn a_const_record_call_keeps_the_borrow_ceiling_when_its_fields_have_local_ids() {
+    let source = "
+data Slots<const Count: u64> requires Count >= 1 { items: [u64; Count]; }
+machine entry<const Count: u64>(slots: @mutable Slots<Count>)
+requires Count >= 1 {
+    write_slot(slots, 0);
+    machine write_slot(slots: @mutable Slots<Count>, index: u64)
+    requires Count >= 1 && index < Count {
+        let value: u64 = 42;
+        slots.items[index] = value;
+    }
+}";
+    let mut form = rigid_array_form(source);
+    let checked = discharge(&mut form, &mut Default::default()).unwrap();
+    assert!(
+        checked
+            .machines
+            .iter()
+            .all(|(_, machine)| machine.verdicts.iter().all(|(_, verdict)| verdict.is_ok())),
+        "{checked:?}"
+    );
+}
+
+#[test]
 fn a_literal_const_call_keeps_the_supplied_element_permissions() {
     let source = "
 data Buffer<Element, const N: u64> { items: [Element; N]; }
@@ -635,7 +725,7 @@ requires index < choice.slots.length
 fn sized_boundary_program(
     contract: &str,
     call: &str,
-) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
+) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     let typed = crate::preparation::prepare_typed_trees(
         super::boundary_calls::typed(&format!(
             "boundary trait Sink {{
@@ -651,7 +741,7 @@ machine entry() -> u32 {{ let buffer: [u8; 4] = [1, 2, 3, 0]; {call} }}"
     )
     .unwrap();
     let entry = super::boundary_calls::entry(typed.trees());
-    crate::checking::judge_compilation(
+    crate::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
             super::build_purpose::roster(
@@ -666,7 +756,7 @@ machine entry() -> u32 {{ let buffer: [u8; 4] = [1, 2, 3, 0]; {call} }}"
     )
 }
 
-fn accepted(verdict: &Result<RouteVerdict, crate::checking::CompilationRefusal>) -> bool {
+fn accepted(verdict: &Result<RouteVerdict, crate::CompilationRefusal>) -> bool {
     matches!(verdict, Ok(RouteVerdict::Accepted(_)))
 }
 

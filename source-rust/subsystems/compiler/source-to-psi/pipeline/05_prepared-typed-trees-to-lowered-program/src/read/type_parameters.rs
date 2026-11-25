@@ -10,8 +10,8 @@ use terminal_check_tables::values::RigidType;
 use terminal_check_tables::{Checked, Construct};
 
 use super::{Program, places::RecordSource};
-use crate::lowering::body::{RecordType, StorageShape, ValueType};
-use crate::lowering::{Unserved, refuse};
+use crate::body::{RecordType, StorageShape, ValueType};
+use crate::{Unserved, refuse};
 
 pub(super) struct ParameterStorage {
     pub rigid: RigidType,

@@ -140,6 +140,22 @@ impl InvocationSelectionConsent for TerminalSourceSelections {
         self.identity == artifact.custody_identity()
             && self.invocation_consent.binary_search(&question).is_ok()
     }
+
+    fn allows_supplied_library(
+        &self,
+        artifact: TerminalExecutionView<'_>,
+        packet: &SelectionQuestions,
+        question: SelectionQuestionId,
+    ) -> bool {
+        // An owned target enters this list only after the source producer checked
+        // the actual requester and selected declaration against a supplied library.
+        std::ptr::eq(self.questions.as_ref(), packet)
+            && self.allows_question(artifact, question)
+            && self.questions.questions.get(question).is_some_and(|row| {
+                let semantic_vocabulary::source_selections::SelectionReference::Declaration(target) = &row.selected else { return false; };
+                self.questions.declarations.get(*target).is_some_and(|target| matches!(target.custody, semantic_vocabulary::compiler_evaluation::DeclarationCustody::Package(_)))
+            })
+    }
 }
 
 #[cfg(test)]
@@ -214,11 +230,11 @@ mod tests {
                     source_provenance::DependencyScope::Product,
                 )
                 .source_id;
-            let tokens = crate::production::frontend_fixture::Lexer::new(text)
+            let tokens = crate::frontend_fixture::Lexer::new(text)
                 .tokenize()
                 .unwrap();
             let syntax =
-                crate::production::frontend_fixture::parse_syntax_trees_with_id(id, &tokens)
+                crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens)
                     .unwrap();
             let mut request = crate::resolution::ResolutionRequest::new(syntax);
             request.sources = Some(Arc::new(sources));
@@ -240,7 +256,7 @@ mod tests {
             let frozen = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
             let accepted = crate::judge_fixture(
                 frozen,
-                crate::production::TerminalSourceCompilation {
+                crate::TerminalSourceCompilation {
                     declaration_metadata: &[],
                     entries: &[entry],
                     subjects: &[None],
@@ -328,11 +344,11 @@ mod tests {
             )
             .source_id;
         let sources = Arc::new(sources);
-        let tokens = crate::production::frontend_fixture::Lexer::new(text)
+        let tokens = crate::frontend_fixture::Lexer::new(text)
             .tokenize()
             .unwrap();
         let syntax =
-            crate::production::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
+            crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
         let mut request = crate::resolution::ResolutionRequest::new(syntax);
         request.sources = Some(Arc::clone(&sources));
         let resolved = crate::resolution::resolve(request).unwrap();
@@ -341,7 +357,7 @@ mod tests {
         let frozen = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
         let accepted = crate::judge_fixture(
             frozen,
-            crate::production::TerminalSourceCompilation {
+            crate::TerminalSourceCompilation {
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[None],
@@ -362,7 +378,7 @@ mod tests {
         let produce = |consent: Option<&dyn crate::source_inputs::InvocationSourceConsent>| {
             accepted
                 .produce(
-                    crate::production::TerminalProductionCustody {
+                    crate::TerminalProductionCustody {
                         invocation_sources: consent,
                         ..Default::default()
                     },

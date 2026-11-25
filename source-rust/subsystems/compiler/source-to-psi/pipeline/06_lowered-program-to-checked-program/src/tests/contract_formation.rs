@@ -24,8 +24,8 @@ fn form(clauses: Vec<Proposition>) -> Checked<()> {
         requires: clauses,
         ..machine(vec![u32_type(), u32_type()], vec![returns(unsigned(0))])
     }])?;
-    let mut activity = crate::checking::ProofSearchActivity::default();
-    crate::checking::formation::module(&elaboration.module, &[], &mut activity)
+    let mut activity = crate::ProofSearchActivity::default();
+    crate::formation::module(&elaboration.module, &[], &mut activity)
 }
 
 #[test]
@@ -99,9 +99,9 @@ fn a_bodyless_contract_is_not_exempt_from_formation() {
     let mut declared = elaboration.module.machines[0].contract.clone();
     declared.requires = vec![nonnegative(subtract(formal(1, u32_type()), number(1)))];
     elaboration.module.execution.declaration_contracts.push(declared);
-    let mut activity = crate::checking::ProofSearchActivity::default();
+    let mut activity = crate::ProofSearchActivity::default();
     assert_eq!(
-        crate::checking::prepare_replay(&mut elaboration, &mut activity)
+        crate::prepare_replay(&mut elaboration, &mut activity)
             .err()
             .unwrap()
             .reason,
@@ -133,8 +133,8 @@ fn predicate_definitions_form_without_assuming_their_bodies() {
                 ],
             )),
         });
-    let mut activity = crate::checking::ProofSearchActivity::default();
-    let error = crate::checking::formation::module(&module, &[], &mut activity).unwrap_err();
+    let mut activity = crate::ProofSearchActivity::default();
+    let error = crate::formation::module(&module, &[], &mut activity).unwrap_err();
     assert_eq!(error.reason, RefusalReason::Violation);
     assert!(
         error
@@ -146,7 +146,7 @@ fn predicate_definitions_form_without_assuming_their_bodies() {
             number(u32::MAX.into()),
             input,
         )));
-    crate::checking::formation::module(&module, &[], &mut activity).unwrap();
+    crate::formation::module(&module, &[], &mut activity).unwrap();
 }
 
 #[test]
@@ -212,8 +212,8 @@ machine build_entry() {
                 change(contract);
             }
         }
-        let mut activity = crate::checking::ProofSearchActivity::default();
-        let refusal = crate::checking::formation::module(&module, &[], &mut activity)
+        let mut activity = crate::ProofSearchActivity::default();
+        let refusal = crate::formation::module(&module, &[], &mut activity)
             .expect_err("a byte predicate cannot observe the helper's genuine u32 input");
         assert!(
             refusal.detail.contains("byte predicate"),
@@ -232,8 +232,8 @@ fn guarantees_cannot_form_an_input_precondition() {
         obligation: id(1),
         proposition: Proposition::LessOrEqual(number(1), formal(1, u32_type())),
     });
-    let mut activity = crate::checking::ProofSearchActivity::default();
-    assert!(crate::checking::formation::module(&elaboration.module, &[], &mut activity).is_err());
+    let mut activity = crate::ProofSearchActivity::default();
+    assert!(crate::formation::module(&elaboration.module, &[], &mut activity).is_err());
 }
 
 #[test]
@@ -246,9 +246,9 @@ fn replay_formation_is_an_explicit_searching_entrance() {
         ..machine(vec![u32_type()], vec![returns(unsigned(0))])
     }])
     .unwrap();
-    let mut activity = crate::checking::ProofSearchActivity::default();
+    let mut activity = crate::ProofSearchActivity::default();
     let before = activity.started();
-    let _scope = crate::checking::prepare_replay(&mut elaboration, &mut activity).unwrap();
+    let _scope = crate::prepare_replay(&mut elaboration, &mut activity).unwrap();
     assert!(activity.started() > before);
 }
 
@@ -256,7 +256,7 @@ fn source_result(text: &str) -> RouteVerdict {
     super::build_purpose::judge_build(text).unwrap()
 }
 
-fn accepted_source(text: &str) -> Box<crate::checking::AcceptedClosure> {
+fn accepted_source(text: &str) -> Box<crate::AcceptedClosure> {
     let verdict = source_result(text);
     let RouteVerdict::Accepted(accepted) = verdict else {
         panic!("{verdict:?}");
@@ -453,15 +453,15 @@ machine build_entry() {}
     predicate.subject = id(7);
     predicate.proposition =
         Proposition::LessOrEqual(subtract(number_field, number(1)), number(u32::MAX.into()));
-    let mut activity = crate::checking::ProofSearchActivity::default();
-    crate::checking::formation::module(module, &[], &mut activity).unwrap();
+    let mut activity = crate::ProofSearchActivity::default();
+    crate::formation::module(module, &[], &mut activity).unwrap();
 
     module.types.structural_domains[0]
         .predicate
         .as_mut()
         .unwrap()
         .subject = id(8);
-    let refusal = crate::checking::formation::module(module, &[], &mut activity).unwrap_err();
+    let refusal = crate::formation::module(module, &[], &mut activity).unwrap_err();
     assert_eq!(refusal.reason, RefusalReason::Unsupported);
     assert!(
         refusal
@@ -951,5 +951,54 @@ machine build_entry() { let value: u64 in Safe = 7u64 as +Safe; }
             .statement
             .contains("contract arithmetic is not proved total before its condition")),
         "{violations:?}"
+    );
+}
+
+#[test]
+fn content_projection_form_checks_endpoint_order_on_the_actual_subject_fields() {
+    use semantic_vocabulary::{
+        ContentAlgebra, ContentAlgebraKind, ContentDomainId, ContentProjectionExpression,
+        ContentProjectionIdentity, ContentProjectionScalar as Scalar,
+    };
+    let mut accepted = accepted_source(
+        r#"
+data Region { base: u64; length: u64; }
+domain Region::Owned;
+machine retain(value: Region in Owned) -> Region in Owned { value }
+machine build_entry() {}
+"#,
+    );
+    let module = &mut accepted.elaboration.module;
+    let algebra = ContentAlgebra {
+        kind: ContentAlgebraKind::IntervalSet,
+        parameter: "Space".into(),
+    };
+    let base = Scalar::RuntimeScalarEmbedding(vec!["base".into()]);
+    let length = Scalar::RuntimeScalarEmbedding(vec!["length".into()]);
+    let end = Scalar::Add(Box::new(base.clone()), Box::new(length.clone()));
+    let mut form = |lower, upper| {
+        let domain = &mut module.types.structural_domains[0];
+        let expression = ContentProjectionExpression::IntervalSet(vec![(lower, upper)]);
+        domain.content_projection = Some(terminal_psi::StructuralContentProjection {
+            identity: ContentProjectionIdentity {
+                domain: ContentDomainId::new(domain.semantic_domain.get()).unwrap(),
+                projection_report_fingerprint: expression.report_fingerprint(&algebra),
+            },
+            algebra: algebra.clone(),
+            expression,
+        });
+        crate::formation::module(module, &[], &mut Default::default())
+    };
+    form(base.clone(), end.clone()).expect("the mathematical sum may exceed the address carrier");
+    let reversed = form(end, base.clone()).expect_err("a nonnegative length may be positive");
+    assert!(
+        reversed.detail.contains("content projection"),
+        "{reversed:?}"
+    );
+    let unrelated =
+        form(base, length).expect_err("different subject fields have no relative bound");
+    assert!(
+        unrelated.detail.contains("content projection"),
+        "{unrelated:?}"
     );
 }

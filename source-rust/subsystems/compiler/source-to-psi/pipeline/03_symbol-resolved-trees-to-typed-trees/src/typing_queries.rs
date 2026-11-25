@@ -109,32 +109,32 @@ pub(crate) fn selected_construction_field_type(
                     program.data_constructor_case(application, literal.type_symbol, case)
                 });
                 if case.is_none_or(|case| case.symbol != parent) {
-                    return Err(crate::typing::unavailable_judgment(
+                    return Err(crate::unavailable_judgment(
                         "selected constructor case field type",
                     ));
                 }
             }
             return Ok(field.type_reference);
         }
-        return Err(crate::typing::unavailable_judgment(
+        return Err(crate::unavailable_judgment(
             "selected constructor field type",
         ));
     }
     let definition = program
         .unique_data_definition_by_symbol(literal.type_symbol)
-        .ok_or_else(|| crate::typing::unavailable_judgment("constructor declaration types"))?;
+        .ok_or_else(|| crate::unavailable_judgment("constructor declaration types"))?;
     if !program.data_type_parameters(definition).is_empty() || definition.generic_instance.is_some()
     {
-        return Err(crate::typing::unavailable_judgment(
+        return Err(crate::unavailable_judgment(
             "applied constructor field type",
         ));
     }
     let field = exact_declared_field(program, symbol)
-        .ok_or_else(|| crate::typing::unavailable_judgment("constructor field type"))?;
+        .ok_or_else(|| crate::unavailable_judgment("constructor field type"))?;
     let parent = program.symbols.get(symbol).parent;
     let owner = if program.symbols.get(parent).kind == SymbolKind::Variant {
         if literal.case_symbol != Some(parent) {
-            return Err(crate::typing::unavailable_judgment(
+            return Err(crate::unavailable_judgment(
                 "constructor case identity",
             ));
         }
@@ -143,7 +143,7 @@ pub(crate) fn selected_construction_field_type(
         parent
     };
     if owner != literal.type_symbol {
-        return Err(crate::typing::unavailable_judgment(
+        return Err(crate::unavailable_judgment(
             "constructor field owner",
         ));
     }
@@ -160,7 +160,7 @@ pub(crate) fn collection_element_type(
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::FixedArray { element_type, .. }
         | TypeReferenceNode::Slice { element_type } => Ok(*element_type),
-        _ => Err(crate::typing::unavailable_judgment(
+        _ => Err(crate::unavailable_judgment(
             "collection element type projection",
         )),
     }
@@ -176,10 +176,10 @@ pub(crate) fn collection_field_type(
         .peeled_type_reference(reference);
     let definition = program
         .closed_data_field_definition(reference)
-        .ok_or_else(|| crate::typing::unavailable_judgment("applied collection field type"))?;
+        .ok_or_else(|| crate::unavailable_judgment("applied collection field type"))?;
     let field = program
         .data_constructor_field(reference, definition.symbol, symbol)
-        .ok_or_else(|| crate::typing::unavailable_judgment("collection field owner/type"))?;
+        .ok_or_else(|| crate::unavailable_judgment("collection field owner/type"))?;
     Ok(field.type_reference)
 }
 
@@ -229,17 +229,17 @@ pub(crate) fn declared_place_type(
 ) -> Result<TypeReferenceHandle, Diagnostic> {
     declared_projection_type(program, target, |path| {
         if path.reserved_result_of.is_valid() {
-            return Err(crate::typing::unavailable_judgment(
+            return Err(crate::unavailable_judgment(
                 "reserved result is not storage",
             ));
         }
         let binder = path
             .resolved_symbol()
-            .ok_or_else(|| crate::typing::unavailable_judgment("assignment storage binder"))?;
+            .ok_or_else(|| crate::unavailable_judgment("assignment storage binder"))?;
         program
             .declared_binding_type_by_symbol(state, binder)
             .ok_or_else(|| {
-                crate::typing::unavailable_judgment("unique assignment storage declaration")
+                crate::unavailable_judgment("unique assignment storage declaration")
             })
     })
 }
@@ -291,14 +291,14 @@ pub(crate) fn declared_callable_value_type(
     target: ExpressionHandle,
 ) -> Result<TypeReferenceHandle, Diagnostic> {
     if !program.symbols.symbols().nodes().is_valid(owner) {
-        return Err(crate::typing::unavailable_judgment("contract value owner"));
+        return Err(crate::unavailable_judgment("contract value owner"));
     }
     // Entry observation preserves the operand's complete declared type. This
     // is a value query, not a writable-place query or admission of an `old`
     // subject: the lowered reader still checks its input identity and phase.
     let table = &program.expression_table;
     if !table.expression_is_valid(target) {
-        return Err(crate::typing::unavailable_judgment(
+        return Err(crate::unavailable_judgment(
             "declared value expression",
         ));
     }
@@ -325,12 +325,12 @@ pub(crate) fn declared_callable_value_type(
         let symbol = program
             .symbols
             .builtin_atom_symbol(atom)
-            .ok_or_else(|| crate::typing::unavailable_judgment("literal's retained carrier"))?;
+            .ok_or_else(|| crate::unavailable_judgment("literal's retained carrier"))?;
         return program
             .type_reference_table
             .find_arithmetic_result_type_reference(symbol, policy)
             .ok_or_else(|| {
-                crate::typing::unavailable_judgment("literal's retained qualified type")
+                crate::unavailable_judgment("literal's retained qualified type")
             });
     }
     let mut target = target;
@@ -358,7 +358,7 @@ pub(crate) fn declared_callable_value_type(
             break;
         }
         let [argument] = table.expression_handles(call.arguments) else {
-            return Err(crate::typing::unavailable_judgment(
+            return Err(crate::unavailable_judgment(
                 "old input declared type arity",
             ));
         };
@@ -370,7 +370,7 @@ pub(crate) fn declared_callable_value_type(
     {
         return program.type_reference_table.contains_type_reference(constant.declared_type)
             .then_some(constant.declared_type)
-            .ok_or_else(|| crate::typing::unavailable_judgment("constant's declared type"));
+            .ok_or_else(|| crate::unavailable_judgment("constant's declared type"));
     }
     let states = program
         .machine_by_symbol(owner)
@@ -384,13 +384,13 @@ pub(crate) fn declared_callable_value_type(
         // (`requires (root as -Handle) != 0`), each a value of the type the
         // declaration gives it.
         let Some(definition) = program.unique_data_definition_by_symbol(owner) else {
-            return Err(crate::typing::unavailable_judgment(
+            return Err(crate::unavailable_judgment(
                 "contract callable declaration",
             ));
         };
         return declared_projection_type(program, target, |path| {
             if path.static_application.is_valid() || path.reserved_result_of.is_valid() {
-                return Err(crate::typing::unavailable_judgment("data clause value"));
+                return Err(crate::unavailable_judgment("data clause value"));
             }
             if let Some(reference) = path
                 .resolved_symbol()
@@ -401,19 +401,19 @@ pub(crate) fn declared_callable_value_type(
             let field = path
                 .resolved_symbol()
                 .and_then(|binder| program.data_field(definition, binder))
-                .ok_or_else(|| crate::typing::unavailable_judgment("data clause field"))?;
+                .ok_or_else(|| crate::unavailable_judgment("data clause field"))?;
             program
                 .type_reference_table
                 .contains_type_reference(field.type_reference)
                 .then_some(field.type_reference)
                 .ok_or_else(|| {
-                    crate::typing::unavailable_judgment("data clause field declared type")
+                    crate::unavailable_judgment("data clause field declared type")
                 })
         });
     }
     declared_projection_type(program, target, |path| {
         if path.static_application.is_valid() {
-            return Err(crate::typing::unavailable_judgment(
+            return Err(crate::unavailable_judgment(
                 "applied contract value",
             ));
         }
@@ -430,7 +430,7 @@ pub(crate) fn declared_callable_value_type(
                     .iter()
                     .any(|symbol| symbol.is_valid())
             {
-                return Err(crate::typing::unavailable_judgment(
+                return Err(crate::unavailable_judgment(
                     "reserved result identity",
                 ));
             }
@@ -448,9 +448,9 @@ pub(crate) fn declared_callable_value_type(
                 );
             let reference = results
                 .next()
-                .ok_or_else(|| crate::typing::unavailable_judgment("result of another callable"))?;
+                .ok_or_else(|| crate::unavailable_judgment("result of another callable"))?;
             if results.next().is_some() {
-                return Err(crate::typing::unavailable_judgment(
+                return Err(crate::unavailable_judgment(
                     "ambiguous contract result owner",
                 ));
             }
@@ -458,9 +458,9 @@ pub(crate) fn declared_callable_value_type(
         } else {
             let binder = path
                 .resolved_symbol()
-                .ok_or_else(|| crate::typing::unavailable_judgment("contract value binder"))?;
+                .ok_or_else(|| crate::unavailable_judgment("contract value binder"))?;
             if !program.symbols.symbols().nodes().is_valid(binder) {
-                return Err(crate::typing::unavailable_judgment("contract value binder"));
+                return Err(crate::unavailable_judgment("contract value binder"));
             }
             let mut declarations = states
                 .into_iter()
@@ -477,9 +477,9 @@ pub(crate) fn declared_callable_value_type(
                 }));
             let reference = declarations
                 .next()
-                .ok_or_else(|| crate::typing::unavailable_judgment("contract value declaration"))?;
+                .ok_or_else(|| crate::unavailable_judgment("contract value declaration"))?;
             if declarations.next().is_some() {
-                return Err(crate::typing::unavailable_judgment(
+                return Err(crate::unavailable_judgment(
                     "ambiguous contract value declaration",
                 ));
             }
@@ -489,7 +489,7 @@ pub(crate) fn declared_callable_value_type(
             .type_reference_table
             .contains_type_reference(reference)
             .then_some(reference)
-            .ok_or_else(|| crate::typing::unavailable_judgment("contract value declared type"))
+            .ok_or_else(|| crate::unavailable_judgment("contract value declared type"))
     })
 }
 
@@ -512,7 +512,7 @@ fn declared_projection_type(
                 let names = table.name_path_members(path.members);
                 let selected = table.name_path_member_symbols(path.member_symbols);
                 if names.is_empty() || (!selected.is_empty() && selected.len() != names.len()) {
-                    return Err(crate::typing::unavailable_judgment(
+                    return Err(crate::unavailable_judgment(
                         "assignment storage path roster",
                     ));
                 }
@@ -521,7 +521,7 @@ fn declared_projection_type(
                         .first()
                         .is_some_and(|symbol| symbol.is_valid() && *symbol != binder)
                 {
-                    return Err(crate::typing::unavailable_judgment(
+                    return Err(crate::unavailable_judgment(
                         "assignment storage binder identity",
                     ));
                 }
@@ -545,7 +545,7 @@ fn declared_projection_type(
                             let TypeReferenceNode::Reference { referee, .. } =
                                 program.type_reference_table.type_reference(base)
                             else {
-                                return Err(crate::typing::unavailable_judgment(
+                                return Err(crate::unavailable_judgment(
                                     "dereference of non-reference storage",
                                 ));
                             };
@@ -563,7 +563,7 @@ fn declared_projection_type(
                             collection_element_type(program, reference)?
                         }
                         _ => {
-                            return Err(crate::typing::unavailable_judgment(
+                            return Err(crate::unavailable_judgment(
                                 "assignment storage selector",
                             ));
                         }
@@ -572,7 +572,7 @@ fn declared_projection_type(
                         .type_reference_table
                         .contains_type_reference(reference)
                     {
-                        return Err(crate::typing::unavailable_judgment(
+                        return Err(crate::unavailable_judgment(
                             "assignment selected type occurrence",
                         ));
                     }
@@ -594,7 +594,7 @@ fn declared_projection_type(
             _ => break,
         }
     }
-    Err(crate::typing::unavailable_judgment(
+    Err(crate::unavailable_judgment(
         "assignment storage expression",
     ))
 }
@@ -610,14 +610,14 @@ pub(crate) fn declared_projection_field<'program>(
         .peeled_type_reference(reference);
     let data = program
         .closed_data_field_definition(carrier)
-        .ok_or_else(|| crate::typing::unavailable_judgment("assignment field application"))?;
+        .ok_or_else(|| crate::unavailable_judgment("assignment field application"))?;
     let payload = if selected == SymbolHandle::invalid() {
         None
     } else {
         if !program.symbols.symbols().nodes().is_valid(selected)
             || program.symbols.get(selected).kind != SymbolKind::Field
         {
-            return Err(crate::typing::unavailable_judgment(
+            return Err(crate::unavailable_judgment(
                 "assignment field identity",
             ));
         }
@@ -625,12 +625,12 @@ pub(crate) fn declared_projection_field<'program>(
         if program.symbols.get(parent).kind == SymbolKind::Variant {
             let case = program
                 .data_constructor_case(carrier, data.symbol, parent)
-                .ok_or_else(|| crate::typing::unavailable_judgment("assignment field identity"))?;
+                .ok_or_else(|| crate::unavailable_judgment("assignment field identity"))?;
             Some(program.data_payload_fields(case))
         } else {
             program
                 .data_constructor_definition(carrier, parent)
-                .ok_or_else(|| crate::typing::unavailable_judgment("assignment field identity"))?;
+                .ok_or_else(|| crate::unavailable_judgment("assignment field identity"))?;
             None
         }
     };
@@ -650,18 +650,18 @@ pub(crate) fn declared_projection_field<'program>(
         .filter(|field| field.name.as_str() == name);
     let field = fields
         .next()
-        .ok_or_else(|| crate::typing::unavailable_judgment("assignment field declaration"))?;
+        .ok_or_else(|| crate::unavailable_judgment("assignment field declaration"))?;
     if fields.next().is_some() {
-        return Err(crate::typing::unavailable_judgment(
+        return Err(crate::unavailable_judgment(
             "assignment field identity",
         ));
     }
     if selected != SymbolHandle::invalid() {
         let actual = program
             .data_constructor_field(carrier, data.symbol, selected)
-            .ok_or_else(|| crate::typing::unavailable_judgment("assignment field identity"))?;
+            .ok_or_else(|| crate::unavailable_judgment("assignment field identity"))?;
         if actual.symbol != field.symbol {
-            return Err(crate::typing::unavailable_judgment(
+            return Err(crate::unavailable_judgment(
                 "assignment field identity",
             ));
         }
@@ -784,7 +784,7 @@ pub(crate) fn scoped_expression_type_reference(
     ) -> Result<Option<TypeReferenceHandle>, Diagnostic> {
         if !program.expression_table.expression_is_valid(expression) || active.contains(&expression)
         {
-            return Err(crate::typing::unavailable_judgment(
+            return Err(crate::unavailable_judgment(
                 "stale or cyclic value type query",
             ));
         }
@@ -864,7 +864,7 @@ pub(crate) fn scoped_expression_type_reference(
             ExpressionNode::SavedSubject(saved) => match program.saved_value_source(saved) {
                 Some(value) => visit(program, parameters, result, value, state_scope, active)?,
                 None => {
-                    return Err(crate::typing::unavailable_judgment(
+                    return Err(crate::unavailable_judgment(
                         "saved value source type",
                     ));
                 }
@@ -903,7 +903,7 @@ pub(crate) fn scoped_expression_type_reference(
                         program.normalized_type_identity(previous)
                             != program.normalized_type_identity(candidate)
                     }) {
-                        return Err(crate::typing::unavailable_judgment(
+                        return Err(crate::unavailable_judgment(
                             "incompatible value type at match join",
                         ));
                     }
@@ -938,7 +938,7 @@ pub(crate) fn scoped_expression_type_reference(
                 .type_reference_table
                 .contains_type_reference(reference)
         {
-            return Err(crate::typing::unavailable_judgment(
+            return Err(crate::unavailable_judgment(
                 "value type with stale source custody",
             ));
         }
@@ -966,7 +966,7 @@ impl<'program> DeclaredCallTargets<'program> {
         let mut mathematical_definitions = program
             .mathematical_definitions()
             .iter()
-            .map(|definition| crate::typing::lowerer::symbol_key(definition.symbol))
+            .map(|definition| crate::lowerer::symbol_key(definition.symbol))
             .collect::<Vec<_>>();
         mathematical_definitions.sort_unstable();
         Self {
@@ -1020,7 +1020,7 @@ impl<'program> DeclaredCallTargets<'program> {
                         Some(_) => false,
                         None => self
                             .mathematical_definitions
-                            .binary_search(&crate::typing::lowerer::symbol_key(symbol))
+                            .binary_search(&crate::lowerer::symbol_key(symbol))
                             .is_ok(),
                     };
             }
@@ -1325,7 +1325,7 @@ pub(crate) fn defer_unbound_calls(
                                 || call.authored_machine_application.is_valid()
                                 || !call.machine_arguments.is_empty()
                             {
-                                return Err(crate::typing::unavailable_judgment(
+                                return Err(crate::unavailable_judgment(
                                     "conflicting runtime statement-call metadata",
                                 ));
                             }
@@ -1662,7 +1662,7 @@ impl DeclaredExpressionTypes {
         expression: ExpressionHandle,
     ) -> Option<TypeReferenceHandle> {
         let span = program.expression_table.source_span(expression);
-        for form in crate::typing::operator_calls::forms(program, expression)
+        for form in crate::operator_calls::forms(program, expression)
             .into_iter()
             .flatten()
         {
@@ -1678,7 +1678,7 @@ impl DeclaredExpressionTypes {
                     },
                 );
             }
-            let Some(target) = crate::typing::operator_calls::selection_for_operands(
+            let Some(target) = crate::operator_calls::selection_for_operands(
                 program, form, &operands, span,
             )
             .ok()
@@ -1904,7 +1904,7 @@ mod tests {
         let resolved = crate::resolve_fixture(
             "machine last<const Count: u64>(bytes: @[u8; Count]) -> u8 requires Count > 0 { bytes[Count - 1] }",
         );
-        let program = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+        let program = crate::lower_symbol_resolved_trees(&resolved).unwrap();
         let state = &program.machine_states(&program.machines()[0])[0];
         let indices = program
             .statement_table
@@ -2385,7 +2385,7 @@ mod tests {
 
     #[test]
     fn applied_projection_accepts_only_its_original_or_actual_field() {
-        let program = crate::typing::qualified_operator_home_tests::checked(&[(
+        let program = crate::qualified_operator_home_tests::checked(&[(
             "main.omg",
             r#"
             data Buffer<T> { storage: [T; 4]; }
@@ -2480,11 +2480,11 @@ mod tests {
                     source_admission::SourceOrigin::User,
                 )
                 .source_id;
-            let tokens = crate::typing::frontend_fixture::Lexer::new(text)
+            let tokens = crate::frontend_fixture::Lexer::new(text)
                 .tokenize()
                 .unwrap();
             let mut syntax =
-                crate::typing::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
+                crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
                     .unwrap();
             let mut bindings = Vec::new();
             if core {
@@ -2503,10 +2503,10 @@ mod tests {
                         source_admission::SourceOrigin::Toolchain,
                     )
                     .source_id;
-                let tokens = crate::typing::frontend_fixture::Lexer::new(text)
+                let tokens = crate::frontend_fixture::Lexer::new(text)
                     .tokenize()
                     .unwrap();
-                crate::typing::frontend_fixture::parse(&mut syntax, declaration, &tokens).unwrap();
+                crate::frontend_fixture::parse(&mut syntax, declaration, &tokens).unwrap();
                 bindings.push(
                     crate::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
                         source,
@@ -2520,7 +2520,7 @@ mod tests {
             request.sources = Some(std::sync::Arc::new(sources));
             request.top_level_bindings = bindings;
             let resolved = crate::resolution::resolve(request).unwrap();
-            crate::typing::lower_symbol_resolved_trees(&resolved).unwrap()
+            crate::lower_symbol_resolved_trees(&resolved).unwrap()
         }
 
         fn call_mut(

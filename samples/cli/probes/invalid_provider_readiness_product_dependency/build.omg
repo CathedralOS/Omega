@@ -1,9 +1,11 @@
-use omega\language\core\ProgramImage;
+use {omega}/language/core/program_image.omg as image;
+use {backing}/main.omg as backing;
 
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "provider_readiness_product_dependency");
     let mutable backing_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "../provider_readiness/backing" });
     dependency\with_alias(@mutable backing_dependency, "backing");
-    let backing_registration: DependencyRegistration = Build::dependency(builder, backing_dependency);
-    suspend Build::await_provider::<ProgramImage, backing\TestImage>(builder);
+    _ = Build::dependency(builder, backing_dependency);
+    suspend Build::await_provider::<|image|::ProgramImage, |backing|::TestImage>(builder);
+    Build::bind(builder, linux_x86_64\ProgramEntry, main);
 }

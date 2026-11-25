@@ -4,15 +4,17 @@
 use super::*;
 use std::sync::Arc;
 
-fn typed(text: &str) -> Result<crate::source_state::TypedTrees, diagnostics::Diagnostic> {
+pub(super) fn typed(
+    text: &str,
+) -> Result<crate::source_state::TypedTrees, diagnostics::Diagnostic> {
     let mut sources = crate::source_inputs::SourceMap::default();
     let source = sources
         .add("width_parameters/source.omg".into(), text.to_owned())
         .source_id;
-    let tokens = crate::checking::frontend_fixture::Lexer::new(text)
+    let tokens = crate::frontend_fixture::Lexer::new(text)
         .tokenize()
         .expect("source tokenizes");
-    let syntax = crate::checking::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
+    let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
         .expect("source parses");
     let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
         syntax,
@@ -37,7 +39,7 @@ fn widths(kind: &ObligationKind) -> bool {
 fn positive(mut form: crate::lowering::Elaboration) {
     let discharged = discharge(
         &mut form,
-        &mut crate::checking::ProofSearchActivity::default(),
+        &mut crate::ProofSearchActivity::default(),
     )
     .expect("the actual width roster is valid");
     let questions = verdicts(&form, &discharged, 1, widths);
@@ -146,7 +148,7 @@ fn a_positive_width_does_not_authorize_the_wrong_body_guarantee() {
     );
     let discharged = discharge(
         &mut form,
-        &mut crate::checking::ProofSearchActivity::default(),
+        &mut crate::ProofSearchActivity::default(),
     )
     .unwrap();
     assert!(
@@ -175,7 +177,7 @@ fn an_ordinary_const_value_is_not_an_integer_width_use() {
     );
     let discharged = discharge(
         &mut form,
-        &mut crate::checking::ProofSearchActivity::default(),
+        &mut crate::ProofSearchActivity::default(),
     )
     .unwrap();
     assert!(

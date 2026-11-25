@@ -253,7 +253,7 @@ ensures result == 2
     };
     let input = prepare(SOURCE);
     owners(&input);
-    let verdicts = crate::checking::judge_compilation(input);
+    let verdicts = crate::judge_compilation(input);
     let [Ok(RouteVerdict::Accepted(accepted))] = verdicts.as_slice() else {
         panic!("{verdicts:?}")
     };
@@ -271,7 +271,7 @@ ensures result == 2
     ] {
         let input = prepare(&changed);
         let (root, step) = owners(&input);
-        let verdicts = crate::checking::judge_compilation(input);
+        let verdicts = crate::judge_compilation(input);
         let [
             Ok(RouteVerdict::Rejected {
                 unproved,
@@ -326,7 +326,7 @@ ensures p.first == old(p.first), result.first == 9
         &["build_entry"],
         terminal_codec::TerminalPublication::Portable,
     );
-    let verdicts = crate::checking::judge_compilation(prepared);
+    let verdicts = crate::judge_compilation(prepared);
     let [Ok(RouteVerdict::Accepted(accepted))] = verdicts.as_slice() else {
         panic!("{verdicts:?}")
     };
