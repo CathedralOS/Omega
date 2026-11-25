@@ -175,12 +175,22 @@ impl DescriptorFlowEdge {
     /// Move the available names across this exact successor. Cleanup
     /// affects names that remain in storage. A block argument instead
     /// keeps the value captured before running the cleanup.
+    fn is_plain_fallthrough(&self) -> bool {
+        self.parameters.is_empty()
+            && self.definitions.is_empty()
+            && self.effects.is_empty()
+            && self.bindings.is_empty()
+    }
+
     pub(crate) fn transport_locations(
         &self,
         before: &BTreeSet<DescriptorLocation>,
         invalidate_containers: bool,
         may: bool,
     ) -> BTreeSet<DescriptorLocation> {
+        if self.is_plain_fallthrough() {
+            return before.clone();
+        }
         let definitions = self
             .parameters
             .iter()
@@ -359,7 +369,7 @@ fn location_live_positions(
         }
     }
     let mut visited = BTreeSet::new();
-    let mut predecessors = BTreeMap::<Occurrence, BTreeSet<Occurrence>>::new();
+    let mut predecessors = BTreeMap::<Occurrence, Vec<Occurrence>>::new();
     let mut observations = Vec::new();
     let mut escaped = Vec::new();
     while let Some(occurrence) = pending.pop() {
@@ -395,6 +405,17 @@ fn location_live_positions(
                 .filter_map(|(source, result)| name.transported(source, result)),
         );
         for edge in &step.successors {
+            if edge.is_plain_fallthrough() {
+                for output in &outputs {
+                    let next = (edge.target, output.clone());
+                    predecessors
+                        .entry(next.clone())
+                        .or_default()
+                        .push(occurrence.clone());
+                    pending.push(next);
+                }
+                continue;
+            }
             for output in &outputs {
                 let destinations = if borrowed_authority {
                     edge.forward_authority(output)
@@ -406,7 +427,7 @@ fn location_live_positions(
                     predecessors
                         .entry(next.clone())
                         .or_default()
-                        .insert(occurrence.clone());
+                        .push(occurrence.clone());
                     pending.push(next);
                 }
             }
@@ -478,13 +499,6 @@ pub(crate) fn descriptor_entry_lifetime_with_contents(
     )
 }
 
-pub(crate) fn descriptor_continuation_locations(
-    steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
-    at: DescriptorPosition,
-    descriptor: &DescriptorLocation,
-) -> BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>> {
-    transported_locations(steps, at, descriptor, DescriptorStart::AtEntry, false, None)
-}
 
 pub fn descriptor_location_lifetime(
     steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
@@ -540,11 +554,106 @@ pub fn descriptor_successor_lifetime(
     ))
 }
 
+pub(crate) struct FlowPredecessors<'a> {
+    predecessors: BTreeMap<DescriptorPosition, Vec<(DescriptorPosition, &'a DescriptorFlowEdge)>>,
+}
+
+impl<'a> FlowPredecessors<'a> {
+    pub(crate) fn new(steps: &'a BTreeMap<DescriptorPosition, DescriptorFlowStep>) -> Self {
+        let mut predecessors =
+            BTreeMap::<DescriptorPosition, Vec<(DescriptorPosition, &'a DescriptorFlowEdge)>>::new(
+            );
+        for (position, step) in steps {
+            for edge in &step.successors {
+                predecessors
+                    .entry(edge.target)
+                    .or_default()
+                    .push((*position, edge));
+            }
+        }
+        Self { predecessors }
+    }
+}
+
+pub(crate) fn descriptor_entry_lifetime_with_contents_indexed(
+    steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+    predecessors: &FlowPredecessors<'_>,
+    entry: DescriptorPosition,
+    descriptor: &DescriptorLocation,
+    needs_contents: impl Fn(DescriptorPosition, &DescriptorLocation) -> bool,
+) -> DescriptorLifetime {
+    descriptor_lifetime_with_predecessors(
+        steps,
+        Some(predecessors),
+        entry,
+        descriptor,
+        DescriptorStart::AtEntry,
+        true,
+        needs_contents,
+    )
+}
+
+pub(crate) fn descriptor_location_lifetime_with_contents_indexed(
+    steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+    predecessors: &FlowPredecessors<'_>,
+    birth: DescriptorPosition,
+    descriptor: &DescriptorLocation,
+    needs_contents: impl Fn(DescriptorPosition, &DescriptorLocation) -> bool,
+) -> DescriptorLifetime {
+    descriptor_lifetime_with_predecessors(
+        steps,
+        Some(predecessors),
+        birth,
+        descriptor,
+        DescriptorStart::AfterDefinition,
+        true,
+        needs_contents,
+    )
+}
+
+pub(crate) fn descriptor_continuation_locations_indexed(
+    steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+    predecessors: &FlowPredecessors<'_>,
+    at: DescriptorPosition,
+    descriptor: &DescriptorLocation,
+) -> BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>> {
+    transported_locations_with_predecessors(
+        steps,
+        Some(predecessors),
+        at,
+        descriptor,
+        DescriptorStart::AtEntry,
+        false,
+        true,
+        None,
+    )
+}
+
 fn descriptor_lifetime(
     steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
     birth: DescriptorPosition,
     descriptor: &DescriptorLocation,
     start: DescriptorStart,
+    needs_contents: impl Fn(DescriptorPosition, &DescriptorLocation) -> bool,
+) -> DescriptorLifetime {
+    descriptor_lifetime_with_predecessors(
+        steps,
+        None,
+        birth,
+        descriptor,
+        start,
+        false,
+        needs_contents,
+    )
+}
+
+fn descriptor_lifetime_with_predecessors(
+    steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+    predecessors: Option<&FlowPredecessors<'_>>,
+    birth: DescriptorPosition,
+    descriptor: &DescriptorLocation,
+    start: DescriptorStart,
+    sparse: bool,
     needs_contents: impl Fn(DescriptorPosition, &DescriptorLocation) -> bool,
 ) -> DescriptorLifetime {
     let demand = location_live_positions(steps, birth, descriptor, start, true, needs_contents);
@@ -554,7 +663,16 @@ fn descriptor_lifetime(
     {
         BTreeMap::new()
     } else {
-        transported_locations(steps, birth, descriptor, start, false, Some(&mut surviving))
+        transported_locations_with_predecessors(
+            steps,
+            predecessors,
+            birth,
+            descriptor,
+            start,
+            false,
+            sparse,
+            (!sparse).then_some(&mut surviving),
+        )
     };
     DescriptorLifetime {
         live: demand.live,
@@ -730,29 +848,139 @@ fn transported_locations(
     invalidate_containers: bool,
     surviving: Option<&mut LocationsByPosition>,
 ) -> LocationsByPosition {
-    let mut predecessors =
-        BTreeMap::<DescriptorPosition, Vec<(DescriptorPosition, &DescriptorFlowEdge)>>::new();
-    for (position, step) in steps {
-        for edge in &step.successors {
-            predecessors
-                .entry(edge.target)
-                .or_default()
-                .push((*position, edge));
+    transported_locations_with_predecessors(
+        steps,
+        None,
+        birth,
+        descriptor,
+        start,
+        invalidate_containers,
+        false,
+        surviving,
+    )
+}
+
+fn transported_locations_with_predecessors(
+    steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+    predecessors: Option<&FlowPredecessors<'_>>,
+    birth: DescriptorPosition,
+    descriptor: &DescriptorLocation,
+    start: DescriptorStart,
+    invalidate_containers: bool,
+    sparse: bool,
+    surviving: Option<&mut LocationsByPosition>,
+) -> LocationsByPosition {
+    let owned_predecessors;
+    let predecessors = match predecessors {
+        Some(predecessors) => &predecessors.predecessors,
+        None => {
+            owned_predecessors = FlowPredecessors::new(steps);
+            &owned_predecessors.predecessors
         }
-    }
-    let mut established: LocationsByPosition = steps
-        .keys()
-        .map(|&position| (position, BTreeSet::new()))
-        .collect();
+    };
+    let mut established: LocationsByPosition = BTreeMap::new();
     if start == DescriptorStart::AtEntry {
         established.insert(birth, BTreeSet::from([descriptor.clone()]));
     }
-    let propagate = |established: &mut LocationsByPosition, may: bool| loop {
-        let mut changed = false;
-        for position in steps.keys().copied() {
-            if position == birth {
+    let empty = BTreeSet::new();
+    // Forward worklist for `may = true` (union): only positions reachable from
+    // `birth` with non-empty sets can ever become non-empty, since `transport`
+    // maps empty sets to empty sets.
+    let mut worklist = BTreeSet::from([birth]);
+    let mut needs_must_pass = false;
+    while let Some(position) = worklist.pop_first() {
+        let Some(step) = steps.get(&position) else {
+            continue;
+        };
+        let before = established.get(&position).unwrap_or(&empty);
+        if step.authority_derivations.len() > 1 {
+            needs_must_pass = true;
+        }
+        let needs_birth_insert = start == DescriptorStart::AfterDefinition && position == birth;
+        let mut after = if before.is_empty() {
+            BTreeSet::new()
+        } else if step.definitions.is_empty() && step.authority_derivations.is_empty() {
+            before.clone()
+        } else {
+            transport_authority(
+                before,
+                &step.definitions,
+                step.authority_derivations
+                    .iter()
+                    .map(|(source, destination)| (source, destination)),
+                invalidate_containers,
+                true,
+            )
+        };
+        if needs_birth_insert {
+            after.insert(descriptor.clone());
+        }
+        let after = &after;
+        for edge in &step.successors {
+            if edge.target == birth {
                 continue;
             }
+            let edge_birth = start == DescriptorStart::OnEdgeTo(edge.target) && position == birth;
+            if edge.is_plain_fallthrough() && !edge_birth {
+                if after.is_empty() {
+                    continue;
+                }
+                if predecessors.get(&edge.target).is_some_and(|rows| rows.len() > 1) {
+                    needs_must_pass = true;
+                }
+                let target_set = established.entry(edge.target).or_default();
+                let before_len = target_set.len();
+                for item in after {
+                    target_set.insert(item.clone());
+                }
+                if target_set.len() != before_len {
+                    worklist.insert(edge.target);
+                }
+                continue;
+            }
+            if !edge.effects.is_empty() || edge.bindings.len() > 1 {
+                needs_must_pass = true;
+            }
+            let mut transported = if after.is_empty() {
+                BTreeSet::new()
+            } else {
+                edge.transport_locations(after, invalidate_containers, true)
+            };
+            if edge_birth {
+                transported.insert(descriptor.clone());
+            }
+            if transported.is_empty() {
+                continue;
+            }
+            if predecessors.get(&edge.target).is_some_and(|rows| rows.len() > 1) {
+                needs_must_pass = true;
+            }
+            let target_set = established.entry(edge.target).or_default();
+            let before_len = target_set.len();
+            target_set.extend(transported);
+            if target_set.len() != before_len {
+                worklist.insert(edge.target);
+            }
+        }
+    }
+    if let Some(surviving) = surviving {
+        surviving.clone_from(&established);
+        if !sparse {
+            for &position in steps.keys() {
+                surviving.entry(position).or_default();
+            }
+        }
+    }
+    // Start with every name this borrow can reach, then remove names missing
+    // on any arrival. When no reached node has multiple predecessors or
+    // multi-source derivations, `must` is identical to `may`.
+    if needs_must_pass {
+        let mut shrink_worklist: BTreeSet<DescriptorPosition> = established
+            .keys()
+            .copied()
+            .filter(|&position| position != birth)
+            .collect();
+        while let Some(position) = shrink_worklist.pop_first() {
             let mut incoming =
                 predecessors
                     .get(&position)
@@ -760,21 +988,28 @@ fn transported_locations(
                     .flatten()
                     .map(|(predecessor, edge)| {
                         let step = &steps[predecessor];
-                        let before = &established[predecessor];
-                        let mut after = transport_authority(
-                            before,
-                            &step.definitions,
-                            step.authority_derivations
-                                .iter()
-                                .map(|(source, destination)| (source, destination)),
-                            invalidate_containers,
-                            may,
-                        );
+                        let before = established.get(predecessor).unwrap_or(&empty);
+                        let mut after = if before.is_empty() {
+                            BTreeSet::new()
+                        } else {
+                            transport_authority(
+                                before,
+                                &step.definitions,
+                                step.authority_derivations
+                                    .iter()
+                                    .map(|(source, destination)| (source, destination)),
+                                invalidate_containers,
+                                false,
+                            )
+                        };
                         if start == DescriptorStart::AfterDefinition && *predecessor == birth {
                             after.insert(descriptor.clone());
                         }
-                        let mut transported =
-                            edge.transport_locations(&after, invalidate_containers, may);
+                        let mut transported = if after.is_empty() {
+                            BTreeSet::new()
+                        } else {
+                            edge.transport_locations(&after, invalidate_containers, false)
+                        };
                         if start == DescriptorStart::OnEdgeTo(position) && *predecessor == birth {
                             transported.insert(descriptor.clone());
                         }
@@ -782,28 +1017,25 @@ fn transported_locations(
                     });
             let mut current = incoming.next().unwrap_or_default();
             for other in incoming {
-                if may {
-                    current.extend(other);
-                } else {
-                    current.retain(|location| other.contains(location));
-                }
+                current.retain(|location| other.contains(location));
             }
             if established.get(&position) != Some(&current) {
                 established.insert(position, current);
-                changed = true;
+                if let Some(step) = steps.get(&position) {
+                    for edge in &step.successors {
+                        if edge.target != birth && established.contains_key(&edge.target) {
+                            shrink_worklist.insert(edge.target);
+                        }
+                    }
+                }
             }
         }
-        if !changed {
-            break;
-        }
-    };
-    // Start with every name this borrow can reach, then remove names missing
-    // on any arrival. Starting from empty would lose unchanged borrows at loops.
-    propagate(&mut established, true);
-    if let Some(surviving) = surviving {
-        surviving.clone_from(&established);
     }
-    propagate(&mut established, false);
+    if !sparse {
+        for &position in steps.keys() {
+            established.entry(position).or_default();
+        }
+    }
     established
 }
 

@@ -39,3 +39,5 @@ mathematical-kernel = { path = "../../../psi/semantics/proofs/mathematical" }
 terminal-codec = { path = "../../../psi/artifact/codec" }
 terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi/semantics" }
+worker-budget = { path = "../../../foundation/worker-budget" }
+rayon = "1.11"

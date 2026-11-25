@@ -4,9 +4,9 @@
 //! carry the result to the checker, interpreter and native lowering.
 
 use crate::descriptor_lifetimes::{
-    DescriptorLocation, DescriptorPosition, canonical_descriptor_location,
-    descriptor_entry_lifetime_with_contents, descriptor_location_lifetime_with_contents,
-    descriptor_path,
+    DescriptorLocation, DescriptorPosition, FlowPredecessors, canonical_descriptor_location,
+    descriptor_continuation_locations_indexed, descriptor_entry_lifetime_with_contents_indexed,
+    descriptor_location_lifetime_with_contents_indexed, descriptor_path,
 };
 use crate::descriptor_results::{DescriptorAnalysis, DescriptorSlotKind};
 use arena::IdTable;
@@ -98,7 +98,7 @@ pub fn candidates(module: &TerminalModule) -> Result<IdTable<MachineId, Candidat
                     detail: "reference disposition lost its prepared descriptor graph".into(),
                 })?;
             let flow = analysis
-                .flow(machine.id)
+                .flow_arc(machine.id)
                 .map_err(|error| Error::from_graph(module, error))?;
             machine_candidates(module, machine, prepared, &flow, &mut analysis)?
         };
@@ -280,6 +280,7 @@ fn machine_candidates(
             .binary_search_by_key(&at, |(position, _)| *position)
             .is_ok_and(|index| contents[index].1.contains(name))
     };
+    let predecessors = FlowPredecessors::new(flow);
     let mut dead = BTreeMap::<DescriptorPosition, BTreeSet<DescriptorLocation>>::new();
     let mut live = BTreeMap::<DescriptorPosition, BTreeSet<DescriptorLocation>>::new();
     let mut lifetimes = Vec::new();
@@ -307,8 +308,9 @@ fn machine_candidates(
         // Unknown contents stay with the whole carrier; its ownership walk
         // still owes every possible claim and contained loan.
         for slot in inventory.slots {
-            lifetimes.push(descriptor_entry_lifetime_with_contents(
+            lifetimes.push(descriptor_entry_lifetime_with_contents_indexed(
                 flow,
+                &predecessors,
                 (machine.entry, 0),
                 &slot,
                 needs_contents,
@@ -374,6 +376,7 @@ fn machine_candidates(
                         module,
                         prepared,
                         flow,
+                        &predecessors,
                         birth,
                         &retained.lifetime,
                         &source,
@@ -384,8 +387,13 @@ fn machine_candidates(
                 }
             }
             for slot in inventory.slots {
-                let lifetime =
-                    descriptor_location_lifetime_with_contents(flow, birth, &slot, needs_contents);
+                let lifetime = descriptor_location_lifetime_with_contents_indexed(
+                    flow,
+                    &predecessors,
+                    birth,
+                    &slot,
+                    needs_contents,
+                );
                 if let terminal_psi::OperationKind::EstablishReference { source, .. }
                 | terminal_psi::OperationKind::EstablishAccessReference { source, .. }
                 | terminal_psi::OperationKind::EstablishElementView { source, .. }
@@ -396,6 +404,7 @@ fn machine_candidates(
                         module,
                         prepared,
                         flow,
+                        &predecessors,
                         birth,
                         &lifetime,
                         source,
@@ -409,6 +418,9 @@ fn machine_candidates(
     }
     for lifetime in lifetimes {
         for (at, locations) in lifetime.authorized {
+            if locations.is_empty() {
+                continue;
+            }
             let target = if lifetime.live.contains(&at) {
                 &mut live
             } else {
@@ -434,6 +446,7 @@ fn machine_candidates(
             }
         }
     }
+    let mut resolved_paths = BTreeMap::<DescriptorLocation, Option<_>>::new();
     let mut candidates = Candidates::new();
     for (at, locations) in dead {
         let mut selected = BTreeMap::new();
@@ -444,42 +457,48 @@ fn machine_candidates(
             {
                 continue;
             }
-            let root_type = prepared
-                .place_types
-                .get(&location.root)
-                .copied()
-                .ok_or_else(|| {
-                    Error::local(machine.id, None, "reference disposition lost its root type")
-                })?;
-            let path = descriptor_path(&module.types.structural_types, root_type, &location.path)
-                .ok_or_else(|| {
-                    Error::local(
-                        machine.id,
-                        None,
-                        "reference disposition has no exact owned path",
-                    )
-                })?;
-            if !crate::projection_stays_in_inline_storage(
-                module.types.structural_types.iter(),
-                root_type,
-                &path,
-            ) {
-                continue;
+            if !resolved_paths.contains_key(&location) {
+                let root_type = prepared
+                    .place_types
+                    .get(&location.root)
+                    .copied()
+                    .ok_or_else(|| {
+                        Error::local(machine.id, None, "reference disposition lost its root type")
+                    })?;
+                let path =
+                    descriptor_path(&module.types.structural_types, root_type, &location.path)
+                        .ok_or_else(|| {
+                            Error::local(
+                                machine.id,
+                                None,
+                                "reference disposition has no exact owned path",
+                            )
+                        })?;
+                let resolved = if !crate::projection_stays_in_inline_storage(
+                    module.types.structural_types.iter(),
+                    root_type,
+                    &path,
+                ) {
+                    None
+                } else {
+                    let Some(tip) = crate::runtime_structural_path_tip(
+                        module.types.structural_types.iter(),
+                        root_type,
+                        &path,
+                    ) else {
+                        return Err(Error::local(
+                            machine.id,
+                            None,
+                            "reference disposition lost its leaf type",
+                        ));
+                    };
+                    tip.shape.is_borrowed_descriptor().then_some(path)
+                };
+                resolved_paths.insert(location.clone(), resolved);
             }
-            let Some(tip) = crate::runtime_structural_path_tip(
-                module.types.structural_types.iter(),
-                root_type,
-                &path,
-            ) else {
-                return Err(Error::local(
-                    machine.id,
-                    None,
-                    "reference disposition lost its leaf type",
-                ));
+            let Some(path) = resolved_paths[&location].clone() else {
+                continue;
             };
-            if !tip.shape.is_borrowed_descriptor() {
-                continue;
-            }
             for (position, segment) in location.path.iter().enumerate() {
                 let crate::descriptor_lifetimes::DescriptorPathSegment::Case(case) = segment else {
                     continue;
@@ -562,6 +581,7 @@ fn add_dependencies(
     module: &TerminalModule,
     prepared: &crate::descriptor_results::DescriptorMachine,
     flow: &BTreeMap<DescriptorPosition, crate::descriptor_lifetimes::DescriptorFlowStep>,
+    predecessors: &FlowPredecessors<'_>,
     birth: DescriptorPosition,
     lifetime: &crate::descriptor_lifetimes::DescriptorLifetime,
     source: &StructuralArgument,
@@ -609,8 +629,7 @@ fn add_dependencies(
             .collect()
     };
     for parent in parents {
-        let homes =
-            crate::descriptor_lifetimes::descriptor_continuation_locations(flow, birth, &parent);
+        let homes = descriptor_continuation_locations_indexed(flow, predecessors, birth, &parent);
         for (at, children) in &lifetime.authorized {
             for child in children {
                 for parent in homes

@@ -1339,7 +1339,7 @@ pub fn reference_call_lifetimes(
         block,
         u32::try_from(ordinal).map_err(|_| refuse("call ordinal overflows"))?,
     );
-    let flow = analysis.flow(caller.id)?;
+    let flow = analysis.flow_arc(caller.id)?;
     let mut retained = Vec::new();
     for (mapping_index, binding) in bindings.into_iter().enumerate() {
         let source_positions = if let Some(public) = &public {
