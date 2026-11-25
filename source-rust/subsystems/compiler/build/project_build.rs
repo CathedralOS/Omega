@@ -214,7 +214,11 @@ pub fn interpret(
         })?;
         let host = execution.host()?;
         let mut activation = host.start().map_err(refusal)?;
-        let mut build_dependencies = Vec::new();
+        let mut build_dependencies = source
+            .supplied_libraries
+            .iter()
+            .map(|library| library.dependency().clone())
+            .collect();
         loop {
             if !source.stage.outgoing_preparation_paths().is_empty() {
                 evaluation

@@ -20,6 +20,16 @@ pub trait InvocationSourceConsent: Send + Sync {
         declaration: SourceSpan,
         purpose: DependencyScope,
     ) -> bool;
+
+    /// The invoker supplied the selected library for this exact captured Build.
+    fn allows_supplied_library(
+        &self,
+        _sources: &Arc<SourceMap>,
+        _requester: SourceSpan,
+        _declaration: SourceSpan,
+    ) -> bool {
+        false
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]

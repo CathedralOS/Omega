@@ -22,7 +22,9 @@ mod logical;
 mod package_selection;
 mod paths;
 mod product_queries;
+mod supplied_library;
 pub use product_queries::{ProductQueryDependency, ProductQueryInputs};
+pub use supplied_library::SuppliedBuildLibrary;
 
 pub(crate) use bindings::{
     PendingPackageImport, ResolvedSourceImport, pending_build_imports,

@@ -469,6 +469,7 @@ fn later_build_admissions_keep_the_original_artifact_only_consent() {
     let requests = Arc::new(Mutex::new(Vec::new()));
     let mut evaluation = build_execution::prepare_build_evaluation(
         BuildEvaluationRequest {
+            source_acquisition: None,
             execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose::Source,
             root_path: &entry,
             interval: &interval,
@@ -515,6 +516,102 @@ fn later_build_admissions_keep_the_original_artifact_only_consent() {
         RestrictedBuildOperation::ScopedFilesystemExecution
     );
     assert!(request.bounds().artifact_only());
+}
+
+#[test]
+fn the_invoker_supplies_a_library_before_the_build_runs() {
+    use build_declarations::{BuildDependencySource, DependencyPurpose, ProjectName};
+    use package_manager::project::{BuildLibraryRequest, ProjectInput, open_products};
+
+    configure_library();
+    let temp = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "supplied-build-library",
+        false,
+    )
+    .unwrap();
+    let root = temp.path().join("app");
+    let helper = root.join("implementation");
+    std::fs::create_dir(&root).unwrap();
+    std::fs::create_dir(&helper).unwrap();
+    std::fs::write(
+        helper.join("build.omg"),
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "library"); }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        helper.join("helper.omg"),
+        "public machine visible() -> bool { true }\nmachine secret() -> bool { true }\n",
+    )
+    .unwrap();
+    std::fs::write(root.join("main.omg"), "machine main() {}\n").unwrap();
+    let entry = root.join("build.omg");
+    let source = r#"use {authored}/helper.omg as kit;
+use main.omg as app;
+
+machine build(builder: @mutable Build) {
+    let valid: bool = |kit|::visible();
+    transition valid { true -> named(builder), false -> wrong(builder), }
+    machine named(builder: @mutable Build) {
+        Build::application(builder, "consumer");
+        Build::bind(builder, linux_x86_64\ProgramEntry, |app|::main);
+    }
+    machine wrong(builder: @mutable Build) { Build::application(builder, "wrong"); }
+}
+"#;
+    std::fs::write(&entry, source).unwrap();
+    let libraries = [BuildLibraryRequest {
+        alias: ProjectName::parse("authored").unwrap(),
+        source: BuildDependencySource::Path("implementation".into()),
+    }];
+    let compile = || {
+        open_products(
+            ProjectInput::WithBuildLibraries {
+                file: &entry,
+                libraries: &libraries,
+            },
+            &[TargetProfile::LinuxX64],
+            true,
+            false,
+            &temp.path().join("out"),
+            None,
+        )
+    };
+    let products = compile().unwrap();
+    let product = products.select(TargetProfile::LinuxX64).unwrap();
+    let inputs = product.package_inputs().unwrap();
+    assert_eq!(inputs.package_name(inputs.root()), Some("consumer"));
+    let helper = inputs
+        .dependency_target_for_purpose(inputs.root(), DependencyPurpose::Build, "authored")
+        .unwrap();
+    assert_eq!(inputs.package_name(helper), Some("library"));
+    assert_eq!(
+        inputs.dependency_target_for_purpose(inputs.root(), DependencyPurpose::Product, "authored"),
+        None
+    );
+    assert_eq!(
+        inputs
+            .dependency_build_handoffs()
+            .filter(|handoff| handoff.package() == helper
+                && handoff.purpose() == DependencyPurpose::Build)
+            .count(),
+        1
+    );
+    std::fs::write(&entry, source.replace("::visible()", "::secret()")).unwrap();
+    let diagnostics = compile()
+        .err()
+        .expect("supplying the library does not expose its private machine");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("private machine of another package")
+                && diagnostic
+                    .resolved_location
+                    .as_ref()
+                    .is_some_and(|location| location.path == entry && location.line == 5)
+        }),
+        "{diagnostics:?}"
+    );
 }
 
 #[test]

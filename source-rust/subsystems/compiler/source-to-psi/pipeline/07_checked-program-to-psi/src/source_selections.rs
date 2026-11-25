@@ -140,6 +140,22 @@ impl InvocationSelectionConsent for TerminalSourceSelections {
         self.identity == artifact.custody_identity()
             && self.invocation_consent.binary_search(&question).is_ok()
     }
+
+    fn allows_supplied_library(
+        &self,
+        artifact: TerminalExecutionView<'_>,
+        packet: &SelectionQuestions,
+        question: SelectionQuestionId,
+    ) -> bool {
+        // An owned target enters this list only after the source producer checked
+        // the actual requester and selected declaration against a supplied library.
+        std::ptr::eq(self.questions.as_ref(), packet)
+            && self.allows_question(artifact, question)
+            && self.questions.questions.get(question).is_some_and(|row| {
+                let semantic_vocabulary::source_selections::SelectionReference::Declaration(target) = &row.selected else { return false; };
+                self.questions.declarations.get(*target).is_some_and(|target| matches!(target.custody, semantic_vocabulary::compiler_evaluation::DeclarationCustody::Package(_)))
+            })
+    }
 }
 
 #[cfg(test)]
