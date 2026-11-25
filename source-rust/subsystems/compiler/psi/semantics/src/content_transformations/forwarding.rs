@@ -1,7 +1,13 @@
 //! Check conservation guaranteed by forwarding an unchanged structural claim.
 use super::{ancestry, declarations, entry_claims, structural_path};
-use semantic_vocabulary::{ContentConservation, ContentPlaceVersion, ContentTerm, Proposition};
-use terminal_psi::{OperationKind, StructuralAccess, TerminalMachine, TerminalModule, Terminator};
+use semantic_vocabulary::{
+    ClaimId, ContentConservation, ContentPlaceVersion, ContentProjectionIdentity,
+    ContentStructuralPlace, ContentTerm, Proposition,
+};
+use terminal_psi::{
+    OperationKind, StructuralAccess, StructuralPathSegment, TerminalMachine, TerminalModule,
+    Terminator,
+};
 
 /// Checked content obligations are indexed by the same clause ordinal as
 /// scalar guarantees. Each receipt names the actual claim that reaches every
@@ -9,34 +15,46 @@ use terminal_psi::{OperationKind, StructuralAccess, TerminalMachine, TerminalMod
 pub fn checked_returns(
     module: &TerminalModule,
     machine: &TerminalMachine,
-) -> Result<Vec<(usize, semantic_vocabulary::ClaimId)>, &'static str> {
+) -> Result<Vec<(usize, ClaimId)>, &'static str> {
     let mut proved = Vec::new();
+    let mut origins = ancestry::OriginTraversal::unchanged_content();
     for (ordinal, clause) in machine.ensures.iter().enumerate() {
         if let Proposition::ContentConservation(law) = &clause.proposition {
-            proved.push((ordinal, forwarded_projection(module, machine, law)?));
+            proved.push((
+                ordinal,
+                forwarded_projection(module, machine, law, &mut origins)?,
+            ));
         }
     }
     if !proved.is_empty() {
-        declarations::contract(module, &machine.contract)?;
-        entry_claims::validate_declared_entry_contents(
-            &module.types.structural_types,
-            &module.types.structural_domains,
-            &module.identities,
-            &machine.contract,
-        )?;
-        crate::plain_affine::verify_claims_in(module, machine.id)
-            .map_err(|_| "content return differs from its checked ownership flow")?;
+        validate_claims(module, machine)?;
     }
     Ok(proved)
 }
 
-/// Identity forwarding proves a closed projection unchanged for any algebra.
-/// Partition arithmetic and calls that transform storage owe a separate judgment.
-fn forwarded_projection(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
+fn validate_claims(module: &TerminalModule, machine: &TerminalMachine) -> Result<(), &'static str> {
+    declarations::contract(module, &machine.contract)?;
+    entry_claims::validate_declared_entry_contents(
+        &module.types.structural_types,
+        &module.types.structural_domains,
+        &module.identities,
+        &machine.contract,
+    )?;
+    crate::plain_affine::verify_claims_in(module, machine.id)
+        .map(|_| ())
+        .map_err(|_| "content return differs from its checked ownership flow")
+}
+
+fn projection_subjects(
     law: &ContentConservation,
-) -> Result<semantic_vocabulary::ClaimId, &'static str> {
+) -> Result<
+    (
+        ContentProjectionIdentity,
+        &ContentStructuralPlace,
+        &ContentStructuralPlace,
+    ),
+    &'static str,
+> {
     let (
         ContentTerm::Projection {
             projection: left_projection,
@@ -58,18 +76,38 @@ fn forwarded_projection(
     if left_projection != right_projection {
         return Err("content forwarding changes the owner projection at the result");
     }
+    Ok((*left_projection, entry, output))
+}
+
+fn result_path(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    output: &ContentStructuralPlace,
+) -> Result<Vec<StructuralPathSegment>, &'static str> {
     let result = machine
         .result
         .structural()
         .filter(|result| result.place == output.root)
         .ok_or("content forwarding does not observe the declared result")?;
-    let returned_path = structural_path(
+    structural_path(
         module.types.structural_types.iter(),
         &module.identities,
         result.structural_type,
         &output.segments,
     )
-    .ok_or("content forwarding refers to an unknown output path")?;
+    .ok_or("content forwarding refers to an unknown output path")
+}
+
+/// Identity forwarding proves a closed projection unchanged for any algebra.
+/// Partition arithmetic and calls that transform storage owe a separate judgment.
+fn forwarded_projection(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    law: &ContentConservation,
+    origins: &mut ancestry::OriginTraversal,
+) -> Result<ClaimId, &'static str> {
+    let (projection, entry, output) = projection_subjects(law)?;
+    let returned_path = result_path(module, machine, output)?;
     let formal = machine
         .structural_parameter(entry.root)
         .filter(|formal| formal.access == StructuralAccess::Owned)
@@ -95,7 +133,7 @@ fn forwarded_projection(
             && binding
                 .projections
                 .iter()
-                .any(|row| row.projection == *left_projection && row.algebra == *law.algebra())
+                .any(|row| row.projection == projection && row.algebra == *law.algebra())
             && machine.entry_claims.iter().any(|owned| {
                 owned.claim == binding.claim && owned.input == entry.root && owned.path == path
             })
@@ -104,24 +142,33 @@ fn forwarded_projection(
     // These operations move existing claims or assemble them beneath new roots.
     // A write can retain the claim while changing the projected fields.
     if machine.operations().any(|op| {
-        !matches!(
-            op.kind,
-            OperationKind::MoveStructuralValue { .. }
-                | OperationKind::MoveStructuralField { .. }
-                | OperationKind::DecomposeStructuralValue { .. }
-                | OperationKind::EstablishRecord { .. }
-                | OperationKind::EstablishStructuralCase { .. }
-                | OperationKind::EstablishStructuralArray { .. }
-                | OperationKind::StructuralLeafCopy { .. }
-                | OperationKind::PrimitiveScalarRead { .. }
-        )
+        // An owned direct call can affect the observed content only through a
+        // returned claim. Its exact published projection is checked at that use.
+        let owned_call = op.kind.direct_callee().is_some()
+            && op.result.as_structural().is_some()
+            && op
+                .kind
+                .structural_arguments()
+                .iter()
+                .all(|arg| arg.access == StructuralAccess::Owned);
+        !owned_call
+            && !matches!(
+                op.kind,
+                OperationKind::MoveStructuralValue { .. }
+                    | OperationKind::MoveStructuralField { .. }
+                    | OperationKind::DecomposeStructuralValue { .. }
+                    | OperationKind::EstablishRecord { .. }
+                    | OperationKind::EstablishStructuralCase { .. }
+                    | OperationKind::EstablishStructuralArray { .. }
+                    | OperationKind::StructuralLeafCopy { .. }
+                    | OperationKind::PrimitiveScalarRead { .. }
+            )
     }) {
         return Err(
             "content equation needs a proof for operations outside unchanged structural forwarding",
         );
     }
     let mut returned = false;
-    let mut origins = ancestry::OriginTraversal::new();
     for block in &machine.blocks {
         if block.terminator.cleanup_rosters().any(|(_, actions)| {
             actions
@@ -138,13 +185,8 @@ fn forwarded_projection(
                     binding.path == returned_path
                 })
                 .ok_or("normal return lacks the claim at the declared result path")?;
-                let roots = ancestry::local_roots(
-                    module,
-                    machine,
-                    binding.claim,
-                    *left_projection,
-                    &mut origins,
-                )?;
+                let roots =
+                    ancestry::local_roots(module, machine, binding.claim, projection, origins)?;
                 if roots != [claim.claim] {
                     return Err(
                         "normal return does not forward the content claim of the promised input",
@@ -168,4 +210,32 @@ fn forwarded_projection(
         return Err("content provider has no checked normal structural return");
     }
     Ok(claim.claim)
+}
+
+/// A caller can use the specific projection the callee promised on this
+/// result field. Replay that guarantee before binding its input to an actual.
+pub(super) fn call_input(
+    module: &TerminalModule,
+    callee: &TerminalMachine,
+    path: &[StructuralPathSegment],
+    projection: ContentProjectionIdentity,
+    origins: &mut ancestry::OriginTraversal,
+) -> Result<ClaimId, &'static str> {
+    validate_claims(module, callee)?;
+    let mut input = None;
+    for clause in &callee.ensures {
+        let Proposition::ContentConservation(law) = &clause.proposition else {
+            continue;
+        };
+        let Ok((owner, _, output)) = projection_subjects(law) else {
+            continue;
+        };
+        if owner == projection && result_path(module, callee, output)? == path {
+            let claim = forwarded_projection(module, callee, law, origins)?;
+            if input.replace(claim).is_some_and(|old| old != claim) {
+                return Err("call result has conflicting content inputs");
+            }
+        }
+    }
+    input.ok_or("call result has no checked forwarding guarantee for its projection")
 }

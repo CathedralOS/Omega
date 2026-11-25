@@ -87,6 +87,14 @@ impl<'a> Guarantees<'a> {
     pub fn clause(self, position: usize) -> Option<&'a ContractClause> {
         self.clauses.get(position)
     }
+    /// Conservation follows the owned claims at a call. Scalar knowledge keeps
+    /// the original clause ordinal for every guarantee it can import.
+    pub fn scalar_clauses(self) -> impl Iterator<Item = (usize, &'a Proposition)> {
+        self.iter()
+            .enumerate()
+            .filter(|(_, clause)| !matches!(clause, Proposition::ContentConservation(_)))
+    }
+
     pub fn iter(self) -> impl Iterator<Item = &'a Proposition> {
         self.clauses
             .iter()

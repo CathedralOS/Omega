@@ -1395,7 +1395,7 @@ fn fill_knowledge<'a>(
         {
             let call = call_contracts::invocation(module, lowered, tables, invocation, row)?;
             let formals = call.structural_inputs();
-            let ensures = call.contract.ensures.iter();
+            let ensures = call.contract.ensures.scalar_clauses();
             let mut inputs = storage.at_cleanup_call(
                 references,
                 tables,
@@ -1408,12 +1408,13 @@ fn fill_knowledge<'a>(
             // Cleanup is Unit and its actual is Owned. As for an ordinary
             // owned input, guarantees denote the captured invocation inputs.
             let propositions = ensures
-                .map(|clause| {
+                .map(|(position, clause)| {
                     substitute(clause, &mut inputs)
+                        .map(|proposition| (position, proposition))
                         .map_err(|unbound| unbound.refusal(id, Construct::Invocation(invocation)))
                 })
                 .collect::<Checked<Vec<_>>>()?;
-            for (clause, proposition) in propositions.into_iter().enumerate() {
+            for (clause, proposition) in propositions {
                 push_knowledge(
                     tables,
                     proposition,
@@ -1443,7 +1444,7 @@ fn fill_knowledge<'a>(
         let call = call_contracts::invocation(module, lowered, tables, invocation, row)?;
         let contract = &call.contract;
         let erased = erased_actuals(contract, call.inputs, id, invocation)?;
-        let mut ensures = contract.ensures.iter().peekable();
+        let mut ensures = contract.ensures.scalar_clauses().peekable();
         if ensures.peek().is_none() {
             continue;
         }
@@ -1458,7 +1459,7 @@ fn fill_knowledge<'a>(
         // Resolve each guarantee against this invocation's retained inputs and
         // returned storage before mutating the caller's knowledge table.
         let propositions = ensures
-            .map(|ensures| {
+            .map(|(position, ensures)| {
                 substitute(
                     ensures,
                     &mut ErasedTerms {
@@ -1466,10 +1467,11 @@ fn fill_knowledge<'a>(
                         runtime: &mut returned,
                     },
                 )
+                .map(|proposition| (position, proposition))
                 .map_err(|unbound| unbound.refusal(id, Construct::Invocation(invocation)))
             })
             .collect::<Checked<Vec<_>>>()?;
-        for (clause, proposition) in propositions.into_iter().enumerate() {
+        for (clause, proposition) in propositions {
             push_knowledge(
                 tables,
                 proposition,

@@ -11,6 +11,7 @@ pub(crate) mod retirement;
 type OriginKey = (MachineId, ClaimId, ContentProjectionIdentity);
 
 pub(crate) struct OriginTraversal {
+    forwarding: bool,
     active: Vec<OriginKey>,
     completed: Vec<(OriginKey, Vec<ClaimId>)>,
     remaining: usize,
@@ -21,11 +22,19 @@ pub(crate) struct OriginTraversal {
 impl OriginTraversal {
     pub(super) fn new() -> Self {
         Self {
+            forwarding: false,
             active: Vec::new(),
             completed: Vec::new(),
             remaining: 65_536,
             retirement_active: Vec::new(),
             retired: Vec::new(),
+        }
+    }
+
+    pub(super) fn unchanged_content() -> Self {
+        Self {
+            forwarding: true,
+            ..Self::new()
         }
     }
 
@@ -199,7 +208,6 @@ fn call_input_origins(
                 .find(|machine| machine.id == identity)
         })
         .ok_or("content ancestry requires an authenticated returning callable")?;
-    let transfers = operation.kind.claim_transfers();
     let result = operation
         .result
         .as_structural()
@@ -209,6 +217,11 @@ fn call_input_origins(
         .iter()
         .find(|binding| binding.claim == output)
         .ok_or("content ancestry output is absent from its call result")?;
+    if traversal.forwarding {
+        let input =
+            super::forwarding::call_input(module, callee, &output.path, projection, traversal)?;
+        return Ok(vec![transferred_input(callee, operation, input)?]);
+    }
     let mut origin = None;
     for block in &callee.blocks {
         traversal.visit()?;
@@ -225,27 +238,9 @@ fn call_input_origins(
         let roots = local_roots(module, callee, returned.claim, projection, traversal)?;
         let mut candidate = Vec::new();
         for root in roots {
-            let entry = callee
-                .entry_claims
-                .iter()
-                .find(|entry| entry.claim == root)
-                .ok_or("content ancestry callee root is not an owned input")?;
-            let parameter = callee
-                .structural_parameters
-                .iter()
-                .position(|parameter| parameter.place == entry.input)
-                .ok_or("content ancestry entry has no structural parameter")?;
-            let mut matching = transfers.iter().filter(|transfer| {
-                transfer.argument_index as usize == parameter && transfer.path == entry.path
-            });
-            let transfer = matching
-                .next()
-                .ok_or("content ancestry entry has no exact actual claim transfer")?;
-            if matching.next().is_some() {
-                return Err("content ancestry entry has ambiguous actual claim transfers");
-            }
-            if !candidate.contains(&transfer.claim) {
-                candidate.push(transfer.claim);
+            let transfer = transferred_input(callee, operation, root)?;
+            if !candidate.contains(&transfer) {
+                candidate.push(transfer);
             }
         }
         candidate.sort();
@@ -259,6 +254,33 @@ fn call_input_origins(
         origin = Some(candidate);
     }
     origin.ok_or("content ancestry callee has no grounded normal result")
+}
+
+fn transferred_input(
+    callee: &TerminalMachine,
+    operation: &Operation,
+    root: ClaimId,
+) -> Result<ClaimId, &'static str> {
+    let entry = callee
+        .entry_claims
+        .iter()
+        .find(|entry| entry.claim == root)
+        .ok_or("content ancestry callee root is not an owned input")?;
+    let parameter = callee
+        .structural_parameters
+        .iter()
+        .position(|parameter| parameter.place == entry.input)
+        .ok_or("content ancestry entry has no structural parameter")?;
+    let mut matching = operation.kind.claim_transfers().iter().filter(|transfer| {
+        transfer.argument_index as usize == parameter && transfer.path == entry.path
+    });
+    let transfer = matching
+        .next()
+        .ok_or("content ancestry entry has no exact actual claim transfer")?;
+    if matching.next().is_some() {
+        return Err("content ancestry entry has ambiguous actual claim transfers");
+    }
+    Ok(transfer.claim)
 }
 
 pub(super) fn local_roots(
