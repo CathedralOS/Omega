@@ -1492,6 +1492,12 @@ impl Expansion<'_, '_> {
                 self.active.pop();
                 result?;
             }
+            Item::Domain(domain) => {
+                let bound = self.parameters(syntax, domain.type_parameters, inherited, false)?;
+                // The carrier is a type use. The indices in the family header
+                // name its own binders, whose declared types were expanded above.
+                self.reference(syntax, domain.target_type, &bound)?;
+            }
             Item::Data(data) => {
                 let bound = self.parameters(syntax, data.type_parameters, inherited, false)?;
                 let members = syntax.items.data_members(data.members).to_vec();
@@ -1585,6 +1591,65 @@ mod type_alias_tests {
             ConstantSelection::new(&syntax, Some(std::sync::Arc::new(sources)), Vec::new())?;
         normalize(&mut syntax, &selection)?;
         Ok(syntax)
+    }
+
+    #[test]
+    fn a_domain_declared_on_an_alias_retains_its_qualified_carrier_and_index_binders() {
+        let syntax = normalized(
+            "data Word {} data Count = u64; data P = bool;
+             data Segment<T> { value: T; } domain<T> Segment<T>::Stored<T>;
+             data Kept = Segment<Word> in Stored<Word>;
+             domain<P, const N: Count> Kept::Side<P, N>;",
+        )
+        .unwrap();
+        let domain = syntax
+            .root_items()
+            .filter_map(Item::as_domain)
+            .last()
+            .unwrap();
+        assert_eq!(domain.name.as_str(&syntax), "Kept::Side");
+        let refs = &syntax.type_references;
+        let TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } = refs.type_reference(domain.target_type)
+        else {
+            panic!("the alias's Stored qualification must remain on the carrier")
+        };
+        let TypeReferenceNode::Generic { base_name, .. } = refs.type_reference(*base_type) else {
+            panic!("the alias's carrier is Segment<Word>")
+        };
+        assert_eq!(base_name.as_str(&syntax), "Segment");
+        let [syntax_trees::types::TypeConstraintNode::Domain(stored)] =
+            refs.constraints(*constraints)
+        else {
+            panic!("the carrier has one indexed domain")
+        };
+        assert_eq!(stored.name.as_str(&syntax), "Stored");
+        assert_eq!(refs.type_alias_applications(domain.target_type).count(), 1);
+        let parameters = syntax.items.type_parameters(domain.type_parameters);
+        let TypeParameterKind::Const { type_reference } = parameters[1].kind else {
+            panic!("N has a declared index type")
+        };
+        assert_eq!(
+            refs.type_reference(type_reference)
+                .as_named()
+                .unwrap()
+                .as_str(&syntax),
+            "u64"
+        );
+        let indices = refs.type_reference_handles(domain.index_arguments);
+        assert_eq!(
+            indices
+                .iter()
+                .map(|index| refs
+                    .type_reference(*index)
+                    .as_named()
+                    .unwrap()
+                    .as_str(&syntax))
+                .collect::<Vec<_>>(),
+            ["P", "N"]
+        );
     }
 
     #[test]
