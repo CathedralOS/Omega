@@ -652,6 +652,24 @@ impl Lowering<'_> {
             .collect()
     }
 
+    /// A call's crash continuations restated over the storage each
+    /// structural actual stands for here: `items[index]` over a formal lent
+    /// `@pair.items` becomes `pair.items[index]`. The checker restates the
+    /// retained row by the same wire rule, from the same place types.
+    fn crash_continuations(
+        &self,
+        routes: &[terminal_psi::CrashRouteBucket],
+        scalars: &[ValueId],
+        structural: &[StructuralArgument],
+    ) -> Checked<Vec<terminal_psi::CrashRouteBucket>> {
+        let places = terminal_codec::contract_forms::call_storage(
+            self.structural_types,
+            |place| self.roots.get(place).map(|(_, root_type)| *root_type),
+            structural,
+        );
+        canonical::substituted_routes(routes, scalars, &places, self.id)
+    }
+
     /// Mints one `Loan` per loan of a call, at the point before it, in
     /// formal order. loans.md: "Loan resource | Exact occurrence, owner
     /// lineage, captured place, access, parent lifetime, and restoration
@@ -906,11 +924,10 @@ impl Lowering<'_> {
         }
         let structural_arguments =
             self.structural_arguments(arguments.structural, ExecutionSite::Block(site), source)?;
-        let crash_continuations = canonical::substituted_routes(
+        let crash_continuations = self.crash_continuations(
             &outcome.crash_routes,
             &arguments.scalars,
             &structural_arguments,
-            self.id,
         )?;
         if !static_reach_arguments.is_empty() {
             self.static_reach_applications.push(
@@ -1151,11 +1168,10 @@ impl Lowering<'_> {
             ExecutionSite::Operation(operation),
             source,
         )?;
-        let crash_continuations = canonical::substituted_routes(
+        let crash_continuations = self.crash_continuations(
             &outcome.crash_routes,
             &arguments.scalars,
             &structural_arguments,
-            self.id,
         )?;
         let erased_arguments = std::mem::take(&mut arguments.erased);
         let scalars = std::mem::take(&mut arguments.scalars);

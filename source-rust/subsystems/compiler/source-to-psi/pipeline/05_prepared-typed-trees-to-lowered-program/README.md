@@ -734,10 +734,13 @@ exact formal identity; a name with no binding is refused, never left to be
 mistaken for a value of the caller. A crash guard is read in the scope of an
 entry `requires`, so it may read a formal's field or element
 (`crashes Trap items[index] == 0`). Lowering names the leaves it reads in the
-callee and at each call, and a call's crash continuations name the place of
-each whole structural actual; a guard over an actual that projects a place
-is refused (`contract clause names a structural formal whose actual projects
-a place`).
+callee and at each call, and a call's crash continuations name the storage
+each structural actual stands for: its place, followed by the static path a
+projected actual lends, so `items[index]` over `@pair.items` becomes
+`pair.items[index]` (`contract_forms::call_storage`). A guard over an actual
+with no static path, such as an element chosen at run time (`@rows[row]`),
+is refused (`contract clause names a structural formal whose actual has no
+static path`).
 
 ### Erased scalar bindings
 
@@ -1211,9 +1214,10 @@ value equal to the Boolean its edge took ([crash](../../../../../../wiki/spec/te
 used as route witnesses are proof information and are not added here. A call
 of a machine with no normal completion is an `InvokeNoNormal` terminator whose
 crash continuations are the callee's published routes with each formal
-replaced by the actual at its position, a structural formal by the place of
-its whole actual (`contract_forms::substituted_routes`); nothing is dropped
-or simplified, and a route over an actual that projects a place is refused.
+replaced by the actual at its position, a structural formal by the place and
+static path its actual stands for (`contract_forms::substituted_routes`);
+nothing is dropped or simplified, and a route over an actual with no static
+path is refused.
 A loop header and a record cast restate their requirements through the same
 binding (`contract_forms::substitute_formals`); they also keep the byte
 predicates and float meaning sources the lowered value table traces, because

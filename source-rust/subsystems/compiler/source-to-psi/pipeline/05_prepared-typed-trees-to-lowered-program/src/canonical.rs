@@ -4,6 +4,7 @@ use semantic_vocabulary::{CrashCause, MachineId, Proposition, ScalarTerm, ValueI
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
 use terminal_psi::{CrashRouteBucket, CrashRouteGuard};
 
+pub(crate) use terminal_codec::contract_forms::FormalStorage;
 pub(crate) use terminal_codec::contract_forms::RepeatedClauses as Repeated;
 
 fn refusal(id: MachineId, detail: String) -> Refusal {
@@ -63,15 +64,16 @@ pub(crate) fn routes(
 }
 
 /// A call's crash continuations: the callee's published routes over the
-/// call's scalar and structural actuals. The wire owner states them, so the
-/// checker's retained-row comparison restates them by the same rule.
+/// call's scalar actuals and the storage each structural actual stands for.
+/// The wire owner states them, so the checker's retained-row comparison
+/// restates them by the same rule.
 pub fn substituted_routes(
     routes: &[CrashRouteBucket],
     actuals: &[ValueId],
-    structural: &[terminal_psi::StructuralArgument],
+    places: &[Option<FormalStorage>],
     id: MachineId,
 ) -> Checked<Vec<CrashRouteBucket>> {
-    terminal_codec::contract_forms::substituted_routes(routes, actuals, structural)
+    terminal_codec::contract_forms::substituted_routes(routes, actuals, places)
         .map_err(|detail| refusal(id, detail))
 }
 
@@ -92,7 +94,7 @@ pub(crate) fn substitute(
 pub(crate) fn substitute_parameters(
     proposition: &Proposition,
     actuals: &[ValueId],
-    places: &[Option<semantic_vocabulary::PlaceId>],
+    places: &[Option<FormalStorage>],
     values: &arena::IdTable<ValueId, terminal_check_tables::values::ValueRow>,
     id: MachineId,
 ) -> Checked<Proposition> {
@@ -224,7 +226,7 @@ mod tests {
         };
         let machine = MachineId::new(1).unwrap();
         let actuals = [ValueId::new(3).unwrap()];
-        let places = [Some(PlaceId::new(4).unwrap())];
+        let places = [Some(FormalStorage::whole(PlaceId::new(4).unwrap()))];
         let cells = values(ty);
         assert_eq!(
             substitute_parameters(&clause(1, 1), &actuals, &places, &cells, machine).unwrap(),

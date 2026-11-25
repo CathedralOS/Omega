@@ -1,6 +1,9 @@
 //! Canonical forms shared by contract production and receiving checks.
 
-use semantic_vocabulary::{CrashCause, Proposition, ScalarTerm, ValueId};
+use semantic_vocabulary::{
+    CanonicalStructuralPathSegment, CrashCause, PlaceId, Proposition, ScalarReadProjection,
+    ScalarTerm, ValueId,
+};
 use terminal_psi::{CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard};
 
 #[derive(Clone, Copy)]
@@ -105,37 +108,81 @@ pub fn routes(
     buckets
 }
 
+/// The storage a structural formal stands for in a restated clause: a place
+/// of the restating scope and the static path below it that the actual
+/// projects. A whole actual (`@items`) has an empty prefix; a field actual
+/// (`@pair.items`) keeps `items`, so a clause term `items[index]` becomes
+/// `pair.items[index]` and names only that field's storage.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FormalStorage {
+    pub root: PlaceId,
+    pub prefix: Vec<CanonicalStructuralPathSegment>,
+}
+
+impl FormalStorage {
+    pub fn whole(root: PlaceId) -> Self {
+        Self {
+            root,
+            prefix: Vec::new(),
+        }
+    }
+}
+
+/// Where each structural actual of a call stands in the caller. A projected
+/// actual keeps its exact static path below its root; one whose path has no
+/// static canonical form (an element chosen at run time) stands for no
+/// storage, so a clause that names its formal is refused by name.
+pub fn call_storage(
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    root_type: impl Fn(PlaceId) -> Option<semantic_vocabulary::StructuralTypeId>,
+    structural: &[terminal_psi::StructuralArgument],
+) -> Vec<Option<FormalStorage>> {
+    structural
+        .iter()
+        .map(|argument| {
+            if argument.path.is_empty() {
+                return Some(FormalStorage::whole(argument.place));
+            }
+            let (prefix, _) = terminal_semantics::canonical_static_projection(
+                types.iter(),
+                root_type(argument.place)?,
+                &argument.path,
+            )?;
+            Some(FormalStorage {
+                root: argument.place,
+                prefix,
+            })
+        })
+        .collect()
+}
+
 /// Retain every published crash alternative under simultaneous actuals.
 /// This operation does not prove a route impossible or remove one.
 ///
-/// A guard over a structural formal (`items[index] == 0`) names the place of
-/// the call's structural actual in that lane, read when the call is made. An
-/// actual that projects its place (`@pair.items`) has no place of its own to
-/// name, so a guard over that formal is refused rather than dropped: an
+/// A guard over a structural formal (`items[index] == 0`) names the storage
+/// the call's structural actual in that lane stands for (`call_storage`),
+/// read when the call is made. An actual with no static path has no storage
+/// to name, so a guard over that formal is refused rather than dropped: an
 /// untranslated continuation cannot erase a crash (calls_and_outcomes.md,
 /// "Call contracts").
 pub fn substituted_routes(
     routes: &[CrashRouteBucket],
     actuals: &[ValueId],
-    structural: &[terminal_psi::StructuralArgument],
+    places: &[Option<FormalStorage>],
 ) -> Result<Vec<CrashRouteBucket>, String> {
-    let places: Vec<_> = structural
-        .iter()
-        .map(|argument| argument.path.is_empty().then_some(argument.place))
-        .collect();
     let mut alternatives = Vec::new();
     for bucket in routes {
         for guard in &bucket.alternatives {
             let guard = match guard {
                 CrashRouteGuard::Truth => CrashRouteGuard::Truth,
-                CrashRouteGuard::Predicate(predicate) => CrashRouteGuard::Predicate(
-                    CrashPredicateTerm::new(substitute_formals(
+                CrashRouteGuard::Predicate(predicate) => {
+                    CrashRouteGuard::Predicate(CrashPredicateTerm::new(substitute_formals(
                         predicate.proposition(),
                         actuals,
-                        &places,
+                        places,
                         &mut CallActuals,
-                    )?),
-                ),
+                    )?))
+                }
             };
             alternatives.push((bucket.cause, guard));
         }
@@ -172,14 +219,14 @@ impl RestatedSources for CallActuals {}
 
 /// Substitute exact scalar and storage formal identities together, then
 /// restore canonical order. Storage observations remain predicates to prove,
-/// not facts introduced by this step. `places` holds the place each structural
-/// formal stands for, or `None` when its actual projects a place. A crash
-/// continuation and a stage 05 loop header or record cast restate their
-/// clauses through this one binding.
+/// not facts introduced by this step. `places` holds the storage each
+/// structural formal stands for, or `None` when its actual has none to name.
+/// A crash continuation and a stage 05 loop header or record cast restate
+/// their clauses through this one binding.
 pub fn substitute_formals(
     proposition: &Proposition,
     actuals: &[ValueId],
-    places: &[Option<semantic_vocabulary::PlaceId>],
+    places: &[Option<FormalStorage>],
     sources: &mut impl RestatedSources,
 ) -> Result<Proposition, String> {
     let substituted = terminal_semantics::substitution::clauses::substitute_clause(
@@ -234,23 +281,34 @@ pub fn canonical_clause(proposition: Proposition) -> Result<Proposition, String>
 
 struct ScalarFormals<'a, S> {
     values: &'a [ValueId],
-    /// The place each structural formal stands for, or `None` when its actual
-    /// projects a place.
-    places: &'a [Option<semantic_vocabulary::PlaceId>],
+    /// The storage each structural formal stands for, or `None` when its
+    /// actual has none to name.
+    places: &'a [Option<FormalStorage>],
     sources: &'a mut S,
 }
 
 impl<S> ScalarFormals<'_, S> {
-    fn place(
-        &self,
-        formal: semantic_vocabulary::PlaceId,
-    ) -> Result<semantic_vocabulary::PlaceId, &'static str> {
+    fn place(&self, formal: PlaceId) -> Result<&FormalStorage, &'static str> {
         usize::try_from(formal.get())
             .ok()
             .and_then(|position| position.checked_sub(1))
             .and_then(|position| self.places.get(position))
             .ok_or("clause names storage that is not a structural formal")?
-            .ok_or("clause names a structural formal whose actual projects a place")
+            .as_ref()
+            .ok_or("clause names a structural formal whose actual has no static path")
+    }
+
+    /// The formal's path restated below the storage its actual stands for.
+    fn path(
+        &self,
+        formal: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<(PlaceId, Vec<CanonicalStructuralPathSegment>), &'static str> {
+        let storage = self.place(formal)?;
+        let mut restated = Vec::with_capacity(storage.prefix.len() + path.len());
+        restated.extend_from_slice(&storage.prefix);
+        restated.extend_from_slice(path);
+        Ok((storage.root, restated))
     }
 }
 
@@ -282,8 +340,7 @@ impl<S: RestatedSources> terminal_semantics::substitution::clauses::ClauseBindin
         if version != semantic_vocabulary::ContentPlaceVersion::Current {
             return Err("a restated clause cannot name a prior invocation's storage snapshot");
         }
-        let root = self.place(root)?;
-        let path = path.to_vec();
+        let (root, path) = self.path(root, path)?;
         Ok(match scalar_type {
             semantic_vocabulary::ScalarType::Integer(scalar_type) => ScalarTerm::IntegerField {
                 version,
@@ -317,9 +374,19 @@ impl<S: RestatedSources> terminal_semantics::substitution::clauses::ClauseBindin
         // Substitution already renamed each selector into the consumer's
         // scope. The restated clause names the observation; the checker reads
         // that storage where the call is made or the edge arrives.
+        let storage = self.place(root)?;
+        let mut restated = Vec::with_capacity(storage.prefix.len() + path.len());
+        restated.extend(
+            storage
+                .prefix
+                .iter()
+                .copied()
+                .map(ScalarReadProjection::from),
+        );
+        restated.extend_from_slice(path);
         Ok(ScalarTerm::StructuralRead {
-            root: self.place(root)?,
-            path: path.to_vec(),
+            root: storage.root,
+            path: restated,
             scalar_type,
         })
     }
@@ -337,11 +404,8 @@ impl<S: RestatedSources> terminal_semantics::substitution::clauses::ClauseBindin
         if !self.sources.keeps_byte_predicates() {
             return Err("clause byte predicate has no byte source observation");
         }
-        Ok(ScalarTerm::byte_sequence_predicate(
-            predicate,
-            self.place(root)?,
-            path.to_vec(),
-        ))
+        let (root, path) = self.path(root, path)?;
+        Ok(ScalarTerm::byte_sequence_predicate(predicate, root, path))
     }
 
     fn extent(
@@ -350,9 +414,10 @@ impl<S: RestatedSources> terminal_semantics::substitution::clauses::ClauseBindin
         path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
         scalar_type: semantic_vocabulary::IntegerType,
     ) -> Result<ScalarTerm, Self::Error> {
+        let (root, path) = self.path(root, path)?;
         Ok(ScalarTerm::ViewExtent {
-            root: self.place(root)?,
-            path: path.to_vec(),
+            root,
+            path,
             scalar_type,
         })
     }
@@ -389,5 +454,48 @@ mod tests {
         let restated = substitute(&formal, &actuals).unwrap();
         validate_canonical_proposition(&restated).unwrap();
         assert_eq!(restated, implication(3, 9));
+    }
+
+    /// A guard `items[i] == i` over a formal lent `@pair.items` names the
+    /// element below the actual's field: `pair.items[i]`, with the field
+    /// segment before the selector.
+    #[test]
+    fn a_projected_actual_prefixes_its_static_path() {
+        use semantic_vocabulary::{IntegerSign, IntegerType, StructuralFieldId};
+        let ty = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+        let value = |id| ScalarTerm::value(ValueId::new(id).unwrap(), ty);
+        let index = |id| ScalarReadProjection::Index(Box::new(value(id)));
+        let guard = |root, path: Vec<ScalarReadProjection>, selector| {
+            Proposition::Equal(
+                ScalarTerm::StructuralRead {
+                    root: PlaceId::new(root).unwrap(),
+                    path,
+                    scalar_type: ty,
+                },
+                value(selector),
+            )
+        };
+        let field = CanonicalStructuralPathSegment::Field(StructuralFieldId::new(2).unwrap());
+        let places = [Some(FormalStorage {
+            root: PlaceId::new(5).unwrap(),
+            prefix: vec![field],
+        })];
+        let actuals = [ValueId::new(9).unwrap()];
+        let formal = guard(1, vec![index(1)], 1);
+        let restated = substitute_formals(&formal, &actuals, &places, &mut CallActuals).unwrap();
+        assert_eq!(
+            restated,
+            canonical_clause(guard(
+                5,
+                vec![ScalarReadProjection::Static(field), index(9)],
+                9
+            ))
+            .unwrap()
+        );
+        assert!(
+            substitute_formals(&formal, &actuals, &[None], &mut CallActuals)
+                .unwrap_err()
+                .contains("no static path")
+        );
     }
 }

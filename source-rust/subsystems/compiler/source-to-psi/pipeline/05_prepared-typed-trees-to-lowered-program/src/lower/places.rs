@@ -2297,7 +2297,7 @@ impl<'a> Lowering<'a> {
             predicate.push(crate::canonical::substitute_parameters(
                 clause,
                 &[],
-                &[Some(place)],
+                &[Some(crate::canonical::FormalStorage::whole(place))],
                 &self.tables.values,
                 id,
             )?);
