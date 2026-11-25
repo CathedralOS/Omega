@@ -20,8 +20,7 @@ impl Replay<'_> {
             root: location.root,
             path: location.path[..index].to_vec(),
         };
-        let (position, origins) =
-            self.returned_roster_origins(machine, &roster, completed)?;
+        let (position, origins) = self.returned_roster_origins(machine, &roster, completed)?;
         if origins.is_empty()
             || !origins.iter().all(|origin| {
                 matches!(

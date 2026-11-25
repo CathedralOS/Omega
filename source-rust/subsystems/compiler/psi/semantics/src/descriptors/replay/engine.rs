@@ -3702,9 +3702,7 @@ impl<'a> Replay<'a> {
         // A returned roster may have arrived through another ordinary
         // call. Rebase its existing result account at that call's own
         // input cut; callee coordinates never become caller history.
-        if let Some((position, origins)) =
-            self.returned_roster_origins(machine, backing, None)
-        {
+        if let Some((position, origins)) = self.returned_roster_origins(machine, backing, None) {
             let call = machine.direct_call(position)?;
             let before = states.get(&position)?;
             let reads = DescriptorReadDepth::at(machine, before, Some(states));
