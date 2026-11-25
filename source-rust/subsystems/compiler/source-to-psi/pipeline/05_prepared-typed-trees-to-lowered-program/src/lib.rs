@@ -69,6 +69,7 @@ mod default_obligations;
 mod external_providers;
 mod inhabitation;
 mod lower;
+mod machine_order;
 mod mathematics;
 
 mod operational;
@@ -2079,151 +2080,33 @@ fn finish_storage(
     let sources = &mut elaboration.sources;
     reference_ends::install(module, tables, sources, further)?;
     default_obligations::install(module, tables, sources)?;
-    for ordinal in 0..module.machines.len() {
-        let machine = &module.machines[ordinal];
-        let plan = terminal_semantics::plain_affine::plan_in(module, machine.id).map_err(|error| {
-            let (concerns, operation, origin) = match error.site() {
-                Some(terminal_semantics::plain_affine::Site::Operation(at)) => (
-                    Construct::Operation(at),
-                    machine
-                        .operations()
-                        .find(|operation| operation.id == at)
-                        .map(|operation| {
-                            terminal_semantics::OperationSemanticTag::for_operation(&operation.kind)
-                                .name()
-                        }),
-                    sources
-                        .get(machine.id)
-                        .and_then(|source| source.operations.get(at))
-                        .copied(),
-                ),
-                Some(terminal_semantics::plain_affine::Site::Edge(at)) => (
-                    Construct::Edge(at),
-                    Some("control-flow edge"),
-                    sources
-                        .get(machine.id)
-                        .and_then(|source| source.edges.get(at))
-                        .copied(),
-                ),
-                None => (Construct::Machine, None, None),
-            };
-            // A linear value lost on an edge with no written position (the
-            // end of a body) is reported where the value was made: the call
-            // whose result `_ =` drops, or the construction a local holds.
-            let lost_at = match error {
-                terminal_semantics::plain_affine::Error::Unconsumed { place, .. } => origin
-                    .and_then(|origin| origin.span())
-                    .or_else(|| {
-                        let (producer, _) = machine
-                            .structural_place(place)?
-                            .kind
-                            .as_operation_result()?;
-                        sources.get(machine.id)?.operations.get(producer)?.span()
-                    }),
-                _ => None,
-            };
-            let (reason, detail) = match error {
-                terminal_semantics::plain_affine::Error::Unavailable(unavailable) => (
-                    terminal_check_tables::RefusalReason::Unestablished,
-                    unavailable.message(),
-                ),
-                terminal_semantics::plain_affine::Error::Unconsumed { at_join, .. } => (
-                    terminal_check_tables::RefusalReason::Violation,
-                    terminal_semantics::plain_affine::Error::unconsumed_message(at_join),
-                ),
-                terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
-                    (terminal_check_tables::RefusalReason::Unsupported, detail)
+    let sources = &*sources;
+    // Each machine's storage plan comes from its own ownership walk over the
+    // module; the walks run on the invocation's workers (`plan_then_apply`).
+    // Applying a plan changes only its machine's blocks, and a walk reads the
+    // blocks of no machine other than those in its descriptor graph
+    // (`Plan::graphed_machines`). A refused walk names no graph, so it counts
+    // as reading every machine.
+    machine_order::plan_then_apply(
+        module,
+        |module, machine| storage_plan(module, machine, names, sources),
+        |plan| match plan {
+            Ok(Ok(plan)) => Some(plan.graphed_machines.as_slice()),
+            _ => None,
+        },
+        |machine, plan| {
+            match plan? {
+                Ok(plan) => install_storage_plan(machine, &plan),
+                // An unsupported walk is reported beside the first one and
+                // the next machine is planned; any other refusal ends the loop.
+                Err(refused) if refused.reason == RefusalReason::Unsupported => {
+                    unsupported.push(refused)
                 }
-                terminal_semantics::plain_affine::Error::Malformed { detail, .. } => (
-                    terminal_check_tables::RefusalReason::ForeignIdentity,
-                    detail,
-                ),
-            };
-            terminal_check_tables::Refusal {
-                reason,
-                site: terminal_check_tables::RefusalSite::Machine(machine.id, concerns),
-                source_span: lost_at,
-                detail: {
-                    let detail = match (operation, origin.and_then(|origin| origin.span())) {
-                        (Some(operation), Some(span)) => format!(
-                            "while checking {operation} at source {} bytes {}..{}: {detail}",
-                            span.source_id.0, span.span.start, span.span.end,
-                        ),
-                        (Some(operation), _) => format!("while checking {operation}: {detail}"),
-                        (None, _) => detail.to_owned(),
-                    };
-                    match names.get(machine.id) {
-                        Some(name) => {
-                            format!("while checking storage in `{}`: {detail}", name.machine)
-                        }
-                        None => detail,
-                    }
-                },
+                Err(refused) => return Err(refused),
             }
-        });
-        let plan = match plan {
-            Ok(plan) => plan,
-            Err(refused) if refused.reason == RefusalReason::Unsupported => {
-                unsupported.push(refused);
-                continue;
-            }
-            Err(refused) => return Err(refused),
-        };
-        terminal_semantics::validate_structural_store_values(
-            machine,
-            &module.types.structural_types,
-            &plan.stores,
-        )
-        .map_err(|error| match error {
-            terminal_semantics::StructuralStoreValueError::SourceDeclaration(place) => Refusal {
-                reason: RefusalReason::ForeignIdentity,
-                site: terminal_check_tables::RefusalSite::Machine(machine.id, Construct::Machine),
-                source_span: None,
-                detail: format!("replacement input {place:?} has no unique source declaration"),
-            },
-            terminal_semantics::StructuralStoreValueError::CannotDiscard {
-                operation,
-                multiplicity,
-            } => {
-                let linear = multiplicity == terminal_psi::StructuralMultiplicity::Linear;
-                Refusal {
-                    reason: if linear { RefusalReason::Violation } else { RefusalReason::Unsupported },
-                    site: terminal_check_tables::RefusalSite::Machine(machine.id, Construct::Operation(operation)),
-                    source_span: sources.get(machine.id)
-                        .and_then(|source| source.operations.get(operation))
-                        .and_then(|origin| origin.span()),
-                    detail: if linear {
-                        "whole-value replacement cannot implicitly discard a linear value"
-                    } else {
-                        "replacement input does not have the checked discardability required by this store"
-                    }.into(),
-                }
-            },
-        })?;
-        let machine = &mut module.machines[ordinal];
-        // Receiving storage may be intact or exactly vacated by a preceding
-        // move. Install the mode reconstructed from the final ownership
-        // frontier; source syntax alone cannot distinguish them. The checker
-        // independently reconstructs these modes and the disposal schedule.
-        for block in &mut machine.blocks {
-            for operation in &mut block.operations {
-                if let terminal_psi::OperationKind::StoreStructuralField { disposition, .. } =
-                    &mut operation.kind
-                    && let Ok(position) = plan
-                        .stores
-                        .binary_search_by_key(&operation.id, |(operation, _)| *operation)
-                {
-                    *disposition = plan.stores[position].1;
-                }
-            }
-            for (edge, actions) in block.terminator.cleanup_rosters_mut() {
-                actions.retain(|action| !plan.scheduled_roots.contains(action.place()));
-                if let Ok(position) = plan.cleanup.binary_search_by_key(&edge, |(edge, _)| *edge) {
-                    actions.extend(plan.cleanup[position].1.iter().cloned());
-                }
-            }
-        }
-    }
+            Ok(())
+        },
+    )?;
     if !unsupported.is_empty() {
         let first = unsupported.remove(0);
         further.append(&mut unsupported);
@@ -2239,6 +2122,162 @@ fn finish_storage(
         .map(terminal_psi::UnoptimizedMachineBehavior::capture)
         .collect();
     Ok(())
+}
+
+/// The storage plan of `machine`: `Ok(Err(_))` when its ownership walk
+/// refuses, which `finish_storage` may report beside other refusals, and
+/// `Err(_)` when the stores it plans cannot be validated, which ends storage.
+fn storage_plan(
+    module: &terminal_psi::TerminalModule,
+    machine: &terminal_psi::TerminalMachine,
+    names: &IdTable<MachineId, MachineNames>,
+    sources: &IdTable<MachineId, MachineSources>,
+) -> Checked<Checked<terminal_semantics::plain_affine::Plan>> {
+    let plan = terminal_semantics::plain_affine::plan_in(module, machine.id).map_err(|error| {
+        let (concerns, operation, origin) = match error.site() {
+            Some(terminal_semantics::plain_affine::Site::Operation(at)) => (
+                Construct::Operation(at),
+                machine
+                    .operations()
+                    .find(|operation| operation.id == at)
+                    .map(|operation| {
+                        terminal_semantics::OperationSemanticTag::for_operation(&operation.kind)
+                            .name()
+                    }),
+                sources
+                    .get(machine.id)
+                    .and_then(|source| source.operations.get(at))
+                    .copied(),
+            ),
+            Some(terminal_semantics::plain_affine::Site::Edge(at)) => (
+                Construct::Edge(at),
+                Some("control-flow edge"),
+                sources
+                    .get(machine.id)
+                    .and_then(|source| source.edges.get(at))
+                    .copied(),
+            ),
+            None => (Construct::Machine, None, None),
+        };
+        // A linear value lost on an edge with no written position (the
+        // end of a body) is reported where the value was made: the call
+        // whose result `_ =` drops, or the construction a local holds.
+        let lost_at = match error {
+            terminal_semantics::plain_affine::Error::Unconsumed { place, .. } => {
+                origin.and_then(|origin| origin.span()).or_else(|| {
+                    let (producer, _) = machine
+                        .structural_place(place)?
+                        .kind
+                        .as_operation_result()?;
+                    sources.get(machine.id)?.operations.get(producer)?.span()
+                })
+            }
+            _ => None,
+        };
+        let (reason, detail) = match error {
+            terminal_semantics::plain_affine::Error::Unavailable(unavailable) => (
+                terminal_check_tables::RefusalReason::Unestablished,
+                unavailable.message(),
+            ),
+            terminal_semantics::plain_affine::Error::Unconsumed { at_join, .. } => (
+                terminal_check_tables::RefusalReason::Violation,
+                terminal_semantics::plain_affine::Error::unconsumed_message(at_join),
+            ),
+            terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
+                (terminal_check_tables::RefusalReason::Unsupported, detail)
+            }
+            terminal_semantics::plain_affine::Error::Malformed { detail, .. } => (
+                terminal_check_tables::RefusalReason::ForeignIdentity,
+                detail,
+            ),
+        };
+        terminal_check_tables::Refusal {
+            reason,
+            site: terminal_check_tables::RefusalSite::Machine(machine.id, concerns),
+            source_span: lost_at,
+            detail: {
+                let detail = match (operation, origin.and_then(|origin| origin.span())) {
+                    (Some(operation), Some(span)) => format!(
+                        "while checking {operation} at source {} bytes {}..{}: {detail}",
+                        span.source_id.0, span.span.start, span.span.end,
+                    ),
+                    (Some(operation), _) => format!("while checking {operation}: {detail}"),
+                    (None, _) => detail.to_owned(),
+                };
+                match names.get(machine.id) {
+                    Some(name) => {
+                        format!("while checking storage in `{}`: {detail}", name.machine)
+                    }
+                    None => detail,
+                }
+            },
+        }
+    });
+    let plan = match plan {
+        Ok(plan) => plan,
+        Err(refused) => return Ok(Err(refused)),
+    };
+    terminal_semantics::validate_structural_store_values(
+        machine,
+        &module.types.structural_types,
+        &plan.stores,
+    )
+    .map_err(|error| match error {
+        terminal_semantics::StructuralStoreValueError::SourceDeclaration(place) => Refusal {
+            reason: RefusalReason::ForeignIdentity,
+            site: terminal_check_tables::RefusalSite::Machine(machine.id, Construct::Machine),
+            source_span: None,
+            detail: format!("replacement input {place:?} has no unique source declaration"),
+        },
+        terminal_semantics::StructuralStoreValueError::CannotDiscard {
+            operation,
+            multiplicity,
+        } => {
+            let linear = multiplicity == terminal_psi::StructuralMultiplicity::Linear;
+            Refusal {
+                reason: if linear { RefusalReason::Violation } else { RefusalReason::Unsupported },
+                site: terminal_check_tables::RefusalSite::Machine(machine.id, Construct::Operation(operation)),
+                source_span: sources.get(machine.id)
+                    .and_then(|source| source.operations.get(operation))
+                    .and_then(|origin| origin.span()),
+                detail: if linear {
+                    "whole-value replacement cannot implicitly discard a linear value"
+                } else {
+                    "replacement input does not have the checked discardability required by this store"
+                }.into(),
+            }
+        },
+    })?;
+    Ok(Ok(plan))
+}
+
+/// Install the store dispositions and cleanup `plan` reconstructed.
+fn install_storage_plan(
+    machine: &mut terminal_psi::TerminalMachine,
+    plan: &terminal_semantics::plain_affine::Plan,
+) {
+    // Receiving storage may be intact or exactly vacated by a preceding
+    // move. Install the mode reconstructed from the final ownership
+    // frontier; source syntax alone cannot distinguish them. The checker
+    // independently reconstructs these modes and the disposal schedule.
+    for block in &mut machine.blocks {
+        for operation in &mut block.operations {
+            if let terminal_psi::OperationKind::StoreStructuralField { disposition, .. } =
+                &mut operation.kind
+                && let Ok(position) = plan
+                    .stores
+                    .binary_search_by_key(&operation.id, |(operation, _)| *operation)
+            {
+                *disposition = plan.stores[position].1;
+            }
+        }
+        for (edge, actions) in block.terminator.cleanup_rosters_mut() {
+            actions.retain(|action| !plan.scheduled_roots.contains(action.place()));
+            if let Ok(position) = plan.cleanup.binary_search_by_key(&edge, |(edge, _)| *edge) {
+                actions.extend(plan.cleanup[position].1.iter().cloned());
+            }
+        }
+    }
 }
 
 #[cfg(test)]

@@ -4651,3 +4651,83 @@ fn logical_claim_publication_preserves_two_siblings_across_an_ordinary_call() {
         "omitting either sibling cannot erase its obligation"
     );
 }
+
+/// Storage and claim publication plan machines on several workers in advance,
+/// but must apply exactly what planning machine `k` after applying the plans
+/// before it yields. Here each machine's plan copies another machine's
+/// `attachment`, so an advance plan goes stale once the machine it copied has
+/// changed. Machine 3's plan changes nothing, and a plan that copied machine 2
+/// does not say what it read.
+#[test]
+fn machines_planned_on_workers_apply_what_planning_in_order_yields() {
+    use semantic_vocabulary::StructuralTypeId;
+    let (machine, _) = lower(
+        Body {
+            slots: scalars(vec![u32_type()]),
+            statements: vec![Statement::Bind {
+                slot: 0,
+                value: integer(4),
+            }],
+        },
+        vec![signature(vec![u32_type()], None)],
+    );
+    let module = || {
+        let mut module = terminal_psi::TerminalModule::declarations();
+        for raw in 1..=6 {
+            let mut copy = machine.clone();
+            copy.id = id(raw);
+            module.machines.push(copy);
+        }
+        module
+    };
+    // Machine 4 copies a later machine, which nothing changes before its turn.
+    const COPIES: [u64; 6] = [2, 1, 1, 6, 2, 4];
+    struct Copied {
+        read: Vec<MachineId>,
+        value: Option<StructuralTypeId>,
+    }
+    let run = |workers: usize, refuse: Option<u64>| {
+        let mut module = module();
+        let budget = worker_budget::ExecutionBudget::with_workers(workers).unwrap();
+        let result = budget.run(|| {
+            crate::machine_order::plan_then_apply(
+                &mut module,
+                |module, machine| {
+                    let copied = COPIES[machine.id.get() as usize - 1];
+                    Copied {
+                        read: vec![id(copied)],
+                        value: module.machines[copied as usize - 1].attachment,
+                    }
+                },
+                |plan| (plan.read != [id::<MachineId>(2)]).then_some(plan.read.as_slice()),
+                |machine, plan| {
+                    let raw = machine.id.get();
+                    if Some(raw) == refuse {
+                        return Err(raw);
+                    }
+                    if raw != 3 {
+                        machine.attachment =
+                            Some(id(plan.value.map_or(raw, |value| value.get() + 10)));
+                    }
+                    Ok(())
+                },
+            )
+        });
+        let attachments = module
+            .machines
+            .iter()
+            .map(|machine| machine.attachment.map(|value| value.get()))
+            .collect::<Vec<_>>();
+        (result, attachments)
+    };
+    let in_order = (
+        Ok(()),
+        vec![Some(1), Some(11), None, Some(4), Some(21), Some(14)],
+    );
+    assert_eq!(run(1, None), in_order);
+    assert_eq!(run(4, None), in_order);
+    // The first refusal in machine order ends the loop; nothing after it changes.
+    let refused = (Err(4), vec![Some(1), Some(11), None, None, None, None]);
+    assert_eq!(run(1, Some(4)), refused);
+    assert_eq!(run(4, Some(4)), refused);
+}
