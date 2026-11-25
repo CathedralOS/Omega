@@ -172,7 +172,7 @@ fn publish_flat_native_files<'file>(
     let directory = output_path
         .parent()
         .ok_or("native process root has no directory")?;
-    let mut staged = Vec::with_capacity(components.len().saturating_mul(2) + 2);
+    let mut staged = Vec::with_capacity(components.len() + 2);
     let mut paths = Vec::with_capacity(components.len());
     let mut export_index = String::from("omega-native-components-v1\n");
     for (index, component) in components.iter().enumerate() {
@@ -197,11 +197,6 @@ fn publish_flat_native_files<'file>(
         staged.push(stage_exact_bytes(
             &path,
             component.image().image().contents(),
-            false,
-        )?);
-        staged.push(stage_exact_bytes(
-            &directory.join(component.description_filename()),
-            component.description(),
             false,
         )?);
         let requirement = &component.application().requirement_identity;

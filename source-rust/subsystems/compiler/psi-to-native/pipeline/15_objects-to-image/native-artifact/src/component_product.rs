@@ -3,8 +3,8 @@ We retain separately emitted component shared images alongside their canonical
 Terminal provider artifact, admitted receiver/export selection, ABI calling
 application, stack demand, and content-addressed `NormalizedComponentLocator`.
 `NativeComponentProduct` and `NativeComponentPublicationReceipt` verify that
-published `.component` description files and adjacent shared images match the
-admitted compilation outputs without granting `InstalledCode` authority.
+published shared images match the admitted compilation outputs without granting
+`InstalledCode` authority.
 */
 
 use crate::component_description::{
@@ -86,15 +86,6 @@ impl NativeComponentProduct {
     pub fn description(&self) -> &[u8] {
         &self.description
     }
-    pub fn description_filename(&self) -> String {
-        format!("{}.component", self.locator().image_filename())
-    }
-    pub fn verify_description(&self, description: &[u8]) -> Result<(), &'static str> {
-        if description != self.description {
-            return Err("component description differs from its exact native publication product");
-        }
-        Ok(())
-    }
     pub fn artifact(&self) -> &Arc<terminal_codec::CanonicalTerminalArtifact> {
         self.runtime_record.artifact()
     }
@@ -166,18 +157,6 @@ impl NativeComponentPublicationReceipt {
             .map_err(|error| format!("component publication {}: {error}", self.path.display()))?;
         self.product
             .verify_contents(&contents)
-            .map_err(str::to_owned)?;
-        let description_path = self
-            .path
-            .with_file_name(self.product.description_filename());
-        let description = std::fs::read(&description_path).map_err(|error| {
-            format!(
-                "component description publication {}: {error}",
-                description_path.display()
-            )
-        })?;
-        self.product
-            .verify_description(&description)
             .map_err(str::to_owned)
     }
 }
