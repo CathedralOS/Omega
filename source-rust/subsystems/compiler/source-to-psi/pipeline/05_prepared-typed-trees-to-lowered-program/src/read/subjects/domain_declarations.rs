@@ -26,7 +26,7 @@ impl<'source> Program<'source> {
         &mut self,
         id: MachineId,
         domain: &DomainDefinition,
-        schema: Option<&prepared_source::DomainSchema>,
+        schemas: &[prepared_source::DomainSchema],
         forms: &mut [DomainForm],
     ) -> Checked<()> {
         // A stack keeps long chains of nested aliases off the host call stack.
@@ -102,11 +102,19 @@ impl<'source> Program<'source> {
                         "domain with a cleanup machine, operators or unsupported parameters",
                     ));
                 }
-                self.declared_domain_schema(
-                    id,
-                    domain,
-                    schema.filter(|row| row.declaration == domain.symbol),
-                )?;
+                let schema = if domain.type_parameters.is_empty() {
+                    None
+                } else {
+                    schemas
+                        .binary_search_by_key(&index, |row| {
+                            typed
+                                .domain_position_by_symbol(row.declaration)
+                                .unwrap_or(usize::MAX)
+                        })
+                        .ok()
+                        .map(|position| &schemas[position])
+                };
+                self.declared_domain_schema(id, domain, schema)?;
                 self.admitted_declarations.include(domain.symbol);
                 forms[index] = DomainForm::Checked;
             }
@@ -115,7 +123,7 @@ impl<'source> Program<'source> {
     }
 
     fn domain_alias_constituent(
-        &self,
+        &mut self,
         id: MachineId,
         domain: &DomainDefinition,
         constituent: &DomainAliasConstituent,
@@ -148,12 +156,34 @@ impl<'source> Program<'source> {
                 ),
             ));
         }
-        // Alias edges name a declaration without an applied telescope.
-        // Its type bounds and index obligations still require an application.
         if !member.type_parameters.is_empty() || !member.index_arguments.is_empty() {
-            return Err(unsupported(
-                "domain alias constituent requiring a type or index application",
-            ));
+            let Some([applied_carrier]) =
+                typed.domain_arguments_for_instance(member.symbol, constituent.semantic_domain)
+            else {
+                return Err(unsupported(
+                    "domain alias constituent requiring a type or index application",
+                ));
+            };
+            let alias_carrier = typed
+                .type_reference_table
+                .unconstrained_type_reference(domain.target_type);
+            if !crate::source_state::domain::has_generic_carrier(typed, member)
+                || !crate::source_state::domain::index_parameters(typed, member).is_empty()
+                || typed.package_qualified_type_identity(*applied_carrier)
+                    != typed.package_qualified_type_identity(alias_carrier)
+            {
+                return Err(unsupported(
+                    "domain alias constituent without its declared carrier application",
+                ));
+            }
+            let instance = crate::body::DomainInstance {
+                declaration: member.symbol,
+                identity: constituent.semantic_domain,
+            };
+            let theory = self.domain_theory(id, instance)?;
+            let carrier = self.declaration_subject(id, theory)?;
+            self.declared_domain(id, instance, carrier, domain.target_type, at)?;
+            self.declared_predicates(id, theory)?;
         }
         if !domain_accepts_underlying_carrier(typed, member, domain.target_type, &[]) {
             let known = [domain.target_type, member.target_type]

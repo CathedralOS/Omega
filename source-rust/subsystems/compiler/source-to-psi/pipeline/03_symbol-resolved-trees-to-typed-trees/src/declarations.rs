@@ -417,6 +417,7 @@ pub(crate) mod domain {
                     Ok(typed::domain::DomainAliasConstituent {
                         domain: path,
                         domain_symbol: constituent.domain_symbol,
+                        semantic_domain: Default::default(),
                     })
                 })
                 .collect::<Result<Vec<_>, _>>()?;

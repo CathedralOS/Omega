@@ -526,7 +526,7 @@ fn an_unused_domain_alias_checks_its_constituents() {
         ),
         ("public domain i32::Bad = i32::Left;", "private domain"),
         (
-            "domain<T [copy]> T::Marker; domain i32::Bad = i32::Marker;",
+            "domain<T, const N: u8> T::Marker<N>; domain i32::Bad = i32::Marker;",
             "requiring a type or index application",
         ),
     ] {
@@ -535,5 +535,64 @@ fn an_unused_domain_alias_checks_its_constituents() {
             panic!("accepted {declarations}");
         };
         assert!(refusal.message.contains(reason), "{refusal:?}");
+    }
+}
+
+#[test]
+fn a_fixed_alias_applies_a_domain_to_its_own_carrier() {
+    let domains = "domain<T [copy]> T::Label;
+        domain i32::IntegerLabel = i32::Label;
+        domain u32::UnsignedLabel = u32::Label;
+        domain i32::Twice = i32::IntegerLabel & i32::Label;";
+    let checked = Program::of(&format!(
+        "{domains}
+        machine keep(x: i32 in Twice) -> i32 in Label {{ x }}
+        machine gain(x: u32) -> u32 in UnsignedLabel {{ x as +UnsignedLabel }}
+        machine erase(x: i32 in Label) -> i32 {{ x as -Twice }}"
+    ));
+    checked.judged(|_| {}).accepted();
+    let trees = checked.trees();
+    let member = |name| {
+        let alias = trees
+            .domain_definitions()
+            .iter()
+            .find(|domain| domain.name.as_str() == name)
+            .unwrap();
+        let edge = &alias.alias.as_ref().unwrap().constituents[0];
+        let application = trees
+            .domain_application(edge.domain_symbol, edge.semantic_domain)
+            .unwrap();
+        assert_eq!(application.arguments.len(), 1);
+        assert_eq!(
+            trees.package_qualified_type_identity(application.arguments[0]),
+            trees.package_qualified_type_identity(alias.target_type)
+        );
+        edge.semantic_domain
+    };
+    assert_ne!(member("i32::IntegerLabel"), member("u32::UnsignedLabel"));
+
+    for (source, expected) in [
+        (
+            "data Ticket [linear] { bits: u8; } domain Ticket::Bad = Ticket::Label; machine f() {}",
+            "only a `copy` carrier",
+        ),
+        (
+            "machine f(x: u32 in Label) requires x in i32::IntegerLabel {}",
+            "carrier",
+        ),
+        (
+            "machine f(x: u32 in Label) requires (x in i32::IntegerLabel) == true {}",
+            "carrier",
+        ),
+        (
+            "machine f(x: u32 in Label) -> bool { x in i32::IntegerLabel }",
+            "carrier",
+        ),
+    ] {
+        let input = format!("{domains} {source}");
+        let Err(refusal) = Program::try_of(&[("product/main.omg", &input)]) else {
+            panic!("accepted {source}");
+        };
+        assert!(refusal.message.contains(expected), "{refusal:?}");
     }
 }

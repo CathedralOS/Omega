@@ -7679,20 +7679,16 @@ pub(crate) mod result_dispatch_terms {
                     else {
                         continue;
                     };
-                    let constituent_constraint = DomainConstraint {
-                        name: constituent_definition.name.clone(),
-                        arguments: Vec::new(),
-                        subject: crate::source_state::types::DomainConstraintSubject::Declared,
-                        symbol: constituent_definition.symbol,
-                        semantic_id: constituent_definition.semantic_id,
-                        classification: constituent_definition.classification,
-                        predicate_presence: constituent_definition.predicate_presence,
-                        semantic_roles: constituent_definition.semantic_roles,
-                        establishment_routes: constituent_definition.establishment_routes.clone(),
-                        source_selection: None,
-                        product_input: None,
-                        names_no_visible_domain: false,
+                    let identity = if constituent_definition.type_parameters.is_empty() {
+                        constituent_definition.semantic_id
+                    } else {
+                        constituent.semantic_domain
                     };
+                    let constituent_constraint = constituent_definition.applied_constraint(
+                        constituent_definition.name.clone(),
+                        Vec::new(),
+                        identity,
+                    );
                     collect_declared_result_dispatch_terms(
                         program,
                         &constituent_constraint,
@@ -10262,6 +10258,16 @@ impl TypedTrees {
         let retained = self
             .domain_arguments_for_instance(membership.domain_symbol, membership.semantic_domain)
             .ok_or("runtime membership has no retained domain index arguments")?;
+        let family = self
+            .domain_definition(membership.domain_symbol)
+            .ok_or("runtime membership lost its domain family")?;
+        let parameters = self.domain_type_parameters(family);
+        if parameters.len() != retained.len() {
+            return Err("runtime membership lost its complete domain telescope");
+        }
+        let retained = &retained[usize::from(crate::source_state::domain::has_generic_carrier(
+            self, family,
+        ))..];
         if supplied.len() != retained.len() {
             return Err("runtime membership changes its domain index arguments");
         }
@@ -10271,7 +10277,19 @@ impl TypedTrees {
                 .get(occurrence)
                 .and_then(|selection| selection.target().as_resolved().copied())
                 .map(|selected| selected.selected_symbol());
-            if selected != Some(membership.domain_symbol) {
+            let selected_leaf = selected.is_some_and(|symbol| {
+                self.domain_definition(symbol)
+                    .is_some_and(|domain| domain.alias.is_some())
+                    && crate::source_state::domain::expanded_alias_members(self, symbol).is_ok_and(
+                        |members| {
+                            members.into_iter().any(|(member, identity)| {
+                                member.symbol == membership.domain_symbol
+                                    && identity == membership.semantic_domain
+                            })
+                        },
+                    )
+            });
+            if selected != Some(membership.domain_symbol) && !selected_leaf {
                 return Err("runtime membership changes its authored domain declaration");
             }
         }
@@ -10284,13 +10302,8 @@ impl TypedTrees {
             invalid_index_argument: Some(&invalid),
             ..Default::default()
         };
-        let definition = self
-            .domain_definition_for_instance(membership.domain_symbol, membership.semantic_domain)
+        self.domain_definition_for_instance(membership.domain_symbol, membership.semantic_domain)
             .ok_or("runtime membership lost its domain definition")?;
-        let parameters = self.domain_type_parameters(definition);
-        if !supplied.is_empty() && parameters.len() != supplied.len() {
-            return Err("runtime membership lost its complete domain telescope");
-        }
         if supplied.iter().zip(retained).any(|(actual, expected)| {
             let actual = normalize_type_identity(self, *actual, &context);
             let expected = normalize_type_identity(self, *expected, &context);

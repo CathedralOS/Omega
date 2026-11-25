@@ -1921,6 +1921,10 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_type_references,
     )?;
+    crate::type_reference::domain_aliases::retain_member_applications(
+        &mut lowerer.typed_trees,
+        cohort.domain_definitions,
+    )?;
     crate::runtime_callables::validate_pending_token_shapes(
         lowerer.source_trees,
         &lowerer.typed_trees,
