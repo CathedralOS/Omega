@@ -162,7 +162,14 @@ impl<'t> Program<'t> {
                 let carrier = this.value_type(id, alias.target_type)?;
                 this.checked_membership_carrier(id, alias, carrier, Some(actual), at)?;
             }
-            this.declared_domain(id, domain, actual, definition.target_type, at)
+            this.form_domain(
+                id,
+                domain,
+                actual,
+                definition.target_type,
+                at,
+                super::types::DomainUse::Test,
+            )
         };
         let (subject, clauses) =
             if let Some((root, path, actual @ ValueType::Record(carrier, _, _))) =
