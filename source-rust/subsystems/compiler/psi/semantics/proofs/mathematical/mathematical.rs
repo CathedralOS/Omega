@@ -6,7 +6,6 @@ mod certificate;
 mod certificate_abstraction;
 mod certificate_strict;
 mod conversion;
-mod indexed;
 mod indexed_data;
 mod inductive;
 mod plain_data;
@@ -35,10 +34,6 @@ pub use conversion::Budget;
 pub use conversion::{
     DEFAULT_CONVERSION_STEPS, convertible, convertible_retaining, weak_head_normalize,
     weak_head_normalize_retaining,
-};
-pub use indexed::{
-    INDEXED_AT, INDEXED_IND, INDEXED_PACK, INDEXED_SUP, INDEXED_W, IndexedFamily,
-    indexed_correctness, indexed_scheme, indexed_scheme_at,
 };
 pub use indexed_data::{
     ConstructorArguments, DeclaredIndexedData, IndexedCase, IndexedData, IndexedDataError,

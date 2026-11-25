@@ -1,17 +1,14 @@
 # Kernel metatheory
 
-This document records the metatheory of the implemented W/IW encoding.
-The [selected profile](inductive_profile.md#native-inductive-declarations)
-requires a separate justification for the kernel's native inductive declarations
-and their constructor reductions. The W/IW arguments below describe the
-implementation preceding that migration.
-
+This document records the metatheory of the implemented proof kernel under
+the [selected unified native inductive profile](inductive_profile.md#native-inductive-declarations).
 It is a justification at the level of the reference paper's section 4 — an
 argument over the rules the checker actually implements — not a mechanized
 proof and not an imported acceptance verdict. Each claim names its status:
 *argued* (discharged by an argument here), *witnessed* (demonstrated by the
 named test), or *by construction* (the implementation cannot do otherwise).
-Code anchors are `omega-rust/psi/compilation/proof-admission/src/` paths.
+Code anchors are `source-rust/subsystems/compiler/psi/semantics/proofs/mathematical/`
+paths.
 
 <a id="the-implemented-calculus"></a>
 
@@ -29,25 +26,30 @@ The checking judgments are:
 
 Terms (`term.rs::Term`): `Variable`, `Sort` (`Type u` relevant /
 `Strict u` irrelevant), `Pi`, `Lambda`, `Apply`, `Sigma`, `Pair`, `Fst`,
-`Snd`, `Two`, `TwoZero`, `TwoOne`, `CaseTwo`, `Id`, `Refl`, `IdElim`, `W`,
-`Sup`, `IndW`, the strict layer `Empty`, `EmptyElim`, `Squash`,
+`Snd`, `Two`, `TwoZero`, `TwoOne`, `CaseTwo`, `Id`, `Refl`, `IdElim`,
+the strict layer `Empty`, `EmptyElim`, `Squash`,
 `SquashIntro`, `SquashElim`, `Box`, `BoxIntro`, `BoxElim`,
 `Constant{declaration, levels}`, and the arena `Dummy`
 (never well-typed). Levels are `Constant`, `Parameter(i)`, `Successor`,
-`Maximum` — no `imax`, matching the predicative selection.
+`Maximum` — no `imax`, matching the predicative selection. Native inductive
+type formers, constructors, and recursors are ordinary `Constant` references
+whose `DeclarationKind` (`Inductive`, `Constructor`, `Recursor`) is validated
+as a contiguous block by `inductive.rs::check_inductive_block`.
 
 Reduction `t ⟶ t'` is `conversion.rs::weak_head_normalize`, one budgeted
 step per rule, along head spines only:
 
-- δ: `c(ls) ⟶ body[ls]` for a definition constant `c`; an assumption
-  constant is neutral.
+- δ: `c(ls) ⟶ body[ls]` for a definition constant `c`; an assumption,
+  inductive type former, or constructor constant is neutral.
 - β: `(λ.b) a ⟶ b[a]`.
 - π: `fst ⟨u,v⟩ ⟶ u`; `snd ⟨u,v⟩ ⟶ v`.
 - ι-Two: `caseTwo(C,d0,d1,zero) ⟶ d0`; `… one ⟶ d1`.
 - ι-Id: `J(C,d,y,refl A x) ⟶ d`.
-- ι-W: `indW(P,s,sup A B a k) ⟶ s a k (λ(b:B a). indW(P,s,k b))` — the
-  hypothesis domain `B a` is rebuilt from the `sup`'s checked annotations,
-  so the step fires even when the ambient `W` type is neutral.
+- ι-Ind: `I_m.rec(ls) params motives minors indices (C_c(ls') params fields) ⟶
+  minor_c fields ihs` in one step (`inductive.rs::reduce_recursor`), where each
+  recursive field `f` of type `Π(x:D). I_j params idxs` contributes the
+  induction hypothesis `λ(x:D). I_j.rec(ls) params motives minors idxs (f x)`
+  (or `I_j.rec(ls) params motives minors idxs f` when `r = 0`).
 - ι-unsq: `unsq P f (sq A a) ⟶ f a`; `sEmpty_rect` has no constructor
   to fire on.
 - ι-unbox: `unbox P f (box A a) ⟶ f a`.
@@ -74,13 +76,14 @@ both sides, a second reflexivity probe, then head-matched typed recursion:
 componentwise for `Pi`/`Sigma` (codomain under an extended context), for
 `Lambda` at a `Pi` shared type, for `Pair` at a `Sigma` shared type, for
 neutral spines (`Apply`, `Fst`, `Snd`, stuck
-`CaseTwo`/`IdElim`/`IndW`/`EmptyElim`/`SquashElim`/`BoxElim`) at
-inferred types, and for `Id`/`Refl`/`Sup`/`W`/`Squash`/`SquashIntro`/
-`Box`/`BoxIntro` at the shared type's own
+`CaseTwo`/`IdElim`/`EmptyElim`/`SquashElim`/`BoxElim`, and stuck native
+recursor applications) at inferred types, and for `Id`/`Refl`/`Squash`/
+`SquashIntro`/`Box`/`BoxIntro` at the shared type's own
 structure. Pair eta runs in both directions at a `Sigma` shared type; the
 profile's typed function eta runs in both directions at a `Pi` shared type.
-Sorts convert through `levels_equal`; assumption constants convert only at
-the same declaration with semantically equal level instantiations.
+Sorts convert through `levels_equal`; assumption, inductive, and constructor
+constants convert only at the same declaration with semantically equal level
+instantiations.
 
 Checking (`typing.rs::check_type`) decomposes introduction forms against
 the expected head constructor rather than comparing whole inferred types:
@@ -149,12 +152,14 @@ case on the reduction:
   inhabits the result `C y (refl A x)` up to conversion. Preservation is
   modulo conversion, the standard shape for a type theory with typed
   equality.
-- ι-W: the step's checked type `Π(a:A). Π(k:Π(b:B a). W A B).
-  Π(_:Π(b:B a). P(k b)). P (sup A B a k)` applied to `a`, `k`, and the
-  hypothesis `λ(b:B a). indW(P,s,k b)` lands at `P (sup A B a k)` — the
-  eliminator's result. The hypothesis lambda's domain is rebuilt from the
-  `sup`'s own checked `carrier`/`children` annotations; this is why the
-  annotations are checked at typing and ignored at conversion.
+- ι-Ind: `inductive.rs::check_inductive_block` verifies that every recursor
+  declaration's stored type is literally equal (by conversion) to the
+  kernel-computed dependent eliminator type for its inductive block, and that
+  every constructor returns the target inductive at uniform parameters. When
+  `I_m.rec(ls) params motives minors indices (C_c(ls') params fields)` fires,
+  `reduce_recursor` instantiates `minor_c` at `fields` and the recursively
+  formed induction hypotheses, landing at `motive_m indices (C_c(ls') params fields)`
+  by the substitution lemma.
 - ι-unsq: the eliminator's type is `P` outright, and `f a : P` by
   application — `f`'s domain was checked convertible to the squashed
   carrier, and the introduction's `a` checked at that same carrier.
@@ -188,10 +193,13 @@ of the reference paper's section 4:
 - `Id`/`J`: elimination fires only on `refl`; the candidate for
   `Id A x y` interprets a proof as `refl` when `x ≡ y` or a neutral — the
   standard treatment of intensional identity without K.
-- `W`/`indW`: `indW` fires only on `sup` and recurses on `k b` — children
-  of the tree — so the candidate for `W A B` is defined by well-founded
-  recursion on tree structure, the standard strong-normalization argument
-  for W-types. This is the recursion the whole encoding stands on.
+- Native inductive types (`inductive.rs`): `I_m.rec` fires only on a matching
+  constructor `C_c` of its inductive block and recurses only on strict
+  subterms of `C_c` (recursive fields validated strictly positive by
+  `check_inductive_block`), with universe predicativity enforced by
+  `level_leq`. Strong normalization follows from the standard
+  reducibility-candidate construction for strictly positive predicative
+  inductive families (Lean 4 / Rocq).
 - Typed function eta and strict collapse are *conversion* clauses, not
   reduction rules: they cannot create nontermination. Their cost is paid
   inside the conversion termination argument, below — this is the precise
@@ -298,33 +306,29 @@ even when the proof body never unfolds it. *Witnessed:*
 `an_axiom_dependent_theorem_keeps_its_assumption_through_the_wire`.
 Receiver acceptance of the closure is policy, outside the kernel.
 
-## Encoding-scheme correspondence
+## Native inductive declarations and scheme correspondence
 
-The profile's derived indexed family is discharged *inside* the kernel:
-the five `indexed_scheme` declarations are ordinary universe-polymorphic
-definitions `check_signature` re-decides, so the correspondence obligations
-are checks the kernel ran, not assertions about it.
+Under the [unified native inductive profile](inductive_profile.md#native-inductive-declarations),
+plain recursive data, algebraic data types, value-indexed families, and mutually
+recursive blocks are declared directly as contiguous `DeclarationKind` blocks
+(`[I_0..I_{M-1}, C_0..C_{K-1}, I_0.rec..I_{M-1}.rec]`) validated by
+`inductive.rs::check_inductive_block`:
 
-- Formation: `IW i : Type max(l,u,v)` is `INDEXED_W`'s stored type —
-  checked.
-- Constructor: `isup : Π(a:A). Π(g:Π(b:B a). IW (next a b)). IW (out a)`
-  is `INDEXED_SUP`'s stored type — checked.
-- Induction: `iindW`'s stored type is the dependent indexed eliminator's —
-  checked.
-- Computation: `iindW Q s i (isup a g) ≡ s a g (b ↦ iindW Q s (next a b)
-  (g b))` is *definitional* — `convertible` decides it, including with a
-  neutral child function `g`, where the closing step is pair eta then the
-  typed function eta the profile names as the dependency. *Witnessed*:
-  `isup_and_iindw_check_and_compute_with_a_neutral_child_function` and the
-  per-family computation tests (`induction_computes_on_modus_ponens_with_a_neutral_child_function`,
-  `induction_computes_on_cons_with_a_neutral_tail`,
-  `induction_computes_on_nil_with_a_vacuous_child_function`,
-  `induction_computes_on_rnode_with_neutral_payload_and_children`, the
-  mutual family's node/forest cases).
-- Encoding soundness: `indexed_correctness` proves
-  `∀(i:I). ∀(t:IW i). Id I (out (rootOf t)) i` inside the kernel by
-  `iindW` itself — the encoding's defining property (a tree's recorded
-  index is its constructor's `out`) is a checked theorem, not an axiom.
+- Formation: each `I_m` is checked in the signature prefix to end in a relevant
+  `Sort::Type(u_m)`, with uniform parameter prefix shared across the block.
+- Constructors: each `C_c` is checked with the block's inductive type formers
+  in scope, enforcing universe predicativity (`level_leq` against `u_m`),
+  strict positivity of every recursive occurrence, and return type targeting
+  `I_m params indices`.
+- Recursor: each `I_m.rec` is checked against the exact kernel-computed
+  dependent eliminator type (`build_recursor_type`), with motive landing in
+  `Sort::Type(w)` (relevant sort only; strict targets route through `Box`).
+- Computation: `I_m.rec(ls) params motives minors indices (C_c(ls') params
+  fields) ⟶ minor_c fields ihs` is *definitional* in one step via
+  `reduce_recursor`, including with neutral arguments and ω-branching recursive
+  fields. *Witnessed*: `inductive_profile` tests in `mathematical-kernel` and
+  `indexed_vector`, `indexed_derivation`, `indexed_levels`, `indexed_mutual`,
+  `indexed_nested`, and `indexed_relations` in `proof-admission`.
 
 The [quotient](quotients.md#set-quotient-foundation) scheme keeps its
 admitted/derived boundary explicit: the seven

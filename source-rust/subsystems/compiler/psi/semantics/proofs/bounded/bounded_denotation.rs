@@ -13829,7 +13829,7 @@ mod source_integer {
         use super::*;
         use crate::{
             Budget, Context, DEFAULT_CONVERSION_STEPS, MathematicalCertificate, Signature,
-            check_signature, check_type, indexed_scheme, judgment_assumption_closure,
+            check_signature, check_type, judgment_assumption_closure,
             verify_mathematical_certificate,
         };
 
@@ -14001,7 +14001,7 @@ mod source_integer {
         #[test]
         fn vector_step_proves_the_budget_bound_from_its_hypotheses() {
             let mut arena = TermArena::new();
-            let mut declarations = indexed_scheme(&mut arena);
+            let mut declarations = Vec::new();
             let mut theory = SourceIntegerTheory::new(&mut arena, &mut declarations).unwrap();
             let step = VectorStep::new(&mut theory, &mut arena, &mut declarations, 10);
             let proof = theory
@@ -14049,7 +14049,7 @@ mod source_integer {
         #[test]
         fn vector_step_without_a_needed_hypothesis_or_with_a_tighter_bound_has_no_proof() {
             let mut arena = TermArena::new();
-            let mut declarations = indexed_scheme(&mut arena);
+            let mut declarations = Vec::new();
             let mut theory = SourceIntegerTheory::new(&mut arena, &mut declarations).unwrap();
             let step = VectorStep::new(&mut theory, &mut arena, &mut declarations, 10);
             for missing in 0..step.assumptions.len() {
@@ -14103,7 +14103,7 @@ mod source_integer {
         #[test]
         fn closed_predicate_proves_true_closed_arithmetic_and_order_only() {
             let mut arena = TermArena::new();
-            let mut declarations = indexed_scheme(&mut arena);
+            let mut declarations = Vec::new();
             let mut theory = SourceIntegerTheory::new(&mut arena, &mut declarations).unwrap();
             let vocabulary = theory.vocabulary();
             let zero = literal(&mut theory, &mut arena, &mut declarations, 0);
@@ -14186,7 +14186,7 @@ mod source_integer {
         #[test]
         fn resumed_theory_proves_goals_stated_with_the_first_vocabulary() {
             let mut arena = TermArena::new();
-            let mut declarations = indexed_scheme(&mut arena);
+            let mut declarations = Vec::new();
             let (positions, step, closed_goal, seven) = {
                 let mut first = SourceIntegerTheory::new(&mut arena, &mut declarations).unwrap();
                 let vocabulary = first.vocabulary();
@@ -14287,7 +14287,8 @@ mod source_integer {
         #[test]
         fn resume_refuses_a_record_that_does_not_match_the_declarations() {
             let mut arena = TermArena::new();
-            let mut declarations = indexed_scheme(&mut arena);
+            let type_zero = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
+            let mut declarations = vec![Declaration::assumption(0, type_zero)];
             let positions = SourceIntegerTheory::new(&mut arena, &mut declarations)
                 .unwrap()
                 .positions();
@@ -14423,7 +14424,7 @@ mod source_integer {
         #[test]
         fn distribute_add_statement_agrees_with_computed_arithmetic() {
             let mut arena = TermArena::new();
-            let mut declarations = indexed_scheme(&mut arena);
+            let mut declarations = Vec::new();
             let mut theory = SourceIntegerTheory::new(&mut arena, &mut declarations).unwrap();
             let (correct, control) = theory
                 .with(&mut arena, &mut declarations, |state| {
@@ -14459,7 +14460,7 @@ mod source_integer {
         #[test]
         fn add_zero_statements_agree_with_computed_arithmetic() {
             let mut arena = TermArena::new();
-            let mut declarations = indexed_scheme(&mut arena);
+            let mut declarations = Vec::new();
             let mut theory = SourceIntegerTheory::new(&mut arena, &mut declarations).unwrap();
             theory
                 .with(&mut arena, &mut declarations, |state| {
@@ -14514,7 +14515,7 @@ mod source_integer {
         #[test]
         fn a_part_is_at_most_the_sum_when_the_other_part_is_not_negative() {
             let mut arena = TermArena::new();
-            let mut declarations = indexed_scheme(&mut arena);
+            let mut declarations = Vec::new();
             let mut theory = SourceIntegerTheory::new(&mut arena, &mut declarations).unwrap();
             let vocabulary = theory.vocabulary();
             let integer = constant(&mut arena, vocabulary.carrier);
@@ -14587,7 +14588,7 @@ mod source_integer {
         #[test]
         fn dependent_value_premises_are_explicitly_unsupported() {
             let mut arena = TermArena::new();
-            let mut declarations = indexed_scheme(&mut arena);
+            let mut declarations = Vec::new();
             let mut theory = SourceIntegerTheory::new(&mut arena, &mut declarations).unwrap();
             let integer = constant(&mut arena, theory.vocabulary().carrier);
             let variable = arena.insert(Term::Variable(0));

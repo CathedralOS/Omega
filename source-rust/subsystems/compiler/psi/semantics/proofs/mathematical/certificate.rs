@@ -1142,120 +1142,77 @@ mod tests {
     }
 
     #[test]
-    fn a_certificate_carries_w_induction() {
+    fn a_certificate_carries_native_inductive_elimination() {
         let mut arena = TermArena::new();
         let type_zero = type_sort(&mut arena, 0);
-        let b_binding = {
-            let a_in_prefix = variable(&mut arena, 0);
-            pi(&mut arena, a_in_prefix, type_zero)
+        // Native `Nat : Type 0` with `zero : Nat`, `succ : Nat -> Nat`, `Nat.rec`.
+        let nat_head = arena.insert(Term::Constant {
+            declaration: 0,
+            levels: Vec::new(),
+        });
+        let succ_ty = pi(&mut arena, nat_head, nat_head);
+        let signature =
+            crate::declare_inductive_family(&mut arena, 0, 0, 0, type_zero, &[nat_head, succ_ty]);
+
+        let zero = arena.insert(Term::Constant {
+            declaration: 1,
+            levels: Vec::new(),
+        });
+        let succ = arena.insert(Term::Constant {
+            declaration: 2,
+            levels: Vec::new(),
+        });
+        let rec = arena.insert(Term::Constant {
+            declaration: 3,
+            levels: vec![Level::Constant(0)],
+        });
+        let one = arena.insert(term!(Apply => succ => zero));
+
+        // Context: `P : Nat -> Type 0, mz : P zero, ms : Π(n:Nat). P n -> P (succ n), t : Nat`
+        // Indices: t = 0, ms = 1, mz = 2, P = 3.
+        let p_binding = pi(&mut arena, nat_head, type_zero);
+        let mz_binding = {
+            let p = variable(&mut arena, 0);
+            arena.insert(term!(Apply => p => zero))
         };
-        let a_binding = variable(&mut arena, 1);
-        let k_binding = {
-            let b_at = variable(&mut arena, 1);
-            let a_at = variable(&mut arena, 0);
-            let child_positions = arena.insert(term!(Apply => b_at => a_at));
-            let carrier = variable(&mut arena, 3);
-            let children = variable(&mut arena, 2);
-            let w_under_b = arena.insert(Term::W { carrier, children });
-            pi(&mut arena, child_positions, w_under_b)
-        };
-        let p_binding = {
-            let carrier = variable(&mut arena, 3);
-            let children = variable(&mut arena, 2);
-            let w = arena.insert(Term::W { carrier, children });
-            pi(&mut arena, w, type_zero)
-        };
-        let s_binding = {
-            let a_domain = variable(&mut arena, 4);
-            let function_type = {
-                let b_at = variable(&mut arena, 4);
-                let a_bound = variable(&mut arena, 0);
-                let child_positions = arena.insert(term!(Apply => b_at => a_bound));
-                let carrier = variable(&mut arena, 6);
-                let children = variable(&mut arena, 5);
-                let w_at_two = arena.insert(Term::W { carrier, children });
-                pi(&mut arena, child_positions, w_at_two)
+        let ms_binding = {
+            // Under [P, mz]: P = 1; under n: P = 2, n = 0; under ih: P = 3, n = 1.
+            let ih_ty = {
+                let p = variable(&mut arena, 2);
+                let n = variable(&mut arena, 0);
+                arena.insert(term!(Apply => p => n))
             };
-            let hypothesis = {
-                let b_at = variable(&mut arena, 5);
-                let a_bound = variable(&mut arena, 1);
-                let hypothesis_domain = arena.insert(term!(Apply => b_at => a_bound));
-                let p_at = variable(&mut arena, 3);
-                let k_bound = variable(&mut arena, 1);
-                let b_bound = variable(&mut arena, 0);
-                let child = arena.insert(term!(Apply => k_bound => b_bound));
-                let hypothesis_codomain = arena.insert(term!(Apply => p_at => child));
-                pi(&mut arena, hypothesis_domain, hypothesis_codomain)
+            let ret_ty = {
+                let p = variable(&mut arena, 3);
+                let n = variable(&mut arena, 1);
+                let sn = arena.insert(term!(Apply => succ => n));
+                arena.insert(term!(Apply => p => sn))
             };
-            let result = {
-                let p_at = variable(&mut arena, 3);
-                let carrier = variable(&mut arena, 7);
-                let children = variable(&mut arena, 6);
-                let label = variable(&mut arena, 2);
-                let function = variable(&mut arena, 1);
-                let node = arena.insert(Term::Sup {
-                    carrier,
-                    children,
-                    label,
-                    function,
-                });
-                arena.insert(term!(Apply => p_at => node))
-            };
-            let inner = pi(&mut arena, hypothesis, result);
-            let middle = pi(&mut arena, function_type, inner);
-            pi(&mut arena, a_domain, middle)
+            let inner = pi(&mut arena, ih_ty, ret_ty);
+            pi(&mut arena, nat_head, inner)
         };
-        let t_binding = {
-            let carrier = variable(&mut arena, 5);
-            let children = variable(&mut arena, 4);
-            arena.insert(Term::W { carrier, children })
-        };
-        let node = {
-            let carrier = variable(&mut arena, 6);
-            let children = variable(&mut arena, 5);
-            let label = variable(&mut arena, 4);
-            let function = variable(&mut arena, 3);
-            arena.insert(Term::Sup {
-                carrier,
-                children,
-                label,
-                function,
-            })
-        };
-        let term = {
-            let motive = variable(&mut arena, 2);
-            let step = variable(&mut arena, 1);
-            arena.insert(Term::IndW {
-                motive,
-                step,
-                tree: node,
-            })
-        };
-        let expected = {
-            let p = variable(&mut arena, 2);
-            arena.insert(term!(Apply => p => node))
-        };
-        let certificate = MathematicalCertificate::closed(
-            vec![
-                type_zero, b_binding, a_binding, k_binding, p_binding, s_binding, t_binding,
-            ],
+
+        let p = variable(&mut arena, 3);
+        let mz = variable(&mut arena, 2);
+        let ms = variable(&mut arena, 1);
+        let t = variable(&mut arena, 0);
+        let app1 = arena.insert(term!(Apply => rec => p));
+        let app2 = arena.insert(term!(Apply => app1 => mz));
+        let app3 = arena.insert(term!(Apply => app2 => ms));
+        let term = arena.insert(term!(Apply => app3 => one));
+        let expected = arena.insert(term!(Apply => p => one));
+        let context = vec![p_binding, mz_binding, ms_binding, nat_head];
+        let certificate = MathematicalCertificate::with_signature(
+            signature.clone(),
+            context.clone(),
             term,
             expected,
         );
         verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()).unwrap();
 
-        let wrong_expected = {
-            let p = variable(&mut arena, 2);
-            let t = variable(&mut arena, 0);
-            arena.insert(term!(Apply => p => t))
-        };
-        let certificate = MathematicalCertificate::closed(
-            vec![
-                type_zero, b_binding, a_binding, k_binding, p_binding, s_binding, t_binding,
-            ],
-            term,
-            wrong_expected,
-        );
+        let wrong_expected = arena.insert(term!(Apply => p => t));
+        let certificate =
+            MathematicalCertificate::with_signature(signature, context, term, wrong_expected);
         assert!(matches!(
             verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()),
             Err(CoreError::TypeMismatch { .. })

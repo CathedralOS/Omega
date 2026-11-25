@@ -1224,7 +1224,7 @@ fn prove_family(
         lemmas.push(abstracted.certificate.term);
     }
     let induction = instance
-        .induction(arena, &mut local, invariant, &lemmas)
+        .induction(arena, &local, invariant, &lemmas)
         .map_err(|error| refused(None, format!("indexed induction: {error}")))?;
     let mut check = Budget::default();
     let certificate =

@@ -1,231 +1,74 @@
-//! The profile's "mutual families" demonstration: a `Tree`/`Forest`
-//! mutual recursion built on the derived [`indexed_scheme`] and checked
-//! end-to-end by the kernel.
-//!
-//! Mutual inductives reduce to one indexed family whose index tags the
-//! sort — the standard tag-index reduction, here over `I = Two` with
-//! `zero` the Tree sort and `one` the Forest sort. The description is
+//! The profile's "mutual families" demonstration: a native mutually recursive
+//! `Tree`/`Forest` inductive block checked end-to-end by the kernel.
 //!
 //! ```text
-//! I    = Two                                    sort index
-//! A    = Σ(tag : Two). Σ(e : Elem). Two         sort + element + ctor sub-tag
-//! B a  = caseTwo(…, Id Two zero zero,                     node: one position
-//!                caseTwo(…, Id Two zero one,              fnil: dead
-//!                          Two,                           fcons: two positions
-//!                          snd (snd a)),
-//!                fst a)
-//! out  = λa. fst a                              produced index = the sort
-//! next = λa. caseTwo(Mn, λp. λ_. one,                     node's child ↦ Forest
-//!                    λp. caseTwo(Mi, λ_. zero,            fnil: dead ↦ arbitrary
-//!                                 λb. b,                 fcons: position ↦ sort
-//!                                 snd p),
-//!                    fst a) (snd a)
+//! Tree   : Type 0
+//! Forest : Type 0
+//! node   : Π(e : Elem). Π(f : Forest). Tree
+//! fnil   : Forest
+//! fcons  : Π(t : Tree). Π(f : Forest). Forest
 //! ```
 //!
-//! so `Tree := IW … zero` and `Forest := IW … one` form a mutual pair:
-//! `node e f : Tree` for `f : Forest`, `fnil : Forest`, and
-//! `fcons t f : Forest` for `t : Tree` and `f : Forest`. The payload is
-//! uniform — `Σ(e : Elem). Two` under either tag — because a dependent
-//! `Payload tag` cannot feed the second `caseTwo`: `snd a`'s type would
-//! be the stuck `Payload (fst a)`, never `Two`. The first `Σ` field is
-//! the node's element; the second selects `fnil`/`fcons` under the
-//! forest tag and is a dummy under the tree tag.
-//!
-//! Where the length-indexed vector's `next` ignored the child position
-//! — cons's one position always required the predecessor — this `next`
-//! *is* the position at `fcons`: `next ⟨one, ⟨_, one⟩⟩ b ≡ b`, so the
-//! head position `zero` requires a `Tree` and the tail `one` a
-//! `Forest`. That is the mutual discipline, and it is definitional:
-//! `iindW Q s one (fcons t f)` computes with induction hypothesis
-//! `b ↦ iindW Q s b (g b)`, a Tree hypothesis at `zero` and a Forest
-//! hypothesis at `one` inside the same step.
-//!
-//! `Elem` is a signature *assumption* — the demonstration exercises the
-//! scheme against an arbitrary element type a producer would supply,
-//! and the certificate's assumption closure records exactly that one
-//! axiom. Every use is still re-decided by the checker.
+//! `Elem` is a signature assumption at position 0; the mutual block sits at
+//! positions 1–7 (`Tree`, `Forest`, `node`, `fnil`, `fcons`, `Tree.rec`,
+//! `Forest.rec`).
 
 use crate::common::*;
 use proof_admission::{
-    Context, CoreError, Declaration, IndexedFamily, Level, Signature, TermArena, TermHandle,
-    argument_error_pair_pattern, check_signature, check_type, indexed_scheme,
+    Context, CoreError, Declaration, Level, Signature, TermArena, TermHandle, check_signature,
+    check_type, convertible, declare_mutual_inductive_family,
 };
 
-// ── The producer signature ────────────────────────────────────────────
-//
-// Positions 0–4 are the derived scheme (`IndexedAt`, `IW`, `iwPack`,
-// `isup`, `iindW`); the family's only assumption is the element type:
+const MUTUAL_ELEM: u32 = 0;
+const TREE: u32 = 1;
+const FOREST: u32 = 2;
+const NODE: u32 = 3;
+const FNIL: u32 = 4;
+const FCONS: u32 = 5;
+const TREE_REC: u32 = 6;
+const FOREST_REC: u32 = 7;
 
-/// `Elem : Type 0` — the element type, declaration 5.
-const ELEM: u32 = 5;
-
-fn elem(arena: &mut TermArena) -> TermHandle {
-    constant(arena, ELEM, Vec::new())
+fn elem_ty(arena: &mut TermArena) -> TermHandle {
+    constant(arena, MUTUAL_ELEM, Vec::new())
 }
 
-// `λ(_ : Two). Type 0` — the constant motive every `caseTwo` selecting
-// *types* here shares.
-
-// `Id Two zero one` — the dead child position: no closed inhabitant.
-
-// `Id Two zero zero` — the single live child position.
-
-/// The uniform payload `Σ(e : Elem). Two` — element plus constructor
-/// sub-tag. Written non-dependently because the `B`/`next` selections
-/// must project the sub-tag from a neutral node: under a dependent
-/// `Payload tag`, `snd a : Payload (fst a)` never reduces to `Two` for
-/// the inner `caseTwo` scrutinee.
-fn uniform_payload(arena: &mut TermArena) -> TermHandle {
-    let element = elem(arena);
-    let sub_tag = two(arena);
-    sigma(arena, element, sub_tag)
+fn tree(arena: &mut TermArena) -> TermHandle {
+    constant(arena, TREE, Vec::new())
 }
 
-/// The constructor carrier `A = Σ(tag : Two). Σ(e : Elem). Two`.
-fn carrier(arena: &mut TermArena) -> TermHandle {
-    let payload = uniform_payload(arena);
-    let domain = two(arena);
-    sigma(arena, domain, payload)
+fn forest(arena: &mut TermArena) -> TermHandle {
+    constant(arena, FOREST, Vec::new())
 }
 
-/// `B = λ(a : A). caseTwo(λ_.Type 0, Id Two zero zero, caseTwo(λ_.Type
-/// 0, Id Two zero one, Two, snd (snd a)), fst a)` — child positions by
-/// sort and sub-tag: one under `node`, none under `fnil`, two under
-/// `fcons`.
-fn branching(arena: &mut TermArena) -> TermHandle {
-    let motive = type_motive(arena);
-    let unit = unit_position(arena);
-    let inner = {
-        let motive = type_motive(arena);
-        let empty = empty_positions(arena);
-        let positions = two(arena);
-        let bound = variable(arena, 0);
-        let payload = snd(arena, bound);
-        let sub_tag = snd(arena, payload);
-        case_two(arena, motive, empty, positions, sub_tag)
-    };
-    let bound = variable(arena, 0);
-    let tag = fst(arena, bound);
-    let body = case_two(arena, motive, unit, inner, tag);
-    let domain = carrier(arena);
-    lambda(arena, domain, body)
-}
-
-/// `out = λ(a : A). fst a` — the produced index is the node's sort tag:
-/// `zero` for `node`, `one` for both forest constructors.
-fn out_index(arena: &mut TermArena) -> TermHandle {
-    let bound = variable(arena, 0);
-    let tag = fst(arena, bound);
-    let domain = carrier(arena);
-    lambda(arena, domain, tag)
-}
-
-/// `B ⟨tag, p⟩` as an application of the `branching` lambda — the form
-/// `next`'s motives quantify over, so the required position type under
-/// an abstract `tag`/`p` still reduces once both are concrete.
-fn branching_at(arena: &mut TermArena, tag: TermHandle, payload: TermHandle) -> TermHandle {
-    let node = pair(arena, tag, payload);
-    let family = branching(arena);
-    apply(arena, family, node)
-}
-
-/// `next = λ(a : A). caseTwo(Mn, br0, br1, fst a) (snd a)` — the index
-/// each child position requires:
-///
-/// - `Mn tag = Π(p : Σ(e : Elem). Two). Π(_ : B ⟨tag, p⟩). Two`
-/// - `br0 = λp. λ(_ : Id Two zero zero). one` — a `node`'s single child
-///   must be a `Forest`.
-/// - `br1 = λp. caseTwo(Mi, λ(_ : Id Two zero one). zero, λb. b,
-///   snd p)` — `fnil`'s dead position answers `zero` arbitrarily;
-///   `fcons`'s position is its own required sort: head `zero` ↦ `Tree`,
-///   tail `one` ↦ `Forest`.
-/// - `Mi w = Π(_ : caseTwo(λ_.Type 0, Id Two zero one, Two, w)). Two` —
-///   the position family the forest sub-tag selects.
-fn next_index(arena: &mut TermArena) -> TermHandle {
-    let inner_position_family = {
-        // `λ(w : Two). caseTwo(λ_.Type 0, Id01, Two, w)`.
-        let motive = type_motive(arena);
-        let empty = empty_positions(arena);
-        let positions = two(arena);
-        let bound = variable(arena, 0);
-        let body = case_two(arena, motive, empty, positions, bound);
-        let domain = two(arena);
-        lambda(arena, domain, body)
-    };
-    let motive = {
-        // `Mn = λ(tag : Two). Π(p : Σ(e:Elem).Two). Π(_ : B ⟨tag,p⟩). Two`.
-        // Under the `p` binder, `tag` is de Bruijn index 1 and `p` is 0.
-        let tag = variable(arena, 1);
-        let payload = variable(arena, 0);
-        let position_type = branching_at(arena, tag, payload);
-        let index = two(arena);
-        let inner = pi(arena, position_type, index);
-        let payload_domain = uniform_payload(arena);
-        let body = pi(arena, payload_domain, inner);
-        let domain = two(arena);
-        lambda(arena, domain, body)
-    };
-    let zero_branch = {
-        // `λ(p : Σ(e:Elem).Two). λ(_ : Id Two zero zero). one` — the
-        // tree node's child position is a forest.
-        let position_domain = unit_position(arena);
-        let index = two_one(arena);
-        let inner = lambda(arena, position_domain, index);
-        let payload_domain = uniform_payload(arena);
-        lambda(arena, payload_domain, inner)
-    };
-    let one_branch = {
-        // `λ(p : Σ(e:Elem).Two). caseTwo(Mi, λ(_:Id01).zero, λb.b, snd p)`.
-        let inner_motive = {
-            // `Mi w = Π(_ : inner_position_family w). Two` under `w`.
-            let bound = variable(arena, 0);
-            let positions = apply(arena, inner_position_family, bound);
-            let index = two(arena);
-            let body = pi(arena, positions, index);
-            let domain = two(arena);
-            lambda(arena, domain, body)
-        };
-        let dead = {
-            // `λ(_ : Id Two zero one). zero`.
-            let position_domain = empty_positions(arena);
-            let index = two_zero(arena);
-            lambda(arena, position_domain, index)
-        };
-        let sorted = {
-            // `λ(b : Two). b` — the fcons position requires its own sort.
-            let domain = two(arena);
-            let bound = variable(arena, 0);
-            lambda(arena, domain, bound)
-        };
-        let bound = variable(arena, 0);
-        let sub_tag = snd(arena, bound);
-        let selected = case_two(arena, inner_motive, dead, sorted, sub_tag);
-        let payload_domain = uniform_payload(arena);
-        lambda(arena, payload_domain, selected)
-    };
-    let carrier_handle = carrier(arena);
-    tag_selected_children(arena, carrier_handle, motive, zero_branch, one_branch)
-}
-
-/// The mutual `Tree`/`Forest` family: `IW Two A B out next` where index
-/// `zero` names `Tree` and index `one` names `Forest`.
-fn mutual_family(arena: &mut TermArena) -> IndexedFamily {
-    IndexedFamily {
-        base: 0,
-        levels: [Level::Constant(0), Level::Constant(0), Level::Constant(0)],
-        index: two(arena),
-        carrier: carrier(arena),
-        children: branching(arena),
-        out: out_index(arena),
-        next: next_index(arena),
-    }
-}
-
-/// The producer signature: the five scheme declarations then the single
-/// `Elem` assumption.
 fn mutual_declarations(arena: &mut TermArena) -> Vec<Declaration> {
-    let mut declarations = indexed_scheme(arena);
-    declarations.push(Declaration::assumption(0, type_sort(arena, 0))); // Elem
+    let type0 = type_sort(arena, 0);
+    let mut declarations = vec![Declaration::assumption(0, type0)]; // 0: Elem
+
+    let e = elem_ty(arena);
+    let t = tree(arena);
+    let f = forest(arena);
+
+    // `node : Π(e : Elem). Π(f : Forest). Tree`
+    let node_ty = {
+        let inner = pi(arena, f, t);
+        pi(arena, e, inner)
+    };
+    // `fnil : Forest`
+    let fnil_ty = f;
+    // `fcons : Π(t : Tree). Π(f : Forest). Forest`
+    let fcons_ty = {
+        let inner = pi(arena, f, f);
+        pi(arena, t, inner)
+    };
+
+    declarations.extend(declare_mutual_inductive_family(
+        arena,
+        TREE,
+        0,
+        0,
+        &[type0, type0],
+        &[(0, node_ty), (1, fnil_ty), (1, fcons_ty)],
+    ));
     declarations
 }
 
@@ -234,312 +77,159 @@ fn mutual_signature(arena: &mut TermArena) -> Signature {
     check_signature(arena, &declarations, &mut budget()).unwrap()
 }
 
-/// `Tree` — the family's `zero` index.
-fn tree_at(arena: &mut TermArena, family: &IndexedFamily) -> TermHandle {
-    let index = two_zero(arena);
-    family.indexed_w(arena, index)
-}
-
-/// `Forest` — the family's `one` index.
-fn forest_at(arena: &mut TermArena, family: &IndexedFamily) -> TermHandle {
-    let index = two_one(arena);
-    family.indexed_w(arena, index)
-}
-
-/// `⟨zero, ⟨e, zero⟩⟩` — a `node` label: tree sort, element `e`, dummy
-/// sub-tag.
-fn node_label(arena: &mut TermArena, element: TermHandle) -> TermHandle {
-    let sub_tag = two_zero(arena);
-    let payload = pair(arena, element, sub_tag);
-    let tag = two_zero(arena);
-    pair(arena, tag, payload)
-}
-
-/// `⟨one, ⟨d, one⟩⟩` — an `fcons` label: forest sort, dummy element,
-/// `one` sub-tag.
-fn fcons_label(arena: &mut TermArena, dummy: TermHandle) -> TermHandle {
-    let sub_tag = two_one(arena);
-    let payload = pair(arena, dummy, sub_tag);
-    let tag = two_one(arena);
-    pair(arena, tag, payload)
-}
-
-/// `λ(w : Two). IW w` — the motive selecting a `Tree` at `zero` and a
-/// `Forest` at `one`, for `fcons`'s sort-selected child function.
-fn indexed_motive(arena: &mut TermArena, family: &IndexedFamily) -> TermHandle {
-    let bound = variable(arena, 0);
-    let body = family.indexed_w(arena, bound);
-    let domain = two(arena);
-    lambda(arena, domain, body)
-}
-
-/// `Π(i : Two). Π(_ : IW i). Type 0` — the `iindW` motive shape.
-fn motive_type(arena: &mut TermArena, family: &IndexedFamily) -> TermHandle {
-    let index = variable(arena, 0);
-    let family_at = family.indexed_w(arena, index);
-    let type_zero = type_sort(arena, 0);
-    let inner = pi(arena, family_at, type_zero);
-    let domain = two(arena);
-    pi(arena, domain, inner)
-}
-
-// `Π(a : A). Π(g : Π(b : B a). IW (next a b)). Π(_ : Π(b : B a). Q
-// (next a b) (g b)). Q (out a) (isup a g)` — the `iindW` step type,
-// written under the one-binding prefix `[Q]`.
-
-/// The constructor-side context `e : Elem, t : Tree, f : Forest` —
-/// indices f = 0, t = 1, e = 2.
-fn constructor_context(arena: &mut TermArena, family: &IndexedFamily) -> Context {
-    let tree = tree_at(arena, family);
-    let forest = forest_at(arena, family);
-    let element_type = elem(arena);
-    Context::empty()
-        .with_signature(mutual_signature(arena))
-        .extend(element_type)
-        .extend(tree)
-        .extend(forest)
-}
-
-/// The eliminator context `Q : Π(i : Two). Π(_ : IW i). Type 0`,
-/// `s : <iindW step>`, `e : Elem`, then a caller-supplied child-function
-/// binding.
-fn eliminator_prefix(arena: &mut TermArena, family: &IndexedFamily) -> Context {
-    let motive = motive_type(arena, family);
-    let domain = carrier(arena);
-    let step = step_type(arena, family, domain);
-    let element_type = elem(arena);
-    Context::empty()
-        .with_signature(mutual_signature(arena))
-        .extend(motive)
-        .extend(step)
-        .extend(element_type)
-}
-
 #[test]
-fn mutual_constructions_reject_wrong_sorts_and_malformed_descriptions() {
+fn mutual_constructions_compute_and_reject_wrong_sorts_and_non_positivity() {
     let mut arena = TermArena::new();
     let mut budget = budget();
-    let family = mutual_family(&mut arena);
-    let context = constructor_context(&mut arena, &family);
-    // In Γ: f = 0, t = 1, e = 2.
+    let signature = mutual_signature(&mut arena);
 
-    let element = variable(&mut arena, 2);
-    let label = node_label(&mut arena, element);
-    let children_fn = {
-        let element = variable(&mut arena, 2);
-        let label = node_label(&mut arena, element);
-        let domain = apply(&mut arena, family.children, label);
-        let forest = variable(&mut arena, 1);
-        lambda(&mut arena, domain, forest)
-    };
-    let node = family.sup(&mut arena, label, children_fn);
+    // Context: `e : Elem, t : Tree, f : Forest` (f = 0, t = 1, e = 2).
+    let e_ty = elem_ty(&mut arena);
+    let t_ty = tree(&mut arena);
+    let f_ty = forest(&mut arena);
+    let context = Context::empty()
+        .with_signature(signature.clone())
+        .extend(e_ty)
+        .extend(t_ty)
+        .extend(f_ty);
 
-    // A `node` is a `Tree`, never a `Forest`: `out ⟨zero,·⟩ ≡ zero`
-    // never lands at `one`.
-    let forest = forest_at(&mut arena, &family);
-    let error = check_type(&mut arena, &context, node, forest, &mut budget).unwrap_err();
-    assert!(matches!(error, CoreError::TypeMismatch { .. }));
+    let e = variable(&mut arena, 2);
+    let t = variable(&mut arena, 1);
+    let f = variable(&mut arena, 0);
 
-    // …and a forest constructor is never a `Tree`.
-    let dummy = variable(&mut arena, 2);
-    let label = fcons_label(&mut arena, dummy);
-    let children_fn = {
-        let dummy = variable(&mut arena, 2);
-        let label = fcons_label(&mut arena, dummy);
-        let domain = apply(&mut arena, family.children, label);
-        let body = {
-            let motive = indexed_motive(&mut arena, &family);
-            let tree = variable(&mut arena, 2);
-            let forest = variable(&mut arena, 1);
-            let bound = variable(&mut arena, 0);
-            case_two(&mut arena, motive, tree, forest, bound)
+    let node_head = constant(&mut arena, NODE, Vec::new());
+    let fcons_head = constant(&mut arena, FCONS, Vec::new());
+    let node = apps(&mut arena, node_head, &[e, f]);
+    let fnil = constant(&mut arena, FNIL, Vec::new());
+    let fcons = apps(&mut arena, fcons_head, &[t, f]);
+
+    check_type(&mut arena, &context, node, t_ty, &mut budget).unwrap();
+    check_type(&mut arena, &context, fnil, f_ty, &mut budget).unwrap();
+    check_type(&mut arena, &context, fcons, f_ty, &mut budget).unwrap();
+
+    // Mutual elimination: `Forest.rec[0] Q_t Q_f m_node m_fnil m_fcons (fcons t f)`
+    // computes in one step to `m_fcons t f (Tree.rec ... t) (Forest.rec ... f)`.
+    let type0 = type_sort(&mut arena, 0);
+    let q_t_ty = pi(&mut arena, t_ty, type0);
+    let q_f_ty = pi(&mut arena, f_ty, type0);
+    // Under [Q_t, Q_f]: Q_f = 0, Q_t = 1.
+    let m_node_ty = {
+        // Π(e:Elem). Π(f:Forest). Π(ih:Q_f f). Q_t (node e f)
+        let ih_ty = {
+            let q_f = variable(&mut arena, 2);
+            let f_var = variable(&mut arena, 0);
+            apply(&mut arena, q_f, f_var)
         };
-        lambda(&mut arena, domain, body)
-    };
-    let fcons = family.sup(&mut arena, label, children_fn);
-    let tree = tree_at(&mut arena, &family);
-    let error = check_type(&mut arena, &context, fcons, tree, &mut budget).unwrap_err();
-    assert!(matches!(error, CoreError::TypeMismatch { .. }));
-
-    // A `node` whose child is a `Tree` rather than a `Forest`: `λ_. t`
-    // at `Π(_ : B (node e)). IW one` never checks — the required index
-    // `one` is the mutual discipline, not a suggestion.
-    let wrong_child = {
-        let element = variable(&mut arena, 2);
-        let label = node_label(&mut arena, element);
-        let domain = apply(&mut arena, family.children, label);
-        let tree = variable(&mut arena, 2);
-        let function = lambda(&mut arena, domain, tree);
-        let element = variable(&mut arena, 2);
-        let label = node_label(&mut arena, element);
-        family.sup(&mut arena, label, function)
-    };
-    let expected = tree_at(&mut arena, &family);
-    assert_check_type_mismatch(&mut arena, &context, wrong_child, expected, &mut budget);
-
-    // An `fcons` child function returning a `Tree` at every position —
-    // `λ(_ : Two). t` — never supplies `IW b` for neutral `b`.
-    let uniform_tree = {
-        let domain = two(&mut arena);
-        let tree = variable(&mut arena, 2);
-        let function = lambda(&mut arena, domain, tree);
-        let dummy = variable(&mut arena, 2);
-        let label = fcons_label(&mut arena, dummy);
-        family.sup(&mut arena, label, function)
-    };
-    let expected = forest_at(&mut arena, &family);
-    assert_check_type_mismatch(&mut arena, &context, uniform_tree, expected, &mut budget);
-
-    // The same with the `caseTwo` branches swapped — a `Forest` at the
-    // head position, a `Tree` at the tail — fails the branch check:
-    // `f : IW one` never lands at `IW zero`.
-    let swapped = {
-        let domain = two(&mut arena);
-        let body = {
-            let motive = indexed_motive(&mut arena, &family);
-            let forest = variable(&mut arena, 1);
-            let tree = variable(&mut arena, 2);
-            let bound = variable(&mut arena, 0);
-            case_two(&mut arena, motive, forest, tree, bound)
+        let ret = {
+            let q_t = variable(&mut arena, 4);
+            let e_var = variable(&mut arena, 2);
+            let f_var = variable(&mut arena, 1);
+            let n = apps(&mut arena, node_head, &[e_var, f_var]);
+            apply(&mut arena, q_t, n)
         };
-        let function = lambda(&mut arena, domain, body);
-        let dummy = variable(&mut arena, 2);
-        let label = fcons_label(&mut arena, dummy);
-        family.sup(&mut arena, label, function)
+        let l3 = pi(&mut arena, ih_ty, ret);
+        let l2 = pi(&mut arena, f_ty, l3);
+        pi(&mut arena, e_ty, l2)
     };
-    let expected = forest_at(&mut arena, &family);
-    assert_check_type_mismatch(&mut arena, &context, swapped, expected, &mut budget);
+    // Under [Q_t, Q_f, m_node]: Q_f = 1.
+    let m_fnil_ty = {
+        let q_f = variable(&mut arena, 1);
+        apply(&mut arena, q_f, fnil)
+    };
+    // Under [Q_t, Q_f, m_node, m_fnil]: Q_f = 2, Q_t = 3.
+    let m_fcons_ty = {
+        // Π(t:Tree). Π(f:Forest). Π(ih_t:Q_t t). Π(ih_f:Q_f f). Q_f (fcons t f)
+        let ih_t_ty = {
+            let q_t = variable(&mut arena, 5);
+            let t_var = variable(&mut arena, 1);
+            apply(&mut arena, q_t, t_var)
+        };
+        let ih_f_ty = {
+            let q_f = variable(&mut arena, 5);
+            let f_var = variable(&mut arena, 1);
+            apply(&mut arena, q_f, f_var)
+        };
+        let ret = {
+            let q_f = variable(&mut arena, 6);
+            let t_var = variable(&mut arena, 3);
+            let f_var = variable(&mut arena, 2);
+            let fc = apps(&mut arena, fcons_head, &[t_var, f_var]);
+            apply(&mut arena, q_f, fc)
+        };
+        let l4 = pi(&mut arena, ih_f_ty, ret);
+        let l3 = pi(&mut arena, ih_t_ty, l4);
+        let l2 = pi(&mut arena, f_ty, l3);
+        pi(&mut arena, t_ty, l2)
+    };
+    let elim_ctx = Context::empty()
+        .with_signature(signature)
+        .extend(q_t_ty)
+        .extend(q_f_ty)
+        .extend(m_node_ty)
+        .extend(m_fnil_ty)
+        .extend(m_fcons_ty)
+        .extend(t_ty)
+        .extend(f_ty);
+    // In elim_ctx: f = 0, t = 1, m_fcons = 2, m_fnil = 3, m_node = 4, Q_f = 5, Q_t = 6.
+    let q_t = variable(&mut arena, 6);
+    let q_f = variable(&mut arena, 5);
+    let m_node = variable(&mut arena, 4);
+    let m_fnil = variable(&mut arena, 3);
+    let m_fcons = variable(&mut arena, 2);
+    let t_v = variable(&mut arena, 1);
+    let f_v = variable(&mut arena, 0);
+    let fc = apps(&mut arena, fcons_head, &[t_v, f_v]);
+    let t_rec = constant(&mut arena, TREE_REC, vec![Level::Constant(0)]);
+    let f_rec = constant(&mut arena, FOREST_REC, vec![Level::Constant(0)]);
+    let elim = apps(&mut arena, f_rec, &[q_t, q_f, m_node, m_fnil, m_fcons, fc]);
+    let expected_ty = apply(&mut arena, q_f, fc);
+    check_type(&mut arena, &elim_ctx, elim, expected_ty, &mut budget).unwrap();
 
-    // A `next` that flips the sorts at `fcons` — head ↦ `one`, tail ↦
-    // `zero` — is a malformed description, not a different family: the
-    // correctly-sorted `fcons` above never checks under it.
-    let mut captured = family.clone();
-    captured.next = {
-        let inner_position_family = {
-            let motive = type_motive(&mut arena);
-            let empty = empty_positions(&mut arena);
-            let positions = two(&mut arena);
-            let bound = variable(&mut arena, 0);
-            let body = case_two(&mut arena, motive, empty, positions, bound);
-            let domain = two(&mut arena);
-            lambda(&mut arena, domain, body)
-        };
-        let motive = {
-            let tag = variable(&mut arena, 1);
-            let payload = variable(&mut arena, 0);
-            let position_type = branching_at(&mut arena, tag, payload);
-            let index = two(&mut arena);
-            let inner = pi(&mut arena, position_type, index);
-            let payload_domain = uniform_payload(&mut arena);
-            let body = pi(&mut arena, payload_domain, inner);
-            let domain = two(&mut arena);
-            lambda(&mut arena, domain, body)
-        };
-        let zero_branch = {
-            let position_domain = unit_position(&mut arena);
-            let index = two_one(&mut arena);
-            let inner = lambda(&mut arena, position_domain, index);
-            let payload_domain = uniform_payload(&mut arena);
-            lambda(&mut arena, payload_domain, inner)
-        };
-        let one_branch = {
-            let inner_motive = {
-                let bound = variable(&mut arena, 0);
-                let positions = apply(&mut arena, inner_position_family, bound);
-                let index = two(&mut arena);
-                let body = pi(&mut arena, positions, index);
-                let domain = two(&mut arena);
-                lambda(&mut arena, domain, body)
-            };
-            let dead = {
-                let position_domain = empty_positions(&mut arena);
-                let index = two_zero(&mut arena);
-                lambda(&mut arena, position_domain, index)
-            };
-            let flipped = {
-                // `λ(b : Two). caseTwo(λ_.Two, one, zero, b)`.
-                let domain = two(&mut arena);
-                let index = two(&mut arena);
-                let motive = lambda(&mut arena, domain, index);
-                let one = two_one(&mut arena);
-                let zero = two_zero(&mut arena);
-                let bound = variable(&mut arena, 0);
-                let body = case_two(&mut arena, motive, one, zero, bound);
-                let domain = two(&mut arena);
-                lambda(&mut arena, domain, body)
-            };
-            let bound = variable(&mut arena, 0);
-            let sub_tag = snd(&mut arena, bound);
-            let selected = case_two(&mut arena, inner_motive, dead, flipped, sub_tag);
-            let payload_domain = uniform_payload(&mut arena);
-            lambda(&mut arena, payload_domain, selected)
-        };
-        let carrier = carrier(&mut arena);
-        tag_selected_children(&mut arena, carrier, motive, zero_branch, one_branch)
-    };
-    let flipped_children = {
-        let motive = indexed_motive(&mut arena, &captured);
-        let tree = variable(&mut arena, 2);
-        let forest = variable(&mut arena, 1);
-        let bound = variable(&mut arena, 0);
-        let body = case_two(&mut arena, motive, tree, forest, bound);
-        let domain = two(&mut arena);
-        lambda(&mut arena, domain, body)
-    };
-    let captured_fcons = {
-        let dummy = variable(&mut arena, 2);
-        let label = fcons_label(&mut arena, dummy);
-        captured.sup(&mut arena, label, flipped_children)
-    };
-    let expected = forest_at(&mut arena, &captured);
-    let error =
-        check_type(&mut arena, &context, captured_fcons, expected, &mut budget).unwrap_err();
-    assert!(matches!(error, argument_error_pair_pattern!()));
+    let ih_t = apps(&mut arena, t_rec, &[q_t, q_f, m_node, m_fnil, m_fcons, t_v]);
+    let ih_f = apps(&mut arena, f_rec, &[q_t, q_f, m_node, m_fnil, m_fcons, f_v]);
+    let expected_red = apps(&mut arena, m_fcons, &[t_v, f_v, ih_t, ih_f]);
+    assert!(
+        convertible(
+            &mut arena,
+            &elim_ctx,
+            elim,
+            expected_red,
+            expected_ty,
+            &mut budget
+        )
+        .unwrap()
+    );
 
-    // A branching family into `Strict` is an illegal strict elimination,
-    // rejected by `caseTwo`'s own motive rule before `W` formation ever
-    // runs.
-    let children = {
-        let carrier = carrier(&mut arena);
-        let unit = unit_position(&mut arena);
-        let positions = two(&mut arena);
-        strict_branching(&mut arena, carrier, unit, |_, _| positions)
-    };
-    let index = variable(&mut arena, 2);
-    let error = strict_children_error(&mut arena, &context, &family, children, index, &mut budget);
-    assert!(matches!(
-        error,
-        CoreError::StrictCaseMotiveCodomain { .. } | CoreError::TypeMismatch { .. }
-    ));
+    // A `node` is a `Tree`, never a `Forest`, and `fcons` is never a `Tree`.
+    let err = check_type(&mut arena, &context, node, f_ty, &mut budget).unwrap_err();
+    assert!(matches!(err, CoreError::TypeMismatch { .. }));
+    let err = check_type(&mut arena, &context, fcons, t_ty, &mut budget).unwrap_err();
+    assert!(matches!(err, CoreError::TypeMismatch { .. }));
 
-    // The eliminator is universe-polymorphic over the motive level `w`:
-    // claiming `w = 1` while `Q` lands at `Type 0` is a bad universe,
-    // not a different judgment.
-    let context = eliminator_prefix(&mut arena, &family).extend({
-        let dummy = variable(&mut arena, 0);
-        let label = fcons_label(&mut arena, dummy);
-        let domain = apply(&mut arena, family.children, label);
-        let codomain = {
-            let dummy = variable(&mut arena, 1);
-            let label = fcons_label(&mut arena, dummy);
-            next_indexed_w(&mut arena, &family, label)
-        };
-        pi(&mut arena, domain, codomain)
-    });
-    // In Γ: g = 0, e = 1, s = 2, Q = 3.
-    let dummy = variable(&mut arena, 1);
-    let label = fcons_label(&mut arena, dummy);
-    let function = variable(&mut arena, 0);
-    let fcons = family.sup(&mut arena, label, function);
-    let motive = variable(&mut arena, 3);
-    let step = variable(&mut arena, 2);
-    let index = two_one(&mut arena);
-    let elimination = family.ind(&mut arena, Level::Constant(1), motive, step, index, fcons);
-    let shared = {
-        let motive = variable(&mut arena, 3);
-        let index = two_one(&mut arena);
-        let at_index = apply(&mut arena, motive, index);
-        apply(&mut arena, at_index, fcons)
-    };
-    assert_check_type_mismatch(&mut arena, &context, elimination, shared, &mut budget);
+    // Passing a `Tree` where `node` requires `Forest`, or swapping `fcons` arguments, fails.
+    let wrong_child = apps(&mut arena, node_head, &[e, t]);
+    assert_check_type_mismatch(&mut arena, &context, wrong_child, t_ty, &mut budget);
+    let swapped = apps(&mut arena, fcons_head, &[f, t]);
+    assert_check_type_mismatch(&mut arena, &context, swapped, f_ty, &mut budget);
+
+    // Wrong motive universe `w = 1` when `Q_t, Q_f` land in `Type 0`.
+    let f_rec_high = constant(&mut arena, FOREST_REC, vec![Level::Constant(1)]);
+    let bad_univ = apps(
+        &mut arena,
+        f_rec_high,
+        &[q_t, q_f, m_node, m_fnil, m_fcons, fc],
+    );
+    assert_check_type_mismatch(&mut arena, &elim_ctx, bad_univ, expected_ty, &mut budget);
+
+    // Non-positive mutual occurrence: `mk : Π(_ : Π(_ : Forest). Two). Tree`
+    // is rejected by `check_signature` with `NonStrictlyPositiveOccurrence`.
+    let c0 = constant(&mut arena, 0, Vec::new());
+    let c1 = constant(&mut arena, 1, Vec::new());
+    let two_ty = two(&mut arena);
+    let neg_dom = pi(&mut arena, c1, two_ty);
+    let bad_ctor = pi(&mut arena, neg_dom, c0);
+    let bad_decls =
+        declare_mutual_inductive_family(&mut arena, 0, 0, 0, &[type0, type0], &[(0, bad_ctor)]);
+    let err = check_signature(&mut arena, &bad_decls, &mut budget).unwrap_err();
+    assert!(matches!(err, CoreError::NonStrictlyPositiveOccurrence));
 }

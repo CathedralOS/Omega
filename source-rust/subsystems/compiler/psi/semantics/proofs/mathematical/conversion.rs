@@ -1,5 +1,5 @@
 use super::signature::Signature;
-use super::substitution::{instantiate_levels, shift, substitute};
+use super::substitution::{instantiate_levels, substitute};
 use super::term::{Term, TermArena, TermHandle};
 use super::typing::{Context, CoreError};
 
@@ -197,36 +197,6 @@ pub fn weak_head_normalize_retaining(
                     current = base;
                     continue 'normalize;
                 }
-                (
-                    Term::IndW { motive, step, .. },
-                    Term::Sup {
-                        children,
-                        label,
-                        function,
-                        ..
-                    },
-                ) => {
-                    budget.consume()?;
-                    let bound_domain = arena.insert(row!(Apply => children => label));
-                    let shifted_motive = shift(arena, motive, 0, 1);
-                    let shifted_step = shift(arena, step, 0, 1);
-                    let shifted_function = shift(arena, function, 0, 1);
-                    let bound = arena.insert(Term::Variable(0));
-                    let child = arena.insert(row!(Apply => shifted_function => bound));
-                    let body = arena.insert(Term::IndW {
-                        motive: shifted_motive,
-                        step: shifted_step,
-                        tree: child,
-                    });
-                    let hypothesis = arena.insert(Term::Lambda {
-                        domain: bound_domain,
-                        body,
-                    });
-                    let applied = arena.insert(row!(Apply => step => label));
-                    let applied = arena.insert(row!(Apply => applied => function));
-                    current = arena.insert(row!(Apply => applied => hypothesis));
-                    continue 'normalize;
-                }
                 (Term::SquashElim { function, .. }, Term::SquashIntro { value, .. }) => {
                     budget.consume()?;
                     current = arena.insert(row!(Apply => function => value));
@@ -251,7 +221,6 @@ fn weak_head_focus(node: &Term) -> Option<(TermHandle, usize)> {
         Term::Fst { pair } | Term::Snd { pair } => Some((*pair, 0)),
         Term::CaseTwo { scrutinee, .. } => Some((*scrutinee, 3)),
         Term::IdElim { proof, .. } => Some((*proof, 3)),
-        Term::IndW { tree, .. } => Some((*tree, 2)),
         Term::EmptyElim { scrutinee, .. } => Some((*scrutinee, 1)),
         Term::SquashElim { scrutinee, .. } | Term::BoxElim { scrutinee, .. } => {
             Some((*scrutinee, 2))

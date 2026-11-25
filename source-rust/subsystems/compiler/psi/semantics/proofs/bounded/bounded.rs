@@ -432,18 +432,17 @@ pub use integer_rules::integer_shift::{
 pub use kernel::{KernelError, PrimitiveJudgment, decide_primitive};
 pub use mathematical_kernel::{
     Budget, Context, CoreError, DEFAULT_CONVERSION_STEPS, Declaration, DeclarationKind,
-    EquivalenceProofs, INDEXED_AT, INDEXED_IND, INDEXED_PACK, INDEXED_SUP, INDEXED_W,
-    IndexedFamily, Level, MathematicalCertificate, MathematicalCertificateBatchError, PlainData,
-    QUOTIENT, QUOTIENT_BETA, QUOTIENT_BOX_PROP, QUOTIENT_COVERAGE, QUOTIENT_EFFECTIVE,
+    EquivalenceProofs, Level, MathematicalCertificate, MathematicalCertificateBatchError,
+    PlainData, QUOTIENT, QUOTIENT_BETA, QUOTIENT_BOX_PROP, QUOTIENT_COVERAGE, QUOTIENT_EFFECTIVE,
     QUOTIENT_ELIM, QUOTIENT_ID_CANCEL, QUOTIENT_ID_SYM, QUOTIENT_ID_TRANS, QUOTIENT_IND_PROP,
     QUOTIENT_IS_SET, QUOTIENT_LIFT, QUOTIENT_PROJECT, QUOTIENT_PROP_IS_SET, QUOTIENT_SET,
     QUOTIENT_SOUND, QUOTIENT_TRANSPORT, QUOTIENT_TRANSPORT_CONST, QUOTIENT_UNIQUE, QuotientFamily,
     Signature, SignatureCheckError, Sort, Term, TermArena, TermHandle, argument_error_pair_pattern,
     assumption_closure, certificate_assumption_closure, check_signature,
     check_signature_with_attribution, check_type, convertible, convertible_retaining,
-    declare_inductive_family, identity_substitution, indexed_correctness, indexed_scheme,
-    infer_sort, infer_type, instantiate, instantiate_levels, judgment_assumption_closure,
-    quotient_scheme, shift, substitute, universe_parameter_arity, verify_mathematical_certificate,
+    declare_inductive_family, declare_mutual_inductive_family, identity_substitution, infer_sort,
+    infer_type, instantiate, instantiate_levels, judgment_assumption_closure, quotient_scheme,
+    shift, substitute, universe_parameter_arity, verify_mathematical_certificate,
     verify_mathematical_certificates, weak_head_normalize, weak_head_normalize_retaining,
 };
 pub use predicate_denotation::{

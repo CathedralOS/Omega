@@ -442,21 +442,6 @@ pub enum Term {
         endpoint: TermHandle,
         proof: TermHandle,
     },
-    W {
-        carrier: TermHandle,
-        children: TermHandle,
-    },
-    Sup {
-        carrier: TermHandle,
-        children: TermHandle,
-        label: TermHandle,
-        function: TermHandle,
-    },
-    IndW {
-        motive: TermHandle,
-        step: TermHandle,
-        tree: TermHandle,
-    },
     Empty,
     EmptyElim {
         ty: TermHandle,
@@ -626,9 +611,6 @@ term_layout! {
     Id { ty: 0, left: 0, right: 0 }
     Refl { ty: 0, value: 0 }
     IdElim { motive: 0, base: 0, endpoint: 0, proof: 0 }
-    W { carrier: 0, children: 0 }
-    Sup { carrier: 0, children: 0, label: 0, function: 0 }
-    IndW { motive: 0, step: 0, tree: 0 }
     EmptyElim { ty: 0, scrutinee: 0 }
     Squash { ty: 0 }
     SquashIntro { ty: 0, value: 0 }
