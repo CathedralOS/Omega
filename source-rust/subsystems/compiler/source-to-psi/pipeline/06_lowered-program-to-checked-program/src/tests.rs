@@ -91,6 +91,7 @@ mod quotient;
 mod ranges;
 pub(crate) mod rankings;
 mod reach;
+mod record_identity;
 mod record_law;
 mod references;
 mod representation_views;

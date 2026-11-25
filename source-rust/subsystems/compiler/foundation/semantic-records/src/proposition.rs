@@ -1642,7 +1642,7 @@ mod propositions {
     use crate::proposition::{
         ByteSequenceStructuralField, IeeeFloatComparisonKind, IeeeFloatFormat,
         IeeeFloatStructuralField, IntegerMathTerm, IntegerType, IntegerValue, ScalarTerm,
-        ScalarType, StructuralCaseSubject, StructuralIdentitySubject,
+        ScalarType, StructuralCaseSubject,
     };
     use crate::{
         ContentConservation, ContentPlaceVersion, ContentTerm, PlaceId, PropositionId,
@@ -1699,10 +1699,6 @@ mod propositions {
                     right: right.clone(),
                 },
                 ByteSequenceEqual { left, right } => ByteSequenceEqual {
-                    left: left.clone(),
-                    right: right.clone(),
-                },
-                StructuralIdentity { left, right } => StructuralIdentity {
                     left: left.clone(),
                     right: right.clone(),
                 },
@@ -1825,8 +1821,6 @@ mod propositions {
                                 if kind == other_kind && format == other_format && a == c && b == d),
                         ByteSequenceEqual { left: a, right: b } => matches!(right,
                             ByteSequenceEqual { left: c, right: d } if a == c && b == d),
-                        StructuralIdentity { left: a, right: b } => matches!(right,
-                            StructuralIdentity { left: c, right: d } if a == c && b == d),
                         StructuralCaseMembership { subject, case } => matches!(right,
                             StructuralCaseMembership { subject: other_subject, case: other_case }
                                 if subject == other_subject && case == other_case),
@@ -1954,10 +1948,6 @@ mod propositions {
                             left.hash(state);
                             right.hash(state);
                         }
-                        StructuralIdentity { left, right } => {
-                            left.hash(state);
-                            right.hash(state);
-                        }
                         StructuralCaseMembership { subject, case } => {
                             subject.hash(state);
                             case.hash(state);
@@ -2015,10 +2005,6 @@ mod propositions {
         ByteSequenceEqual {
             left: ByteSequenceStructuralField,
             right: ByteSequenceStructuralField,
-        },
-        StructuralIdentity {
-            left: StructuralIdentitySubject,
-            right: StructuralIdentitySubject,
         },
         StructuralCaseMembership {
             subject: StructuralCaseSubject,
@@ -2193,14 +2179,6 @@ mod propositions {
                             return Err(PropositionError::NonCanonicalByteSequenceEqualOperands);
                         }
                     }
-                    Self::StructuralIdentity { left, right } => {
-                        if left.structural_type() != right.structural_type() {
-                            return Err(PropositionError::StructuralIdentityTypeMismatch);
-                        }
-                        if left > right {
-                            return Err(PropositionError::NonCanonicalStructuralIdentityOperands);
-                        }
-                    }
                     Self::StructuralCaseMembership { .. } => {}
                     Self::Conjunction(conjuncts) => {
                         if conjuncts.len() < 2 {
@@ -2337,15 +2315,6 @@ mod propositions {
                         for field in [left, right] {
                             if !self.structural_places.contains_key(&field.root) {
                                 return Err(PropositionError::UnknownStructuralPlace(field.root));
-                            }
-                        }
-                    }
-                    Proposition::StructuralIdentity { left, right } => {
-                        for subject in [left, right] {
-                            if !self.structural_places.contains_key(&subject.root()) {
-                                return Err(PropositionError::UnknownStructuralPlace(
-                                    subject.root(),
-                                ));
                             }
                         }
                     }
@@ -2572,9 +2541,7 @@ mod propositions {
         OpaqueCallableInProof,
         InvalidFloatMeaningClause(&'static str),
         InvalidFloatIntegerConversion(Box<crate::FloatIntegerConversionError>),
-        StructuralIdentityTypeMismatch,
         InvalidClauseIdentity,
-        NonCanonicalStructuralIdentityOperands,
         EmptyStructuralReadPath,
         NonCanonicalScalarReadProjection,
         StructuralReadIndexType(ScalarType),
@@ -2720,7 +2687,6 @@ mod value_ids {
                             | Self::Atom(_)
                             | Self::IeeeFloatComparison { .. }
                             | Self::ByteSequenceEqual { .. }
-                            | Self::StructuralIdentity { .. }
                             | Self::StructuralCaseMembership { .. }
                             | Self::ContentConservation(_) => {}
                             Self::DeclarationIdentity(clause) => {
@@ -2893,7 +2859,6 @@ mod value_ids {
                     Proposition::Atom(_)
                     | Proposition::IeeeFloatComparison { .. }
                     | Proposition::ByteSequenceEqual { .. }
-                    | Proposition::StructuralIdentity { .. }
                     | Proposition::StructuralCaseMembership { .. }
                     | Proposition::ContentConservation(_) => complete = false,
                     Proposition::DeclarationIdentity(clause) => {
@@ -3183,7 +3148,7 @@ pub use propositions::{Proposition, PropositionContext, PropositionError};
 pub use scalar_terms::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, IeeeFloatComparisonKind,
     IeeeFloatFormat, IeeeFloatStructuralField, IeeeFloatValue, ScalarReadProjection, ScalarTerm,
-    ScalarType, StructuralCaseSubject, StructuralIdentitySubject,
+    ScalarType, StructuralCaseSubject,
 };
 
 #[cfg(test)]

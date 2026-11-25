@@ -2087,7 +2087,6 @@ impl<'a> Prover<'a> {
             Proposition::Atom(_)
             | Proposition::IeeeFloatComparison { .. }
             | Proposition::ByteSequenceEqual { .. }
-            | Proposition::StructuralIdentity { .. }
             | Proposition::StructuralCaseMembership { .. }
             | Proposition::ContentConservation(_) => Err("goal form outside this prover"),
             Proposition::FloatMeaningEqual(_) => self.float_meaning(goal),

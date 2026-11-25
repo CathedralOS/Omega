@@ -269,26 +269,35 @@ impl CheckedPrefix<'_> {
                 *case = self.case_for_clause(roots, parent, *case)?;
                 *subject = semantic_vocabulary::StructuralCaseSubject::new(subject.root(), path);
             }
-            DeclarationIdentity(_) => return None,
-            StructuralIdentity { left, right } => {
-                for subject in [&mut *left, &mut *right] {
-                    let mut path = subject.path().to_vec();
-                    let ty = self.clause_path(roots, subject.root(), &mut path)??;
-                    if subject.structural_type() != ty {
-                        return None;
-                    }
-                    let translated = match roots {
-                        Roots::Machine(..) => self.structural_type(ty)?,
-                        Roots::Record(_) => self.nominal_type(ty)?.0,
-                    };
-                    *subject = semantic_vocabulary::StructuralIdentitySubject::new(
-                        subject.root(),
-                        path,
-                        translated,
-                    );
+            // Only a published Identity crosses: an input at its data type
+            // and a scalar term at its scalar type.
+            DeclarationIdentity(clause) => {
+                use semantic_vocabulary::{ClauseCarrier, ClauseOperand};
+                if !clause.is_portable() {
+                    return None;
                 }
-                if left > right {
-                    std::mem::swap(left, right);
+                for value in &mut clause.values {
+                    match (&mut value.carrier, &mut value.operand) {
+                        (ClauseCarrier::Structural(carrier), ClauseOperand::Input(subject)) => {
+                            let mut path = subject.path().to_vec();
+                            let ty = self.clause_path(roots, subject.root(), &mut path)??;
+                            if *carrier != ty {
+                                return None;
+                            }
+                            *carrier = match roots {
+                                Roots::Machine(..) => self.structural_type(ty)?,
+                                Roots::Record(_) => self.nominal_type(ty)?.0,
+                            };
+                            *subject = semantic_vocabulary::StructuralCaseSubject::new(
+                                subject.root(),
+                                path,
+                            );
+                        }
+                        (ClauseCarrier::Scalar(_), ClauseOperand::Scalar(term)) => {
+                            self.clause_scalar(roots, term)?
+                        }
+                        _ => return None,
+                    }
                 }
             }
             Conjunction(_) | Disjunction(_) | Implication { .. } => {

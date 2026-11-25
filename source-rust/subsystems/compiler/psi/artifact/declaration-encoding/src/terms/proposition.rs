@@ -1,7 +1,4 @@
-use semantic_vocabulary::{
-    ContentConservation, Proposition, PropositionId, StructuralCaseSubject,
-    StructuralIdentitySubject,
-};
+use semantic_vocabulary::{ContentConservation, Proposition, PropositionId, StructuralCaseSubject};
 
 use crate::CodecError;
 use crate::structural_fields::{
@@ -108,8 +105,10 @@ impl TermEncoding for PropositionTable {
     }
 }
 
-/// The checker orders input clauses before building the kernel signature.
-fn write_checking_identity(
+/// One layout serves both writers: a module publishes an Identity of inputs
+/// and scalar terms, and the checker's ordering key, which never leaves the
+/// compiler, may also name type parameters, formals and applications.
+fn write_identity(
     writer: &mut Writer,
     clause: &semantic_vocabulary::ClauseIdentity,
 ) -> Result<(), CodecError> {
@@ -174,6 +173,47 @@ fn write_checking_identity(
     writer.u32(clause.left);
     writer.u32(clause.right);
     Ok(())
+}
+
+/// A published Identity: each value an input at its data type or a scalar
+/// term at its scalar type. The forms only the checker's ordering key holds
+/// are refused by tag.
+fn read_identity(
+    reader: &mut Reader<'_>,
+) -> Result<semantic_vocabulary::ClauseIdentity, CodecError> {
+    use semantic_vocabulary::{ClauseCarrier, ClauseIdentity, ClauseOperand, ClauseValue};
+    let count = bounded_count(reader, 2)?;
+    let mut values = Vec::with_capacity(count);
+    for _ in 0..count {
+        let carrier = match reader.u8()? {
+            1 => ClauseCarrier::Scalar(crate::terms::scalar_types::decode_scalar_type(reader)?),
+            2 => ClauseCarrier::Structural(reader.id("StructuralTypeId")?),
+            tag => return Err(CodecError::InvalidTag("Identity carrier", tag)),
+        };
+        let operand = match reader.u8()? {
+            0 => {
+                let (root, path) = decode_canonical_structural_field(reader)?;
+                ClauseOperand::Input(StructuralCaseSubject::new(root, path))
+            }
+            1 => ClauseOperand::Scalar(decode_scalar_term(reader)?),
+            tag => return Err(CodecError::InvalidTag("Identity operand", tag)),
+        };
+        values.push(ClauseValue { carrier, operand });
+    }
+    let clause = ClauseIdentity {
+        values,
+        left: reader.u32()?,
+        right: reader.u32()?,
+    };
+    clause
+        .validate()
+        .map_err(CodecError::MalformedProposition)?;
+    if !clause.is_portable() {
+        return Err(CodecError::MalformedStructuralFoundation(
+            "a published Identity pairs an operand with another carrier",
+        ));
+    }
+    Ok(clause)
 }
 
 fn write_proposition_row(writer: &mut Writer, proposition: &Proposition) -> Result<(), CodecError> {
@@ -264,12 +304,12 @@ fn write_proposition_row(writer: &mut Writer, proposition: &Proposition) -> Resu
             writer.id(*case);
         }
         Proposition::DeclarationIdentity(clause) => {
-            if !writer.is_checking_identity() {
+            if !writer.is_checking_identity() && !clause.is_portable() {
                 return Err(CodecError::MalformedStructuralFoundation(
                     "a declaration Identity needs its checked mathematical signature for publication",
                 ));
             }
-            write_checking_identity(writer, clause)?;
+            write_identity(writer, clause)?;
         }
         Proposition::FloatMeaningEqual(clause) => {
             writer.u8(19);
@@ -288,18 +328,6 @@ fn write_proposition_row(writer: &mut Writer, proposition: &Proposition) -> Resu
             writer.u8(22);
             encode_scalar_term(writer, source)?;
             encode_ieee_float_format(writer, *target);
-        }
-        Proposition::StructuralIdentity { left, right } => {
-            writer.u8(18);
-            for subject in [left, right] {
-                writer.id(subject.structural_type());
-                encode_canonical_structural_field(
-                    writer,
-                    subject.root(),
-                    subject.path(),
-                    "structural identity subject path",
-                )?;
-            }
         }
     }
     Ok(())
@@ -375,17 +403,6 @@ fn read_proposition_row(
             left: decode_scalar_term(reader)?,
             right: decode_scalar_term(reader)?,
         },
-        18 => {
-            let mut subject = || {
-                let structural_type = reader.id("StructuralTypeId")?;
-                let (root, path) = decode_canonical_structural_field(reader)?;
-                Ok::<_, CodecError>(StructuralIdentitySubject::new(root, path, structural_type))
-            };
-            Proposition::StructuralIdentity {
-                left: subject()?,
-                right: subject()?,
-            }
-        }
         19 => Proposition::FloatMeaningEqual(MeaningEquation::read(reader)?),
         20 => Proposition::FloatIntegerConversion(IntegerConversion::read(reader)?),
         21 => Proposition::IeeeFloatIntegerExact {
@@ -396,6 +413,7 @@ fn read_proposition_row(
             source: decode_scalar_term(reader)?,
             target: decode_ieee_float_format(reader)?,
         },
+        23 => Proposition::DeclarationIdentity(read_identity(reader)?),
         tag => return Err(CodecError::InvalidTag("Proposition", tag)),
     })
 }
@@ -565,6 +583,99 @@ mod meaning_equation_tests {
         assert!(
             decoded.validate().is_err(),
             "catalog commitment mutation cannot become an opaque accepted equality"
+        );
+    }
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use super::*;
+    use semantic_vocabulary::{
+        CanonicalStructuralPathSegment, ClauseCarrier, ClauseIdentity, ClauseOperand, ClauseValue,
+        IntegerSign, IntegerType, PlaceId, ScalarType, StructuralFieldId, StructuralTypeId,
+        ValueId,
+    };
+
+    fn identity(values: Vec<ClauseValue>) -> Proposition {
+        Proposition::DeclarationIdentity(ClauseIdentity {
+            values,
+            left: 0,
+            right: 1,
+        })
+    }
+
+    fn round_trip(original: &Proposition) -> Result<Proposition, CodecError> {
+        let mut writer = Writer::default();
+        encode_proposition(&mut writer, original)?;
+        let bytes = writer.finish();
+        let mut reader = Reader::new(&bytes);
+        let decoded = decode_proposition(&mut reader)?;
+        assert_eq!(reader.remaining(), 0);
+        Ok(decoded)
+    }
+
+    #[test]
+    fn an_identity_of_inputs_and_scalar_terms_is_published_as_tag_23() {
+        let record = ClauseCarrier::Structural(StructuralTypeId::new(3).unwrap());
+        let input = |root, path| ClauseValue {
+            carrier: record,
+            operand: ClauseOperand::Input(StructuralCaseSubject::new(
+                PlaceId::new(root).unwrap(),
+                path,
+            )),
+        };
+        let field = vec![CanonicalStructuralPathSegment::Field(
+            StructuralFieldId::new(2).unwrap(),
+        )];
+        let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+        let scalar = |id| ClauseValue {
+            carrier: ClauseCarrier::Scalar(integer),
+            operand: ClauseOperand::Scalar(ScalarTerm::value(ValueId::new(id).unwrap(), integer)),
+        };
+        for original in [
+            identity(vec![input(1, Vec::new()), input(2, field.clone())]),
+            identity(vec![scalar(1), scalar(2)]),
+        ] {
+            assert_eq!(round_trip(&original).unwrap(), original);
+        }
+        // An applied declaration or a type parameter names what only the
+        // source checker's signature defines, so a module refuses it.
+        let applied = ClauseValue {
+            carrier: record,
+            operand: ClauseOperand::Application {
+                declaration: semantic_vocabulary::ClauseDeclaration {
+                    supplier: None,
+                    member: (1, 1),
+                },
+                arguments: vec![0],
+            },
+        };
+        let parameter = ClauseValue {
+            carrier: ClauseCarrier::Parameter(0),
+            operand: ClauseOperand::Formal(0),
+        };
+        for unpublished in [
+            identity(vec![input(1, Vec::new()), applied]),
+            identity(vec![parameter.clone(), parameter]),
+        ] {
+            assert_eq!(
+                round_trip(&unpublished),
+                Err(CodecError::MalformedStructuralFoundation(
+                    "a declaration Identity needs its checked mathematical signature for publication",
+                ))
+            );
+        }
+    }
+
+    #[test]
+    fn the_retired_structural_identity_tag_is_rejected() {
+        let mut writer = Writer::default();
+        encode_proposition(&mut writer, &Proposition::Truth).unwrap();
+        let mut bytes = writer.finish();
+        *bytes.last_mut().unwrap() = 18;
+        assert_eq!(
+            decode_proposition(&mut Reader::new(&bytes)),
+            Err(CodecError::InvalidTag("Proposition", 18))
         );
     }
 }

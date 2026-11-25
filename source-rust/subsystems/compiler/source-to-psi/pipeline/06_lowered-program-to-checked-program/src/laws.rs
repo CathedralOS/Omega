@@ -1163,14 +1163,9 @@ fn prove_family(
         // constraints and the theorem at every child, the goal.
         let children = held.len();
         let mut arguments = Vec::with_capacity(hypotheses.len());
-        let mut rest = variable(arena, children);
+        let all = variable(arena, children);
         for constraint in 0..constraints.len() {
-            if constraint + 1 == constraints.len() {
-                arguments.push(rest);
-            } else {
-                arguments.push(arena.insert(Term::Fst { pair: rest }));
-                rest = arena.insert(Term::Snd { pair: rest });
-            }
+            arguments.push(arena.tuple_component(all, constraint, constraints.len()));
         }
         for (child, &cited) in case.cited.iter().enumerate() {
             if cited {

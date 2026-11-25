@@ -340,14 +340,6 @@ pub(crate) mod proposition_encoding {
                 encode_case_subject(bytes, subject);
                 bytes.id(*case);
             }
-            Proposition::StructuralIdentity { left, right } => {
-                bytes.u8(18);
-                for subject in [left, right] {
-                    bytes.id(subject.structural_type());
-                    bytes.id(subject.root());
-                    encode_canonical_path(bytes, subject.path());
-                }
-            }
             Proposition::ScalarIeeeFloatComparison {
                 kind,
                 format,
@@ -377,8 +369,9 @@ pub(crate) mod proposition_encoding {
                 encode_scalar_term(bytes, source);
                 encode_float_format(bytes, *target);
             }
-            // Psi publication refuses a declaration Identity, but this encoder
-            // cannot refuse, so it binds every field of the clause instead.
+            // Psi publishes only an Identity of inputs and scalar terms, but
+            // this encoder cannot refuse, so it binds every field of the
+            // clause instead.
             Proposition::DeclarationIdentity(clause) => {
                 use semantic_vocabulary::{ClauseCarrier, ClauseOperand};
                 bytes.u8(23);

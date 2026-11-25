@@ -6082,36 +6082,40 @@ pub(crate) mod scalar_observations {
                         }
                     }
                 }
-                Proposition::DeclarationIdentity(_) => return malformed("unpublished declaration Identity in a portable proposition"),
-                Proposition::StructuralIdentity { left, right } => {
-                    if left.structural_type() != right.structural_type() {
-                        return malformed(
-                            "structural identity operands have different declared types",
-                        );
+                Proposition::DeclarationIdentity(clause) => {
+                    use semantic_vocabulary::{ClauseCarrier, ClauseOperand};
+                    if !clause.is_portable() || clause.validate().is_err() {
+                        return malformed("unpublished declaration Identity in a portable proposition");
                     }
-                    for subject in [left, right] {
-                        let Some(root) = root_type(subject.root()) else {
-                            return malformed("structural identity has no readable declared root");
-                        };
-                        let Some(endpoint) = canonical_structural_path_tip(
-                            module.types.structural_types.iter(),
-                            root,
-                            subject.path(),
-                        ) else {
-                            return malformed("structural identity has no exact declared endpoint");
-                        };
-                        if endpoint.id != subject.structural_type()
-                            || !matches!(
-                                endpoint.shape,
-                                terminal_psi::StructuralTypeShape::Record { .. }
-                                    | terminal_psi::StructuralTypeShape::Sum { .. }
-                                    | terminal_psi::StructuralTypeShape::Mixed { .. }
-                                    | terminal_psi::StructuralTypeShape::FixedArray { .. }
-                            )
-                        {
-                            return malformed(
-                                "structural identity disagrees with its exact data carrier",
-                            );
+                    for value in &clause.values {
+                        match (value.carrier, &value.operand) {
+                            (ClauseCarrier::Structural(carrier), ClauseOperand::Input(subject)) => {
+                                let Some(root) = root_type(subject.root()) else {
+                                    return malformed("Identity input has no readable declared root");
+                                };
+                                let Some(endpoint) = canonical_structural_path_tip(
+                                    module.types.structural_types.iter(),
+                                    root,
+                                    subject.path(),
+                                ) else {
+                                    return malformed("Identity input has no exact declared endpoint");
+                                };
+                                if endpoint.id != carrier
+                                    || !matches!(
+                                        endpoint.shape,
+                                        terminal_psi::StructuralTypeShape::Record { .. }
+                                            | terminal_psi::StructuralTypeShape::Sum { .. }
+                                            | terminal_psi::StructuralTypeShape::Mixed { .. }
+                                            | terminal_psi::StructuralTypeShape::FixedArray { .. }
+                                    )
+                                {
+                                    return malformed(
+                                        "Identity input disagrees with its exact data carrier",
+                                    );
+                                }
+                            }
+                            (_, ClauseOperand::Scalar(term)) => scalars.push((term, false)),
+                            _ => return malformed("unpublished declaration Identity in a portable proposition"),
                         }
                     }
                 }

@@ -216,7 +216,6 @@ fn in_scope(
             Proposition::Atom(_)
             | Proposition::IeeeFloatComparison { .. }
             | Proposition::ByteSequenceEqual { .. }
-            | Proposition::StructuralIdentity { .. }
             | Proposition::StructuralCaseMembership { .. }
             | Proposition::ContentConservation(_) => inside = false,
             _ => {}
@@ -1094,6 +1093,7 @@ pub(crate) fn check<'a>(
                         obligation,
                         clause,
                         machine.law_instances,
+                        &mut machine.storage.at_entry(references, tables),
                     )
                     .map(Discharged::Identity);
                 }

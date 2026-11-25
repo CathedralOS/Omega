@@ -510,9 +510,10 @@ pub fn substitute_clause_with_computation_names<Error: From<&'static str>>(
             let mut mapped = clause.clone();
             for value in &mut mapped.values {
                 match &mut value.operand {
+                    // The input that supplied the whole value supplied each
+                    // of its fields, at the same path.
                     semantic_vocabulary::ClauseOperand::Input(subject) => {
-                        if !subject.path().is_empty() { return Err(Error::from("a whole input has no field correspondence")); }
-                        *subject = semantic_vocabulary::StructuralCaseSubject::new(bindings.whole_input(subject.root())?, Vec::new());
+                        *subject = semantic_vocabulary::StructuralCaseSubject::new(bindings.whole_input(subject.root())?, subject.path().to_vec());
                     }
                     semantic_vocabulary::ClauseOperand::Scalar(term) => *term = bound_term(term, bindings, computation_names)?,
                     semantic_vocabulary::ClauseOperand::Formal(_) => return Err(Error::from("a schema formal has no applied value")),

@@ -68,13 +68,6 @@ pub fn validate_canonical_proposition(proposition: &Proposition) -> Result<(), C
                 }
                 Proposition::StructuralCaseMembership { .. } => {}
                 Proposition::DeclarationIdentity(clause) => clause.validate().map_err(CodecError::MalformedProposition)?,
-                Proposition::StructuralIdentity { left, right } => {
-                    if left > right {
-                        return Err(CodecError::NonCanonicalOrder(
-                            "structural identity operands",
-                        ));
-                    }
-                }
                 Proposition::Conjunction(conjuncts) => {
                     if conjuncts
                         .iter()

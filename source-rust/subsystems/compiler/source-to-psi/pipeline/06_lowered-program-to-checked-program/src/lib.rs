@@ -1000,6 +1000,7 @@ fn check_prepared_machine(
             if let Proposition::DeclarationIdentity(clause) = &goal {
                 return equality::discharge(
                     module, lowered, tables, graph, row.created_at, obligation, clause, law_instances,
+                    &mut storage.at_entry(references, tables),
                 ).map(Discharged::Identity);
             }
             if let Some(carry) = &carrier
