@@ -86,6 +86,17 @@ pub(crate) fn parse_required_logical_proof_facts_until<'tokens, 'source>(
     parse_fact_list(syntax_trees, input, is_terminator, true, true, true)
 }
 
+// Standalone membership facts also accept the established type-style spelling.
+fn domain_argument_start<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> Result<Input<'tokens, 'source>, ParseError> {
+    if input.at_expression_arguments() {
+        input.take_punctuation(PunctuationKind::ColonColon, "::")
+    } else {
+        Ok(input)
+    }
+}
+
 /// A qualified path can be a domain or the lower bound of a range. A chain
 /// of domain applications ends at the fact boundary; a numeric expression
 /// instead continues to the range separator, even when it uses `&` or `|`.
@@ -99,6 +110,7 @@ fn begins_domain_membership<'tokens, 'source>(
             let (_, next) = rest.take_path_separator()?.take_identifier()?;
             rest = next;
         }
+        rest = domain_argument_start(rest)?;
         if rest.at_punctuation(PunctuationKind::Less) {
             let Some(next) = rest.after_static_argument_list() else {
                 // Let the domain argument parser diagnose the unfinished application.
@@ -153,7 +165,8 @@ fn parse_fact_list<'tokens, 'source>(
                     syntax_trees.items.append_identifier_path_member(member)
                 })?;
                 let argument_start = rest;
-                let (first_arguments, rest) = parse_domain_argument_handles(syntax_trees, rest)?;
+                let (first_arguments, rest) =
+                    parse_domain_argument_handles(syntax_trees, domain_argument_start(rest)?)?;
                 let mut argument_site = (!first_arguments.is_empty()).then_some(argument_start);
                 input = rest;
 
@@ -190,7 +203,7 @@ fn parse_fact_list<'tokens, 'source>(
                     })?;
                     let argument_start = rest;
                     let (domain_arguments, rest) =
-                        parse_domain_argument_handles(syntax_trees, rest)?;
+                        parse_domain_argument_handles(syntax_trees, domain_argument_start(rest)?)?;
                     if !domain_arguments.is_empty() && argument_site.is_none() {
                         argument_site = Some(argument_start);
                     }

@@ -1674,26 +1674,26 @@ fn file_qualified_names_can_start_domain_and_range_proof_facts() {
 
 #[test]
 fn a_qualified_domain_in_a_proof_fact_keeps_its_index_argument() {
-    let (parsed, facts) = parse_domain_facts(
-        r#"
-        domain Extent::Access
-        requires
-            self in Carry::AnyCpu<SlotPlacement>
-        "#,
-    );
-    let [ProofFact::Membership(membership)] = facts.as_slice() else {
-        panic!("expected one domain membership, got {facts:?}");
-    };
-    let arguments = parsed
-        .type_references
-        .type_reference_handles(membership.domain_arguments);
-    let [argument] = arguments else {
-        panic!("expected one index argument, got {arguments:?}");
-    };
-    let TypeReferenceNode::Named(name) = parsed.type_references.type_reference(*argument) else {
-        panic!("expected a named index argument");
-    };
-    assert_eq!(name.as_str(&parsed), "SlotPlacement");
+    for separator in ["", "::"] {
+        let source = format!(
+            "domain Extent::Access requires self in Carry::AnyCpu{separator}<SlotPlacement>"
+        );
+        let (parsed, facts) = parse_domain_facts(&source);
+        let [ProofFact::Membership(membership)] = facts.as_slice() else {
+            panic!("expected one domain membership, got {facts:?}");
+        };
+        let arguments = parsed
+            .type_references
+            .type_reference_handles(membership.domain_arguments);
+        let [argument] = arguments else {
+            panic!("expected one index argument, got {arguments:?}");
+        };
+        let TypeReferenceNode::Named(name) = parsed.type_references.type_reference(*argument)
+        else {
+            panic!("expected a named index argument");
+        };
+        assert_eq!(name.as_str(&parsed), "SlotPlacement");
+    }
 }
 
 #[test]
