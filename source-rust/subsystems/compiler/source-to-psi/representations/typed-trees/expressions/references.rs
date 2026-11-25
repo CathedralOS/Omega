@@ -1758,8 +1758,8 @@ pub fn collect_selected_program_type_occurrences(
 }
 
 pub struct ProgramOperandOwners {
-    types: Vec<Vec<(SymbolHandle, TypeReferenceHandle)>>,
-    expressions: Vec<Vec<(SymbolHandle, ExpressionHandle)>>,
+    types: ScopedOccurrences<TypeReferenceNode>,
+    expressions: ScopedOccurrences<ExpressionNode>,
 }
 
 impl ProgramOperandOwners {
@@ -1767,24 +1767,122 @@ impl ProgramOperandOwners {
         &self,
         reference: TypeReferenceHandle,
     ) -> impl Iterator<Item = SymbolHandle> + '_ {
-        self.types
-            .get(reference.arena_index() as usize)
-            .into_iter()
-            .flatten()
-            .filter(move |(_, retained)| *retained == reference)
-            .map(|(owner, _)| *owner)
+        self.types.owners(reference)
     }
 
     pub fn expression_owners(
         &self,
         expression: ExpressionHandle,
     ) -> impl Iterator<Item = SymbolHandle> + '_ {
-        self.expressions
-            .get(expression.arena_index() as usize)
-            .into_iter()
-            .flatten()
-            .filter(move |(_, retained)| *retained == expression)
-            .map(|(owner, _)| *owner)
+        self.expressions.owners(expression)
+    }
+}
+
+/*
+    The lexical owners seen for each arena slot, in first-visit order. Most
+    slots have one owner, so the rows share one flat table chained per slot
+    instead of holding a small vector per slot. A slot keeps rows for every
+    generation it was visited under; lookups match the exact handle.
+*/
+struct ScopedOccurrences<Element> {
+    // Per arena slot: one plus the index of the slot's first row; 0 is empty.
+    heads: Vec<usize>,
+    rows: Vec<ScopedOccurrenceRow<Element>>,
+}
+
+struct ScopedOccurrenceRow<Element> {
+    owner: SymbolHandle,
+    reference: arena::Handle<Element>,
+    // One plus the index of the slot's next row; 0 ends the chain.
+    next: usize,
+}
+
+impl<Element> Default for ScopedOccurrences<Element> {
+    fn default() -> Self {
+        Self {
+            heads: Vec::new(),
+            rows: Vec::new(),
+        }
+    }
+}
+
+impl<Element> ScopedOccurrences<Element> {
+    /// Record `owner` for `reference`; false when that pair was already seen.
+    fn insert(&mut self, owner: SymbolHandle, reference: arena::Handle<Element>) -> bool {
+        let slot = reference.arena_index() as usize;
+        if self.heads.len() <= slot {
+            self.heads.resize(slot + 1, 0);
+        }
+        let mut last = None;
+        let mut link = self.heads[slot];
+        while let Some(row) = link.checked_sub(1) {
+            let retained = &self.rows[row];
+            if retained.owner == owner && retained.reference == reference {
+                return false;
+            }
+            last = Some(row);
+            link = retained.next;
+        }
+        self.rows.push(ScopedOccurrenceRow {
+            owner,
+            reference,
+            next: 0,
+        });
+        let appended = self.rows.len();
+        match last {
+            Some(row) => self.rows[row].next = appended,
+            None => self.heads[slot] = appended,
+        }
+        true
+    }
+
+    fn owners(&self, reference: arena::Handle<Element>) -> impl Iterator<Item = SymbolHandle> + '_ {
+        let mut link = self
+            .heads
+            .get(reference.arena_index() as usize)
+            .copied()
+            .unwrap_or(0);
+        std::iter::from_fn(move || {
+            while let Some(row) = link.checked_sub(1) {
+                let retained = &self.rows[row];
+                link = retained.next;
+                if retained.reference == reference {
+                    return Some(retained.owner);
+                }
+            }
+            None
+        })
+    }
+}
+
+#[cfg(test)]
+mod scoped_occurrence_tests {
+    use super::{ScopedOccurrences, SymbolHandle, TypeReferenceHandle, TypeReferenceNode};
+
+    #[test]
+    fn owners_keep_first_visit_order_refuse_repeats_and_match_the_exact_handle() {
+        let first = SymbolHandle::from_parts(1, 1);
+        let second = SymbolHandle::from_parts(2, 1);
+        let third = SymbolHandle::from_parts(3, 1);
+        let shared = TypeReferenceHandle::from_parts(4, 1);
+        let reused_slot = TypeReferenceHandle::from_parts(4, 2);
+        let other = TypeReferenceHandle::from_parts(9, 1);
+        let mut seen = ScopedOccurrences::<TypeReferenceNode>::default();
+        assert!(seen.insert(second, shared));
+        assert!(seen.insert(first, shared));
+        assert!(seen.insert(third, reused_slot));
+        assert!(seen.insert(first, other));
+        assert!(!seen.insert(second, shared));
+        assert!(!seen.insert(first, other));
+        assert!(seen.insert(third, shared));
+        assert_eq!(
+            seen.owners(shared).collect::<Vec<_>>(),
+            [second, first, third]
+        );
+        assert_eq!(seen.owners(reused_slot).collect::<Vec<_>>(), [third]);
+        assert_eq!(seen.owners(other).collect::<Vec<_>>(), [first]);
+        let unseen = TypeReferenceHandle::from_parts(40, 1);
+        assert_eq!(seen.owners(unseen).count(), 0);
     }
 }
 
@@ -1817,10 +1915,16 @@ pub fn collect_source_evaluation_operand_owners(program: &TypedTrees) -> Program
     )
 }
 
+/*
+    An owner query reads only the seen tables. The walk skips the occurrence
+    lists and applications it would otherwise build; those hooks never change
+    which operands the shared walk visits.
+*/
 fn collect_operand_owners(
     program: &TypedTrees,
     mut occurrences: TypeOccurrences,
 ) -> ProgramOperandOwners {
+    occurrences.operand_owners_only = true;
     visit_program(program, &mut occurrences);
     ProgramOperandOwners {
         types: occurrences.seen_types,
@@ -1867,26 +1971,11 @@ struct TypeOccurrences {
     types: Vec<TypeOccurrence>,
     requirement_applications: Vec<TypeOccurrence>,
     applications: HashSet<StaticMachineApplicationHandle>,
-    seen_types: Vec<Vec<(SymbolHandle, TypeReferenceHandle)>>,
-    seen_expressions: Vec<Vec<(SymbolHandle, ExpressionHandle)>>,
-    seen_mathematical_types: Vec<Vec<(SymbolHandle, MathematicalTypeHandle)>>,
-}
-
-fn retain_scoped_occurrence<Element>(
-    seen: &mut Vec<Vec<(SymbolHandle, arena::Handle<Element>)>>,
-    owner: SymbolHandle,
-    reference: arena::Handle<Element>,
-) -> bool {
-    let slot = reference.arena_index() as usize;
-    if seen.len() <= slot {
-        seen.resize_with(slot + 1, Vec::new);
-    }
-    let occurrence = (owner, reference);
-    if seen[slot].contains(&occurrence) {
-        return false;
-    }
-    seen[slot].push(occurrence);
-    true
+    // Set for owner queries, which read only the seen tables below.
+    operand_owners_only: bool,
+    seen_types: ScopedOccurrences<TypeReferenceNode>,
+    seen_expressions: ScopedOccurrences<ExpressionNode>,
+    seen_mathematical_types: ScopedOccurrences<crate::source_state::mathematical::MathematicalType>,
 }
 
 impl TypeOccurrences {
@@ -1925,6 +2014,9 @@ impl TypedReferences for TypeOccurrences {
     }
 
     fn static_parameter_type(&mut self, program: &TypedTrees, reference: TypeReferenceHandle) {
+        if self.operand_owners_only {
+            return;
+        }
         if program.static_record_schema(reference, self.owner).is_some() {
             let occurrence = TypeOccurrence { lexical_owner: self.owner, reference };
             if !self.requirement_applications.contains(&occurrence) {
@@ -1934,6 +2026,9 @@ impl TypedReferences for TypeOccurrences {
     }
 
     fn call_arguments(&mut self, program: &TypedTrees, call: StaticArgumentCall<'_>) -> bool {
+        if self.operand_owners_only {
+            return true;
+        }
         if let StaticArgumentCall::Expression(_, call) = call {
             let readiness = match program
                 .expression_table
@@ -1994,19 +2089,21 @@ impl TypedReferences for TypeOccurrences {
             lexical_owner: self.owner,
             reference,
         };
-        if !retain_scoped_occurrence(&mut self.seen_types, self.owner, reference) {
+        if !self.seen_types.insert(self.owner, reference) {
             return false;
         }
-        self.types.push(occurrence);
+        if !self.operand_owners_only {
+            self.types.push(occurrence);
+        }
         true
     }
 
     fn expression(&mut self, expression: ExpressionHandle) -> bool {
-        retain_scoped_occurrence(&mut self.seen_expressions, self.owner, expression)
+        self.seen_expressions.insert(self.owner, expression)
     }
 
     fn mathematical_type(&mut self, reference: MathematicalTypeHandle) -> bool {
-        retain_scoped_occurrence(&mut self.seen_mathematical_types, self.owner, reference)
+        self.seen_mathematical_types.insert(self.owner, reference)
     }
 }
 
