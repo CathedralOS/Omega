@@ -1727,17 +1727,23 @@ fn analyze_observations(
     } else {
         Vec::new()
     };
-    // Callers read facts at qualification changes, establishment completions
-    // and executable tests. A body also owes any normal-result promise assigned
-    // to it by its own, selected, boundary or callable header.
+    // A forwarded scalar completion can use an incoming membership. The
+    // other scalar completion origins use their route or predicate directly.
+    // Structural changes, executable tests and normal-result promises have
+    // their own observation sites.
     let catalog = &module.types.scalar_qualifications;
     let mut bodies = bodies.to_vec();
     if tests.is_empty() {
-        let observed = catalog
-            .coercions
+        let mut observed = catalog
+            .returns
             .iter()
+            .filter(|row| {
+                matches!(row.site, terminal_psi::ScalarReturnSite::Completion { .. })
+                    && row
+                        .origins
+                        .contains(&terminal_psi::ScalarReturnOrigin::Forwarded)
+            })
             .map(|row| row.machine)
-            .chain(catalog.returns.iter().map(|row| row.machine))
             .chain(
                 module
                     .types
@@ -1747,6 +1753,29 @@ fn analyze_observations(
             )
             .chain(promises.iter().map(|(machine, _)| *machine))
             .collect::<BTreeSet<_>>();
+        // A scalar successor checks a known prerequisite list against its
+        // displayed domains. Only an opaque prerequisite can ask whether the
+        // incoming value already carries the membership.
+        let opaque_domains = catalog
+            .domains
+            .iter()
+            .filter(|domain| domain.required_memberships.is_none())
+            .map(|domain| domain.id)
+            .collect::<BTreeSet<_>>();
+        if !opaque_domains.is_empty() {
+            let opaque_sets = catalog
+                .sets
+                .iter()
+                .filter(|set| set.domains.iter().any(|id| opaque_domains.contains(id)))
+                .map(|set| set.id)
+                .collect::<BTreeSet<_>>();
+            observed.extend(module.machines.iter().filter_map(|machine| {
+                machine
+                    .block_parameters()
+                    .any(|parameter| opaque_sets.contains(&parameter.qualifications))
+                    .then_some(machine.id)
+            }));
+        }
         bodies.retain(|machine| observed.contains(machine));
     }
     if bodies.is_empty() {
@@ -2268,6 +2297,115 @@ mod tests {
                 .is_empty(),
             "an equal but distinct scalar is not supplied evidence"
         );
+    }
+
+    #[test]
+    fn scalar_successors_replay_only_when_they_can_observe_an_incoming_fact() {
+        use semantic_vocabulary::{
+            BlockId, ContractId, DomainSemanticId, ScalarQualificationSetId,
+        };
+        use terminal_psi::{
+            Block, MachineContract, ScalarDomainDeclaration, ScalarQualificationCoercion,
+            ScalarQualificationSet, Terminator,
+        };
+
+        let id = MachineId::new(1).unwrap();
+        let entry = BlockId::new(1).unwrap();
+        let target = BlockId::new(2).unwrap();
+        let cast = EdgeId::new(1).unwrap();
+        let domain = ScalarDomainId::new(1).unwrap();
+        let set = ScalarQualificationSetId::new(1);
+        let source = ValueDeclaration {
+            id: ValueId::new(1).unwrap(),
+            scalar_type: ScalarType::Boolean,
+            qualifications: ScalarQualificationSetId::ZERO,
+        };
+        let destination = ValueDeclaration {
+            id: ValueId::new(2).unwrap(),
+            qualifications: set,
+            ..source
+        };
+        let mut module = TerminalModule::for_entry(id);
+        let catalog = &mut module.types.scalar_qualifications;
+        catalog.domains.push(ScalarDomainDeclaration {
+            id: domain,
+            semantic_domain: DomainSemanticId::new(1).unwrap(),
+            identity: terminal_psi::TerminalIdentityIndex(1),
+            carrier: source.scalar_type,
+            predicate: None,
+            establishment_routes: None,
+            required_memberships: Some(Vec::new()),
+        });
+        catalog.sets.push(ScalarQualificationSet {
+            id: set,
+            domains: vec![domain],
+        });
+        catalog.coercions.push(ScalarQualificationCoercion {
+            machine: id,
+            edge: cast,
+            source: source.id,
+            destination: destination.id,
+            argument_ordinal: 0,
+        });
+        catalog
+            .returns
+            .push(terminal_psi::ScalarReturnQualification {
+                machine: id,
+                edge: cast,
+                source: source.id,
+                result: destination.id,
+                domain,
+                site: terminal_psi::ScalarReturnSite::Completion {
+                    argument_ordinal: 0,
+                },
+                origins: vec![terminal_psi::ScalarReturnOrigin::Vacuous],
+            });
+        let mut contract = MachineContract::empty(ContractId::new(1).unwrap());
+        contract.parameters.push(source);
+        module.machines.push(TerminalMachine {
+            id,
+            entry,
+            contract,
+            attachment: None,
+            ranked_scc: None,
+            assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
+            call_formations: Vec::new(),
+            structural_places: Vec::new(),
+            block_entry_claims: Vec::new(),
+            loan_completions: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            blocks: vec![
+                Block::plain(
+                    entry,
+                    Vec::new(),
+                    Terminator::Jump {
+                        edge: cast,
+                        target,
+                        arguments: vec![source.id],
+                        erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
+                        structural_arguments: Vec::new(),
+                        cleanup_actions: Vec::new(),
+                    },
+                ),
+                Block::plain(
+                    target,
+                    vec![destination],
+                    Terminator::ReturnUnit {
+                        edge: EdgeId::new(2).unwrap(),
+                        cleanup_actions: Vec::new(),
+                    },
+                ),
+            ],
+        });
+        assert!(analyze(&module).unwrap().machine(id).is_none());
+        module.types.scalar_qualifications.returns[0].origins =
+            vec![terminal_psi::ScalarReturnOrigin::Forwarded];
+        assert!(analyze(&module).unwrap().machine(id).is_some());
+        module.types.scalar_qualifications.returns.clear();
+        module.types.scalar_qualifications.domains[0].required_memberships = None;
+        assert!(analyze(&module).unwrap().machine(id).is_some());
     }
 
     #[test]
