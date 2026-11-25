@@ -130,7 +130,23 @@ impl ResolveAndTypeRequest {
     }
 
     pub(crate) fn prepare(
+        self,
+        timings: &mut CompileTimings,
+    ) -> Result<SourceTypingCheckpoint, Vec<Diagnostic>> {
+        let scope = eager_body_scope(self.purpose);
+        self.prepare_with_body_scope(scope, timings)
+    }
+
+    pub(crate) fn prepare_declarations(
+        self,
+        timings: &mut CompileTimings,
+    ) -> Result<SourceTypingCheckpoint, Vec<Diagnostic>> {
+        self.prepare_with_body_scope(resolution::DeferredBodyScope::BuildAndToolchain, timings)
+    }
+
+    fn prepare_with_body_scope(
         mut self,
+        eager_scope: resolution::DeferredBodyScope,
         timings: &mut CompileTimings,
     ) -> Result<SourceTypingCheckpoint, Vec<Diagnostic>> {
         let context = SourceContext {
@@ -174,7 +190,7 @@ impl ResolveAndTypeRequest {
                     top_level_bindings: self.top_level_bindings,
                     retained_base: None,
                 },
-                eager_body_scope(self.purpose),
+                eager_scope,
                 timings,
             )?;
             let typing = {
