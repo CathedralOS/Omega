@@ -9,6 +9,8 @@ mod claims;
 pub use claims::{ClaimLocation, ClaimsPlan, publish_contract_claims};
 mod fences;
 
+pub use fences::CallFence;
+
 use arena::IdSet;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Segment, EdgeId, OperationId, PlaceId, StructuralTypeId,
@@ -40,10 +42,10 @@ pub enum UnavailableReason {
     /// still leaves part of it vacant. This includes descriptor release and
     /// cleanup as well as normal handback of incoming storage.
     Unrestored,
-    /// The site calls code that may reach a boundary or service, or whose
-    /// access is unknown, while an owned move leaves borrowed storage vacant
-    /// (`fences`). `place` is the storage holding the vacancy.
-    FencedCall,
+    /// The site calls code whose contract does not rule out observing or
+    /// exposing the incomplete owner while an owned move leaves borrowed
+    /// storage vacant (`fences`). `place` is the storage holding the vacancy.
+    FencedCall(CallFence),
 }
 
 impl Unavailable {
@@ -59,11 +61,7 @@ impl Unavailable {
                  hold a value again where the machine returns the borrow: a replacement \
                  must be stored into the vacant place on every path that leaves the machine"
             }
-            UnavailableReason::FencedCall => {
-                "cannot make a call that may reach a boundary or service while an owned \
-                 value is moved out of borrowed storage: store a replacement into the \
-                 vacant place before this call"
-            }
+            UnavailableReason::FencedCall(fence) => fence.message(),
         }
     }
 }
@@ -531,7 +529,7 @@ impl WindowBacking {
 
 struct Analysis<'a> {
     module: Option<&'a terminal_psi::TerminalModule>,
-    /// The quiet machines of `module`; `None` exactly when `module` is.
+    /// The call fences of `module`; `None` exactly when `module` is.
     fences: Option<&'a fences::CallFences<'a>>,
     types: &'a [StructuralTypeDeclaration],
     dispositions: Vec<Option<bool>>,
@@ -1142,7 +1140,7 @@ impl<'s> MachineAffine<'s> {
         })
     }
 
-    /// The module table's quiet machines when it was built from this module,
+    /// The module table's call fences when it was built from this module,
     /// so every walk over the module shares one; otherwise this walk's own.
     fn fences(&self) -> &fences::CallFences<'s> {
         match self.summaries {
@@ -2516,38 +2514,40 @@ impl<'a> Analysis<'a> {
         .transpose()
     }
 
-    /// A call made while a window is open, unless the callee is quiet
-    /// (`fences`). Without the module the callee's reach is unknown, and the
-    /// call is not served.
+    /// A call made while a window is open, unless the callee's contract
+    /// rules out observing the incomplete owner (`fences`). The arguments
+    /// are judged by the ordinary use check of the call itself. Without the
+    /// module the callee's contract is unknown, and the call is not served.
     fn fenced(
         &self,
         state: &State,
         reach: fences::Reach,
         site: Site,
     ) -> Result<Option<Unavailable>, Error> {
-        let callee = match reach {
-            fences::Reach::Plain => return Ok(None),
-            fences::Reach::Calls(callee) => Some(callee),
-            fences::Reach::Fenced => None,
-        };
+        if matches!(reach, fences::Reach::Plain) {
+            return Ok(None);
+        }
         let Some(place) = self.open_window(state)? else {
             return Ok(None);
         };
-        if let Some(callee) = callee {
-            let fences = self.fences.ok_or(
+        let fences = || {
+            self.fences.ok_or(
                 Error::unsupported(
                     "a call while an owned value is out of borrowed storage needs its exact module",
                 )
                 .at(site),
-            )?;
-            if fences.quiet(callee) {
-                return Ok(None);
-            }
-        }
-        Ok(Some(Unavailable {
+            )
+        };
+        let fence = match reach {
+            fences::Reach::Plain => None,
+            fences::Reach::Calls(callee) => fences()?.machine(callee),
+            fences::Reach::Boundary(boundary) => fences()?.boundary(boundary),
+            fences::Reach::Fenced(fence) => Some(fence),
+        };
+        Ok(fence.map(|fence| Unavailable {
             site,
             place,
-            reason: UnavailableReason::FencedCall,
+            reason: UnavailableReason::FencedCall(fence),
         }))
     }
 

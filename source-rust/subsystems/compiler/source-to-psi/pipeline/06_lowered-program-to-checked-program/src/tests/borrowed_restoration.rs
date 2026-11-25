@@ -551,11 +551,17 @@ fn the_lent_value_is_not_passed_on_while_a_field_is_vacant() {
     );
 }
 
-const FENCED_CALL: &str = "cannot make a call that may reach a boundary or service while an \
-                           owned value is moved out of borrowed storage";
+use terminal_semantics::plain_affine::CallFence;
 
+const REACHES_SERVICE: &str = CallFence::ServiceReach.message();
+const ENTERS_CALLBACK: &str = CallFence::Callback.message();
+const UNKNOWN_ACCESS: &str = CallFence::UnknownAccess.message();
+
+/// `Clock::tick` declares `reaches none`; `Clock::sample` reaches the
+/// `Clock` service itself, so a provider may hold its authority.
 const CLOCK: &str = "public boundary trait Clock {\n    \
-                     machine tick() reaches none crashes none;\n}\n\
+                     machine tick() reaches none crashes none;\n    \
+                     machine sample() reaches Clock crashes none;\n}\n\
                      machine helper() reaches Clock { Clock::tick(); }\n\
                      machine relay() { helper(); }\n\
                      machine observe(value: @u32) { }\n";
@@ -569,28 +575,30 @@ fn window_call(first: &str, second: &str) -> String {
     )
 }
 
-/// ownership.md: "Boundary/capability calls and other invariant-window
-/// fences remain in force." A helper that reaches the `Clock` service runs
+/// ownership.md, "Boundary calls during restoration": reject the call "if
+/// a carried reference, callback or provider authority could expose the
+/// incomplete connection". A helper that reaches the `Clock` service runs
 /// after the store in the accepted program and before it in the twin.
 #[test]
 fn a_call_that_reaches_a_service_waits_until_the_window_closes() {
     accepted(&window_call("holder.inner = next;", "helper();"));
     rejected(
         &window_call("helper();", "holder.inner = next;"),
-        FENCED_CALL,
+        REACHES_SERVICE,
     );
 }
 
-/// A boundary call is fenced even when its requirement declares `reaches
-/// none`: nothing in the spec makes that declaration a complete access
-/// contract for the vacant storage, so the checker refuses.
+/// A boundary requirement whose contract reaches no service and enters no
+/// callback may run inside the window; one that reaches the `Clock`
+/// service waits for the store. Both twins call at the same position.
 #[test]
-fn a_boundary_call_waits_until_the_window_closes() {
-    accepted(&window_call("holder.inner = next;", "Clock::tick();"));
+fn a_boundary_call_in_the_window_is_judged_by_its_declared_reach() {
+    accepted(&window_call("Clock::tick();", "holder.inner = next;"));
     rejected(
-        &window_call("Clock::tick();", "holder.inner = next;"),
-        FENCED_CALL,
+        &window_call("Clock::sample();", "holder.inner = next;"),
+        REACHES_SERVICE,
     );
+    accepted(&window_call("holder.inner = next;", "Clock::sample();"));
 }
 
 /// `relay` declares no reach and makes no boundary call itself; it is
@@ -601,7 +609,7 @@ fn a_boundary_call_waits_until_the_window_closes() {
 fn a_call_is_fenced_by_what_its_callees_reach() {
     rejected(
         &window_call("relay();", "holder.inner = next;"),
-        FENCED_CALL,
+        REACHES_SERVICE,
     );
     accepted(&window_call(
         "observe(@holder.tag);",
@@ -623,7 +631,7 @@ fn a_window_through_a_local_reference_fences_the_same_calls() {
     };
     let store = "local.inner = Inner { value: 7u32 };";
     accepted(&program(store, "helper();"));
-    rejected(&program("helper();", store), FENCED_CALL);
+    rejected(&program("helper();", store), REACHES_SERVICE);
 }
 
 /// `bump` moves `holder.inner` into `step` and stores the result back, so
@@ -635,14 +643,98 @@ fn bump(step: &str) -> String {
     )
 }
 
-/// ownership.md: calls "may consume the detached value ... only when their
-/// complete access and outcome contracts cannot expose the incomplete
-/// owner". A `step` that reaches nothing may take the detached value and
-/// return its replacement; the twin's `step` reaches the `Clock` service.
+/// dependent_values.md, "Invariant windows": a call need not close the
+/// window "when its complete access, effect and outcome contracts prove
+/// that it cannot observe or expose the broken coupling". A `step` that
+/// reaches nothing may take the detached value and return its replacement;
+/// the twin's `step` reaches the `Clock` service.
 #[test]
 fn a_quiet_call_may_consume_the_detached_value_and_return_its_replacement() {
     accepted(&bump("{ inner }"));
-    rejected(&bump("reaches Clock { Clock::tick(); inner }"), FENCED_CALL);
+    rejected(
+        &bump("reaches Clock { Clock::tick(); inner }"),
+        REACHES_SERVICE,
+    );
+}
+
+/// The provider requirements a window test may call with the field it
+/// detached. Each machine differs from `step` in one clause of its contract
+/// or in its parameter; `Step` is a machine value with `step`'s contract.
+const SESSION: &str = "boundary trait Handler {}\n\
+                       public boundary trait Session {\n    \
+                       machine step(inner: Inner) -> Inner reaches none crashes none;\n    \
+                       machine wait(inner: Inner) -> Inner reaches none crashes none blocks;\n    \
+                       machine enter(inner: Inner) -> Inner reaches none crashes none invokes Handler;\n    \
+                       machine sample(inner: Inner) -> Inner reaches Session crashes none;\n    \
+                       machine peek(holder: @Holder) reaches none crashes none;\n    \
+                       machine count(tag: @u32) reaches none crashes none;\n}\n\
+                       data Step = machine(inner: Inner) -> Inner reaches none crashes none;\n\
+                       machine named(inner: Inner) -> Inner { inner }\n";
+
+/// `update` moves `holder.inner` into `call` and stores what it returns, so
+/// the call runs with the field vacant.
+fn provider_update(call: &str) -> String {
+    format!(
+        "{SESSION}machine update(holder: @mutable Holder, chosen: Step) {{\n    \
+         holder.inner = {call}(holder.inner);\n}}\n"
+    )
+}
+
+/// ownership.md, "Boundary calls during restoration": "Admit the call when
+/// it can access only the detached session and its outcomes permit
+/// restoration", and "`blocks` alone permits waiting on the worker while the
+/// caller retains exclusive custody". Both providers receive only the
+/// detached field and return its replacement; the blocking twin's call
+/// carries the `block` marker its contract asks for.
+#[test]
+fn a_provider_may_consume_only_the_detached_field() {
+    accepted(&provider_update("Session::step"));
+    accepted(&provider_update("block Session::wait"));
+}
+
+/// "Reject it if a carried reference, callback or provider authority could
+/// expose the incomplete connection", and "Unknown access or outcomes
+/// require refusal". Each twin differs from the accepted `Session::step` in
+/// the callee alone: `enter` may run a `Handler` callback, `sample` reaches
+/// the `Session` service, and the machine value `chosen` names no callee.
+/// The named ordinary machine with the same contract is admitted.
+#[test]
+fn a_call_that_could_observe_the_incomplete_owner_is_refused() {
+    rejected(&provider_update("Session::enter"), ENTERS_CALLBACK);
+    rejected(&provider_update("Session::sample"), REACHES_SERVICE);
+    rejected(&provider_update("chosen"), UNKNOWN_ACCESS);
+    accepted(&provider_update("named"));
+}
+
+/// The arguments at the call site are judged with the contract. Lending the
+/// incomplete holder is a use of the vacant storage; lending its established
+/// sibling `tag` is not.
+#[test]
+fn a_provider_is_judged_by_the_storage_its_arguments_lend() {
+    let program = |call: &str| {
+        format!(
+            "{SESSION}machine swap(holder: @mutable Holder, next: Inner) -> Inner {{\n    \
+             let taken: Inner = holder.inner;\n    {call};\n    \
+             holder.inner = next;\n    taken\n}}\n"
+        )
+    };
+    accepted(&program("Session::count(@holder.tag)"));
+    rejected(&program("Session::peek(@holder)"), USED_VACANT);
+}
+
+/// "every path that hands the storage back first restores it": the
+/// admitted provider leaves the field vacant until the machine stores a
+/// replacement, and the twin returns the borrow without one.
+#[test]
+fn an_admitted_provider_does_not_excuse_a_handback_before_repair() {
+    let program = |repair: &str| {
+        format!(
+            "{SESSION}machine update(holder: @mutable Holder, spare: Inner) -> Inner {{\n    \
+             let next: Inner = Session::step(holder.inner);\n    {repair}\n    next\n}}\n"
+        )
+    };
+    accepted(&program("holder.inner = spare;"));
+    rejected(&program(""), NOT_RESTORED);
 }
 
 const HALT: &str = "public data Empty requires false {}\n\
@@ -663,7 +755,10 @@ fn a_call_that_never_returns_is_fenced_by_what_it_reaches() {
     };
     let store = "holder.inner = next;";
     accepted(&program(store, "let stopped: Empty = halt();"));
-    rejected(&program("let stopped: Empty = halt();", store), FENCED_CALL);
+    rejected(
+        &program("let stopped: Empty = halt();", store),
+        REACHES_SERVICE,
+    );
     accepted(&program("let stopped: Empty = stop();", store));
 }
 
@@ -716,17 +811,22 @@ fn append(module: &mut terminal_psi::TerminalModule, machine: MachineId, kind: O
         ));
 }
 
-/// The sites where the module-aware walk of `machine` fences a call.
+/// The sites where the module-aware walk of `machine` fences a call, each
+/// with the part of the callee's contract that fences it.
 fn fenced_sites(
     module: &terminal_psi::TerminalModule,
     machine: MachineId,
-) -> Vec<terminal_semantics::plain_affine::Site> {
+) -> Vec<(terminal_semantics::plain_affine::Site, CallFence)> {
     terminal_semantics::plain_affine::verify_in(module, machine)
         .expect("the accepted walk still completes")
         .unavailable
         .into_iter()
-        .filter(|row| row.reason == terminal_semantics::plain_affine::UnavailableReason::FencedCall)
-        .map(|row| row.site)
+        .filter_map(|row| match row.reason {
+            terminal_semantics::plain_affine::UnavailableReason::FencedCall(fence) => {
+                Some((row.site, fence))
+            }
+            _ => None,
+        })
         .collect()
 }
 
@@ -770,7 +870,10 @@ fn owned_cleanup_on_an_edge_is_fenced_by_what_its_cleanup_machine_reaches() {
             assert!(
                 matches!(
                     sites.as_slice(),
-                    [terminal_semantics::plain_affine::Site::Edge(_)]
+                    [(
+                        terminal_semantics::plain_affine::Site::Edge(_),
+                        CallFence::ServiceReach
+                    )]
                 ),
                 "{sites:?}"
             );
@@ -815,6 +918,47 @@ fn decoding_judges_a_call_inside_the_window_by_its_module_callee() {
         .expect("the accepted module decodes");
 }
 
+/// The `update` of `provider_update` with a `match` that leaves out an
+/// empty case, so decoding the published module walks it again.
+fn eliminating_update(call: &str) -> terminal_check_tables::program::Elaboration {
+    accepted_elaboration(&format!(
+        "{SESSION}public data Empty requires false {{}}\n\
+         data Pick {{ case Some(value: u32); case Never(value: Empty); }}\n\
+         machine update(holder: @mutable Holder, pick: Pick) -> u32 {{\n    \
+         holder.inner = {call}(holder.inner);\n    \
+         match pick {{ Pick::Some {{ value }} -> value }}\n}}\n"
+    ))
+}
+
+/// terminal-psi/ownership.md: a decoder "must independently reconstruct
+/// the window rather than trust producer approval". Decoding judges the
+/// provider call inside the window by the requirement the module declares:
+/// the accepted module decodes, and the same module whose `Session::step`
+/// envelope may also call its first parameter, as `invokes` may say of a
+/// callable parameter, is refused.
+#[test]
+fn decoding_judges_a_provider_call_inside_the_window_by_its_declared_contract() {
+    let decode = |module: terminal_psi::TerminalModule| {
+        terminal_codec::ClosedTerminalModule::new(module).and_then(|closed| {
+            terminal_codec::ClosedTerminalModule::from_semantic_bytes(closed.semantic_bytes())
+        })
+    };
+    let elaboration = eliminating_update("Session::step");
+    let mut module = elaboration.module;
+    decode(module.clone()).expect("the accepted module decodes");
+    let [Some(step)] = module.execution.callables.boundary_envelopes.as_mut_slice() else {
+        panic!("`Session::step` is the one requirement the module calls");
+    };
+    step.envelope
+        .invocations
+        .push(terminal_psi::TerminalCallableInvocation::Parameter(0));
+    let error = decode(module).expect_err("the forged callback is judged");
+    assert!(
+        format!("{error:?}").contains("empty elimination observes unavailable storage"),
+        "{error:?}"
+    );
+}
+
 /// A callee that calls a computed machine value runs code the module does
 /// not name, so a call to it inside the window is fenced even though
 /// `step` declares no reach.
@@ -845,7 +989,10 @@ fn a_computed_call_in_a_callee_fences_the_call_to_it() {
     assert!(
         matches!(
             fenced_sites(&module, caller).as_slice(),
-            [terminal_semantics::plain_affine::Site::Operation(_)]
+            [(
+                terminal_semantics::plain_affine::Site::Operation(_),
+                CallFence::UnknownAccess
+            )]
         ),
         "the call to `step` is fenced"
     );
