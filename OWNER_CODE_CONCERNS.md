@@ -74,3 +74,5 @@ framework or a list of unimplemented features.
 10. **Verifying costs more than writing.** You waited longer than you worked.
 
 ## Entries
+
+<a id="a-build-wide-flag-admits-machine-control-for-every-output"></a>
