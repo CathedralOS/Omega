@@ -211,19 +211,27 @@ fn selected_provider_must_return_the_promised_input_under_its_result_field() {
     let header = r#"machine pass(first: Region in Owned, second: Region in Owned) -> Pair
         reaches none ensures result.left in Owned, core\Identity::<CountedQuantity<Bytes>>(
             Owned::measure(old(@first)), Owned::measure(@result.left)) crashes none"#;
-    let checked = |left: &str, right: &str| {
+    let checked = |supplied: &str, left: &str, right: &str| {
         let source = format!(r#"{definitions}
             data Pair {{ left: Region in Owned; right: Region in Owned; }}
             boundary trait Transfer {{ {header}; }}
-            Native satisfies Transfer {{ {header} {{ Pair {{ left: {left}, right: {right} }} }} }}
+            Native satisfies Transfer {{ {supplied} {{ Pair {{ left: {left}, right: {right} }} }} }}
             machine entry() {{}}
         "#);
         super::provider_supplies::supplied_trees(
             with_content(&source), "Transfer", &[Some(package())],
         )
     };
-    let selected = checked("first", "second").unwrap();
+    let selected = checked(header, "first", "second").unwrap();
     assert!(selected.iter().any(|name| name.ends_with("Native::pass")), "{selected:?}");
-    let refused = checked("second", "first").unwrap_err();
+    let refused = checked(header, "second", "first").unwrap_err();
     assert!(refused.contains("normal return does not forward the content claim of the promised input"), "{refused}");
+
+    let different_input = header.replace("old(@first)", "old(@second)");
+    let refused = checked(&different_input, "second", "first").unwrap_err();
+    assert!(
+        refused.contains("does not promise the exact declared content equation")
+            || refused.contains("does not forward the content claim of the promised input"),
+        "{refused}"
+    );
 }
