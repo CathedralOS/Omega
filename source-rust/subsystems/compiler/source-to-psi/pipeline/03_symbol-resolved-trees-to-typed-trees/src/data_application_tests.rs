@@ -103,3 +103,56 @@ machine capacity() -> u64 { 4 }
     assert_eq!(prepare(&mut program, envelope), Ok(true));
     assert_eq!(sizes(&program), before);
 }
+
+#[test]
+fn a_named_layout_closes_only_its_own_data_application() {
+    let declarations = r#"
+data Word { bits: u64; }
+data Other { other: u8; }
+trait Layout<T> { machine measure(value: T) -> u64; }
+WordLayout satisfies Layout<Word> { machine measure(value: Word) -> u64 { value.bits } }
+OtherLayout satisfies Layout<Other> { machine measure(value: Other) -> u64 { 0u64 } }
+"#;
+    for parameter in ["Policy satisfies Layout<T>", "const Policy: Layout<T>"] {
+        let source = format!("{declarations}data Storage<T, {parameter}> {{ value: T; }}");
+        for (holder, closed) in [
+            (
+                "data Holder { storage: Storage<Word, WordLayout>; }".to_owned(),
+                true,
+            ),
+            (
+                format!("data Holder<T, {parameter}> {{ field: Storage<T, Policy>; }}"),
+                false,
+            ),
+        ] {
+            let resolved = crate::resolve_fixture(&format!("{source}\n{holder}"));
+            let program = crate::lower_symbol_resolved_trees(&resolved).unwrap();
+            let holder = program
+                .data_definitions()
+                .iter()
+                .find(|d| d.name.as_str() == "Holder")
+                .unwrap();
+            let DataMember::Field(field) = &program.data_members(holder)[0] else {
+                panic!("Holder.storage");
+            };
+            assert_eq!(
+                program.data_application_is_closed(field.type_reference),
+                closed,
+                "{parameter}"
+            );
+        }
+        let resolved = crate::resolve_fixture(&format!(
+            "{source}\ndata Holder {{ storage: Storage<Word, OtherLayout>; }}"
+        ));
+        let error = crate::lower_symbol_resolved_trees(&resolved)
+            .err()
+            .expect("wrong layout");
+        assert!(
+            error.message.contains("OtherLayout")
+                && error.message.contains("Layout")
+                && error.message.contains("Storage"),
+            "{}",
+            error.message
+        );
+    }
+}
