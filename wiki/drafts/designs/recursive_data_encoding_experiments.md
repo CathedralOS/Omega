@@ -59,10 +59,37 @@ Steps reported as `proof-only / total` (including data + function declarations):
 1. **Option A hits a hard wall at 7–8 cases.** Even 6 cases consumes 87% of the default 65,536 budget. Larger real-world `data` types cannot be declared without raising budgets by orders of magnitude and paying multi-second compile times and tens of millions of arena nodes.
 2. **Option B ("just add unit eta") does not solve the general problem.** Unit and empty eta (`Box(Empty)` and `Box(Empty -> Empty)`) only eliminate `Canonical(t)` for 0- and 1-field cases (`Nat`). Supporting 2+ fields required lambda-gated `Pi(Two, _)` and `Pi(Sigma(Two, _), _)` case-split eta, which **breaks transitivity of conversion** across a lambda bridge between two stuck neutral functions. Even with all four rules, unary `Two`/`Sigma` chains still exceed 65,536 steps at 12 cases (136,165 steps, 1.43M terms).
 3. **Option D1 (`W` + `Fin(n)` + `FinEta`) keeps one recursive primitive.** Positivity remains automatic because `W` is still the only recursive type former. Pointwise eta at `Pi(Fin(n), B)` is sound, transitive, and terminating (each step strictly reduces `Pi` nesting depth, bounded by `n` checks). `Fin(n)` tags can also simplify `indexed_data` if desired. Worst-case note: comparing two non-equal functions out of a huge `Fin(N)` expands `N` checks (bounded by `Budget`).
-4. **Option D2 (native plain `data`, `W` for indexed) is fastest and adds no eta rules.** It cuts 12-case declarations by ~14,000× vs. Option A (~5× vs. Option D1) and removes 857 lines from `plain_data.rs`. Generalizing `PlainInd` from recursive-only `arities: Vec<u32>` to arbitrary non-recursive payload fields (e.g., `Lit(u64)`, `Node(val: A, l: Tree, r: Tree)`) still requires **no syntactic positivity checker**, because `Self` is not in scope when checking payload types in the ambient context (just like `W`'s `A` and `B`). A syntactic strict-positivity checker is only needed if nested or mutually recursive occurrences inside payload types (e.g., `List Self`) are also made primitive.
+4. **Option D2 (native plain `data`, `W` for indexed) is fastest and adds no eta rules, at 2.3× the kernel footprint once payloads are added.** On payload-free types it cuts 12-case declarations by ~14,000× vs. Option A (~5× vs. Option D1). Generalizing `PlainInd` from recursive-only `arities: Vec<u32>` to arbitrary non-recursive payload fields (e.g., `Lit(u64)`, `Node(val: A, l: Tree, r: Tree)`) still requires **no syntactic positivity checker**, because `Self` is not in scope when checking payload types in the ambient context (just like `W`'s `A` and `B`). However, duplicating payload well-formedness, universe-level maxing, and type-alias conversion across `PlainInd`, `PlainCtor`, and `PlainElim` increased D2's trusted kernel diff from **+638 to +1,203 LOC**, whereas D1 handled the same payloaded types with **+0 extra kernel lines** (staying at **+522 LOC**).
+
+## Follow-up: payloaded ASTs and crash-freedom bounds proofs (D1 vs. D2)
+
+To test whether D1 or D2 holds up on realistic `data` types with non-recursive payload fields, we cloned `opt_d1` and `opt_d2` into isolated sandboxes (`opt_d1_payload` and `opt_d2_payload`) and ran a shared benchmark over an ambient theory (`Scalar : Type 0`, `le : Scalar -> Scalar -> Type 0`, `le_trans`) on three payloaded AST shapes:
+
+- **4-case `Expr`**: `[(1p, 0r), (1p, 0r), (0p, 2r), (0p, 2r)]` (`Lit`, `Var`, `Add`, `Mul`)
+- **8-case `Ast8`**: `[(1p, 0r), (1p, 0r), (0p, 1r), (1p, 1r), (1p, 2r), (2p, 1r), (0p, 3r), (1p, 2r)]`
+- **12-case `Ast12`**: `[(1p, 0r), (1p, 0r), (2p, 0r), (0p, 1r), (1p, 1r), (2p, 1r), (0p, 2r), (1p, 2r), (1p, 2r), (2p, 2r), (0p, 3r), (1p, 3r)]`
+
+All tests passed in both sandboxes (147/147 in `opt_d1_payload`, 148/148 in `opt_d2_payload`):
+
+| Metric | D1 (`W` + `Fin(n)` + `FinEta`) | D2 (Native `PlainInd` w/ payloads) |
+|---|---:|---:|
+| Trusted kernel diff vs. `f536df267245` | **+522 LOC** (**+0** for payloads) | **+1,203 LOC** (+565 for payloads) |
+| 4-case `Expr` declaration | 506 steps (5.0 ms, 6,132 terms) | **32 steps** (0.5 ms, 1,033 terms) |
+| 8-case `Ast8` declaration | 948 steps (12.0 ms, 12,879 terms) | **73 steps** (1.2 ms, 2,849 terms) |
+| 12-case `Ast12` declaration | 1,419 steps (34.1 ms, 21,764 terms) | **118 steps** (2.2 ms, 5,338 terms) |
+| 12-case single reduction (`C7(p, l, r)`) | 114 steps (1.37 ms) | **25 steps** (0.20 ms) |
+| 4-case `copy(e) = e` (proof / total) | 251 / 784 (7.2 ms) | **125 / 222** (1.3 ms) |
+| 12-case `copy(e) = e` (proof / total) | 1,263 / 2,772 (59.9 ms) | **502 / 866** (8.0 ms) |
+| 4-case `bounds_mono` (proof / total) | 401 / 916 (9.9 ms, 15.4k terms) | 429 / **508** (4.9 ms, 7.6k terms) |
+| 12-case `bounds_mono` (proof / total) | **2,312 / 3,761** (91.0 ms, 173.4k terms) | 3,810 / 4,114 (**40.3 ms**, **67.4k terms**) |
+
+Notes from the payload prototypes:
+- In **D1**, encoding a 0-payload case's carrier unit as `Fin(0) -> Fin(0)` gives definitional unit eta for free from `FinEta(0)` without adding any kernel rule, and existing `Sigma` eta handles multi-payload tuples.
+- In **D2**, adding payload types required checking payload well-formedness in `PlainCtor`, elevating `PlainInd`'s universe to `max(0, max_i u_i)`, and converting non-identical payload types (e.g., type aliases) in `PlainElim` (+511 lines in `typing.rs`).
+- **Trade-off summary:** Neither is a strict dominator. **D1** wins on trusted-kernel minimality and generality (+522 LOC total, zero kernel growth for payloads, 5.7% of budget on a 12-case `bounds_mono` theorem). **D2** wins on wall-clock speed (2.3×–15× faster), arena size (2.6× smaller on 12-case `bounds_mono`), and avoiding new eta rules, at 2.3× the kernel LOC.
 
 ## Limits of these measurements
 
 - Prototypes were tested at the `mathematical-kernel` crate level only; stage 05 elaboration, Psi wire encoding, and end-to-end Omega programs were not updated or run.
-- `PlainData` models recursive arities only (no non-recursive payload fields). Payload fields will add typing and substitution work in both D1 and D2, though the scaling difference between unary `Two`/`Sigma` vs. `Fin(n)` vs. native `PlainInd` holds.
+- Payloaded prototypes tested independent (non-dependent) non-recursive payload fields; dependent payload telescopes and mutually recursive families were not benchmarked.
 - All timings were measured once on a single Windows x86-64 host under `[profile.test]` (`opt-level = 1`, `debug = 0`). Step counts and arena term counts are deterministic and host-independent.
