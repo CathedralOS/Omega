@@ -2908,6 +2908,21 @@ pub(crate) mod execution {
                 inputs.access_view_establishments,
             )?;
             execution.bind_projected_host_atoms(machine, inputs.projected_host_atoms)?;
+            // The static claims protected argument storage while it was being
+            // installed. Only claims under its selected cases enter execution.
+            for entry in &machine.entry_claims {
+                if !crate::boundary::structural_inputs::case_membership::case_projection_is_active(
+                    &program.structural_types(),
+                    &execution.structural_values,
+                    &execution
+                        .array_initialization
+                        .cases(&execution.structural_cases),
+                    entry.input,
+                    &entry.path,
+                )? {
+                    execution.live_claims.remove(&entry.claim);
+                }
+            }
             Ok(execution)
         }
 

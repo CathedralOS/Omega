@@ -11797,6 +11797,13 @@ fn validate_contract_formals(
         }
         validate_structural_path(module, parameter.structural_type, &claim.path)?;
     }
+    terminal_semantics::content_transformations::entry_claims::validate_declared_entry_contents(
+        &module.types.structural_types,
+        &module.types.structural_domains,
+        &module.identities,
+        contract,
+    )
+    .map_err(CodecError::MalformedStructuralFoundation)?;
     Ok(())
 }
 

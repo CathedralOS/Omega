@@ -3,6 +3,7 @@ Shared operation semantics for content transformations, domain-membership preser
 mutations and transfers (`domain_preservation`), and quotient representation opacity (`quotients`).
 */
 
+use crate::exactly_one::exactly_one;
 use crate::runtime_structural_path_tip;
 use semantic_vocabulary::{
     ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentTerm, PlaceId,
@@ -17,6 +18,7 @@ use terminal_psi::{
 
 pub(crate) mod ancestry;
 pub(crate) mod boundary_correspondence;
+pub mod entry_claims;
 
 pub fn structural_path<'a>(
     types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
@@ -49,6 +51,40 @@ pub fn structural_path<'a>(
     }
     runtime_structural_path_tip(types, root, &path)?;
     Some(path)
+}
+
+/// Name the static fields, cases and indices of a structural claim. Case IDs
+/// are local to the sum reached at their position in the path.
+pub fn content_path<'a>(
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    identities: &TerminalIdentityTable,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<Vec<ContentPlaceSegment>> {
+    runtime_structural_path_tip(types.clone(), root, path)?;
+    let name = |identity| {
+        identities
+            .text(identity)
+            .filter(|name| !name.is_empty())
+            .map(str::to_owned)
+    };
+    path.iter()
+        .enumerate()
+        .map(|(index, step)| {
+            Some(match step {
+                StructuralPathSegment::Field(field) => ContentPlaceSegment::Field(name(*field)?),
+                StructuralPathSegment::FixedIndex(index) => ContentPlaceSegment::FixedIndex(*index),
+                StructuralPathSegment::Case(id) => {
+                    let parent =
+                        crate::runtime_structural_path_tip(types.clone(), root, &path[..index])?;
+                    let case =
+                        exactly_one(parent.shape.sum_cases()?.iter(), |case| case.id == *id)?;
+                    ContentPlaceSegment::Case(name(case.identity)?)
+                }
+                _ => return None,
+            })
+        })
+        .collect()
 }
 
 pub fn claim_term(bindings: &[ContentClaimProjection]) -> Result<ContentTerm, &'static str> {

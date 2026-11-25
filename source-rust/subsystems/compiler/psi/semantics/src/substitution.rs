@@ -197,47 +197,9 @@ pub(crate) fn substitute_result_place(
         proposition,
         &|id| (id == formal).then_some(actual),
         &|path| {
-            use semantic_vocabulary::ContentPlaceSegment;
-            use terminal_psi::StructuralPathSegment;
             let types = &module.types.structural_types;
             let storage = crate::canonical_structural_storage_path(types.iter(), carrier, path)?;
-            storage
-                .iter()
-                .enumerate()
-                .map(|(ordinal, step)| {
-                    Some(match step {
-                        StructuralPathSegment::Field(field) => ContentPlaceSegment::Field(
-                            module
-                                .identities
-                                .text(*field)
-                                .filter(|name| !name.is_empty())?
-                                .to_owned(),
-                        ),
-                        StructuralPathSegment::FixedIndex(index) => {
-                            ContentPlaceSegment::FixedIndex(*index)
-                        }
-                        StructuralPathSegment::Case(case) => {
-                            let tip = crate::canonical_structural_path_tip(
-                                types.iter(),
-                                carrier,
-                                &path[..ordinal],
-                            )?;
-                            let case = crate::exactly_one::exactly_one(
-                                tip.shape.sum_cases()?.iter(),
-                                |row| row.id == *case,
-                            )?;
-                            ContentPlaceSegment::Case(
-                                module
-                                    .identities
-                                    .text(case.identity)
-                                    .filter(|name| !name.is_empty())?
-                                    .to_owned(),
-                            )
-                        }
-                        _ => return None,
-                    })
-                })
-                .collect()
+            crate::content_transformations::content_path(types.iter(), &module.identities, carrier, &storage)
         },
     )
 }

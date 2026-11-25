@@ -17565,23 +17565,17 @@ pub(crate) mod structural_catalog {
                     entry_claim_count = entry_claim_count.checked_add(1).ok_or_else(mismatch)?;
                 }
                 if let Some(entry) = function.entry_claim_declarations.get(index) {
-                    use semantic_vocabulary::ContentPlaceSegment;
-                    use terminal_psi::StructuralPathSegment;
+                    let parameter = function
+                        .structural_parameter(entry.input)
+                        .ok_or_else(mismatch)?;
+                    let path = terminal_semantics::content_transformations::content_path(
+                        types.values().copied(),
+                        identities,
+                        parameter.structural_type,
+                        &entry.path,
+                    );
                     if entry.input != claim.input.root
-                        || entry.path.len() != claim.input.segments.len()
-                        || !entry.path.iter().zip(&claim.input.segments).all(
-                            |(structural, content)| match (structural, content) {
-                                (
-                                    StructuralPathSegment::Field(id),
-                                    ContentPlaceSegment::Field(name),
-                                ) => identities.text(*id) == Some(name.as_str()),
-                                (
-                                    StructuralPathSegment::FixedIndex(a),
-                                    ContentPlaceSegment::FixedIndex(b),
-                                ) => a == b,
-                                _ => false,
-                            },
-                        )
+                        || path.as_deref() != Some(claim.input.segments.as_slice())
                     {
                         return Err(mismatch());
                     }
