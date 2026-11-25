@@ -263,9 +263,36 @@ pub fn prepare_compilation(
                 *implementation,
                 Some(signature),
             );
+            // A conformance row of the same implementation, read without the
+            // selected header, already owes the witness this call would. The
+            // call shares it when its header passes the row's checks and
+            // supplies no contract of its own; otherwise it is proved alone.
             let position = rows
                 .iter()
                 .position(|known| *known == row)
+                .or_else(|| {
+                    rows.iter()
+                        .position(|known| {
+                            known.4.is_none()
+                                && (known.0, known.1, &known.2, known.3)
+                                    == (row.0, row.1, &row.2, row.3)
+                        })
+                        .filter(|_| {
+                            crate::selected_witness_is_declared(
+                                typed,
+                                row.0,
+                                row.1,
+                                &row.2,
+                                row.3,
+                                signature,
+                                crate::WitnessInputs {
+                                    captures: captures.clone(),
+                                    purpose: compilation.purpose,
+                                    outcome_subjects: Some(compilation.subjects),
+                                },
+                            )
+                        })
+                })
                 .unwrap_or_else(|| {
                     rows.push(row);
                     rows.len() - 1

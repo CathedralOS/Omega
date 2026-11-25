@@ -28,6 +28,7 @@ mod atomics;
 mod authority;
 mod boundaries;
 pub(crate) use authority::has_predicates;
+pub(crate) use machine::WitnessRequirement;
 mod byte_observations;
 mod bytes;
 mod callables;
