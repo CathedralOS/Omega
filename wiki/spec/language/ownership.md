@@ -265,11 +265,9 @@ tracks loans in the removed and replacement values independently.
 
 Every return or terminal transfer from the region owing restoration, scope
 expiration releasing its custody, or restoration of the borrow to its parent
-must close the window. Calls may consume the detached value
-or use disjoint storage only when their complete access and outcome contracts
-cannot expose the incomplete owner. Unknown access is not evidence of
-non-observation. Boundary/capability calls and other
-[invariant-window fences](dependent_values.md#invariant-windows) remain in force.
+must close the window. Calls on the detached value or disjoint storage follow
+the [boundary call rule below](#boundary-calls-during-restoration) and the
+ordinary [invariant-window fences](dependent_values.md#invariant-windows).
 At reconvergence, predecessors must agree on the exact live ownership and open
 restoration obligations; one repaired branch does not repair another.
 
@@ -285,6 +283,26 @@ This adds no placeholder value, runtime liveness flag, or special exchange-only
 syntax. Diagnostics identify the opening move and the path or observation that
 requires restoration. [Terminal ownership](../terminal-psi/ownership.md#borrowed-storage-restoration)
 must independently reconstruct the window rather than trust producer approval.
+
+### Boundary calls during restoration
+
+A boundary call may consume a value moved out of mutably borrowed storage.
+Check the requirement's admitted contract and the arguments at this call
+site. Together they must establish that the call cannot observe or expose
+the incomplete owner, and that every path that hands the storage back first
+restores it. Unknown access or outcomes require refusal. The decision must
+hold for every implementation allowed by the requirement.
+
+For example, in `conn.session = Tls::advance(conn.session);`, moving the
+owned session leaves a hole until the assignment stores the returned value.
+Admit the call when it can access only the detached session and its outcomes
+permit restoration. Reject it if a carried reference, callback or provider
+authority could expose the incomplete connection. `reaches none` alone
+bounds service reach and leaves those access questions open.
+
+`blocks` alone permits waiting on the worker while the caller retains
+exclusive custody. It does not require closing the window. Suspension,
+cancellation, recoverable failure and abandonment retain the rules above.
 
 ## Consumers and cleanup
 

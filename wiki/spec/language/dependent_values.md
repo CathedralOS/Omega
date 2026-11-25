@@ -291,7 +291,8 @@ capability state in that determination. An empty mutation frame alone proves
 neither absence of reads nor non-exposure. Unknown access/effects are treated
 conservatively. This exception grants no new borrow authority and does not make
 an unfinished value valid; initial-establishment and ownership-hole restrictions
-remain in force.
+remain in force. A boundary call on a detached owned value follows the
+[borrowed-storage restoration rule](ownership.md#boundary-calls-during-restoration).
 
 An unclosed window rejects with both the opening write or storage cast and the
 failing consumption point. Borrow exclusivity prevents another observer seeing it; a dependent loan
