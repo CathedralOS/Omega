@@ -1045,3 +1045,35 @@ fn a_guard_on_a_field_written_before_the_call_reaches_the_helper() {
         }
     }
 }
+
+#[test]
+fn a_guard_on_an_array_element_reaches_a_helper_that_borrows_the_array() {
+    // A caller guards one element of a local array and lends the array to
+    // a nested helper whose call needs that element's bound. The bound
+    // crosses into the helper as the read `items[0]`, the form the helper's
+    // call gives the same cell. A guard on the other element leaves the
+    // helper's call unproved.
+    for (guarded, accepted) in [("items[0]", true), ("items[1]", false)] {
+        let source = format!(
+            "machine need(items: @[u64; 2], index: u64) -> u64
+            requires index < 2 requires items[index] < 5 {{ items[index] }}
+            machine entry(first: u64, second: u64) -> u64 {{
+                let items: [u64; 2] = [first, second];
+                transition {guarded} < 5 {{ true -> finish(@items), false -> (0) }}
+                machine finish(items: @[u64; 2]) -> u64 {{ need(items, 0) }}
+            }}"
+        );
+        match judge_source_arrivals(&source, &["finish"]) {
+            RouteVerdict::Accepted(proved) if accepted => {
+                proved.publish_invocation().unwrap();
+            }
+            RouteVerdict::Rejected { unproved, .. } if !accepted => assert!(
+                unproved
+                    .iter()
+                    .any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. })),
+                "{guarded}: {unproved:?}"
+            ),
+            verdict => panic!("a guard on {guarded} decides the helper's call: {verdict:?}"),
+        }
+    }
+}
