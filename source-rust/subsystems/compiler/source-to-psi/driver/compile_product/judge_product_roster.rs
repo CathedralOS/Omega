@@ -12,7 +12,7 @@ use diagnostics::Diagnostic;
 use prepared_typed_trees_to_lowered_program::source_roster;
 use std::sync::Arc;
 
-fn program_roots(bindings: &[crate::RootBinding]) -> Vec<symbols::SymbolHandle> {
+pub(super) fn program_roots(bindings: &[crate::RootBinding]) -> Vec<symbols::SymbolHandle> {
     let mut roots = bindings
         .iter()
         .map(|binding| binding.implementation_symbol)
@@ -191,9 +191,7 @@ pub(super) fn prepare_roster(
     } else {
         direct
     };
-    let mut provider_defaults = crate::compile_product::provider_choices::retain_provider_defaults(
-        ProviderPlanningContext::new(program, source_provenance::DependencyScope::Product),
-    )?;
+    let provider_defaults = product_provider_defaults(program, &pass.default_provider_selections)?;
     // Keep every available default for settlement. Only actual target choices
     // become normalized provider records and concrete body judgments here;
     // those choices already entered this pass's exact layout scopes above.
@@ -206,15 +204,6 @@ pub(super) fn prepare_roster(
             selections: vec![chosen.selection.clone()],
         })
         .collect::<Vec<_>>();
-    for selection in &pass.default_provider_selections {
-        provider_defaults.push(provider_choice_inputs::TargetProviderDefaults {
-            target: selection
-                .target
-                .map(|target| target.canonical_name().to_owned()),
-            machines: Vec::new(),
-            selections: vec![selection.clone()],
-        });
-    }
     let crate::compile_product::provider_choices::PreparedProviderChoices {
         selections: provider_inputs,
         declaration_roots,
@@ -299,6 +288,27 @@ pub(super) fn prepare_roster(
         roster,
         provider_defaults,
     })
+}
+
+/// Every default a target may choose: the source's own `provider_defaults`
+/// machines, then the defaults dependency Builds retained, one row each.
+pub(super) fn product_provider_defaults(
+    program: &crate::source_state::TypedTrees,
+    retained: &[provider_choice_inputs::ProviderSelection],
+) -> Result<Vec<provider_choice_inputs::TargetProviderDefaults>, Vec<Diagnostic>> {
+    let mut defaults = crate::compile_product::provider_choices::retain_provider_defaults(
+        ProviderPlanningContext::new(program, source_provenance::DependencyScope::Product),
+    )?;
+    defaults.extend(retained.iter().map(|selection| {
+        provider_choice_inputs::TargetProviderDefaults {
+            target: selection
+                .target
+                .map(|target| target.canonical_name().to_owned()),
+            machines: Vec::new(),
+            selections: vec![selection.clone()],
+        }
+    }));
+    Ok(defaults)
 }
 
 /// Resolve the exact authored Product path before preparing or judging its body.

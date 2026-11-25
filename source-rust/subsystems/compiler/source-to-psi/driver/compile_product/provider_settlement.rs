@@ -11,6 +11,9 @@ use checked_program_to_psi::provider_supply::{
 use diagnostics::Diagnostic;
 use prepared_typed_trees_to_lowered_program::source_roster;
 
+#[cfg(test)]
+mod tests;
+
 /// The slot and provider one selection names, as the roster states a supply.
 /// A selection of an operator family names each coordinate as its own slot.
 pub(crate) fn selected_supplies(
@@ -47,6 +50,9 @@ pub(super) struct LoweredSupplySource<'a> {
     pub native_bindings: &'a [provider_choice_inputs::NativeBuildSupply],
     pub defaults: &'a [crate::compile_product::provider_declarations::TargetProviderDefaults],
     pub layout_prepared: &'a [ChosenDefaultLayout],
+    /// Whether `layout_prepared` came from [`predict_default_layouts`] and no
+    /// scan has confirmed it yet.
+    pub predicted: bool,
 }
 
 /// What a Product's accepted module is extended from: the frozen source and
@@ -86,6 +92,29 @@ pub(super) enum ProviderWork {
     /// default listed here, those it was already prepared for included, and
     /// judges again. Nothing was judged with the unprepared default.
     PrepareLayouts(Vec<ChosenDefaultLayout>),
+}
+
+/// What one scan of a lowered closure asks of the driver. Only a closure
+/// lowered from a source prepared for predicted defaults can be mispredicted.
+#[derive(Debug)]
+pub(super) enum LoweredWork {
+    /// Settle as the scan found.
+    Settle(ProviderWork),
+    /// The source was prepared for predicted defaults, and the targets did
+    /// not choose exactly those. The driver discards this source and its
+    /// charges and settles from an unprepared source, as if no prediction
+    /// had been made.
+    Mispredicted,
+}
+
+/// One scan's work, with what confirms or refutes a prediction.
+struct ProviderScan {
+    work: ProviderWork,
+    /// Every checked default a target chose, prepared or not.
+    chosen_layouts: Vec<ChosenDefaultLayout>,
+    /// Whether every target's demand walk ran. A refused walk chooses
+    /// nothing, so it cannot confirm a prediction.
+    every_target_walked: bool,
 }
 
 /// What the demand walk of any target reads from one accepted module.
@@ -208,9 +237,11 @@ fn scan_provider_work(
     native_bindings: &[provider_choice_inputs::NativeBuildSupply],
     defaults: &[crate::compile_product::provider_declarations::TargetProviderDefaults],
     layout_prepared: &[ChosenDefaultLayout],
-) -> Result<ProviderWork, Vec<Diagnostic>> {
+) -> Result<ProviderScan, Vec<Diagnostic>> {
     let mut new_supplies = Vec::new();
     let mut unprepared = Vec::new();
+    let mut chosen_layouts = Vec::new();
+    let mut every_target_walked = true;
     for profile in targets {
         let Ok(supply) = demand.prepare(
             source,
@@ -221,6 +252,7 @@ fn scan_provider_work(
             Some(profile.numeric_support.target),
             Some(&profile.numeric_support),
         ) else {
+            every_target_walked = false;
             continue;
         };
         for requirement in supply.requirements() {
@@ -240,7 +272,10 @@ fn scan_provider_work(
                     selection: selection.clone(),
                 };
                 if !layout_prepared.contains(&layout) && !unprepared.contains(&layout) {
-                    unprepared.push(layout);
+                    unprepared.push(layout.clone());
+                }
+                if !chosen_layouts.contains(&layout) {
+                    chosen_layouts.push(layout);
                 }
             }
             // The checked selection already supplied this exact body. Asking
@@ -255,30 +290,69 @@ fn scan_provider_work(
             }
         }
     }
-    if !unprepared.is_empty() {
+    let work = if !unprepared.is_empty() {
         let mut layouts = layout_prepared.to_vec();
         layouts.append(&mut unprepared);
-        return Ok(ProviderWork::PrepareLayouts(layouts));
-    }
-    if new_supplies.is_empty() {
-        return Ok(ProviderWork::Complete);
-    }
-    Ok(ProviderWork::JudgeProviders(new_supplies))
+        let names = targets
+            .iter()
+            .map(|profile| profile.numeric_support.target)
+            .collect::<Vec<_>>();
+        order_layouts(&mut layouts, &names, defaults);
+        ProviderWork::PrepareLayouts(layouts)
+    } else if new_supplies.is_empty() {
+        ProviderWork::Complete
+    } else {
+        ProviderWork::JudgeProviders(new_supplies)
+    };
+    Ok(ProviderScan {
+        work,
+        chosen_layouts,
+        every_target_walked,
+    })
+}
+
+/// Order chosen defaults by target, then by where the target packages
+/// declare them. The prepared source then depends only on which defaults the
+/// targets chose, not on whether settlement found them in one round or several.
+fn order_layouts(
+    layouts: &mut [ChosenDefaultLayout],
+    targets: &[&str],
+    defaults: &[crate::compile_product::provider_declarations::TargetProviderDefaults],
+) {
+    layouts.sort_by_cached_key(|layout| {
+        (
+            targets.iter().position(|target| *target == layout.target),
+            defaults
+                .iter()
+                .flat_map(|row| &row.selections)
+                .position(|selection| *selection == layout.selection),
+        )
+    });
 }
 
 /// Read every target's choices from a lowered Product before running Stage 06.
 /// If lowering produced a formation failure or closure refusal, stop settling
 /// so Stage 06 reports that exact refusal unchanged.
+///
+/// A source prepared for predicted defaults stands only when every target's
+/// walk ran and the targets chose exactly the predicted defaults. The source
+/// then holds every chosen default's layouts and no other default's, as if
+/// settlement had found them one round at a time.
 pub(super) fn next_provider_work_from_lowered(
     source: LoweredSupplySource<'_>,
-) -> Result<ProviderWork, Vec<Diagnostic>> {
+) -> Result<LoweredWork, Vec<Diagnostic>> {
     let Some(elaboration) = source.lowered.closure() else {
-        return Ok(ProviderWork::Complete);
+        // A refusal from a source prepared for a prediction may belong to a
+        // default no target chose; only an unpredicted source reports it.
+        if source.predicted {
+            return Ok(LoweredWork::Mispredicted);
+        }
+        return Ok(LoweredWork::Settle(ProviderWork::Complete));
     };
     let roster = source.lowered.roster();
     let trees = source.lowered.source().trees();
     let demand = ModuleDemand::read_from_elaboration(trees, elaboration, roster)?;
-    scan_provider_work(
+    let scan = scan_provider_work(
         &demand,
         trees,
         &elaboration.module,
@@ -288,7 +362,17 @@ pub(super) fn next_provider_work_from_lowered(
         source.native_bindings,
         source.defaults,
         source.layout_prepared,
-    )
+    )?;
+    let confirmed = scan.every_target_walked
+        && scan.chosen_layouts.len() == source.layout_prepared.len()
+        && source
+            .layout_prepared
+            .iter()
+            .all(|layout| scan.chosen_layouts.contains(layout));
+    if source.predicted && !confirmed {
+        return Ok(LoweredWork::Mispredicted);
+    }
+    Ok(LoweredWork::Settle(scan.work))
 }
 
 /// Read every target's choices from one accepted Product. Missing target-specific
@@ -313,4 +397,119 @@ pub(super) fn next_provider_work(
         source.defaults,
         source.layout_prepared,
     )
+    .map(|scan| scan.work)
+}
+
+/// Predict the defaults settlement will find a target choosing, so the driver
+/// can prepare and lower the source once instead of once per provider level.
+///
+/// Settlement reads choices from the lowered call graph, which reaches only
+/// the bodies already prepared. `Console::write_line` chooses `WindowsConsole`
+/// on `windows_x86_64`, and only `WindowsConsole`'s lowered body shows that it
+/// calls `WindowsConsoleHost::write`, whose default is a further provider.
+/// That takes one preparation and lowering per level. The prediction follows
+/// the same chain through the declarations layout demand already reads
+/// ([`FixedLayoutTargetScope::demanded_declarations`]): the entries, the
+/// Build's providers for the target and each default predicted so far. A
+/// default is predicted when those declarations name one of its
+/// requirements, no Build selection or native binding outranks it, and no
+/// other default competes for the same slot.
+///
+/// The prediction only orders work. Settlement accepts it when the lowered
+/// walk chooses exactly the predicted defaults, and otherwise reports
+/// [`LoweredWork::Mispredicted`]; neither a missed nor an extra default can
+/// reach the checked program.
+pub(super) fn predict_default_layouts(
+    program: &crate::source_state::TypedTrees,
+    roots: &[symbols::SymbolHandle],
+    targets: &[&str],
+    build: &[crate::compile_product::provider_declarations::ProviderSelection],
+    native_bindings: &[provider_choice_inputs::NativeBuildSupply],
+    defaults: &[crate::compile_product::provider_declarations::TargetProviderDefaults],
+) -> Vec<ChosenDefaultLayout> {
+    use crate::compile_product::provider_declarations::ProviderSelection;
+    use crate::compile_time_invocations::FixedLayoutTargetScope;
+    let applies = |selection: &ProviderSelection, target: &str| {
+        selection
+            .target
+            .is_none_or(|selected| selected.canonical_name() == target)
+    };
+    let mut predicted = Vec::new();
+    if roots.is_empty() || defaults.iter().all(|row| row.selections.is_empty()) {
+        return predicted;
+    }
+    let dependencies = crate::source_state::references::ComputationDependencyRows::of(program);
+    for &target in targets {
+        let target_build = build
+            .iter()
+            .filter(|selection| applies(selection, target))
+            .cloned()
+            .collect::<Vec<_>>();
+        let available = defaults
+            .iter()
+            .filter(|row| row.target.as_deref().is_none_or(|row| row == target))
+            .flat_map(|row| &row.selections)
+            .filter(|selection| applies(selection, target))
+            .collect::<Vec<_>>();
+        let slots = |selection: &ProviderSelection| {
+            selected_supplies(selection)
+                .into_iter()
+                .map(|supply| supply.slot)
+                .collect::<Vec<_>>()
+        };
+        let outranked = |slot: symbols::SymbolHandle| {
+            target_build
+                .iter()
+                .any(|selection| slots(selection).contains(&slot))
+                || native_bindings.iter().any(|supply| {
+                    supply.selection.target.canonical_name() == target
+                        && supply.selection.subject == slot
+                })
+                || available
+                    .iter()
+                    .filter(|other| slots(other).contains(&slot))
+                    .count()
+                    > 1
+        };
+        let mut chosen: Vec<ProviderSelection> = Vec::new();
+        loop {
+            let mut scope = FixedLayoutTargetScope {
+                target: target.to_owned(),
+                facts: None,
+                entry_declarations: roots.to_vec(),
+                provider_declarations: target_build.clone(),
+            };
+            scope.provider_declarations.extend(chosen.iter().cloned());
+            let Ok(reached) = scope.demanded_declarations(program, &dependencies) else {
+                // An unreadable closure predicts nothing more; settlement
+                // still finds every choice the slow way.
+                break;
+            };
+            let before = chosen.len();
+            for selection in &available {
+                if chosen.contains(selection) {
+                    continue;
+                }
+                let named = selected_supplies(selection).into_iter().any(|supply| {
+                    !outranked(supply.slot)
+                        && supply
+                            .requirements(program)
+                            .into_iter()
+                            .any(|requirement| reached.contains(requirement))
+                });
+                if named {
+                    chosen.push((*selection).clone());
+                }
+            }
+            if chosen.len() == before {
+                break;
+            }
+        }
+        predicted.extend(chosen.into_iter().map(|selection| ChosenDefaultLayout {
+            target: target.to_owned(),
+            selection,
+        }));
+    }
+    order_layouts(&mut predicted, targets, defaults);
+    predicted
 }
