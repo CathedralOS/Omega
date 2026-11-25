@@ -21,12 +21,12 @@ pub use source::{
 };
 
 use build_declarations::BuildRequest;
-use build_execution::host::bindings::{BuildProductQuery, BuildProviderRequest};
+use build_execution::host::bindings::BuildProductQuery;
 use build_execution::host::requests::BuildDependencyPreparation;
 use build_execution::{
     BuildDependencySelection, BuildSourceResult, CompileFailure, EvaluatedBuild,
-    PreparedBuildEvaluation, ProducedBuildProvider, ReturnedBuild, SourceBuildDeclaration,
-    TerminalBuildActivation, TerminalBuildStep,
+    PreparedBuildEvaluation, ReturnedBuild, SourceBuildDeclaration, TerminalBuildActivation,
+    TerminalBuildStep,
 };
 use diagnostics::{BuildDiagnosticContext, Diagnostic};
 use package_compilation::PackageCompilationInputs;
@@ -65,15 +65,14 @@ pub trait PlanningServices {
         Ok(None)
     }
 
-    fn provide(
+    /// Return the original settled Product that supplied this Build provider declaration.
+    fn provider_product(
         &mut self,
-        _activation: &TerminalBuildActivation,
-        _request: &BuildProviderRequest,
-    ) -> Result<(BuildDependencySelection, ProducedBuildProvider), CompileFailure> {
-        Err(vec![Diagnostic::error(
-            "Build requested a provider without a granted provider service",
-        )]
-        .into())
+        _handoff: &package_compilation::PackageBuildHandoff,
+    ) -> Result<PlannedProduct, CompileFailure> {
+        Err(refusal(
+            "Build requested a provider without a granted provider service".into(),
+        ))
     }
 }
 
@@ -213,7 +212,8 @@ pub fn interpret(
             )]
         })?;
         let host = execution.host()?;
-        let mut activation = host.start().map_err(refusal)?;
+        let mut activation =
+            host.start(|owner, declaration| source.provide(owner, declaration, services))?;
         let ran = run(&mut activation, &mut source, services, &mut context);
         let spent = activation.helper_evaluation_accounting().clone();
         ran.map_err(|failure| failure.with_source_completion_accounting(spent.clone()))?;
@@ -257,12 +257,7 @@ fn run(
                     .answer_query(&query, description, &selections)
                     .map_err(refusal)?;
             }
-            TerminalBuildStep::Provide(request) => {
-                let (selection, provider) = services.provide(activation, &request)?;
-                activation
-                    .install_provider(selection, &provider)
-                    .map_err(refusal)?;
-            }
+            TerminalBuildStep::Provide => activation.install_provider().map_err(refusal)?,
             TerminalBuildStep::Prepare(request) => {
                 *context = Some(BuildDiagnosticContext::PreparingDependency);
                 let dependency = services.prepare_dependency(activation, &request)?;

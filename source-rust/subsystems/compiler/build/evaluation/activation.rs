@@ -15,7 +15,7 @@ than a callback loop:
    Whenever `advance` pauses on a provider readiness demand (`AwaitingEffect`) or
    a Product declaration query (`HostComputationPending`), the activation stays
    suspended in place with its live `TerminalInstance` and `EvaluationInvocationAccount`
-   intact while the project Build driver compiles the required dependency and resumes via
+   intact while the driver installs the backing checked before entry or answers the query via
    `install_provider` or `answer_query`.
 3. Every mutating transition (`advance`, `install_provider`, `answer_query`) sets
    `self.state = ActivationState::Refused` before performing fallible work and
@@ -300,17 +300,31 @@ impl TerminalBuildHost {
         }))
     }
 
-    pub fn start(self: &Arc<Self>) -> Result<TerminalBuildActivation, String> {
+    pub fn start(
+        self: &Arc<Self>,
+        provide: impl FnMut(
+            semantic_vocabulary::PackageKeyIdentity,
+            &str,
+        ) -> Result<
+            source_compiler::publication::ProducedBuildProvider,
+            crate::CompileFailure,
+        >,
+    ) -> Result<TerminalBuildActivation, crate::CompileFailure> {
+        let refuse = |reason: String| vec![diagnostics::Diagnostic::error(reason)];
         if self.started.swap(true, std::sync::atomic::Ordering::AcqRel) {
-            return Err("Build host has already started its activation".into());
+            return Err(refuse("Build host has already started its activation".into()).into());
         }
+        let ready_providers =
+            provider_installation::check_backings(&self.accepted, &self.produced, provide)?;
         artifacts::compile_timings::counters::record_build_execution(self.execution_purpose);
-        let instance = self.instantiate()?;
-        let work = evaluation_work::sponsored_meter(self.account.clone(), Some(0)).map_err(describe)?;
+        let instance = self.instantiate().map_err(refuse)?;
+        let work = evaluation_work::sponsored_meter(self.account.clone(), Some(0))
+            .map_err(|error| refuse(describe(error)))?;
         Ok(TerminalBuildActivation {
             history: Default::default(),
             instance,
             host: Arc::clone(self),
+            ready_providers,
             work,
             state: ActivationState::Running,
             requests: Vec::new(),
@@ -460,6 +474,10 @@ pub struct TerminalBuildActivation {
     history: evaluation_receipts::BuildExecutionHistory,
     instance: TerminalInstance<'static, 'static>,
     host: Arc<TerminalBuildHost>,
+    ready_providers: Vec<(
+        crate::host::bindings::BuildProviderRequest,
+        source_compiler::publication::ProducedBuildProvider,
+    )>,
     work: EvaluationWorkMeter,
     state: ActivationState,
     requests: Vec<IssuedBuildRequest>,
@@ -468,10 +486,9 @@ pub struct TerminalBuildActivation {
 }
 
 /// The single reason the interpreter returned control to the planner.
-pub enum TerminalBuildStep {
-    Returned,
+pub enum TerminalBuildStep {    Returned,
     NeedsWork,
-    Provide(crate::host::bindings::BuildProviderRequest),
+    Provide,
     Prepare(crate::host::requests::BuildDependencyPreparation),
     Query(Arc<crate::host::bindings::BuildProductQuery>),
 }
@@ -548,11 +565,7 @@ impl TerminalBuildActivation {
         self.host.produced.view()
     }
 
-    pub fn install_provider(
-        &mut self,
-        selected: BuildDependencySelection,
-        provider: &source_compiler::publication::ProducedBuildProvider,
-    ) -> Result<(), String> {
+    pub fn install_provider(&mut self) -> Result<(), String> {
         if !matches!(self.state, ActivationState::Running) {
             return Err("Build provider installation requires a live readiness pause".into());
         }
@@ -562,35 +575,12 @@ impl TerminalBuildActivation {
             .bindings
             .awaiting_provider()?
             .ok_or("Build has no provider readiness pause")?;
-        let (alias, _) = request
-            .backing
-            .path
-            .split_once("::")
-            .ok_or("Build backing has no dependency qualifier")?;
-        let issued = self
-            .requests
+        let provider = self
+            .ready_providers
             .iter()
-            .filter_map(|issued| match issued.request() {
-                build_declarations::BuildRequest::Dependency {
-                    purpose: build_declarations::DependencyPurpose::Build,
-                    alias,
-                    ..
-                } => Some(alias),
-                _ => None,
-            })
-            .nth(selected.request_ordinal)
-            .ok_or("Build provider has no issued Build dependency request")?;
-        if selected.purpose != build_declarations::DependencyPurpose::Build
-            || selected.package != provider.package()
-            || issued
-                .as_ref()
-                .is_some_and(|issued| issued.as_str() != alias)
-        {
-            return Err(
-                "Build provider differs from its exact acquired dependency selection".into(),
-            );
-        }
-        provider_installation::admit_request(self.view(), &request, provider)?;
+            .find(|(selected, _)| selected == &request)
+            .map(|(_, provider)| provider)
+            .ok_or("Build provider wait has no checked implementation")?;
         if !self.host.bindings.has_installed_backing(provider)? {
             let profile = self
                 .host
@@ -609,7 +599,6 @@ impl TerminalBuildActivation {
             }
         }
         self.host.bindings.provider_installed(provider)?;
-        self.demanded_sources.push(selected);
         self.state = ActivationState::Running;
         Ok(())
     }
@@ -699,7 +688,7 @@ impl TerminalBuildActivation {
                 self.host.bindings.awaiting_provider().map_err(refusal)?,
                 self.host.requests.awaiting_preparation().map_err(refusal)?,
             ) {
-                (Some(provider), None) => TerminalBuildStep::Provide(provider),
+                (Some(_), None) => TerminalBuildStep::Provide,
                 (None, Some(dependency)) => TerminalBuildStep::Prepare(dependency),
                 (None, None) => {
                     return Err(refusal("Build paused without an admitted provider or dependency demand"));
