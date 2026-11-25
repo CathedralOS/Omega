@@ -34,4 +34,5 @@ syntax-trees = { path = "../../representations/syntax-trees" }
 source-parser = { path = "../01_tokens-to-syntax-trees" }
 source-lexer = { path = "../00_source-files-to-tokens" }
 tokens = { path = "../../representations/tokens" }
+worker-budget = { path = "../../../foundation/worker-budget" }
 syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees", features = ["test-support"] }

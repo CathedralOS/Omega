@@ -31,6 +31,8 @@ layout-plans = { path = "../../../psi/layouts/geometry" }
 numerics = { path = "../../../foundation/numerics" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 symbols = { path = "../../../foundation/declaration-identity" }
+worker-budget = { path = "../../../foundation/worker-budget" }
+rayon = "1.11"
 source-declarations = { path = "../symbol-resolved-trees/declarations" }
 source-symbol-table = { path = "../symbol-resolved-trees/symbol-table" }
 

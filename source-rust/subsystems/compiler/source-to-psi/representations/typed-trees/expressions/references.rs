@@ -1819,6 +1819,35 @@ impl<Element> ScopedOccurrences<Element> {
         }
     }
 
+    /*
+        A run of the parallel owner walk touches only some slots. A zeroed
+        allocation leaves untouched pages to the allocator, where growing the
+        heads one insert at a time would write every slot below the highest.
+    */
+    fn with_zeroed_slots(slots: usize) -> Self {
+        Self {
+            heads: vec![0; slots + 1],
+            rows: Vec::new(),
+        }
+    }
+
+    /// Insert each run's rows in run order, dropping repeated pairs.
+    fn replay<'rows>(
+        slots: usize,
+        runs: impl Iterator<Item = &'rows Vec<ScopedOccurrenceRow<Element>>>,
+    ) -> Self
+    where
+        Element: 'rows,
+    {
+        let mut table = Self::with_slot_capacity(slots);
+        for rows in runs {
+            for row in rows {
+                table.insert(row.owner, row.reference);
+            }
+        }
+        table
+    }
+
     /// Record `owner` for `reference`; false when that pair was already seen.
     fn insert(&mut self, owner: SymbolHandle, reference: arena::Handle<Element>) -> bool {
         let slot = reference.arena_index() as usize;
@@ -1937,6 +1966,10 @@ fn collect_operand_owners(
     mut occurrences: TypeOccurrences,
 ) -> ProgramOperandOwners {
     occurrences.operand_owners_only = true;
+    let workers = worker_budget::current_workers();
+    if workers > 1 {
+        return collect_operand_owners_in_parallel(program, occurrences, workers);
+    }
     occurrences.seen_types =
         ScopedOccurrences::with_slot_capacity(program.type_reference_table.type_reference_count());
     occurrences.seen_expressions =
@@ -1946,6 +1979,70 @@ fn collect_operand_owners(
         types: occurrences.seen_types,
         expressions: occurrences.seen_expressions,
     }
+}
+
+/*
+    Stage 03 asks for operand owners several times per typing cohort, and each
+    sequential walk covered the whole program on one core. The walk instead
+    splits the program's declarations (every selected `declaration` call of
+    `visit_program`, in order) into contiguous runs, walks each run on its own
+    worker with fresh seen tables, and replays the runs' first-visit rows in
+    run order into one table.
+
+    The replay gives the sequential tables exactly. Each declaration sets the
+    owner, and the walk below an operand depends only on that operand and the
+    current owner; `seen` pruning is the only state that changes what it
+    visits. A run's walk differs from the sequential one only where an earlier
+    run already saw an (owner, operand) pair. The sequential walk pruned
+    there, and the run walks it again, but everything under that pair was
+    already recorded by the earlier run, so the replay drops it as a repeat.
+    Rows the sequential walk would add keep their relative order inside a run.
+*/
+fn collect_operand_owners_in_parallel(
+    program: &TypedTrees,
+    occurrences: TypeOccurrences,
+    workers: usize,
+) -> ProgramOperandOwners {
+    use rayon::prelude::*;
+
+    let mut counter = TypeOccurrences {
+        selection: occurrences.selection.clone(),
+        skip_universe_levels: occurrences.skip_universe_levels,
+        operand_owners_only: true,
+        unit_range: Some(0..0),
+        ..TypeOccurrences::default()
+    };
+    visit_program(program, &mut counter);
+    let units = counter.next_unit;
+    let type_slots = program.type_reference_table.type_reference_count();
+    let expression_slots = program.expression_table.expression_count();
+    // Two runs per worker let a few heavy machines share workers. Every run
+    // owns slot-sized seen tables, so runs stay few.
+    let runs = (workers * 2).min(32).min(units).max(1);
+    let walked: Vec<_> = (0..runs)
+        .into_par_iter()
+        .with_max_len(1)
+        .map(|run| {
+            let start = units * run / runs;
+            let end = units * (run + 1) / runs;
+            let mut walk = TypeOccurrences {
+                selection: occurrences.selection.clone(),
+                skip_universe_levels: occurrences.skip_universe_levels,
+                operand_owners_only: true,
+                unit_range: Some(start..end),
+                seen_types: ScopedOccurrences::with_zeroed_slots(type_slots),
+                seen_expressions: ScopedOccurrences::with_zeroed_slots(expression_slots),
+                ..TypeOccurrences::default()
+            };
+            visit_program(program, &mut walk);
+            (walk.seen_types.rows, walk.seen_expressions.rows)
+        })
+        .collect();
+    let (types, expressions) = rayon::join(
+        || ScopedOccurrences::replay(type_slots, walked.iter().map(|(types, _)| types)),
+        || ScopedOccurrences::replay(expression_slots, walked.iter().map(|(_, rows)| rows)),
+    );
+    ProgramOperandOwners { types, expressions }
 }
 
 pub fn collect_program_conformance_occurrences(
@@ -1989,6 +2086,10 @@ struct TypeOccurrences {
     applications: HashSet<StaticMachineApplicationHandle>,
     // Set for owner queries, which read only the seen tables below.
     operand_owners_only: bool,
+    // A parallel owner walk visits only these selected declarations, counted
+    // in `visit_program` order by `next_unit`.
+    unit_range: Option<std::ops::Range<usize>>,
+    next_unit: usize,
     seen_types: ScopedOccurrences<TypeReferenceNode>,
     seen_expressions: ScopedOccurrences<ExpressionNode>,
     seen_mathematical_types: ScopedOccurrences<crate::source_state::mathematical::MathematicalType>,
@@ -2078,6 +2179,13 @@ impl TypedReferences for TypeOccurrences {
     fn declaration(&mut self, symbol: SymbolHandle) -> bool {
         if !self.selection.contains(symbol) {
             return false;
+        }
+        if let Some(range) = &self.unit_range {
+            let unit = self.next_unit;
+            self.next_unit += 1;
+            if !range.contains(&unit) {
+                return false;
+            }
         }
         self.owner = symbol;
         true
