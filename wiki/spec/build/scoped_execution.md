@@ -525,6 +525,40 @@ Explicitly OS-targeted programs retain their [selected ABI](embedding.md#target-
 A Build's own `Build::select_provider` configures its product. Editing that
 plan cannot install a host service into the running Build.
 
+### Providers for an interpreted successor
+
+When a plan selects a [successor Build entry](declarations.md#project-role),
+`Build::select_provider::<R, Impl>(build, interpreter)` selects the
+implementation of the exact requirement in that successor. Both designated
+operands resolve against the successor's product declarations and registered
+packages. Ordinary calls and imports used to execute the preparing Build
+must already resolve in its own checked context.
+
+All calls to the same static requirement in one program use its resolved
+provider, including calls through generated files and imported helpers.
+Selection applies to the immediate product and target. Forwarding a package
+to a further stage preserves the package identity. That stage's product
+resolves its own provider from explicit selections or admitted target defaults.
+To carry a particular override onward, select it again for that product.
+The [ordinary supply rules](provider_selection.md) govern conflicts.
+
+The first entry obeys the same admission rule. The CLI or embedding host
+supplies its invocation inputs. An admitted package can supply an
+interpreter-target default. A program that uses the optional console package
+therefore needs a complete compatible provider and admitted backing for its
+reachable operations. A host need only supply the bounded diagnostic sink
+for a program that reaches output alone. Selecting an adapter grants no host
+authority. Report the stage, requirement and missing provider, backing or
+grant before any code in that stage runs.
+
+Acceptance uses one generated `announce` helper calling `Console::write_line`.
+Check the helper in an interpreted configuration stage and again in the native
+editor. Observe the first message in the stage's diagnostic sink and the
+second on the editor's standard output. In separate negative cases remove
+all interpreter provider supply, or retain the adapter and withhold its
+required sink or grant. Each fails before the configuration entry executes.
+[Complete example](../../language_guide/packages.md#using-the-same-console-in-a-build-and-an-application)
+
 ### Live networking in a Build
 
 `omega build` starts with live networking disabled. The caller can raise the

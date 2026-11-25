@@ -75,10 +75,20 @@ The Build declares its project role through one of the following operations.
 | `Build::package(builder, "name")` | Package |
 | `Build::application(builder, "name")` | Application |
 | One or more `Build::member(builder, "path")` calls | Workspace |
+| `Build::build_entry(build, "configure.omg")` | Interpret the named Build and use the plan it produces for this project |
 
-The one interpreted activation must produce exactly one package/application
-declaration or the workspace member set. Mixed, missing, duplicate, and
-noncanonical results reject.
+Each activation chooses exactly one row. Mixed, missing, duplicate, and
+noncanonical results reject. A helper passed the current mutable Build edits
+this same plan. A successor receives a fresh Build. After the current entry
+returns successfully and its dependency join completes, the driver freezes
+the selected source view, resolves the named file within it, and checks its
+free `machine build(build: @mutable Build)` against the registered package
+inputs for the interpreter target. Missing or invalid entries reject. The
+driver admits the successor before running it and follows its plan to the
+project's final result. Any failed stage fails that chain. A dependency still
+has to produce the package its consumer requested.
+[Package handoff and example](../packages/staged_inputs.md#from-source-to-the-next-stage)
+
 `Owner::build` is not a project root and cannot acquire a synthesized receiver.
 An ordinary same-spelled machine remains ordinary source.
 

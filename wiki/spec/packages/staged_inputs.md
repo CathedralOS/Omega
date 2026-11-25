@@ -5,11 +5,10 @@ A project describes its direct dependencies in ordinary Omega source. Running
 project is the root or a dependency. A consumer can build a board package
 without knowing which libraries the board uses to configure itself.
 
-This is the proposed replacement for the [version 4 project lock](locks.md).
-This page governs the proposed source, update and reach rules. The Rust tools
-currently use the lock workflow. The [remaining design decisions](#remaining-design-decisions)
-matter before retiring that workflow, particularly for separately admitted
-external assumptions, terminal permissions and compiler inputs.
+This page specifies the source-based replacement for the [version 4 project lock](locks.md).
+The Rust tools currently use the lock workflow. Successor plans and their
+package and provider selections are implementation work. One [caller-input
+decision](#remaining-design-decisions) remains before retiring version 4.
 
 ## From source to the next stage
 
@@ -20,16 +19,16 @@ Externally owned libraries keep their package identity, import scope and
 transitive dependencies. Source acquisition and registering an alias are
 distinct operations. Supplying either one grants no host services.
 
-A stage that needs a library for its product registers a product dependency.
-A stage that needs a library to compile the next Build supplies it before that
-Build's entry. The following example shows the proposed library and stage API
-spellings. The repository locations and full Git commit IDs are illustrative.
-The stock distribution makes its Git request vocabulary available to the
-preparing stage at startup.
+Every entry describes its immediate product. A package can supply code to an
+interpreted Build, a native executable, or both. Each program receives its
+own bindings. In this example the board uses a layout library to configure
+itself. Building the board alone or as a firmware dependency starts from the
+same board entry and uses the same revision.
 
 ```omega
 // firmware/build.omg
-use {omega}/build/dependencies/providers/git.omg as git;
+use {omega}/build/dependency.omg;
+use {omega}/build/dependencies/providers/git.omg;
 
 machine build(build: @mutable Build) {
     Build::package(build, "firmware");
@@ -37,20 +36,22 @@ machine build(build: @mutable Build) {
         "board", "https://example.org/board.git", "refs/heads/stable",
         "72bc01f59de8a314c60155e8c3b7474b261490fe"
     );
-    _ = Build::dependency(build, board);
+    |dependency|::add(build, board, max_reach: []);
 }
 ```
 
 ```omega
-// board/build.omg, from the selected board revision
-use {omega}/build/dependencies/providers/git.omg as git;
+// board/build.omg
+use {omega}/build/dependency.omg;
+use {omega}/build/dependencies/providers/git.omg;
 
 machine build(build: @mutable Build) {
     let layout: DependencyDescription = |git|::dependency(
         "layout", "https://example.org/layout.git", "refs/heads/stable",
         "8e76d2a18f2ecb674b75670ab380aa1cf32f9d44"
     );
-    Build::stage(build, "configure.omg", [layout]);
+    |dependency|::add(build, layout, max_reach: []);
+    Build::build_entry(build, "configure.omg");
 }
 ```
 
@@ -64,21 +65,23 @@ machine build(build: @mutable Build) {
 }
 ```
 
-The stage operation requests a separate compilation of the named Build source
-with the supplied bindings and uses its resulting plan for this project. It
-obeys ordinary dependency join, failure and publication rules. Only the board's
-configuration stage sees the alias `layout`. The resulting product can use
-dependencies registered in its own plan. Building the board alone starts at
-the same board entry and follows the same revision literals. Each root supplies
-its own authority; an approval shipped in the board repo cannot approve code
-on behalf of firmware.
+The driver runs `configure.omg` after the preparing entry returns. Its
+`layout` import resolves before entry. If the board's product also imports
+that package, the configuration stage explicitly forwards it:
 
-An intermediate stage explicitly forwards a received binding when a successor
-needs that same instance. It need not import a machine from it, fetch it again
-or repeat its revision. A dependency that prepares its own children keeps
-their declarations in its own source. Bindings and host grants are scoped per
-activation. Forwarding files or a library does not forward live networking or
-process access.
+```omega
+// In configure.omg, with use {omega}/build/dependency.omg;
+let layout_input: PackageBinding = |dependency|::input(build, "layout");
+|dependency|::add(build, layout_input, max_reach: []);
+```
+
+`input` looks up an alias in this invocation's frozen incoming bindings.
+A missing alias rejects. The returned binding identifies the exact admitted
+package instance and its frozen source and dependency closure. Forwarding
+it preserves that identity and attenuation without reacquisition. `add`
+registers the package for the immediate product with its own checked edge.
+Siblings receive only their own inputs. Provider selections, live network
+access, process grants and filesystem backing have their own activation scope.
 
 A simple project needs no preparatory stage. A project can name an ordinary
 preparing file `build.lock.omg` and invoke it explicitly. No stage searches
@@ -119,8 +122,11 @@ that Git verified those bytes.
 
 ## Dependency reach
 
-The consumer may bound a dependency use with `max_reach`, a set written as an
-array of reflected boundary-service identities. For example, a CRC library can
+Every dependency use has a ceiling. Omission means `max_reach: []`, including
+for ordinary reach atoms. Check each edge independently, including uses of
+the same instance in two stages. Report the failing edge, atom and reachable
+call path. An unused export contributes no reach. The consumer writes
+`max_reach` as an array of reflected boundary-service identities. For example, a CRC library can
 be supplied with `max_reach: []`. Its checked use, including transitive calls
 through selected contracts, must have empty service reach. A new call from
 `crc32` to a telemetry helper reaching `NetworkSend` fails the build and reports
@@ -162,61 +168,45 @@ reports `Unsafe` through `ForeignCodeExecution`.
 
 ## Installing and updating
 
-The bundled workflow supports deterministic edits for conventional Git
-declarations. Custom resolvers and arbitrary conditionals remain ordinary
-Omega. The compiler imposes no generic update algorithm on them.
+The source-based workflow ships package-management guidance. `omega packages`
+and `omega packages help add` or `help update` explain how a person or an
+agent can edit ordinary Build source. The bundled Git library owns resolution
+and revision verification. A custom resolver can document its own edits.
+A build checks the edited source independently of who wrote it.
 
-| Command in the selected stage | Behavior |
-| --- | --- |
-| `omega packages install x --git <repository> --track <ref>` | For a new alias, resolve the ref, verify the selected package, then propose the literal declaration, exact commit and registration edit together. |
-| `omega packages install x` | Use the existing declaration at its selected revision, fetching verified missing content if permitted. An unknown alias requires a source. |
-| `omega packages update x` | Resolve the declared tracking ref. If unchanged, leave the file alone. Otherwise verify the candidate and propose replacing only the commit literal. Without a tracking ref or an explicit new revision there is no inferred update target. |
+For an add, identify the consuming stage, alias and intended use, then add
+the dependency and its reach ceiling there. For an update, locate that
+declaration, verify the candidate and replace its revision. When control flow
+or repeated occurrences make the choice ambiguous, show the candidate sites
+and proposed source edit for the author to choose. The version 4 install and
+update commands belong to the lock-based workflow.
 
-Installing the same binding is idempotent. An alias already bound to a
-different source is a conflict. In a simple unconditional stage, the editor
-can insert a declaration beside the registration and append its binding to
-the literal input list. The ordinary product registration is also editable.
-An edit that would require inventing a new stage, choosing a branch, or tracing
-an arbitrary helper stays with the author. Show the source location, a concrete
-declaration or replacement and the call that would need wiring. Distinguish a
-definitely absent alias from one the editor cannot trace. Leave the source
-untouched on failure or if it changed under the proposed edit. A person or an
-LLM can apply an ordinary source diff. Building the edited project never
-requires an LLM.
-
-The updater can show candidate reach by running the normal compiler checks
-on the resolved tree in the consuming context. It can also just edit the pin.
+The audit tool can show candidate reach by running the normal compiler checks
+on the resolved tree in the consuming context. The author may also just edit
+the pin.
 The next check must enforce the same constraints. An update cannot silently
 widen `max_reach` or approve host access. If any install, update or preview
 executes Build code, admit that code before its first effect. Candidate-only
 review requires no saved reach or historical source. If the old baseline is
-unavailable, report current findings and mark the delta unknown. Optional caches
+unavailable, report current findings and mark the delta unknown. Audit the selected occurrence and
+target. Flag changes to reachable high-authority code even within its ceiling.
+A caller can request a separate full-package review. Optional caches
 never supply approval.
 
-For example, `update layout` in the board preparation stage above edits the
+For example, updating `layout` in the board preparation stage above changes the
 last argument of `|git|::dependency`. The resolver supplies the verified tree;
 the compiler supplies the candidate's reach if the caller requests review.
 Neither Git-specific syntax nor the updater determines the reach verdict.
 
 ## Remaining design decisions
 
-1. **Caller approval and existing compiler inputs.** Which caller-owned inputs
-   carry restricted Build approvals, terminal permissions, external assumptions and
-   exact compiler/provider binding identities after version 4, including for
-   unattended builds? Specify scope, invalidation and migration with consumer
-   review. A missing required approval refuses the operation. Retired assumed
-   provider contracts have no successor approval. Reject old registrations
-   and never translate their receipts into unsafe reach grants.
-2. **Stage bindings and forwarding.** Specify the public type for a resolved
-   binding, how B refers to an alias supplied by A and forwards it to C, and
-   the exact stage entry and completion signature. Forwarding must preserve
-   identity, attenuation and the frozen view. Test a staged handoff beside a
-   sibling with no binding.
-3. **Reach policy defaults and composition.** Empty is explicit. Omission
-   denies unsafe reach. Decide what omission means for other reach and how to attribute and
-   diagnose a package used on multiple edges with different ceilings. Exercise the same library used as both
-   Build code and product code, including an edge reached through a helper.
-4. **Choosing an edit site.** A dependency may belong to a product or to an
-   explicitly selected successor Build. Settle the CLI spelling for selecting
-   that use and stage when the normal project entry is ambiguous. A filename
-   alone cannot distinguish multiple occurrences of the same stage.
+The invocation and per-child delegation supply restricted Build grants.
+Selecting an output authorizes driver publication of that output. Filesystem
+operations inside a Build use its admitted backing. An unattended build
+receives the same checks. A saved package approval cannot grant new reach.
+
+One migration detail remains: how does the caller supply exact compiler
+binding inputs and the terminal permissions or named external premises still
+required at a separately admitted component boundary after version 4? A
+missing required input rejects admission. Old assumed-provider contracts and
+their receipts cannot supply unsafe reach grants.

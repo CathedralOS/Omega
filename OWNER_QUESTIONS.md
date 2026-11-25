@@ -65,15 +65,12 @@ it instantiates. A reviewer verifies those citations before the framing.
 ## Open questions
 
 <a id="supplying-build-library-bindings"></a>
-### 1. Which binding does a middle Build forward, and how does the caller admit it?
+### 1. How does the caller supply remaining component and compiler inputs after version 4?
 
-The [staged package input draft](wiki/spec/packages/staged_inputs.md) records
-the preparing-stage proposal, source pins and consumer reach ceilings. For
-A → B → C, what typed value lets B forward the exact package it received
-without resolving it again? Which caller-owned inputs replace version 4
-acceptance for restricted Build operations, terminal permissions and external
-assumptions, and how do we
-carry the exact compiler inputs? The native borrow decision retires assumed
-provider contracts. Unsafe reach requires explicit admission on every edge.
-General ceiling defaults, composition across uses and CLI stage selection remain open.
-[Decisions for review](wiki/spec/packages/staged_inputs.md#remaining-design-decisions)
+The invocation supplies Build grants. Each consumer declares and checks its
+own package edges. At a separately admitted component boundary, which
+caller-owned input carries required terminal permissions or named external
+premises, and how are exact compiler binding identities supplied after the
+project lock is retired? The format must work for unattended builds and
+identify when an input no longer applies.
+[Remaining migration decision](wiki/spec/packages/staged_inputs.md#remaining-design-decisions)

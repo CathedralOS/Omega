@@ -1,6 +1,6 @@
 # Package source selection
 
-[Staged package inputs](staged_inputs.md) defines the proposed driver handoff.
+[Staged package inputs](staged_inputs.md) defines the driver handoff.
 The Git and local sections below describe source verification and custody shared
 with the bundled resolver library. References to locked selection and updates
 describe version 4. In the source-based workflow an ordinary Git declaration
