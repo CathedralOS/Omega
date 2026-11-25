@@ -17,6 +17,10 @@ use super::lookup::MembershipSelection;
 use super::lookup::diagnostic_path_source_span;
 use super::lookup::membership_selection;
 use super::targets::resolve_free_call_target_symbol;
+use super::type_references::{
+    assign_type_reference_argument_symbols_with_constraints, bind_named_value_arguments,
+    resolve_value_in_type_symbol,
+};
 use crate::declaration_selection::CollectionMeasure;
 use crate::source_resolved::data::DataDefinition;
 use crate::source_resolved::data::DataMember;
@@ -292,17 +296,6 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
         for fact in proof_facts.span_mut_or_empty(facts) {
             match fact {
                 ProofFact::Membership(membership) => {
-                    if let Some(type_parameters) = type_parameters {
-                        let local_type_parameters =
-                            data_type_parameters.span_or_empty(type_parameters);
-                        super::type_references::assign_type_reference_argument_symbols_with_constraints(
-                        symbols,
-                        child_type_references,
-                        type_constraints,
-                        local_type_parameters,
-                        membership.domain_arguments,
-                    );
-                    }
                     assign_proof_expression_symbols(
                         symbols,
                         child_type_references,
@@ -320,6 +313,38 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                         &name,
                         diagnostic_path_source_span(members),
                     );
+                    if let Some(locals) = local_type_parameters
+                        && !membership.domain_arguments.is_empty()
+                    {
+                        assign_type_reference_argument_symbols_with_constraints(
+                            symbols,
+                            child_type_references,
+                            type_constraints,
+                            locals,
+                            membership.domain_arguments,
+                        );
+                        // The selected family gives each argument its role.
+                        // Its const indices name values in the declaration
+                        // that wrote this fact, including a refinement header.
+                        if let Some(family) = program
+                            .roots
+                            .domain_definitions
+                            .iter()
+                            .find(|domain| domain.symbol == membership.domain_symbol)
+                        {
+                            let binders = data_type_parameters.span_or_empty(family.type_parameters);
+                            bind_named_value_arguments(
+                                family.index_binders(binders),
+                                child_type_references,
+                                membership.domain_arguments,
+                                |name| {
+                                    name.is_source_backed().then(|| {
+                                        resolve_value_in_type_symbol(symbols, locals, name)
+                                    })
+                                },
+                            );
+                        }
+                    }
                     if child_type_references
                         .receiving_applications
                         .is_valid(membership.receiving_application)
