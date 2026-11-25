@@ -585,3 +585,38 @@ fn an_exclusive_view_arm_lends_and_moves_and_a_shared_one_copies() {
     assert_eq!(copied, formals);
     shared.judged(|_| {}).accepted();
 }
+
+/// An argument that is itself a call may borrow storage that the outer call
+/// also lends, when both loans are shared: `finish(first(@items), @items)`.
+/// Shared loans "may duplicate or reborrow" (`wiki/spec/language/ownership.md`,
+/// "Borrows and aliases"), and the shared loan moves nothing, so stage 05
+/// lowers the call and the checker accepts it. The twin lends `items`
+/// mutably to the inner call. The lowered form forms every loan at the call,
+/// so it cannot say that the inner loan ends before the outer one starts,
+/// and stage 05 refuses the twin by name.
+#[test]
+fn a_nested_call_may_borrow_shared_what_the_outer_call_lends_shared() {
+    let program = |access: &str| {
+        Program::try_of(&[(
+            "product/main.omg",
+            &format!(
+                "machine first(items: @{access}[u8; 2]) -> u8 {{ items[0] }} \
+                 machine finish(value: u8, items: @[u8; 2]) -> u8 {{ items[1] }} \
+                 machine caller() -> u8 {{ \
+                     let mutable items: [u8; 2] = [7u8, 11u8]; \
+                     finish(first(@{access}items), @items) }}"
+            ),
+        )])
+    };
+    program("").unwrap().judged(|_| {}).accepted();
+    let refused = program("mutable ")
+        .err()
+        .expect("a mutable inner loan beside the outer loan is refused");
+    assert_eq!(refused.stage, "lowering", "{refused:?}");
+    assert!(
+        refused
+            .message
+            .contains("call argument that names storage another argument lends"),
+        "{refused:?}"
+    );
+}

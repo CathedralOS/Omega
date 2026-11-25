@@ -1404,8 +1404,15 @@ type), and the clause's `ClauseScope` says what each name denotes there.
     stops: the prover cannot show the call's index equals the selector the
     caller's `requires` names ("comparison term outside the scalar
     subset"). `other_state` calls a nested machine whose omitted crash
-    route is inferred as `Truth`. `match_join` and the root package stop at
-    "call argument that names storage another argument lends". A route
+    route is inferred as `Truth`. `match_join` and the root package now
+    reach the checker: stage 05 no longer refuses the nested shared loan in
+    `finish(read_seven(@items, 0, true), @items)` (2026-11-25). There
+    `match_join` stops twice. Its call `maybe_zero(items, selected)` needs
+    the value `match` that yields `index` on both arms proved equal to
+    `index`, the same limit as `field`. Its private nested `finish` calls
+    `read_seven(items, 0, false)` and owes `items[0] == 7`, which only
+    [private entry inference](../../spec/language/state_contracts.md#private-entry-inference)
+    for `finish` could supply. A route
     over an actual that lends a field (`@pair.items`) names that field
     path at the call (2026-11-25). Two limits fail closed: a route over an
     actual with no static path (`@rows[row]`) is refused by name, and a
