@@ -957,7 +957,7 @@ pub(super) fn judge_owing_with_activity(
     activity: &mut crate::ProofSearchActivity,
 ) -> Checked<RouteVerdict> {
     let mut further = Vec::new();
-    match examine(elaborated, &[], &[], activity, &mut further) {
+    match examine(elaborated, &[], None, &[], activity, &mut further) {
         Ok(examined) => conclude(examined, applied, &mut further),
         Err(decided) => decided,
     }
@@ -985,6 +985,7 @@ struct Examined {
 fn examine(
     elaborated: Checked<Elaboration>,
     carried: &[crate::Carried<'_>],
+    donors: Option<&crate::reuse::Donors<'_>>,
     laws: &[crate::laws::LawJudgment],
     activity: &mut crate::ProofSearchActivity,
     further: &mut Vec<Refusal>,
@@ -1116,6 +1117,7 @@ fn examine(
         carried,
         laws,
         Some(&verified_borrow_ends),
+        donors,
         activity,
     ) {
         Ok(discharged) => Ok(Examined {
@@ -1730,34 +1732,50 @@ pub(crate) fn judge_compilation_with_activity(
     // A selection borrows the same discharge that later decides its witness's
     // verdict. Several selections may name one witness; none owns a second
     // copy to prove independently.
-    let examined_witnesses: Vec<_> =
-        if worker_budget::current_workers() == 1 || prepared.witnesses.len() < 2 {
-            prepared
-                .witnesses
-                .into_iter()
-                .map(|witness| examine(witness, &[], laws, activity, &mut further))
-                .collect()
-        } else {
-            use rayon::prelude::*;
-            let results: Vec<_> = prepared
-                .witnesses
-                .into_par_iter()
-                .with_max_len(1)
-                .map(|witness| {
-                    let mut local_activity = crate::ProofSearchActivity::default();
-                    let mut local_further = Vec::new();
-                    let examined = examine(witness, &[], laws, &mut local_activity, &mut local_further);
-                    (examined, local_activity, local_further)
-                })
-                .collect();
-            let mut examined_witnesses = Vec::with_capacity(results.len());
-            for (examined, local_activity, local_further) in results {
-                activity.merge(local_activity);
-                further.extend(local_further);
-                examined_witnesses.push(examined);
-            }
-            examined_witnesses
-        };
+    //
+    // Witnesses repeat helper bodies: each holds every machine its
+    // implementation calls. They are checked in two waves so that a later
+    // copy of a helper can take the proofs an earlier copy found
+    // (`crate::reuse::Donors`). `crate::reuse::first_wave` picks the first
+    // wave from the witnesses' machines; the second wave borrows from it, and
+    // the closure then borrows from every witness. Which copy donates is
+    // fixed by witness order, never by which worker finished first.
+    let held: Vec<Vec<symbols::SymbolHandle>> = prepared
+        .witnesses
+        .iter()
+        .map(|witness| match witness {
+            Ok(elaboration) => elaboration
+                .machines
+                .iter()
+                .map(|(_, symbol)| *symbol)
+                .collect(),
+            Err(_) => Vec::new(),
+        })
+        .collect();
+    let first_wave = crate::reuse::first_wave(&held);
+    let (first, second): (Vec<_>, Vec<_>) = prepared
+        .witnesses
+        .into_iter()
+        .enumerate()
+        .partition(|(witness, _)| first_wave[*witness]);
+    let first = examine_witnesses(first, None, laws, activity);
+    let second = {
+        let donors = crate::reuse::Donors::new(first.iter().filter_map(|(_, examined, _)| {
+            examined
+                .as_ref()
+                .ok()
+                .map(|examined| (&examined.elaboration, &examined.discharged))
+        }));
+        examine_witnesses(second, Some(&donors), laws, activity)
+    };
+    // Back in witness order, for the verdicts and the refusals beside them.
+    let mut ordered: Vec<_> = first.into_iter().chain(second).collect();
+    ordered.sort_by_key(|(witness, _, _)| *witness);
+    let mut examined_witnesses = Vec::with_capacity(ordered.len());
+    for (_, examined, local_further) in ordered {
+        further.extend(local_further);
+        examined_witnesses.push(examined);
+    }
     let closure_verdict = match prepared.closure {
         Ok(closure) => {
             let witnesses = witnesses(
@@ -1768,7 +1786,15 @@ pub(crate) fn judge_compilation_with_activity(
                 &examined_witnesses,
             );
             let carried = carried(&closure, &forms, &witnesses, &prepared.specializations);
-            match examine(Ok(closure), &carried, laws, activity, &mut further) {
+            let donors = crate::reuse::Donors::new(examined_witnesses.iter().filter_map(
+                |examined| {
+                    examined
+                        .as_ref()
+                        .ok()
+                        .map(|examined| (&examined.elaboration, &examined.discharged))
+                },
+            ));
+            match examine(Ok(closure), &carried, Some(&donors), laws, activity, &mut further) {
                 Ok(examined) => conclude(examined, AppliedContracts::Undecided, &mut further),
                 Err(decided) => decided,
             }
@@ -1817,6 +1843,56 @@ pub(crate) fn judge_compilation_with_activity(
         }));
     }
     verdicts
+}
+
+/// One examined witness, by its position among the compilation's witnesses,
+/// with the refusals its examination put beside its verdict.
+type ExaminedWitness = (usize, Result<Examined, Checked<RouteVerdict>>, Vec<Refusal>);
+
+/// Examines `witnesses`, each with its position, on the workers when there
+/// are several; each may borrow proofs from `donors`. The result is in the
+/// order given.
+fn examine_witnesses(
+    witnesses: Vec<(usize, Checked<Elaboration>)>,
+    donors: Option<&crate::reuse::Donors<'_>>,
+    laws: &[crate::laws::LawJudgment],
+    activity: &mut crate::ProofSearchActivity,
+) -> Vec<ExaminedWitness> {
+    if worker_budget::current_workers() == 1 || witnesses.len() < 2 {
+        return witnesses
+            .into_iter()
+            .map(|(position, witness)| {
+                let mut further = Vec::new();
+                let examined = examine(witness, &[], donors, laws, activity, &mut further);
+                (position, examined, further)
+            })
+            .collect();
+    }
+    use rayon::prelude::*;
+    let results: Vec<_> = witnesses
+        .into_par_iter()
+        .with_max_len(1)
+        .map(|(position, witness)| {
+            let mut local_activity = crate::ProofSearchActivity::default();
+            let mut further = Vec::new();
+            let examined = examine(
+                witness,
+                &[],
+                donors,
+                laws,
+                &mut local_activity,
+                &mut further,
+            );
+            ((position, examined, further), local_activity)
+        })
+        .collect();
+    results
+        .into_iter()
+        .map(|(examined, local_activity)| {
+            activity.merge(local_activity);
+            examined
+        })
+        .collect()
 }
 
 /// The machines one judgment refuses as not supported yet, one refusal for
@@ -2076,7 +2152,7 @@ fn examine_generic_forms(
         }
         match form.forms {
             Ok(forms) => examined.extend(forms.into_iter().map(|form| {
-                match examine(Ok(form), &[], laws, activity, further) {
+                match examine(Ok(form), &[], None, laws, activity, further) {
                     Ok(examined) => GenericForm::Examined { template, examined },
                     Err(decided) => GenericForm::Decided(decided),
                 }

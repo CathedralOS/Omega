@@ -2287,6 +2287,262 @@ impl Carry<'_> {
     }
 }
 
+/// Another module's copy of a machine that was already checked, whose proofs
+/// a later copy of the same machine can take instead of searching again.
+///
+/// One compilation checks many copies of the same helper body: each
+/// conformance witness is its own module and holds every helper its
+/// implementation calls, and the closure holds them all again. The copies
+/// share the source machine (`Elaboration::machines`), not their module-scoped
+/// identities, so a donor is found by that machine and then compared.
+///
+/// A borrowed proof changes no verdict. A copy takes it only when its own
+/// search would have started from exactly the same inputs as the search that
+/// found it: the same value types and storage-origin flags, the same places,
+/// the same goal, and the same hypotheses in the same order. Search is a
+/// function of those inputs, so the borrowed certificate is the one this
+/// copy would have found. The kernel still decides it against the copy's own
+/// goal and hypotheses (`crate::verify`). Anything else, such as a different
+/// contract or a renumbered value, searches as before.
+///
+/// Donors are fixed by the order of the modules that give them, never by
+/// which worker finished first, so verdicts and their order do not depend on
+/// scheduling.
+pub(crate) struct Donors<'a> {
+    /// Each donated machine by its source machine, sorted by that machine;
+    /// the earliest donor of each machine only.
+    machines: Vec<Donation<'a>>,
+}
+
+struct Donation<'a> {
+    symbol: (u32, u32),
+    lowered: &'a TerminalMachine,
+    tables: &'a MachineTables,
+    verdicts: &'a IdTable<ObligationId, Checked<Discharged>>,
+}
+
+/// The source machine as a sort key; handles have no order of their own.
+fn symbol_key(symbol: symbols::SymbolHandle) -> (u32, u32) {
+    (symbol.arena_index(), symbol.generation())
+}
+
+impl<'a> Donors<'a> {
+    /// The machines of `donors`, each checked module with its discharge, in
+    /// the order given; an earlier module's copy of a machine wins.
+    pub(crate) fn new(donors: impl IntoIterator<Item = (&'a Elaboration, &'a Discharge)>) -> Self {
+        let mut machines = Vec::new();
+        for (elaboration, discharge) in donors {
+            for (machine, symbol) in elaboration.machines.iter() {
+                let (Ok(lowered), Some(tables), Some(discharged)) = (
+                    crate::terminal_machine(&elaboration.module.machines, machine, machine),
+                    elaboration.tables.machines.get(machine),
+                    discharge.machines.get(machine),
+                ) else {
+                    continue;
+                };
+                machines.push(Donation {
+                    symbol: symbol_key(*symbol),
+                    lowered,
+                    tables,
+                    verdicts: &discharged.verdicts,
+                });
+            }
+        }
+        // Stable: the first module's copy of each machine stays first.
+        machines.sort_by_key(|donation| donation.symbol);
+        machines.dedup_by_key(|donation| donation.symbol);
+        Self { machines }
+    }
+
+    /// The donor copy of `symbol` whose search inputs agree with this copy's
+    /// before any goal is compared (`same_context`). `None` when there is no
+    /// such copy.
+    pub(crate) fn for_machine(
+        &self,
+        symbol: symbols::SymbolHandle,
+        lowered: &TerminalMachine,
+        tables: &MachineTables,
+    ) -> Option<Donated<'a>> {
+        let key = symbol_key(symbol);
+        let position = self
+            .machines
+            .binary_search_by_key(&key, |donation| donation.symbol)
+            .ok()?;
+        let donation = &self.machines[position];
+        same_context(donation.lowered, donation.tables, lowered, tables).then_some(Donated {
+            tables: donation.tables,
+            verdicts: donation.verdicts,
+        })
+    }
+}
+
+/// Whether a search in `lowered` reads the same values and places as one in
+/// `donor`: what `crate::prepare` builds the proposition context from and
+/// what the prover reads of each value (`known::ProofValues`).
+///
+/// Values agree in type, in being rigid, and in being an observation of
+/// storage. Places agree in identity and in which kind of place each is. The
+/// context reads a place for nothing else (`PropositionContext::validate`).
+/// A kind also names the place's structural type, which each module
+/// numbers for itself, so two copies of one body name different types there
+/// and nothing a proof reads differs.
+fn same_context(
+    donor: &TerminalMachine,
+    donor_tables: &MachineTables,
+    lowered: &TerminalMachine,
+    tables: &MachineTables,
+) -> bool {
+    let values =
+        donor_tables.values.len() == tables.values.len()
+            && donor_tables.values.iter().zip(tables.values.iter()).all(
+                |((_, theirs), (_, mine))| {
+                    theirs.scalar_type == mine.scalar_type
+                        && theirs.rigid == mine.rigid
+                        && theirs.origin.is_storage_observation()
+                            == mine.origin.is_storage_observation()
+                },
+            );
+    values
+        && donor.structural_places.len() == lowered.structural_places.len()
+        && donor
+            .structural_places
+            .iter()
+            .zip(&lowered.structural_places)
+            .all(|(theirs, mine)| {
+                theirs.id == mine.id
+                    && std::mem::discriminant(&theirs.kind) == std::mem::discriminant(&mine.kind)
+            })
+}
+
+/// One donor copy of the machine being checked (`Donors::for_machine`).
+pub(crate) struct Donated<'a> {
+    tables: &'a MachineTables,
+    verdicts: &'a IdTable<ObligationId, Checked<Discharged>>,
+}
+
+/// A certificate borrowed for one obligation, and which of the copy's
+/// hypothesis sets it was found against: the goal's connected facts
+/// (`crate::connected`) or all of them.
+pub(crate) struct Borrowed {
+    pub(crate) narrowed: bool,
+    pub(crate) certificate: CertificateEnvelope,
+}
+
+impl Donated<'_> {
+    /// The donor's certificate for `obligation`, when the donor's search
+    /// found it from this copy's `goal` and the hypothesis set this copy's
+    /// own search would reach it with.
+    ///
+    /// The copy's search tries `narrowed` first, then `full`. The donor
+    /// recorded the rows its accepted search used. When they are this copy's
+    /// narrowed set, the copy's first search has the donor's inputs. When they
+    /// are this copy's full set, the donor's narrowed set was the same as
+    /// this copy's (narrowing depends only on the goal and the full set) and
+    /// its search failed there, so this copy's would fail too and reach the
+    /// same full search.
+    pub(crate) fn borrow(
+        &self,
+        obligation: ObligationId,
+        goal: &Proposition,
+        full: &Hypotheses,
+        narrowed: Option<&Hypotheses>,
+    ) -> Option<Borrowed> {
+        let Some(Ok(Discharged::Certificate(evidence))) = self.verdicts.get(obligation) else {
+            return None;
+        };
+        if evidence.goal != *goal {
+            return None;
+        }
+        let used = |hypotheses: &Hypotheses| {
+            self.same_rows(&evidence.assumptions, &hypotheses.assumptions)
+                && self.same_rows(&evidence.axioms, &hypotheses.axioms)
+        };
+        let narrowed = if narrowed.is_some_and(used) {
+            true
+        } else if used(full) {
+            false
+        } else {
+            return None;
+        };
+        Some(Borrowed {
+            narrowed,
+            certificate: CertificateEnvelope {
+                identity: EvidenceIdentity::new(obligation.get())?,
+                proof_system_marker: evidence.certificate.proof_system_marker,
+                proof: evidence.certificate.proof.clone(),
+            },
+        })
+    }
+
+    fn same_rows(&self, rows: &[KnowledgeId], propositions: &[Proposition]) -> bool {
+        rows.len() == propositions.len()
+            && rows.iter().zip(propositions).all(|(row, proposition)| {
+                crate::knowledge_proposition(self.tables, *row) == Some(proposition)
+            })
+    }
+}
+
+/// Which witnesses are checked first, so that the rest may borrow their
+/// proofs. `symbols[i]` lists the source machines of witness `i`, empty for
+/// a witness refused before checking.
+///
+/// A first-wave witness borrows nothing, so putting one there trades its
+/// own copies of machines an earlier first-wave witness already holds for
+/// the later copies of the machines it adds. In witness order, a witness
+/// goes first when the copies later witnesses hold of its new machines
+/// outnumber its machines already held. On popcount's 73 witnesses this
+/// puts 15 first and leaves 494 of 1,711 machine copies to search, where
+/// putting first every witness that adds a shared machine puts 28 first and
+/// leaves 670.
+///
+/// The choice reads only the witnesses' machines, in their order.
+pub(crate) fn first_wave(symbols: &[Vec<symbols::SymbolHandle>]) -> Vec<bool> {
+    let mut holders: Vec<((u32, u32), usize)> = symbols
+        .iter()
+        .enumerate()
+        .flat_map(|(witness, machines)| {
+            machines
+                .iter()
+                .map(move |symbol| (symbol_key(*symbol), witness))
+        })
+        .collect();
+    holders.sort_unstable();
+    holders.dedup();
+    // How many witnesses after `witness` hold the machine `key`.
+    let later = |key: (u32, u32), witness: usize| {
+        let start = holders.partition_point(|(other, _)| *other < key);
+        let end = holders.partition_point(|(other, _)| *other <= key);
+        let run = &holders[start..end];
+        run.len() - run.partition_point(|(_, holder)| *holder <= witness)
+    };
+    let mut held: Vec<(u32, u32)> = Vec::new();
+    symbols
+        .iter()
+        .enumerate()
+        .map(|(witness, machines)| {
+            let mut keys: Vec<(u32, u32)> =
+                machines.iter().map(|symbol| symbol_key(*symbol)).collect();
+            keys.sort_unstable();
+            keys.dedup();
+            let (mut gained, mut lost) = (0, 0);
+            for key in &keys {
+                if held.binary_search(key).is_ok() {
+                    lost += 1;
+                } else {
+                    gained += later(*key, witness);
+                }
+            }
+            if gained <= lost {
+                return false;
+            }
+            held.extend(keys);
+            held.sort_unstable();
+            held.dedup();
+            true
+        })
+        .collect()
+}
+
 /// A call's actuals standing for the callee's formals: the callee's `k`-th
 /// scalar formal (callee value `k + 1`) is the caller's `k`-th scalar
 /// actual. In a guarantee, the callee's result pseudo-value (the value after
