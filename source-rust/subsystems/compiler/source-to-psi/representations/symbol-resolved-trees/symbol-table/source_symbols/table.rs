@@ -1066,6 +1066,9 @@ mod modules {
                     self.source_domain_is_exposed(reference, domain)
                 };
             }
+            if self.exposed_refinement_path(domain, authored, reference) {
+                return true;
+            }
             let domain_name = self.name(domain);
             let domain_module = self.symbol_module(domain);
             if !domain_name.contains("::")
@@ -1116,6 +1119,23 @@ mod modules {
             self.carrier_qualified_domain_reaches(domain, authored, reference)
         }
 
+        /// A carrier-relative refinement keeps the complete chain of parent
+        /// names: `Positive::Small` abbreviates `i32::Positive::Small`.
+        fn exposed_refinement_path(
+            &self,
+            domain: SymbolHandle,
+            authored: &str,
+            reference: SourceSpan,
+        ) -> bool {
+            authored.contains("::")
+                && self
+                    .name(domain)
+                    .split_once("::")
+                    .is_some_and(|(_, members)| members == authored)
+                && reference.span.start != reference.span.end
+                && self.source_domain_is_exposed(reference, domain)
+        }
+
         /*
             Whether a carrier-qualified spelling (`Carrier::Leaf`) selects an
             exposed module-owned domain. The authored carrier must resolve to the
@@ -1133,6 +1153,9 @@ mod modules {
         ) -> bool {
             if reference.span.start == reference.span.end {
                 return false;
+            }
+            if self.exposed_refinement_path(domain, authored, reference) {
+                return true;
             }
             let Some((declared_carrier, declared_leaf)) = self.name(domain).rsplit_once("::")
             else {
