@@ -24,6 +24,9 @@ use std::path::Path;
 pub enum CoreVocabulary {
     /// The owner-defined resource projection trait in core `content.omg`.
     Content,
+    /// The two proof algebras the bundled Content trait admits.
+    IntervalSet,
+    CountedQuantity,
     /// The ordinary `Never` data declaration in core `never.omg`.
     /// This identifies a nominal ABI result; it proves no inhabitedness.
     Never,
@@ -247,6 +250,18 @@ const ROWS: &[CoreVocabularyRow] = &[
         "Content",
         BundledFile::CoreContent,
         CoreVocabulary::Content,
+    ),
+    row(
+        "content.omg",
+        "IntervalSet",
+        BundledFile::CoreContent,
+        CoreVocabulary::IntervalSet,
+    ),
+    row(
+        "content.omg",
+        "CountedQuantity",
+        BundledFile::CoreContent,
+        CoreVocabulary::CountedQuantity,
     ),
     row(
         "filesystem_authority.omg",

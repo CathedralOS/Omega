@@ -454,6 +454,7 @@ pub(crate) mod domain {
             semantic_id: domain.semantic_id,
             semantic_roles: domain.semantic_roles,
             establishment_routes: domain.establishment_routes.clone(),
+            content_projections: domain.content_projections.clone(),
             access_policy: domain
                 .access_policy
                 .as_ref()

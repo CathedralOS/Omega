@@ -127,6 +127,7 @@ pub(crate) fn lower_domain_definition(
         semantic_id,
         semantic_roles,
         establishment_routes: Vec::new(),
+        content_projections: Vec::new(),
     })
 }
 
