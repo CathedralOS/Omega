@@ -157,7 +157,8 @@ pub use embedding::program::{
     TerminalInstantiation, TerminalProgram, TerminalProgramEntry, TerminalScalarApplicationRequest,
 };
 pub use engine::capabilities::{
-    TerminalExecutionRequirements, TerminalExternalCompletionDemand, TerminalUnsupportedCapability,
+    TerminalCallableAnalysis, TerminalExecutionRequirements, TerminalExternalCompletionDemand,
+    TerminalUnsupportedCapability,
 };
 pub use engine::execution::TerminalExecution;
 pub use engine::scalar_operations::float_result_policy;
