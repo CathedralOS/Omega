@@ -84,11 +84,11 @@ framework or a list of unimplemented features.
 - Reported: 2026-11-25, Claude Code (Opus 5.5), while profiling native preparation for `omega --check`
 
 <a id="every-machine-check-replays-the-summaries-of-all-its-callees-again"></a>
-### Every machine check replays the summaries of all its callees again
+### Every affine check replays the summaries of all its callees again
 - Category: 4. Re-deriving
-- Where: [`Replay::summary`](source-rust/subsystems/compiler/psi/semantics/src/descriptors/replay/engine.rs#L3942), reached from the per-machine `DescriptorAnalysis` the checker builds in [`with_prepared_machine`](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/lib.rs#L1619) and that each `plain_affine::analyze` call builds for itself
-- Saw: each analysis starts empty, so a callee reached from many machines has its summary replayed once per caller. In a sampled release check of `samples/cli/arithmetic/popcount/main.omg` (perf, 20,286 samples, `omega-linux`), `Replay::summary` is on the stack in 19.6% of all samples, Psi 05 and Psi 06 together.
-- Cost: the largest single share of checking time for std-using programs; sharing summaries needs one table per unchanged module instead of one per analysis.
+- Where: [`Replay::summary`](source-rust/subsystems/compiler/psi/semantics/src/descriptors/replay/engine.rs#L3970), reached from the per-machine `DescriptorAnalysis` that each `plain_affine::analyze` call builds for itself ([`plan_reference_ends`](source-rust/subsystems/compiler/psi/semantics/src/plain_affine.rs#L1064), [`verify_in`](source-rust/subsystems/compiler/psi/semantics/src/plain_affine.rs#L1091) and [`verify_claims_in`](source-rust/subsystems/compiler/psi/semantics/src/plain_affine.rs#L1137)), and from Psi 05's per-machine analyses in `default_obligations.rs` and `reference_results.rs`
+- Saw: each of these analyses starts empty, so a callee reached from many machines has its summary replayed once per caller. Psi 06's machine checks in `with_prepared_machine` now share one `ModuleSummaries` table per module, but they were a small part. Counting summary replays by the analysis that ran them, in a release check of `samples/cli/arithmetic/popcount/main.omg` (Windows, 2026-11-25): `plain_affine` 13,908 and Psi 05 3,127. With the table, Psi 06 machine checks adopted 638 summaries and replayed 707; `with_prepared_machine` still replayed 1,288 in analyses without it (entry-input inference, which adds requirements between machines, and closures with a dynamic call). Before that change, `Replay::summary` was on the stack in 19.6% of all samples of a perf profile of the same check (`omega-linux`, 20,286 samples), Psi 05 and Psi 06 together.
+- Cost: the largest single share of checking time for std-using programs. `plain_affine` builds its closure without nominal calls, so it needs its own table, passed in by its callers in `verdict.rs` and `minted.rs`.
 - Reported: 2026-11-25, Claude Code, while profiling Psi 06 places and loans.
 
 <a id="the-checker-walks-each-machines-affine-ownership-three-times"></a>

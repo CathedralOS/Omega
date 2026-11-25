@@ -305,6 +305,9 @@ pub(crate) struct PreparedStates {
     pub(crate) arrivals: States,
     pub(crate) invocations: InvocationStates,
     pub(crate) normal_exits: States,
+    /// The summaries this replay asked for, sorted and unique. Recorded
+    /// only while module summaries are shared (`ModuleSummaries`).
+    pub(crate) callees: Vec<MachineId>,
     #[cfg(test)]
     visits: usize,
 }
@@ -345,7 +348,16 @@ pub(crate) struct Replay<'a> {
     pub(crate) machines: &'a [DescriptorMachine],
     pub(crate) summaries: BTreeMap<MachineId, Option<Summary>>,
     pub(crate) snapshots: BTreeMap<MachineId, PreparedStateCache>,
+    /// Completed summaries this module's other analyses may already hold.
+    pub(crate) shared: Option<&'a super::module_summaries::ModuleSummaries<'a>>,
+    /// While sharing, one frame per state replay in progress, holding the
+    /// summaries it has asked for so far.
+    requested: Vec<Vec<MachineId>>,
 }
+
+/// A state replay this many nested calls deep is refused rather than
+/// overflowing the stack.
+const STATE_REPLAY_DEPTH_BOUND: usize = 128;
 #[derive(Default)]
 pub(crate) struct DescriptorReadDepth<'state> {
     depth: std::cell::Cell<usize>,
@@ -431,6 +443,8 @@ impl<'a> Replay<'a> {
             machines,
             summaries: BTreeMap::new(),
             snapshots: BTreeMap::new(),
+            shared: None,
+            requested: Vec::new(),
         }
     }
     pub(crate) fn storage_writes(
@@ -2969,7 +2983,13 @@ impl<'a> Replay<'a> {
         };
         let mut failure =
             incomplete(None, "descriptor state preparation reached its depth bound");
+        if self.shared.is_some() {
+            self.requested.push(Vec::new());
+        }
         let prepared = self.prepare_state_rows(identity, depth, &mut failure);
+        if self.shared.is_some() {
+            self.requested.pop();
+        }
         if prepared.is_none() {
             self.snapshots
                 .insert(identity, PreparedStateCache::Failed(failure));
@@ -2989,7 +3009,7 @@ impl<'a> Replay<'a> {
             successor: None,
             detail: Some(detail),
         };
-        if depth >= 128 {
+        if depth >= STATE_REPLAY_DEPTH_BOUND {
             return None;
         }
         *failure = DescriptorGraphError::MissingOrAmbiguousMachine(identity);
@@ -3304,6 +3324,13 @@ impl<'a> Replay<'a> {
             }
         }
         let states = Arc::new(states);
+        let mut callees = self
+            .requested
+            .last_mut()
+            .map(std::mem::take)
+            .unwrap_or_default();
+        callees.sort_unstable();
+        callees.dedup();
         self.snapshots.insert(
             identity,
             PreparedStateCache::Ready(PreparedStates {
@@ -3311,6 +3338,7 @@ impl<'a> Replay<'a> {
                 arrivals,
                 invocations: invocation_states,
                 normal_exits,
+                callees,
                 #[cfg(test)]
                 visits,
             }),
@@ -3940,13 +3968,108 @@ impl<'a> Replay<'a> {
         }
     }
     pub(crate) fn summary(&mut self, identity: MachineId, depth: usize) -> Option<Summary> {
+        if let Some(requests) = self.requested.last_mut() {
+            requests.push(identity);
+        }
         if let Some(cached) = self.summaries.get(&identity) {
             return cached.clone();
         }
+        if let Some(summary) = self.adopted_summary(identity, depth) {
+            return Some(summary);
+        }
+        let (summary, replayed_states) = self.replayed_summary(identity, depth)?;
+        self.publish_summary(identity, &summary, replayed_states);
+        Some(summary)
+    }
+
+    /// Take a summary another analysis of this module completed, together
+    /// with the summaries of every callee its replay reached, which a
+    /// replay here would also have left behind. Refuse where a replay here
+    /// could differ: a callee whose summary or states failed or are in
+    /// progress in this analysis, or a call chain deep enough to reach the
+    /// depth bound from this depth. That replay then runs here instead.
+    fn adopted_summary(&mut self, identity: MachineId, depth: usize) -> Option<Summary> {
+        let shared = self.shared?;
+        let entry = shared.get(identity)?;
+        if entry
+            .height
+            .is_some_and(|height| depth + height >= STATE_REPLAY_DEPTH_BOUND)
+        {
+            return None;
+        }
+        let mut pending = vec![identity];
+        let mut adopted: Vec<MachineId> = Vec::new();
+        while let Some(machine) = pending.pop() {
+            let Err(slot) = adopted.binary_search(&machine) else {
+                continue;
+            };
+            match self.summaries.get(&machine) {
+                Some(Some(_)) => continue,
+                Some(None) => return None,
+                None => {}
+            }
+            let published = shared.get(machine)?;
+            match self.snapshots.get(&machine) {
+                // A replay here would replay its states and ask for these.
+                None => pending.extend(published.callees.iter().copied()),
+                // A replay here would read these states and ask for nothing.
+                Some(PreparedStateCache::Ready(_)) => {}
+                Some(PreparedStateCache::Preparing | PreparedStateCache::Failed(_)) => {
+                    return None;
+                }
+            }
+            adopted.insert(slot, machine);
+        }
+        for machine in adopted {
+            let summary = shared.get(machine)?.summary.clone();
+            self.summaries.insert(machine, Some(summary));
+        }
+        Some(entry.summary.clone())
+    }
+
+    fn publish_summary(&self, identity: MachineId, summary: &Summary, replayed_states: bool) {
+        let Some(shared) = self.shared else {
+            return;
+        };
+        let (callees, height) = if replayed_states {
+            let Some(prepared) = self
+                .snapshots
+                .get(&identity)
+                .and_then(PreparedStateCache::ready)
+            else {
+                return;
+            };
+            let mut height = 0;
+            for callee in &prepared.callees {
+                // Each callee completed in this analysis, which published or
+                // adopted it. Without its entry this one cannot be bounded.
+                let Some(entry) = shared.get(*callee) else {
+                    return;
+                };
+                if let Some(below) = entry.height {
+                    height = height.max(below + 1);
+                }
+            }
+            (prepared.callees.clone().into_boxed_slice(), Some(height))
+        } else {
+            (Box::default(), None)
+        };
+        shared.publish(
+            identity,
+            super::module_summaries::PublishedSummary {
+                summary: summary.clone(),
+                callees,
+                height,
+            },
+        );
+    }
+
+    /// The summary and whether finding it replayed this machine's states.
+    fn replayed_summary(&mut self, identity: MachineId, depth: usize) -> Option<(Summary, bool)> {
         let machine = self.machine(identity)?;
         if let Some(summary) = self.empty_interface_summary(machine) {
             self.summaries.insert(identity, Some(summary.clone()));
-            return Some(summary);
+            return Some((summary, false));
         }
         self.summaries.insert(identity, None);
         let states = self.states(identity, depth)?;
@@ -4004,7 +4127,7 @@ impl<'a> Replay<'a> {
                 storage_frame: StorageFrame::default(),
             };
             self.summaries.insert(identity, Some(summary.clone()));
-            return Some(summary);
+            return Some((summary, true));
         }
         let mut result_cases: Option<super::case_flow::ResultCases> = None;
         let mut unknown_results: Vec<Vec<DescriptorPathSegment>> = Vec::new();
@@ -4246,7 +4369,7 @@ impl<'a> Replay<'a> {
             storage_frame: StorageFrame::default(),
         };
         self.summaries.insert(identity, Some(summary.clone()));
-        Some(summary)
+        Some((summary, true))
     }
     pub(crate) fn symbolic(
         &self,
