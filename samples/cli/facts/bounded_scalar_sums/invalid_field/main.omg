@@ -6,7 +6,7 @@ data Pair {
     right: u64;
 }
 
-machine add(pair: Pair) -> u64 {
+machine add(pair: Pair) -> u64 requires true {
     pair.left + pair.right
 }
 

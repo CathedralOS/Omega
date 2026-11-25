@@ -11,7 +11,7 @@ data Outer {
     header: u64;
 }
 
-machine compute(view: @Outer) -> u64 {
+machine compute(view: @Outer) -> u64 requires true {
     let quota: u64 = view.inner.quota;
     let diff: u64 = 72u64 - quota;
     diff

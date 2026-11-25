@@ -19,6 +19,7 @@ EightByteExpectation satisfies ExpectedExtent {
 }
 machine main() crashes Trap {
     let observed: u64 = OBSERVED_SIZE;
+    let demanded: u64 = BAD;
     let slack: u64 = observed - 5u64;
     transition observed == ExpectedExtent::expected() + 1u64 && slack == ExpectedExtent::expected() - 4u64 { true -> done(), false -> bad() }
     machine done() {}

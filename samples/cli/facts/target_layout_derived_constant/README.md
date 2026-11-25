@@ -88,8 +88,14 @@ The specification and consuming layers are covered as follows:
   their earlier range diagnostic is pinned explicitly.
 - **Soundness boundaries:** an overflowing intermediate rejects even when later
   subtraction would cancel it. An unused carrier mismatch rejects. A skipped
-  pure crashing call remains unexecuted; its demanded twin rejects for the
-  unhandled Trap route. The former interval-qualified destination control now
+  pure crashing call remains unexecuted. Its demanded twin selects the crashing
+  arm and `main` reads `BAD`, so evaluation admission rejects the Trap route.
+  `main` must read the constant: under
+  [`demand-driven-layout-formation`](../../../../wiki/spec/layouts/plans.md#layout-demand-and-validation)
+  a target-layout constant that nothing reads stays deferred, and its crash is
+  never evaluated. The skipped twin does not read `BAD` yet: the generated caller
+  publishes an unguarded Trap route, so reading it is refused too (`TASKS.md`,
+  **EARLY-TERMINAL-JOBS**). The former interval-qualified destination control now
   calls `bounded_layout` with the derived value and rejects its actual `value <= 3`
   obligation; the equivalent valid bound is 9. A cyclic target-constant graph rejects without provisional
   values. Same-product native `code_layout` remains forbidden. Existing

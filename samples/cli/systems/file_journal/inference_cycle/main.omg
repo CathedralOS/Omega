@@ -1,4 +1,4 @@
-// Recursive helpers retain every actual boundary requirement independently of their published invocation ceilings.
+// A public machine may publish `invokes` rows wider than its recursive helpers need: a call to a boundary requirement that omits `invokes` enters nothing.
 // Expected exit: 0
 boundary trait First { machine value() -> u64 reaches none crashes none; }
 boundary trait Second { machine value() -> u64 reaches none crashes none; }

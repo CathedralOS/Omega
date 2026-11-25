@@ -5,7 +5,7 @@ boundary trait IndependentSource {
 }
 WindowsSource satisfies IndependentSource {
     machine source(input: u64) -> u64 reaches none ensures result == FLOOR {
-        7
+        forwarded(input)
     }
 }
 LinuxSource satisfies IndependentSource {
@@ -25,7 +25,7 @@ LinuxArmSource satisfies IndependentSource {
 }
 ReservedSource satisfies IndependentSource {
     machine source(input: u64) -> u64 reaches none ensures result == FLOOR {
-        forwarded(input)
+        7
     }
 }
 machine forwarded(input: u64) -> u64 ensures result == FLOOR { IndependentSource::source(input) }

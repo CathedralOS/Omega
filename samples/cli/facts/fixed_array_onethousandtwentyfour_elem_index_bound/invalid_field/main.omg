@@ -7,7 +7,7 @@ data Container requires idx <= 1024 {
     idx: u64;
 }
 
-machine read_element(container: Container) -> u64 {
+machine read_element(container: Container) -> u64 requires true {
     container.arr[container.idx]
 }
 

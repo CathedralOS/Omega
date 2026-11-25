@@ -1,1 +1,1 @@
-data `Counter` literal cannot prove the default domain
+cannot prove requires contract for call select

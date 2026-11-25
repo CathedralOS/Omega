@@ -23,7 +23,7 @@ machine main() crashes Trap {
     let sample: Value = Value { value: 200 };
     let counter: Counter = Counter { slot: @mutable bounds.other };
     encode_packet(@sample, @mutable buffer, counter.slot);
-    transition buffer[0] == 0 && buffer[1] == 0 && buffer[2] == 200 && buffer[3] == 1 && bounds.chosen == 4 && items[bounds.other] == 7 {
+    transition buffer[0] == 0 && buffer[1] == 0 && buffer[2] == 200 && buffer[3] == 1 && items[bounds.other] == 7 && bounds.chosen == 4 {
         true -> done(),
         _ -> bad()
     }

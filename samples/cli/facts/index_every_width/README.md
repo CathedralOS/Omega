@@ -55,7 +55,10 @@ proof checking before native execution:
 omega --check samples/cli/facts/index_every_width/<place>/invalid/main.omg
 ```
 
-Every twin rejects with `cannot prove index ... is within length 4` naming that place's widened index.
+Every twin rejects with `cannot prove index ... is within length 4` naming that place's widened index,
+except the field twin: its `read_all` declares `requires true` in both twins, so the record invariant
+is its only premise, and the checker names the index's hoisted local instead (`cannot prove index is
+within length 4`).
 
 ## Requirements and Evidence
 

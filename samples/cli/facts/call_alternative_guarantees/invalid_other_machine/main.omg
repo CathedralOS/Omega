@@ -16,7 +16,7 @@ machine total(counter: Counter) -> u8 { counter.value + 195 }
 machine package_value(value: u8) -> Counter
 requires value <= 60
 { Counter { value: value } }
-machine make(choice: Choice) -> Counter {
+machine make(choice: Choice) -> Counter requires true {
     let selected: u8 = select(choice.left, choice.right);
     package_value(selected)
 }
