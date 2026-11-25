@@ -86,8 +86,16 @@ impl TypedTrees {
     }
 
     pub fn applied_trait_roots(&self) -> Vec<AppliedTraitScope<'_>> {
-        let occurrences =
-            crate::source_state::references::collect_program_application_occurrences(self);
+        self.applied_trait_roots_from(
+            crate::source_state::references::collect_program_application_occurrences(self),
+        )
+    }
+
+    /// `occurrences` must come from a walk of this program as it is now.
+    pub(crate) fn applied_trait_roots_from(
+        &self,
+        occurrences: crate::source_state::references::ProgramApplicationOccurrences,
+    ) -> Vec<AppliedTraitScope<'_>> {
         self.machines()
             .iter()
             .flat_map(|machine| {

@@ -75,13 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-<a id="related-image-searches-its-checked-roots-linearly-for-every-fact"></a>
-### `related_image` searches its checked roots linearly for every fact
-- Category: 10. Verifying costs more than writing
-- Where: [`Prover::related_image`](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/prove.rs#L5242), the `checked_roots.iter().find(|(seen, _)| *seen == root)` lookup
-- Saw: for each order fact, both endpoints are compared by full `ScalarTerm` equality against every root already checked, so one call costs facts × distinct roots tree comparisons. In a `perf` call-graph profile of a release `omega --check` of `samples/cli/arithmetic/popcount/main.omg` (`omega-linux`, 29,853 samples, 2026-11-25), `ScalarTerm::eq` was 3.1% of all samples, and 2.8% of that sat under `related_image` (through `arithmetic_images` from `arithmetic_image` and `arithmetic`).
-- Cost: about 3% of the whole check spent comparing terms. A lookup keyed by the root term (sorted or hashed once per call) would make it linear in the facts.
-- Reported: 2026-11-25, Claude Code, while profiling `semantic-vocabulary` term equality; the fix is in Psi 06, outside that task's scope.
+<a id="every-bundled-custody-query-compares-the-whole-file"></a>
+### Every bundled-declaration custody query compares the whole source file
+- Category: 4. Re-deriving
+- Where: [`CoreVocabularyCatalog::classify` and `source`](source-rust/subsystems/compiler/source-to-psi/representations/source-files/bundled-declarations/src/core_vocabulary.rs#L10) and `SealedIntrinsicCatalog::classify`, reached through [`toolchain_site`](source-rust/subsystems/compiler/source-to-psi/representations/symbol-resolved-trees/symbol-table/source_symbols.rs#L63) from `SymbolTable::sealed_intrinsic`, `core_source` and `core_vocabulary`
+- Saw: each query strips the file's package root and then tests `crate::bytes(file) == site.source`, a byte comparison of the whole bundled file, every time. Stage 03 asks per operator candidate and per call site: `is_sealed_toolchain_float_operator` makes three such queries for one candidate (two catalog lookups and a second `display_path`), and `retain_static_argument_contexts` asks `core_vocabulary` per argument. A release profile of popcount `--check` on omega-linux (2026-11-25) put about 0.06 s in `__memcmp` and path parsing under `normalize_qualification_casts` and `retain_static_argument_contexts`.
+- Cost: whether a file is the exact bundled one is fixed when the source is admitted, but every query recomputes it. Source admission could record it once on the `SourceFile`.
+- Reported: 2026-11-25, Claude Code, while profiling Psi 02/03 on popcount.
 
 <a id="resuming-a-typing-from-retained-source-costs-more-than-typing-afresh"></a>
 ### Resuming a typing from retained source costs more than typing afresh

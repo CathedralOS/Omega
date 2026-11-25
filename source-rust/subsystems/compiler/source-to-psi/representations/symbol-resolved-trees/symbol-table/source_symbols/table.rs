@@ -364,12 +364,82 @@ mod indices {
     use source_text::SourceId;
     use std::sync::Arc;
 
+    /*
+        Two views of the root roster, each built on its first use and both
+        cleared together: name lookups need not build the module rosters,
+        and a module member lookup need not hash every root name.
+    */
     #[derive(Clone, Default)]
     pub(super) struct RootNameIndex {
+        pub(super) names: std::sync::OnceLock<RootNameRows>,
+        /*
+            The members of every module namespace, before source selection.
+            A member lookup through a module used to rescan every root child.
+        */
+        pub(super) module_children: std::sync::OnceLock<ModuleChildRoster>,
+    }
+
+    #[derive(Clone, Default)]
+    pub(super) struct RootNameRows {
         pub(super) by_name: arena::HandleKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
         pub(super) by_leaf: arena::HandleKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
         /* Root children of kind `Domain`, in root roster order. */
         pub(super) domains: Vec<SymbolHandle>,
+    }
+
+    /*
+        Each module's members in `module_children` order: nested module
+        symbols in `module_symbols` order, then the root children whose
+        authored file declares that module, in root roster order. `modules`
+        is sorted by module handle and names each module's run in `children`.
+        A module without a run has no members.
+    */
+    #[derive(Clone, Default)]
+    pub(super) struct ModuleChildRoster {
+        pub(super) modules: Vec<((u32, u32), usize, usize)>,
+        pub(super) children: Vec<SymbolHandle>,
+    }
+
+    impl ModuleChildRoster {
+        /* Group `(module, member)` pairs given in roster order. */
+        pub(super) fn from_members(
+            members: impl IntoIterator<Item = (SymbolHandle, SymbolHandle)>,
+        ) -> Self {
+            let key = |module: SymbolHandle| (module.arena_index(), module.generation());
+            let mut members = members
+                .into_iter()
+                .map(|(module, member)| (key(module), member))
+                .collect::<Vec<_>>();
+            // Stable, so each module keeps its members in roster order.
+            members.sort_by_key(|(module, _)| *module);
+            let mut roster = Self {
+                modules: Vec::new(),
+                children: Vec::with_capacity(members.len()),
+            };
+            for (module, member) in members {
+                let start = roster.children.len();
+                roster.children.push(member);
+                match roster.modules.last_mut() {
+                    Some((last, _, end)) if *last == module => *end = start + 1,
+                    _ => roster.modules.push((module, start, start + 1)),
+                }
+            }
+            roster
+        }
+
+        pub(super) fn members(&self, module: SymbolHandle) -> &[SymbolHandle] {
+            let key = (module.arena_index(), module.generation());
+            match self
+                .modules
+                .binary_search_by_key(&key, |(module, _, _)| *module)
+            {
+                Ok(position) => {
+                    let (_, start, end) = self.modules[position];
+                    &self.children[start..end]
+                }
+                Err(_) => &[],
+            }
+        }
     }
 
     /*
@@ -520,8 +590,8 @@ mod indices {
     );
 }
 use indices::{
-    BindingSourceIndexCache, ModulePathIndex, ModulePathIndexCache, ModuleScopeIndex,
-    ModuleScopeIndexCache, RootNameIndex, RootNameIndexCache,
+    BindingSourceIndexCache, ModuleChildRoster, ModulePathIndex, ModulePathIndexCache,
+    ModuleScopeIndex, ModuleScopeIndexCache, RootNameIndexCache, RootNameRows,
 };
 mod modules {
     /*
@@ -1366,17 +1436,17 @@ mod modules {
             parent
         }
 
+        /*
+            Nested module symbols, then the root children declared in this
+            module's files, read from the root name index rather than a scan
+            of every root child per lookup. Source selection applies here
+            because activation does not rebuild that index.
+        */
         pub(super) fn module_children(&self, module: SymbolHandle) -> Vec<SymbolHandle> {
-            self.module_symbols
+            self.module_child_roster()
+                .members(module)
                 .iter()
-                .map(|(_, handle)| *handle)
-                .filter(|handle| self.get(*handle).parent == module)
-                .chain(
-                    self.child_handles(self.root)
-                        .into_iter()
-                        .flatten()
-                        .filter(|handle| self.symbol_module(*handle) == module),
-                )
+                .copied()
                 .filter(|symbol| self.symbol_source_is_selected(*symbol))
                 .collect()
         }
@@ -2447,6 +2517,128 @@ mod tests {
 
     use super::*;
 
+    /*
+        Module member lookups read each module's roster from the root name
+        index. The roster must name exactly what a scan of every module symbol
+        and root child names, in the same order, and must follow the
+        mutations that clear that index.
+    */
+    #[cfg(test)]
+    mod module_child_roster_tests {
+        use super::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder};
+        use crate::source_inputs::SourceMap;
+        use source_admission::SourceOrigin;
+        use source_provenance::PackageKeyIdentity;
+        use source_text::{SourceId, SourceSpan, Span};
+        use std::path::PathBuf;
+        use std::sync::Arc;
+
+        fn reference(source: usize) -> SourceSpan {
+            SourceSpan::new(SourceId(source), Span::new(0, 4))
+        }
+
+        fn scanned_children(symbols: &SymbolTable, module: SymbolHandle) -> Vec<SymbolHandle> {
+            symbols
+                .module_symbols
+                .iter()
+                .map(|(_, handle)| *handle)
+                .filter(|handle| symbols.get(*handle).parent == module)
+                .chain(
+                    symbols
+                        .child_handles(symbols.root)
+                        .into_iter()
+                        .flatten()
+                        .filter(|handle| symbols.symbol_module(*handle) == module),
+                )
+                .filter(|symbol| symbols.symbol_source_is_selected(*symbol))
+                .collect()
+        }
+
+        fn assert_rosters_match(symbols: &SymbolTable) -> usize {
+            let modules = symbols
+                .module_symbols
+                .iter()
+                .map(|(_, handle)| *handle)
+                .collect::<Vec<_>>();
+            let mut members = 0;
+            for module in modules.iter().copied().chain([symbols.root]) {
+                let indexed = symbols.module_children(module);
+                assert_eq!(indexed, scanned_children(symbols, module));
+                members += indexed.len();
+            }
+            members
+        }
+
+        #[test]
+        fn module_rosters_match_a_full_scan_through_index_clearing_mutations() {
+            let mut sources = SourceMap::default();
+            for source in 0..4 {
+                let root = PathBuf::from("package");
+                sources.add_with_metadata(
+                    root.join(format!("source-{source}.omg")),
+                    String::from("Item"),
+                    root,
+                    Some(PackageKeyIdentity::from_digest([1; 32]).expect("nonzero owner")),
+                    SourceOrigin::User,
+                );
+            }
+            let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+            let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let declarations = SymbolTableBuilder::child_handles(builder.insert_children(
+                root,
+                (0..4).map(|source| {
+                    (
+                        SymbolKind::Data,
+                        SymbolNameRef::OwnedSource {
+                            value: "Item",
+                            source_span: reference(source),
+                        },
+                    )
+                }),
+            ))
+            .collect::<Vec<_>>();
+            let mut symbols = builder.finish();
+            for (source, path) in [
+                (0, &["combat", "ai"][..]),
+                (1, &["combat"][..]),
+                (2, &["combat", "ai"][..]),
+            ] {
+                symbols
+                    .register_source_module(
+                        SourceId(source),
+                        path.iter().map(|name| (*name, reference(source))),
+                    )
+                    .expect("one namespace per source");
+                assert_rosters_match(&symbols);
+            }
+            let combat = symbols.source_module(SourceId(1));
+            let ai = symbols.source_module(SourceId(0));
+            assert!(combat.is_valid() && ai.is_valid() && combat != ai);
+            assert_eq!(symbols.source_module(SourceId(2)), ai);
+            let combat_members = symbols.module_children(combat);
+            assert_eq!(combat_members.first(), Some(&ai));
+            assert!(combat_members.contains(&declarations[1]));
+            let ai_members = symbols.module_children(ai);
+            assert!(ai_members.contains(&declarations[0]) && ai_members.contains(&declarations[2]));
+            assert!(!ai_members.contains(&declarations[3]));
+            // A generated symbol is its own root, not a root child, so no module
+            // lists it; generating one and renaming a member both clear the index.
+            let generated =
+                symbols.insert_generated_root_from(declarations[2], SymbolKind::Machine, "made");
+            assert_rosters_match(&symbols);
+            assert!(!symbols.module_children(ai).contains(&generated));
+            symbols.rename(declarations[0], "Renamed");
+            let members = assert_rosters_match(&symbols);
+            assert!(members >= 4, "only {members} module members");
+            symbols
+                .register_source_module(SourceId(3), [("combat", reference(3))])
+                .expect("a fourth file joins the outer module");
+            assert_eq!(symbols.source_module(SourceId(3)), combat);
+            assert!(symbols.module_children(combat).contains(&declarations[3]));
+            assert_rosters_match(&symbols);
+        }
+    }
+
     #[cfg(test)]
     mod builtin_function_identity_tests {
         use super::{BuiltinFunction, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder};
@@ -3391,12 +3583,7 @@ impl SymbolTable {
         Like `child_handles`, it applies no source-activation filter.
     */
     pub fn root_domain_children(&self) -> impl Iterator<Item = SymbolHandle> + '_ {
-        self.root_names
-            .0
-            .get_or_init(|| self.root_name_index())
-            .domains
-            .iter()
-            .copied()
+        self.root_name_rows().domains.iter().copied()
     }
 
     /*
@@ -3405,9 +3592,7 @@ impl SymbolTable {
         index rather than a scan of the whole root roster.
     */
     pub fn root_children_named(&self, name: &str) -> impl Iterator<Item = SymbolHandle> + '_ {
-        self.root_names
-            .0
-            .get_or_init(|| self.root_name_index())
+        self.root_name_rows()
             .by_name
             .get(name)
             .into_iter()
@@ -3641,7 +3826,7 @@ impl SymbolTable {
         name: &str,
         include_leaf: bool,
     ) -> Vec<SymbolHandle> {
-        let index = self.root_names.0.get_or_init(|| self.root_name_index());
+        let index = self.root_name_rows();
         let mut merged = index.by_name.get(name).cloned().unwrap_or_default();
         if include_leaf && let Some(leaves) = index.by_leaf.get(name) {
             merged.extend_from_slice(leaves);
@@ -3668,8 +3853,14 @@ impl SymbolTable {
             .map_or(EMPTY, |scope| scope.bindings.as_slice())
     }
 
-    fn root_name_index(&self) -> RootNameIndex {
-        let mut index = RootNameIndex::default();
+    /* The root children bucketed by name, built on the first name lookup. */
+    fn root_name_rows(&self) -> &RootNameRows {
+        let index = self.root_names.0.get_or_init(Default::default);
+        index.names.get_or_init(|| self.root_name_index())
+    }
+
+    fn root_name_index(&self) -> RootNameRows {
+        let mut index = RootNameRows::default();
         if let Some(children) = self.child_handles(self.root) {
             for (position, symbol) in children.enumerate() {
                 let full_name = self.name(symbol);
@@ -3691,6 +3882,31 @@ impl SymbolTable {
             }
         }
         index
+    }
+
+    /*
+        Every module's members, built on the first module member lookup.
+        Nested module symbols precede the root children a module declares.
+        Building it reads no module's children, so it cannot reenter itself.
+    */
+    fn module_child_roster(&self) -> &ModuleChildRoster {
+        self.root_names
+            .0
+            .get_or_init(Default::default)
+            .module_children
+            .get_or_init(|| {
+                let nested = self
+                    .module_symbols
+                    .iter()
+                    .map(|(_, module)| (self.get(*module).parent, *module));
+                let declared = self
+                    .child_handles(self.root)
+                    .into_iter()
+                    .flatten()
+                    .map(|symbol| (self.symbol_module(symbol), symbol))
+                    .filter(|(module, _)| module.is_valid());
+                ModuleChildRoster::from_members(nested.chain(declared))
+            })
     }
 
     /*
@@ -4290,9 +4506,7 @@ impl SymbolTable {
                 .filter(|symbol| self.get(*symbol).kind == SymbolKind::BuiltinType);
         }
         let name = atom.symbol_name();
-        self.root_names
-            .0
-            .get_or_init(|| self.root_name_index())
+        self.root_name_rows()
             .by_name
             .get(name.as_ref())
             .into_iter()
@@ -4379,9 +4593,7 @@ impl SymbolTable {
     }
 
     pub fn integer_family_symbol(&self, sign: IntegerSign) -> Option<SymbolHandle> {
-        self.root_names
-            .0
-            .get_or_init(|| self.root_name_index())
+        self.root_name_rows()
             .by_name
             .get(integer_family_name(sign))
             .into_iter()
