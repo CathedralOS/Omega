@@ -456,7 +456,7 @@ pub(crate) mod domain_constraints {
             let available = available.get_or_insert_with(|| {
                 CarrierQualifications::for_type(source, program, site, plain)
             });
-            available.retain_possible(source, program, &mut compatible, &constraint.arguments);
+            available.retain_possible(source, program, plain, &mut compatible, &constraint.arguments);
             if compatible.is_empty()
                 && let Some(at) = reference
             {
@@ -1299,62 +1299,118 @@ pub(crate) mod const_arguments {
                     if argument.arena_index() as usize <= frontier {
                         continue;
                     }
-                    // A value binder (`Limit: u32`) also admits a static
-                    // argument (generics.md, "Value binders and const
-                    // requirements"), typed in its carrier like a `const` one.
-                    let (TypeParameterKind::Const { type_reference }
-                    | TypeParameterKind::Value { type_reference }) = parameter.kind
-                    else {
-                        continue;
-                    };
-                    if let Some(spelling) = named_argument_in_carrier(
-                        program,
-                        declaration,
-                        parameter,
-                        argument,
-                        type_reference,
-                        &parameters,
-                        &arguments,
+                    match const_argument(
+                        program, declaration, parameter, argument, &parameters, &arguments,
                     )? {
-                        replacements.push((argument, spelling));
-                        continue;
-                    }
-                    let needs_admission = needs_admission(program, argument);
-                    match program.type_reference_table.type_reference(argument) {
-                        TypeReferenceNode::ConstExpression(_) if needs_admission => {}
-                        TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {}
-                        _ => {
-                            if needs_admission {
-                                // The structured argument still needs typing
-                                // against the declared data carrier.
-                                defer_to_holders(
-                                    program,
-                                    &mut owners,
-                                    owner,
-                                    &[argument],
-                                    Diagnostic::error(
-                                        "no product route yet: a record or case const argument is \
-                                         not typed against its declared data type",
-                                    ),
-                                )?;
-                            }
-                            continue;
+                        ConstArgument::Canonical(spelling) => {
+                            replacements.push((argument, spelling));
                         }
+                        ConstArgument::Unchanged => {}
+                        ConstArgument::RequiresTyping => defer_to_holders(
+                            program,
+                            &mut owners,
+                            owner,
+                            &[argument],
+                            Diagnostic::error(
+                                "no product route yet: a record or case const argument is \
+                                 not typed against its declared data type",
+                            ),
+                        )?,
                     }
-                    let Some(carrier) =
-                        builtin_carrier(program, type_reference, &parameters, &arguments)
-                    else {
-                        continue;
-                    };
-                    let spelling =
-                        argument_in_carrier(program, declaration, parameter, argument, carrier)?;
-                    let Some(spelling) = spelling else {
-                        continue;
-                    };
-                    replacements.push((argument, spelling));
                 }
             }
             Ok(replacements)
+        }
+
+        enum ConstArgument {
+            Canonical(String),
+            Unchanged,
+            RequiresTyping,
+        }
+
+        fn const_argument(
+            program: &TypedTrees,
+            declaration: SymbolHandle,
+            parameter: &crate::source_state::data::TypeParameter,
+            argument: TypeReferenceHandle,
+            parameters: &[crate::source_state::data::TypeParameter],
+            arguments: &[TypeReferenceHandle],
+        ) -> Result<ConstArgument, Diagnostic> {
+            // Value binders also admit static arguments of their declared carrier.
+            let (TypeParameterKind::Const { type_reference }
+            | TypeParameterKind::Value { type_reference }) = parameter.kind
+            else {
+                return Ok(ConstArgument::Unchanged);
+            };
+            if let Some(spelling) = named_argument_in_carrier(
+                program,
+                declaration,
+                parameter,
+                argument,
+                type_reference,
+                parameters,
+                arguments,
+            )? {
+                return Ok(ConstArgument::Canonical(spelling));
+            }
+            let closed = needs_admission(program, argument);
+            match program.type_reference_table.type_reference(argument) {
+                TypeReferenceNode::ConstExpression(_) if closed => {}
+                TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {}
+                _ if closed => return Ok(ConstArgument::RequiresTyping),
+                _ => return Ok(ConstArgument::Unchanged),
+            }
+            if let Some(carrier) = builtin_carrier(program, type_reference, parameters, arguments)
+                && let Some(spelling) =
+                    argument_in_carrier(program, declaration, parameter, argument, carrier)?
+            {
+                return Ok(ConstArgument::Canonical(spelling));
+            }
+            Ok(ConstArgument::Unchanged)
+        }
+
+        /// Compare an authored application under a possible declaration's binders.
+        /// Its final selection owns any deferred obligations and the source occurrences.
+        pub(crate) fn domain_lookup_indices<'a>(
+            program: &mut TypedTrees,
+            declaration: SymbolHandle,
+            carrier: TypeReferenceHandle,
+            mut indices: std::borrow::Cow<'a, [TypeReferenceHandle]>,
+        ) -> Result<std::borrow::Cow<'a, [TypeReferenceHandle]>, Diagnostic> {
+            if !indices.iter().any(|index| needs_admission(program, *index)) {
+                return Ok(indices);
+            }
+            let domain = program
+                .domain_definition(declaration)
+                .ok_or_else(|| Diagnostic::error("domain application lost its declaration"))?;
+            let implicit = crate::source_state::domain::has_generic_carrier(program, domain);
+            let parameters = program.domain_type_parameters(domain).to_vec();
+            let arguments: Vec<_> = implicit
+                .then_some(carrier)
+                .into_iter()
+                .chain(indices.iter().copied())
+                .collect();
+            if parameters.len() != arguments.len() {
+                return Ok(indices);
+            }
+            let first = usize::from(implicit);
+            for (position, &index) in arguments[first..].iter().enumerate() {
+                if let ConstArgument::Canonical(spelling) = const_argument(
+                    program,
+                    declaration,
+                    &parameters[first + position],
+                    index,
+                    &parameters,
+                    &arguments,
+                )? {
+                    let fresh = program.type_reference_table.fresh_occurrence(index);
+                    program
+                        .type_reference_table
+                        .substitute_node(fresh, canonical_argument(spelling));
+                    indices.to_mut()[position] = fresh;
+                }
+            }
+            Ok(indices)
         }
 
         /// A selected constant already has a declared carrier. Compare it
@@ -2464,7 +2520,7 @@ pub(crate) mod const_arguments {
     }
 
     pub(crate) use closed_applications::normalize as normalize_const_argument_carriers;
-    pub(crate) use closed_applications::selected_domain_application;
+    pub(crate) use closed_applications::{domain_lookup_indices, selected_domain_application};
 }
 pub(crate) mod constraints {
     use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
@@ -3959,7 +4015,9 @@ pub(crate) fn retain_supplied_operand_owner(
 
 pub(crate) use arithmetic_results::retain_arithmetic_result_type;
 pub(crate) use computed_results::retain_computed_result_types;
-pub(crate) use const_arguments::{normalize_const_argument_carriers, selected_domain_application};
+pub(crate) use const_arguments::{
+    domain_lookup_indices, normalize_const_argument_carriers, selected_domain_application,
+};
 pub(crate) use generic_origins::validate_computed_arguments;
 
 use direct::lower_type_reference_handle_with_context;

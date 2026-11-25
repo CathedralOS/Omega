@@ -1323,7 +1323,12 @@ fn competing_domain_families_use_the_qualifications_on_each_side() {
         data Left = Word in Mark<u16>;
         data Right = Word in Mark<u32>;
         domain<T> Left::Op<T>;
-        domain<T> Right::Op<T>;";
+        domain<T> Right::Op<T>;
+        domain<const N: u8> Word::Slot<N>;
+        data Input = Word in Slot<2>;
+        data Output = Word in Slot<3>;
+        domain Input::Ready;
+        domain Output::Ready;";
     for (machine, refusal) in [
         (
             "machine f(x: Word in Op<u8> & Mark<u16>) -> Left in Left::Op<u8> { x }",
@@ -1338,6 +1343,22 @@ fn competing_domain_families_use_the_qualifications_on_each_side() {
                 x as =Mark<u16> +Mark<u32> =Op<u8>
              }",
             None,
+        ),
+        (
+            "machine f(x: Word) -> Input in Input::Ready { x as +Ready +Slot<1 + 1> }",
+            None,
+        ),
+        (
+            "machine f(x: Word) -> Output in Output::Ready { x as +Slot<3u8> +Ready }",
+            None,
+        ),
+        (
+            "machine f(x: Word) -> Input in Input::Ready { x as +Slot<3> +Ready }",
+            Some("this value's type carries"),
+        ),
+        (
+            "machine f(x: Word) -> Input in Input::Ready { x as +Slot<2u16> +Ready }",
+            Some("must be a `u8`"),
         ),
         ("machine f(x: Left) requires x in Op<u8> {}", None),
         ("machine f(x: Right) requires x in Op<u8> {}", None),
