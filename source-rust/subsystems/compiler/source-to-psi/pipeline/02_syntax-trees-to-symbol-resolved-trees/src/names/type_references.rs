@@ -1524,19 +1524,15 @@ mod value_expressions {
                     &mut declaration.declared_type,
                 );
             });
-        let mut alias_expansions = Vec::new();
-        for alias in program.roots.type_aliases.iter() {
-            let parameters = declarations
-                .data_type_parameters
-                .span_or_empty(alias.type_parameters)
-                .to_vec();
+        let mut resolve_declaration_type = |owner, formals, reference: &mut TypeReference| {
+            let parameters = declarations.data_type_parameters.span_or_empty(formals);
             let scope = MachineScope {
-                symbol: alias.symbol,
+                symbol: owner,
                 lexical_requirements: crate::resolution::names::scopes::LexicalRequirements::none(),
                 attached_machines: &attached_machines,
                 binder_roles: &binder_roles,
                 resolution_indexes: &program.resolution_indexes,
-                type_parameters: &parameters,
+                type_parameters: parameters,
                 attached_data_symbol: SymbolHandle::invalid(),
                 inherited_data_members: None,
                 owned_data: &[],
@@ -1552,7 +1548,6 @@ mod value_expressions {
                 data_payload_fields: &declarations.data_payload_fields,
                 type_constraints: &program.tables.types.constraints,
             };
-            let mut expansion = alias.expansion.clone();
             assign_type_value_expression_symbols(
                 symbols,
                 &scope,
@@ -1560,10 +1555,22 @@ mod value_expressions {
                 SymbolHandle::invalid(),
                 &mut program.tables.bodies.expressions,
                 &mut declarations.child_type_references,
-                &mut expansion,
+                reference,
             );
+        };
+        let mut alias_expansions = Vec::new();
+        for alias in program.roots.type_aliases.iter() {
+            let mut expansion = alias.expansion.clone();
+            resolve_declaration_type(alias.symbol, alias.type_parameters, &mut expansion);
             alias_expansions.push(expansion);
         }
+        program.roots.domain_definitions.for_each_mut(|domain| {
+            resolve_declaration_type(
+                domain.symbol,
+                domain.type_parameters,
+                &mut domain.target_type,
+            );
+        });
         let mut alias_expansions = alias_expansions.into_iter();
         program.roots.type_aliases.for_each_mut(|alias| {
             alias.expansion = alias_expansions.next().expect("unchanged alias roster");
