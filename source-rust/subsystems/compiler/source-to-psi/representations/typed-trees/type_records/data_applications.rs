@@ -9,11 +9,44 @@ use crate::source_state::types::{DomainConstraintSubject, FixedArrayLength, Type
 use arena::HandleSpan;
 use symbols::{SymbolHandle, SymbolKind};
 
+/// Each written lifetime is bound where its operand was supplied. A substituted
+/// lifetime can already carry that binder's identity under a different name.
+pub fn check_supplied_lifetimes(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    owner: SymbolHandle,
+    arguments: &[crate::source_state::name::Identifier],
+) -> Result<(), String> {
+    use crate::source_state::type_identity::{
+        lifetime_parameter_identity, lifetime_parameter_name,
+    };
+
+    let retained = program.type_reference_table.operand_lifetimes(reference);
+    for (slot, argument) in arguments.iter().enumerate() {
+        let region = retained
+            .get(slot)
+            .copied()
+            .filter(|region| region.declaration.is_valid())
+            .or_else(|| lifetime_parameter_identity(program, owner, argument.as_str()));
+        if region
+            .and_then(|id| lifetime_parameter_name(program, id))
+            .is_none()
+        {
+            return Err(format!(
+                "lifetime argument `'{}` must name a lifetime in its supplying declaration",
+                argument.as_str().trim_start_matches('\'')
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// A type argument must denote a type, including beneath a structural
 /// wrapper. Its named head must receive its own declaration's full tuple.
-pub fn check_type_argument_head(
+pub fn check_type_argument(
     program: &TypedTrees,
     mut reference: TypeReferenceHandle,
+    mut owner: SymbolHandle,
 ) -> Result<(), String> {
     let table = &program.type_reference_table;
     let mut remaining = table.type_reference_count();
@@ -22,9 +55,16 @@ pub fn check_type_argument_head(
             return Err("type argument contains a missing or cyclic type reference".into());
         }
         remaining -= 1;
+        let supplier = table.operand_lifetime_owner(reference);
+        if supplier.is_valid() {
+            owner = supplier;
+        }
         match table.type_reference(reference) {
-            TypeReferenceNode::Reference { referee, .. }
-            | TypeReferenceNode::Constrained {
+            TypeReferenceNode::Reference { referee, lifetime, .. } => {
+                check_supplied_lifetimes(program, reference, owner, lifetime.as_slice())?;
+                reference = *referee;
+            }
+            TypeReferenceNode::Constrained {
                 base_type: referee, ..
             }
             | TypeReferenceNode::FixedArray {
@@ -41,6 +81,7 @@ pub fn check_type_argument_head(
                 lifetime_arguments,
                 ..
             } => {
+                check_supplied_lifetimes(program, reference, owner, lifetime_arguments)?;
                 break (*base_symbol, lifetime_arguments.len(), arguments.len());
             }
             _ => return Ok(()),
@@ -613,7 +654,11 @@ impl<'source> ApplicationPreparation<'source> {
                         self.source.symbols.name(owner),
                     ));
                 }
-                check_type_argument_head(self.source, argument)?;
+                check_type_argument(
+                    self.source,
+                    argument,
+                    self.source.type_reference_table.operand_lifetime_owner(reference),
+                )?;
             }
         }
         if parameters.is_empty() {

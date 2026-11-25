@@ -1560,6 +1560,43 @@ fn a_type_argument_supplies_its_own_declarations_full_arity() {
 }
 
 #[test]
+fn an_erased_type_argument_keeps_its_supplying_lifetime_scope() {
+    let package = PackageKeyIdentity::from_digest([0x69; 32]).unwrap();
+    let declarations = "data Word { bits: u32; }
+        data Loan<'r> { item: @'r u8; }
+        data Pair<A, B> { first: A; second: B; }
+        data Plain<T> = Word;
+        data Forward<'element> = Plain<Loan<'element>>;
+        machine unrelated<'other>(v: @'other u8) -> u8 { 1 }";
+    for (argument, valid) in [
+        ("Loan<'caller>", true),
+        ("Forward<'caller>", true),
+        ("Pair<@'caller u8, Loan<'caller>>", true),
+        ("@u8", true),
+        ("Loan<'other>", false),
+        ("@'other mutable u8", false),
+        ("[@'other u8; 2]", false),
+        ("Pair<u8, Loan<'other>>", false),
+    ] {
+        let source =
+            format!("{declarations} machine f<'caller>(v: Plain<{argument}>) -> Word {{ v }}");
+        let (files, root) = captured(package, &source);
+        let result = compile(product(files, root, package, &[]).unwrap(), None);
+        if valid {
+            result.expect(&source);
+        } else {
+            let diagnostics = result.expect_err(&source);
+            assert!(
+                diagnostics.iter().any(|error| error.message.contains(
+                    "lifetime argument `'other` must name a lifetime in its supplying declaration"
+                )),
+                "{diagnostics:?}",
+            );
+        }
+    }
+}
+
+#[test]
 fn competing_domain_families_use_the_qualifications_on_each_side() {
     let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
     let declarations = "data Word { bits: u32; }
