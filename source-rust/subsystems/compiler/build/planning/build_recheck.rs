@@ -293,6 +293,41 @@ impl PendingProduct {
         };
         self.product.settle_recheck(owed, checked)
     }
+
+    /// Release the Product to a caller that only checks it, while its Build
+    /// recheck may still run. `omega --check` writes nothing, so it can check
+    /// the Product meanwhile; it must settle the returned recheck before it
+    /// reports anything about the Product, and a refused recheck replaces the
+    /// Product's own result. The released Product's timings and accounting
+    /// are those of its original Build: the recheck's are reported and
+    /// validated by [`OwedBuildRecheck::settle`].
+    pub fn release_for_check(self) -> (PlannedProduct, Option<OwedBuildRecheck>) {
+        let owed = self
+            .owed
+            .map(|(token, pending)| OwedBuildRecheck { token, pending });
+        (self.product, owed)
+    }
+}
+
+/// The Build recheck of a Product released by [`PendingProduct::release_for_check`].
+#[must_use = "a refused Build recheck refuses the Product it checked"]
+pub struct OwedBuildRecheck {
+    token: Arc<()>,
+    pending: PendingRecheck,
+}
+
+impl OwedBuildRecheck {
+    /// Wait for the recheck and return the Build work it measured, or its
+    /// refusal. A released Product's check validated only its original
+    /// Build's charges, so the charges this recheck spent are validated here.
+    pub fn settle(self) -> Result<CompileTimings, CompileFailure> {
+        let checked = CheckedBuildRecheck::owed_to(&self.token, self.pending.join())?;
+        checked
+            .result?
+            .validate_charges()
+            .map_err(|reason| CompileFailure::from(vec![Diagnostic::error(reason)]))?;
+        Ok(checked.timings)
+    }
 }
 
 /// Run `body`, which opens Products and settles their Build rechecks, on a
@@ -391,6 +426,37 @@ mod tests {
             passed(&product)
         }));
         assert!(!ran.load(Ordering::SeqCst));
+    }
+
+    /// A recheck owed by a released Product settles only with the result
+    /// made for that Product, and a refused one keeps its refusal.
+    #[test]
+    fn a_released_products_recheck_settles_only_with_its_own_result() {
+        let owed = |token: &Arc<()>, made_for: &Arc<()>, refused: bool| {
+            let made_for = Arc::clone(made_for);
+            super::OwedBuildRecheck {
+                token: Arc::clone(token),
+                pending: PendingRecheck::start(move || CheckedBuildRecheck {
+                    result: if refused {
+                        Err(super::refusal("recheck refused".into()))
+                    } else {
+                        Ok(Default::default())
+                    },
+                    ..passed(&made_for)
+                }),
+            }
+        };
+        let [product, other] = [Arc::new(()), Arc::new(())];
+        assert!(owed(&product, &product, false).settle().is_ok());
+        assert!(owed(&product, &other, false).settle().is_err());
+        let refusal = owed(&product, &product, true)
+            .settle()
+            .unwrap_err()
+            .into_diagnostics();
+        assert_eq!(
+            refusal[0].message,
+            "Build activation failed: recheck refused"
+        );
     }
 
     /// A panic inside the check resumes on the thread that waits for it.

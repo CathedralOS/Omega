@@ -318,30 +318,38 @@ struct PendingDependency {
     supplier: Option<(semantic_vocabulary::PackageKeyIdentity, usize)>,
 }
 
-/// The Build rechecks of the dependency Products a Product was opened from,
-/// still running while that Product is checked. [`Self::settle`] waits for
-/// them; the caller reports nothing about the Product before it does.
+/// The Build rechecks of a Product and of the dependency Products it was
+/// opened from, still running while that Product is checked. [`Self::settle`]
+/// waits for them; the caller reports nothing about the Product before it does.
 #[derive(Default)]
-#[must_use = "a dependency's Build recheck refuses the Product that consumes it"]
+#[must_use = "a Build recheck refuses the Product that it or its consumer opened"]
 pub struct DependencyRechecks {
     /// In opening order, so the first refusal is the one a sequential
-    /// traversal would report. None of them supplies a component.
-    pending: Vec<project_build::PendingProduct>,
+    /// traversal would report: each dependency's, then the Product's own.
+    /// No dependency among them supplies a component.
+    pending: Vec<project_build::OwedBuildRecheck>,
 }
 
 impl DependencyRechecks {
+    /// The recheck a root Product without dependencies still owes, if any.
+    pub(super) fn own(recheck: Option<project_build::OwedBuildRecheck>) -> Self {
+        Self {
+            pending: recheck.into_iter().collect(),
+        }
+    }
+
     /// Wait for every recheck in opening order and return the Build work
-    /// they measured, or the first refusal.
+    /// the rechecks measured, or the first refusal.
     pub fn settle(self) -> Result<artifacts::compile_timings::CompileTimings, CompileFailure> {
         project_build::with_build_rechecks(|| {
             let mut timings = artifacts::compile_timings::CompileTimings::default();
             for pending in self.pending {
-                let product = pending.settle()?;
-                if product.timings().is_enabled() {
+                let measured = pending.settle()?;
+                if measured.is_enabled() {
                     if !timings.is_enabled() {
                         timings = artifacts::compile_timings::CompileTimings::enabled();
                     }
-                    timings.extend(product.timings());
+                    timings.extend(&measured);
                 }
             }
             Ok(timings)
@@ -429,11 +437,12 @@ impl HandoffSources<'_> {
     /// Each dependency's Build is checked again on its Product's sources while
     /// the traversal continues and this Product opens.
     ///
-    /// With `alongside`, a dependency that supplies no component may still be
-    /// rechecking when this returns: the caller checks the Product while those
-    /// checks finish and settles them before reporting it. Otherwise, and
-    /// whenever this Product fails to open, every check finishes first, so a
-    /// dependency's refusal is reported before this Product's own.
+    /// With `alongside`, this Product's own Build recheck and those of
+    /// dependencies that supply no component may still be running when this
+    /// returns: the caller checks the Product while they finish and settles
+    /// them before reporting it. Otherwise, and whenever this Product fails to
+    /// open, every check finishes first. Either way a dependency's refusal is
+    /// reported before this Product's own.
     pub(super) fn dependency_product(
         &self,
         settled: &project_build::SettledDependency,
@@ -446,7 +455,7 @@ impl HandoffSources<'_> {
         project_build::with_build_rechecks(|| {
             let opened = self
                 .dependency_inputs(settled, purpose, target, products)
-                .and_then(|inputs| settled.open_product(inputs));
+                .and_then(|inputs| settled.open_pending(inputs));
             if alongside
                 && opened.is_ok()
                 && products
@@ -454,14 +463,20 @@ impl HandoffSources<'_> {
                     .iter()
                     .all(|pending| pending.supplier.is_none())
             {
-                let pending = std::mem::take(&mut products.pending)
-                    .into_iter()
-                    .map(|pending| pending.product)
-                    .collect();
-                return Ok((opened?, DependencyRechecks { pending }));
+                // Rechecks settle in opening order: the dependencies', then
+                // this Product's own.
+                let mut pending = Vec::with_capacity(products.pending.len() + 1);
+                for dependency in std::mem::take(&mut products.pending) {
+                    let (product, recheck) = dependency.product.release_for_check();
+                    products.record_timings(&product);
+                    pending.extend(recheck);
+                }
+                let (product, own) = opened?.release_for_check();
+                pending.extend(own);
+                return Ok((product, DependencyRechecks { pending }));
             }
             products.settle()?;
-            Ok((opened?, DependencyRechecks::default()))
+            Ok((opened?.settle()?, DependencyRechecks::default()))
         })
     }
 

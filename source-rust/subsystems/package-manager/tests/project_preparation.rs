@@ -1,5 +1,6 @@
 //! Exercise package and provider selection through the public project API.
 use build_declarations::{BuildDependencySource, DependencyPurpose, ProjectName};
+use build_evaluation_result::BuildSubjectValidation;
 use package_manager::project::{BuildLibraryRequest, ProjectInput, open_products};
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::fs;
@@ -251,4 +252,95 @@ machine build(builder: @mutable Build) {
         opened
     });
     assert_eq!(alongside, handoffs(&settled));
+}
+
+/// The twin where the root owes its own recheck: a root Build with no package
+/// graph yet is checked again under the owner its Build returns. The root
+/// either has a dependency that read no constant, or no dependency at all.
+/// `open_products` finishes the root's recheck before returning. Opened
+/// alongside, the root's own recheck is left for the caller to settle.
+#[test]
+fn a_root_recheck_can_finish_after_its_own_product_opens() {
+    configure();
+    for dependency in [true, false] {
+        root_recheck_finishes_after_its_own_product_opens(dependency);
+    }
+}
+
+fn root_recheck_finishes_after_its_own_product_opens(dependency: bool) {
+    let temp = TemporaryDirectory::create("project-root-recheck", false).unwrap();
+    let client = temp.path().join("client");
+    let registration = if dependency {
+        r#"_ = Build::dependency(builder, dependency\from_source(Source::Path { location: "library" }));"#
+    } else {
+        ""
+    };
+    write_package(
+        &client,
+        &format!(
+            r#"use main.omg as app;
+machine build(builder: @mutable Build) {{
+    Build::application(builder, "client");
+    {registration}
+    Build::bind(builder, windows_x86_64\ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64\ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64\ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64\ProgramEntry, |app|::main);
+}}"#
+        ),
+        "machine main() {}",
+    );
+    write_package(
+        &client.join("library"),
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "shared"); }"#,
+        "public machine helper() {}",
+    );
+    let target = TargetProfile::host_if_supported().unwrap();
+    let entry = client.join("build.omg");
+    let open = |alongside| {
+        let open = if alongside {
+            package_manager::project::open_products_alongside_rechecks
+        } else {
+            open_products
+        };
+        open(
+            ProjectInput::File(&entry),
+            &[target],
+            true,
+            true,
+            &temp.path().join("out"),
+            None,
+        )
+        .unwrap()
+    };
+    let validation = |products: &package_manager::project::ProjectProducts| {
+        products
+            .select(target)
+            .unwrap()
+            .evaluated()
+            .subject_validation
+    };
+    let settled = open(false);
+    assert_eq!(
+        validation(&settled),
+        BuildSubjectValidation::Checked,
+        "dependency: {dependency}"
+    );
+    assert!(!settled.settle_rechecks(target).unwrap().is_enabled());
+    let budget = worker_budget::ExecutionBudget::with_workers(2).unwrap();
+    budget.run(|| {
+        let products = open(true);
+        // The Product is released for checking before its own recheck settles.
+        assert_eq!(
+            validation(&products),
+            BuildSubjectValidation::CheckedUnderProvisionalOwner,
+            "dependency: {dependency}"
+        );
+        let recheck = products.settle_rechecks(target).unwrap();
+        assert!(
+            recheck.is_enabled(),
+            "the root's own recheck was still owed (dependency: {dependency})"
+        );
+        assert!(!products.settle_rechecks(target).unwrap().is_enabled());
+    });
 }

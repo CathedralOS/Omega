@@ -17,8 +17,8 @@ pub use package_review::CheckedPackagePolicy;
 #[path = "planning/source.rs"]
 mod source;
 pub use source::{
-    PendingProduct, PlannedProduct, PlanningRequest, PlanningSources, PreparedPlanningStage,
-    prepare, rechecks_outlive_caller, with_build_rechecks,
+    OwedBuildRecheck, PendingProduct, PlannedProduct, PlanningRequest, PlanningSources,
+    PreparedPlanningStage, prepare, rechecks_outlive_caller, with_build_rechecks,
 };
 
 use build_declarations::BuildRequest;
@@ -156,9 +156,28 @@ impl ReturnedPlanningStage {
 
     /// Settle this activation and open only the Product held by its original capture.
     pub fn open_product(
-        mut self,
+        self,
         inputs: Option<&PackageCompilationInputs>,
     ) -> Result<PlannedProduct, CompileFailure> {
+        let (source, evaluated) = self.complete_activation(inputs)?;
+        source.open_product(evaluated, inputs)
+    }
+
+    /// [`Self::open_product`], except that the returned Build is checked again
+    /// on the Product's sources on an idle worker; the Product is released by
+    /// [`PendingProduct::settle`] or [`PendingProduct::release_for_check`].
+    pub fn open_pending(
+        self,
+        inputs: Option<&PackageCompilationInputs>,
+    ) -> Result<PendingProduct, CompileFailure> {
+        let (source, evaluated) = self.complete_activation(inputs)?;
+        source.open_pending(evaluated, inputs)
+    }
+
+    fn complete_activation(
+        mut self,
+        inputs: Option<&PackageCompilationInputs>,
+    ) -> Result<(source::PlanningSource, EvaluatedBuild), CompileFailure> {
         let mut verify = || -> Result<(), String> {
             match (self.returned.declaration(), inputs) {
                 (Some(build_declarations::BuildDeclaration::Workspace(_)), _) => {
@@ -181,7 +200,7 @@ impl ReturnedPlanningStage {
         let evaluated = self
             .evaluation
             .complete_with_sources(self.returned, inputs)?;
-        self.source.open_product(evaluated, inputs)
+        Ok((self.source, evaluated))
     }
 
     /// Retain this dependency's deferred Product after the one Build invocation returns.
