@@ -679,20 +679,22 @@ mod bound_fact_index {
         let input = value(values.identity_at(0).unwrap());
         let alias = value(values.identity_at(1).unwrap());
         let axioms = [Proposition::Equal(alias.clone(), input.clone())];
-        let mut assumptions = vec![Proposition::LessOrEqual(alias, literal(5))];
+        let assumptions = [
+            Proposition::LessOrEqual(alias, literal(5)),
+            Proposition::Conjunction(vec![
+                Proposition::Equal(input, literal(1)),
+                Proposition::Truth,
+            ]),
+        ];
         let mut root = BranchPreparation::new(None);
         let parent = Known::prepare(
             &context,
-            assumptions.iter(),
+            assumptions[..1].iter(),
             &axioms,
             &values,
             Some(&mut root),
         );
         // Flattening the new conjunction also moves the axiom's fact position.
-        assumptions.push(Proposition::Conjunction(vec![
-            Proposition::Equal(input, literal(1)),
-            Proposition::Truth,
-        ]));
         let mut branch = BranchPreparation::new(Some((&parent.facts, &root.prepared)));
         let child = Known::prepare(
             &context,
