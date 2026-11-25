@@ -142,9 +142,16 @@ pub fn access_borrow_factory_of(
                 typed::expression::AccessBorrowBacking::Ordinary,
             )
         }
-        [policy, source_parameter, view_parameter] => {
-            let backing = resident_backing(program, source.referee, policy.symbol, source_parameter.symbol)
-                .ok_or_else(|| malformed("resident source must retain exact core Extent, Granted and Resident<P, Source> declarations"))?;
+        [placement, source_parameter, view_parameter] => {
+            let backing = resident_backing(
+                program,
+                source.referee,
+                placement.symbol,
+                source_parameter.symbol,
+            )
+            .ok_or_else(|| {
+                malformed("resident source must retain exact core Extent, Granted and Resident<P, Source> declarations")
+            })?;
             (source_parameter.symbol, view_parameter.symbol, backing)
         }
         _ => {
@@ -176,7 +183,7 @@ pub fn access_borrow_factory_of(
 fn resident_backing(
     program: &resolved::SymbolResolvedTrees,
     source: arena::Handle<resolved::types::TypeReference>,
-    policy: symbols::SymbolHandle,
+    placement: symbols::SymbolHandle,
     schema: symbols::SymbolHandle,
 ) -> Option<typed::expression::AccessBorrowBacking> {
     use resolved::types::{TypeConstraint, TypeReference};
@@ -232,12 +239,12 @@ fn resident_backing(
             TypeConstraint::Domain(application)
                 if names(application.name.as_str(), resident) && !has_resident =>
             {
-                let [actual_policy, actual_schema] =
+                let [actual_placement, actual_schema] =
                     program.child_type_references(application.arguments)
                 else {
                     return None;
                 };
-                if !matches!(actual_policy, TypeReference::Named { symbol, .. } if *symbol == policy)
+                if !matches!(actual_placement, TypeReference::Named { symbol, .. } if *symbol == placement)
                     || !matches!(actual_schema, TypeReference::Named { symbol, .. } if *symbol == schema)
                 {
                     return None;
@@ -248,6 +255,7 @@ fn resident_backing(
         }
     }
     (has_granted && has_resident).then_some(typed::expression::AccessBorrowBacking::Resident {
+        placement_parameter: placement,
         extent: *extent,
         granted: granted.symbol,
         resident: resident.symbol,

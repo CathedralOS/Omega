@@ -77,6 +77,15 @@ pub(super) struct StaticMachineTarget {
     occurrence: AuthoredDeclarationSelectionOccurrenceId,
 }
 
+/// An explicit borrow can lack its own source span. Point to the place the
+/// caller actually lent when reporting an argument type error.
+fn argument_source(argument: &Expression) -> SourceOrigin {
+    match (&argument.kind, argument.source) {
+        (ExpressionKind::Borrow { place, .. }, SourceOrigin::Unpositioned(_)) => place.source,
+        _ => argument.source,
+    }
+}
+
 impl<'t> Program<'t> {
     /// Read a declaration without granting invocation authority. Actual
     /// calls check visibility before using this same retained boundary row.
@@ -1229,11 +1238,6 @@ impl<'t> Program<'t> {
                 "sealed borrow has another call operation or value receiver",
             ));
         }
-        if !matches!(factory.backing, AccessBorrowBacking::Ordinary) {
-            return Err(unavailable(
-                "resident view needs evaluated layout, content, profile and policy custody",
-            ));
-        }
         let signature = typed
             .bodyless_callable_signature(call.authored_machine_application, call.target_symbol)
             .map_err(unavailable)?
@@ -1261,7 +1265,6 @@ impl<'t> Program<'t> {
         }
         if !signature.type_parameters.is_empty()
             || !signature.conformance_bounds.is_empty()
-            || !signature.contracts.is_empty()
             || !signature.invokes.is_empty()
             || signature.suspends
             || signature.blocks
@@ -1327,8 +1330,7 @@ impl<'t> Program<'t> {
                 "sealed borrow result is not its declared reference",
             ));
         };
-        if *declared_source != source_type
-            || *declared_view != view_type
+        if *declared_view != view_type
             || *source_access != factory.access
             || *result_access != factory.access
             || parameter.is_const
@@ -1339,6 +1341,101 @@ impl<'t> Program<'t> {
                 "sealed borrow closed signature differs from its source and view binders",
             ));
         }
+        let [argument] = typed.expression_table.expression_handles(call.arguments) else {
+            return Err(unavailable(
+                "sealed borrow needs exactly one actual source argument",
+            ));
+        };
+        if let AccessBorrowBacking::Resident {
+            placement_parameter,
+            extent,
+            granted,
+            resident,
+        } = factory.backing
+        {
+            let placement = bound_type(placement_parameter)
+                .ok_or_else(|| unavailable("resident borrow lost its exact placement argument"))?;
+            let (expected, false, Some(loan)) = self.formal(id, parameter)? else {
+                return Err(unavailable(
+                    "resident backing is not a borrowed source parameter",
+                ));
+            };
+            let ValueType::Record(record, qualification, _) = expected else {
+                return Err(unavailable(
+                    "resident backing has no retained extent carrier",
+                ));
+            };
+            let domains = qualification.domains;
+            let instance = domains
+                .members()
+                .find(|domain| domain.declaration == resident);
+            let Some([declared_placement, declared_schema]) = instance
+                .and_then(|domain| typed.domain_arguments_for_instance(resident, domain.identity))
+            else {
+                return Err(unavailable(
+                    "resident borrow lost its closed domain arguments",
+                ));
+            };
+            let same_index = |reference, bound| {
+                self.source_scope
+                    .index_identity(typed, reference)
+                    .is_some_and(|identity| {
+                        self.source_scope.index_identity(typed, bound) == Some(identity)
+                    })
+            };
+            let has_grant = domains.members().any(|domain| {
+                domain.declaration == granted
+                    && typed
+                        .domain_definition(granted)
+                        .is_some_and(|definition| definition.semantic_id == domain.identity)
+            });
+            if self
+                .record_sources
+                .get(record)
+                .map(|source| source.declaration)
+                != Some(extent)
+                || qualification.policy.is_some()
+                || domains.members().count() != 2
+                || !has_grant
+                || !same_index(*declared_placement, placement)
+                || !same_index(*declared_schema, source_type)
+            {
+                return Err(unavailable(
+                    "closed resident backing differs from its declared extent, placement or source schema",
+                ));
+            }
+
+            // Establish the ordinary input loan, including its invariant type
+            // arguments, before asking for evidence to interpret the content.
+            let (actual, _) = self.lent(id, slots, *argument, &loan, expected)?;
+            let carried = self.borrowed_argument_type(id, slots, &actual, expected, &loan)?;
+            if !self.same_type(carried, expected) {
+                return Err(self.mistyped(
+                    id,
+                    argument_source(&actual),
+                    super::rejections::Destination::Parameter,
+                    Some(expected),
+                    carried,
+                    "resident loan and source parameter have different referent types",
+                ));
+            }
+            return Err(unavailable(
+                "resident view needs evaluated layout, content, profile and policy custody",
+            ));
+        }
+        // Ordinary identity views can return a loan only when no remaining
+        // contract needs evidence. A resident argument mismatch is an error
+        // even when the closed header also has predicate obligations.
+        if !signature.contracts.is_empty() {
+            return Err(unavailable(
+                "sealed borrow needs its complete static or operational contract",
+            ));
+        }
+        if *declared_source != source_type {
+            return Err(unavailable(
+                "sealed borrow closed source differs from its source binder",
+            ));
+        }
         let source_value = self.local_type(id, source_type)?;
         let view_value = self.local_type(id, view_type)?;
         if !self.same_type(Some(source_value), view_value) {
@@ -1347,11 +1444,6 @@ impl<'t> Program<'t> {
             ));
         }
         let result = self.local_type(id, signature.return_type)?;
-        let [argument] = typed.expression_table.expression_handles(call.arguments) else {
-            return Err(unavailable(
-                "sealed borrow needs exactly one actual source argument",
-            ));
-        };
         Ok(Some(
             self.borrow_value(id, slots, *argument, result, source)?,
         ))
@@ -3437,17 +3529,9 @@ impl<'t> Program<'t> {
                         ),
                     ));
                 }
-                // The typed trees give a borrow no span of its own; the
-                // place it lends is the authored argument.
-                let at = match (&actual.kind, actual.source) {
-                    (ExpressionKind::Borrow { place, .. }, SourceOrigin::Unpositioned(_)) => {
-                        place.source
-                    }
-                    _ => actual.source,
-                };
                 return Err(self.mistyped(
                     id,
-                    at,
+                    argument_source(actual),
                     super::rejections::Destination::Parameter,
                     Some(formal),
                     actual.result,
