@@ -349,26 +349,29 @@ pub(crate) mod domain_constraints {
             constraint.symbol,
             &constraint.arguments,
         );
-        let Some(at) = reference.filter(|_| {
-            matches.is_empty() && constraint.subject == DomainConstraintSubject::Declared
-        }) else {
+        if !matches.is_empty()
+            || constraint.subject != DomainConstraintSubject::Declared
+            || (reference.is_none() && !constraint.symbol.is_valid())
+        {
             return Ok((matches, false));
-        };
+        }
+        // An earlier visit can select the family before its index types have
+        // finished resolving. Reuse that selection when rebuilding the instance.
         let visible = select_domain_candidates_where(
             source,
             program,
             name,
-            Some(at),
+            reference,
             constraint.symbol,
             |_| true,
         );
         if visible.is_empty() {
-            return Ok((matches, true));
+            return Ok((matches, reference.is_some()));
         }
         if let [family] = visible.as_slice()
             && crate::source_state::domain::has_direct_index_telescope(program, family)
         {
-            check_domain_arity(program, family, constraint.arguments.len(), Some(at))?;
+            check_domain_arity(program, family, constraint.arguments.len(), reference)?;
         }
         let mut compatible = visible.iter().filter(|family| {
             crate::source_state::domain::domain_accepts_underlying_carrier(
@@ -378,9 +381,9 @@ pub(crate) mod domain_constraints {
                 &constraint.arguments,
             )
         });
-        match (compatible.next(), compatible.next()) {
-            (Some(family), None) => Ok((vec![family.clone()], false)),
-            (None, None)
+        match (compatible.next(), compatible.next(), reference) {
+            (Some(family), None, _) => Ok((vec![family.clone()], false)),
+            (None, None, Some(at))
                 if visible.iter().all(|family| {
                     closed_domain_carriers(program, family, carrier, &constraint.arguments)
                 }) =>

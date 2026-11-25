@@ -218,3 +218,57 @@ fn an_indexed_domain_matches_the_qualification_on_its_declared_carrier() {
         &family.index_arguments
     ));
 }
+
+#[test]
+fn a_formal_and_its_membership_contract_select_the_same_qualified_indices() {
+    use crate::source_state::types::{TypeConstraintNode, TypeReferenceNode};
+
+    let resolved = crate::resolve_fixture(
+        "domain u16::Positive requires self > 0u16;
+         data Count = u16 in Positive;
+         data Segment<T> [linear] { value: T; }
+         domain<T> Segment<T>::Stored<T>;
+         data Kept = Segment<Count> in Stored<Count>;
+         domain<T> Kept::Side<T>;
+         machine take(x: Segment<Count> in Side<Count> & Stored<Count>) -> Kept in Side<Count> { x }",
+    );
+    let typed = crate::lower_symbol_resolved_trees(&resolved).unwrap();
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|m| m.name.as_str() == "take")
+        .unwrap();
+    let state = &typed.machine_states(machine)[0];
+    let reference = typed.state_parameters(state)[0].type_reference;
+    let types = &typed.type_reference_table;
+    let TypeReferenceNode::Constrained { constraints, .. } = types.type_reference(reference) else {
+        panic!("the formal carries both memberships");
+    };
+    let declared: Vec<_> = types
+        .constraints(*constraints)
+        .iter()
+        .map(|constraint| {
+            let TypeConstraintNode::Domain(domain) = constraint else {
+                panic!("expected a domain");
+            };
+            (domain.symbol, domain.semantic_id)
+        })
+        .collect();
+    let required: Vec<_> = typed
+        .state_contracts(state)
+        .iter()
+        .flat_map(|contract| typed.proof_facts.span_or_empty(contract.facts))
+        .map(|fact| {
+            let membership = fact.as_membership().unwrap();
+            (membership.domain_symbol, membership.semantic_domain)
+        })
+        .collect();
+    assert_eq!(declared.len(), 2);
+    assert_eq!(required.len(), 2);
+    for membership in declared {
+        assert!(
+            required.contains(&membership),
+            "missing {membership:?} in {required:?}"
+        );
+    }
+}
