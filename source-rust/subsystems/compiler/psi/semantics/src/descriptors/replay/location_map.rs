@@ -98,20 +98,64 @@ impl<Value: Clone> LocationMap<Value> {
     }
 
     pub(super) fn retain(&mut self, mut keep: impl FnMut(&DescriptorLocation, &Value) -> bool) {
-        for (_, page) in &mut self.pages {
-            let removed = page
-                .iter()
-                .filter(|(location, value)| !keep(location, value))
-                .map(|(location, _)| location.clone())
-                .collect::<Vec<_>>();
-            if !removed.is_empty() {
-                let page = Arc::make_mut(page);
-                for location in removed {
-                    page.remove(&location);
+        self.pages.retain_mut(|(_, page)| {
+            let mut removed = Vec::new();
+            for (location, value) in page.iter() {
+                if !keep(location, value) {
+                    removed.push(location.clone());
+                }
+            }
+            if removed.is_empty() {
+                return true;
+            }
+            if removed.len() == page.len() {
+                return false;
+            }
+            let page = Arc::make_mut(page);
+            for location in removed {
+                page.remove(&location);
+            }
+            !page.is_empty()
+        });
+    }
+
+    /// Intersects two maps by key, reusing shared pages in O(1) when both
+    /// branches point at the exact same `Arc` page and skipping pages absent
+    /// from either side.
+    pub(super) fn intersect_with(
+        &self,
+        other: &Self,
+        mut merge: impl FnMut(&Value, &Value) -> Value,
+    ) -> Self {
+        let mut pages = Vec::new();
+        let mut left_index = 0;
+        let mut right_index = 0;
+        while left_index < self.pages.len() && right_index < other.pages.len() {
+            let (left_num, left_page) = &self.pages[left_index];
+            let (right_num, right_page) = &other.pages[right_index];
+            match left_num.cmp(right_num) {
+                std::cmp::Ordering::Less => left_index += 1,
+                std::cmp::Ordering::Greater => right_index += 1,
+                std::cmp::Ordering::Equal => {
+                    if Arc::ptr_eq(left_page, right_page) {
+                        pages.push((*left_num, Arc::clone(left_page)));
+                    } else {
+                        let mut merged = BTreeMap::new();
+                        for (location, left_value) in left_page.iter() {
+                            if let Some(right_value) = right_page.get(location) {
+                                merged.insert(location.clone(), merge(left_value, right_value));
+                            }
+                        }
+                        if !merged.is_empty() {
+                            pages.push((*left_num, Arc::new(merged)));
+                        }
+                    }
+                    left_index += 1;
+                    right_index += 1;
                 }
             }
         }
-        self.pages.retain(|(_, page)| !page.is_empty());
+        Self { pages }
     }
 }
 
