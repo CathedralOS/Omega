@@ -1629,6 +1629,12 @@ items.
 
 ## Open questions
 
+The [record identity ruling](../../spec/proofs/contracts.md#record-identity-from-field-identities)
+settled the earlier question about leaf equalities. A concrete record's field
+proofs can be assembled automatically into one checked kernel `Id` proof.
+Slice 7 of the [proofs plan](proofs_evidence_lane.md) concerns executable
+comparisons.
+
 Recorded, not answered:
 
 1. **Level binder spelling.** [modules.md#builtin-type-names](../../spec/language/modules.md#builtin-type-names)
@@ -1638,17 +1644,7 @@ Recorded, not answered:
    Is a level argument a type position, and may a level binder be named `u`?
    The library declares no level binder, so this blocks only
    `representation_agreement`, not steps 1-3.
-2. **One mechanism for Identity over data.** The spec forms `core\Identity`
-   with the kernel's `Id` rules ([mathematical_bindings.md#scope](../../spec/proofs/mathematical_bindings.md#scope));
-   the [proofs lane](proofs_evidence_lane.md) slice 7 expands it into leaf
-   equalities over values. Which one is the route, and does the other remain?
-   This audit's reading: `Id` is the route, because a generic `T`
-   (`core/algebra.omg`) has no fields to expand; leaf equalities would then
-   be a consequence the kernel proves for a concrete record, not a second
-   route. If that reading is taken, the "values only in knowledge" rule of
-   [the proofs lane](proofs_evidence_lane.md) changes with it in the same
-   pull request, so the two notes do not disagree.
-3. **Where the signature lives.** Terminal Psi has `mathematical_carriers`,
+2. **Where the signature lives.** Terminal Psi has `mathematical_carriers`,
    `identity_formations` and `indexed_theorems` slots. Stage 05 writes
    carriers for theorem parameters (`read/theorems.rs`) and stage 06 writes
    one for each data declaration; nothing writes the other two. Is R1's
@@ -1660,18 +1656,18 @@ Recorded, not answered:
    judged law over plain data publishes is no longer open: the owner decided
    on 2026-11-23 that such laws are not published (step 2's publication
    bullet above says why).
-4. **Floor scope.** Does "the tightest literal bounds order reasoning gives
+3. **Floor scope.** Does "the tightest literal bounds order reasoning gives
    it" ([contracts.md#required-automatic-discharge](../../spec/proofs/contracts.md#required-automatic-discharge))
    require landing an operand on bounds proved equal (`(prefix - 360) + last`,
    S06 README:1061-1072)? Does the 64 limit count arm combinations, as the
    spec says, or branches, as `prove.rs:84` does?
-5. **Float ranges.** The floor is integer-only. Confirm that no page requires
+4. **Float ranges.** The floor is integer-only. Confirm that no page requires
    automatic interval propagation through float arithmetic, which the old
    checker did without certificates.
-6. **A `requires` that can never hold.** The old judge accepted every goal
+5. **A `requires` that can never hold.** The old judge accepted every goal
    on a path whose hypotheses it found contradictory and reported nothing.
    Should a machine whose `requires` is provably false be a warning?
-7. **Boundary calls while storage is vacant.** With an owned field moved
+6. **Boundary calls while storage is vacant.** With an owned field moved
    out of borrowed storage, the compiler accepts a boundary call that
    reaches a service and a blocking boundary call
    ([probes](#what-todays-compiler-does-with-the-old-rules)). Does a

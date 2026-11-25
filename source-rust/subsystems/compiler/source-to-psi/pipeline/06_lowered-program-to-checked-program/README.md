@@ -17,8 +17,9 @@ the compilation verdict, including every demanded generic and conformance form.
 
 An abstract algebra can cite a law of its supplied record to prove identity of
 two operation results. The checker instantiates the law's signature and records
-the kernel-checked proof of the requested identity. Automatic proof of whole
-record identity from field identities is an [open question](../../../../../../OWNER_QUESTIONS.md#deriving-record-identity-from-field-identities).
+the kernel-checked proof of the requested identity. For a concrete record determined by its fields, the
+[automatic discharge rule](../../../../../../wiki/spec/proofs/contracts.md#record-identity-from-field-identities)
+requires a kernel proof built from their identities.
 
 A law over data that contains itself is judged apart from every machine.
 Stage 05 hands this crate one
