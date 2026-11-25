@@ -10,7 +10,7 @@ use diagnostics::Diagnostic;
 use std::sync::Arc;
 
 mod judge_product_roster;
-use judge_product_roster::prepare_roster;
+use judge_product_roster::{prepare_roster, product_provider_defaults, program_roots};
 
 mod behavior_exclusions;
 pub(crate) mod declaration_lookup;
@@ -249,23 +249,45 @@ pub(crate) fn prepare_lower_and_check(
         accounting,
         timings,
     };
-    let mut layouts = Vec::new();
-    let mut current = prepare_roster(&mut pass, typed, &layouts)?;
+    // Prepare the source once for the defaults the targets are predicted to
+    // choose. Without a prediction, each level of providers a chosen
+    // default's body reaches costs another preparation and lowering.
+    let mut layouts = match &unprepared {
+        Some(_) => predicted_default_layouts(&mut pass, &typed)?,
+        None => Vec::new(),
+    };
+    let mut predicted = !layouts.is_empty();
+    let mut current = match prepare_roster(&mut pass, typed, &layouts) {
+        Ok(current) => current,
+        Err(_) if predicted => {
+            predicted = false;
+            prepare_unpredicted(&mut pass, &unprepared, &mut layouts)?
+        }
+        Err(diagnostics) => return Err(diagnostics),
+    };
     let judged = loop {
         use provider_settlement::{
-            LoweredSupplySource, ProductSupplySource, ProviderWork, next_provider_work,
-            next_provider_work_from_lowered,
+            LoweredSupplySource, LoweredWork, ProductSupplySource, ProviderWork,
+            next_provider_work, next_provider_work_from_lowered,
         };
         // Settle layout defaults and provider supplies on the lowered closure
         // before completing and checking it. Settlement reads only the
         // closure, so a roster it replaces is never given its conformance
         // witnesses or checked by Stage 06.
         let lowered = loop {
-            let closure = judge_lowered_source::SourcePublication::lower_closure(
+            let closure = match judge_lowered_source::SourcePublication::lower_closure(
                 &current.source,
                 current.roster,
                 pass.timings,
-            )?;
+            ) {
+                Ok(closure) => closure,
+                Err(_) if predicted => {
+                    predicted = false;
+                    current = prepare_unpredicted(&mut pass, &unprepared, &mut layouts)?;
+                    continue;
+                }
+                Err(diagnostics) => return Err(diagnostics),
+            };
             let work = pass.timings.record_result(
                 artifacts::compile_timings::source::PROVIDER_SETTLEMENT,
                 || {
@@ -276,28 +298,38 @@ pub(crate) fn prepare_lower_and_check(
                         native_bindings: &pass.native_supplies,
                         defaults: &current.provider_defaults,
                         layout_prepared: &layouts,
+                        predicted,
                     })
                 },
-            )?;
+            );
+            let work = match work {
+                Err(_) if predicted => LoweredWork::Mispredicted,
+                work => work?,
+            };
+            predicted = false;
             match work {
-                ProviderWork::Complete => {
+                LoweredWork::Settle(ProviderWork::Complete) => {
                     break judge_lowered_source::SourcePublication::complete_lowering(
                         closure,
                         pass.timings,
                     );
                 }
-                ProviderWork::JudgeProviders(supplies) => {
+                LoweredWork::Settle(ProviderWork::JudgeProviders(supplies)) => {
                     let mut roster = closure.into_roster();
                     roster.supplies.extend(supplies);
                     current.roster = roster;
                 }
-                ProviderWork::PrepareLayouts(chosen) => {
+                LoweredWork::Settle(ProviderWork::PrepareLayouts(chosen)) => {
                     drop(closure);
                     layouts = chosen;
                     let typed = unprepared.clone().ok_or_else(|| vec![Diagnostic::error(
                         "a target chose a provider default absent from the source preparation frontier"
                     )])?;
                     current = prepare_roster(&mut pass, typed, &layouts)?;
+                }
+                LoweredWork::Mispredicted => {
+                    drop(closure);
+                    current = prepare_unpredicted(&mut pass, &unprepared, &mut layouts)?;
                 }
             }
         };
@@ -379,6 +411,53 @@ pub(crate) fn prepare_lower_and_check(
         exclusions: admitted.exclusions,
         native_supplies: pass.native_supplies,
     })
+}
+
+/// The defaults [`provider_settlement::predict_default_layouts`] expects the
+/// targets to choose from the Product's entries, read from the unprepared source.
+fn predicted_default_layouts(
+    pass: &mut ProductSourcePass<'_, '_>,
+    typed: &crate::source_state::TypedTrees,
+) -> Result<Vec<provider_settlement::ChosenDefaultLayout>, Vec<Diagnostic>> {
+    let defaults = product_provider_defaults(typed, &pass.default_provider_selections)?;
+    let roots = program_roots(pass.roots.direct());
+    let targets = pass
+        .inputs
+        .targets
+        .iter()
+        .map(|profile| profile.numeric_support.target)
+        .collect::<Vec<_>>();
+    pass.timings.record_result(
+        artifacts::compile_timings::source::PROVIDER_SETTLEMENT,
+        || {
+            Ok(provider_settlement::predict_default_layouts(
+                typed,
+                &roots,
+                &targets,
+                &pass.explicit_providers,
+                &pass.native_supplies,
+                &defaults,
+            ))
+        },
+    )
+}
+
+/// Discard a source prepared for a wrong prediction, with every charge its
+/// preparation added, and prepare the source with no defaults, exactly as
+/// settlement starts without a prediction.
+fn prepare_unpredicted(
+    pass: &mut ProductSourcePass<'_, '_>,
+    unprepared: &Option<crate::source_state::TypedTrees>,
+    layouts: &mut Vec<provider_settlement::ChosenDefaultLayout>,
+) -> Result<PreparedProduct, Vec<Diagnostic>> {
+    layouts.clear();
+    *pass.accounting = pass.initial_accounting.clone();
+    let typed = unprepared.clone().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "a provider prediction was made without an unprepared source to settle again",
+        )]
+    })?;
+    prepare_roster(pass, typed, layouts)
 }
 
 struct ProductSourcePass<'a, 'f> {

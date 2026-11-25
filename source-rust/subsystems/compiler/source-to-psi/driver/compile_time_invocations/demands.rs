@@ -59,7 +59,7 @@ pub(crate) fn demanded_declarations(
 impl super::FixedLayoutTargetScope {
     /// `dependencies` must be built from `program` as it is now; one
     /// inventory serves every scope of an unchanged program.
-    pub(super) fn demanded_declarations(
+    pub(crate) fn demanded_declarations(
         &self,
         program: &TypedTrees,
         dependencies: &ComputationDependencyRows,
