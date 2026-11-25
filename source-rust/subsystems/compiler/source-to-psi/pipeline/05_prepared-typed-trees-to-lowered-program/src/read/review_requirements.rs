@@ -45,6 +45,25 @@ impl Program<'_> {
                 },
             ));
         }
+        // A dependency call checks its one boundary member without rooting
+        // the declaring trait or its siblings. Keep that original header when
+        // the primary form has no schema for it. A closed generic application
+        // cannot stand in for the requirement's declaration.
+        if !self.rigid && !self.boundaries.rows.is_empty() {
+            let reviewed: std::collections::HashSet<_> = signatures
+                .iter()
+                .map(|&(declaration, _, _)| declaration)
+                .collect();
+            signatures.extend(self.boundaries.rows.iter().filter_map(|(_, boundary)| {
+                (boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Trait
+                    && !reviewed.contains(&boundary.source)
+                    && self
+                        .typed
+                        .closed_requirement_application(boundary.source)
+                        .is_none())
+                .then_some((boundary.source, &boundary.signature, None))
+            }));
+        }
         signatures
             .into_iter()
             .filter_map(|(declaration, signature, machine)| {
