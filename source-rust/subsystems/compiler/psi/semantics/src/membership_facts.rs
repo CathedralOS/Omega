@@ -2017,6 +2017,7 @@ pub(crate) fn analyze_bodies(
         });
         machine_facts.before = effective.into_iter().collect();
         result.machines.push(machine_facts);
+        storage.release_storage_snapshots();
     }
     result.machines.sort_unstable_by_key(|facts| facts.machine);
     Ok(result)
