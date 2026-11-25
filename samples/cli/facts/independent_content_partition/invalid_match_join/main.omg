@@ -19,8 +19,10 @@ satisfies Content<Region, IntervalSet<Nat>>::project {
 }
 machine issue() -> Region in First & Second
 ensures result.base == 10, result.length == 48
-{ Region { base: 10, length: 48 } }
-machine drop_region(region: @mutable Region) {}
+{ Region { base: 10, length: 48 } as +First +Second }
+machine drop_region(region: Region) {
+    let { base as _, length as _ } = region;
+}
 data Parts { left: Region in First & Second; right: Region in First & Second; }
 machine partition(whole: Region in First & Second, requested: u64) -> Parts
 requires whole.base == 10 && whole.length == 48 && requested == 16
@@ -31,8 +33,8 @@ ensures
     )
 {
     let { base, length } = whole;
-    Parts { left: Region { base: base, length: requested },
-        right: Region { base: base + requested, length: length - requested } }
+    Parts { left: Region { base: base, length: requested } as +First +Second,
+        right: Region { base: base + requested, length: length - requested } as +First +Second }
 }
 machine exercise(select: bool) -> Parts {
     let whole: Region in First & Second = match select {
