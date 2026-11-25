@@ -127,7 +127,7 @@ crashes Trap
     }
 
     machine indices(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
-        |types|::parse_static_arguments(parser, input);
+        |types|::parse_static_arguments(parser, input, false);
         parser.declaration_first_argument = parser.committed_type_first;
         parser.declaration_argument_count = parser.committed_type_count;
         transition parser.output.accepted {

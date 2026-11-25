@@ -606,10 +606,14 @@ public data Contract [copy] {
 
 // A name path, such as `a\b\c` or `a\Type::member`, as a contiguous range of
 // `SyntaxTrees::members`: a domain's establishment routes and alias
-// constituents, and a membership test's domain.
+// constituents, and a membership test's domain. A membership path owns its
+// exact range of type-reference handles in `SyntaxTrees::type_arguments`.
+// Its span includes the applied arguments; its member spans cover only names.
 public data NamePath [copy] {
     first_member: u64 in Trapping;
     member_count: u64 in Trapping;
+    first_argument: u64 in Trapping;
+    argument_count: u64 in Trapping;
     source_span: |source|::SourceSpan;
 }
 
