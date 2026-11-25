@@ -186,7 +186,8 @@ fn require_native_suppliers(consumer: &Path, output: &Path, expected: usize) {
         String::from_utf8_lossy(&first.stderr)
     );
     for component in &components {
-        assert!(component.with_extension("so.component").is_file());
+        let sidecar = component.with_extension("so.component");
+        assert!(!sidecar.try_exists().unwrap(), "unexpected {}", sidecar.display());
         let missing = component.with_extension("withheld");
         fs::rename(component, &missing).unwrap();
         let refused = run();

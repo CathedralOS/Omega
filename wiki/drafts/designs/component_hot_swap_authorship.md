@@ -9,8 +9,8 @@ the editor's messages on the terminal.
 | Build | Selection | Product |
 | --- | --- | --- |
 | Editor | `Build::select_provider::<Console, TerminalConsole>(b)` | Editor with a fixed Console for its own messages. |
-| Preview V1 | `Build::export_provider::<Console, TerminalConsole>(b)` | Independently built terminal provider image and its `.component` description. |
-| Preview V2 | `Build::export_provider::<Console, QuietConsole>(b)` | Quiet provider image and description for the same target and requirement. |
+| Preview V1 | `Build::export_provider::<Console, TerminalConsole>(b)` | Independently built terminal provider image. |
+| Preview V2 | `Build::export_provider::<Console, QuietConsole>(b)` | Quiet provider image for the same target and requirement. |
 
 A supplier may use a target-specific implementation. The host authorizes
 loading and applies its receiver policy to the supplied code, contracts,
@@ -19,11 +19,12 @@ implementation name at build time. [Build selection and exports](../../spec/buil
 
 ## What changes in one launch
 
-The editor opens each image and its sibling `.component` file through its
-selected filesystem provider. It reads within the receiver's limits, handles
-short reads and closes every opened file. In this excerpt each pair of byte
-slices comes from those files. The load calls denote their success paths;
-`?` propagates failure.
+The editor reads each image through its selected filesystem provider. It
+handles short reads, enforces the receiver's size limits and closes the file.
+This example assumes the release tool also supplies the corresponding
+descriptions from the two provider builds. The loader checks each description
+against its image and receiver policy before returning a provider. `?`
+propagates failure.
 
 ```omega
 let mutable preview: Provider<Console> = load_provider::<Console>(v1_image, v1_description)?;
