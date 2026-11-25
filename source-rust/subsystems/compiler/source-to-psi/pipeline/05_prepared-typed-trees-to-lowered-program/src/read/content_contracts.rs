@@ -176,7 +176,7 @@ impl Program<'_> {
         self.declared_domain(
             id,
             domain,
-            bare,
+            actual,
             reference,
             SourceOrigin::of(table.source_span(expression)),
         )?;

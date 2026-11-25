@@ -1403,7 +1403,11 @@ impl Program<'_> {
                 Some(subject) => subject,
                 None => self.value_type(id, definition.target_type)?,
             };
-        if subject != plain {
+        let required = subject.qualification();
+        if required.policy.is_some() {
+            return unserved("a domain declared on an arithmetic-policy-qualified carrier");
+        }
+        if subject.qualified(Qualification::NONE) != Some(plain) {
             // `LayoutStorage<T, L> in T::D`: the laid value is T's value in
             // L's geometry (plans.md, "Representation applications"), so T's
             // domain qualifies it. Only a domain whose meaning is its access
@@ -1416,6 +1420,9 @@ impl Program<'_> {
             if self.value_type(id, laid.semantic_type)? != subject {
                 return unserved("constrained by a domain declared on another carrier");
             }
+            if !required.domains.is_empty() {
+                return unserved("a qualified domain carrier on laid layout storage");
+            }
             if !declaration.content_projections.is_empty() {
                 return unserved("a content projection on laid layout storage");
             }
@@ -1424,6 +1431,21 @@ impl Program<'_> {
             {
                 return unserved("a predicate domain on laid layout storage");
             }
+        }
+        if let Some(missing) = required
+            .domains
+            .members()
+            .find(|required| !carrier.qualification().domains.contains(*required))
+        {
+            return Err(crate::reject(
+                id,
+                at,
+                format!(
+                    "the carrier of domain {} requires membership in {}",
+                    self.domain_named(domain),
+                    self.domain_named(missing),
+                ),
+            ));
         }
         if !declaration.content_projections.is_empty()
             && (!matches!(plain, ValueType::Record(..))
@@ -1457,6 +1479,7 @@ impl Program<'_> {
                 schema_scope,
                 instance: domain,
                 carrier: plain,
+                required_memberships: required.domains,
                 predicate: None,
                 complete_predicate_theory: false,
             });
