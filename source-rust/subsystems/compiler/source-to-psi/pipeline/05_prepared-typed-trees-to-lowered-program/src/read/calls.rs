@@ -3698,16 +3698,23 @@ impl<'t> Program<'t> {
                         "exclusive storage view without establishment and handback evidence",
                     );
                 }
-                if cast.semantic_domain_symbol.is_valid()
-                    || !cast.semantic_domain.is_empty()
-                    || cast.domain != numerics::arithmetic::ArithmeticDomain::Exact
-                {
-                    return unserved("storage view that also changes a domain");
-                }
                 let presentation = self.value_type(id, cast.target_type)?;
-                if presentation.qualification() != Qualification::NONE
-                    || !self.same_type(Some(presentation), expected)
+                let qualification = presentation.qualification();
+                if cast.domain != numerics::arithmetic::ArithmeticDomain::Exact
+                    || qualification.policy.is_some()
                 {
+                    return unserved("storage view with an arithmetic policy");
+                }
+                if cast.semantic_domain_symbol.is_valid() || !cast.semantic_domain.is_empty() {
+                    let selected = crate::body::DomainInstance {
+                        declaration: cast.semantic_domain_symbol,
+                        identity: cast.semantic_domain_id,
+                    };
+                    if !qualification.domains.contains(selected) {
+                        return unserved("storage view target lost its selected domain");
+                    }
+                }
+                if !self.same_type(Some(presentation), expected) {
                     return unserved("storage view target differs from its borrowed destination");
                 }
                 if cast.result_type.is_valid()
@@ -3819,8 +3826,33 @@ impl<'t> Program<'t> {
                 result: Some(referent),
             };
         }
-        if presentation.is_some() {
-            self.representation_read_authorized(id, &place)?;
+        if let Some(presentation) = presentation {
+            let Some(backing) = place.result else {
+                return unserved("storage view without a referent");
+            };
+            let actual = backing.qualification();
+            let shown = presentation.qualification();
+            if !actual.is_none() || !shown.is_none() {
+                if !self.same_type(backing.qualified(shown), presentation)
+                    || actual.policy != shown.policy
+                    || !shown.domains.is_subset_of(&actual.domains)
+                {
+                    return unserved(
+                        "shared storage view requires an established domain on the same carrier",
+                    );
+                }
+                // A shared loan can forget displayed facts. Retain every access
+                // or custody obligation of the original place across the call.
+                for domain in actual
+                    .domains
+                    .members()
+                    .filter(|d| !shown.domains.contains(*d))
+                {
+                    self.domain_removal(id, domain, backing, source)?;
+                }
+            } else {
+                self.representation_read_authorized(id, &place)?;
+            }
         }
         let crossed = self.reference_place_access(id, slots, &place, access)?;
         let root = super::storage_path::root(id, &place, &self.captures)?;
@@ -3875,7 +3907,12 @@ impl<'t> Program<'t> {
             }
             _ => None,
         };
-        if attenuated {
+        let weaker_view = presentation.filter(|shown| {
+            place
+                .result
+                .is_some_and(|backing| backing.qualification() != shown.qualification())
+        });
+        if attenuated || weaker_view.is_some() {
             let reference = self
                 .typed
                 .expression_table
@@ -3885,17 +3922,31 @@ impl<'t> Program<'t> {
                 .type_reference_table
                 .contains_type_reference(reference)
             {
-                return unserved("exclusive formation without its retained reference type");
+                return unserved("loan formation without its retained reference type");
             }
             let formed = self.local_type(id, reference)?;
-            let Some((referent, StructuralAccess::MutableBorrow)) =
-                self.reference_referent(id, formed)?
-            else {
-                return unserved("exclusive formation without its actual reference type");
+            let Some((referent, reference_access)) = self.reference_referent(id, formed)? else {
+                return unserved("loan formation without its actual reference type");
             };
-            if !self.same_type(place.result, referent) {
-                return unserved("exclusive formation changes its captured referent type");
-            }
+            let Some(backing) = place.result else {
+                return unserved("loan formation without its backing");
+            };
+            let backing_qualification = backing.qualification();
+            let formed = if weaker_view.is_some() {
+                if reference_access != StructuralAccess::SharedBorrow
+                    || !self.same_type(referent.qualified(backing_qualification), backing)
+                {
+                    return unserved("shared view changes its captured referent type or access");
+                }
+                formed.qualified(backing_qualification).ok_or_else(|| {
+                    refuse(id, Construct::Machine, Unserved::Call("shared view without its backing type"))
+                })?
+            } else {
+                if reference_access != StructuralAccess::MutableBorrow || !self.same_type(Some(backing), referent) {
+                    return unserved("exclusive formation changes its captured referent type");
+                }
+                formed
+            };
             let result = place.result;
             let value = Expression {
                 call_context: None,
@@ -3908,6 +3959,18 @@ impl<'t> Program<'t> {
                 source,
             };
             let parent = self.finish_reference_value(id, slots, value, formed, source)?;
+            // Erase facts on a shared descriptor. The successor then lends its
+            // referent, while the original place keeps its full memberships.
+            let (parent, result) = if let Some(shown) = weaker_view {
+                (Expression {
+                    call_context: None,
+                    result: parent.result.and_then(|ty| ty.qualified(shown.qualification())),
+                    kind: ExpressionKind::Requalify(Box::new(parent)),
+                    source,
+                }, Some(shown))
+            } else {
+                (parent, result)
+            };
             place = Expression {
                 call_context: None,
                 result,

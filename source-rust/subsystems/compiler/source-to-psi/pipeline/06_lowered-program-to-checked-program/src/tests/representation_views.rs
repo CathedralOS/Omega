@@ -107,6 +107,27 @@ machine entry() crashes Trap {
 }
 
 #[test]
+fn a_shared_call_can_retain_a_domain_of_the_actual_place() {
+    let source = |domains: &str| {
+        format!(
+            "data Reading {{ amount: u32; }}
+domain Reading::Seen;
+domain Reading::Sealed;
+machine look(x: @Reading in Reading::Seen) -> u32 {{ x.amount }}
+machine sample(x: Reading in {domains}) -> u32 {{ look(@x as @Reading in Reading::Seen) }}"
+        )
+    };
+    assert_eq!(
+        verdict(&source("Reading::Seen & Reading::Sealed")),
+        "accepted"
+    );
+    refused(
+        &source("Reading::Sealed"),
+        "call shared storage view requires an established domain on the same carrier",
+    );
+}
+
+#[test]
 fn a_shared_view_is_read_as_the_elements_that_tile_it() {
     // An `i32` holds four bytes, so sixteen words are sixty-four bytes.
     let bytes = |bound: u64| {
