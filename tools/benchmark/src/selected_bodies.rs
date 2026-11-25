@@ -148,10 +148,7 @@ fn capture_plan(driver: &Path, source: &Path, targets: &str) -> Result<Plan, Str
 fn target_names(targets: &str) -> Result<Vec<&str>, String> {
     let mut names = Vec::new();
     for name in targets.split(',') {
-        if !matches!(
-            name,
-            "windows_x86_64" | "linux_x86_64" | "linux_arm64" | "macos_arm64"
-        ) {
+        if !crate::plan::HOSTED_TARGETS.contains(&name) {
             return Err(format!("unknown hosted target: {name}"));
         }
         if names.contains(&name) {
