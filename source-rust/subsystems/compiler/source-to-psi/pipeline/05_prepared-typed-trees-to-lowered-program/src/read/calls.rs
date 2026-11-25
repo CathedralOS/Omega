@@ -5,6 +5,7 @@ with its arguments.
 */
 
 mod callback_bindings;
+mod resident_index;
 mod resident_storage;
 
 use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
@@ -1442,7 +1443,7 @@ impl<'t> Program<'t> {
             }
             // A layout may change the view's representation. Its qualification
             // must still include the domains of the original placement.
-            let placement = self.local_type(id, placement)?.qualification();
+            let placement = self.resident_index(id, source, placement, source_type)?;
             let view = self.local_type(id, view_type)?.qualification();
             if !placement.domains.is_subset_of(&view.domains) {
                 return Err(crate::reject(
