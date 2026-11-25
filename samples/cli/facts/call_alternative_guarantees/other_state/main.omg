@@ -15,7 +15,7 @@ ensures result <= 60
 machine total(counter: Counter) -> u8 { counter.value + 195 }
 machine make(choice: Choice) -> Counter {
     produce(choice)
-    machine produce(choice: Choice) -> Counter {
+    machine produce(choice: Choice) -> Counter requires true {
         let selected: u8 = select(choice.left, choice.right);
         Counter { value: selected }
     }

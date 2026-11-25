@@ -1,1 +1,1 @@
-retains unhandled [Trap] routes at its concrete arguments
+constant evaluation requires proof that no crash route can occur before execution

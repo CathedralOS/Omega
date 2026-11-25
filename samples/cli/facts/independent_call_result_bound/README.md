@@ -14,32 +14,38 @@ and publishes `ensures result == 7`. The wrapper `forwarded` publishes the same
 guarantee by calling the requirement, so it imports only the requirement's public
 contract.
 
-The requirement this row records: **a requirement's published guarantee depends
-on every supplied implementation, selected or not.** Psi checks each named
-implementation under its ordinary identity whatever the Build selects
-([multi-target compilation](../../../../wiki/spec/build/configuration.md#multi-target-compilation)),
-and [citation cycles cannot justify themselves](../../../../wiki/spec/proofs/contracts.md#citation-and-induction).
-Each invalid twin changes only `ReservedSource`'s body to call the wrapper: its
-conclusion would then depend on the wrapper's, which depends on the requirement's,
-which holds only if `ReservedSource` proves it. The required rejection is
-`cannot prove ensures contract for exit from forwarded`; `ReservedSource::source`
-is refused as well. Host implementations, consuming subtraction and caller control
-flow remain identical. Ordinary guarantees are partial correctness; nontermination
-alone is not a reason to withhold a separately established promise.
+The requirement this row records: **every supplied implementation is checked
+against the requirement it satisfies, and a call cycle through the providers a
+Build row selects is refused.** Psi checks each named implementation under its
+ordinary identity whatever the Build selects
+([multi-target compilation](../../../../wiki/spec/build/configuration.md#multi-target-compilation)).
+A call to the requirement is a dependency on that requirement, not on every
+implementation that could satisfy it
+([`applied-provider-cycle-selection`](../../../../wiki/spec/language/effects.md#direct-synchronous-invocation),
+settled 2026-11-12), so `ReservedSource` adds no call edge. Each invalid twin
+changes only the selected `WindowsSource`'s body to call the wrapper: the
+`windows_x86_64` row then realizes the cycle `forwarded` -> `IndependentSource`
+-> `WindowsSource::source` -> `forwarded`. The required rejection is
+``selected providers realize a cyclic synchronous `invokes` graph``. Host
+implementations, consuming subtraction and caller control flow remain identical.
+Ordinary guarantees are partial correctness; nontermination alone is not a reason
+to withhold a separately established promise.
 
-## Baseline defect
+## Earlier twins
 
-The retired spelling carried the supplier as five target-prefixed machines, and the
-family head recorded a dependency on every member (`target_family_members` in
-`declaration_call_dependencies`), so the same twin was refused. Moving the supplier
-to named implementations dropped that edge: a trait requirement's dependencies were
-its own contract symbols only. All nine re-expressed twins were **accepted** by the
-unrepaired producer. Only an implementation some Build row selects was left to
-provider planning's `selected providers realize a cyclic synchronous invokes graph`
-check, which never sees an unselected one. `requirement_backing_machines` in
-`omega-rust/psi/compilation/validation/src/machine_calls/call_cycles.rs` now adds every
-supplied satisfier (machine-level `satisfies` and named-implementation rows) to the
-requirement's dependencies, and the existing independence walk does the rest.
+Before this change each twin changed the unselected `ReservedSource`'s body to call
+the wrapper and pinned `cannot prove ensures contract for exit from forwarded`.
+The tree-shaped checker refused those programs because `requirement_backing_machines`
+made a requirement depend on every supplied satisfier. That checker was deleted in
+#2823, and `applied-provider-cycle-selection` had already replaced its rule:
+eligibility adds no call edge, and composition checks the selected graph. The
+lowered-form checker follows the ratified rule and accepts those programs, so the
+twins now place the cycle in a selected provider.
+
+The selected-cycle check runs only for a target that is realized. `omega --check
+--target linux_x86_64` therefore accepts these twins, whose cycle is in the
+Windows row, although checking for one target must not narrow checking;
+`TASKS.md` **BUILD-OWNED-TARGET-SELECTION** tracks checking every row's selection.
 
 | Place | Transport |
 | --- | --- |
@@ -53,18 +59,11 @@ requirement's dependencies, and the existing independence walk does the rest.
 | [another machine](other_machine/main.omg) | forwarding result contract |
 | [another target body](target_body/main.omg) | four Build-selected `Evaluation` implementations |
 
-Each place has `invalid/main.omg`. The root duplicates local. Every positive binds all
-four hosted ProgramEntry targets, expects zero and must run with `omega run --both`. A
-returned difference is tested only after the subtraction; that observation does not
-supply its formation proof. Replacing the final `difference == 0` with `difference ==
-1` makes every place trap on both engines.
-
-The [applied requirement](applied_requirement/main.omg) states the local place on
-a const-generic requirement, `IndependentSource<17u64>`. A call through it carries
-a closed application with its own signature symbol, and the dependency is recorded
-against the declared requirement it instantiates. Its
-[twin](applied_requirement/invalid/main.omg) changes the same single line. Both are
-pinned as `independent_call_result_bound_applied_requirement_{exit,rejected}`.
+Each place has `invalid_<place>/main.omg`. The root duplicates local. Every
+positive binds all four hosted ProgramEntry targets, expects zero and must run with
+`omega run --both`. A returned difference is tested only after the subtraction;
+that observation does not supply its formation proof. Replacing the final
+`difference == 0` with `difference == 1` makes every place trap on both engines.
 
 Requirements exercised:
 
@@ -76,8 +75,9 @@ Requirements exercised:
   different invocations or later writes, so a selection mix-up between the four
   identical hosted bodies is not observable here.
 - Composition: all nine transports carry the same bound into the subtraction.
-- Soundness: every supplied implementation participates in dependency checking
-  through the requirement it satisfies. Copying result orderings into a
+- Soundness: every supplied implementation is checked against the requirement it
+  satisfies, and a cycle through a selected provider is refused. Copying result
+  orderings into a
   synthesized return local cannot hide a citation cycle. Exact-edge induction,
   declared carrier ranges and body inference remain separate.
 - Psi 06–08: proof decisions erase without changing the copied scalar,
@@ -92,13 +92,14 @@ Requirements exercised:
 
 ## Evidence and open scope
 
-Fresh results are on Linux x86-64 with an optimized producer built from
-`1efc2536b3bc` plus this change (opt-level 1). All nine positives report native
-exit 0 and interpreter exit 0 from `omega run --both`; all nine twins reject with
-the fragment above; all nine corrupted-oracle controls trap on both engines. The
-baseline producer (`1efc2536b3bc`, opt-level 1) accepts all nine twins. Windows and
-macOS execution of the re-expressed sources is not observed; binding a hosted
-target does not establish execution on that host.
+On the Windows x86-64 workstation, with a debug producer built from
+`42ce2aad3206` plus this change, `omega --check --target windows_x86_64` checks
+the root and all nine positives and refuses all nine twins with the fragment above.
+An earlier Linux x86-64 run (`1efc2536b3bc`, opt-level 1) observed native and
+interpreter exit 0 for all nine positives from `omega run --both`, and a trap on
+both engines for all nine corrupted-oracle controls; it predates the re-expressed
+twins. Windows and macOS execution of these sources is not observed; binding a
+hosted target does not establish execution on that host.
 
 ## Generic evidence and normal completion
 

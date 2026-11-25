@@ -1,1 +1,1 @@
-cannot prove index `indices.index_i64` is within length 4
+cannot prove index is within length 4

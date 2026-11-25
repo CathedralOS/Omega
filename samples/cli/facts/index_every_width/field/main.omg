@@ -20,6 +20,7 @@ requires 0 <= index_u8 && index_u8 <= 3
     index_i64: i64;
 }
 machine read_all(values: [u64; 4], indices: @Indices) -> u64
+    requires true
 {
     values[indices.index_u8] ^ values[indices.index_u16] ^ values[indices.index_u32] ^ values[indices.index_u64]
         ^ values[indices.index_i8] ^ values[indices.index_i16] ^ values[indices.index_i32] ^ values[indices.index_i64]

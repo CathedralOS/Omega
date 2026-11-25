@@ -6,7 +6,7 @@ data Container requires index <= 2 {
     index: u64;
 }
 
-machine read_element(container: Container) -> u64 {
+machine read_element(container: Container) -> u64 requires true {
     container.values[container.index]
 }
 

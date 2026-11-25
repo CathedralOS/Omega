@@ -33,7 +33,11 @@ the resulting unestablished guarantee.
 Every twin changes only Choice's left bound from 60 to 61. The selected callee
 still requires `left <= 60 || right <= 60`. The expected refusal names either
 that unsatisfied call or Counter construction, never parsing or a missing
-provider.
+provider. In the local, const name, parameter, nested machine and another
+machine places, the machine that calls `select` declares `requires true` in both
+twins. Otherwise private entry inference would give it the caller's concrete
+`Choice` as an entry fact, which proves `select`'s requirement without Choice's
+domain.
 
 ## Requirements and evidence
 
