@@ -35,42 +35,45 @@ use resolved::statement::Statement;
 use resolved::types::TypeReference;
 use symbols::{SymbolHandle, SymbolKind};
 
-pub(crate) fn defer_undeclared_type_names(
+pub(crate) fn defer_undeclared_type_names_in_cohort(
     source: &resolved::SymbolResolvedTrees,
     program: &mut TypedTrees,
+    cohort: &crate::lowerer::TypingCohort<'_>,
 ) {
     let declarations = &source.tables.declarations;
     // Each row is the symbol the type belongs to and the type it writes.
     let parameters = declarations
         .state_parameters
-        .iter()
+        .iter_from(cohort.resolved_state_parameters)
         .map(|(_, parameter)| (parameter.symbol, &parameter.type_reference));
-    let results = declarations.machine_states.iter().filter_map(|(_, state)| {
-        state
-            .return_type
-            .as_ref()
-            .map(|result| (state.symbol, result))
-    });
-    let locals =
-        declarations
-            .state_statements
-            .iter()
-            .filter_map(|(_, statement)| match statement {
-                Statement::LocalData(local) if !local.type_is_inferred => {
-                    Some((local.symbol, &local.type_reference))
-                }
-                _ => None,
-            });
+    let results = declarations
+        .machine_states
+        .iter_from(cohort.resolved_machine_states)
+        .filter_map(|(_, state)| {
+            state
+                .return_type
+                .as_ref()
+                .map(|result| (state.symbol, result))
+        });
+    let locals = declarations
+        .state_statements
+        .iter_from(cohort.resolved_state_statements)
+        .filter_map(|(_, statement)| match statement {
+            Statement::LocalData(local) if !local.type_is_inferred => {
+                Some((local.symbol, &local.type_reference))
+            }
+            _ => None,
+        });
     let fields = declarations
         .data_members
-        .iter()
+        .iter_from(cohort.resolved_data_members)
         .filter_map(|(_, member)| match member {
             DataMember::Field(field) => Some((field.symbol, &field.type_reference)),
             _ => None,
         });
     let payloads = declarations
         .data_payload_fields
-        .iter()
+        .iter_from(cohort.resolved_data_payload_fields)
         .map(|(_, field)| (field.symbol, &field.type_reference));
     let mut rows = Vec::new();
     for (symbol, reference) in parameters

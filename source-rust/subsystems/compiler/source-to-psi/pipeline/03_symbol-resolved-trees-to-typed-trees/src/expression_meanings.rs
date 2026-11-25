@@ -4,11 +4,24 @@
 
 use crate::source_state::TypedTrees;
 
+#[cfg(test)]
 pub(crate) fn prepare(
     source: &crate::source_resolved::SymbolResolvedTrees,
     program: &mut TypedTrees,
     frontier: usize,
     type_frontier: usize,
+    cast_destinations: &[crate::source_state::types::TypeReferenceHandle],
+) -> Result<(), diagnostics::Diagnostic> {
+    let cohort = crate::lowerer::TypingCohort::for_expression_meanings(frontier, type_frontier);
+    let owners = crate::operand_owners::CohortOperandOwners::full(program);
+    prepare_in_cohort(source, program, &cohort, &owners, cast_destinations)
+}
+
+pub(crate) fn prepare_in_cohort(
+    source: &crate::source_resolved::SymbolResolvedTrees,
+    program: &mut TypedTrees,
+    cohort: &crate::lowerer::TypingCohort<'_>,
+    owners: &crate::operand_owners::CohortOperandOwners,
     cast_destinations: &[crate::source_state::types::TypeReferenceHandle],
 ) -> Result<(), diagnostics::Diagnostic> {
     enum Meaning {
@@ -21,46 +34,60 @@ pub(crate) fn prepare(
             symbols::SymbolHandle,
         ),
     }
-    let casts = crate::domain_cast_accounting::PreparedCasts::new(program, frontier)?;
+    let frontier = cohort.typed_expressions;
+    let type_frontier = cohort.typed_type_references;
+    let mut cast_sites = Vec::new();
+    let mut operator_sites = Vec::new();
+    let mut range_sites = Vec::new();
+    let mut member_sites = Vec::new();
+    for (handle, node) in program.expression_table.iter_expressions_from(frontier + 1) {
+        if crate::operator_calls::forms(program, handle)[0].is_some() {
+            operator_sites.push(handle);
+        }
+        match node {
+            crate::source_state::expression::ExpressionNode::Cast(cast)
+                if cast.form.entry().is_some() =>
+            {
+                cast_sites.push((handle, *cast));
+            }
+            crate::source_state::expression::ExpressionNode::Indexed(indexed)
+                if program.expression_table.range_node(indexed.index).is_some() =>
+            {
+                range_sites.push(handle);
+            }
+            crate::source_state::expression::ExpressionNode::Member(member)
+                if member.selection
+                    == crate::source_state::expression::MemberSelection::Unresolved =>
+            {
+                member_sites.push((handle, member.clone()));
+            }
+            _ => {}
+        }
+    }
+    let casts = crate::domain_cast_accounting::PreparedCasts::from_sites(program, cast_sites)?;
     let mut sites = casts
         .sites()
         .map(|(handle, position)| (handle, Meaning::Cast(position)))
         .collect::<Vec<_>>();
     sites.extend(
-        crate::operator_calls::sites(program, frontier)
+        operator_sites
             .into_iter()
             .map(|handle| (handle, Meaning::Operator)),
     );
     sites.extend(
-        program
-            .expression_table
-            .iter_backing_expressions()
-            .filter_map(|(handle, node)| match node {
-                crate::source_state::expression::ExpressionNode::Indexed(indexed)
-                    if handle.arena_index() as usize > frontier
-                        && program.expression_table.range_node(indexed.index).is_some() =>
-                {
-                    Some((handle, Meaning::Range))
-                }
-                _ => None,
-            }),
+        range_sites
+            .into_iter()
+            .map(|handle| (handle, Meaning::Range)),
     );
     sites.extend(
-        program
-            .expression_table
-            .iter_backing_expressions()
-            .filter_map(|(handle, node)| match node {
-                crate::source_state::expression::ExpressionNode::Member(member)
-                    if handle.arena_index() as usize > frontier
-                        && member.selection
-                            == crate::source_state::expression::MemberSelection::Unresolved =>
-                {
-                    Some((handle, Meaning::Member(member.clone())))
-                }
-                _ => None,
-            }),
+        member_sites
+            .into_iter()
+            .map(|(handle, member)| (handle, Meaning::Member(member))),
     );
-    for machine in program.machines() {
+    for (ordinal, machine) in program.machines().iter().enumerate() {
+        if !cohort.owns_machine(ordinal, machine.symbol) {
+            continue;
+        }
         for state in program.machine_states(machine) {
             sites.extend(
                 program
@@ -101,7 +128,9 @@ pub(crate) fn prepare(
         .collect::<Vec<_>>();
     type_values.sort_unstable_by_key(|expression| expression.arena_index());
     type_values.dedup();
-    let has_memberships = crate::contracts::proof_facts::has_pending_memberships(program);
+    let proof_fact_frontier = cohort.typed_proof_facts;
+    let has_memberships =
+        crate::contracts::proof_facts::has_pending_memberships_from(program, proof_fact_frontier);
     if sites.is_empty() && type_values.is_empty() && !has_memberships {
         return Ok(());
     }
@@ -112,23 +141,27 @@ pub(crate) fn prepare(
     sites.sort_unstable_by_key(|(handle, meaning)| {
         (handle.arena_index(), matches!(meaning, Meaning::Local(..)))
     });
-    let owners = crate::source_state::references::collect_program_operand_owners(program);
     // A refinement's self membership selects its parent on the declaration's
     // known carrier. A cast may already need that selection while typing its
     // operand. Memberships on expressions must wait for their operand types.
     let mut subjects = std::collections::HashSet::new();
     if has_memberships {
-        for domain in program.domain_definitions() {
+        for domain in program
+            .domain_definitions()
+            .iter()
+            .skip(cohort.domain_definitions)
+        {
             for handle in domain.facts.handles() {
-                if program
-                    .proof_facts
-                    .get(handle)
-                    .as_membership()
-                    .is_some_and(|fact| {
-                        crate::source_state::domain::domain_subject_reference(
-                            program, domain, fact.value,
-                        )
-                    })
+                if handle.arena_index() as usize > proof_fact_frontier
+                    && program
+                        .proof_facts
+                        .get(handle)
+                        .as_membership()
+                        .is_some_and(|fact| {
+                            crate::source_state::domain::domain_subject_reference(
+                                program, domain, fact.value,
+                            )
+                        })
                 {
                     subjects.insert(handle);
                 }
@@ -139,12 +172,14 @@ pub(crate) fn prepare(
         crate::contracts::proof_facts::normalize_membership_selections(
             source,
             program,
-            &owners,
+            owners,
+            proof_fact_frontier,
             |fact| subjects.contains(&fact),
         )?;
         crate::contracts::proof_facts::intern_proof_membership_instances(
             program,
-            &owners,
+            owners,
+            proof_fact_frontier,
             |fact| subjects.contains(&fact),
         )?;
     }
@@ -152,13 +187,13 @@ pub(crate) fn prepare(
     for (handle, meaning) in sites {
         match meaning {
             Meaning::Cast(position) => {
-                casts.account(position, source, program, &owners, cast_destinations)?
+                casts.account(position, source, program, owners, cast_destinations)?
             }
             Meaning::Member(member) => {
-                prepare_member(program, &owners, &mut types, handle, &member)?;
+                prepare_member(program, owners, &mut types, handle, &member)?;
             }
             Meaning::Operator => {
-                crate::operator_calls::prepare_site(program, &owners, &mut types, handle)?
+                crate::operator_calls::prepare_site(program, owners, &mut types, handle)?
             }
             // A range a declared `[..]` selected is already its call.
             Meaning::Range
@@ -168,7 +203,7 @@ pub(crate) fn prepare(
                 ) => {}
             Meaning::Range => {
                 crate::constructor_applications::retain_indexed_operand_type(
-                    program, &owners, &mut types, handle,
+                    program, owners, &mut types, handle,
                 )?;
             }
             Meaning::Local(statement, owner) => {
@@ -200,15 +235,21 @@ pub(crate) fn prepare(
                 .set_constructed_value_type_reference(expression, carrier);
         }
     }
-    crate::contracts::proof_facts::normalize_membership_selections(
-        source,
-        program,
-        &owners,
-        |fact| !subjects.contains(&fact),
-    )?;
-    crate::contracts::proof_facts::intern_proof_membership_instances(program, &owners, |fact| {
-        !subjects.contains(&fact)
-    })?;
+    if has_memberships {
+        crate::contracts::proof_facts::normalize_membership_selections(
+            source,
+            program,
+            owners,
+            proof_fact_frontier,
+            |fact| !subjects.contains(&fact),
+        )?;
+        crate::contracts::proof_facts::intern_proof_membership_instances(
+            program,
+            owners,
+            proof_fact_frontier,
+            |fact| !subjects.contains(&fact),
+        )?;
+    }
     Ok(())
 }
 
@@ -216,7 +257,7 @@ pub(crate) fn prepare(
 /// Access permission and live-value checks remain with the receiving judgment.
 fn prepare_member(
     program: &mut TypedTrees,
-    owners: &crate::source_state::references::ProgramOperandOwners,
+    owners: &crate::operand_owners::CohortOperandOwners,
     types: &mut crate::typing_queries::DeclaredExpressionTypes,
     handle: crate::source_state::expression::ExpressionHandle,
     member: &crate::source_state::expression::TableMemberExpression,

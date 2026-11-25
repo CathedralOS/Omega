@@ -128,10 +128,10 @@ pub(crate) mod contracts {
         ];
     }
     pub(crate) mod parameter_domains {
-        use crate::source_resolved as resolved;
-        use crate::source_state as typed;
         use crate::lowerer::Lowerer;
         use crate::signatures::parameters::lower_state_parameter;
+        use crate::source_resolved as resolved;
+        use crate::source_state as typed;
 
         fn domain_constraints(
             program: &typed::TypedTrees,
@@ -250,7 +250,8 @@ pub(crate) mod contracts {
             pub(crate) fn normalize(
                 source: &crate::source_resolved::SymbolResolvedTrees,
                 program: &mut TypedTrees,
-                owners: &crate::source_state::references::ProgramOperandOwners,
+                owners: &crate::operand_owners::CohortOperandOwners,
+                proof_fact_frontier: usize,
                 include: impl Fn(arena::Handle<ProofFact>) -> bool,
             ) -> Result<(), Diagnostic> {
                 use crate::declaration_selection::{
@@ -260,7 +261,7 @@ pub(crate) mod contracts {
                 };
                 let unselected = program
                     .proof_facts
-                    .iter()
+                    .iter_from(proof_fact_frontier)
                     .filter(|(handle, _)| include(*handle))
                     .filter_map(|(handle, fact)| match fact {
                         ProofFact::Membership(membership)
@@ -304,14 +305,24 @@ pub(crate) mod contracts {
                             missing = true;
                             continue;
                         };
-                        let plain = |reference| program.type_reference_table.unconstrained_type_reference(reference);
+                        let plain = |reference| {
+                            program
+                                .type_reference_table
+                                .unconstrained_type_reference(reference)
+                        };
                         if let Some(&first) = carriers.first()
                             && plain(first) != plain(found)
-                            && program.package_qualified_type_identity(plain(first)) != program.package_qualified_type_identity(plain(found))
+                            && program.package_qualified_type_identity(plain(first))
+                                != program.package_qualified_type_identity(plain(found))
                         {
-                            return Err(Diagnostic::error("domain membership has conflicting declared carrier contexts").with_source_span(source_span));
+                            return Err(Diagnostic::error(
+                                "domain membership has conflicting declared carrier contexts",
+                            )
+                            .with_source_span(source_span));
                         }
-                        if !carriers.contains(&found) { carriers.push(found); }
+                        if !carriers.contains(&found) {
+                            carriers.push(found);
+                        }
                     }
                     if !missing && !carriers.is_empty() {
                         let occurrence = membership.authored_domain_selection.ok_or_else(|| {
@@ -343,9 +354,14 @@ pub(crate) mod contracts {
                             .map(|part| part.as_str())
                             .collect::<Vec<_>>()
                             .join("::");
-                        let arguments = program.type_reference_table.type_reference_handles(membership.domain_arguments).to_vec();
+                        let arguments = program
+                            .type_reference_table
+                            .type_reference_handles(membership.domain_arguments)
+                            .to_vec();
                         let written = crate::type_reference::carrier_qualifications::DomainUse {
-                            name: &name, arguments: &arguments, reference: Some(authored_span),
+                            name: &name,
+                            arguments: &arguments,
+                            reference: Some(authored_span),
                             retained: symbols::SymbolHandle::invalid(),
                         };
                         let mut selected = None;
@@ -359,8 +375,12 @@ pub(crate) mod contracts {
                                 selected = None;
                                 break;
                             };
-                            super::check_membership_argument_count(program, domain, arguments.len())
-                                .map_err(|error| error.with_source_span(source_span))?;
+                            super::check_membership_argument_count(
+                                program,
+                                domain,
+                                arguments.len(),
+                            )
+                            .map_err(|error| error.with_source_span(source_span))?;
                             if selected.is_some_and(|earlier| earlier != domain.symbol) {
                                 return Err(Diagnostic::error("domain membership selects different declarations in its carrier contexts").with_source_span(source_span));
                             }
@@ -632,13 +652,11 @@ pub(crate) mod contracts {
                         .tokenize()
                         .unwrap();
                     let syntax =
-                        crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens)
-                            .unwrap();
+                        crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
                     let mut request = crate::resolution::ResolutionRequest::new(syntax);
                     request.sources = Some(std::sync::Arc::new(sources));
                     let resolved = crate::resolution::resolve(request).unwrap();
-                    let mut program =
-                        crate::lower_symbol_resolved_trees(&resolved).unwrap();
+                    let mut program = crate::lower_symbol_resolved_trees(&resolved).unwrap();
                     let handle = program
                         .proof_facts
                         .iter()
@@ -656,9 +674,9 @@ pub(crate) mod contracts {
                     membership.domain = second;
                     membership.domain_symbol = symbols::SymbolHandle::invalid();
                     membership.semantic_domain = semantic_vocabulary::SemanticDomainId::NULL;
-                    let owners =
-                        crate::source_state::references::collect_program_operand_owners(&program);
-                    let error = normalize(&resolved, &mut program, &owners, |_| true).unwrap_err();
+                    let owners = crate::operand_owners::CohortOperandOwners::full(&program);
+                    let error =
+                        normalize(&resolved, &mut program, &owners, 0, |_| true).unwrap_err();
                     assert!(
                         error
                             .message
@@ -675,12 +693,12 @@ pub(crate) mod contracts {
                 #[test]
                 fn an_unselected_membership_refuses_only_the_declaration_holding_it() {
                     let (mut program, [holder, bystander]) = unselected_membership(true);
-                    let owners =
-                        crate::source_state::references::collect_program_operand_owners(&program);
+                    let owners = crate::operand_owners::CohortOperandOwners::full(&program);
                     normalize(
                         &crate::source_resolved::SymbolResolvedTrees::default(),
                         &mut program,
                         &owners,
+                        0,
                         |_| true,
                     )
                     .unwrap();
@@ -694,12 +712,12 @@ pub(crate) mod contracts {
                 #[test]
                 fn an_unselected_membership_no_declaration_holds_still_refuses() {
                     let (mut program, [holder, bystander]) = unselected_membership(false);
-                    let owners =
-                        crate::source_state::references::collect_program_operand_owners(&program);
+                    let owners = crate::operand_owners::CohortOperandOwners::full(&program);
                     let error = normalize(
                         &crate::source_resolved::SymbolResolvedTrees::default(),
                         &mut program,
                         &owners,
+                        0,
                         |_| true,
                     )
                     .unwrap_err();
@@ -718,15 +736,15 @@ pub(crate) mod contracts {
         use crate::type_reference::lower_type_reference_into_table;
         pub(crate) use domain_selections::normalize as normalize_membership_selections;
 
-        use crate::source_resolved as resolved;
-        use crate::source_state as typed;
-        use crate::source_symbols::JoinedPath;
         use crate::expressions::expression::{
             lower_expression_handle_from_table_with_symbol_substitution, lower_fact_expression,
         };
         use crate::expressions::proposition::is_proposition_call_target;
         use crate::lowerer::Lowerer;
         use crate::lowerer::name::lower_name;
+        use crate::source_resolved as resolved;
+        use crate::source_state as typed;
+        use crate::source_symbols::JoinedPath;
         use crate::tables::resolved_expressions;
         use crate::type_reference::domain_aliases::expand_domain_reference;
         use arena::HandleSpan;
@@ -902,33 +920,40 @@ pub(crate) mod contracts {
             types.contains_type_reference(carrier).then_some(carrier)
         }
 
-        pub(crate) fn has_pending_memberships(program: &typed::TypedTrees) -> bool {
-            program.proof_facts.iter().any(|(_, fact)| {
-                let Some(membership) = fact.as_membership() else {
-                    return false;
-                };
-                if !membership.domain_symbol.is_valid() {
-                    return membership.authored_domain_selection.is_some();
-                }
-                program
-                    .domain_arguments_for_instance(
-                        membership.domain_symbol,
-                        membership.semantic_domain,
-                    )
-                    .is_none()
-            })
+        pub(crate) fn has_pending_memberships_from(
+            program: &typed::TypedTrees,
+            proof_fact_frontier: usize,
+        ) -> bool {
+            program
+                .proof_facts
+                .iter_from(proof_fact_frontier)
+                .any(|(_, fact)| {
+                    let Some(membership) = fact.as_membership() else {
+                        return false;
+                    };
+                    if !membership.domain_symbol.is_valid() {
+                        return membership.authored_domain_selection.is_some();
+                    }
+                    program
+                        .domain_arguments_for_instance(
+                            membership.domain_symbol,
+                            membership.semantic_domain,
+                        )
+                        .is_none()
+                })
         }
 
         pub(crate) fn intern_proof_membership_instances(
             program: &mut typed::TypedTrees,
-            owners: &typed::references::ProgramOperandOwners,
+            owners: &crate::operand_owners::CohortOperandOwners,
+            proof_fact_frontier: usize,
             include: impl Fn(arena::Handle<typed::domain::ProofFact>) -> bool,
         ) -> Result<(), Diagnostic> {
             let mut types = crate::typing_queries::DeclaredExpressionTypes::default();
             let mut instances = Vec::new();
             for (handle, fact) in program
                 .proof_facts
-                .iter()
+                .iter_from(proof_fact_frontier)
                 .filter(|(handle, _)| include(*handle))
             {
                 let Some(membership) = fact.as_membership() else {
@@ -1002,7 +1027,11 @@ pub(crate) mod contracts {
                     let Some(found) = types
                         .get(program, *owner, membership.value)
                         .and_then(|reference| membership_carrier_type(program, reference))
-                        .map(|reference| program.type_reference_table.unconstrained_type_reference(reference))
+                        .map(|reference| {
+                            program
+                                .type_reference_table
+                                .unconstrained_type_reference(reference)
+                        })
                     else {
                         missing = true;
                         continue;
@@ -1175,11 +1204,11 @@ pub(crate) mod contracts {
 
 pub(crate) mod signatures {
     pub(crate) mod callable_signature {
-        use crate::source_resolved as resolved;
-        use crate::source_state as typed;
         use crate::lowerer::Lowerer;
         use crate::lowerer::name::lower_names;
         use crate::signatures::type_parameters::lower_type_parameters;
+        use crate::source_resolved as resolved;
+        use crate::source_state as typed;
         use diagnostics::Diagnostic;
 
         use crate::contracts::invocations::lower_authored_invocations;
@@ -1259,9 +1288,8 @@ pub(crate) mod signatures {
                 .source_trees
                 .signature_contracts(signature.contracts)
             {
-                let contract = crate::contracts::proof_facts::lower_signature_contract(
-                    lowerer, contract,
-                )?;
+                let contract =
+                    crate::contracts::proof_facts::lower_signature_contract(lowerer, contract)?;
                 lowerer
                     .typed_trees
                     .push_state_signature_contract(&mut typed_signature, contract);
@@ -1406,10 +1434,8 @@ pub(crate) mod signatures {
                     .chain(enclosing_bounds(program, machine).map(|bound| {
                         typed::expression::StaticMachineArgument {
                             symbol: bound.binder,
-                            path: vec![crate::lowerer::name::lower_name(
-                                &bound.binder_name,
-                            )]
-                            .into_boxed_slice(),
+                            path: vec![crate::lowerer::name::lower_name(&bound.binder_name)]
+                                .into_boxed_slice(),
                             ..Default::default()
                         }
                     }))
@@ -1418,9 +1444,9 @@ pub(crate) mod signatures {
         }
     }
     pub(crate) mod parameters {
+        use crate::lowerer::Lowerer;
         use crate::source_resolved as resolved;
         use crate::source_state as typed;
-        use crate::lowerer::Lowerer;
         use crate::type_reference::lower_type_reference_into_table;
         use diagnostics::Diagnostic;
 
@@ -1453,10 +1479,10 @@ pub(crate) mod signatures {
         }
     }
     pub(crate) mod type_parameters {
-        use crate::source_resolved as resolved;
-        use crate::source_state as typed;
         use crate::lowerer::Lowerer;
         use crate::signatures::callable_signature::lower_state_signature;
+        use crate::source_resolved as resolved;
+        use crate::source_state as typed;
         use crate::type_reference::lower_type_reference_into_table;
         use diagnostics::Diagnostic;
 
@@ -1609,10 +1635,9 @@ pub(crate) mod signatures {
                     }
                     let mut parameters = arena::HandleSpan::empty();
                     for parameter in lowerer.source_trees.state_parameters(contract.parameters) {
-                        let parameter =
-                            crate::signatures::parameters::lower_state_parameter(
-                                lowerer, parameter,
-                            )?;
+                        let parameter = crate::signatures::parameters::lower_state_parameter(
+                            lowerer, parameter,
+                        )?;
                         lowerer
                             .typed_trees
                             .state_parameters

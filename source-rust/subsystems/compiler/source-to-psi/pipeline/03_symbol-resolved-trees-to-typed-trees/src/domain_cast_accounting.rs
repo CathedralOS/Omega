@@ -77,25 +77,6 @@ impl From<Diagnostic> for Unaccounted {
     }
 }
 
-fn is_new(handle: ExpressionHandle, frontier: usize) -> bool {
-    !usize::try_from(handle.arena_index()).is_ok_and(|index| index <= frontier)
-}
-
-fn entry_sites(
-    program: &TypedTrees,
-    frontier: usize,
-) -> Vec<(ExpressionHandle, TableCastExpression)> {
-    expression_table(program)
-        .expression_entries()
-        .filter_map(|(handle, expression)| {
-            let ExpressionNode::Cast(cast) = expression else {
-                return None;
-            };
-            (is_new(handle, frontier) && cast.form.entry().is_some()).then_some((handle, *cast))
-        })
-        .collect()
-}
-
 fn read_run(program: &TypedTrees, outermost: ExpressionHandle) -> Run {
     let mut run = Vec::new();
     let mut cursor = outermost;
@@ -214,8 +195,10 @@ pub(crate) struct PreparedCasts {
 }
 
 impl PreparedCasts {
-    pub(crate) fn new(program: &TypedTrees, frontier: usize) -> Result<Self, Diagnostic> {
-        let sites = entry_sites(program, frontier);
+    pub(crate) fn from_sites(
+        program: &TypedTrees,
+        sites: Vec<(ExpressionHandle, TableCastExpression)>,
+    ) -> Result<Self, Diagnostic> {
         if sites.is_empty() {
             return Ok(Self {
                 runs: Vec::new(),
@@ -284,7 +267,7 @@ impl PreparedCasts {
         position: usize,
         source: &crate::source_resolved::SymbolResolvedTrees,
         program: &mut TypedTrees,
-        owners: &crate::source_state::references::ProgramOperandOwners,
+        owners: &crate::operand_owners::CohortOperandOwners,
         cast_destinations: &[TypeReferenceHandle],
     ) -> Result<(), Diagnostic> {
         let run = &self.runs[position];

@@ -264,22 +264,6 @@ fn needs_collection_view(
             .is_some_and(|written| reference_access(written).is_none())
 }
 
-/// Every occurrence after `frontier` that has a form a declaration could
-/// apply: an unsuffixed binary or prefix-negation operator, or an index.
-pub(crate) fn sites(
-    program: &TypedTrees,
-    frontier: usize,
-) -> Vec<crate::source_state::expression::ExpressionHandle> {
-    program
-        .expression_table
-        .iter_expressions()
-        .filter_map(|(handle, _)| {
-            (handle.arena_index() as usize > frontier && forms(program, handle)[0].is_some())
-                .then_some(handle)
-        })
-        .collect()
-}
-
 /// A builtin operator takes unqualified operands only, in executable code and
 /// in `requires` and `ensures` alike (domains.md, "Operands"). When typing
 /// knows every operand's type, one of them carries a declared domain, and no
@@ -494,7 +478,7 @@ fn retain_core_application(
 
 pub(crate) fn prepare_site(
     program: &mut TypedTrees,
-    owners: &crate::source_state::references::ProgramOperandOwners,
+    owners: &crate::operand_owners::CohortOperandOwners,
     types: &mut crate::typing_queries::DeclaredExpressionTypes,
     handle: crate::source_state::expression::ExpressionHandle,
 ) -> Result<(), Diagnostic> {

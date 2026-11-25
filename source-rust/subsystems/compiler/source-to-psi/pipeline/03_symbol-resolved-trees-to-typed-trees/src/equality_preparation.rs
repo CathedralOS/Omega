@@ -123,41 +123,51 @@ fn prepare_selections(
     Ok((family, realizations))
 }
 
-pub(crate) fn prepare(
+pub(crate) fn prepare_in_cohort(
     program: &mut TypedTrees,
     frontier: usize,
     conformance_frontier: usize,
+    owners: &crate::operand_owners::CohortOperandOwners,
 ) -> Result<(), Diagnostic> {
+    let sites = program
+        .expression_table
+        .iter_expressions_from(frontier + 1)
+        .filter_map(|(handle, node)| match node {
+            ExpressionNode::Binary(binary)
+                if matches!(
+                    binary.operator,
+                    BinaryOperator::Equal | BinaryOperator::NotEqual
+                ) =>
+            {
+                Some((handle, *binary))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let has_new_synthesized = program
+        .conformances()
+        .iter()
+        .skip(conformance_frontier)
+        .any(|conformance| {
+            program.symbols.sealed_intrinsic(conformance.trait_symbol)
+                == Some(SealedIntrinsic::EqualityProtocol)
+                && matches!(
+                    conformance.rows.as_slice(),
+                    [row] if row.source == ConformanceRowSource::Synthesized
+                )
+        });
+    if sites.is_empty() && !has_new_synthesized {
+        return Ok(());
+    }
     let (family, realizations) = prepare_selections(program)?;
     let synthesized = family
         .iter()
         .filter(|entry| entry.ordinal >= conformance_frontier && entry.selection.synthesized)
         .map(|entry| (entry.application, entry.selection.conformance))
         .collect::<Vec<_>>();
-    let sites = program
-        .expression_table
-        .iter_expressions()
-        .filter_map(|(handle, node)| {
-            if handle.arena_index() as usize <= frontier {
-                return None;
-            }
-            match node {
-                ExpressionNode::Binary(binary)
-                    if matches!(
-                        binary.operator,
-                        BinaryOperator::Equal | BinaryOperator::NotEqual
-                    ) =>
-                {
-                    Some((handle, *binary))
-                }
-                _ => None,
-            }
-        })
-        .collect::<Vec<_>>();
     if synthesized.is_empty() && sites.is_empty() {
         return Ok(());
     }
-    let owners = crate::source_state::references::collect_program_operand_owners(program);
     let mut types = crate::typing_queries::DeclaredExpressionTypes::default();
     let mut preparation = Preparation {
         program,
