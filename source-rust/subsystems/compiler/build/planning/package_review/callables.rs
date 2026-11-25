@@ -129,13 +129,23 @@ impl PolicySource<'_> {
                 ),
                 _ => return Err(unavailable("this callable's supply and authority contract")),
             };
+            let identity = self.nominal(declaration.symbol)?;
             let body = if declaration.supplies_checked_body() {
                 let first = bodies
                     .partition_point(|(original, _)| key(*original) < key(declaration.symbol));
                 let end = bodies
                     .partition_point(|(original, _)| key(*original) <= key(declaration.symbol));
                 let [(original, entry)] = &bodies[first..end] else {
-                    return Err(unavailable("an unambiguous public callable application"));
+                    let mut diagnostic = Diagnostic::error(format!(
+                        "package review expected one checked body for public callable `{}`, found {}",
+                        identity.path,
+                        end - first,
+                    ));
+                    diagnostic.source_span = self
+                        .typed()
+                        .symbols
+                        .symbol_provenance_source_span(declaration.symbol);
+                    return Err(vec![diagnostic]);
                 };
                 debug_assert_eq!(*original, declaration.symbol);
                 Some(*entry)
@@ -157,7 +167,7 @@ impl PolicySource<'_> {
             rows.push(self.callable(
                 inventory.as_ref().expect("prepared callable inventory"),
                 declaration.symbol,
-                self.nominal(declaration.symbol)?,
+                identity,
                 role,
                 supply,
                 body,
