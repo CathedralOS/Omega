@@ -154,9 +154,9 @@ pub(crate) struct AcceptedProgram<'a> {
     pub(crate) discharge: &'a Discharge,
 }
 
-impl AcceptedProgram<'_> {
+impl<'program> AcceptedProgram<'program> {
     pub(crate) fn advisories(&self) -> Vec<Diagnostic> {
-        let mut activity = crate::ProofSearchActivity::default();
+        let impossible_arms = self.impossible_arms();
         let located = |diagnostic: Diagnostic, origin: SourceOrigin| match origin {
             SourceOrigin::Authored(span) => diagnostic.with_source_span(span),
             SourceOrigin::Unpositioned(_) => diagnostic,
@@ -180,18 +180,7 @@ impl AcceptedProgram<'_> {
         // contradicts (state_contracts.md, "Unreachable branches": "The
         // diagnostic identifies the branch condition and the conflicting
         // premises").
-        for (machine, branches) in self.elaboration.authored_branches() {
-            let (Some(discharge), Some(tables), Some(lowered)) = (
-                self.discharge.machines.get(machine),
-                self.elaboration.tables.machines.get(machine),
-                self.elaboration.module.machine(machine),
-            ) else {
-                continue;
-            };
-            let impossible =
-                discharge
-                    .branch_warnings
-                    .materialize(lowered, tables, branches, &mut activity);
+        for (machine, branches, impossible) in impossible_arms {
             if impossible.is_empty() {
                 continue;
             }
@@ -253,6 +242,42 @@ impl AcceptedProgram<'_> {
             }
         }
         advisories
+    }
+
+    /// The impossible arms of each authored machine with branches, in machine
+    /// order. Each machine runs its own refutation searches over its own
+    /// deferred inputs, and a large program has about a thousand of them, so
+    /// the searches run on the invocation's workers. Outside a budget they
+    /// stay on this thread: Rayon's global pool has small stacks.
+    fn impossible_arms(&self) -> Vec<(MachineId, &'program [Branch], &'program [ImpossibleArm])> {
+        let (elaboration, discharge): (&'program Elaboration, &'program Discharge) =
+            (self.elaboration, self.discharge);
+        let search = |(machine, branches): (MachineId, &'program [Branch])| {
+            let discharge = discharge.machines.get(machine)?;
+            let tables = elaboration.tables.machines.get(machine)?;
+            let lowered = elaboration.module.machine(machine)?;
+            // Advisory searches count toward no verdict, so their activity
+            // is not reported.
+            let mut activity = crate::ProofSearchActivity::default();
+            let impossible =
+                discharge
+                    .branch_warnings
+                    .materialize(lowered, tables, branches, &mut activity);
+            Some((machine, branches, impossible))
+        };
+        let machines: Vec<_> = self.elaboration.authored_branches().collect();
+        if worker_budget::current_workers() == 1 || machines.len() < 2 {
+            return machines.into_iter().filter_map(search).collect();
+        }
+        use rayon::prelude::*;
+        // Indexed collection keeps machine order; one machine per job keeps
+        // the few expensive machines stealable.
+        let searched: Vec<_> = machines
+            .into_par_iter()
+            .with_max_len(1)
+            .map(search)
+            .collect();
+        searched.into_iter().flatten().collect()
     }
 }
 
