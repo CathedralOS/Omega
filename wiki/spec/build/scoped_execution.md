@@ -608,7 +608,7 @@ Specify operation, root/object scope, lifetime, and bounds;
 do not use an undifferentiated "trust this package" flag. A host
 grant does not propagate automatically to dependency Builds. A parent may
 [delegate live networking](#live-networking-in-a-build) to a specific child.
-A filesystem or network grant gives no subprocess authority. Resolver credentials and
+A subprocess requires its own [program binding and grant](program_launch.md#grant-and-delegation). Resolver credentials and
 package retrieval remain outside build code's authority.
 
 The default portable profile prefers captured read-only views. Separately

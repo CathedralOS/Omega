@@ -74,8 +74,8 @@ Reading a caller-supplied table to find an address is ordinary computation.
 Calling a resolver boundary contributes its declared reach even if its provider
 answers from a recording. The [critical audit policy](../packages/review.md#critical-service-audit-policy)
 highlights `Network` for both Build and Product code. The [default Build environment](execution.md#restricted-build-requests)
-supplies neither live network access nor a subprocess service. Delegation of
-either service to Build code is a separate decision.
+supplies neither live network access nor a subprocess service. The caller can delegate [live networking](scoped_execution.md#live-networking-in-a-build)
+and [program launches](program_launch.md#grant-and-delegation) independently.
 
 ## Three layers
 

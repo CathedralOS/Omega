@@ -64,23 +64,8 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-<a id="build-subprocess-grants"></a>
-### 1. May an interpreted Build launch a host tool?
-
-A firmware Build may need a vendor image packer. Today the caller can run it
-in an earlier stage and hand over the resulting file. Should a Build also be
-able to request a tool launch? If so, what executable, input and output views,
-and host capabilities does the consumer approve, and how does the host enforce
-those limits on the launched process? Approving a filename alone cannot
-confine the packer's filesystem or network access.
-
-The [Build network grant](wiki/spec/build/scoped_execution.md#live-networking-in-a-build)
-covers only networking. [Build host restrictions](wiki/spec/build/execution.md#restricted-build-requests)
-and [restricted-build acceptance](wiki/spec/packages/acceptance.md#restricted-build-acceptance)
-separate policy approval from the host's ability to confine execution.
-
 <a id="supplying-build-library-bindings"></a>
-### 2. Which external libraries does a Build need for its own computation, and how should its caller supply them?
+### 1. Which external libraries does a Build need for its own computation, and how should its caller supply them?
 
 Generators run in an earlier stage and hand files to the next Build through its supplied filesystem. Local helpers already use ordinary file imports. What concrete Build needs a separately supplied library to execute its own code? For that case, what should the root invoker write, and how should a parent bind an alias for just one child?
 

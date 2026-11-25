@@ -1,6 +1,6 @@
 # Which inputs belong to a Build?
 
-A release program, its interpreted Build, the product that Build describes, and each dependency's own Build can run different code and hold different authority. This note follows a firmware package through those contexts so reviewers can distinguish a compiler migration from the remaining host-service decision. Delete it when the migration is documented at its implementation and the owner resolves the [host tool question](../../../OWNER_QUESTIONS.md#build-subprocess-grants).
+A release program, its interpreted Build, its product and each dependency Build have separate authority. The [program launch contract](../../spec/build/program_launch.md) settles host tool access. The remaining question here concerns [external library bindings](../../../OWNER_QUESTIONS.md#supplying-build-library-bindings).
 
 ## A library for whom?
 
@@ -35,7 +35,7 @@ The child can verify the expected digest in either case.
 
 ## Independent products and tools
 
-A release program can run the compiler as a permitted subprocess, or import the compiler library and request builds itself. It can build the kernel and bootloader separately, give their published artifacts to a vendor packer and distribute the resulting disk image. Each producer describes its own product. Selecting a tool by filename and passing arguments cannot by itself confine which files the tool opens or whether it contacts a server. The alternative under discussion is a host service with enforceable limits on executable, inputs and outputs. The simpler release-program route already locates that authority outside dependency Build code. [Release orchestration](../../spec/build/declarations.md#releases-with-independent-products)
+A release program can run the compiler as a permitted subprocess, or import the compiler library and request builds itself. It can build the kernel and bootloader separately, give their published artifacts to a vendor packer and distribute the resulting disk image. Each producer describes its own product. Selecting a tool by filename and passing arguments cannot by itself confine which files the tool opens or whether it contacts a server. The caller can instead bind the executable to the Build under an enforceable [program grant](../../spec/build/program_launch.md). The simpler release-program route already locates that authority outside dependency Build code. [Release orchestration](../../spec/build/declarations.md#releases-with-independent-products)
 
 The same separation matters for updates. A component can be built and published without authorizing its installation anywhere. An editor's updater may later download and install it under its own runtime authority. A build selecting a runtime provider should never silently donate that provider's capabilities to its own Build code. [Hot-swap authorship](component_hot_swap_authorship.md)
 
