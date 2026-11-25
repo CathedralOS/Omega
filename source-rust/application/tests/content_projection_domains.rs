@@ -103,10 +103,10 @@ fn interval_projection_orders_proof_naturals_before_qualifying_the_resource() {
 fn promising_content_membership_requires_a_qualified_returned_value() {
     let promise = FIELD_PROJECTION.replace(
         "-> Region in Owned { input }",
-        "-> Region ensures result in Owned { input }",
+        "-> Region ensures result in Owned { input as -Owned }",
     );
     program::assert_silent_return(&promise);
-    let forged = promise.replace("retain(input: Region in Owned)", "retain(input: Region)");
+    let forged = promise.replace("input as -Owned", "Region { length: 0u64 }");
     let (output, report) = program::invoke(&forged, &["run", "--both"]);
     assert!(!output.status.success(), "{report}");
     assert!(
