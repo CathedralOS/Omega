@@ -9,9 +9,137 @@ pub(crate) use values::{Storage, Transfer, contains_case};
 pub(crate) mod result;
 pub(crate) use result::ResultCases;
 
+/// Compact set of active sum cases for one subject. Most case facts name a
+/// single variant, so storing singletons inline and sharing multi-variant sets
+/// as a sorted, deduplicated `Arc<[StructuralCaseId]>` avoids heap-cloning a
+/// `BTreeSet` for every neighbor on a page whenever `LocationMap` copies a page
+/// on write.
+#[derive(Clone, Debug, Eq)]
+pub(super) enum CaseSet {
+    Single(StructuralCaseId),
+    Many(Arc<[StructuralCaseId]>),
+}
+
+impl PartialEq for CaseSet {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Single(left), Self::Single(right)) => left == right,
+            (Self::Many(left), Self::Many(right)) => Arc::ptr_eq(left, right) || *left == *right,
+            (Self::Single(id), Self::Many(slice)) | (Self::Many(slice), Self::Single(id)) => {
+                slice.as_ref() == [*id]
+            }
+        }
+    }
+}
+
+impl CaseSet {
+    pub(super) fn singleton(case: StructuralCaseId) -> Self {
+        Self::Single(case)
+    }
+
+    pub(super) fn from_sorted_unique(cases: Vec<StructuralCaseId>) -> Self {
+        if cases.len() == 1 {
+            Self::Single(cases[0])
+        } else {
+            Self::Many(Arc::from(cases))
+        }
+    }
+
+    pub(super) fn from_unsorted(mut cases: Vec<StructuralCaseId>) -> Self {
+        cases.sort_unstable();
+        cases.dedup();
+        Self::from_sorted_unique(cases)
+    }
+
+    pub(super) fn is_empty(&self) -> bool {
+        match self {
+            Self::Single(_) => false,
+            Self::Many(slice) => slice.is_empty(),
+        }
+    }
+
+    pub(super) fn len(&self) -> usize {
+        match self {
+            Self::Single(_) => 1,
+            Self::Many(slice) => slice.len(),
+        }
+    }
+
+    pub(super) fn contains(&self, case: &StructuralCaseId) -> bool {
+        match self {
+            Self::Single(id) => id == case,
+            Self::Many(slice) => slice.binary_search(case).is_ok(),
+        }
+    }
+
+    pub(super) fn unique(&self) -> Option<StructuralCaseId> {
+        match self {
+            Self::Single(id) => Some(*id),
+            Self::Many(slice) => (slice.len() == 1).then(|| slice[0]),
+        }
+    }
+
+    fn as_slice(&self) -> &[StructuralCaseId] {
+        match self {
+            Self::Single(id) => std::slice::from_ref(id),
+            Self::Many(slice) => slice,
+        }
+    }
+
+    pub(super) fn union(&self, other: &Self) -> Self {
+        if self == other {
+            return self.clone();
+        }
+        let left = self.as_slice();
+        let right = other.as_slice();
+        let mut merged = Vec::with_capacity(left.len() + right.len());
+        let (mut i, mut j) = (0, 0);
+        while i < left.len() && j < right.len() {
+            match left[i].cmp(&right[j]) {
+                std::cmp::Ordering::Less => {
+                    merged.push(left[i]);
+                    i += 1;
+                }
+                std::cmp::Ordering::Greater => {
+                    merged.push(right[j]);
+                    j += 1;
+                }
+                std::cmp::Ordering::Equal => {
+                    merged.push(left[i]);
+                    i += 1;
+                    j += 1;
+                }
+            }
+        }
+        merged.extend_from_slice(&left[i..]);
+        merged.extend_from_slice(&right[j..]);
+        if merged.len() == left.len() {
+            return self.clone();
+        }
+        if merged.len() == right.len() {
+            return other.clone();
+        }
+        Self::from_sorted_unique(merged)
+    }
+
+    pub(super) fn extend_into(&self, target: &mut Vec<StructuralCaseId>) {
+        target.extend_from_slice(self.as_slice());
+    }
+
+    pub(super) fn for_each_try<E>(
+        &self,
+        mut f: impl FnMut(StructuralCaseId) -> Option<E>,
+    ) -> Option<()> {
+        for &id in self.as_slice() {
+            f(id)?;
+        }
+        Some(())
+    }
+}
+
 #[derive(Clone, Default, PartialEq, Eq)]
 pub(crate) struct CurrentCases {
-    facts: LocationMap<BTreeSet<StructuralCaseId>>,
+    facts: LocationMap<CaseSet>,
     copies: values::Copies,
 }
 
@@ -106,7 +234,7 @@ pub(crate) fn establish(
     for subject in subjects {
         cases
             .facts
-            .insert(subject, BTreeSet::from([predicate.case]));
+            .insert(subject, CaseSet::singleton(predicate.case));
     }
     Some(())
 }
@@ -174,7 +302,7 @@ pub(crate) fn select(
     if possible.is_empty() {
         return Some(false);
     }
-    let possible = possible.into_iter().collect::<BTreeSet<_>>();
+    let possible = CaseSet::from_sorted_unique(possible);
     let cases = Arc::make_mut(&mut state.cases);
     for subject in subjects {
         cases.facts.insert(subject, possible.clone());
@@ -214,7 +342,7 @@ pub(crate) fn established_case(
             }
         }
     }
-    unique(state.cases.facts.get(&storage)?.iter().copied())
+    state.cases.facts.get(&storage)?.unique()
 }
 
 pub(crate) fn membership(
@@ -358,11 +486,16 @@ pub(crate) fn transport<'locations>(
         return Some(base.cases.clone());
     }
     let keep = |subject: &DescriptorLocation| survives(storage, writes.as_deref(), subject);
-    let mut cases = (*base.cases).clone();
-    cases.facts.retain(|subject, _| keep(subject));
-    cases.copies.retain(keep);
+    let mut cases = if writes.is_none() {
+        CurrentCases::default()
+    } else {
+        let mut cases = (*base.cases).clone();
+        cases.facts.retain(|subject, _| keep(subject));
+        cases.copies.retain(keep);
+        cases
+    };
     let derivations = derivations.collect::<Vec<_>>();
-    let mut assigned = BTreeMap::<DescriptorLocation, BTreeSet<StructuralCaseId>>::new();
+    let mut assigned = BTreeMap::<DescriptorLocation, Vec<StructuralCaseId>>::new();
     let mut copies = Vec::new();
     for (source, destination) in &derivations {
         if !transfer.transports_value(machine, source, destination) {
@@ -387,7 +520,7 @@ pub(crate) fn transport<'locations>(
                 &actual_source,
                 &actual_destination,
             ) {
-                assigned.entry(target).or_default().extend(active);
+                active.extend_into(assigned.entry(target).or_default());
             }
         }
         let distinct_assignment =
@@ -419,7 +552,11 @@ pub(crate) fn transport<'locations>(
             ));
         }
     }
-    cases.facts.extend(assigned);
+    cases.facts.extend(
+        assigned
+            .into_iter()
+            .map(|(target, set)| (target, CaseSet::from_unsorted(set))),
+    );
     let mut captured = BTreeMap::<
         DescriptorLocation,
         (BTreeSet<DescriptorLocation>, BTreeSet<DescriptorLocation>),
@@ -493,13 +630,9 @@ pub(crate) fn join(left: &CurrentCases, right: &CurrentCases) -> CurrentCases {
     CurrentCases {
         facts: left
             .facts
-            .iter()
-            .filter_map(|(subject, cases)| {
-                let mut cases = cases.clone();
-                cases.extend(right.facts.get(subject)?);
-                Some((subject.clone(), cases))
-            })
-            .collect(),
+            .intersect_with(&right.facts, |left_cases, right_cases| {
+                left_cases.union(right_cases)
+            }),
         copies: left.copies.meet(&right.copies),
     }
 }

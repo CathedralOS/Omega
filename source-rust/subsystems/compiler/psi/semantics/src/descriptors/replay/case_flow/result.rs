@@ -7,7 +7,7 @@ use crate::descriptors::descriptor_lifetimes::DescriptorPathSegment;
 #[derive(Clone, Default)]
 pub(crate) struct ResultCases {
     root_type: Option<StructuralTypeId>,
-    facts: BTreeMap<Vec<DescriptorPathSegment>, BTreeSet<StructuralCaseId>>,
+    facts: BTreeMap<Vec<DescriptorPathSegment>, CaseSet>,
 }
 
 impl ResultCases {
@@ -49,7 +49,7 @@ impl ResultCases {
             let Some(other) = other.facts.get(path) else {
                 return false;
             };
-            cases.extend(other);
+            *cases = cases.union(other);
             true
         });
     }
@@ -89,16 +89,16 @@ impl ResultCases {
         for (path, active) in &self.facts {
             let mut subject = result.clone();
             subject.path.extend_from_slice(path);
-            for case in active {
+            active.for_each_try(|case| {
                 valid_subject(
                     replay,
                     machine,
                     &DescriptorCasePredicate {
                         subject: subject.clone().into(),
-                        case: *case,
+                        case,
                     },
-                )?;
-            }
+                )
+            })?;
             let mut destination = storage.clone();
             destination.path.extend_from_slice(path);
             Arc::make_mut(&mut state.cases)
