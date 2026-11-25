@@ -9,6 +9,19 @@ use terminal_psi::{
 
 pub use terminal_psi::access::AccessViewPlanError;
 
+/// A view of a lifecycle result uses the same semantic schema, selected policy
+/// member and normalized physical placement as the operation that produced it.
+pub fn access_view_matches_lifecycle(
+    view: &terminal_psi::TerminalAccessViewPlan,
+    lifecycle: &terminal_psi::TerminalAccessLifecyclePlan,
+) -> bool {
+    view.schema == lifecycle.schema
+        && view.schema_identity == lifecycle.schema_identity
+        && view.policy_identity == lifecycle.policy_identity
+        && view.policy_plan_machine_identity == lifecycle.policy_plan_machine_identity
+        && view.placement == lifecycle.placement
+}
+
 pub(crate) fn access_field_leaf(
     declarations: &[terminal_psi::StructuralTypeDeclaration],
     value: &StructuralFieldType,
