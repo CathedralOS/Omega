@@ -71,17 +71,8 @@ A release build might need to fetch a pinned firmware image or run a vendor imag
 
 The default build has neither service. The [network reach rules](wiki/spec/build/platform_services.md#network-reach) classify a networking call and its provider. The open choice is whether a Build may receive a live provider or launch a host tool. The existing rules distinguish a machine's transitive service reach, the consumer's acceptance of a restricted operation and the actual resource the executor supplies. Package retrieval already runs under the resolver's separate authority. [Build host restrictions](wiki/spec/build/execution.md#restricted-build-requests) · [Service reach](wiki/spec/language/effects.md#declarations) · [Restricted-build acceptance](wiki/spec/packages/acceptance.md#restricted-build-acceptance) · [Resolver transport](wiki/spec/packages/resolver_security.md#host-routed-network-transport)
 
-<a id="decrease-of-a-computed-subject"></a>
-### 2. What must a proof-only machine show when it calls itself at a computed value?
-
-`mod(a, b)` in `core/nat.omg` is `terminates by a` and calls itself at `saturating_sub(a, b)`. [Termination](wiki/spec/language/termination.md#ranking) says "computed next subjects use ordinary decrease obligations and cited lemmas", and `mod` cites `sub_lt`, whose conclusion is `saturating_sub(Succ(saturating_sub(a, b)), a) = Zero`. That is the library's own way of writing `a - b < a`. Which proposition is the decrease obligation for a `Nat` subject, so that the compiler can check that this citation meets it, and what shows that the order it names is well founded?
-
-It blocks nothing today, because the mathematical kernel needs no answer to define the machine. Its only recursion is on the structure of a value, so the compiler defines `mod` over one more argument, the fuel, by recursion on it, and takes the fuel from `a`. That definition is total whatever the calls do, and nothing is assumed. But two things follow that the owners should decide on. First, the compiler does not check the decrease for such a machine: a body whose ranked argument did not get smaller would still be accepted, as a definition that stops when the fuel does. Second, a law about such a machine can only be proved if it holds for every amount of fuel. `mod`'s bound does. `div(a, b) * b + mod(a, b) = a` does not, because it needs the fuel to be enough, and that is exactly what a checked decrease would give.
-
-The choices I see: (a) name the obligation as the structural order on the data, "the next subject is a proper subtree", and have the library prove once that its `saturating_sub` form implies it; (b) let a data declaration name its order and a lemma that it is well founded, which the termination page calls an admitted ranking theory; (c) leave it as built, and refuse laws that need enough fuel. I recommend (a): it adds no trusted rule, and one library lemma would make every such law provable. [Kernel audit, "Step 4 as built"](wiki/drafts/designs/proof_kernel_core_audit.md#plan-order) describes the construction, and [Recursive data encoding experiments](wiki/drafts/designs/recursive_data_encoding_experiments.md) verifies constructive `Acc<u, v>` well-founded recursion under Option C (0 kernel changes, 0 assumptions: `nat_wf` in 93 steps, `div(a, b) * b + mod(a, b) = a` in 168 steps, `div(17, 5) == 3` in 521 steps).
-
 <a id="quotient-mere-proposition-evidence"></a>
-### 3. Where does a quotient declaration select the proof that its relation is a mere proposition?
+### 2. Where does a quotient declaration select the proof that its relation is a mere proposition?
 
 [Quotient formation](wiki/spec/proofs/quotients.md#formation-and-representation) "consumes a carrier family `C`, relation family `R`, and explicitly selected `Equivalence<C,R>`, together with the selected mere-proposition evidence". The declaration syntax selects only the equivalence: `data Sign = Representative % same_sign requires same_sign satisfies Equivalence<Representative, same_sign> as SameSign;`. No library trait states "any two proofs of `R(a, b)` are equal", and nothing in the declaration could name a conformance of one.
 
@@ -90,7 +81,7 @@ It blocks one direction today. The compiler forms the quotient and proves `a as 
 The choices I see: (a) a second selected conformance on the declaration, of a new `core` trait whose one row proves any two proofs of the relation equal; (b) no syntax: the compiler derives the evidence when the relation's formula is an `Identity` at data it can show is a set, and refuses effectivity for any other relation; (c) drop the requirement for relations written as a `proposition`, on the ground that a `proposition` is erased and so already proof-irrelevant, and say so in the specification. I recommend (b) first, because every relation in the recovered corpus is an `Identity` of two computed values, and (a) when a relation that is not one arrives.
 
 <a id="supplying-build-library-bindings"></a>
-### 4. How does an invoker supply an external library to a root Build or to one child Build?
+### 3. How does an invoker supply an external library to a root Build or to one child Build?
 
 A project wants its Build to call a shared topology generator on its first line. A parent may also need to give one child the generator without giving its other children access. What does the invoker write to bind the root’s import alias to a package source? What does the parent write on a particular child’s dependency description to supply that child’s aliases and sources?
 

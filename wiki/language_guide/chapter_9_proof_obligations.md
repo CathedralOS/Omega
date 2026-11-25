@@ -157,6 +157,21 @@ handoff preserves the count and that the return consumes a byte. Every call
 in the group must preserve or decrease the shared rank, and every complete
 cycle must decrease it. See [joint ranking](../spec/language/termination.md#mutual-ranking-source-contract).
 
+A computed argument can decrease too. In repeated-subtraction modulo,
+the branch knows `1 <= b <= a`. Its recursive helper is:
+
+```omega
+    machine mod_rec(a: Nat, b: Nat) -> Nat {
+        _ = sub_lt(a, b);
+        let next: Nat = saturating_sub(a, b);
+        transition { _ -> (mod(next, b)) }
+    }
+```
+
+The enclosing `mod` declares `terminates by a`. The citation proves the call's
+new rank is smaller. Change just `mod(next, b)` to `mod(a, b)` and the call
+would require `a < a`. [Computed recursive arguments in proofs](../spec/language/termination.md#computed-recursive-arguments-in-proofs)
+
 ## Where next
 
 [Chapter 10](chapter_10_compile_time_proofs.md) covers writing proofs

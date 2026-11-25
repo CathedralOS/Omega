@@ -167,6 +167,31 @@ argumented-view bounds, subject substitutions, and all comparisons retain exact
 normalized witness identity. Checked diagnostics use `terminates by`, not a
 retired alternative spelling.
 
+### Computed recursive arguments in proofs
+
+A proof-only machine with `terminates by` is checked against the well-founded
+order of its selected ranking view, including when the next argument is the
+result of a call. On a strict edge from rank `a` to rank `next`, the obligation
+is the view's relation applied to `(next, a)`. Instantiate it at the call with
+the actual arguments and the facts valid in that branch. The joint-ranking
+rules above govern edges that preserve rank and cycles through helpers.
+
+For core's mathematical `Nat`, the canonical descending view uses strict natural
+order. Core proves once that this order is well founded. With `1 <= b <= a`,
+the postcondition of `sub_lt(a, b)` establishes that
+`next = saturating_sub(a, b)` is strictly below `a`: in core's spelling,
+`saturating_sub(Succ(next), a) = Zero`. Cite that result through ordinary
+proof machinery. The same citation cannot establish descent for a call at
+unchanged `a`. Report the unproved comparison at that recursive call.
+
+Elaboration must preserve the recursive equations for all admitted inputs.
+It can use the selected order's accessibility proof to recurse on smaller
+arguments. If it introduces a private step counter, it must still check the
+authored descent and prove that the counter suffices on every reachable call.
+The equations and laws of the source machine then hold independently of which
+sufficient bound was used. Exhaustion of the checker's own work budget follows
+the ordinary proof-work rules.
+
 ## Calls and productive loops
 
 Runtime recursive call cycles are tail-position only and lower to constant-stack
