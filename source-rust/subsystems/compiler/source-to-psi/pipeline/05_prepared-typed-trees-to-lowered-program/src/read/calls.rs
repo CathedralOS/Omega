@@ -4219,9 +4219,9 @@ impl<'t> Program<'t> {
 /// "Borrows and aliases": "Shared loans may duplicate or reborrow, while
 /// exclusive loans must not overlap incompatibly"). A read beside it is
 /// harmless, and so is a nested call's shared loan of the same storage
-/// (`f(g(@a), @a)`). A mutable loan conflicts with any use of overlapping storage,
-/// and so does a whole non-scalar slot that is not a shared reference,
-/// because using it moves or reborrows its value.
+/// (`f(g(@a), @a)`). A mutable loan conflicts with any use of overlapping
+/// storage, and so does a whole non-scalar slot that is not a shared
+/// reference, because using it moves or reborrows its value.
 ///
 /// A place that holds a byte view lends none of its binding's storage: the
 /// callee is given the view, whose bytes are elsewhere. lifetimes.md: "The
