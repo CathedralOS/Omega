@@ -3190,9 +3190,13 @@ mod empty_elimination_foundations {
         }
         let graph = terminal_graph_from(module, machines.iter().map(|machine| machine.id));
         let mut analysis = DescriptorAnalysis::new(&module.types.structural_types, &graph);
+        // The same module-aware walk stage 06 judges with: a call made while
+        // borrowed storage is vacant is judged by its callee in this module.
+        let summaries = terminal_semantics::plain_affine::AffineSummaries::new(module);
         for machine in machines {
             let availability =
-                terminal_semantics::plain_affine::verify(machine, &module.types.structural_types)
+                terminal_semantics::plain_affine::MachineAffine::new(module, machine.id, Some(&summaries))
+                    .and_then(|walk| walk.verify())
                     .map_err(|_| {
                         CodecError::MalformedStructuralFoundation(
                             "empty elimination has no complete value-availability judgment",

@@ -464,6 +464,62 @@ impl super::TerminalMachine {
     }
 }
 
+/// Code outside the machine's own storage that one operation or terminator
+/// runs. `UnoptimizedMachineBehavior::capture` inventories these, and the
+/// ownership walk fences them while borrowed storage is vacant, so a new
+/// call or service instruction reaches both through this one classifier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExternalReach {
+    /// A call into a machine of the module.
+    Machine(MachineId),
+    /// A call into a boundary machine.
+    Boundary(BoundaryMachineId),
+    /// An instruction that touches machine state outside the program's
+    /// storage, with the service that authorizes it when it names one.
+    InstructionService(Option<semantic_vocabulary::ServiceId>),
+    /// A call through a computed machine value or a dynamic interface slot,
+    /// whose callee the operation does not name.
+    ComputedCall,
+}
+
+impl OperationKind {
+    pub fn external_reach(&self) -> Option<ExternalReach> {
+        if let Some(callee) = self.direct_callee() {
+            return Some(ExternalReach::Machine(callee));
+        }
+        Some(match self {
+            Self::BoundaryCall { boundary, .. } => ExternalReach::Boundary(*boundary),
+            Self::CallMachine { .. } | Self::CallDynamic { .. } => ExternalReach::ComputedCall,
+            Self::ActivateTaskRegister { service, .. }
+            | Self::ReadTaskRegister { service, .. }
+            | Self::ReloadSegmentDescriptors { service, .. }
+            | Self::ReadSegmentSelector { service, .. }
+            | Self::GlobalDescriptorTable { service, .. }
+            | Self::PortWrite { service, .. } => ExternalReach::InstructionService(Some(*service)),
+            Self::RegisterAccess { service, .. } => ExternalReach::InstructionService(*service),
+            _ => return None,
+        })
+    }
+}
+
+impl Terminator {
+    /// The call a terminator makes itself, at the site naming its edge.
+    /// Owned cleanup on its edges is read from `cleanup_rosters`.
+    pub fn external_reach(&self) -> Option<(InvocationSite, ExternalReach)> {
+        match self {
+            Self::InvokeNoNormal { edge, callee, .. } => Some((
+                InvocationSite::InvokeNoNormal(*edge),
+                ExternalReach::Machine(*callee),
+            )),
+            Self::ExternalCompletion { edge, boundary, .. } => Some((
+                InvocationSite::ExternalCompletion(*edge),
+                ExternalReach::Boundary(*boundary),
+            )),
+            _ => None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod boundary_tests {
     use super::*;

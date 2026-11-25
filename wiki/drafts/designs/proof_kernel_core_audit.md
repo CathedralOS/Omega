@@ -450,7 +450,7 @@ upstream" does not show the wrong program is refused.
 | An `AccessCustody` implementation agrees with its schema | Nothing | Confirmed: no Rust file names it, and the trait is declared with no members (`source/library/core/layout.omg:514`), so a conformance has nothing to fail. Reach is limited today, because stage 05 refuses data with an erased field. The check has to exist before erased fields are served. |
 | A value stored into a narrowed integer field fits its stored width (four cross-checks) | No fit obligation | Unreachable today; see [old faults that remain](#old-faults-that-remain-in-todays-compiler) |
 | Content conservation: a content-bearing result descends from a consumed owned claim (four cross-checks) | Stage 05 has no reader for it and the prover refuses the goal form. No reader found the site that refuses the source form. | **Gap, confirmed by probes.** Three things are refused: a cast that adds an issuer-only qualification in a machine that is not an establishment route, the same forged on an `Extent`, and a declared content projection (`satisfies Content<...>::project`, "not supported yet"). A field write is not: a machine that is no establishment route takes an `Extent in Granted`, sets `base` to 4096 and `length` to 4096, and returns it as `Extent in Granted`. It compiles. So does growing one in place through `@mutable` from 16 bytes to 8,192, and the same on a user domain with one issuer. The write must keep the domain's `requires` (a `length` that breaks `no_wrap` is refused), but the qualification itself survives. [Domains](../../spec/language/domains.md) says "Mutation invalidates subject-bound facts unless preserved or re-established", and `extent.omg` says constructing the geometry does not establish `Granted`. Not shown: a program that uses the forged extent to reach memory. **Repaired on this branch** (`d090365e17`): a machine outside a domain's routes may not change part of a value that carries the domain, or lend part of it for change. All the programs above are refused at the write. Declared conservation equations are still not served. |
-| While an owned value is moved out of borrowed storage, boundary, service and blocking calls are fenced | Only a call that may suspend is refused (`psi/semantics/src/plain_affine.rs:2450-2477`) | Probed, and the reader is right about the behavior. With a field moved out, a boundary call with no reach, a boundary call that reaches a service and a blocking boundary call all compile; a suspending call is refused; lending the holder itself is refused. Whether the three accepted programs break the spec depends on a reading. [Ownership](../../spec/language/ownership.md) keeps the fence on "boundary/capability-carrying calls that may observe or expose the affected storage, including through authority not named as an argument" and says "Unknown access is not evidence of non-observation". The compiler has no test of whether a boundary call may observe the storage. |
+| While an owned value is moved out of borrowed storage, boundary, service and blocking calls are fenced | Only a call that may suspend is refused (`psi/semantics/src/plain_affine.rs:2450-2477`) | Probed, and the reader is right about the behavior. With a field moved out, a boundary call with no reach, a boundary call that reaches a service and a blocking boundary call all compile; a suspending call is refused; lending the holder itself is refused. Whether the three accepted programs break the spec depends on a reading. [Ownership](../../spec/language/ownership.md) keeps the fence on "boundary/capability-carrying calls that may observe or expose the affected storage, including through authority not named as an argument" and says "Unknown access is not evidence of non-observation". The compiler has no test of whether a boundary call may observe the storage. **Repaired** (`psi/semantics/src/plain_affine/fences.rs`): while the window is open, the ownership walk refuses a call unless nothing the callee can run makes a boundary call, a service instruction or a computed call, or declares service reach. All three programs are refused at the call; an ordinary call that lends a disjoint sibling still compiles. Decoding a published module judges these calls with the same module-aware walk. Whether a `reaches none` boundary call may be admitted is [an open owner question](../../../OWNER_QUESTIONS.md#vacant-storage-boundary-calls). |
 | An Omega-written provider of process exit never returns and passes its status on | Only native leaves are compared with the requirement's completion class | **Gap, confirmed by a probe.** A provider in the program's own package whose body is `ProcessExitPrimitive(0);` is selected with `Build::select_provider`. The program calls `ProcessExit::exit_process(7)` and exits with status 0 on both engines; the same provider passing `return_code` exits with 7. [Process exit](../../spec/language/process_exit.md) says "the exact exit argument survive[s]" and a provider "cannot reinterpret" the operation. **Repaired on this branch** (`5bc6119e59`): a provider must pass on the very values it received; the program above is refused at the call. |
 | A provider body selected by Build has no `crashes`, matches its requirement and is not generic | Crash freedom is checked only for the root of a build-time evaluation | Not checked |
 | A public `const` type, conformance header or domain alias does not name a private declaration | Machine signatures are checked. `02_.../names/public_interfaces.rs:16-18` says a domain written as a constraint "is not judged here yet". | That comment confirmed |
@@ -1679,7 +1679,7 @@ proofs can be assembled automatically into one checked kernel `Id` proof.
 Slice 7 of the [proofs plan](proofs_evidence_lane.md) concerns executable
 comparisons.
 
-Recorded, not answered:
+Recorded questions and where each stands:
 
 1. **Level binder spelling.** [modules.md#builtin-type-names](../../spec/language/modules.md#builtin-type-names)
    reserves `u` as an integer-family type spelling and lists which introduced
@@ -1688,7 +1688,9 @@ Recorded, not answered:
    Is a level argument a type position, and may a level binder be named `u`?
    The library declares no level binder, so this blocks only
    `representation_agreement`, not steps 1-3.
-2. **Where the signature lives.** Terminal Psi has `mathematical_carriers`,
+2. **Where the signature lives.** Not an owner question: [OWNER_QUESTIONS.md](../../../OWNER_QUESTIONS.md)
+   delegates Psi representation and encoding design and counts a schema
+   change needed for accepted behavior as implementation work. Terminal Psi has `mathematical_carriers`,
    `identity_formations` and `indexed_theorems` slots. Stage 05 writes
    carriers for theorem parameters (`read/theorems.rs`) and stage 06 writes
    one for each data declaration; nothing writes the other two. Is R1's
@@ -1700,24 +1702,33 @@ Recorded, not answered:
    judged law over plain data publishes is no longer open: the owner decided
    on 2026-11-23 that such laws are not published (step 2's publication
    bullet above says why).
-3. **Floor scope.** Does "the tightest literal bounds order reasoning gives
-   it" ([contracts.md#required-automatic-discharge](../../spec/proofs/contracts.md#required-automatic-discharge))
-   require landing an operand on bounds proved equal (`(prefix - 360) + last`,
-   S06 README:1061-1072)? Does the 64 limit count arm combinations, as the
-   spec says, or branches, as `prove.rs:84` does?
-4. **Float ranges.** The floor is integer-only. Confirm that no page requires
-   automatic interval propagation through float arithmetic, which the old
-   checker did without certificates.
-5. **A `requires` that can never hold.** The old judge accepted every goal
-   on a path whose hypotheses it found contradictory and reported nothing.
-   Should a machine whose `requires` is provably false be a warning?
-6. **Boundary calls while storage is vacant.** With an owned field moved
-   out of borrowed storage, the compiler accepts a boundary call that
-   reaches a service and a blocking boundary call
-   ([probes](#what-todays-compiler-does-with-the-old-rules)). Does a
-   boundary's declared reach count as a complete access contract that shows
-   it cannot observe the vacant storage, or must such a call be refused as
-   the old checker did?
+3. **Floor scope.** Decided by the spec; the compiler does not do it yet
+   (`TASKS.md` **REQUIRED-AUTOMATIC-DISCHARGE**).
+   [contracts.md#required-automatic-discharge](../../spec/proofs/contracts.md#required-automatic-discharge)
+   gives an operand "the tightest literal bounds order reasoning gives it",
+   and order reasoning includes equality substitution, so an operand proved
+   equal to 360 lands on [360, 360] (`(prefix - 360) + last`, S06 README,
+   "An operand fixed by its bounds, used as a literal"). The 64 limit counts "arm combinations per
+   obligation" of the disjunctions that "share a subject with the goal",
+   not every branch visited, as `prove.rs` does.
+4. **Float ranges.** Decided by the spec: nothing to build. The floor's
+   order reasoning "compares two integer terms" and its range propagation
+   covers "each integer value"; no page requires interval propagation
+   through float arithmetic, and "A checker may discharge more".
+5. **A `requires` that can never hold.** Mostly decided. Soundness does not
+   depend on it: "contradiction of an unreachable path" is in the floor,
+   and every caller must still prove the impossible `requires`.
+   [state_contracts.md](../../spec/language/state_contracts.md) already asks
+   for an advisory warning on an authored branch that contradicts the entry
+   contract. Whether a whole machine with a contradictory `requires` also
+   gets a warning is an optional diagnostic choice.
+6. **Boundary calls while storage is vacant.** Partly answered. The
+   compiler now refuses every call that may reach a boundary or service
+   while an owned value is out of borrowed storage, as the old checker did
+   ([the table above](#what-the-line-by-line-read-found)). Whether a
+   boundary declared `reaches none` that receives only the detached value
+   may be admitted, and whether `blocks` alone still fences, is
+   [an open owner question](../../../OWNER_QUESTIONS.md#vacant-storage-boundary-calls).
 
 ## Validation
 

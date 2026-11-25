@@ -41,7 +41,7 @@ pub use atomic::{AtomicAccessEvent, AtomicReadModifyWrite, FenceOrdering, Memory
 pub use float_result_policy::FloatResultPolicy;
 pub use invocations::{
     BoundaryInvocation, BoundaryInvocationCompletion, CallableInvocation, CallableInvocationInputs,
-    ModuleInvocation, ModuleInvocationInputs,
+    ExternalReach, ModuleInvocation, ModuleInvocationInputs,
 };
 pub use machine::{Block, TerminalMachine, structural_parameter_position};
 pub use operation::{
