@@ -467,17 +467,6 @@ impl Program<'_> {
             return Ok(());
         }
         let typed = self.typed;
-        // When an alternative can return here, all otherwise resolvable subjects
-        // need their ordinary judgment before Build can finish on that path.
-        let conditional_prefix = typed.roots.partial_build_can_return
-            && purpose == DependencyScope::Build
-            && self.publication == terminal_codec::TerminalPublication::Invocation
-            && typed.roots.partial_build_entry.is_some_and(|span| {
-                self.symbols
-                    .get(entry)
-                    .and_then(|symbol| typed.symbols.symbol_source_span(*symbol))
-                    == Some(span)
-            });
         // Each declaration is one unit: while the compilation collects
         // refusals (`collected`), a refused one is recorded and the next is
         // read (`keep`).
@@ -512,9 +501,6 @@ impl Program<'_> {
                     return Ok(());
                 }
                 if self.owner(entry, machine.symbol, subjects, purpose)? != Owner::Subject {
-                    return Ok(());
-                }
-                if conditional_prefix && typed.deferred_build_subject(machine.symbol) {
                     return Ok(());
                 }
                 // A machine over data that contains itself is a mathematical

@@ -76,7 +76,7 @@ fn local_and_dependency_file_roots_select_only_their_exact_admitted_source() {
                 graph.source_filesystem()
             )
             .unwrap(),
-        FileSelection::Unprepared
+        FileSelection::Unbound
     ));
     let resolve = |index: usize| -> Result<Vec<ResolvedSourceImport>, Vec<Diagnostic>> {
         let file = FileImport::from(unit, &unit.imports[index]).unwrap();

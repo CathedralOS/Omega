@@ -1,4 +1,4 @@
-//! Reselect one captured checkpoint for a Build continuation or a Product declaration query.
+//! Select from one capture using the libraries supplied for Build or requested for Product.
 
 use super::generated::append_stage_generated_sources;
 use super::imports::{SourceRouting, load_source_frontiers, parse_admitted};
@@ -136,7 +136,9 @@ impl DeferredProductSources {
             timings,
             catalogue,
         )?;
-        bindings.extend(crate::source::source_imports::retain_import_bindings(&storage)?);
+        bindings.extend(crate::source::source_imports::retain_import_bindings(
+            &storage,
+        )?);
         let root_sources = storage.root_sources();
         let build_scope_sources = storage
             .sources
@@ -163,17 +165,6 @@ impl DeferredProductSources {
                 pending_imports: Vec::new(),
             },
         ))
-    }
-
-    /// Select the Build files against their exact library bindings and keep the Product deferred.
-    pub fn assemble_build_stage(
-        &self,
-        inputs: &crate::source::source_imports::ProductQueryInputs,
-        timings: &mut CompileTimings,
-        catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
-    ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
-        self.checkpoint
-            .assemble_build_stage(inputs, timings, catalogue)
     }
 }
 
@@ -263,7 +254,9 @@ impl super::ImmutableSourceParseCheckpoint {
             timings,
             catalogue,
         )?;
-        bindings.extend(crate::source::source_imports::retain_import_bindings(&storage)?);
+        bindings.extend(crate::source::source_imports::retain_import_bindings(
+            &storage,
+        )?);
         let root_sources = storage.root_sources();
         let source_file_count = storage.file_count();
         let pending_build_imports = crate::source::source_imports::pending_build_imports(&storage);

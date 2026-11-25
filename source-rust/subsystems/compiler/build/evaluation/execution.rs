@@ -15,8 +15,8 @@ pub use admission::checking::settle_rejoined_build_slice;
 use admission::program::{AdmittedBuildProgram, admit_build_program};
 pub use behavior_exclusion_requests::AuthoredBehaviorExclusion;
 pub use build_evaluation::{
-    BuildEvaluationRequest, BuildStageRequest, EvaluatedBuild, PreparedBuildEvaluation,
-    RestrictedBuildGrants, SourceBuildDeclaration, prepare_build_evaluation,
+    BuildEvaluationRequest, EvaluatedBuild, PreparedBuildEvaluation, RestrictedBuildGrants,
+    SourceBuildDeclaration, prepare_build_evaluation,
 };
 pub use build_evaluation_result::{
     BuildConfig, BuildConstants, BuildSubjectValidation, CompileFailure, ComputedBuildConfig,

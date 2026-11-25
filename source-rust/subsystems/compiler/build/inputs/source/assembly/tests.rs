@@ -121,7 +121,7 @@ fn original_build_bindings_retain_their_real_toolchain_requirement_calls() {
     let interval = assembled
         .build_stage_source()
         .unwrap()
-        .prepare(None, &Default::default(), "linux_x86_64", None)
+        .prepare(&Default::default(), "linux_x86_64", None)
         .expect("exact declared requirement calls reach typed preparation");
     let typed = interval.program.as_ref();
     let unresolved: Vec<_> = typed
@@ -192,6 +192,45 @@ fn original_build_bindings_retain_their_real_toolchain_requirement_calls() {
         4,
         "all four original target bindings survive"
     );
+}
+
+#[test]
+fn the_build_assembly_reports_only_the_imports_needed_to_execute_it() {
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "build-import-purposes",
+        false,
+    )
+    .unwrap();
+    let root = temporary.path().join("build.omg");
+    std::fs::write(
+        &root,
+        r#"use {scores}/score.omg as score;
+use {product}/main.omg as entry;
+machine build(builder: @mutable Build) {
+    let n: i32 = |score|::read();
+    Build::bind(builder, linux_x86_64\ProgramEntry, |entry|::main);
+}
+"#,
+    )
+    .unwrap();
+    let mut catalogue = source_compiler::representations::source_inputs::SourceCatalogue::default();
+    let mut timings = CompileTimings::default();
+    let capture = crate::capture_anonymous_compilation_source(&root).unwrap();
+    let checkpoint = ImmutableSourceParseCheckpoint::prepare_from_sources(
+        &root, None, Some(&capture), &mut timings, &mut catalogue,
+    ).unwrap();
+    let (_, assembled) = checkpoint
+        .assemble(None, &mut timings, &mut catalogue)
+        .unwrap();
+    let source = assembled.build_stage_source().unwrap();
+    let [required] = source.pending_imports.as_slice() else {
+        panic!(
+            "unexpected unbound Build imports: {:?}",
+            source.pending_imports
+        )
+    };
+    assert_eq!(required.source, source.entry.source_id);
+    assert_eq!(required.target.to_string(), "{scores}/score.omg as score");
 }
 
 #[test]
@@ -269,7 +308,7 @@ machine build(builder: @mutable Build) {
             assert_eq!(import.target.to_string(), "{scores}/value.omg as scores");
             assert_eq!(import.span.start, 4);
             let authored = source_text::SourceSpan::new(import.source, import.span);
-            let Err(errors) = source.prepare(None, &Default::default(), "linux_x86_64", None)
+            let Err(errors) = source.prepare(&Default::default(), "linux_x86_64", None)
             else {
                 panic!("a conditional wait admitted an unbound Build import");
             };
@@ -286,7 +325,7 @@ machine build(builder: @mutable Build) {
                 source.pending_imports
             );
             source
-                .prepare(None, &Default::default(), "linux_x86_64", None)
+                .prepare(&Default::default(), "linux_x86_64", None)
                 .expect("local Build code and deferred Product operands both prepare");
         }
     }

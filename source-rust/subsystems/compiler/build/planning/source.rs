@@ -1,4 +1,4 @@
-//! Prepare and resume Build against one package capture. Its Product roots stay deferred until settlement.
+//! Prepare the complete Build from its captured source and open its Product after settlement.
 
 use super::{PlanningServices, refusal};
 
@@ -6,21 +6,19 @@ use super::{PlanningServices, refusal};
 mod product_queries;
 use artifacts::compile_timings::{CompileTimings, counters::BuildExecutionPurpose};
 use build_execution::{
-    BuildEvaluationRequest, BuildStageRequest, BuildSubjectValidation, CompileFailure,
-    EvaluatedBuild, PreparedBuildEvaluation, TerminalBuildActivation, prepare_build_evaluation,
+    BuildEvaluationRequest, BuildSubjectValidation, CompileFailure, EvaluatedBuild,
+    PreparedBuildEvaluation, TerminalBuildActivation, prepare_build_evaluation,
     settle_rejoined_build_slice,
 };
 use diagnostics::Diagnostic;
 use package_compilation::source_assembly::{
     AssembledSyntax, DeferredProductSources, ImmutableSourceParseCheckpoint,
 };
-use package_compilation::source_imports::{
-    ProductQueryDependency, ProductQueryInputs, SuppliedBuildLibrary,
-};
+use package_compilation::source_imports::{ProductQueryInputs, SuppliedBuildLibrary};
 use package_compilation::{BuildExecutionInputs, CapturedLocalSource, PackageCompilationInputs};
 use review_evidence::permission_acceptance::TerminalPermissionAcceptance;
+use source_compiler::TypedBuildInterval;
 use source_compiler::representations::source_inputs::SourceMap;
-use source_compiler::{BuildStage, TypedBuildInterval};
 use source_compiler::{ProductDeclarations, SourcePreparation};
 use std::{path::Path, sync::Arc};
 use target::TargetProfile;
@@ -52,8 +50,6 @@ pub struct PreparedPlanningStage {
 pub(super) struct PlanningSource {
     query_authors: Option<Arc<SourceMap>>,
     query_declarations: Option<(ProductQueryInputs, ProductDeclarations)>,
-    prepared_product_aliases: Vec<String>,
-    pub(super) stage: BuildStage,
     pub(super) deferred: DeferredProductSources,
     pub(super) preparation: SourcePreparation,
     pub(super) timings: CompileTimings,
@@ -197,7 +193,7 @@ pub fn prepare(
             .require_execution_profile(profile)
             .map_err(refusal)?;
     }
-    let mut assembled = {
+    let assembled = {
         let mut catalogue = preparation.catalogue()?;
         let checkpoint = ImmutableSourceParseCheckpoint::prepare(
             request.root,
@@ -216,21 +212,9 @@ pub fn prepare(
             )?
         }
     };
-    let interval = resolve(
-        &mut assembled,
-        None,
-        &preparation,
-        profile,
-        inputs,
-        &supplied_libraries,
-    )?;
-    let check_only_subject = check_only_subject(
-        &assembled,
-        &interval,
-        &preparation,
-        profile,
-        &supplied_libraries,
-    )?;
+    let interval = resolve(&assembled, &preparation, profile, inputs, &supplied_libraries)?;
+    let check_only_subject =
+        check_only_subject(&assembled, &preparation, profile, &supplied_libraries)?;
     let evaluation = prepare_build_evaluation(
         BuildEvaluationRequest {
             execution_purpose: BuildExecutionPurpose::Source,
@@ -253,8 +237,6 @@ pub fn prepare(
         evaluation,
         source: PlanningSource {
             supplied_libraries,
-            stage: interval.plan,
-            prepared_product_aliases: Vec::new(),
             query_authors: interval.program.symbols.source_map(),
             query_declarations: None,
             deferred: deferred(assembled)?,
@@ -267,18 +249,13 @@ pub fn prepare(
 }
 
 /// Type the complete root Build again with its own files under a check-only
-/// owner, so the whole file can be checked before Build runs. A staged Build
-/// checks its available declarations in their own interval instead.
+/// owner, so the whole file is checked before Build runs.
 fn check_only_subject(
     assembled: &AssembledSyntax,
-    interval: &TypedBuildInterval,
     preparation: &SourcePreparation,
     profile: TargetProfile,
     libraries: &[SuppliedBuildLibrary],
 ) -> Result<Option<TypedBuildInterval>, CompileFailure> {
-    if interval.program.roots.partial_build_entry.is_some() {
-        return Ok(None);
-    }
     let Some(stage) = assembled.check_only_build_stage_source()? else {
         return Ok(None);
     };
@@ -291,14 +268,13 @@ fn check_only_subject(
         .map_err(refusal)?;
     let scope = SuppliedBuildLibrary::declaration_scope(libraries, check_owner).map(Arc::new);
     stage
-        .prepare(None, preparation, profile.target_name(), scope)
+        .prepare(preparation, profile.target_name(), scope)
         .map(Some)
         .map_err(|rows| locate_failure(rows.into(), assembled, None))
 }
 
 fn resolve(
-    assembled: &mut AssembledSyntax,
-    previous: Option<&BuildStage>,
+    assembled: &AssembledSyntax,
     preparation: &SourcePreparation,
     profile: TargetProfile,
     inputs: Option<&PackageCompilationInputs>,
@@ -307,7 +283,6 @@ fn resolve(
     assembled
         .build_stage_source()?
         .prepare(
-            previous,
             preparation,
             profile.target_name(),
             inputs
@@ -347,100 +322,6 @@ fn deferred(assembled: AssembledSyntax) -> Result<DeferredProductSources, Compil
 }
 
 impl PlanningSource {
-    pub(super) fn prepared_product_alias(&mut self, alias: String) {
-        if let Err(index) = self.prepared_product_aliases.binary_search(&alias) {
-            self.prepared_product_aliases.insert(index, alias);
-        }
-    }
-
-    pub(super) fn resume(
-        &mut self,
-        evaluation: &mut PreparedBuildEvaluation,
-        previous: TerminalBuildActivation,
-        prepared: &[ProductQueryDependency],
-        services: &mut impl PlanningServices,
-    ) -> Result<TerminalBuildActivation, CompileFailure> {
-        let named = if self.original.is_none()
-            && previous.requests().iter().any(|issued| {
-                matches!(
-                    issued.request(),
-                    build_declarations::BuildRequest::Package(_)
-                        | build_declarations::BuildRequest::Application(_)
-                )
-            }) {
-            Some(self.named_source(&previous, services)?)
-        } else {
-            None
-        };
-        let inputs = ProductQueryInputs::for_build_stage(self.original.clone(), prepared.to_vec())
-            .and_then(|inputs| inputs.with_named_source(named))
-            .map_err(refusal)?;
-        let authority = inputs.build_stage_authority_inputs().map_err(refusal)?;
-        let mut assembled = self
-            .deferred
-            .assemble_build_stage(
-                &inputs,
-                &mut self.timings,
-                &mut *self.preparation.catalogue()?,
-            )?
-            .1;
-        let interval = resolve(
-            &mut assembled,
-            Some(&self.stage),
-            &self.preparation,
-            self.profile,
-            authority.as_ref(),
-            &[],
-        )?;
-        evaluation
-            .continue_stage(
-                BuildStageRequest {
-                    source_acquisition: assembled.build_source_acquisition.as_ref(),
-                    interval: &interval,
-                    build_source: assembled.build_source,
-                    package_inputs: authority.as_ref(),
-                    anonymous_source: assembled.anonymous_owner.as_ref(),
-                },
-                &mut self.timings,
-            )
-            .map_err(|mut failure| {
-                if !self.prepared_product_aliases.is_empty()
-                    && let CompileFailure::Diagnostics(rows) | CompileFailure::SourceCompletion { diagnostics: rows, .. } = &mut failure
-                {
-                    for row in rows {
-                        let Some(alias) = row.source_span.and_then(|span| assembled.unresolved_build_import_alias(&interval.program, span)) else { continue };
-                        if self.prepared_product_aliases.binary_search_by(|name| name.as_str().cmp(alias)).is_ok()
-                            && !prepared.iter().any(|dependency| dependency.alias == alias)
-                            && !authority.as_ref().is_some_and(|graph| graph.dependency_target_for_purpose(
-                                graph.root(), build_declarations::DependencyPurpose::Build, alias).is_some())
-                        {
-                            row.message.push_str(&format!(". Alias `{alias}` was prepared as a Product dependency. To call it from this Build, the invoker must supply `{alias}` as a Build library before entry."));
-                        }
-                    }
-                }
-                locate_failure(failure, &assembled, authority.as_ref())
-            })?;
-        let activation = evaluation
-            .execution()
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "the next Build stage has no admitted execution",
-                )]
-            })?
-            .resume(
-                previous,
-                interval.plan.incoming_preparation_path().ok_or_else(|| {
-                    refusal("the resumed Build has no incoming preparation".into())
-                })?,
-            )
-            .map_err(|rows| locate_failure(rows.into(), &assembled, authority.as_ref()))?;
-        self.deferred = deferred(assembled)?;
-        self.stage = interval.plan;
-        self.query_authors = interval.program.symbols.source_map();
-        self.query_declarations = None;
-        Ok(activation)
-    }
-
     fn named_source(
         &self,
         activation: &TerminalBuildActivation,

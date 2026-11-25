@@ -185,7 +185,7 @@ mod tests {
         let interval = syntax
             .build_stage_source()
             .unwrap()
-            .prepare(None, &Default::default(), profile.target_name(), None)
+            .prepare(&Default::default(), profile.target_name(), None)
             .unwrap();
         let typed = interval.program.as_ref();
         let admission = BuildValueAdmission::admit(typed).expect("real Build admission");

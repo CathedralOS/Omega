@@ -78,10 +78,11 @@ impl TypedTreeTables {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
 pub struct TypedTreeRoots {
-    /// A prefix of this Build entry contains all nested declarations for name
-    /// resolution. The entry's call closure determines which it executes.
+    /// Stored by older compilers when the Build entry was only partly checked.
+    #[doc(hidden)]
     pub partial_build_entry: Option<source_text::SourceSpan>,
-    /// Some checked paths finish without reaching an unavailable dependency.
+    /// Retained to recognize that older snapshot format.
+    #[doc(hidden)]
     pub partial_build_can_return: bool,
     pub retained_product_applications: HandleSpan<Handle<ProductOperandApplication>>,
     pub const_declarations: HandleSpan<crate::source_state::constant::ConstDeclaration>,

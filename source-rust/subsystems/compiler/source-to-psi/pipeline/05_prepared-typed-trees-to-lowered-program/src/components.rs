@@ -565,8 +565,7 @@ fn statements<'body>(statements: &'body [Statement], sites: &mut BodyWalk<'body,
             // Declarations, erased terms and reference captures call nothing.
             Statement::Declare { .. }
             | Statement::Witness { .. }
-            | Statement::CaptureReference { .. }
-            | Statement::ParkedBuildLocals(..) => {}
+            | Statement::CaptureReference { .. } => {}
             Statement::Dispatch {
                 subject,
                 arms,
