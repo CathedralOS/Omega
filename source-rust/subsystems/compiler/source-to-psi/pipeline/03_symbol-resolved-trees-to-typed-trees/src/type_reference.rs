@@ -24,13 +24,8 @@ pub(crate) mod domain_aliases {
             symbol: symbols::SymbolHandle,
             path: Vec<resolved::name::DiagnosticName>,
             stack: &mut Vec<symbols::SymbolHandle>,
+            seen: &mut Vec<symbols::SymbolHandle>,
         ) -> Result<Vec<ExpandedDomainReference>, Diagnostic> {
-            let Some(domain) = program.domain_definition_by_symbol(symbol) else {
-                return Ok(vec![ExpandedDomainReference { symbol, path }]);
-            };
-            let Some(alias) = domain.alias.as_ref() else {
-                return Ok(vec![ExpandedDomainReference { symbol, path }]);
-            };
             if let Some(cycle_start) = stack.iter().position(|candidate| *candidate == symbol) {
                 let cycle = stack[cycle_start..]
                     .iter()
@@ -42,6 +37,20 @@ pub(crate) mod domain_aliases {
                     .join(" -> ");
                 return Err(Diagnostic::error(format!("domain alias cycle: {cycle}")));
             }
+            // Distinct paths through nested aliases may name the same
+            // declaration. Keep its first source path and expand it once.
+            if symbol.is_valid() {
+                if seen.contains(&symbol) {
+                    return Ok(Vec::new());
+                }
+                seen.push(symbol);
+            }
+            let Some(domain) = program.domain_definition_by_symbol(symbol) else {
+                return Ok(vec![ExpandedDomainReference { symbol, path }]);
+            };
+            let Some(alias) = domain.alias.as_ref() else {
+                return Ok(vec![ExpandedDomainReference { symbol, path }]);
+            };
             if alias.constituents.is_empty() {
                 return Err(Diagnostic::error(format!(
                     "domain alias `{}` must name at least one constituent",
@@ -58,13 +67,14 @@ pub(crate) mod domain_aliases {
                     constituent.domain_symbol,
                     constituent_path,
                     stack,
+                    seen,
                 )?);
             }
             stack.pop();
             Ok(expanded)
         }
 
-        expand(program, symbol, path, &mut Vec::new())
+        expand(program, symbol, path, &mut Vec::new(), &mut Vec::new())
     }
 }
 pub(crate) mod domain_constraints {

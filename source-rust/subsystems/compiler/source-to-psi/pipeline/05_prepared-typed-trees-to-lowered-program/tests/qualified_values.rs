@@ -392,6 +392,45 @@ fn erasing_a_refinement_in_a_contract_preserves_the_operand_in_either_order() {
 }
 
 #[test]
+fn a_domain_cast_checks_every_member_of_a_transparent_alias() {
+    const DOMAINS: &str = "domain i32::Positive requires self > 0;
+        domain i32::Positive::Small requires self < 100;
+        domain i32::NotTwo requires self != 2;
+        domain i32::Limited = i32::Positive::Small & i32::NotTwo;
+        domain i32::Together = i32::Limited & i32::NotTwo;";
+
+    Program::of(&format!(
+        "{DOMAINS}
+        machine make() -> i32 in Together {{ 7i32 as +Together }}
+        machine keep(x: i32 in Together) -> i32 in Positive::Small & NotTwo {{
+            x as =Together =Positive
+        }}
+        machine erase(x: i32 in Together) -> i32
+            ensures result == (x as -Together -Positive) {{ x as -Positive -Together }}"
+    ))
+    .judged(|_| {})
+    .accepted();
+
+    for value in [0, 2, 150] {
+        let rejected = Program::of(&format!(
+            "{DOMAINS}
+            machine wrong() -> i32 in Together {{ {value}i32 as +Together }}"
+        ))
+        .judged(|_| {})
+        .rejected();
+        assert_eq!(rejected.unproved.len(), 1, "{rejected:?}");
+    }
+    let repeated = format!(
+        "{DOMAINS}
+        machine repeated() -> i32 in Together {{ 7i32 as +Together +NotTwo }}"
+    );
+    let refused = Program::try_of(&[("product/main.omg", &repeated)])
+        .err()
+        .expect("a separate entry named the same constituent");
+    assert!(refused.message.contains("a second time"), "{refused:?}");
+}
+
+#[test]
 fn scalar_domain_predicates_bind_each_const_index_in_the_declaration() {
     const DOMAIN: &str = "domain<const Lo: u8, const Hi: u8> u8::Between<Lo, Hi>
         requires self >= Lo && self < Hi;";
