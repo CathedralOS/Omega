@@ -23,12 +23,18 @@ use super::{Program, Slot};
 use crate::body::{DomainInstance, DomainSet, Expression, ExpressionKind, Policy, Qualification, ValueType};
 use crate::{SourceOrigin, Unserved, refuse, reject};
 
-struct DomainCast {
-    value: ExpressionHandle,
-    input: ValueType,
-    result: ValueType,
+#[derive(Clone, Copy)]
+pub(super) enum CastContext<'a> {
+    Body(&'a [Slot]),
+    Clause,
+}
+
+pub(super) struct DomainCast {
+    pub(super) value: ExpressionHandle,
+    pub(super) input: ValueType,
+    pub(super) result: ValueType,
     added: DomainSet,
-    removed: Vec<(DomainInstance, SourceOrigin)>,
+    pub(super) removed: Vec<(DomainInstance, SourceOrigin)>,
 }
 
 impl Program<'_> {
@@ -409,7 +415,7 @@ impl Program<'_> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let elision = std::mem::replace(&mut self.elision, super::regions::Elision::Variables);
-        let run = self.read_domain_cast(id, slots, handle, cast, entry);
+        let run = self.read_domain_cast(id, CastContext::Body(slots), handle, cast, entry);
         self.elision = elision;
         let DomainCast {
             value,
@@ -475,10 +481,10 @@ impl Program<'_> {
 
     /// Recover the input from the signed entries and verify typing's
     /// accounting coordinates. Only the complete cast presents a new type.
-    fn read_domain_cast(
+    pub(super) fn read_domain_cast(
         &mut self,
         id: MachineId,
-        slots: &[Slot],
+        context: CastContext<'_>,
         mut handle: ExpressionHandle,
         first_read: &TableCastExpression,
         mut entry: language_core::cast_form::CastEntry,
@@ -489,11 +495,22 @@ impl Program<'_> {
         if !site.result_type.is_valid() {
             return Err(unavailable("domain cast typing did not account for"));
         }
-        let result = self.value_type(id, site.result_type)?;
+        let result = match context {
+            CastContext::Body(_) => self.value_type(id, site.result_type)?,
+            CastContext::Clause => self.qualified_scalar_type(id, site.result_type)?,
+        };
         let mut after = result;
         let mut removed = Vec::new();
         let mut added = DomainSet::EMPTY;
         loop {
+            if matches!(context, CastContext::Clause) && entry.kind == CastEntryKind::Add {
+                // A clause cannot assume its own assertion to establish a domain.
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Contract("domain establishment in a clause term"),
+                ));
+            }
             let before = self.entry_input(id, &site, entry, after)?;
             if let Some(domain) = self.domain_entry_change(id, before, after, &site, entry)? {
                 match entry.kind {
@@ -535,8 +552,10 @@ impl Program<'_> {
                     "domain cast lost an entry of its simultaneous run",
                 ));
             };
-            for test in self.typed.expression_table.executable_domain_tests(handle) {
-                self.require_membership_carrier(id, slots, *test)?;
+            if let CastContext::Body(slots) = context {
+                for test in self.typed.expression_table.executable_domain_tests(handle) {
+                    self.require_membership_carrier(id, slots, *test)?;
+                }
             }
             site = *previous;
             entry = site
@@ -678,7 +697,7 @@ impl Program<'_> {
     /// Check the same domain accounting in executable and logical casts.
     /// Changing qualification keeps the complete carrier, including regions
     /// and ownership. An entry changes exactly its selected domain or policy.
-    pub(super) fn domain_entry_change(
+    fn domain_entry_change(
         &self,
         id: MachineId,
         operand: ValueType,
