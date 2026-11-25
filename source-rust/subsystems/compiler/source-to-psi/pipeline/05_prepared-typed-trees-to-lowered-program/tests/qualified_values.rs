@@ -242,6 +242,18 @@ fn a_domain_declared_on_a_qualified_alias_keeps_its_carrier_membership() {
 }
 
 #[test]
+fn an_unused_refinement_publishes_its_exact_parent() {
+    Program::of(
+        "domain<const N: u8> u32::At<N>;
+         domain u32::At<3>::Child;
+         domain u32::At<3>::Child::Leaf;
+         machine run() -> u32 { 7u32 }",
+    )
+    .judged(|_| {})
+    .accepted();
+}
+
+#[test]
 fn a_refined_scalar_formal_carries_its_complete_parent_chain() {
     let program = Program::of(
         "domain i32::Positive requires self > 0;
