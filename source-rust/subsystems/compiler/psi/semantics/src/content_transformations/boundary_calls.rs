@@ -201,6 +201,12 @@ impl Call<'_> {
         }
         let mut actual_path = argument.path.clone();
         actual_path.extend(path);
+        if actual_path
+            .iter()
+            .any(|step| matches!(step, terminal_psi::StructuralPathSegment::Case(_)))
+        {
+            return Err("content call requires the active case of its projected input claim");
+        }
         let segments = content_path(
             self.module.types.structural_types.iter(),
             &self.module.identities,
@@ -230,6 +236,14 @@ impl Call<'_> {
             &source.segments,
         )
         .ok_or("content output path is not a static declared projection")?;
+        // A result's static claim catalogue includes all case alternatives.
+        // A normal completion alone does not select one of those alternatives.
+        if path
+            .iter()
+            .any(|step| matches!(step, terminal_psi::StructuralPathSegment::Case(_)))
+        {
+            return Err("content call requires the active case of its projected output claim");
+        }
         exactly_one(self.result.claims.iter(), |binding| binding.path == path)
             .ok_or("content call has no unique returned claim at its exact result path")?;
         Ok(ContentStructuralPlace {
