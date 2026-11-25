@@ -177,6 +177,30 @@ impl Program<'_> {
             return Err(unavailable("missing term"));
         }
 
+        for test in table.executable_domain_tests(expression) {
+            let Some(alias) = typed
+                .domain_definition(test.domain)
+                .filter(|domain| domain.alias.is_some() && domain.type_parameters.is_empty())
+            else {
+                continue;
+            };
+            let carrier = self.value_type(id, alias.target_type)?;
+            let actual = if let Some((_, _, actual)) = self.projected(id, scope, test.subject)? {
+                actual
+            } else {
+                self.clause_term(id, scope, test.subject, ClauseUse::Scalar(carrier.scalar()))?
+                    .scalar(id)?
+                    .1
+            };
+            self.checked_membership_carrier(
+                id,
+                alias,
+                carrier,
+                Some(actual),
+                SourceOrigin::of(table.source_span(test.subject)),
+            )?;
+        }
+
         // A mathematical integer: `embed` of a carrier value, an anonymous
         // integer, the address bound, or `+`, `-` and `*` of those.
         //

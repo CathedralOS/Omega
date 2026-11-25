@@ -573,12 +573,10 @@ impl Program<'_> {
         }
         let mut domain_forms =
             vec![domain_declarations::DomainForm::Unread; typed.domain_definitions().len()];
-        let mut schemas = domain_schemas.iter().peekable();
         for domain in typed.domain_definitions() {
-            let schema = schemas.next_if(|row| row.declaration == domain.symbol);
             let read = (|| -> Checked<()> {
                 if self.owner(entry, domain.symbol, subjects, purpose)? == Owner::Subject {
-                    self.subject_domain(entry, domain, schema, &mut domain_forms)?;
+                    self.subject_domain(entry, domain, domain_schemas, &mut domain_forms)?;
                 }
                 Ok(())
             })();

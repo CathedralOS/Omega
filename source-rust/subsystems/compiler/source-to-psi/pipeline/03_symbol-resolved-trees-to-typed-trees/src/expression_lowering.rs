@@ -227,7 +227,19 @@ pub(crate) mod expression {
                     atom.symbol,
                 )?);
             }
-            combine_conjunction(target, lowered)
+            let predicate = combine_conjunction(target, lowered)?;
+            // The expanded leaves may be carrier-generic. Keep the declared
+            // subject of the written alias on the resulting test as well.
+            if domain_definition.alias.is_some() {
+                target.expression_table.retain_executable_domain_test(
+                    predicate,
+                    typed::expression::ExecutableDomainTest {
+                        subject: value,
+                        domain: domain_symbol,
+                    },
+                );
+            }
+            Ok(predicate)
         }
 
         fn lower_atomic_domain_membership_expression(
@@ -322,6 +334,13 @@ pub(crate) mod expression {
             }
 
             let predicate = combine_conjunction(target, lowered_facts)?;
+            // A predicate consisting only of `self` would otherwise ask the
+            // reader to check the subject of the test by reading the test itself.
+            let predicate = if predicate == value {
+                target.expression_table.insert_copy(predicate)
+            } else {
+                predicate
+            };
             target.expression_table.retain_executable_domain_test(
                 predicate,
                 typed::expression::ExecutableDomainTest {

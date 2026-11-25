@@ -1290,6 +1290,8 @@ pub mod domain {
     pub struct DomainAliasConstituent {
         pub domain: HandleSpan<Identifier>,
         pub domain_symbol: SymbolHandle,
+        /// The member's exact application on the declaring alias's carrier.
+        pub semantic_domain: semantic_vocabulary::SemanticDomainId,
     }
 
     pub fn indexed_domain_instance_name(
@@ -1490,21 +1492,22 @@ pub mod domain {
     pub fn expanded_alias_members(
         program: &TypedTrees,
         symbol: SymbolHandle,
-    ) -> Result<Vec<&DomainDefinition>, &'static str> {
+    ) -> Result<Vec<(&DomainDefinition, semantic_vocabulary::SemanticDomainId)>, &'static str> {
         fn visit<'a>(
             program: &'a TypedTrees,
             symbol: SymbolHandle,
+            identity: semantic_vocabulary::SemanticDomainId,
             active: &mut Vec<SymbolHandle>,
             done: &mut Vec<SymbolHandle>,
-            leaves: &mut Vec<&'a DomainDefinition>,
+            leaves: &mut Vec<(&'a DomainDefinition, semantic_vocabulary::SemanticDomainId)>,
         ) -> Result<(), &'static str> {
-            if done.contains(&symbol) {
-                return Ok(());
-            }
             let definition = program
                 .domain_definition(symbol)
                 .ok_or("domain alias constituent without a resolved declaration")?;
             if let Some(alias) = &definition.alias {
+                if done.contains(&symbol) {
+                    return Ok(());
+                }
                 if active.contains(&symbol) {
                     return Err("domain alias cycle");
                 }
@@ -1513,19 +1516,46 @@ pub mod domain {
                 }
                 active.push(symbol);
                 for member in &alias.constituents {
-                    visit(program, member.domain_symbol, active, done, leaves)?;
+                    visit(
+                        program,
+                        member.domain_symbol,
+                        member.semantic_domain,
+                        active,
+                        done,
+                        leaves,
+                    )?;
                 }
                 active.pop();
+                done.push(symbol);
             } else {
-                leaves.push(definition);
+                let identity = if !identity.is_valid() && definition.type_parameters.is_empty() {
+                    definition.semantic_id
+                } else {
+                    identity
+                };
+                if program
+                    .domain_arguments_for_instance(symbol, identity)
+                    .is_none()
+                {
+                    return Err("domain alias constituent without its complete application");
+                }
+                if !leaves
+                    .iter()
+                    .any(|(member, applied)| member.symbol == symbol && *applied == identity)
+                {
+                    leaves.push((definition, identity));
+                }
             }
-            done.push(symbol);
             Ok(())
         }
         let mut leaves = Vec::new();
         visit(
             program,
             symbol,
+            program
+                .domain_definition(symbol)
+                .ok_or("domain alias without a declaration")?
+                .semantic_id,
             &mut Vec::new(),
             &mut Vec::new(),
             &mut leaves,

@@ -950,6 +950,36 @@ pub(crate) mod contracts {
                 let source_span = program.proof_fact_source_span(handle);
                 check_membership_argument_count(program, domain, membership.domain_arguments.len())
                     .map_err(|diagnostic| with_optional_source_span(diagnostic, source_span))?;
+                let alias = membership.authored_domain_selection
+                    .and_then(|occurrence| program.authored_declaration_selections().get(occurrence))
+                    .and_then(|selection| match selection.target() {
+                        crate::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(selected) =>
+                            program.domain_definition(selected.selected_symbol()),
+                        _ => None,
+                    })
+                    .filter(|written| written.alias.is_some() && written.type_parameters.is_empty());
+                if let Some(alias) = alias {
+                    // The fact names one expanded leaf. Its carrier comes from
+                    // the written alias, including when the candidate's own
+                    // carrier is different. The ordinary membership check compares them.
+                    let identity = typed::domain::expanded_alias_members(program, alias.symbol)
+                        .ok()
+                        .and_then(|leaves| {
+                            leaves
+                                .into_iter()
+                                .find(|(leaf, _)| leaf.symbol == domain.symbol)
+                        })
+                        .map(|(_, identity)| identity)
+                        .unwrap_or_default();
+                    instances.push((
+                        handle,
+                        domain.symbol,
+                        None,
+                        membership.domain_arguments,
+                        identity,
+                    ));
+                    continue;
+                }
                 if program.domain_type_parameters(domain).is_empty() {
                     instances.push((
                         handle,

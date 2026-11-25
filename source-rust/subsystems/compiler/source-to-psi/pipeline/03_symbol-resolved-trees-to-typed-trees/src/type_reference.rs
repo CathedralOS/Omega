@@ -12,8 +12,54 @@ pub(crate) mod domain_aliases {
     pub(crate) struct ExpandedDomainReference {
         pub(crate) symbol: symbols::SymbolHandle,
         pub(crate) path: Vec<resolved::name::DiagnosticName>,
+        pub(crate) applying_alias: Option<symbols::SymbolHandle>,
     }
 
+    /// A fixed alias supplies the implicit carrier of each direct member even
+    /// when no type or cast mentions the alias. Explicit indices still need
+    /// their own authored arguments.
+    pub(crate) fn retain_member_applications(
+        program: &mut crate::source_state::TypedTrees,
+        first: usize,
+    ) -> Result<(), Diagnostic> {
+        use crate::source_state::domain::{index_argument_is_closed, index_parameters};
+        for position in first..program.domain_definitions().len() {
+            let definition = program.domain_definitions().at(position);
+            let Some(alias) = &definition.alias else {
+                continue;
+            };
+            let carrier = definition.target_type;
+            if !definition.type_parameters.is_empty() || !index_argument_is_closed(program, carrier)
+            {
+                continue;
+            }
+            let members = alias
+                .constituents
+                .iter()
+                .enumerate()
+                .filter_map(|(ordinal, edge)| {
+                    let member = program.domain_definition(edge.domain_symbol)?;
+                    index_parameters(program, member)
+                        .is_empty()
+                        .then_some((ordinal, member.symbol))
+                })
+                .collect::<Vec<_>>();
+            let row = program.roots.domain_definitions.handle_at(position as u32);
+            for (ordinal, member) in members {
+                let identity = program.retain_domain_application(member, carrier, &[])?;
+                program
+                    .tables
+                    .domain_definitions
+                    .get_mut(row)
+                    .alias
+                    .as_mut()
+                    .expect("the direct members came from this alias")
+                    .constituents[ordinal]
+                    .semantic_domain = identity;
+            }
+        }
+        Ok(())
+    }
     pub(crate) fn expand_domain_reference(
         program: &resolved::SymbolResolvedTrees,
         symbol: symbols::SymbolHandle,
@@ -46,10 +92,18 @@ pub(crate) mod domain_aliases {
                 seen.push(symbol);
             }
             let Some(domain) = program.domain_definition_by_symbol(symbol) else {
-                return Ok(vec![ExpandedDomainReference { symbol, path }]);
+                return Ok(vec![ExpandedDomainReference {
+                    symbol,
+                    path,
+                    applying_alias: stack.last().copied(),
+                }]);
             };
             let Some(alias) = domain.alias.as_ref() else {
-                return Ok(vec![ExpandedDomainReference { symbol, path }]);
+                return Ok(vec![ExpandedDomainReference {
+                    symbol,
+                    path,
+                    applying_alias: stack.last().copied(),
+                }]);
             };
             if alias.constituents.is_empty() {
                 return Err(Diagnostic::error(format!(
@@ -248,29 +302,28 @@ pub(crate) mod domain_constraints {
                 } else {
                     Identifier::generated(atom.path.joined_path())
                 };
-                let declaration = domain_by_symbol(program, atom.symbol);
-                normalized.push(TypeConstraintNode::Domain(DomainConstraint {
-                    name,
-                    arguments: Vec::new(),
-                    subject: DomainConstraintSubject::Declared,
-                    symbol: atom.symbol,
-                    semantic_id: declaration
-                        .map(|domain| domain.semantic_id)
-                        .unwrap_or_default(),
-                    classification: declaration.and_then(|domain| domain.classification),
-                    predicate_presence: declaration
-                        .map(|domain| domain.predicate_presence)
-                        .unwrap_or_default(),
-                    semantic_roles: declaration
-                        .map(|domain| domain.semantic_roles)
-                        .unwrap_or_default(),
-                    establishment_routes: declaration
-                        .map(|domain| domain.establishment_routes.clone())
-                        .unwrap_or_default(),
-                    source_selection: None,
-                    product_input: None,
-                    names_no_visible_domain: false,
-                }));
+                let identity = if domain_by_symbol(program, atom.symbol).is_some_and(|member| {
+                    crate::source_state::domain::index_parameters(program, member).is_empty()
+                }) {
+                    let alias_carrier = atom
+                        .applying_alias
+                        .and_then(|alias| program.domain_definition(alias))
+                        .filter(|alias| alias.type_parameters.is_empty())
+                        .map_or(carrier, |alias| alias.target_type);
+                    program.retain_domain_application(atom.symbol, alias_carrier, &[])?
+                } else {
+                    Default::default()
+                };
+                let constraint = if let Some(member) = domain_by_symbol(program, atom.symbol) {
+                    member.applied_constraint(name, Vec::new(), identity)
+                } else {
+                    DomainConstraint {
+                        name,
+                        symbol: atom.symbol,
+                        ..Default::default()
+                    }
+                };
+                normalized.push(TypeConstraintNode::Domain(constraint));
             }
         }
 

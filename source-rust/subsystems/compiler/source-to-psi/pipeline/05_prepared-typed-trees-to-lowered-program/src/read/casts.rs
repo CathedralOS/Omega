@@ -586,19 +586,14 @@ impl Program<'_> {
         }
         let invalid = |reason| refuse(id, Construct::Machine, Unserved::Type(reason));
         let mut named = DomainSet::EMPTY;
-        for member in
+        for (member, identity) in
             crate::source_state::domain::expanded_alias_members(self.typed, selected.declaration)
                 .map_err(invalid)?
         {
-            if !member.type_parameters.is_empty() {
-                return Err(invalid(
-                    "domain alias constituent without its prepared application",
-                ));
-            }
             named = named
                 .with(crate::body::DomainInstance {
                     declaration: member.symbol,
-                    identity: member.semantic_id,
+                    identity,
                 })
                 .ok_or_else(|| invalid("more than four declared domains"))?;
         }

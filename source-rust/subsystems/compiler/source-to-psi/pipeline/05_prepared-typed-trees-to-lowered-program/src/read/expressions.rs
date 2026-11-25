@@ -2444,21 +2444,43 @@ impl Program<'_> {
         {
             return Ok(());
         }
-        let Ok(carrier @ ValueType::Scalar(wanted, _)) = self.value_type(id, target_type) else {
-            return Ok(());
+        let carrier = match self.value_type(id, target_type) {
+            Ok(carrier @ ValueType::Scalar(..)) => carrier,
+            other if definition.alias.is_some() => other?,
+            _ => return Ok(()),
         };
         let landing = self
             .wholly_anonymous(test.subject)
             .then_some(carrier.erased());
         let subject = self.expression(id, slots, test.subject, landing)?;
-        if let Some(ValueType::Scalar(found, _)) = subject.result
+        self.checked_membership_carrier(id, definition, carrier, subject.result, subject.source)
+    }
+
+    pub(super) fn checked_membership_carrier(
+        &self,
+        id: MachineId,
+        definition: &crate::source_state::domain::DomainDefinition,
+        carrier: ValueType,
+        actual: Option<ValueType>,
+        at: SourceOrigin,
+    ) -> Checked<()> {
+        if let (Some(ValueType::Scalar(found, _)), ValueType::Scalar(wanted, _)) = (actual, carrier)
             && found != wanted
         {
-            return Err(super::rejections::membership_carrier(
+            return Err(super::rejections::membership_carrier(id, at, found, wanted));
+        }
+        if definition.alias.is_some()
+            && actual.and_then(|ty| ty.erased().qualified(crate::body::Qualification::NONE))
+                != carrier.erased().qualified(crate::body::Qualification::NONE)
+        {
+            return Err(reject(
                 id,
-                subject.source,
-                found,
-                wanted,
+                at,
+                format!(
+                    "membership in domain alias `{}` requires carrier `{}`",
+                    definition.name,
+                    self.typed.display_type_reference(definition.target_type)
+                ),
             ));
         }
         Ok(())

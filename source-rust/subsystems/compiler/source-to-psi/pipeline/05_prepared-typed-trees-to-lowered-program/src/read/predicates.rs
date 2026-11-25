@@ -150,8 +150,20 @@ impl<'t> Program<'t> {
                 .with(domain)
                 .ok_or_else(|| unavailable("runtime membership domain roster"))?,
         };
-        let at =
-            crate::SourceOrigin::of(typed.expression_table.source_span(membership.value));
+        let at = crate::SourceOrigin::of(typed.expression_table.source_span(membership.value));
+        let alias = membership
+            .authored_domain_selection
+            .and_then(|occurrence| typed.authored_declaration_selections().get(occurrence))
+            .and_then(|selection| selection.target().as_resolved().copied())
+            .and_then(|selected| typed.domain_definition(selected.selected_symbol()))
+            .filter(|domain| domain.alias.is_some());
+        let check_carrier = |this: &mut Self, actual| {
+            if let Some(alias) = alias {
+                let carrier = this.value_type(id, alias.target_type)?;
+                this.checked_membership_carrier(id, alias, carrier, Some(actual), at)?;
+            }
+            this.declared_domain(id, domain, actual, definition.target_type, at)
+        };
         let (subject, clauses) =
             if let Some((root, path, actual @ ValueType::Record(carrier, _, _))) =
                 self.projected(id, scope, membership.value)?
@@ -162,7 +174,7 @@ impl<'t> Program<'t> {
                 // The ordinary type owner checks the exact carrier, generic
                 // eligibility and remaining domain requirements before reading
                 // its predicates; equal fields or names cannot substitute it.
-                self.declared_domain(id, domain, actual, definition.target_type, at)?;
+                check_carrier(self, actual)?;
                 let subject = plain
                     .qualified(qualification)
                     .ok_or_else(|| unavailable("runtime membership storage qualification"))?;
@@ -177,10 +189,15 @@ impl<'t> Program<'t> {
                     clauses,
                 )
             } else {
+                let landing = if self.wholly_anonymous(membership.value) {
+                    self.value_type(id, definition.target_type)?.scalar()
+                } else {
+                    None
+                };
                 let (subject, actual) = self
-                    .clause_term(id, scope, membership.value, ClauseUse::Scalar(None))?
+                    .clause_term(id, scope, membership.value, ClauseUse::Scalar(landing))?
                     .scalar(id)?;
-                self.declared_domain(id, domain, actual, definition.target_type, at)?;
+                check_carrier(self, actual)?;
                 let clauses = self.of_value(id, scope, qualification, &subject)?;
                 (
                     crate::body::RuntimeMembershipSubject::Scalar(subject),

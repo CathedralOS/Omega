@@ -723,9 +723,9 @@ fn named_domains(
                         refuse(program, *handle, format!("cannot expand cast entry `{label}` ({reason})"))
                     })?
                     .into_iter()
-                    .map(|member| {
+                    .map(|(member, identity)| {
                         (
-                            Atom::Declared(member.symbol, member.semantic_id),
+                            Atom::Declared(member.symbol, identity),
                             domain_label(program, member),
                             None,
                         )
