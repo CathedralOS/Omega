@@ -250,6 +250,8 @@ pub(crate) mod expression {
         ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
             let domain_definition = domain_definition(program, domain_symbol)?;
             let source = &program.tables.bodies.expressions;
+            let operand = value;
+            let value = predicate_subject(target, value, domain_symbol);
             let mut lowered_facts = Vec::new();
 
             for fact in program.proof_facts(domain_definition.facts) {
@@ -344,11 +346,49 @@ pub(crate) mod expression {
             target.expression_table.retain_executable_domain_test(
                 predicate,
                 typed::expression::ExecutableDomainTest {
-                    subject: value,
+                    subject: operand,
                     domain: domain_symbol,
                 },
             );
             Ok(predicate)
+        }
+
+        /// In its own predicate, `self` has the domain's declared carrier.
+        /// Keep the completed operand separately for carrier and access checks.
+        fn predicate_subject(
+            program: &mut typed::TypedTrees,
+            value: typed::expression::ExpressionHandle,
+            domain: SymbolHandle,
+        ) -> typed::expression::ExpressionHandle {
+            use typed::expression::ExpressionNode;
+            let Some(definition) = program.domain_definition(domain) else {
+                return value;
+            };
+            let carrier = definition.target_type;
+            if definition.facts.is_empty()
+                || !definition.type_parameters.is_empty()
+                || !definition.index_arguments.is_empty()
+                || !program.type_reference_table.contains_type_reference(carrier)
+                || program
+                    .type_reference_table
+                    .primitive_type(carrier, &program.symbols)
+                    .is_none()
+                || !matches!(
+                    program.expression_table.expression(value),
+                    ExpressionNode::SavedSubject(_)
+                )
+            {
+                return value;
+            }
+            let subject = program.expression_table.insert_copy(value);
+            program
+                .expression_table
+                .set_constructed_value_type_reference(subject, carrier);
+            program.expression_table.retain_executable_domain_test(
+                subject,
+                typed::expression::ExecutableDomainTest { subject: value, domain },
+            );
+            subject
         }
 
         fn case_symbols_for_domain_fact(

@@ -839,20 +839,47 @@ impl<'t> Program<'t> {
                         return unserved("saved subject case");
                     }
                 }
-                return match self
+                let Some((_, captured)) = self
                     .captures
                     .iter()
                     .rev()
                     .find(|(capture, _)| *capture == saved.capture)
-                {
-                    Some((_, subject)) => Ok(Expression {
-                        call_context: None,
-                        kind: ExpressionKind::SavedSubject(saved.capture),
-                        result: subject.result,
-                        source,
-                    }),
-                    None => unserved("saved subject"),
+                else {
+                    return unserved("saved subject");
                 };
+                let subject = Expression {
+                    call_context: None,
+                    kind: ExpressionKind::SavedSubject(saved.capture),
+                    result: captured.result,
+                    source,
+                };
+                // The predicate's own self reads the completed scalar through its
+                // declared carrier. Its membership test already checked all required
+                // qualifications against the same original capture.
+                let table = &typed.expression_table;
+                let carrier = table.constructed_value_type_reference(handle);
+                if let Some(actual @ ValueType::Scalar(..)) = subject.result
+                    && carrier.is_valid()
+                    && table.executable_domain_tests(handle).iter().any(|test| {
+                        test.subject != handle
+                            && matches!(table.expression(test.subject),
+                                ExpressionNode::SavedSubject(operand) if operand.capture == saved.capture)
+                            && typed.domain_definition(test.domain)
+                                .is_some_and(|domain| domain.target_type == carrier)
+                    })
+                {
+                    let logical = self.value_type(id, carrier)?;
+                    if actual != logical {
+                        self.authorized(id, actual, Access::Read)?;
+                        return Ok(Expression {
+                            call_context: None,
+                            kind: ExpressionKind::Requalify(Box::new(subject)),
+                            result: Some(logical),
+                            source,
+                        });
+                    }
+                }
+                return Ok(subject);
             }
             ExpressionNode::ArrayLiteral(elements) => {
                 let declared = typed
