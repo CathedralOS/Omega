@@ -7,29 +7,29 @@ Fact: **A granted vacant extent retains actual backing through transport,
 initialization, permitted writes, and extraction.**
 
 The core extent contracts express Granted and Vacant conservation with
-`core\Identity` over `IntervalSet<Nat>`. The vacancy provider in the local example and its
-control compares `|extent|::Granted::content` at entry with that projection on
+`core\Identity` over `IntervalSet<Nat>`. Each vacancy provider
+compares `|extent|::Granted::content` at entry with that projection on
 the returned extent. Establishing backing, vacancy, placement, and field
 access each requires separate authority. The existing allocation, profile,
 geometry, qualification, lifecycle, cleanup, and neighbor-canary checks remain
 part of the example.
 
-The local grant and vacancy providers return a bare `Extent`. Their result
-guarantees supply the evidence for the named domain casts. The local control
+The grant and vacancy providers return a bare `Extent`. Their result
+guarantees supply the evidence for the named domain casts. Each control
 keeps its grant and attempts to add vacancy without the transfer.
 
-The local example and its control use a transparent alias for `Word in Word::Placed`
+Each example uses `WordPlacement`, a transparent alias for `Word in Word::Placed`,
 as the index in `Extent::Resident<P, Word>`. The domain selects `WordAccess`,
-and `WordStorage` supplies the fixed representation. The forwarding regression
-accepts the alias and its expansion through borrowed and owned returns. Changing
-the return to another domain on `Word` fails even when both domains select the
-same access implementation. [Resident custody](../../../../wiki/spec/resources/access.md#establishment-and-retirement)
+and `WordStorage` supplies the fixed representation. [Resident custody](../../../../wiki/spec/resources/access.md#establishment-and-retirement)
 
-The local example and its control parsed after their migration to the public
-owned lifecycle. All nine pairs still need optimized checking, native/Psi
-agreement for the positives, the intended vacancy refusals for the controls,
-and a clean corpus record. The historical results below identify the source
-and compiler used in those runs.
+The source parser accepted all 36 Build and Product files. In a reduced
+program the compiler accepted an extent that already carried vacancy and
+rejected the cast adding `Extent::Vacant` without authority. The complete
+local example and its control both stopped earlier at the proof-only content
+identity and resident-view custody checks on Linux x86-64 (compiler
+`0e582791d9f`). All nine pairs still need native/Psi agreement for the
+positives, the intended vacancy refusal for the controls, and a clean corpus
+record. The historical results below identify the inputs used in those runs.
 
 Each place obtains 64 actual zeroed bytes from the admitted host allocator,
 establishes Granted and Vacant independently, partitions into two 32-byte
@@ -57,7 +57,7 @@ bytes. The latter establishes numeric content conservation, explicitly leaving
 physical backing open. This row joins those independent requirements: numeric
 geometry, source qualification, actual storage, and its admitted profile are
 not interchangeable evidence. Its twins omit Vacant establishment and must
-reject the attempted annotation, rather than merely denying a field operation.
+reject the cast that attempts to add `Extent::Vacant`.
 
 | Place | Positive | Missing vacancy |
 | --- | --- | --- |

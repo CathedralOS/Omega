@@ -1,1 +1,1 @@
-annotation cannot establish routed qualification
+this cast adds `Extent::Vacant` in a machine that is not one of the domain's establishment routes
