@@ -851,6 +851,48 @@ fn publication_checks_the_same_grammar_in_root_and_imported_files() {
     }
 }
 
+#[test]
+fn an_erased_array_argument_still_requires_an_integer_extent() {
+    let package = PackageKeyIdentity::from_digest([0x45; 32]).unwrap();
+    let compile_source = |declarations: &str, formals: &str, extent: &str| {
+        let text = format!(
+            "data Word {{ bits: u32; }} data Plain<T> = Word;
+            {declarations}
+            machine f{formals}(v: Plain<[u8; {extent}]>) -> Word {{ v }}"
+        );
+        let (files, root) = captured(package, &text);
+        compile(product(files, root, package, &[]).unwrap(), None)
+    };
+
+    for (declarations, formals, extent) in [
+        ("", "", "3"),
+        ("const N: u8 = 3u8;", "", "N"),
+        ("machine size() -> u8 crashes none { 3u8 }", "", "size()"),
+        ("", "<const N: u8>", "N"),
+        ("data Width = u8;", "<const N: Width>", "N"),
+    ] {
+        compile_source(declarations, formals, extent).unwrap();
+    }
+    for (declarations, formals, extent) in [
+        ("", "", "false"),
+        (
+            "machine size() -> bool crashes none { false }",
+            "",
+            "size()",
+        ),
+        ("", "<const N: bool>", "N"),
+        ("data Flag = bool;", "<const N: Flag>", "N"),
+    ] {
+        let diagnostics = compile_source(declarations, formals, extent).unwrap_err();
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("a fixed-array extent requires an integer, found `bool`")),
+            "{diagnostics:?}"
+        );
+    }
+}
+
 /// A constant computed by a call gives an array its length, and the public
 /// compiler checks that length where another machine requires a different
 /// one. `|east|::N` and `|west|::N` share a last name, so each case also fails if
