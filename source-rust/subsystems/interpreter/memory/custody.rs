@@ -2329,6 +2329,11 @@ pub(crate) fn transfer_claims(
         }
     }
     for entry_claim in callee_content_entry_claims {
+        // Its structural transfer already selected the active case. An attached
+        // projection cannot bring an inactive ordinary claim back to life.
+        if callee_entry_claims.binary_search_by_key(&entry_claim.claim, |entry| entry.claim).is_ok() {
+            continue;
+        }
         callee_claims.entry(entry_claim.claim).or_insert(LiveClaim {
             place: None,
             path: Vec::new(),
@@ -2736,6 +2741,144 @@ pub(crate) mod tests {
             );
             assert_eq!(claims, retained_claims);
             assert_eq!(frontier, retained_frontier);
+        }
+    }
+
+    #[test]
+    fn entry_content_follows_the_active_argument_claim() {
+        use crate::boundary::structural_inputs::case_membership::StructuralCaseContents;
+        use crate::boundary::values::StructuralRuntimePlace;
+        use semantic_vocabulary::{
+            ContentAlgebra, ContentAlgebraKind, ContentPlaceSegment, ContentPlaceVersion,
+            ContentProjectionIdentity, ContentStructuralPlace, StructuralCaseId,
+        };
+        use terminal_psi::{
+            ClaimContentProjection, ContentEntryClaim, StructuralCaseDeclaration,
+            StructuralFieldDeclaration, StructuralFieldType, StructuralTypeDeclaration,
+            StructuralTypeShape, TerminalIdentityIndex,
+        };
+
+        let case = |n| StructuralCaseId::new(n).unwrap();
+        let selected_field = StructuralFieldDeclaration {
+            declaration_identity: Default::default(),
+            inline_carrier: None,
+            id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+            identity: TerminalIdentityIndex(1),
+            relevance: terminal_psi::BindingRelevance::Relevant,
+            field_type: StructuralFieldType::Structural(structural_type(2)),
+            storage: None,
+        };
+        let alternatives = [case(1), case(2)]
+            .into_iter()
+            .map(|id| StructuralCaseDeclaration {
+                declaration_identity: Default::default(),
+                id,
+                identity: TerminalIdentityIndex(id.get() as u32 + 1),
+                fields: if id == case(2) {
+                    vec![selected_field.clone()]
+                } else {
+                    Vec::new()
+                },
+            })
+            .collect();
+        let sum = StructuralTypeDeclaration {
+            requires: Vec::new(),
+            quotient_carrier: None,
+            id: structural_type(1),
+            identity: TerminalIdentityIndex(4),
+            declaration_identity: Default::default(),
+            owns_linear_claim: false,
+            multiplicity: StructuralMultiplicity::Linear,
+            no_code_affine_cleanup: false,
+            descriptor_cleanup: false,
+            nominal_cleanup: None,
+            scalar_restriction: None,
+            shape: StructuralTypeShape::Sum {
+                cases: alternatives,
+            },
+        };
+        let leaf = StructuralTypeDeclaration {
+            id: structural_type(2),
+            identity: TerminalIdentityIndex(5),
+            owns_linear_claim: true,
+            shape: StructuralTypeShape::Opaque,
+            ..sum.clone()
+        };
+        let types = [sum, leaf];
+        let value = value(9, 1, Vec::new());
+        let param = parameter(2, 0, 1, StructuralMultiplicity::Linear);
+        let values = RuntimeRows::from_rows(None, [(param.place, value.clone())]).unwrap();
+        let home = StructuralRuntimePlace::from(&value);
+        let path = vec![StructuralPathSegment::Case(case(2)), field("left")];
+        let ordinary = EntryClaim {
+            claim: claim(1),
+            input: param.place,
+            path: path.clone(),
+        };
+        let make_content = |claim| ContentEntryClaim {
+            claim,
+            input: ContentStructuralPlace {
+                version: ContentPlaceVersion::Entry,
+                root: param.place,
+                segments: vec![
+                    ContentPlaceSegment::Case("Right".into()),
+                    ContentPlaceSegment::Field("left".into()),
+                ],
+            },
+            projections: vec![ClaimContentProjection {
+                projection: ContentProjectionIdentity {
+                    domain: semantic_vocabulary::ContentDomainId::new(1).unwrap(),
+                    projection_report_fingerprint: 7,
+                },
+                algebra: ContentAlgebra {
+                    kind: ContentAlgebraKind::CountedQuantity,
+                    parameter: "Bytes".into(),
+                },
+            }],
+        };
+        let attached = make_content(claim(1));
+        let mut independent = make_content(claim(2));
+        independent.input.segments.clear();
+        let argument = StructuralArgument {
+            place: place(5),
+            path: Vec::new(),
+            access: StructuralAccess::Owned,
+        };
+        let transfer = ClaimTransfer {
+            claim: claim(5),
+            argument_index: 0,
+            path: path.clone(),
+        };
+        for selected in [case(1), case(2)] {
+            let active = selected == case(2);
+            let caller = if active {
+                BTreeMap::from([(claim(5), linear(5, path.clone()))])
+            } else {
+                BTreeMap::new()
+            };
+            let (_, received) = transfer_claims(
+                &crate::embedding::program::ProgramDeclarations::new(&types),
+                &BTreeMap::from([(
+                    home.clone(),
+                    StructuralCaseContents {
+                        structural_type: structural_type(1),
+                        case: selected,
+                    },
+                )]),
+                &caller,
+                std::slice::from_ref(&argument),
+                std::slice::from_ref(&transfer),
+                std::slice::from_ref(&param),
+                std::slice::from_ref(&ordinary),
+                &[attached.clone(), independent.clone()],
+                &values,
+            )
+            .unwrap();
+            assert_eq!(received.contains_key(&claim(1)), active);
+            assert!(
+                received.contains_key(&claim(2)),
+                "independent content-only input"
+            );
         }
     }
 
