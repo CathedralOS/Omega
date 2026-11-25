@@ -877,6 +877,64 @@ fn term_shares_value(term: &ScalarTerm, targets: &[ValueId]) -> bool {
         .any(|operand| term_shares_value(operand, targets))
 }
 
+fn boolean_value_literal(proposition: &Proposition) -> Option<(ValueId, bool)> {
+    match proposition {
+        Proposition::Equal(
+            ScalarTerm::Value {
+                id,
+                scalar_type: ScalarType::Boolean,
+            },
+            ScalarTerm::Boolean(value),
+        )
+        | Proposition::Equal(
+            ScalarTerm::Boolean(value),
+            ScalarTerm::Value {
+                id,
+                scalar_type: ScalarType::Boolean,
+            },
+        ) => Some((*id, *value)),
+        _ => None,
+    }
+}
+
+fn is_mutual_exclusion_over(proposition: &Proposition, ids: &[ValueId]) -> bool {
+    let Proposition::Implication {
+        premise,
+        conclusion,
+    } = proposition
+    else {
+        return false;
+    };
+    let Some((chosen, true)) = boolean_value_literal(premise) else {
+        return false;
+    };
+    if !ids.contains(&chosen) {
+        return false;
+    }
+    let excludes_other = |item: &Proposition| {
+        matches!(
+            boolean_value_literal(item),
+            Some((other, false)) if other != chosen && ids.contains(&other)
+        )
+    };
+    match conclusion.as_ref() {
+        Proposition::Conjunction(conjuncts) => {
+            !conjuncts.is_empty() && conjuncts.iter().all(excludes_other)
+        }
+        single => excludes_other(single),
+    }
+}
+
+fn proposition_mentions_any_value(proposition: &Proposition, ids: &[ValueId]) -> bool {
+    let mut found = false;
+    proposition.visit_scalar_terms(|term| {
+        if !found && term_shares_value(term, ids) {
+            found = true;
+        }
+    });
+    found
+}
+
 fn term_mentions(term: &ScalarTerm, target: &ScalarTerm) -> bool {
     term == target
         || term
@@ -1784,6 +1842,23 @@ impl<'a> Prover<'a> {
             }) {
                 continue;
             }
+            // If one arm is already known in `self.facts`, splitting adds no
+            // information on that arm (it is identical to the parent state).
+            if parts.iter().any(|part| {
+                self.exact_facts
+                    .find(&self.facts, part, self.activity)
+                    .is_some()
+            }) {
+                continue;
+            }
+            // A satisfiable disjoint boolean-choice disjunction (such as a
+            // sum's `v_0 == true || v_1 == true` boundary premise whose case
+            // names appear nowhere in `goal` or in any other fact outside its
+            // own mutual-exclusion implications) is a conservative extension
+            // and cannot help prove `goal` or derive `Falsehood`.
+            if self.is_disconnected_boolean_choice(index, parts, goal) {
+                continue;
+            }
             let parts = parts.clone();
             self.active_cuts.push(ActiveCut {
                 proposition: fact.proposition().clone(),
@@ -1817,6 +1892,43 @@ impl<'a> Prover<'a> {
             ));
         }
         None
+    }
+
+    fn is_disconnected_boolean_choice(
+        &self,
+        disjunction_index: usize,
+        parts: &[Proposition],
+        goal: &Proposition,
+    ) -> bool {
+        if parts.is_empty() {
+            return false;
+        }
+        let mut ids = Vec::with_capacity(parts.len());
+        for part in parts {
+            let Some((id, true)) = boolean_value_literal(part) else {
+                return false;
+            };
+            if ids.contains(&id) {
+                return false;
+            }
+            ids.push(id);
+        }
+        if proposition_mentions_any_value(goal, &ids) {
+            return false;
+        }
+        for (other_index, fact) in self.facts.iter().enumerate() {
+            if other_index == disjunction_index {
+                continue;
+            }
+            let proposition = fact.proposition();
+            if is_mutual_exclusion_over(proposition, &ids) {
+                continue;
+            }
+            if proposition_mentions_any_value(proposition, &ids) {
+                return false;
+            }
+        }
+        true
     }
 
     /// One alternative: the kernel adds it as the next assumption.
