@@ -950,6 +950,7 @@ impl Program<'_> {
             shape,
             requires: Vec::new(),
             authored_layout: false,
+            erased: Vec::new(),
         });
         let mut source = physical_source_application(application);
         source.constant_input_owner = constant_input_owner;
@@ -1059,6 +1060,7 @@ impl Program<'_> {
             shape,
             requires: Vec::new(),
             authored_layout: false,
+            erased: Vec::new(),
         });
         let mut source = physical_source_application(application);
         source.constant_input_owner = constant_input_owner;
@@ -1148,6 +1150,7 @@ impl Program<'_> {
             },
             requires: Vec::new(),
             authored_layout: false,
+            erased: Vec::new(),
         });
         self.record_sources
             .push(physical_source_application(application));
@@ -1199,6 +1202,7 @@ fn physical_source_application(application: SourceTypeApplication) -> RecordSour
         region_owner: SymbolHandle::invalid(),
         fields: Vec::new(),
         cases: Vec::new(),
+        erased: Vec::new(),
     }
 }
 

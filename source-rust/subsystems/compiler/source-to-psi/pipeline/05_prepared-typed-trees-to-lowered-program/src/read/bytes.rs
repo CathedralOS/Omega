@@ -1036,6 +1036,7 @@ impl Program<'_> {
             shape: StorageShape::ByteSequence(carrier),
             requires: Vec::new(),
             authored_layout: false,
+            erased: Vec::new(),
         });
         self.record_sources.push(RecordSource {
             constant_input_owner: None,
@@ -1045,6 +1046,7 @@ impl Program<'_> {
             region_owner,
             fields: Vec::new(),
             cases: Vec::new(),
+            erased: Vec::new(),
         });
         row
     }

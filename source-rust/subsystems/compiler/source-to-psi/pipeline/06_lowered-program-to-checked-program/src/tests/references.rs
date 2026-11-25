@@ -50,6 +50,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     let mut records = IdTable::default();
     records.push(RecordType {
         authored_layout: false,
+        erased: Vec::new(),
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Pair"),

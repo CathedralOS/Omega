@@ -761,14 +761,17 @@ fn zeroed_array(length: u64, dynamic: bool, bound: u128) -> Elaboration {
 
 fn zeroed_array_after(length: u64, dynamic: bool, bound: u128, preceding: &[u128]) -> Elaboration {
     use crate::lowering::{Qualification, StorageShape};
-    let record = |identity: &str, shape| RecordType {
-        authored_layout: false,
-        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-        cleanup: None,
-        identity: identity.into(),
-        shape,
-        requires: Vec::new(),
-    };
+    fn record(identity: &str, shape: StorageShape) -> RecordType {
+        RecordType {
+            authored_layout: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+            cleanup: None,
+            identity: identity.into(),
+            shape,
+            requires: Vec::new(),
+            erased: Vec::new(),
+        }
+    }
     let mut types = IdTable::default();
     types.push(record(
         "element",
@@ -962,6 +965,7 @@ fn a_zeroed_float_holds_positive_zero_regardless_of_the_preceding_constant() {
         let mut types = IdTable::default();
         types.push(RecordType {
             authored_layout: false,
+            erased: Vec::new(),
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             cleanup: None,
             identity: "FloatCell".into(),

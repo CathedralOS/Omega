@@ -2485,6 +2485,11 @@ impl<'a> Storage<'a> {
         established_array: &mut impl FnMut(&Lineage) -> bool,
     ) -> Checked<()> {
         for field in fields {
+            // An erased field has no storage, so no leaf: it "contributes
+            // no runtime field, address, read, or cleanup" (contracts.md).
+            if field.relevance.is_erased() {
+                continue;
+            }
             at.segments.push(Segment::Field(field.id));
             match field.field_type {
                 StructuralFieldType::Atomic(_)

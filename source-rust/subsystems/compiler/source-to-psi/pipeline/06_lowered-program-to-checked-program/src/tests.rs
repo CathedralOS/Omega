@@ -51,6 +51,7 @@ mod contract_formation;
 mod empty_records;
 mod entry_inputs;
 mod entryless;
+mod erased_fields;
 mod every_refusal;
 mod floats;
 mod fuel_recursion;
@@ -1414,6 +1415,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     let mut records = IdTable::default();
     records.push(RecordType {
         authored_layout: false,
+        erased: Vec::new(),
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Point"),
@@ -1425,6 +1427,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     });
     records.push(RecordType {
         authored_layout: false,
+        erased: Vec::new(),
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Line"),
@@ -1720,6 +1723,7 @@ fn an_affine_empty_case_cannot_be_moved_twice() {
     let mut records = IdTable::default();
     records.push(RecordType {
         authored_layout: false,
+        erased: Vec::new(),
         multiplicity: terminal_psi::StructuralMultiplicity::Affine,
         cleanup: None,
         identity: "EmptyCase".into(),
@@ -3271,6 +3275,7 @@ fn every_use_of_storage_has_exactly_one_verdict() {
     let mut types = records();
     types.push(RecordType {
         authored_layout: false,
+        erased: Vec::new(),
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Gated"),
@@ -3430,6 +3435,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
     let mut records = IdTable::default();
     records.push(RecordType {
         authored_layout: false,
+        erased: Vec::new(),
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Point"),
@@ -3441,6 +3447,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
     });
     records.push(RecordType {
         authored_layout: false,
+        erased: Vec::new(),
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Shape"),
@@ -3458,6 +3465,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
     });
     records.push(RecordType {
         authored_layout: false,
+        erased: Vec::new(),
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Holder"),
@@ -4102,14 +4110,21 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
         value_type,
         byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
     };
-    let record = |spelled: &str, fields, requires| RecordType {
-        authored_layout: false,
-        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-        cleanup: None,
-        identity: spelled.to_owned(),
-        shape: crate::lowering::StorageShape::Record(fields),
-        requires,
-    };
+    fn record(
+        spelled: &str,
+        fields: Vec<crate::lowering::RecordField>,
+        requires: Vec<semantic_vocabulary::Proposition>,
+    ) -> RecordType {
+        RecordType {
+            authored_layout: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+            cleanup: None,
+            identity: spelled.to_owned(),
+            shape: crate::lowering::StorageShape::Record(fields),
+            requires,
+            erased: Vec::new(),
+        }
+    }
     let mut records = IdTable::default();
     records.push(record(
         "Bounded",
@@ -4134,6 +4149,7 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
     ));
     records.push(RecordType {
         authored_layout: false,
+        erased: Vec::new(),
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("ByteRead"),
@@ -5673,6 +5689,7 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
     let mut records = constrained();
     records.push(RecordType {
         authored_layout: false,
+        erased: Vec::new(),
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Both"),
@@ -5681,6 +5698,7 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
     });
     records.push(RecordType {
         authored_layout: false,
+        erased: Vec::new(),
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Half"),
@@ -5689,6 +5707,7 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
     });
     records.push(RecordType {
         authored_layout: false,
+        erased: Vec::new(),
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Limits"),

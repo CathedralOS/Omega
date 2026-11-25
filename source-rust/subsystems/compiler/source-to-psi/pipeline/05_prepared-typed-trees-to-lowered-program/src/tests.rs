@@ -2516,6 +2516,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         ]),
         requires: Vec::new(),
         authored_layout: false,
+        erased: Vec::new(),
     });
     records.push(RecordType {
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
@@ -2527,6 +2528,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         ]),
         requires: Vec::new(),
         authored_layout: false,
+        erased: Vec::new(),
     });
     records
 }
@@ -3218,6 +3220,7 @@ fn a_subrecord_with_all_owned_fields_moved_out_can_be_filled_whole() {
         ]),
         requires: Vec::new(),
         authored_layout: false,
+        erased: Vec::new(),
     });
     let envelope = ValueType::record(id(3));
     let endpoint = |field| member(member(place(0, envelope), 0, line()), field, point());
@@ -3606,6 +3609,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         ]),
         requires: Vec::new(),
         authored_layout: false,
+        erased: Vec::new(),
     });
     records.push(RecordType {
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
@@ -3623,6 +3627,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         ]),
         requires: Vec::new(),
         authored_layout: false,
+        erased: Vec::new(),
     });
     records
 }
@@ -4559,6 +4564,7 @@ fn logical_claim_publication_preserves_two_siblings_across_an_ordinary_call() {
         shape: StorageShape::Record(Vec::new()),
         requires: Vec::new(),
         authored_layout: false,
+        erased: Vec::new(),
     });
     let token = ValueType::record(id(1));
     records.push(RecordType {
@@ -4581,6 +4587,7 @@ fn logical_claim_publication_preserves_two_siblings_across_an_ordinary_call() {
         ]),
         requires: Vec::new(),
         authored_layout: false,
+        erased: Vec::new(),
     });
     let pair = ValueType::record(id(2));
     let mut bodies = IdTable::default();

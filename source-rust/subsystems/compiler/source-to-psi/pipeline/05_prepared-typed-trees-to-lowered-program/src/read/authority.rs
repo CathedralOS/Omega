@@ -267,6 +267,15 @@ impl Program<'_> {
                 continue;
             };
             let data = self.data_type(id, record)?;
+            // Zeroed storage supplies no erased term: "Construction supplies
+            // the erased term ...; there is no general implicit inhabitance
+            // or default-value search" (contracts.md). Only a record's own
+            // erased fields, or those of the first case a zero sum selects,
+            // would need one.
+            let zero_case = (!data.cases().is_empty()).then_some(0);
+            if data.erased.iter().any(|erased| erased.case == zero_case) {
+                return unserved("zero value of data with an erased field");
+            }
             match &data.shape {
                 StorageShape::TypeParameter(_) => {
                     return unserved("zero initialization requires a specialized storage type");

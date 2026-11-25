@@ -320,6 +320,7 @@ impl Program<'_> {
             shape: StorageShape::Sum(Vec::new()),
             requires: Vec::new(),
             authored_layout: false,
+            erased: Vec::new(),
         });
         self.record_sources.push(RecordSource {
             constant_input_owner: None,
@@ -329,6 +330,7 @@ impl Program<'_> {
             region_owner: SymbolHandle::invalid(),
             fields: Vec::new(),
             cases: Vec::new(),
+            erased: Vec::new(),
         });
         if let Err(position) = self.value_records.binary_search(&record) {
             self.value_records.insert(position, record);

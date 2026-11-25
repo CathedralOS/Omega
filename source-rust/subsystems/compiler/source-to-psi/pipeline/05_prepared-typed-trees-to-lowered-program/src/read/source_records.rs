@@ -1182,6 +1182,7 @@ fn malformed(machine: MachineId, detail: &'static str) -> Refusal {
 
 fn member_rosters_match(declaration: &RecordType, source: &RecordSource) -> bool {
     source.fields.len() == declaration.fields().len()
+        && source.erased.len() == declaration.erased.len()
         && source.cases.len() == declaration.cases().len()
         && source
             .cases
@@ -1226,6 +1227,17 @@ fn correspondence(
             return Err(malformed(machine, "record case has no declaration"));
         }
         append(&case.fields, symbols)?;
+    }
+    // An erased field's row is a declaration too, with no storage.
+    for (field, symbol) in declaration.erased.iter().zip(&source.erased) {
+        if !symbol.is_valid() {
+            return Err(malformed(machine, "record field has no declaration"));
+        }
+        fields.push(SourceFieldCorrespondence {
+            field: field.id,
+            declaration: *symbol,
+            schema: *symbol,
+        });
     }
     let cleanup = match (source.cleanup, declaration.cleanup.as_ref()) {
         (None, None) => None,
@@ -1373,6 +1385,7 @@ mod tests {
             ]),
             requires: Vec::new(),
             authored_layout: false,
+            erased: Vec::new(),
         };
         let source = RecordSource {
             constant_input_owner: None,
@@ -1386,6 +1399,7 @@ mod tests {
             region_owner: SymbolHandle::invalid(),
             fields: vec![symbol(4), symbol(9)],
             cases: Vec::new(),
+            erased: Vec::new(),
         };
         (declaration, source)
     }

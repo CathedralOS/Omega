@@ -325,7 +325,7 @@ pub(crate) fn declare<'a, 'b>(
     let mut native_layouts = NativeLayoutCatalog::default();
     let mut payload_identities = IdTable::default();
     for (id, record) in types.iter() {
-        let mut declare_fields = |declared: &[RecordField]| {
+        let mut declare_fields = |declared: &[RecordField], case: Option<usize>| {
             let mut indexes = Vec::with_capacity(declared.len());
             let mut fields = Vec::with_capacity(declared.len());
             for field in declared {
@@ -409,13 +409,32 @@ pub(crate) fn declare<'a, 'b>(
                     storage: None,
                 });
             }
+            // Each erased field keeps its row, in authored order among the
+            // relevant ones, with its exact type identity and nothing else:
+            // "Structural field rows retain authored relevance and exact
+            // normalized type identity" (contracts.md). It has no storage,
+            // and `indexes` names only the relevant fields the places use.
+            for erased in record.erased.iter().filter(|erased| erased.case == case) {
+                let row = StructuralFieldDeclaration {
+                    declaration_identity: Default::default(),
+                    inline_carrier: None,
+                    id: erased.id,
+                    identity: identities.intern(&erased.identity),
+                    relevance: language_core::BindingRelevance::Erased,
+                    field_type: StructuralFieldType::Erased {
+                        type_identity: identities.intern(&erased.type_identity),
+                    },
+                    storage: None,
+                };
+                fields.insert(erased.position.min(fields.len()), row);
+            }
             Ok((indexes, fields))
         };
-        let (indexes, fields) = declare_fields(record.fields())?;
+        let (indexes, fields) = declare_fields(record.fields(), None)?;
         let mut case_indexes = Vec::with_capacity(record.cases().len());
         let mut cases = Vec::with_capacity(record.cases().len());
-        for case in record.cases() {
-            let (indexes, fields) = declare_fields(&case.fields)?;
+        for (position, case) in record.cases().iter().enumerate() {
+            let (indexes, fields) = declare_fields(&case.fields, Some(position))?;
             case_indexes.push(indexes);
             cases.push((case, fields));
         }
@@ -5372,6 +5391,7 @@ mod tests {
         let mut add = |name: &str, shape| {
             types.push(RecordType {
                 authored_layout: false,
+                erased: Vec::new(),
                 multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 cleanup: None,
                 identity: name.into(),
@@ -5434,14 +5454,21 @@ mod tests {
 
     #[test]
     fn declared_multiplicity_keeps_intrinsic_and_active_component_claims_independent() {
-        let record = |identity: &str, multiplicity, shape| RecordType {
-            multiplicity,
-            cleanup: None,
-            identity: identity.into(),
-            shape,
-            requires: Vec::new(),
-            authored_layout: false,
-        };
+        fn record(
+            identity: &str,
+            multiplicity: terminal_psi::StructuralMultiplicity,
+            shape: crate::StorageShape,
+        ) -> RecordType {
+            RecordType {
+                multiplicity,
+                cleanup: None,
+                identity: identity.into(),
+                shape,
+                requires: Vec::new(),
+                authored_layout: false,
+                erased: Vec::new(),
+            }
+        }
         let field = |raw, identity: &str, child| RecordField {
             id: semantic_vocabulary::StructuralFieldId::new(raw).unwrap(),
             identity: identity.into(),
@@ -5611,6 +5638,7 @@ mod tests {
             },
             requires: Vec::new(),
             authored_layout: false,
+            erased: Vec::new(),
         });
         types.push(RecordType {
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
@@ -5623,6 +5651,7 @@ mod tests {
             },
             requires: Vec::new(),
             authored_layout: false,
+            erased: Vec::new(),
         });
         let source = SourceOrigin::Unpositioned(Unpositioned::SpanAbsent);
         let mut signatures = IdTable::default();

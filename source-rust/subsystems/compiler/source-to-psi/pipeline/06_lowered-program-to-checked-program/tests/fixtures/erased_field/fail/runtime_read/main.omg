@@ -1,0 +1,12 @@
+// The same program with `pick` reading the erased field at runtime, which an
+// erased binding cannot supply: refused at `tagged.ghost`.
+// Expected: refused, runtime use of an erased binding
+data Tagged [copy] { value: u64; ghost [erased]: u64; tail: u64; }
+machine pick(tagged: Tagged) -> u64 { tagged.ghost }
+machine main() crashes Trap {
+    let tagged: Tagged = Tagged { value: 3, ghost: 7, tail: 5 };
+    let picked: u64 = pick(tagged);
+    transition picked == 5 { true -> done(), _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
