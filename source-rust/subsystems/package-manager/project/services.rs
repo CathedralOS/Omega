@@ -3,11 +3,9 @@ use super::{PreparedRequest, SettledSource, SourceHost};
 use crate::PackageCommandError;
 use crate::resolution::source::{AcquiredBuildSource, AcquiredSourceSelection};
 use build_declarations::{BuildRequest, DependencyPurpose};
-use build_execution::host::bindings::{BuildProductQuery, BuildProviderRequest};
+use build_execution::host::bindings::BuildProductQuery;
 use build_execution::host::requests::BuildDependencyPreparation;
-use build_execution::{
-    BuildDependencySelection, CompileFailure, ProducedBuildProvider, TerminalBuildActivation,
-};
+use build_execution::{CompileFailure, TerminalBuildActivation};
 use diagnostics::Diagnostic;
 use package_compilation::source_imports::ProductQueryDependency;
 use package_compilation::{PackageBuildHandoff, PackageCompilationInputs};
@@ -253,52 +251,29 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
             .collect()
     }
 
-    fn provide(
+    fn provider_product(
         &mut self,
-        activation: &TerminalBuildActivation,
-        request: &BuildProviderRequest,
-    ) -> Result<(BuildDependencySelection, ProducedBuildProvider), CompileFailure> {
-        let (qualifier, path) =
-            request.backing.path.split_once("::").ok_or_else(|| {
-                refused("Build backing must name its dependency and implementation")
-            })?;
-        let purpose = DependencyPurpose::Build;
-        let mut selected = None;
-        for (ordinal, alias) in aliases(activation, purpose).enumerate() {
-            if alias.is_some_and(|alias| alias != qualifier) {
-                continue;
-            }
-            let i = self.dependency(activation, purpose, ordinal)?;
-            let name = self.host.settled[i].declaration.package_name();
-            if alias.unwrap_or(name) == qualifier && selected.replace((ordinal, i)).is_some() {
-                return Err(refused(format!(
-                    "Build dependency qualifier `{qualifier}` is ambiguous"
-                )));
+        handoff: &PackageBuildHandoff,
+    ) -> Result<project_build::PlannedProduct, CompileFailure> {
+        let products = self.host.handoffs();
+        for settled in self
+            .host
+            .settled
+            .iter()
+            .filter(|settled| settled.declaration.identity() == handoff.package())
+        {
+            let product = products.dependency_product(
+                &settled.build,
+                handoff.purpose(),
+                handoff.target(),
+                &mut DependencyProducts::default(),
+            )?;
+            if product.build_handoff(handoff.target())? == *handoff {
+                return Ok(product);
             }
         }
-        let (request_ordinal, i) = selected.ok_or_else(|| {
-            refused(format!(
-                "Build provider qualifier `{qualifier}` has no issued Build dependency"
-            ))
-        })?;
-        let settled = &self.host.settled[i];
-        let profile = self.host.profile;
-        let product = self.host.handoffs().dependency_product(
-            &settled.build,
-            purpose,
-            profile,
-            &mut DependencyProducts::default(),
-        )?;
-        let provider = product
-            .product_stage(&[profile])?
-            .produce_build_provider(profile, path)?;
-        Ok((
-            BuildDependencySelection {
-                purpose,
-                request_ordinal,
-                package: settled.declaration.identity(),
-            },
-            provider,
+        Err(refused(
+            "Build provider source has no settled Product matching its library handoff",
         ))
     }
 }
