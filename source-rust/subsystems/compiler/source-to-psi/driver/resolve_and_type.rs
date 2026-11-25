@@ -167,13 +167,14 @@ impl ResolveAndTypeRequest {
             )?;
             (typing, frontier, activation.pre_checks)
         } else {
-            let frontier = resolve_build_bodies(
+            let frontier = resolve_eager_bodies(
                 resolution::ResolutionRequest {
                     syntax,
                     sources: Some(self.sources),
                     top_level_bindings: self.top_level_bindings,
                     retained_base: None,
                 },
+                eager_body_scope(self.purpose),
                 timings,
             )?;
             let typing = {
@@ -224,16 +225,33 @@ impl ResolveAndTypeRequest {
     }
 }
 
-fn resolve_build_bodies(
+/// The bodies a fresh typing resolves before its first typed cohort.
+///
+/// Every completion round after that cohort repeats whole-program typing
+/// passes, whatever its size. A Build typing is kept in its invocation's
+/// shared frontends, so it resolves only Build and toolchain bodies and leaves
+/// the others deferred for whichever later typing resumes it. The only
+/// consumer of a Product typing, `complete_authored`, completes every body,
+/// so the Product resolves them all here and types them in one cohort.
+fn eager_body_scope(purpose: source_provenance::DependencyScope) -> resolution::DeferredBodyScope {
+    use resolution::DeferredBodyScope;
+    use source_provenance::DependencyScope;
+    match purpose {
+        DependencyScope::Product => DeferredBodyScope::All,
+        DependencyScope::Build => DeferredBodyScope::BuildAndToolchain,
+    }
+}
+
+fn resolve_eager_bodies(
     request: resolution::ResolutionRequest,
+    scope: resolution::DeferredBodyScope,
     timings: &mut CompileTimings,
 ) -> Result<resolution::DeferredResolvedFrontier, Vec<Diagnostic>> {
     let mut frontier = timings
         .record_result(stages::RESOLVE, || resolution::resolve_deferred(request))
         .map_err(|rows| DiagnosticStage::Resolution.attribute(rows))?;
     loop {
-        let selected =
-            frontier.pending_machines_in(resolution::DeferredBodyScope::BuildAndToolchain)?;
+        let selected = frontier.pending_machines_in(scope)?;
         if selected.is_empty() {
             return Ok(frontier);
         }

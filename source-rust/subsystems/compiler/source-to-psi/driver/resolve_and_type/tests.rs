@@ -205,3 +205,65 @@ fn completed_body_work_is_recorded_before_retained_source_activation() {
         "{refused:?}"
     );
 }
+
+fn product_file_request(
+    text: &str,
+    purpose: source_provenance::DependencyScope,
+) -> ResolveAndTypeRequest {
+    let mut sources = crate::source_inputs::SourceMap::default();
+    let id = sources
+        .add_checked_instance(
+            "program/main.omg".into(),
+            text,
+            "program".into(),
+            Some(semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]).unwrap()),
+            source_admission::SourceOrigin::User,
+            source_admission::SourceResolutionStratum::Base,
+            source_provenance::DependencyScope::Product,
+        )
+        .source_id;
+    crate::ParsedStageSources::parse(Arc::new(sources), vec![id], Vec::new())
+        .unwrap()
+        .into_request("linux_x86_64", purpose, id)
+        .unwrap()
+}
+
+const UNUSED_HELPER: &str = "machine helper(value: u64) -> u64 { value + 1 }\n\
+                             machine main() -> u64 { 0 }\n";
+
+#[test]
+fn a_product_typing_resolves_every_body_before_its_first_cohort() {
+    use crate::source_state::machine::MachineBodyStatus;
+    use source_provenance::DependencyScope;
+
+    let mut timings = crate::CompileTimings::default();
+    let product = product_file_request(UNUSED_HELPER, DependencyScope::Product)
+        .prepare(&mut timings)
+        .unwrap();
+    assert_eq!(product.input.pending_bodies.pending_machines().count(), 0);
+    assert!(
+        product
+            .typed()
+            .machines()
+            .iter()
+            .all(|machine| machine.body_status == MachineBodyStatus::Complete)
+    );
+    // A Build typing is retained for later Builds, so its Product bodies wait.
+    let build = product_file_request(UNUSED_HELPER, DependencyScope::Build)
+        .prepare(&mut timings)
+        .unwrap();
+    assert_eq!(build.input.pending_bodies.pending_machines().count(), 2);
+
+    let machines = |typed: &crate::source_state::TypedTrees| {
+        let mut machines: Vec<_> = typed
+            .machines()
+            .iter()
+            .map(|machine| (machine.name.as_str().to_owned(), machine.body_status))
+            .collect();
+        machines.sort_by(|left, right| left.0.cmp(&right.0));
+        machines
+    };
+    let product = product.complete_authored(&mut timings).unwrap().finish();
+    let build = build.complete_authored(&mut timings).unwrap().finish();
+    assert_eq!(machines(&product.typed), machines(&build.typed));
+}
