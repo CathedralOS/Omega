@@ -63,7 +63,12 @@ pub fn prepare_typed_trees(
     program
         .settle_applied_service_lineage()
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let first_domain_type = program.type_reference_table.type_reference_count();
     passes::domain_applications::prepare(&mut program);
+    // Applying a domain substitutes its carrier and the types used by its predicates.
+    // Retain the data members at those new occurrences while the typed trees are mutable.
+    typed_trees::data_applications::prepare_from(&mut program, first_domain_type)
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     PreparedTypedTrees::new(PREPARATION, program, values, entries)
 }
 
