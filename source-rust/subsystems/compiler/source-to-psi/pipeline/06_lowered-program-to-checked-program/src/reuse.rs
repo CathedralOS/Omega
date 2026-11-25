@@ -413,9 +413,9 @@ impl Transport<'_> {
                 .collect::<Option<Vec<_>>>()
         };
         Some(match proposition {
-            Proposition::FloatMeaningEqual(clause) => Proposition::FloatMeaningEqual(
+            Proposition::DeclarationIdentity(clause) if clause.is_float_meaning() => Proposition::DeclarationIdentity(
                 clause
-                    .map_sources::<&'static str>(|source| {
+                    .map_float_sources::<&'static str>(|source| {
                         self.term(source)
                             .ok_or("float meaning source cannot be transported")
                     })
@@ -1490,7 +1490,7 @@ fn leaf_terms<'p>(proposition: &'p Proposition, out: &mut Vec<&'p ScalarTerm>) -
     }
     match proposition {
         Proposition::Truth | Proposition::Falsehood => true,
-        Proposition::FloatMeaningEqual(clause) => clause.sources().all(|source| term(source, out)),
+        Proposition::DeclarationIdentity(clause) if clause.is_float_meaning() => clause.float_sources().all(|source| term(source, out)),
         Proposition::FloatIntegerConversion(clause) => {
             term(&clause.source, out) && term(&clause.result, out)
         }
@@ -2527,7 +2527,7 @@ mod meaning_unification_tests {
         FloatSemanticOperation,
         FloatSemanticValueKind::{Format, Meaning},
     };
-    use semantic_vocabulary::{FloatMeaningClause, IeeeFloatFormat};
+    use semantic_vocabulary::{ClauseIdentity, IeeeFloatFormat};
     use terminal_check_tables::values::{ValueOrigin, ValueRow};
 
     #[test]
@@ -2550,8 +2550,8 @@ mod meaning_unification_tests {
                 Meaning,
             )
             .unwrap();
-            Proposition::FloatMeaningEqual(
-                FloatMeaningClause::result_equation(
+            Proposition::DeclarationIdentity(
+                ClauseIdentity::float_result_equation(
                     value(3),
                     operation.contract_identity(),
                     IeeeFloatFormat::Binary32,
@@ -2708,7 +2708,7 @@ mod meaning_unification_tests {
     #[test]
     fn carried_float_meaning_certificates_remap_the_live_equation_and_actuals() {
         use semantic_vocabulary::{
-            FloatMeaningClause, IeeeFloatFormat as IeeeFormat, PropositionContext,
+            ClauseIdentity, IeeeFloatFormat as IeeeFormat, PropositionContext,
         };
         let scalar = |raw, format| {
             ScalarTerm::value(ValueId::new(raw).unwrap(), ScalarType::IeeeFloat(format))
@@ -2722,8 +2722,8 @@ mod meaning_unification_tests {
             Meaning,
         )
         .unwrap();
-        let equation = Proposition::FloatMeaningEqual(
-            FloatMeaningClause::result_equation(
+        let equation = Proposition::DeclarationIdentity(
+            ClauseIdentity::float_result_equation(
                 wide.clone(),
                 convert.contract_identity(),
                 IeeeFormat::Binary64,
@@ -2731,12 +2731,12 @@ mod meaning_unification_tests {
             )
             .unwrap(),
         );
-        let Proposition::FloatMeaningEqual(clause) = &equation else {
+        let Proposition::DeclarationIdentity(clause) = &equation else {
             unreachable!()
         };
-        assert!(clause.sources().any(|term| *term == source));
-        let goal = Proposition::FloatMeaningEqual(
-            FloatMeaningClause::conversion_roundtrip(wide, IeeeFormat::Binary32).unwrap(),
+        assert!(clause.float_sources().any(|term| *term == source));
+        let goal = Proposition::DeclarationIdentity(
+            ClauseIdentity::float_conversion_roundtrip(wide, IeeeFormat::Binary32).unwrap(),
         );
         let proof = ProofNode {
             conclusion: goal,

@@ -587,7 +587,8 @@ What the code shows:
   takes a type, so each type Identity serves needs its own variant, reader
   and prover rule. (Marker 294 retired `StructuralIdentity`: Psi now
   publishes the general Identity of inputs, which takes a type. Marker 295
-  retired `ByteSequenceEqual`, whose one producer had no caller.) `identity_clause` (`read/contracts.rs:906`) serves two.
+  retired `ByteSequenceEqual`, whose one producer had no caller. Marker 296
+  made FloatMeaning equality an Identity at the FloatMeaning carrier.) `identity_clause` (`read/contracts.rs:906`) serves two.
 - **A call in a clause is unfolded or refused.** `read/clause_calls.rs`
   serves a call only to a closed machine with no contract, scalar parameters
   and a scalar result, in a clause of the entry state, by reading the

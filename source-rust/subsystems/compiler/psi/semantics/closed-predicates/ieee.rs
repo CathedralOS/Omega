@@ -5,9 +5,8 @@ use numerics::float_semantics::{
     FloatSemantics,
 };
 use semantic_vocabulary::{
-    FloatMeaningClause, FloatMeaningClauseOperand, FloatMeaningClauseValue,
-    IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue, IntegerMathLiteral, Proposition,
-    ScalarTerm,
+    ClauseIdentity, FloatMeaningClauseOperand, FloatMeaningClauseValue, IeeeFloatComparisonKind,
+    IeeeFloatFormat, IeeeFloatValue, IntegerMathLiteral, Proposition, ScalarTerm,
 };
 
 pub fn closed_ieee_relation(proposition: &Proposition) -> Option<bool> {
@@ -67,12 +66,12 @@ fn meaning(value: IeeeFloatValue) -> FloatMeaning {
 /// the returned scalar have been substituted. Structural equality of meanings
 /// retains zero signs and discards NaN payloads.
 pub(crate) fn closed_float_meaning_equality(
-    clause: &FloatMeaningClause,
+    clause: &ClauseIdentity,
     observe: &impl Fn(&ScalarTerm) -> Option<FloatMeaning>,
 ) -> Option<bool> {
     clause.validate().ok()?;
     let mut values: Vec<FloatMeaning> = Vec::with_capacity(clause.values.len());
-    for row in &clause.values {
+    for row in clause.float_meaning_rows() {
         let value = match row {
             FloatMeaningClauseValue::Projection { source, .. } => {
                 observed_meaning(source, observe)?
@@ -111,7 +110,7 @@ pub(crate) fn closed_float_meaning_equality(
         };
         values.push(value);
     }
-    Some(values.get(clause.left.0 as usize)? == values.get(clause.right.0 as usize)?)
+    Some(values.get(clause.left as usize)? == values.get(clause.right as usize)?)
 }
 
 #[cfg(test)]
@@ -123,8 +122,8 @@ mod tests {
         let operation =
             FloatSemanticOperation::for_float_operands(name, inputs.len(), Meaning).unwrap();
         let literal = |bits| ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(bits));
-        Proposition::FloatMeaningEqual(
-            FloatMeaningClause::result_equation(
+        Proposition::DeclarationIdentity(
+            ClauseIdentity::float_result_equation(
                 literal(expected),
                 operation.contract_identity(),
                 IeeeFloatFormat::Binary32,

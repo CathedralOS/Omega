@@ -27,8 +27,8 @@ pub fn substitute_proposition_values_with<'input>(
     substitutions: &dyn Fn(ValueId) -> Option<&'input ScalarTerm>,
 ) -> Proposition {
     match proposition {
-        Proposition::FloatMeaningEqual(clause) => {
-            Proposition::FloatMeaningEqual(clause.map_sources_or_invalid(|source| {
+        Proposition::DeclarationIdentity(clause) if clause.is_float_meaning() => {
+            Proposition::DeclarationIdentity(clause.map_float_sources_or_invalid(|source| {
                 substitute_scalar_term_values_with(source, substitutions)
             }))
         }
@@ -207,8 +207,8 @@ fn substitute_structural_places<'input>(
     content_prefix: &ContentPrefix<'_>,
 ) -> Result<Proposition, &'static str> {
     Ok(match proposition {
-        Proposition::FloatMeaningEqual(clause) => {
-            Proposition::FloatMeaningEqual(clause.map_sources_or_invalid(|source| {
+        Proposition::DeclarationIdentity(clause) if clause.is_float_meaning() => {
+            Proposition::DeclarationIdentity(clause.map_float_sources_or_invalid(|source| {
                 substitute_scalar_term_places(source, substitutions)
             }))
         }

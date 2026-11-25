@@ -6,21 +6,24 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use proof_admission::{FloatMeaningNormalizationError, check_float_meaning_normalization};
-use semantic_vocabulary::FloatMeaningClause;
+use semantic_vocabulary::ClauseIdentity;
 
 use super::{ProofNode, ProofRule, Proposition, Prover, ScalarTerm, Unproven, node};
 
-fn subjects(clause: &FloatMeaningClause) -> impl Iterator<Item = &ScalarTerm> {
+fn subjects(clause: &ClauseIdentity) -> impl Iterator<Item = &ScalarTerm> {
     clause
-        .sources()
+        .float_sources()
         .filter(|source| !matches!(source, ScalarTerm::IeeeFloatLiteral(_)))
 }
 
 impl Prover<'_> {
     pub(super) fn float_meaning(&self, goal: &Proposition) -> Result<ProofNode, Unproven> {
-        let Proposition::FloatMeaningEqual(clause) = goal else {
+        let Proposition::DeclarationIdentity(clause) = goal else {
             return Err("float meaning proof has a different goal form");
         };
+        if !clause.is_float_meaning() {
+            return Err("float meaning proof has a different goal form");
+        }
         match check_float_meaning_normalization(goal, []) {
             Ok(()) => {
                 return Ok(node(
@@ -47,7 +50,9 @@ impl Prover<'_> {
         // table or a scan of every fact at each reached endpoint.
         let mut indexed: BTreeMap<ScalarTerm, Vec<usize>> = BTreeMap::new();
         for (index, fact) in self.facts.iter().enumerate() {
-            if let Proposition::FloatMeaningEqual(clause) = fact.proposition() {
+            if let Proposition::DeclarationIdentity(clause) = fact.proposition()
+                && clause.is_float_meaning()
+            {
                 for source in subjects(clause) {
                     indexed.entry(source.clone()).or_default().push(index);
                 }
@@ -69,7 +74,7 @@ impl Prover<'_> {
                     continue;
                 }
                 equations.push(index);
-                let Proposition::FloatMeaningEqual(clause) = self.facts[index].proposition() else {
+                let Proposition::DeclarationIdentity(clause) = self.facts[index].proposition() else {
                     unreachable!("indexed meaning equation")
                 };
                 pending.extend(subjects(clause).cloned());

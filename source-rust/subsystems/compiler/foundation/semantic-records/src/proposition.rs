@@ -1703,7 +1703,6 @@ mod propositions {
                 },
                 ContentConservation(conservation) => ContentConservation(conservation.clone()),
                 DeclarationIdentity(clause) => DeclarationIdentity(clause.clone()),
-                FloatMeaningEqual(clause) => FloatMeaningEqual(clause.clone()),
                 FloatIntegerConversion(clause) => FloatIntegerConversion(clause.clone()),
                 IeeeFloatIntegerExact { source, target } => IeeeFloatIntegerExact {
                     source: source.clone(),
@@ -1854,7 +1853,6 @@ mod propositions {
                         }
                         ContentConservation(a) => matches!(right, ContentConservation(b) if a == b),
                         DeclarationIdentity(a) => matches!(right, DeclarationIdentity(b) if a == b),
-                        FloatMeaningEqual(a) => matches!(right, FloatMeaningEqual(b) if a == b),
                         FloatIntegerConversion(a) => {
                             matches!(right, FloatIntegerConversion(b) if a == b)
                         }
@@ -1895,7 +1893,6 @@ mod propositions {
                         Truth | Falsehood => {}
                         Atom(identity) => identity.hash(state),
                         DeclarationIdentity(clause) => clause.hash(state),
-                        FloatMeaningEqual(clause) => clause.hash(state),
                         FloatIntegerConversion(clause) => clause.hash(state),
                         IeeeFloatIntegerExact { source, target } => {
                             source.hash(state);
@@ -2002,7 +1999,6 @@ mod propositions {
             conclusion: Box<Proposition>,
         },
         ContentConservation(ContentConservation),
-        FloatMeaningEqual(crate::FloatMeaningClause),
         /// The total graph of an integer-valued semantic conversion. This
         /// guarantee remains separate from source exactness and FloatMeaning.
         FloatIntegerConversion(crate::FloatIntegerConversion),
@@ -2081,9 +2077,6 @@ mod propositions {
                     Self::Truth | Self::Falsehood => {}
                     Self::Atom(_) => {}
                     Self::DeclarationIdentity(clause) => clause.validate()?,
-                    Self::FloatMeaningEqual(clause) => clause
-                        .validate()
-                        .map_err(PropositionError::InvalidFloatMeaningClause)?,
                     Self::FloatIntegerConversion(clause) => clause.validate().map_err(|error| {
                         PropositionError::InvalidFloatIntegerConversion(Box::new(error))
                     })?,
@@ -2246,6 +2239,9 @@ mod propositions {
                     Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
                     Proposition::DeclarationIdentity(clause) => {
                         clause.validate()?;
+                        for source in clause.float_sources() {
+                            self.validate_term(source)?;
+                        }
                         for value in &clause.values {
                             match &value.operand {
                                 crate::ClauseOperand::Scalar(term) => self.validate_term(term)?,
@@ -2254,11 +2250,6 @@ mod propositions {
                                 }
                                 _ => {}
                             }
-                        }
-                    }
-                    Proposition::FloatMeaningEqual(clause) => {
-                        for source in clause.sources() {
-                            self.validate_term(source)?;
                         }
                     }
                     Proposition::FloatIntegerConversion(clause) => {
@@ -2656,19 +2647,21 @@ mod value_ids {
                             | Self::IeeeFloatComparison { .. }
                             | Self::StructuralCaseMembership { .. }
                             | Self::ContentConservation(_) => {}
+                            // Renaming can make two float rows equal, so a
+                            // FloatMeaning Identity is interned again.
+                            Self::DeclarationIdentity(clause) if clause.is_float_meaning() => {
+                                *clause = clause.map_float_sources_or_invalid(|source| {
+                                    let mut source = source.clone();
+                                    source.remap_value_ids(&mut map);
+                                    source
+                                });
+                            }
                             Self::DeclarationIdentity(clause) => {
                                 for value in &mut clause.values {
                                     if let crate::ClauseOperand::Scalar(source) = &mut value.operand {
                                         source.remap_value_ids(&mut map);
                                     }
                                 }
-                            }
-                            Self::FloatMeaningEqual(clause) => {
-                                *clause = clause.map_sources_or_invalid(|source| {
-                                    let mut source = source.clone();
-                                    source.remap_value_ids(&mut map);
-                                    source
-                                });
                             }
                             Self::FloatIntegerConversion(clause) => {
                                 pending.push(Pending::Scalar(&mut clause.result));
@@ -2828,17 +2821,15 @@ mod value_ids {
                     | Proposition::StructuralCaseMembership { .. }
                     | Proposition::ContentConservation(_) => complete = false,
                     Proposition::DeclarationIdentity(clause) => {
+                        for source in clause.float_sources().rev() {
+                            pending.push(Pending::Scalar(source));
+                        }
                         for value in clause.values.iter().rev() {
                             match &value.operand {
                                 crate::ClauseOperand::Scalar(source) => pending.push(Pending::Scalar(source)),
                                 crate::ClauseOperand::Input(_) | crate::ClauseOperand::Formal(_) => complete = false,
-                                crate::ClauseOperand::Application { .. } => {}
+                                crate::ClauseOperand::Application { .. } | crate::ClauseOperand::FloatMeaning(_) => {}
                             }
-                        }
-                    }
-                    Proposition::FloatMeaningEqual(clause) => {
-                        for source in clause.sources().rev() {
-                            pending.push(Pending::Scalar(source));
                         }
                     }
                     Proposition::FloatIntegerConversion(clause) => {

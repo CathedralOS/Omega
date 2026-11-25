@@ -74,7 +74,7 @@ fn closed_leaf(
     Ok(match proposition {
         Proposition::Truth => Some(true),
         Proposition::Falsehood => Some(false),
-        Proposition::FloatMeaningEqual(clause) => {
+        Proposition::DeclarationIdentity(clause) if clause.is_float_meaning() => {
             crate::check_predicate_evaluation_size([proposition])
                 .map_err(|_| ClosedIntegerEvaluationError::ResourceLimitExceeded)?;
             crate::ieee::closed_float_meaning_equality(clause, observe)

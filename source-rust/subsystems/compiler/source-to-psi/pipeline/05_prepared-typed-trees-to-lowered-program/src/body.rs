@@ -1192,7 +1192,9 @@ pub(crate) fn scalar_clause_value(
                     scalar_type,
                 }
             }
-            ClauseOperand::Input(_) | ClauseOperand::Formal(_) => return None,
+            ClauseOperand::Input(_) | ClauseOperand::Formal(_) | ClauseOperand::FloatMeaning(_) => {
+                return None;
+            }
         };
         terms.push(term);
     }

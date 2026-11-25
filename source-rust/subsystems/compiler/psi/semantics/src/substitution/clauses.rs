@@ -506,6 +506,14 @@ pub fn substitute_clause_with_computation_names<Error: From<&'static str>>(
     computation_names: &[(ScalarTerm, ScalarTerm)],
 ) -> Result<Proposition, Error> {
     Ok(match proposition {
+        Proposition::DeclarationIdentity(clause) if clause.is_float_meaning() => {
+            let mapped =
+                clause.map_float_sources(|source| bound_term(source, bindings, computation_names))?;
+            for source in mapped.float_projection_sources() {
+                bindings.validate_float_meaning_source(source)?;
+            }
+            Proposition::DeclarationIdentity(mapped)
+        }
         Proposition::DeclarationIdentity(clause) => {
             let mut mapped = clause.clone();
             for value in &mut mapped.values {
@@ -518,17 +526,10 @@ pub fn substitute_clause_with_computation_names<Error: From<&'static str>>(
                     semantic_vocabulary::ClauseOperand::Scalar(term) => *term = bound_term(term, bindings, computation_names)?,
                     semantic_vocabulary::ClauseOperand::Formal(_) => return Err(Error::from("a schema formal has no applied value")),
                     semantic_vocabulary::ClauseOperand::Application { .. } => {}
+                    semantic_vocabulary::ClauseOperand::FloatMeaning(_) => return Err(Error::from("a float meaning outside a FloatMeaning Identity")),
                 }
             }
             Proposition::DeclarationIdentity(mapped)
-        }
-        Proposition::FloatMeaningEqual(clause) => {
-            let mapped =
-                clause.map_sources(|source| bound_term(source, bindings, computation_names))?;
-            for source in mapped.projection_sources() {
-                bindings.validate_float_meaning_source(source)?;
-            }
-            Proposition::FloatMeaningEqual(mapped)
         }
         Proposition::FloatIntegerConversion(clause) => {
             clause
@@ -1228,7 +1229,7 @@ mod meaning_template_tests {
         FloatSemanticOperation,
         FloatSemanticValueKind::{Format, Meaning},
     };
-    use semantic_vocabulary::{FloatMeaningClause, IeeeFloatFormat, StructuralFieldId};
+    use semantic_vocabulary::{ClauseIdentity, IeeeFloatFormat, StructuralFieldId};
 
     fn equation(right: ScalarTerm) -> Proposition {
         let f = IeeeFloatFormat::Binary32;
@@ -1241,8 +1242,8 @@ mod meaning_template_tests {
             Meaning,
         )
         .unwrap();
-        Proposition::FloatMeaningEqual(
-            FloatMeaningClause::result_equation(
+        Proposition::DeclarationIdentity(
+            ClauseIdentity::float_result_equation(
                 value(3),
                 operation.contract_identity(),
                 f,
@@ -1318,24 +1319,24 @@ mod meaning_template_tests {
             },
         )
         .unwrap();
-        let Proposition::FloatMeaningEqual(clause) = mapped else {
+        let Proposition::DeclarationIdentity(clause) = mapped else {
             unreachable!()
         };
         let ids = clause
-            .sources()
+            .float_sources()
             .map(|source| match source {
                 ScalarTerm::Value { id, .. } => id.get(),
                 _ => panic!("an actual/result lost its scalar identity"),
             })
             .collect::<Vec<_>>();
         assert_eq!(ids, vec![30, 2, 1]);
-        assert_eq!(clause.left, semantic_vocabulary::FloatMeaningSlot(0));
-        assert_eq!(clause.right, semantic_vocabulary::FloatMeaningSlot(3));
+        assert_eq!(clause.left, 0);
+        assert_eq!(clause.right, 3);
         let semantic_vocabulary::FloatMeaningClauseValue::Application {
             contract,
             format,
             operands,
-        } = &clause.values[3]
+        } = clause.float_meaning_row(3).unwrap()
         else {
             panic!("semantic application was lost")
         };
@@ -1397,10 +1398,10 @@ mod meaning_template_tests {
                 },
             )
             .unwrap();
-            let Proposition::FloatMeaningEqual(clause) = mapped else {
+            let Proposition::DeclarationIdentity(clause) = mapped else {
                 unreachable!()
             };
-            assert!(clause.sources().any(|source| matches!(source, ScalarTerm::IeeeFloatField { version: actual, root, .. } if *actual==version && root.get()==5)));
+            assert!(clause.float_sources().any(|source| matches!(source, ScalarTerm::IeeeFloatField { version: actual, root, .. } if *actual==version && root.get()==5)));
         }
     }
 }

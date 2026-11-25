@@ -62,7 +62,7 @@ pub use float_integer_conversions::{
 
 mod float_meaning_clauses;
 pub use float_meaning_clauses::{
-    FloatMeaningClause, FloatMeaningClauseOperand, FloatMeaningClauseValue, FloatMeaningSlot,
+    FloatMeaningClauseOperand, FloatMeaningClauseValue, FloatMeaningSlot,
 };
 
 pub(crate) use ::wire::codec_bytes;

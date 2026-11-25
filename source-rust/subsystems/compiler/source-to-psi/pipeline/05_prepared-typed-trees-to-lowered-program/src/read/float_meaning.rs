@@ -2,16 +2,16 @@
 //! their scalar sources; neither an IEEE comparison nor equality of raw bits
 //! denotes this proposition.
 
-use crate::{Unserved, refuse};
 use crate::source_state::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use crate::source_state::signature::SignatureContractKind;
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
+use crate::{Unserved, refuse};
 use language_core::core_vocabulary::CoreVocabulary;
 use language_core::sealed_intrinsics::{CompilerPrimitive, SealedIntrinsic};
 use numerics::float_projection::FloatProjectionOperation;
 use numerics::float_semantics::{FloatSemanticOperation, FloatSemanticValueKind as Kind};
 use semantic_vocabulary::{
-    FloatMeaningClause, FloatMeaningClauseOperand as Operand, FloatMeaningClauseValue as Value,
+    ClauseIdentity, FloatMeaningClauseOperand as Operand, FloatMeaningClauseValue as Value,
     FloatMeaningSlot as Slot, IeeeFloatFormat as Format, IntegerType, MachineId, Proposition,
     ScalarType,
 };
@@ -52,14 +52,11 @@ fn intern(id: MachineId, values: &mut Vec<Value>, value: Value) -> Checked<Slot>
 
 /// An independently formed proof-only term can use plain formal values.
 fn formed_wrapper_term(id: MachineId, values: Vec<Value>, root: Slot) -> Checked<()> {
-    let term = FloatMeaningClause {
-        values,
-        left: root,
-        right: root,
-    };
-    term.validate().map_err(|detail| unavailable(id, detail))?;
+    let term = ClauseIdentity::float_meaning(values, root.0, root.0);
+    term.validate_float_meaning()
+        .map_err(|detail| unavailable(id, detail))?;
     if term
-        .sources()
+        .float_sources()
         .any(super::contracts::needs_call_argument_formation)
     {
         return Err(unavailable(
@@ -81,15 +78,11 @@ impl Program<'_> {
         let mut values = Vec::new();
         let left = self.meaning_term(id, scope, left, &mut values, None)?;
         let right = self.meaning_term(id, scope, right, &mut values, None)?;
-        let clause = FloatMeaningClause {
-            values,
-            left: left.min(right),
-            right: left.max(right),
-        };
+        let clause = ClauseIdentity::float_meaning(values, left.min(right).0, left.max(right).0);
         clause
-            .validate()
+            .validate_float_meaning()
             .map_err(|detail| unavailable(id, detail))?;
-        Ok(Proposition::FloatMeaningEqual(clause))
+        Ok(Proposition::DeclarationIdentity(clause))
     }
 
     fn meaning_term(

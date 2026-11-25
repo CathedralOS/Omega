@@ -997,7 +997,9 @@ fn check_prepared_machine(
             ranking_bindings,
         )
         .and_then(|goal| {
-            if let Proposition::DeclarationIdentity(clause) = &goal {
+            if let Proposition::DeclarationIdentity(clause) = &goal
+                && !clause.is_float_meaning()
+            {
                 return equality::discharge(
                     module, lowered, tables, graph, row.created_at, obligation, clause, law_instances,
                     &mut storage.at_entry(references, tables),

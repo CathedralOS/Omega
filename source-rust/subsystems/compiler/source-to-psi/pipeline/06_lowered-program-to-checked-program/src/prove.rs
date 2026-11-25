@@ -147,8 +147,8 @@ fn covered(
     }
     match goal {
         Proposition::Truth | Proposition::Falsehood => true,
+        Proposition::DeclarationIdentity(clause) if clause.is_float_meaning() => true,
         Proposition::ScalarIeeeFloatComparison { .. }
-        | Proposition::FloatMeaningEqual(_)
         | Proposition::FloatIntegerConversion(_)
         | Proposition::IeeeFloatIntegerExact { .. }
         | Proposition::IntegerIeeeFloatExact { .. } => true,
@@ -2087,6 +2087,9 @@ impl<'a> Prover<'a> {
         }
         match goal {
             Proposition::Truth => Ok(primitive(Proposition::Truth, PrimitiveJudgment::Truth)),
+            Proposition::DeclarationIdentity(clause) if clause.is_float_meaning() => {
+                self.float_meaning(goal)
+            }
             Proposition::DeclarationIdentity(_) => Err("a typed Identity needs mathematical evidence"),
             Proposition::Falsehood => Err("the goal is false"),
             Proposition::Conjunction(parts) => {
@@ -2200,7 +2203,6 @@ impl<'a> Prover<'a> {
             | Proposition::IeeeFloatComparison { .. }
             | Proposition::StructuralCaseMembership { .. }
             | Proposition::ContentConservation(_) => Err("goal form outside this prover"),
-            Proposition::FloatMeaningEqual(_) => self.float_meaning(goal),
             Proposition::IntegerIeeeFloatExact { .. } => {
                 proof_admission::check_integer_float_exact(self.context, goal)
                     .map(|()| node(goal.clone(), ProofRule::IntegerFloatExact))

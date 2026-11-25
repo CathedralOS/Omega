@@ -6087,6 +6087,7 @@ pub(crate) mod scalar_observations {
                     if !clause.is_portable() || clause.validate().is_err() {
                         return malformed("unpublished declaration Identity in a portable proposition");
                     }
+                    scalars.extend(clause.float_sources().map(|source| (source, false)));
                     for value in &clause.values {
                         match (value.carrier, &value.operand) {
                             (ClauseCarrier::Structural(carrier), ClauseOperand::Input(subject)) => {
@@ -6115,12 +6116,12 @@ pub(crate) mod scalar_observations {
                                 }
                             }
                             (_, ClauseOperand::Scalar(term)) => scalars.push((term, false)),
+                            // Its rows passed their catalog checks when the
+                            // Identity validated; its sources are checked below.
+                            (ClauseCarrier::FloatMeaning(_), ClauseOperand::FloatMeaning(_)) => {}
                             _ => return malformed("unpublished declaration Identity in a portable proposition"),
                         }
                     }
-                }
-                Proposition::FloatMeaningEqual(clause) => {
-                    scalars.extend(clause.sources().map(|source| (source, false)));
                 }
                 Proposition::FloatIntegerConversion(clause) => {
                     scalars.push((&clause.source, false));

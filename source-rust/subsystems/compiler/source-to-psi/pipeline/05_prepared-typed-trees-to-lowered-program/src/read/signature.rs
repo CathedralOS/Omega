@@ -3698,6 +3698,9 @@ impl<'p> Converter<'p, '_> {
         let Proposition::DeclarationIdentity(clause) = proposition else {
             return Err(unserved(id, "law guarantee other than an Identity"));
         };
+        if clause.is_float_meaning() {
+            return Err(unserved(id, "law guarantee other than an Identity"));
+        }
         self.identity(id, clause, formals, satisfaction)
     }
 
