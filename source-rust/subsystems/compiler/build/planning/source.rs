@@ -12,7 +12,7 @@ use build_execution::{
     TerminalBuildActivation, prepare_build_evaluation,
 };
 use build_recheck::BuildRecheck;
-pub use build_recheck::{BuildRechecks, CheckedRechecks, PendingProduct, with_build_rechecks};
+pub use build_recheck::{PendingProduct, rechecks_outlive_caller, with_build_rechecks};
 use diagnostics::Diagnostic;
 use package_compilation::source_assembly::{
     AssembledSyntax, DeferredProductSources, ImmutableSourceParseCheckpoint,
@@ -432,19 +432,15 @@ impl PlanningSource {
     }
 
     /// Open the Product and start checking its returned Build again on the
-    /// Product's sources in `rechecks`. The Product is released only by
+    /// Product's sources on an idle worker. The Product is released only by
     /// [`PendingProduct::settle`], after that check passes.
     pub(super) fn open_pending(
         self,
         evaluated: EvaluatedBuild,
         inputs: Option<&PackageCompilationInputs>,
-        rechecks: &BuildRechecks<'_, '_>,
     ) -> Result<PendingProduct, CompileFailure> {
         let product = self.open_unchecked(evaluated, inputs)?;
-        let owed = match BuildRecheck::owed_by(&product) {
-            None => None,
-            Some((recheck, owed)) => Some((owed, rechecks.start(recheck)?)),
-        };
+        let owed = BuildRecheck::owed_by(&product).map(|(recheck, owed)| (owed, recheck.start()));
         Ok(PendingProduct::new(product, owed))
     }
 

@@ -139,10 +139,17 @@ fn compile_targets(
         .build_inputs
         .clone()
         .map(|capture| BuildSnapshotRequest::scoped(std::iter::empty(), capture));
+    // A check writes nothing, so it can run while the dependency Build
+    // rechecks finish; each target settles them before its result is reported.
+    let open = if arguments.check_only {
+        package_manager::project::open_products_alongside_rechecks
+    } else {
+        package_manager::project::open_products
+    };
     let plans = if active.is_empty() {
         None
     } else {
-        Some(package_manager::project::open_products(
+        Some(open(
             if arguments.check_only {
                 package_manager::project::ProjectInput::PackageCheck(&arguments.root_path)
             } else {
@@ -206,6 +213,19 @@ fn compile_targets(
         print_phases("Build", target.planned.timings());
         print_phases("Dependency Builds", target.planned.dependency_timings());
     }
+    let settle_rechecks = |profile: TargetProfile| -> Result<(), NativeValidationError> {
+        let Some(Ok(plans)) = plans.as_ref() else {
+            return Ok(());
+        };
+        let timings = plans.settle_rechecks(profile)?;
+        if arguments.timings && timings.is_enabled() {
+            print_phases(
+                "Dependency Builds (finished alongside the Product)",
+                &timings,
+            );
+        }
+        Ok(())
+    };
     let mut failures = Vec::new();
     let mut failed_targets = Vec::new();
     let mut portable = Vec::new();
@@ -221,13 +241,16 @@ fn compile_targets(
         };
         let result = target.and_then(|target| {
             let planned = target.planned;
-            let mut result = compile_target(arguments, target)
+            let mut result = compile_target(arguments, target, &|| settle_rechecks(profile))
                 .map_err(|error| attribute_error(planned, error))?;
             if let Some(candidate) = result.portable.take() {
                 portable.push(candidate);
             }
             Ok(result)
         });
+        // A dependency's refused Build recheck is this target's result,
+        // ahead of any refusal of its own Product.
+        let result = settle_rechecks(profile).and(result);
         match result {
             Ok(outcome) => {
                 writeln!(report, "product: {}\ntarget: {report_name}", outcome.kind).unwrap();
@@ -380,6 +403,7 @@ impl<'a> PreparedTarget<'a> {
 fn compile_target(
     arguments: &CompileArguments,
     target: PreparedTarget<'_>,
+    settle_rechecks: &dyn Fn() -> Result<(), NativeValidationError>,
 ) -> Result<TargetReport, NativeValidationError> {
     let PreparedTarget {
         planned,
@@ -469,6 +493,9 @@ fn compile_target(
             if arguments.timings {
                 print_phases(&format!("Product ({})", profile.target_name()), &timings);
             }
+            // The dependency rechecks ran alongside this check. Settle them
+            // before its advisories or refusal are reported.
+            settle_rechecks()?;
             advisories = checked?;
         }
     } else {

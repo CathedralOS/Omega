@@ -2091,6 +2091,7 @@ dependencies = [
  "terminal-work",
  "tokens",
  "wire",
+ "worker-budget",
 ]
 
 [[package]]
