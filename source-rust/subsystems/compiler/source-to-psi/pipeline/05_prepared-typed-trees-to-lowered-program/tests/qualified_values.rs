@@ -539,6 +539,43 @@ fn an_unused_domain_alias_checks_its_constituents() {
 }
 
 #[test]
+fn contract_membership_uses_the_record_formals_carrier_qualifications() {
+    let domains = "data Word { bits: u32; }
+        domain Word::Placed;
+        domain Word::Other;
+        data Placed = Word in Word::Placed;
+        data Other = Word in Word::Other;
+        domain<T> Placed::Op<T>;
+        domain<T> Other::Op<T>;";
+    let program = Program::of(&format!(
+        "{domains}
+        machine left(x: Word in Placed) requires x in Placed::Op<u32> {{}}
+        machine right(x: Word in Other) requires x in Other::Op<u32> {{}}"
+    ));
+    program.judged(|_| {}).accepted();
+
+    for (carrier, family) in [
+        ("Word", "Placed"),
+        ("Word in Other", "Placed"),
+        ("Word in Placed", "Other"),
+    ] {
+        let source =
+            format!("{domains} machine f(x: {carrier}) requires x in {family}::Op<u32> {{}}");
+        let refusal = Program::try_of(&[("product/main.omg", &source)])
+            .err()
+            .expect("the record formal lacks the family's carrier qualification");
+        assert_eq!(refusal.stage, "lowering");
+        assert!(
+            refusal
+                .message
+                .contains(&format!("requires membership in `Word::{family}`")),
+            "{}",
+            refusal.message
+        );
+    }
+}
+
+#[test]
 fn a_fixed_alias_applies_a_domain_to_its_own_carrier() {
     let domains = "domain<T [copy]> T::Label;
         domain i32::IntegerLabel = i32::Label;

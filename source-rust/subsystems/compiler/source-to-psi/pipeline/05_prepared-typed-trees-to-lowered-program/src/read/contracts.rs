@@ -1686,15 +1686,14 @@ impl Program<'_> {
                             Unserved::Contract("erased input used as structural storage"),
                         ));
                     }
-                    // A clause that names a field of a formal reads inside
-                    // the formal's value, as a body does.
-                    let Some(record) =
-                        self.opened(id, Some(scope.slots[slot].value_type), Access::Read)?
-                    else {
+                    // The formal itself can be a membership subject. Keep its
+                    // qualifications when authorizing a read of its storage.
+                    let value_type = scope.slots[slot].value_type;
+                    if self.opened(id, Some(value_type), Access::Read)?.is_none() {
                         return Ok(None);
-                    };
+                    }
                     let root = formal_place(id, scope.slots, slot)?;
-                    return Ok(Some((root, Vec::new(), ValueType::record(record.record()))));
+                    return Ok(Some((root, Vec::new(), value_type)));
                 };
                 if subject.symbol.is_valid() && path.symbol == subject.symbol {
                     return Ok(Some((
