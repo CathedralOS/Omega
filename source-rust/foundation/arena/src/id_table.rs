@@ -130,6 +130,11 @@ impl<Id: NumericId, T> IdTable<Id, T> {
         identity
     }
 
+    /// Removes the last row, the one `push` minted most recently.
+    pub fn pop(&mut self) -> Option<T> {
+        self.values.pop()
+    }
+
     fn position(&self, identity: Id) -> Option<usize> {
         let offset = identity.get().checked_sub(self.first)?;
         usize::try_from(offset)
@@ -344,6 +349,11 @@ mod tests {
         assert_eq!(table.identity_at(2), Some(id(6)));
         assert_eq!(table.identity_at(3), None);
         assert_eq!(table.identity_at(usize::MAX), None);
+        let mut pushed = IdTable::<TestId, char>::default();
+        pushed.push('x');
+        assert_eq!(pushed.push('y'), id(2));
+        assert_eq!(pushed.pop(), Some('y'));
+        assert_eq!(pushed.push('z'), id(2));
         assert_eq!(IdTable::<TestId, ()>::default().identity_at(0), None);
         let high = IdTable::from_rows([(id(u64::MAX), ())]).unwrap();
         assert_eq!(high.identity_at(0), Some(id(u64::MAX)));

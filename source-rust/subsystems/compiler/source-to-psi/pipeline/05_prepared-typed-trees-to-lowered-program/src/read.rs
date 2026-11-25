@@ -459,6 +459,11 @@ pub(crate) struct Program<'t> {
     /// later call of one is refused at once as depending on it, instead of
     /// reading and refusing the same signature again for every caller.
     refused_signatures: Vec<SymbolHandle>,
+    /// Machine rows reserved before their signature is read and not yet
+    /// filled (`machine::reserve_row`): the signature being read, or one that
+    /// was refused after machines its signature read took later rows. A
+    /// lookup by symbol and `read_bodies` skip them.
+    pub(crate) unread_rows: Vec<MachineId>,
     /// The locals of block values in the body statement being read, after
     /// the body's own slots, with their names. A block reads its statements
     /// while the enclosing statement is still being read, so its slots are
@@ -660,6 +665,7 @@ impl<'t> Program<'t> {
             supplied: Vec::new(),
             collected: None,
             refused_signatures: Vec::new(),
+            unread_rows: Vec::new(),
             block_slots: Vec::new(),
             block_slot_base: 0,
             block_floor: None,

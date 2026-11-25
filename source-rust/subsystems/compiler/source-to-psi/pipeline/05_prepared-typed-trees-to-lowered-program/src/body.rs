@@ -775,6 +775,27 @@ pub enum Termination {
 }
 
 impl Signature {
+    /// What a machine's reserved row holds until its signature is read
+    /// (`read::machine::reserve_row`): no formals, no result, no contract.
+    pub(crate) fn unread() -> Self {
+        Self {
+            operational: Default::default(),
+            parameters: Vec::new(),
+            erased: Vec::new(),
+            borrowed: Vec::new(),
+            result: None,
+            membership_ensures: Vec::new(),
+            content_ensures: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            crashes: CrashCeiling::Inferred,
+            reaches: Ceiling::Inferred,
+            invokes: Ceiling::Inferred,
+            termination: Termination::Silent,
+            ranking: None,
+        }
+    }
+
     pub(crate) fn has_structural_guarantees(&self) -> bool {
         !self.membership_ensures.is_empty() || !self.content_ensures.is_empty()
     }

@@ -382,7 +382,10 @@ decided by the request, not by where source lives". The roots are, in
    including a specialization instance, whose symbol derives from its
    template's declaration;
 5. every machine those call, in discovery order, whichever package declares
-   it.
+   it. A machine takes its identity, and reserves its row in every machine
+   table, before its signature is read (`read::machine::reserve_row`), so a
+   machine that signature reads, such as one a clause applies, comes after
+   it and a call keeps the machine it names.
 
 A selected data type is read as a record. A native binding also selects its
 exact boundary requirement and declaring trait: the reader checks the
