@@ -1,14 +1,12 @@
-use omega\language\core\ProgramImage;
+use {omega}/language/core/program_image.omg as image;
+use {images}/main.omg as backing;
 
 machine build(builder: @mutable Build) suspends
 requires addr::Bound == 18446744073709551616 {
     Build::application(builder, "provider_readiness");
-    let mutable backing_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "backing" });
-    dependency\with_alias(@mutable backing_dependency, "backing");
-    let backing_registration: DependencyRegistration = Build::build_dependency(builder, backing_dependency);
     BuildLog::write_line(@mutable builder.log, "before readiness");
-    suspend Build::await_provider::<ProgramImage, backing\TestImage>(builder);
-    let observed: addr = ProgramImage::retained_suffix_start();
+    suspend Build::await_provider::<|image|::ProgramImage, |backing|::TestImage>(builder);
+    let observed: addr = |image|::ProgramImage::retained_suffix_start();
     transition observed == 64 {
         true -> finish(builder),
         _ -> wrong_backing(builder)
