@@ -3437,6 +3437,7 @@ dependencies = [
  "tokens",
  "typed-trees",
  "wire",
+ "worker-budget",
 ]
 
 [[package]]
@@ -3960,6 +3961,7 @@ dependencies = [
  "layout-plans",
  "numeric-literals",
  "numerics",
+ "rayon",
  "record-storage",
  "schema-reflection",
  "semantic-vocabulary",
@@ -3974,6 +3976,7 @@ dependencies = [
  "source-text",
  "symbols",
  "wire",
+ "worker-budget",
 ]
 
 [[package]]

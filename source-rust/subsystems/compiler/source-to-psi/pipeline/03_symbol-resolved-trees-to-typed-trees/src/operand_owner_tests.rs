@@ -89,7 +89,22 @@ impl TypedReferences for SymbolReadingOwners {
 }
 
 fn assert_owners_match_symbol_reading_walk(program: &TypedTrees) {
-    let owners = collect_program_operand_owners(program);
+    assert_eq!(worker_budget::current_workers(), 1);
+    assert_walk_matches_symbol_reading_walk(program, &collect_program_operand_owners(program));
+    // Several workers split the declarations into runs and replay them in
+    // order; the table must not change.
+    let budget = worker_budget::ExecutionBudget::with_workers(4).expect("test workers start");
+    let parallel = budget.run(|| {
+        assert_eq!(worker_budget::current_workers(), 4);
+        collect_program_operand_owners(program)
+    });
+    assert_walk_matches_symbol_reading_walk(program, &parallel);
+}
+
+fn assert_walk_matches_symbol_reading_walk(
+    program: &TypedTrees,
+    owners: &crate::source_state::references::ProgramOperandOwners,
+) {
     let mut reference = SymbolReadingOwners::default();
     visit_program(program, &mut reference);
     assert!(reference.symbols > 0, "the reference walk reads symbols");
