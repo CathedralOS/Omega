@@ -326,7 +326,7 @@ fn ancestors(
     carrier: TypeReferenceHandle,
     mut child: Atom,
 ) -> Result<Vec<Spelled>, Unaccounted> {
-    use crate::source_state::{CallableApplication, domain::refinement_parent};
+    use crate::source_state::domain::refinement_parent;
     let unavailable = || Unaccounted::Deferred(DeferredRequest::DomainCastUnnamedConstraint);
     let mut ancestors = Vec::new();
     while let Atom::Declared(symbol, identity) = child {
@@ -347,19 +347,9 @@ fn ancestors(
             let bindings = program
                 .domain_arguments_for_instance(symbol, identity)
                 .ok_or_else(unavailable)?;
-            let parameters = program.domain_type_parameters(declaration);
-            if parameters.len() != bindings.len() {
+            let bindings = bindings.to_vec();
+            if !crate::type_reference::carrier_qualifications::substitute_indices(program, symbol, &bindings, &mut arguments) {
                 return Err(unavailable());
-            }
-            let mut application = CallableApplication::for_type_parameters(
-                symbol,
-                parameters.iter().zip(bindings.iter().copied()),
-                None,
-            );
-            for argument in &mut arguments {
-                *argument = application
-                    .type_reference(program, *argument)
-                    .map_err(|_| unavailable())?;
             }
             parent_id = program.retain_domain_application(parent, carrier, &arguments)?;
         }
@@ -664,6 +654,8 @@ fn named_domains(
     carrier: TypeReferenceHandle,
 ) -> Result<Vec<Named>, Diagnostic> {
     let mut named: Vec<Named> = Vec::new();
+    let mut before = None;
+    let mut after = None;
     for (handle, cast, entry) in run {
         let label = entry_label(program, cast);
         let mut selection = None;
@@ -679,7 +671,7 @@ fn named_domains(
                 .type_reference_table
                 .type_reference_handles(cast.semantic_domain_arguments)
                 .to_vec();
-            let candidates = select_domain_candidates_where(
+            let mut candidates = select_domain_candidates_where(
                 source,
                 program,
                 &name,
@@ -691,18 +683,41 @@ fn named_domains(
                     )
                 },
             );
+            let competing = candidates.len() > 1;
+            if competing {
+                use crate::type_reference::carrier_qualifications::{CarrierQualifications, DomainUse};
+                for (excluded, side) in [(CastEntryKind::Add, &mut before), (CastEntryKind::Remove, &mut after)] {
+                    if entry.kind == excluded { continue; }
+                    let available = side.get_or_insert_with(|| {
+                        let mut available = CarrierQualifications::default();
+                        for (other, cast, entry) in run {
+                            if entry.kind == excluded { continue; }
+                            if cast.semantic_domain.is_empty() { available.include_policy(cast.domain); continue; }
+                            let name = expression_table(program).name_path_string(cast.semantic_domain);
+                            let arguments = program.type_reference_table.type_reference_handles(cast.semantic_domain_arguments).to_vec();
+                            available.include(source, program, carrier, DomainUse {
+                                name: &name, arguments: &arguments, reference: authored_span(program, *other), retained: SymbolHandle::invalid()
+                            });
+                        }
+                        available
+                    });
+                    available.retain_possible(source, program, &mut candidates, &arguments);
+                }
+            }
             let [domain] = candidates.as_slice() else {
-                let reason = if candidates.is_empty() {
-                    "names no visible domain"
-                } else {
-                    "names more than one visible domain"
+                let owner = program.display_type_reference(carrier);
+                let reason = match candidates.as_slice() {
+                    [] if competing => format!("names no eligible domain `{name}` on the qualifications of `{owner}`"),
+                    [] => format!("names no visible domain `{name}` of `{owner}`"),
+                    [first, second, ..] => format!("names more than one visible domain `{name}` of `{owner}`: `{}` and `{}`",
+                        source.symbols.display_path(first.symbol, "::"), source.symbols.display_path(second.symbol, "::")),
+                    [_] => unreachable!(),
                 };
                 return Err(refuse(
                     program,
                     *handle,
                     format!(
-                        "cast entry `{label}` {reason} `{name}` of `{}`. A `+` or `-` after a cast always begins a domain entry; for arithmetic on the cast result, parenthesise the cast",
-                        program.display_type_reference(carrier),
+                        "cast entry `{label}` {reason}. A `+` or `-` after a cast always begins a domain entry; for arithmetic on the cast result, parenthesise the cast"
                     ),
                 ));
             };

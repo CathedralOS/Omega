@@ -1278,6 +1278,53 @@ fn a_domain_on_a_qualified_alias_preserves_both_qualifications() {
 }
 
 #[test]
+fn competing_domain_families_use_the_qualifications_on_each_side() {
+    let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
+    let declarations = "data Word { bits: u32; }
+        domain<T> Word::Mark<T>;
+        data Left = Word in Mark<u16>;
+        data Right = Word in Mark<u32>;
+        domain<T> Left::Op<T>;
+        domain<T> Right::Op<T>;";
+    for (machine, refusal) in [
+        (
+            "machine f(x: Word in Op<u8> & Mark<u16>) -> Left in Left::Op<u8> { x }",
+            None,
+        ),
+        (
+            "machine f(x: Word in Mark<u32> & Op<u8>) -> Right in Right::Op<u8> { x }",
+            None,
+        ),
+        (
+            "machine f(x: Left in Left::Op<u8>) -> Word in Mark<u16> & Mark<u32> & Left::Op<u8> {
+                x as =Mark<u16> +Mark<u32> =Op<u8>
+             }",
+            None,
+        ),
+        (
+            "machine f(x: Word in Mark<u16> & Mark<u32> & Op<u8>) {}",
+            Some("ambiguous domain `Op`"),
+        ),
+        (
+            "machine f(x: Word in Mark<u64> & Op<u8>) {}",
+            Some("no visible domain `Op` accepts the qualifications"),
+        ),
+    ] {
+        let (files, root) = captured(package, &format!("{declarations} {machine}"));
+        let result = compile(product(files, root, package, &[]).unwrap(), None);
+        if let Some(refusal) = refusal {
+            let errors = result.expect_err(machine);
+            assert!(
+                errors.iter().any(|error| error.message.contains(refusal)),
+                "{errors:?}"
+            );
+        } else {
+            result.expect(machine);
+        }
+    }
+}
+
+#[test]
 fn an_applied_carrier_domain_is_exposed_by_its_declaring_file() {
     let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
     for (name, visible) in [
