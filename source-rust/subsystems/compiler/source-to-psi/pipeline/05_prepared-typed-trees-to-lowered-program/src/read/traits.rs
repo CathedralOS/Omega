@@ -163,6 +163,34 @@ impl<'program> Program<'program> {
         false
     }
 
+    /// An applied data type with a rigid argument needs a storage row for
+    /// that argument. Only the trait's own check form owns its binder.
+    fn schema_needs_parameter_storage(
+        &self,
+        reference: crate::source_state::types::TypeReferenceHandle,
+        binders: &[SymbolHandle],
+    ) -> bool {
+        use crate::source_state::types::TypeReferenceNode;
+        let typed = self.typed;
+        let mut current = reference;
+        for _ in 0..typed.type_reference_table.type_reference_count() {
+            if !typed.contains_type_reference(current) {
+                return false;
+            }
+            match typed.type_reference_table.type_reference(current) {
+                TypeReferenceNode::Generic { .. } => {
+                    return typed.type_reference_mentions_any(current, binders);
+                }
+                TypeReferenceNode::Reference { referee, .. } => current = *referee,
+                TypeReferenceNode::Constrained { base_type, .. } => current = *base_type,
+                TypeReferenceNode::FixedArray { element_type, .. }
+                | TypeReferenceNode::Slice { element_type } => current = *element_type,
+                _ => return false,
+            }
+        }
+        false
+    }
+
     pub(super) fn static_envelope(
         &self,
         context: MachineId,
@@ -318,6 +346,10 @@ impl<'program> Program<'program> {
                 ))
             })
             .collect::<Checked<Vec<_>>>()?;
+        let owns_binders = values.iter().all(|(symbol, value)| {
+            matches!(value, ValueType::Rigid(rigid)
+                if self.generic_binders.get(rigid.0 as usize) == Some(symbol))
+        });
         let rigid_parameters = values.iter().map(|(binder, _)| *binder).collect();
         let scope = RequirementTypeScope {
             values,
@@ -374,9 +406,24 @@ impl<'program> Program<'program> {
             // binders of its own is a template. Its open signature is checked
             // once in its own check form, never in this module, whose uses are
             // requirement instances at their actual arguments and regions.
-            if self.checked_as_template(signature) {
-                if !self.generic_templates.contains(&signature.symbol) {
-                    self.generic_templates.push(signature.symbol);
+            let template = if self.checked_as_template(signature) {
+                Some(signature.symbol)
+            } else if !owns_binders
+                && formals
+                    .iter()
+                    .map(|formal| formal.type_reference)
+                    .chain([signature.return_type])
+                    .any(|reference| {
+                        self.schema_needs_parameter_storage(reference, &scope.source.rigid_parameters)
+                    })
+            {
+                Some(declaration.symbol)
+            } else {
+                None
+            };
+            if let Some(template) = template {
+                if !self.generic_templates.contains(&template) {
+                    self.generic_templates.push(template);
                 }
                 requirements.push(SourceSchemaRequirement {
                     instance: None,

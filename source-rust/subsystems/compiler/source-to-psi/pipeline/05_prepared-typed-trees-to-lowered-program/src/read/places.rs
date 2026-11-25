@@ -852,13 +852,17 @@ impl Program<'_> {
         // lifetime arguments, directly or behind a reference, is refused
         // where its regions are asked for (`regions::Elision::Members`).
         let value_type = self.value_type(id, field.type_reference)?;
-        // Stored byte and typed views keep the region of their actual source
-        // type (lifetimes.md: "storage that remains valid for its use"). The
-        // shared view owner keys the type by that region in this declaration;
-        // another region is another type, not an interchangeable descriptor.
-        match value_type {
-            ValueType::Scalar(..) | ValueType::Record(_, _, _) | ValueType::Rigid(_) => {}
-        }
+        // A field needs storage even when its surrounding signature is
+        // logical. Its exact source binder supplies the unknown carrier.
+        let value_type = if let ValueType::Rigid(rigid) = value_type {
+            let supplied = self
+                .source_scope
+                .supplied_type_reference(self.typed, field.type_reference)
+                .map_err(|reason| refuse(id, Construct::Machine, Unserved::Type(reason)))?;
+            self.parameter_storage(id, rigid, supplied.reference)?
+        } else {
+            value_type
+        };
         let identity = field.member_identity().spelling();
         if identity.is_empty() {
             return Err(refuse(

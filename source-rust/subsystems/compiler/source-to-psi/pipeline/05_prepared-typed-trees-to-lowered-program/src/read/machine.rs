@@ -965,6 +965,18 @@ impl<'t> Program<'t> {
             })
     }
 
+    /// Both sides of a generic witness read applications in the same source
+    /// binder scope as the machine whose contract they compare.
+    fn retain_rigid_scope(&mut self) {
+        let mut source = (*self.source_scope).clone();
+        source
+            .rigid_parameters
+            .extend(self.scope.iter().filter_map(|(binder, value)| {
+                self.logical_parameter(*value).is_some().then_some(*binder)
+            }));
+        self.source_scope = std::sync::Arc::new(source);
+    }
+
     /// The first machine of a conformance witness: the requirement's
     /// signature and contract at `arguments`, the literals of its value
     /// parameters, on a body the caller supplies.
@@ -989,6 +1001,7 @@ impl<'t> Program<'t> {
                     )
                 })?;
             self.scope = self.generic_scope(id, machine)?;
+            self.retain_rigid_scope();
         }
         let mut declared = self.declared_requirement(id, declaring_trait, requirement)?;
         // An owning body's unique map is also the witness's application.
@@ -2153,13 +2166,7 @@ impl<'t> Program<'t> {
         if matches!(reading, Reading::GenericEntry | Reading::Alternative(_))
             || (self.rigid && matches!(reading, Reading::Implementation))
         {
-            let mut source = (*self.source_scope).clone();
-            source
-                .rigid_parameters
-                .extend(self.scope.iter().filter_map(|(binder, value)| {
-                    self.logical_parameter(*value).is_some().then_some(*binder)
-                }));
-            self.source_scope = std::sync::Arc::new(source);
+            self.retain_rigid_scope();
         }
         if self.scope.iter().any(|(binder, _)| !binder.is_valid()) {
             return Err(refuse(
