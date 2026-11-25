@@ -3,6 +3,7 @@
 //! logical observations have no runtime representation or transferable receipt;
 //! every partial computation uses the ordinary scalar goal and proof kernel.
 
+mod content_guarantees;
 mod content_projections;
 
 use std::borrow::Cow;
@@ -981,6 +982,14 @@ pub(crate) fn contract(
     contract: &MachineContract,
     activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
+    content_guarantees::contract(module, contract).map_err(|detail| {
+        crate::refusal(
+            RefusalReason::ForeignIdentity,
+            diagnostic,
+            Construct::Machine,
+            detail,
+        )
+    })?;
     let guards: Vec<_> = crash_clauses(&contract.crash_routes)
         .chain(
             contract
@@ -1157,6 +1166,14 @@ pub(crate) fn module(
         contract(module, diagnostic, declared, activity)?;
     }
     for boundary in &module.interfaces.boundary_machines {
+        content_guarantees::boundary(module, boundary).map_err(|detail| {
+            crate::refusal(
+                RefusalReason::ForeignIdentity,
+                diagnostic,
+                Construct::Machine,
+                detail,
+            )
+        })?;
         let guards: Vec<_> = crash_clauses(&boundary.crash_routes).collect();
         if !owes(
             boundary

@@ -95,7 +95,7 @@ fn parses_domain_on_applied_carrier_without_mixing_domain_arguments() {
     let source = "domain<T, const N: u64> Buffer<Pair<T, u32>, N>::Live<T>;";
     let parsed = crate::tests::parse_source(source, "applied carrier domain should parse");
     let domain = crate::tests::root_domain(&parsed, "domain");
-    assert_eq!(domain.name.as_str(&parsed), "Live");
+    assert_eq!(domain.name.as_str(&parsed), "Buffer::Live");
     let TypeReferenceNode::Generic {
         base_name,
         arguments,

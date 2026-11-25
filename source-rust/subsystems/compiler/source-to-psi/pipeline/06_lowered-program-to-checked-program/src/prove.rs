@@ -447,7 +447,7 @@ impl ImplicationConclusions {
             positions: Vec::new(),
         };
         for (ordinal, fact) in facts.iter().enumerate() {
-            if let Proposition::Implication { conclusion, .. } = &fact.proposition {
+            if let Proposition::Implication { conclusion, .. } = fact.proposition() {
                 index.positions.push((index.key(conclusion), ordinal));
             }
         }
@@ -511,7 +511,7 @@ impl<S: BuildHasher> ExactFacts<S> {
             positions: Vec::with_capacity(facts.len()),
         };
         for (ordinal, fact) in facts.iter().enumerate() {
-            let key = result.key(&fact.proposition);
+            let key = result.key(fact.proposition());
             result.positions.push((key, ordinal));
         }
         // Both keys are primitive integers; never order a recursive proposition.
@@ -543,7 +543,7 @@ impl<S: BuildHasher> ExactFacts<S> {
             {
                 comparisons = comparisons.saturating_add(1);
             }
-            (&facts[ordinal].proposition == goal).then_some(ordinal)
+            (facts[ordinal].proposition() == goal).then_some(ordinal)
         });
         #[cfg(test)]
         {
@@ -632,7 +632,7 @@ impl BoundFacts {
             // bound_from_fact and compound_bound_from_fact. A closed false
             // fact or a disjunction remains available to their own searches.
             if !matches!(
-                fact.proposition,
+                fact.proposition(),
                 Proposition::LessOrEqual(..)
                     | Proposition::LessThan(..)
                     | Proposition::Equal(..)
@@ -641,7 +641,7 @@ impl BoundFacts {
             ) {
                 continue;
             }
-            let complete = fact.proposition.visit_value_ids(|value| {
+            let complete = fact.proposition().visit_value_ids(|value| {
                 if let Some(indices) = result.by_value.get_mut(value)
                     && indices.last() != Some(&index)
                 {
@@ -785,12 +785,12 @@ struct Assumptions<'a> {
     local: Vec<&'a Proposition>,
 }
 
-impl Assumptions<'_> {
+impl<'source> Assumptions<'source> {
     fn len(&self) -> usize {
         self.original.len() + self.local.len()
     }
 
-    fn iter(&self) -> impl Iterator<Item = &Proposition> {
+    fn iter(&self) -> impl Iterator<Item = &'source Proposition> + '_ {
         self.original.iter().chain(self.local.iter().copied())
     }
 }
@@ -802,7 +802,7 @@ pub(crate) struct Prover<'a> {
     normalized_premises: crate::known::NormalizedPremises,
     axioms: &'a [Proposition],
     values: &'a dyn ProofValues,
-    facts: Vec<Fact>,
+    facts: Vec<Fact<'a>>,
     exact_facts: ExactFacts,
     /// Actual implication facts, prepared once for goal-directed elimination.
     implications: ImplicationConclusions,
@@ -1224,7 +1224,7 @@ impl<'a> Prover<'a> {
             self.transport
                 .selected
                 .iter()
-                .map(|&index| &self.facts[equations[index]].proposition),
+                .map(|&index| self.facts[equations[index]].proposition()),
         )
         .ok()?;
         let equalities: Vec<ProofNode> = self
@@ -1289,7 +1289,7 @@ impl<'a> Prover<'a> {
             self.transport
                 .selected
                 .iter()
-                .map(|&index| &self.facts[self.equations[index]].proposition),
+                .map(|&index| self.facts[self.equations[index]].proposition()),
         )
         .ok()
     }
@@ -1300,7 +1300,7 @@ impl<'a> Prover<'a> {
     pub(crate) fn has_rules_for(&mut self, goal: &Proposition) -> bool {
         let fixed = |facts: &[Fact], equations: &[usize], value| {
             equations.iter().any(|&index| {
-                let equation = &facts[index].proposition;
+                let equation = facts[index].proposition();
                 matches!(equation,
                     Proposition::Equal(ScalarTerm::Value { id, .. }, ScalarTerm::Integer { .. })
                     if *id == value)
@@ -1399,8 +1399,8 @@ impl<'a> Prover<'a> {
         let mut compared = Vec::new();
         if lower.is_none() || upper.is_none() {
             for fact in &self.facts {
-                if matches!(fact.proposition, Proposition::Disjunction(_)) {
-                    compared_literals(&fact.proposition, &subject, &mut compared);
+                if matches!(fact.proposition(), Proposition::Disjunction(_)) {
+                    compared_literals(fact.proposition(), &subject, &mut compared);
                 }
             }
         }
@@ -1490,7 +1490,7 @@ impl<'a> Prover<'a> {
             && self
                 .facts
                 .iter()
-                .any(|fact| matches!(fact.proposition, Proposition::Disjunction(_)))
+                .any(|fact| matches!(fact.proposition(), Proposition::Disjunction(_)))
             && self.has_scalar_counterexample(goal)
         {
             return direct;
@@ -1540,10 +1540,10 @@ impl<'a> Prover<'a> {
         // Keep orders, literal equalities and guards in the same order.
         for index in 0..self.facts.len() {
             let fact = &self.facts[index];
-            if fact.axiom.is_some() || order_with_closed_endpoint(&fact.proposition).is_none() {
+            if fact.axiom.is_some() || order_with_closed_endpoint(fact.proposition()).is_none() {
                 continue;
             }
-            let proposition = fact.proposition.clone();
+            let proposition = fact.proposition().clone();
             if let Some(refuted) = self.refute(
                 &proposition,
                 |facts, activity| Some(fact_proof_for_refutation(facts, index, activity)),
@@ -1557,12 +1557,12 @@ impl<'a> Prover<'a> {
         for index in 0..self.facts.len() {
             let fact = &self.facts[index];
             if fact.axiom.is_some()
-                || !matches!(&fact.proposition, Proposition::Equal(left, right)
+                || !matches!(fact.proposition(), Proposition::Equal(left, right)
                     if left.integer_value().is_some() != right.integer_value().is_some())
             {
                 continue;
             }
-            let Proposition::Equal(left, right) = fact.proposition.clone() else {
+            let Proposition::Equal(left, right) = fact.proposition().clone() else {
                 unreachable!("only a literal equality reaches this candidate");
             };
             let forward = Proposition::LessOrEqual(left.clone(), right.clone());
@@ -1588,10 +1588,10 @@ impl<'a> Prover<'a> {
         }
         for index in 0..self.facts.len() {
             let fact = &self.facts[index];
-            if fact.axiom.is_some() || !is_branch_fact(&fact.proposition) {
+            if fact.axiom.is_some() || !is_branch_fact(fact.proposition()) {
                 continue;
             }
-            let taken = fact.proposition.clone();
+            let taken = fact.proposition().clone();
             if let Some(refuted) = self.refute_guard(
                 &taken,
                 |facts, activity| Some(fact_proof_for_refutation(facts, index, activity)),
@@ -1610,7 +1610,7 @@ impl<'a> Prover<'a> {
         for index in 0..self.facts.len() {
             if self.facts[index].axiom.is_some()
                 || !matches!(
-                    &self.facts[index].proposition,
+                    self.facts[index].proposition(),
                     Proposition::IntegerMathEqual(..)
                         | Proposition::IntegerMathLessThan(..)
                         | Proposition::IntegerMathLessOrEqual(..)
@@ -1620,7 +1620,7 @@ impl<'a> Prover<'a> {
                 continue;
             }
             let negation = Proposition::Implication {
-                premise: Box::new(self.facts[index].proposition.clone()),
+                premise: Box::new(self.facts[index].proposition().clone()),
                 conclusion: Box::new(Proposition::Falsehood),
             };
             self.select_transport_inputs(&negation);
@@ -1630,7 +1630,7 @@ impl<'a> Prover<'a> {
                 &negation,
                 inputs
                     .iter()
-                    .map(|&index| &self.facts[self.equations[index]].proposition),
+                    .map(|&index| self.facts[self.equations[index]].proposition()),
             ) else {
                 continue;
             };
@@ -1692,7 +1692,7 @@ impl<'a> Prover<'a> {
             &untaken,
             self.equations
                 .iter()
-                .map(|&index| &self.facts[index].proposition),
+                .map(|&index| self.facts[index].proposition()),
         )
         .ok();
         let transported =
@@ -1751,12 +1751,12 @@ impl<'a> Prover<'a> {
                 return None;
             }
             let fact = &self.facts[index];
-            let Proposition::Disjunction(parts) = &fact.proposition else {
+            let Proposition::Disjunction(parts) = fact.proposition() else {
                 continue;
             };
             let origin = fact.disjunction_origin(&self.facts);
             if self.active_cuts.iter().any(|active| {
-                active.proposition == fact.proposition
+                &active.proposition == fact.proposition()
                     || origin
                         .as_ref()
                         .is_some_and(|origin| active.origin.as_ref() == Some(origin))
@@ -1765,7 +1765,7 @@ impl<'a> Prover<'a> {
             }
             let parts = parts.clone();
             self.active_cuts.push(ActiveCut {
-                proposition: fact.proposition.clone(),
+                proposition: fact.proposition().clone(),
                 origin,
             });
             let mut branches = Vec::with_capacity(parts.len());
@@ -2014,7 +2014,7 @@ impl<'a> Prover<'a> {
                     ));
                 }
                 let reversed = Proposition::Equal(right.clone(), left.clone());
-                if let Some(fact) = self.facts.iter().find(|fact| fact.proposition == reversed)
+                if let Some(fact) = self.facts.iter().find(|fact| fact.proposition() == &reversed)
                     && let Ok(flipped) = flip(fact.proof(&self.facts))
                 {
                     return Ok(flipped);
@@ -2114,7 +2114,7 @@ impl<'a> Prover<'a> {
             let Proposition::Implication {
                 premise,
                 conclusion,
-            } = &self.facts[index].proposition
+            } = self.facts[index].proposition()
             else {
                 continue;
             };
@@ -2181,7 +2181,7 @@ impl<'a> Prover<'a> {
             let scalar = ScalarTerm::value(*value, ScalarType::Integer(*source_type));
             for index in 0..self.facts.len() {
                 let fact = &self.facts[index];
-                let Proposition::LessThan(low, high) = &fact.proposition else {
+                let Proposition::LessThan(low, high) = fact.proposition() else {
                     continue;
                 };
                 if low != &scalar || !is_bare_scalar(high) {
@@ -2240,7 +2240,7 @@ impl<'a> Prover<'a> {
             };
             let fact = &self.facts[self.equations[*definition]];
             let Proposition::Equal(value, sum @ ScalarTerm::ExactIntegerAdd { .. }) =
-                &fact.proposition
+                fact.proposition()
             else {
                 return operand.clone();
             };
@@ -2454,7 +2454,7 @@ impl<'a> Prover<'a> {
         let Proposition::Equal(
             ScalarTerm::Value { id, .. },
             ScalarTerm::IntegerExactCast { operand, .. } | ScalarTerm::IntegerWiden { operand, .. },
-        ) = &fact.proposition
+        ) = fact.proposition()
         else {
             return None;
         };
@@ -2610,7 +2610,7 @@ impl<'a> Prover<'a> {
         // A previously computed addend is a usable order endpoint. Keep it
         // intact before trying the full denotation (needed for aliases).
         let immediate: Vec<_> = selected.iter().copied().filter(|&index| {
-            matches!(&self.facts[index].proposition, Proposition::Equal(result, operand)
+            matches!(self.facts[index].proposition(), Proposition::Equal(result, operand)
                 if result == left || matches!(operand, ScalarTerm::Integer { .. } | ScalarTerm::Value { .. }))
         }).collect();
         if immediate.len() != selected.len()
@@ -2627,7 +2627,7 @@ impl<'a> Prover<'a> {
         let unfolded = check_value_equality_denotation(
             self.context,
             goal,
-            selected.iter().map(|&index| &self.facts[index].proposition),
+            selected.iter().map(|&index| self.facts[index].proposition()),
         )
         .ok()?;
         let lifted = lift_exact_integer_order(&unfolded)?;
@@ -2716,7 +2716,7 @@ impl<'a> Prover<'a> {
             matches!(subject, ScalarTerm::SaturatingIntegerSubtract { .. })
                 || fact.is_some_and(|fact| {
                     matches!(
-                        &fact.proposition,
+                        fact.proposition(),
                         Proposition::Equal(_, ScalarTerm::SaturatingIntegerSubtract { .. })
                     )
                 })
@@ -2729,7 +2729,7 @@ impl<'a> Prover<'a> {
         // with that exact value without needing cursor itself to be zero.
         let equations = |fact: Option<&crate::known::Fact>, subject: &ScalarTerm| {
             let definition = fact
-                .filter(|fact| proof_admission::unsigned_difference(&fact.proposition).is_some())
+                .filter(|fact| proof_admission::unsigned_difference(fact.proposition()).is_some())
                 .map(|fact| fact.proof(&self.facts));
             [
                 definition,
@@ -2873,7 +2873,7 @@ impl<'a> Prover<'a> {
         // opaque-term fallback, without changing which fact is tried first.
         let mut cursor = BoundFactCursor::default();
         while let Some(index) = self.bound_facts.next(*id, &mut cursor) {
-            let proposition = self.facts[index].proposition.clone();
+            let proposition = self.facts[index].proposition().clone();
             let axiom = self.facts[index].axiom;
             match &proposition {
                 Proposition::LessOrEqual(left, right) | Proposition::LessThan(left, right)
@@ -3681,7 +3681,7 @@ impl<'a> Prover<'a> {
                 current.is_none_or(|current| direction.prefers(integer.compare(value, current)))
             })
         };
-        match (&self.facts[index].proposition, direction) {
+        match (self.facts[index].proposition(), direction) {
             // Direct bounds.
             (Proposition::LessOrEqual(left, literal), Direction::Upper)
             | (Proposition::LessOrEqual(literal, left), Direction::Lower)
@@ -3745,7 +3745,7 @@ impl<'a> Prover<'a> {
         current: Option<IntegerValue>,
     ) -> Option<Bound> {
         let axiom = self.facts[index].axiom;
-        let proposition = self.facts[index].proposition.clone();
+        let proposition = self.facts[index].proposition().clone();
         match (&proposition, direction) {
             // A public mathematical equality can bound a runtime value
             // without becoming an unchecked machine-operation definition.
@@ -3933,7 +3933,7 @@ impl<'a> Prover<'a> {
         if integer.carrier() != IntegerCarrier::Fixed || integer.is_address() {
             return None;
         }
-        let proposition = self.facts[index].proposition.clone();
+        let proposition = self.facts[index].proposition().clone();
         let axiom = self.facts[index].axiom;
         let mut orders = Vec::with_capacity(2);
         match &proposition {
@@ -4366,7 +4366,7 @@ impl<'a> Prover<'a> {
             return None;
         };
         let mut literal = self.bound_literal(*id, direction)?;
-        if matches!(self.facts[index].proposition, Proposition::LessThan(..)) {
+        if matches!(self.facts[index].proposition(), Proposition::LessThan(..)) {
             literal = step(literal, direction == Direction::Lower)?;
         }
         if current.is_some_and(|current| !direction.prefers(integer.compare(literal, current))) {
@@ -5043,7 +5043,7 @@ impl<'a> Prover<'a> {
         let mut transport = None;
         for target in std::iter::once(target).chain(exchanged.as_ref()) {
             for fact in &self.facts {
-                let (left, right, strict) = match &fact.proposition {
+                let (left, right, strict) = match fact.proposition() {
                     Proposition::LessOrEqual(left, right) => (left, right, false),
                     Proposition::LessThan(left, right) => (left, right, true),
                     _ => continue,
@@ -5222,7 +5222,7 @@ impl<'a> Prover<'a> {
             transport
                 .selected
                 .iter()
-                .map(|&index| &self.facts[self.equations[index]].proposition)
+                .map(|&index| self.facts[self.equations[index]].proposition())
         };
         let actual = check_value_equality_denotation(self.context, retained, definitions()).ok()?;
         let needed = check_value_equality_denotation(self.context, aligned, definitions()).ok()?;

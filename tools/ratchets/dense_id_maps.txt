@@ -3,7 +3,7 @@
 # flat tables (AGENTS.md conventions).
 # Written by `cargo xtask check-rules --update-dense-id-maps`.
 2 source-rust/subsystems/compiler/foundation/semantic-records/src/proposition.rs
-2 source-rust/subsystems/compiler/foundation/semantic-records/src/storage.rs
+1 source-rust/subsystems/compiler/foundation/semantic-records/src/storage.rs
 2 source-rust/subsystems/compiler/psi/artifact/publication/machine_provenance.rs
 2 source-rust/subsystems/compiler/psi/artifact/wire/src/foundation_validation.rs
 1 source-rust/subsystems/compiler/psi/artifact/wire/src/term_wire.rs

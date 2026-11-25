@@ -777,13 +777,13 @@ fn derived(
 }
 
 /// The premises available before projecting a contract description.
-pub(crate) fn known_at(
-    tables: &MachineTables,
+pub(crate) fn known_at<'tables>(
+    tables: &'tables MachineTables,
     graph: &Graph,
     context: &semantic_vocabulary::PropositionContext,
     id: MachineId,
     point: ProgramPoint,
-) -> Checked<crate::known::Known> {
+) -> Checked<crate::known::Known<'tables>> {
     let mut assumptions = Vec::new();
     let mut axioms = Vec::new();
     for (_, row) in tables.knowledge.iter() {
@@ -858,7 +858,7 @@ pub(crate) fn describe(
         // A normalized fact may already name the exact computation passed
         // across the boundary. Give that computation its receiving name
         // before resolving operands the receiver cannot see.
-        parts.push(joins::project(&fact.proposition, &mut |atom| {
+        parts.push(joins::project(fact.proposition(), &mut |atom| {
             substitute_clause_with_computation_names(atom, &mut *bindings, &computation_names).ok()
         }));
     }
@@ -872,7 +872,7 @@ pub(crate) fn describe(
             inner: &mut *bindings,
         };
         for fact in known.facts.iter().filter(|fact| fact.axiom.is_none()) {
-            parts.push(joins::project(&fact.proposition, &mut |atom| {
+            parts.push(joins::project(fact.proposition(), &mut |atom| {
                 substitute_clause_with_computation_names(atom, &mut renamed, &computation_names)
                     .ok()
             }));
@@ -971,7 +971,7 @@ struct InputBindings<'s, 'a> {
     actuals: &'s [ValueId],
     target: &'s TerminalMachine,
     denotation: crate::known::TransportInputs,
-    known: &'s crate::known::Known,
+    known: &'s crate::known::Known<'s>,
     context: &'s semantic_vocabulary::PropositionContext,
     fields: crate::places::CallObservations<'s, 'a>,
     /// The caller's value equalities, gathered on the first value that does
@@ -1025,7 +1025,7 @@ impl Bindings for InputBindings<'_, '_> {
                 if let Some(Proposition::Equal(
                     ScalarTerm::Value { id: left, .. },
                     ScalarTerm::Value { id: right, .. },
-                )) = self.known.facts.get(index).map(|fact| &fact.proposition)
+                )) = self.known.facts.get(index).map(|fact| fact.proposition())
                     && left != right
                 {
                     pairs.push((*left, *right));

@@ -114,3 +114,118 @@ fn promising_content_membership_requires_a_qualified_returned_value() {
         "{report}"
     );
 }
+
+fn with_transfer_contract() -> String {
+    let transfer = r#"public boundary trait Transfer {
+        machine pass(input: Region in Owned) -> Region
+        reaches none
+        ensures result in Owned,
+            core\Identity::<|algebra|::CountedQuantity<Bytes>>(
+                Owned::measure(old(@input)), Owned::measure(@result))
+        crashes none;
+    }
+    "#;
+    FIELD_PROJECTION.replace(
+        "machine main() {}",
+        &format!("{transfer}machine main() {{}}"),
+    )
+}
+
+#[test]
+fn an_admitted_content_guarantee_reopens_with_its_actual_input_and_result() {
+    use semantic_vocabulary::{ContentPlaceVersion, ContentTerm, Proposition};
+    use terminal_psi::TerminalMachineResult;
+    let scratch = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "source-content-guarantee",
+        false,
+    )
+    .unwrap();
+    let artifact = scratch.path().join("transfer.psi");
+    let (output, report) = program::invoke(
+        &with_transfer_contract(),
+        &[
+            "psi",
+            "inspect",
+            "--machine",
+            "retain",
+            "--output",
+            artifact.to_str().unwrap(),
+        ],
+    );
+    assert!(output.status.success(), "{report}");
+    let bytes = std::fs::read(&artifact).unwrap();
+    let saved = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+    let module = saved.semantic_module();
+    let projection = module
+        .types
+        .structural_domains
+        .iter()
+        .find(|domain| {
+            module
+                .identities
+                .text(domain.identity)
+                .is_some_and(|text| text.contains("Owned"))
+        })
+        .unwrap()
+        .content_projection
+        .as_ref()
+        .unwrap();
+    let (contract, equation) = module
+        .execution
+        .declaration_contracts
+        .iter()
+        .find_map(|contract| {
+            contract
+                .ensures
+                .iter()
+                .find_map(|clause| match &clause.proposition {
+                    Proposition::ContentConservation(equation) => Some((contract, equation)),
+                    _ => None,
+                })
+        })
+        .expect("the public bodyless contract retains its actual equation");
+    assert_eq!(equation.algebra(), &projection.algebra);
+    let TerminalMachineResult::Structural(returned) = &contract.result else {
+        panic!("structural result")
+    };
+    let [input] = contract.structural_parameters.as_slice() else {
+        panic!("one structural input")
+    };
+    let mut observed = [equation.left(), equation.right()].map(|term| {
+        let ContentTerm::Projection {
+            projection: owner,
+            subject,
+        } = term
+        else {
+            panic!("one projection per side")
+        };
+        assert_eq!(*owner, projection.identity);
+        assert!(subject.segments.is_empty());
+        (subject.version, subject.root)
+    });
+    observed.sort();
+    assert_eq!(
+        observed,
+        [
+            (ContentPlaceVersion::Entry, input.place),
+            (ContentPlaceVersion::Current, returned.place)
+        ]
+    );
+}
+
+#[test]
+fn a_content_guarantee_cannot_borrow_an_unqualified_input_or_an_entry_result() {
+    let declaration = with_transfer_contract();
+    let unqualified = declaration.replace("pass(input: Region in Owned)", "pass(input: Region)");
+    let (output, report) = program::invoke(&unqualified, &["run", "--both"]);
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("exact qualification on its observed place"),
+        "{report}"
+    );
+    let invalid_old =
+        declaration.replace("Owned::measure(@result)", "Owned::measure(old(@result))");
+    let (output, report) = program::invoke(&invalid_old, &["run", "--both"]);
+    assert!(!output.status.success(), "{report}");
+    assert!(report.contains("has no entry content"), "{report}");
+}

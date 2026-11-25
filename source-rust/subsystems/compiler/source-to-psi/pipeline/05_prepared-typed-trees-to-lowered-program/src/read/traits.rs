@@ -432,6 +432,11 @@ impl<'program> Program<'program> {
                         "requirement lost its declaration contract coordinate",
                     ));
                 }
+            } else if !lowered.content_ensures.is_empty() {
+                return Err(services::unavailable(
+                    context,
+                    "an abstract content guarantee needs its applied declaration contract",
+                ));
             }
             requirements.push(SourceSchemaRequirement {
                 instance: None,

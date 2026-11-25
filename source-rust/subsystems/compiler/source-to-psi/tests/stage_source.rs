@@ -1065,6 +1065,7 @@ fn an_indexed_domain_retains_the_members_of_its_applied_carrier() {
     let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
     for (input_domain, returned_index, refusal) in [
         (" in Live<Placed, Word>", "Word in Word::Placed", None),
+        (" in Segment::Live<Placed, Word>", "Word in Word::Placed", None),
         ("", "Word in Word::Placed", Some("carries no domain")),
         (" in Live<Placed, Word>", "Word in Word::Other", Some("but this value carries")),
     ] {
@@ -1075,6 +1076,8 @@ fn an_indexed_domain_retains_the_members_of_its_applied_carrier() {
              data Placed = Word in Word::Placed;
              data Segment<P, T> [linear] {{ value: T; }}
              domain<P, T> Segment<P, T>::Live<P, T>;
+             data Second<P, T> {{ value: T; }}
+             domain<P, T> Second<P, T>::Live<P, T>;
              machine carry(value: Segment<Placed, Word>{input_domain})
                  -> Segment<{returned_index}, Word> in Live<{returned_index}, Word> {{ value }}"
         );
@@ -1085,6 +1088,80 @@ fn an_indexed_domain_retains_the_members_of_its_applied_carrier() {
             assert!(errors.iter().any(|error| error.message.contains(refusal)), "{errors:?}");
         } else {
             result.expect("the alias and expanded index describe the same live segment");
+        }
+    }
+}
+
+#[test]
+fn a_domain_on_a_qualified_alias_preserves_both_qualifications() {
+    let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
+    for (input, carries_stored) in [("Kept", true), ("Segment<Placed, Word>", false)] {
+        let source = format!(
+            "data Word {{ bits: u64; }}
+             domain Word::Placed;
+             data Placed = Word in Word::Placed;
+             data Segment<P, T> [linear] {{ value: T; }}
+             domain<P, T> Segment<P, T>::Stored<P, T>;
+             domain<P, T> Segment<P, T>::Live<P, T>;
+             data Kept = Segment<Placed, Word> in Stored<Placed, Word>;
+             machine carry(x: {input} in Live<Placed, Word>)
+                 -> Kept in Live<Placed, Word> {{ x }}"
+        );
+        let (files, root) = captured(package, &source);
+        let result = compile(product(files, root, package, &[]).unwrap(), None);
+        if carries_stored {
+            result.expect("Live qualifies the carrier of the already stored segment");
+        } else {
+            let errors = result.expect_err("Live alone does not establish Stored");
+            assert!(
+                errors.iter().any(|error| {
+                    error.message.contains("machine's result declares")
+                        && error.message.contains("Stored")
+                }),
+                "{errors:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn an_applied_carrier_domain_is_exposed_by_its_declaring_file() {
+    let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
+    for (name, visible) in [
+        ("|parts|::Segment::Live", true),
+        ("|parts|::Word::Live", false),
+        ("Live", false),
+    ] {
+        let qualified = format!("|parts|::Segment<Word> in {name}<Word>");
+        let source =
+            format!("data Word {{}} machine carry(value: {qualified}) -> {qualified} {{ value }}");
+        let (mut files, root) = captured(package, &source);
+        let parts = capture_file(
+            &mut files,
+            "product",
+            package,
+            "parts.omg",
+            "public data Segment<T> { value: T; } public domain<T> Segment<T>::Live<T>;",
+        );
+        let mut stage = product(files, root, package, &[]).unwrap();
+        stage.parsed.roots.push(parts);
+        stage
+            .parsed
+            .imports
+            .push(SourceScopedTopLevelBinding::file_import(
+                root, parts, "parts",
+            ));
+        let result = compile(stage, None);
+        if visible {
+            result.expect("the attachment belongs to Segment in the selected file");
+        } else {
+            let errors = result.expect_err("an attachment needs its own file and carrier");
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.message.contains("no domain of that name")),
+                "{errors:?}"
+            );
         }
     }
 }

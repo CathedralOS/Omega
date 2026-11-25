@@ -263,7 +263,7 @@ impl Prover<'_> {
         };
         bounds.extend(self.carrier_endpoint(&value, integer, direction));
         for index in 0..self.facts.len() {
-            let proposition = self.facts[index].proposition.clone();
+            let proposition = self.facts[index].proposition().clone();
             let axiom = self.facts[index].axiom;
             match &proposition {
                 // The literal a result equation fixes the value to.

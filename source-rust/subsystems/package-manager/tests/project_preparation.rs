@@ -1,6 +1,6 @@
 //! Exercise package and provider selection through the public project API.
-use build_declarations::DependencyPurpose;
-use package_manager::project::open_product;
+use build_declarations::{BuildDependencySource, DependencyPurpose, ProjectName};
+use package_manager::project::{BuildLibraryRequest, ProjectInput, open_products};
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::fs;
 use std::path::Path;
@@ -14,10 +14,10 @@ fn configure() {
     });
 }
 
-fn write_package(root: &Path, build: &str) {
+fn write_package(root: &Path, build: &str, main: &str) {
     fs::create_dir_all(root).unwrap();
     fs::write(root.join("build.omg"), build).unwrap();
-    fs::write(root.join("main.omg"), "machine main() {}").unwrap();
+    fs::write(root.join("main.omg"), main).unwrap();
 }
 
 #[test]
@@ -27,21 +27,30 @@ fn build_dependencies_use_the_host_and_product_dependencies_use_the_requested_ta
     let client = temp.path().join("client");
     write_package(
         &client,
-        r#"machine build(builder: @mutable Build) {
-        Build::application(builder, "client");
-        let build_dep: DependencyDescription = dependency\from_source(Source::Path { location: "library" });
-        let build_registration: DependencyRegistration = Build::build_dependency(builder, build_dep);
-        let product_dep: DependencyDescription = dependency\from_source(Source::Path { location: "library" });
-        let product_registration: DependencyRegistration = Build::dependency(builder, product_dep);
-        Build::bind(builder, windows_x86_64\ProgramEntry, main);
-        Build::bind(builder, linux_x86_64\ProgramEntry, main);
-        Build::bind(builder, macos_arm64\ProgramEntry, main);
-        Build::bind(builder, linux_arm64\ProgramEntry, main);
-    }"#,
+        r#"use main.omg as app;
+machine build(builder: @mutable Build) {
+    Build::application(builder, "client");
+    let product_dep: DependencyDescription = dependency\from_source(Source::Path { location: "library" });
+    _ = Build::dependency(builder, product_dep);
+    Build::bind(builder, windows_x86_64\ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64\ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64\ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64\ProgramEntry, |app|::main);
+}"#,
+        "machine main() {}",
     );
+    let library = client.join("library");
     write_package(
-        &client.join("library"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "shared"); }"#,
+        &library,
+        r#"use selected.omg as selection;
+machine build(builder: @mutable Build) {
+    transition |selection|::original() {
+        true -> shared(builder), false -> alternate(builder),
+    }
+    machine shared(builder: @mutable Build) { Build::package(builder, "shared"); }
+    machine alternate(builder: @mutable Build) { Build::package(builder, "alternate"); }
+}"#,
+        "public machine helper() {}",
     );
     let host = TargetProfile::host_if_supported().unwrap();
     let deployment = if host == TargetProfile::LinuxArm64 {
@@ -49,65 +58,104 @@ fn build_dependencies_use_the_host_and_product_dependencies_use_the_requested_ta
     } else {
         TargetProfile::LinuxArm64
     };
-    let product = open_product(
-        &client.join("build.omg"),
-        deployment,
-        true,
-        &temp.path().join("out"),
-        None,
-    )
-    .unwrap();
-    let inputs = product.package_inputs().unwrap();
-    let handoffs: Vec<_> = inputs
-        .dependency_build_handoffs()
-        .map(|row| (row.package(), row.purpose(), row.target()))
-        .collect();
-    assert_eq!(handoffs.len(), 2);
-    assert_eq!(handoffs[0].0, handoffs[1].0);
-    assert!(handoffs.contains(&(handoffs[0].0, DependencyPurpose::Build, host)));
-    assert!(handoffs.contains(&(handoffs[0].0, DependencyPurpose::Product, deployment)));
+    let libraries = [BuildLibraryRequest {
+        alias: ProjectName::parse("host_lib").unwrap(),
+        source: BuildDependencySource::Path("library".into()),
+    }];
+    // A generator supplies an ordinary file in the selected input view. Replacing
+    // it gives the same dependency a different declaration on the next invocation.
+    for (answer, name) in [(true, "shared"), (false, "alternate")] {
+        fs::write(
+            library.join("selected.omg"),
+            format!("public machine original() -> bool {{ {answer} }}"),
+        )
+        .unwrap();
+        let products = open_products(
+            ProjectInput::WithBuildLibraries {
+                file: &client.join("build.omg"),
+                libraries: &libraries,
+            },
+            &[deployment],
+            true,
+            false,
+            &temp.path().join("out"),
+            None,
+        )
+        .unwrap();
+        let product = products.select(deployment).unwrap();
+        let inputs = product.package_inputs().unwrap();
+        let dependency =
+            |purpose, alias| inputs.dependency_target_for_purpose(inputs.root(), purpose, alias);
+        let package = dependency(DependencyPurpose::Build, "host_lib").unwrap();
+        assert_eq!(inputs.package_name(package), Some(name));
+        assert_eq!(dependency(DependencyPurpose::Product, name), Some(package));
+        assert_eq!(dependency(DependencyPurpose::Product, "host_lib"), None);
+        assert_eq!(dependency(DependencyPurpose::Build, name), None);
+
+        let handoffs: Vec<_> = inputs.dependency_build_handoffs().collect();
+        assert_eq!(handoffs.len(), 2);
+        for (purpose, target) in [
+            (DependencyPurpose::Build, host),
+            (DependencyPurpose::Product, deployment),
+        ] {
+            let handoff = handoffs
+                .iter()
+                .find(|row| row.purpose() == purpose)
+                .unwrap();
+            assert_eq!(handoff.package(), package);
+            assert_eq!(handoff.target(), target);
+            assert_eq!(handoff.build_execution_profile(), Some(host));
+        }
+    }
 }
 
 #[test]
-fn provider_lookup_refuses_an_ambiguous_build_dependency() {
+fn the_invoker_cannot_supply_two_backing_packages_under_one_alias() {
     configure();
     let temp = TemporaryDirectory::create("project-provider", false).unwrap();
     let client = temp.path().join("client");
     write_package(
         &client,
-        r#"use omega\language\core\ProgramImage;
-    machine build(builder: @mutable Build) suspends {
-        Build::application(builder, "client");
-        let mutable first: DependencyDescription = dependency\from_source(Source::Path { location: "one" });
-        dependency\with_alias(@mutable first, "backing");
-        let first_registration: DependencyRegistration = Build::build_dependency(builder, first);
-        let second: DependencyDescription = dependency\from_source(Source::Path { location: "two" });
-        let second_registration: DependencyRegistration = Build::build_dependency(builder, second);
-        suspend Build::await_provider::<ProgramImage, backing\TestImage>(builder);
-    }"#,
+        r#"use {omega}/language/core/program_image.omg as image;
+use {backing}/main.omg as backing;
+machine build(builder: @mutable Build) suspends {
+    Build::application(builder, "client");
+    suspend Build::await_provider::<|image|::ProgramImage, |backing|::TestImage>(builder);
+}"#,
+        "machine main() {}",
     );
-    for (directory, name) in [("one", "first_provider"), ("two", "backing")] {
+    let libraries = ["one", "two"].map(|directory| {
         write_package(
             &client.join(directory),
-            &format!(
-                "machine build(builder: @mutable Build) {{ Build::package(builder, \"{name}\"); }}"
-            ),
+            &format!("machine build(builder: @mutable Build) {{ Build::package(builder, \"{directory}\"); }}"),
+            r#"use {omega}/language/core/program_image.omg as image;
+public TestImage satisfies |image|::ProgramImage {
+    machine retained_suffix_start() -> addr { 64 }
+}"#,
         );
-    }
-    let result = open_product(
-        &client.join("build.omg"),
-        TargetProfile::host_if_supported().unwrap(),
+        BuildLibraryRequest {
+            alias: ProjectName::parse("backing").unwrap(),
+            source: BuildDependencySource::Path(directory.into()),
+        }
+    });
+    let result = open_products(
+        ProjectInput::WithBuildLibraries {
+            file: &client.join("build.omg"),
+            libraries: &libraries,
+        },
+        &[TargetProfile::host_if_supported().unwrap()],
         true,
+        false,
         &temp.path().join("out"),
         None,
     );
     let Err(errors) = result else {
-        panic!("two issued dependencies share the provider alias")
+        panic!("the invocation supplied two libraries as backing")
     };
     assert!(
         errors.iter().any(|error| error
             .message
-            .contains("Build dependency qualifier `backing` is ambiguous")),
+            .contains("duplicate supplied Build library alias `backing`")),
         "{errors:?}"
     );
 }

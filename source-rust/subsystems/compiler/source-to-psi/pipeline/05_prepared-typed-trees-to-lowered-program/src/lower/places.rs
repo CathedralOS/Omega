@@ -5583,6 +5583,7 @@ mod tests {
             }],
             result: Some(plain),
             membership_ensures: Vec::new(),
+            content_ensures: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
             reaches: crate::Ceiling::Inferred,
