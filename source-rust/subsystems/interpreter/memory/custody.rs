@@ -2746,7 +2746,9 @@ pub(crate) mod tests {
 
     #[test]
     fn entry_content_follows_the_active_argument_claim() {
+        use crate::boundary::structural_inputs::TerminalStructuralInputs;
         use crate::boundary::structural_inputs::case_membership::StructuralCaseContents;
+        use crate::boundary::structural_inputs::contents::TerminalStructuralContents;
         use crate::boundary::values::StructuralRuntimePlace;
         use semantic_vocabulary::{
             ContentAlgebra, ContentAlgebraKind, ContentPlaceSegment, ContentPlaceVersion,
@@ -2801,7 +2803,10 @@ pub(crate) mod tests {
             id: structural_type(2),
             identity: TerminalIdentityIndex(5),
             owns_linear_claim: true,
-            shape: StructuralTypeShape::Opaque,
+            shape: StructuralTypeShape::Record {
+                fields: Vec::new(),
+                storage: terminal_psi::StructuralRecordStorage::Packed,
+            },
             ..sum.clone()
         };
         let types = [sum, leaf];
@@ -2849,8 +2854,54 @@ pub(crate) mod tests {
             argument_index: 0,
             path: path.clone(),
         };
+        let mut program = crate::engine::calls::frames::tests::empty_program();
+        let module = std::sync::Arc::get_mut(&mut program)
+            .unwrap()
+            .fixture_module_mut();
+        let mut identities = terminal_psi::TerminalIdentityTable::default().into_builder();
+        for name in ["left", "Left", "Right", "Either", "Resource"] {
+            identities.intern(name);
+        }
+        module.identities = identities.build();
+        module.types.structural_types = types.to_vec();
+        let machine = &mut module.machines[0];
+        machine.parameter_order = vec![terminal_psi::BoundaryParameterKind::Structural];
+        machine.structural_parameters = vec![param.clone()];
+        machine.structural_places = vec![terminal_psi::StructuralPlaceDeclaration {
+            id: param.place,
+            kind: semantic_vocabulary::StructuralPlaceKind::Parameter { position: 0 },
+        }];
+        machine.entry_claims = vec![ordinary.clone()];
+        machine.content_entry_claims = vec![attached.clone(), independent.clone()];
+        let start = |contents: &[TerminalStructuralContents]| {
+            crate::engine::execution::TerminalExecution::start_with_program(
+                program.clone(),
+                &[],
+                TerminalStructuralInputs {
+                    arguments: std::slice::from_ref(&value),
+                    contents,
+                    ..Default::default()
+                },
+                None,
+                None,
+            )
+        };
+        assert!(
+            start(&[]).is_err(),
+            "a guarded entry needs actual case membership"
+        );
         for selected in [case(1), case(2)] {
             let active = selected == case(2);
+            let execution = start(&[TerminalStructuralContents {
+                argument_index: 0,
+                values: vec![crate::TerminalBoundaryStorageValue {
+                    path: Vec::new(),
+                    contents: crate::TerminalStorageContents::Case(selected),
+                }],
+            }])
+            .unwrap();
+            assert_eq!(execution.live_claims.contains_key(&claim(1)), active);
+            assert!(execution.live_claims.contains_key(&claim(2)));
             let caller = if active {
                 BTreeMap::from([(claim(5), linear(5, path.clone()))])
             } else {
