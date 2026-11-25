@@ -607,9 +607,12 @@ What the code shows:
   sanctions. No program on `main` is known to reach an `Unsupported` site;
   most guard invariants an earlier check already established. One of them,
   the citation crossing in `same_denotation`, cannot fire on a well-formed
-  proposition: a math equality must hold its endpoints in sorted order, so
-  its lowered `Equal` lifts back to the same proposition
-  (`a_math_equality_cited_at_its_lowered_form_denotes_identically`).
+  proposition over a fixed, non-address carrier: a math equality must hold
+  its endpoints in sorted order, so its lowered `Equal` lifts back to the
+  same proposition. An address carrier lowers but does not lift back, so a
+  math equality over addresses cited at its lowered `Equal` reaches the
+  crossing and is refused
+  (`a_math_equality_cited_at_its_lowered_form_denotes_identically` pins both).
 - **Terminal Psi has one slot per construct.** `mathematical_carriers`,
   `identity_formations` and `indexed_theorems` each carry one kind of
   declaration, and none has a writer.
@@ -941,7 +944,7 @@ there adds a case per construct, take the rule here instead.
 | Step | Build | Owner | First customers |
 | --- | --- | --- | --- |
 | 1 | L1 and L2 on an abstract type: the single term reader, serving an application of a declaration and `Id` at a type in every clause position (constructor and projection arrive with step 2). Stage 06 proves such a goal from cited equalities by reflexivity, symmetry, transitivity and congruence, as a kernel term. No `data`, no induction. | stage 05, lowered program, stage 06, kernel translation | one new pair: a generic machine over a `CommutativeSemiring<T>` that cites `add_comm` and relies on the Identity, and a twin that relies on it without the citation |
-| 2 | A plain `data` as a kernel type with its constructors as terms (R2 without indices); a machine defined by cases on one parameter as a kernel function; a law machine as an induction (R3); L3, so these declarations are published once and checked once with `check_signature`. The proof producer normalizes both sides with the kernel, then closes the goal by congruence over the cited equalities and the inductive hypothesis. The accepting test reads the proposition the mathematical kernel judged and the assumptions it used (`MathematicalCoreDecision::Judged`); a successful compile alone does not show the kernel saw the claim (L4). | stages 05 and 06, lowered program | `pass/proofs/ring_law_conformance`, recovered from `f4c7a70beb^` beside the owning test, with two rejected twins. The recovered `fail/proofs/ring_law_unproven_rejected` has no `ensures` and an empty body, so it tests only that a law must be declared. The second twin keeps the positive's exact `ensures` and removes the recursive call in the successor case; the compiler must name the equality left unproved on that path. |
+| 2 | A plain `data` as a kernel type with its constructors as terms (R2 without indices); a machine defined by cases on one parameter as a kernel function; a law machine as an induction (R3); L3, so these declarations are published once and checked once with `check_signature`. The proof producer normalizes both sides with the kernel, then closes the goal by congruence over the cited equalities and the inductive hypothesis. The accepting test reads the proposition the mathematical kernel judged and the assumptions it used (`MathematicalCoreDecision::Judged`). | stages 05 and 06, lowered program | `pass/proofs/ring_law_conformance`, recovered from `f4c7a70beb^` beside the owning test, with two rejected twins. The recovered `fail/proofs/ring_law_unproven_rejected` has no `ensures` and an empty body, so it tests only that a law must be declared. The second twin keeps the positive's exact `ensures` and removes the recursive call in the successor case; the compiler must name the equality left unproved on that path. |
 | 3a | Reordering and regrouping one operation under its proved commutativity and associativity laws, as a producer of kernel terms. While a law is being proved, that law is not available to its own proof. | stage 06 | `mul_distributes` and `mul_distributes_right` from `core/nat.omg` on the Peano fixture, and a twin that needs distributivity to prove distributivity |
 | 3 | `core/nat.omg` checked in full as a validation subject | stages 05 and 06 | its eleven `satisfies CommutativeSemiring<Nat>` machines |
 | 4 | The rest of R1: definitions with binders and `boundary let` as declarations in the same signature | stage 05, stage 06 | `cauchy.omg`, `rat.omg`, `int.omg`, `extent.omg:219` |
