@@ -267,3 +267,14 @@ fn a_product_typing_resolves_every_body_before_its_first_cohort() {
     let build = build.complete_authored(&mut timings).unwrap().finish();
     assert_eq!(machines(&product.typed), machines(&build.typed));
 }
+
+#[test]
+fn a_declarations_only_product_typing_leaves_product_bodies_deferred() {
+    use source_provenance::DependencyScope;
+
+    let mut timings = crate::CompileTimings::default();
+    let handoff = product_file_request(UNUSED_HELPER, DependencyScope::Product)
+        .prepare_declarations(&mut timings)
+        .unwrap();
+    assert_eq!(handoff.input.pending_bodies.pending_machines().count(), 2);
+}

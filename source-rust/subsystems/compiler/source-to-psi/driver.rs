@@ -51,6 +51,28 @@ impl<'a> StageSource<'a> {
         self,
         timings: &mut CompileTimings,
     ) -> Result<(ProductSourceInputs<'a>, SourceTypingCheckpoint), Vec<Diagnostic>> {
+        self.resolve_with(timings, |request, timings| request.prepare(timings))
+    }
+
+    /// Resolve and type declarations for dependency Build handoff without
+    /// eagerly typing Product bodies that handoff never reads.
+    pub(crate) fn resolve_declarations(
+        self,
+        timings: &mut CompileTimings,
+    ) -> Result<(ProductSourceInputs<'a>, SourceTypingCheckpoint), Vec<Diagnostic>> {
+        self.resolve_with(timings, |request, timings| {
+            request.prepare_declarations(timings)
+        })
+    }
+
+    fn resolve_with(
+        self,
+        timings: &mut CompileTimings,
+        prepare: impl FnOnce(
+            resolve_and_type::ResolveAndTypeRequest,
+            &mut CompileTimings,
+        ) -> Result<SourceTypingCheckpoint, Vec<Diagnostic>>,
+    ) -> Result<(ProductSourceInputs<'a>, SourceTypingCheckpoint), Vec<Diagnostic>> {
         let primary = self
             .parsed
             .roots
@@ -65,9 +87,10 @@ impl<'a> StageSource<'a> {
                 primary,
             )?;
         request.selection_authority = self.product.declaration_scope.clone();
-        let continuation = request
-            .with_build_entry(self.product.policy.activation)
-            .prepare(timings)?;
+        let continuation = prepare(
+            request.with_build_entry(self.product.policy.activation),
+            timings,
+        )?;
         Ok((self.product, continuation))
     }
 }
