@@ -53,7 +53,11 @@ type Spelled = (Atom, String, Option<TypeConstraintNode>);
 struct Named {
     handle: ExpressionHandle,
     entry: CastEntry,
-    selection: Option<(SymbolHandle, semantic_vocabulary::SemanticDomainId)>,
+    selection: Option<(
+        SymbolHandle,
+        semantic_vocabulary::SemanticDomainId,
+        arena::HandleSpan<TypeReferenceHandle>,
+    )>,
     atoms: Vec<Spelled>,
     label: String,
 }
@@ -710,8 +714,17 @@ fn named_domains(
                     ),
                 ));
             };
-            let semantic_id = program.retain_domain_application(domain.symbol, carrier, &arguments)?;
-            selection = Some((domain.symbol, semantic_id));
+            let (semantic_id, supplied) = crate::type_reference::selected_domain_application(
+                program,
+                domain.symbol,
+                carrier,
+                cast.semantic_domain_arguments,
+            )?;
+            let arguments = program
+                .type_reference_table
+                .type_reference_handles(supplied)
+                .to_vec();
+            selection = Some((domain.symbol, semantic_id, supplied));
             if let Some(alias) = &domain.alias {
                 // Naming an alias names its expansion.
                 alias
@@ -932,7 +945,8 @@ fn account_run(
         else {
             continue;
         };
-        if let Some((symbol, identity)) = entry.selection {
+        if let Some((symbol, identity, arguments)) = entry.selection {
+            cast.semantic_domain_arguments = arguments;
             cast.semantic_domain_symbol = symbol;
             cast.semantic_domain_id = identity;
         }

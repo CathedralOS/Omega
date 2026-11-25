@@ -840,3 +840,56 @@ fn a_refinement_subject_supplies_the_carrier_of_its_indexed_parent() {
     assert_eq!(applied.arguments.len(), 1);
     assert!(typed.deferred_refusals_of(child.symbol).next().is_none());
 }
+
+#[test]
+fn casts_and_refinements_share_their_familys_typed_index() {
+    const FAMILY: &str = "domain<const N: u8> u32::At<N>;";
+    let (_, typed) = source(&format!(
+        "{FAMILY}
+        domain u32::At<3>::Child;
+        machine restore(x: u32 in At<3>) -> u32 in At::Child {{ x as +At::Child }}
+        machine peel(x: u32 in At::Child) -> u32 in At<3u8> {{ x as -At::Child =At<3> }}"
+    ));
+    let child = typed
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.name.as_str() == "u32::At::Child")
+        .unwrap();
+    let parent = crate::source_state::domain::refinement_parent(&typed, child).unwrap();
+    let kept = typed
+        .expression_table
+        .expression_entries()
+        .find_map(|(_, node)| match node {
+            ExpressionNode::Cast(cast)
+                if cast
+                    .form
+                    .entry()
+                    .is_some_and(|entry| entry.kind == CastEntryKind::Keep) =>
+            {
+                Some(cast)
+            }
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(
+        (kept.semantic_domain_symbol, kept.semantic_domain_id),
+        (parent.domain_symbol, parent.semantic_domain)
+    );
+    assert!(typed.deferred_refusals.is_empty());
+
+    for index in ["256", "3u64"] {
+        for text in [
+            format!("{FAMILY} machine wrong() -> u32 {{ 7u32 as +At<{index}> }}"),
+            format!(
+                "{FAMILY} domain u32::At<{index}>::Child; machine make() -> u32 in At::Child {{ 7u32 as +At::Child }}"
+            ),
+        ] {
+            let error = source_result(&text)
+                .1
+                .expect_err("the argument must inhabit u8");
+            assert!(error.message.contains("must be a `u8`"), "{error:?}");
+            let span = error.source_span.unwrap().span;
+            assert_eq!(&text[span.start..span.end], index);
+        }
+    }
+}
