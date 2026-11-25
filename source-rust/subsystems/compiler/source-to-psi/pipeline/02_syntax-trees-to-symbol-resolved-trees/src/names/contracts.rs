@@ -1,4 +1,5 @@
 use crate::source_resolved::SymbolResolvedTrees;
+use crate::source_resolved::name::DiagnosticName;
 use crate::source_resolved::signature::SignatureContractKind;
 use crate::source_symbols::{JoinedPath, SymbolTable};
 use diagnostics::Diagnostic;
