@@ -29,12 +29,19 @@ use terminal_check_tables::{
 use terminal_psi::{OperationKind, StructuralAccess, StructuralArgument, Terminator};
 
 use super::{Evaluation, Lowering, Reached, Value};
-use crate::body::{
-    CallTarget, CrashCeiling, Expression, ExpressionKind, Signature, ValueType,
-};
+use crate::body::{CallTarget, CrashCeiling, Expression, ExpressionKind, Signature, ValueType};
 use crate::canonical;
 use crate::outcome::Outcome;
 use crate::{SourceOrigin, Unserved, refuse};
+
+fn write_frame_problem(machine: MachineId, concerns: Construct, detail: String) -> Refusal {
+    Refusal {
+        reason: RefusalReason::ForeignIdentity,
+        site: terminal_check_tables::RefusalSite::Machine(machine, concerns),
+        source_span: None,
+        detail,
+    }
+}
 
 /// A call need not replace every field it borrows. Once every body has its
 /// canonical operations, publish the inferred frames and use those same
@@ -44,15 +51,6 @@ pub(crate) fn publish_write_frames(
     module: &mut terminal_psi::TerminalModule,
     tables: &mut terminal_check_tables::CheckTables,
 ) -> Checked<()> {
-    use semantic_vocabulary::CanonicalStructuralPathSegment;
-    use terminal_check_tables::bindings::{self, Content, Segment, WriteRow};
-
-    let problem = |machine, concerns, detail: String| Refusal {
-        reason: RefusalReason::ForeignIdentity,
-        site: terminal_check_tables::RefusalSite::Machine(machine, concerns),
-        source_span: None,
-        detail,
-    };
     let frames =
         terminal_semantics::borrowed_storage::inferred_write_frames(module).map_err(|error| {
             Refusal::at(
@@ -67,7 +65,7 @@ pub(crate) fn publish_write_frames(
         machine.contract.published_writes = frames
             .get(machine.id)
             .ok_or_else(|| {
-                problem(
+                write_frame_problem(
                     machine.id,
                     Construct::Machine,
                     "write frame has no owner".to_owned(),
@@ -75,164 +73,239 @@ pub(crate) fn publish_write_frames(
             })?
             .clone();
     }
-    for machine in &module.machines {
-        let id = machine.id;
-        let tables = tables.machines.get_mut(id).ok_or_else(|| {
-            problem(
-                id,
-                Construct::Machine,
-                "write frame has no checking tables".to_owned(),
-            )
-        })?;
-        // Operation identities can be emitted in a different order from
-        // allocation. Index only actual operations, rather than allocating
-        // scratch up to the largest possible identity.
-        let mut writes: Vec<_> = machine
-            .operations()
-            .map(|operation| (operation.id, Vec::new()))
-            .collect();
-        writes.sort_unstable_by_key(|(operation, _)| *operation);
-        for (_, row) in tables.writes.iter() {
-            let ProgramPoint::AfterOperation(operation) = row.at else {
-                return Err(problem(
-                    id,
-                    Construct::Place(row.place),
-                    "a lowered storage write is not at its operation".to_owned(),
-                ));
-            };
-            let position = writes
-                .binary_search_by_key(&operation, |(operation, _)| *operation)
-                .map_err(|_| {
-                    problem(
-                        id,
-                        Construct::Operation(operation),
-                        "a write names a missing operation".to_owned(),
-                    )
-                })?;
-            writes[position].1.push(*row);
+    let aligned = module.machines.len() == tables.machines.len()
+        && module
+            .machines
+            .iter()
+            .zip(tables.machines.keys())
+            .all(|(machine, table_id)| machine.id == table_id);
+    if aligned {
+        let module = &*module;
+        if worker_budget::current_workers() > 1 && module.machines.len() >= 2 {
+            use rayon::prelude::*;
+            let pairs: Vec<(
+                &terminal_psi::TerminalMachine,
+                &mut terminal_check_tables::MachineTables,
+            )> = module
+                .machines
+                .iter()
+                .zip(tables.machines.iter_mut().map(|(_, tables)| tables))
+                .collect();
+            let results: Vec<Checked<()>> = pairs
+                .into_par_iter()
+                .with_max_len(1)
+                .map(|(machine, machine_tables)| {
+                    publish_machine_write_frames(module, machine, machine_tables)
+                })
+                .collect();
+            for result in results {
+                result?;
+            }
+        } else {
+            for (machine, (_, machine_tables)) in
+                module.machines.iter().zip(tables.machines.iter_mut())
+            {
+                publish_machine_write_frames(module, machine, machine_tables)?;
+            }
         }
-        let mut revised = Vec::with_capacity(tables.writes.len());
-        for operation in machine.operations() {
-            let position = writes
-                .binary_search_by_key(&operation.id, |(operation, _)| *operation)
-                .map_err(|_| {
-                    problem(
-                        id,
-                        Construct::Operation(operation.id),
-                        "write-frame operation disappeared".to_owned(),
-                    )
-                })?;
-            let old = &writes[position].1;
-            let Some(regions) = terminal_semantics::borrowed_storage::call_write_regions(
-                module, machine, operation,
-            )
-            .map_err(|detail| problem(id, Construct::Operation(operation.id), detail))?
-            else {
-                revised.extend_from_slice(old);
-                carried_referent_writes(module, machine, tables, operation, &mut revised)
-                    .map_err(|detail| problem(id, Construct::Operation(operation.id), detail))?;
-                continue;
-            };
-            if old.iter().any(|row| row.content != Content::Overwritten) {
-                return Err(problem(
+    } else {
+        for machine in &module.machines {
+            let id = machine.id;
+            let machine_tables = tables.machines.get_mut(id).ok_or_else(|| {
+                write_frame_problem(
                     id,
-                    Construct::Operation(operation.id),
-                    "a call write has unexpected scalar or move contents".to_owned(),
-                ));
-            }
-            let at = ProgramPoint::AfterOperation(operation.id);
-            if let Some(result) = operation.result.structural() {
-                let place = tables.roots.get(result.place).copied().ok_or_else(|| {
-                    problem(
-                        id,
-                        Construct::Operation(operation.id),
-                        "a call result has no exact root".to_owned(),
-                    )
-                })?;
-                revised.push(WriteRow {
-                    place,
-                    at,
-                    content: Content::Overwritten,
-                });
-            }
-            for region in regions {
-                let root = region.root.ok_or_else(|| {
-                    problem(
-                        id,
-                        Construct::Operation(operation.id),
-                        "a known write frame has no storage root".to_owned(),
-                    )
-                })?;
-                let structural_type = machine.structural_place_type(root).ok_or_else(|| {
-                    problem(
-                        id,
-                        Construct::Operation(operation.id),
-                        "a written root has no structural type".to_owned(),
-                    )
-                })?;
-                // The same region the ownership analysis gives a write of this
-                // storage, a stored view's descriptor included.
-                let path = terminal_semantics::canonical_inline_region(
-                    module.types.structural_types.iter(),
-                    structural_type,
-                    &region.written_storage_path(),
+                    Construct::Machine,
+                    "write frame has no checking tables".to_owned(),
                 )
-                .ok_or_else(|| {
-                    problem(
-                        id,
-                        Construct::Operation(operation.id),
-                        "a written region has no exact inline storage path".to_owned(),
-                    )
-                })?;
-                let mut place = tables.roots.get(root).copied().ok_or_else(|| {
-                    problem(
-                        id,
-                        Construct::Operation(operation.id),
-                        "a written region has no exact root".to_owned(),
-                    )
-                })?;
-                for segment in path {
-                    let segment = match segment {
-                        CanonicalStructuralPathSegment::Field(field) => Segment::Field(field),
-                        CanonicalStructuralPathSegment::FixedIndex(index) => {
-                            Segment::FixedIndex(index)
-                        }
-                        CanonicalStructuralPathSegment::Case(case) => Segment::Case(case),
-                        CanonicalStructuralPathSegment::Referent => {
-                            return Err(problem(
-                                id,
-                                Construct::Operation(operation.id),
-                                "a write frame crosses an unserved referent".to_owned(),
-                            ));
-                        }
-                    };
-                    place = bindings::intern_projection(id, &mut tables.places, place, segment)?;
-                }
-                revised.push(WriteRow {
-                    place,
-                    at,
-                    content: Content::Overwritten,
-                });
+            })?;
+            publish_machine_write_frames(module, machine, machine_tables)?;
+        }
+    }
+    Ok(())
+}
+
+fn publish_machine_write_frames(
+    module: &terminal_psi::TerminalModule,
+    machine: &terminal_psi::TerminalMachine,
+    tables: &mut terminal_check_tables::MachineTables,
+) -> Checked<()> {
+    use semantic_vocabulary::CanonicalStructuralPathSegment;
+    use terminal_check_tables::bindings::{self, Content, Segment, WriteRow};
+
+    enum OpWriteUpdate {
+        Regions(Vec<terminal_semantics::borrowed_storage::Region>),
+        Referents(std::ops::Range<usize>),
+    }
+
+    let id = machine.id;
+    let problem = |concerns, detail: String| write_frame_problem(id, concerns, detail);
+
+    let mut updates: Vec<(OperationId, OpWriteUpdate)> = Vec::new();
+    let mut referent_rows: Vec<WriteRow> = Vec::new();
+    for operation in machine.operations() {
+        if let Some(regions) =
+            terminal_semantics::borrowed_storage::call_write_regions(module, machine, operation)
+                .map_err(|detail| problem(Construct::Operation(operation.id), detail))?
+        {
+            updates.push((operation.id, OpWriteUpdate::Regions(regions)));
+        } else {
+            let start = referent_rows.len();
+            carried_referent_writes(module, machine, tables, operation, &mut referent_rows)
+                .map_err(|detail| problem(Construct::Operation(operation.id), detail))?;
+            if referent_rows.len() > start {
+                updates.push((
+                    operation.id,
+                    OpWriteUpdate::Referents(start..referent_rows.len()),
+                ));
             }
         }
-        for (_, row) in tables.writes.iter() {
-            tables
-                .places
-                .get_mut(row.place)
-                .ok_or_else(|| {
-                    problem(
-                        id,
-                        Construct::Place(row.place),
-                        "a storage write has no exact place".to_owned(),
-                    )
-                })?
-                .writes
-                .clear();
+    }
+    if updates.is_empty() {
+        return Ok(());
+    }
+
+    // Operation identities can be emitted in a different order from
+    // allocation. Index only actual operations, rather than allocating
+    // scratch up to the largest possible identity.
+    let mut writes: Vec<_> = machine
+        .operations()
+        .map(|operation| (operation.id, Vec::new()))
+        .collect();
+    writes.sort_unstable_by_key(|(operation, _)| *operation);
+    for (_, row) in tables.writes.iter() {
+        let ProgramPoint::AfterOperation(operation) = row.at else {
+            return Err(problem(
+                Construct::Place(row.place),
+                "a lowered storage write is not at its operation".to_owned(),
+            ));
+        };
+        let position = writes
+            .binary_search_by_key(&operation, |(operation, _)| *operation)
+            .map_err(|_| {
+                problem(
+                    Construct::Operation(operation),
+                    "a write names a missing operation".to_owned(),
+                )
+            })?;
+        writes[position].1.push(*row);
+    }
+    let mut revised = Vec::with_capacity(tables.writes.len() + referent_rows.len());
+    let mut update_cursor = 0;
+    for operation in machine.operations() {
+        let position = writes
+            .binary_search_by_key(&operation.id, |(operation, _)| *operation)
+            .map_err(|_| {
+                problem(
+                    Construct::Operation(operation.id),
+                    "write-frame operation disappeared".to_owned(),
+                )
+            })?;
+        let old = &writes[position].1;
+        let Some((_, update)) = updates
+            .get(update_cursor)
+            .filter(|(op_id, _)| *op_id == operation.id)
+        else {
+            revised.extend_from_slice(old);
+            continue;
+        };
+        update_cursor += 1;
+        let regions = match update {
+            OpWriteUpdate::Referents(range) => {
+                revised.extend_from_slice(old);
+                revised.extend_from_slice(&referent_rows[range.clone()]);
+                continue;
+            }
+            OpWriteUpdate::Regions(regions) => regions,
+        };
+        if old.iter().any(|row| row.content != Content::Overwritten) {
+            return Err(problem(
+                Construct::Operation(operation.id),
+                "a call write has unexpected scalar or move contents".to_owned(),
+            ));
         }
-        tables.writes = arena::IdTable::default();
-        for row in revised {
-            bindings::record_write(id, &mut tables.places, &mut tables.writes, row)?;
+        let at = ProgramPoint::AfterOperation(operation.id);
+        if let Some(result) = operation.result.structural() {
+            let place = tables.roots.get(result.place).copied().ok_or_else(|| {
+                problem(
+                    Construct::Operation(operation.id),
+                    "a call result has no exact root".to_owned(),
+                )
+            })?;
+            revised.push(WriteRow {
+                place,
+                at,
+                content: Content::Overwritten,
+            });
         }
+        for region in regions {
+            let root = region.root.ok_or_else(|| {
+                problem(
+                    Construct::Operation(operation.id),
+                    "a known write frame has no storage root".to_owned(),
+                )
+            })?;
+            let structural_type = machine.structural_place_type(root).ok_or_else(|| {
+                problem(
+                    Construct::Operation(operation.id),
+                    "a written root has no structural type".to_owned(),
+                )
+            })?;
+            // The same region the ownership analysis gives a write of this
+            // storage, a stored view's descriptor included.
+            let path = terminal_semantics::canonical_inline_region(
+                module.types.structural_types.iter(),
+                structural_type,
+                &region.written_storage_path(),
+            )
+            .ok_or_else(|| {
+                problem(
+                    Construct::Operation(operation.id),
+                    "a written region has no exact inline storage path".to_owned(),
+                )
+            })?;
+            let mut place = tables.roots.get(root).copied().ok_or_else(|| {
+                problem(
+                    Construct::Operation(operation.id),
+                    "a written region has no exact root".to_owned(),
+                )
+            })?;
+            for segment in path {
+                let segment = match segment {
+                    CanonicalStructuralPathSegment::Field(field) => Segment::Field(field),
+                    CanonicalStructuralPathSegment::FixedIndex(index) => Segment::FixedIndex(index),
+                    CanonicalStructuralPathSegment::Case(case) => Segment::Case(case),
+                    CanonicalStructuralPathSegment::Referent => {
+                        return Err(problem(
+                            Construct::Operation(operation.id),
+                            "a write frame crosses an unserved referent".to_owned(),
+                        ));
+                    }
+                };
+                place = bindings::intern_projection(id, &mut tables.places, place, segment)?;
+            }
+            revised.push(WriteRow {
+                place,
+                at,
+                content: Content::Overwritten,
+            });
+        }
+    }
+    for (_, row) in tables.writes.iter() {
+        tables
+            .places
+            .get_mut(row.place)
+            .ok_or_else(|| {
+                problem(
+                    Construct::Place(row.place),
+                    "a storage write has no exact place".to_owned(),
+                )
+            })?
+            .writes
+            .clear();
+    }
+    tables.writes = arena::IdTable::default();
+    for row in revised {
+        bindings::record_write(id, &mut tables.places, &mut tables.writes, row)?;
     }
     Ok(())
 }
@@ -519,7 +592,9 @@ impl Lowering<'_> {
             // is that term; it is named, not run.
             if signature.is_erased(position) {
                 let witness = self.witness(argument)?;
-                evaluated.erased.push(witness.term(&self.erased_applications));
+                evaluated
+                    .erased
+                    .push(witness.term(&self.erased_applications));
                 continue;
             }
             if observes_storage {
@@ -740,10 +815,7 @@ impl Lowering<'_> {
         arguments: &Arguments,
     ) -> Checked<bool> {
         let signature = self.target_signature(callable, required_contract)?;
-        if crate::inhabitation::excludes_result(
-            &self.records.inhabitation,
-            signature.result,
-        ) {
+        if crate::inhabitation::excludes_result(&self.records.inhabitation, signature.result) {
             return Ok(false);
         }
         if self.published_postcondition_is_false(&signature, arguments)? {
@@ -1319,5 +1391,105 @@ impl terminal_semantics::ValueTypes for DraftScalarValues<'_> {
     fn value_type(&self, value: ValueId) -> Option<semantic_vocabulary::ScalarType> {
         let row = self.values.get(value)?;
         row.rigid.is_none().then_some(row.scalar_type)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use arena::NumericId;
+    use semantic_vocabulary::{BlockId, EdgeId};
+    use terminal_check_tables::bindings::{self, Content, PlaceOrigin, PlaceRow, WriteRow};
+    use terminal_check_tables::{CheckTables, MachineTables, ProgramPoint};
+    use terminal_psi::{
+        Block, MachineContract, Operation, OperationResult, TerminalMachine, TerminalModule,
+    };
+
+    fn id<T: NumericId>(raw: u64) -> T {
+        T::new(raw).unwrap()
+    }
+
+    #[test]
+    fn publish_write_frames_preserves_writes_across_workers_when_no_call_edits() {
+        let build = || {
+            let mut module = TerminalModule::declarations();
+            let mut tables = CheckTables::default();
+            for raw in 1..=4 {
+                let mut block = Block::plain(
+                    id::<BlockId>(1),
+                    Vec::new(),
+                    Terminator::ReturnUnit {
+                        edge: id::<EdgeId>(1),
+                        cleanup_actions: Vec::new(),
+                    },
+                );
+                let op_id = id::<OperationId>(1);
+                block.operations.push(Operation::unsuspended(
+                    op_id,
+                    OperationResult::Unit,
+                    OperationKind::ReadScalarApplication { application: id(1) },
+                ));
+                module.machines.push(TerminalMachine {
+                    call_formations: Vec::new(),
+                    assembly_target_requirement: Default::default(),
+                    id: id::<MachineId>(raw),
+                    attachment: None,
+                    ranked_scc: None,
+                    structural_places: Vec::new(),
+                    block_entry_claims: Vec::new(),
+                    loan_completions: Vec::new(),
+                    content_identity_reshuffles: Vec::new(),
+                    content_partition_compositions: Vec::new(),
+                    entry: id::<BlockId>(1),
+                    blocks: vec![block],
+                    contract: MachineContract::empty(id(raw)),
+                });
+                let mut machine_tables = MachineTables::default();
+                let exact = machine_tables.places.push(PlaceRow {
+                    origin: PlaceOrigin::Root(id::<PlaceId>(1)),
+                    children: Vec::new(),
+                    writes: Vec::new(),
+                });
+                machine_tables.roots.push(exact);
+                bindings::record_write(
+                    id::<MachineId>(raw),
+                    &mut machine_tables.places,
+                    &mut machine_tables.writes,
+                    WriteRow {
+                        place: exact,
+                        at: ProgramPoint::AfterOperation(op_id),
+                        content: Content::Value(id::<ValueId>(1)),
+                    },
+                )
+                .unwrap();
+                tables.machines.push(machine_tables);
+            }
+            (module, tables)
+        };
+
+        let run = |workers: usize| {
+            let (mut module, mut tables) = build();
+            let budget = worker_budget::ExecutionBudget::with_workers(workers).unwrap();
+            budget
+                .run(|| publish_write_frames(&mut module, &mut tables))
+                .unwrap();
+            let writes: Vec<Vec<WriteRow>> = tables
+                .machines
+                .values()
+                .map(|m| m.writes.values().copied().collect())
+                .collect();
+            let place_writes: Vec<Vec<Vec<_>>> = tables
+                .machines
+                .values()
+                .map(|m| m.places.values().map(|p| p.writes.clone()).collect())
+                .collect();
+            (writes, place_writes)
+        };
+
+        let sequential = run(1);
+        let parallel = run(4);
+        assert_eq!(sequential, parallel);
+        assert_eq!(sequential.0.len(), 4);
+        assert!(sequential.0.iter().all(|rows| rows.len() == 1));
     }
 }

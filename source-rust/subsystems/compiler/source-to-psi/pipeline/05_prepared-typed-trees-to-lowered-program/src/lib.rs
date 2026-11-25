@@ -1859,7 +1859,8 @@ fn lower_program<'source>(
                     )
                 })?;
             module
-                .execution.declaration_contracts
+                .execution
+                .declaration_contracts
                 .push(lower::declaration_contract(
                     diagnostic,
                     id,
@@ -1955,13 +1956,14 @@ fn lower_program<'source>(
     if let Some(source) = declarations {
         let proof_scope = std::mem::take(&mut module.scalars.scalar_applications.proof_scope);
         let conditions = std::mem::take(&mut module.scalars.scalar_applications.conditions);
-        module.scalars.scalar_applications = source.scalar_applications.published().map_err(|reason| {
-            refuse(
-                MachineId::new(1).expect("nonzero identity"),
-                Construct::Machine,
-                Unserved::Declaration(reason),
-            )
-        })?;
+        module.scalars.scalar_applications =
+            source.scalar_applications.published().map_err(|reason| {
+                refuse(
+                    MachineId::new(1).expect("nonzero identity"),
+                    Construct::Machine,
+                    Unserved::Declaration(reason),
+                )
+            })?;
         module.scalars.scalar_applications.proof_scope = proof_scope;
         module.scalars.scalar_applications.conditions = conditions;
     }
@@ -2162,17 +2164,15 @@ fn finish_storage(
             Ok(Ok(plan)) => Some(plan.graphed_machines.as_slice()),
             _ => None,
         },
-        |machine, plan| {
-            match plan? {
-                Ok(plan) => install_storage_plan(machine, &plan),
-                // An unsupported walk is reported beside the first one and
-                // the next machine is planned; any other refusal ends the loop.
-                Err(refused) if refused.reason == RefusalReason::Unsupported => {
-                    unsupported.push(refused)
-                }
-                Err(refused) => return Err(refused),
+        |machine, plan| match plan? {
+            Ok(plan) => install_storage_plan(machine, &plan),
+            // An unsupported walk is reported beside the first one and
+            // the next machine is planned; any other refusal ends the loop.
+            Err(refused) if refused.reason == RefusalReason::Unsupported => {
+                unsupported.push(refused);
+                Ok(false)
             }
-            Ok(())
+            Err(refused) => Err(refused),
         },
     )?;
     if !unsupported.is_empty() {
@@ -2323,32 +2323,56 @@ fn storage_plan(
 }
 
 /// Install the store dispositions and cleanup `plan` reconstructed.
+/// Returns `Ok(true)` iff `machine` was mutated.
 fn install_storage_plan(
     machine: &mut terminal_psi::TerminalMachine,
     plan: &terminal_semantics::plain_affine::Plan,
-) {
+) -> Checked<bool> {
+    let has_scheduled_roots = plan.scheduled_roots != arena::IdSet::new();
+    if plan.stores.is_empty() && plan.cleanup.is_empty() && !has_scheduled_roots {
+        return Ok(false);
+    }
     // Receiving storage may be intact or exactly vacated by a preceding
     // move. Install the mode reconstructed from the final ownership
     // frontier; source syntax alone cannot distinguish them. The checker
     // independently reconstructs these modes and the disposal schedule.
+    let update_stores = !plan.stores.is_empty();
+    let update_rosters = has_scheduled_roots || !plan.cleanup.is_empty();
+    let mut changed = false;
     for block in &mut machine.blocks {
-        for operation in &mut block.operations {
-            if let terminal_psi::OperationKind::StoreStructuralField { disposition, .. } =
-                &mut operation.kind
-                && let Ok(position) = plan
-                    .stores
-                    .binary_search_by_key(&operation.id, |(operation, _)| *operation)
-            {
-                *disposition = plan.stores[position].1;
+        if update_stores {
+            for operation in &mut block.operations {
+                if let terminal_psi::OperationKind::StoreStructuralField { disposition, .. } =
+                    &mut operation.kind
+                    && let Ok(position) = plan
+                        .stores
+                        .binary_search_by_key(&operation.id, |(operation, _)| *operation)
+                    && *disposition != plan.stores[position].1
+                {
+                    *disposition = plan.stores[position].1;
+                    changed = true;
+                }
             }
         }
-        for (edge, actions) in block.terminator.cleanup_rosters_mut() {
-            actions.retain(|action| !plan.scheduled_roots.contains(action.place()));
-            if let Ok(position) = plan.cleanup.binary_search_by_key(&edge, |(edge, _)| *edge) {
-                actions.extend(plan.cleanup[position].1.iter().cloned());
+        if update_rosters {
+            for (edge, actions) in block.terminator.cleanup_rosters_mut() {
+                if has_scheduled_roots && !actions.is_empty() {
+                    let before = actions.len();
+                    actions.retain(|action| !plan.scheduled_roots.contains(action.place()));
+                    if actions.len() != before {
+                        changed = true;
+                    }
+                }
+                if let Ok(position) = plan.cleanup.binary_search_by_key(&edge, |(edge, _)| *edge)
+                    && !plan.cleanup[position].1.is_empty()
+                {
+                    actions.extend(plan.cleanup[position].1.iter().cloned());
+                    changed = true;
+                }
             }
         }
     }
+    Ok(changed)
 }
 
 #[cfg(test)]

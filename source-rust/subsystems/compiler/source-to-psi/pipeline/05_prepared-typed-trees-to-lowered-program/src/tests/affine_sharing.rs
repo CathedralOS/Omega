@@ -183,8 +183,10 @@ fn applied(
                     plan.map_err(|_| machine.id)?;
                     if machine.id.get() == edited {
                         machine.attachment = Some(id(LEFT));
+                        Ok::<bool, MachineId>(true)
+                    } else {
+                        Ok(false)
                     }
-                    Ok::<(), MachineId>(())
                 },
             )
         })
