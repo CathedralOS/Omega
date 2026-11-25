@@ -2420,26 +2420,28 @@ pub(crate) struct Donated<'a> {
     verdicts: &'a IdTable<ObligationId, Checked<Discharged>>,
 }
 
-/// A certificate borrowed for one obligation, and which of the copy's
+/// A certificate borrowed for one obligation, its already-verified kernel
+/// acceptance from the donor in the same compilation, and which of the copy's
 /// hypothesis sets it was found against: the goal's connected facts
 /// (`crate::connected`) or all of them.
 pub(crate) struct Borrowed {
     pub(crate) narrowed: bool,
     pub(crate) certificate: CertificateEnvelope,
+    pub(crate) fact: proof_admission::AcceptedFact,
 }
 
 impl Donated<'_> {
-    /// The donor's certificate for `obligation`, when the donor's search
-    /// found it from this copy's `goal` and the hypothesis set this copy's
-    /// own search would reach it with.
+    /// The donor's certificate and kernel-accepted fact for `obligation`, when
+    /// the donor's search proved the exact same goal from the exact same
+    /// context and hypothesis set this copy's search would reach it with.
     ///
-    /// The copy's search tries `narrowed` first, then `full`. The donor
-    /// recorded the rows its accepted search used. When they are this copy's
-    /// narrowed set, the copy's first search has the donor's inputs. When they
-    /// are this copy's full set, the donor's narrowed set was the same as
-    /// this copy's (narrowing depends only on the goal and the full set) and
-    /// its search failed there, so this copy's would fail too and reach the
-    /// same full search.
+    /// `Donors::for_machine` already verified `same_context` (identical
+    /// `value_types` and `structural_places` keys and discriminants, which are
+    /// the only fields `PropositionContext::validate` and `verify_obligation`
+    /// inspect). Because `verify_obligation` is a pure function of `(context,
+    /// obligation, goal, assumptions, axioms, certificate)` and the donor's
+    /// `AcceptedFact` was produced by the same kernel in this compilation,
+    /// reusing it avoids re-running kernel verification on identical copies.
     pub(crate) fn borrow(
         &self,
         obligation: ObligationId,
@@ -2450,7 +2452,10 @@ impl Donated<'_> {
         let Some(Ok(Discharged::Certificate(evidence))) = self.verdicts.get(obligation) else {
             return None;
         };
-        if evidence.goal != *goal {
+        if evidence.goal != *goal
+            || evidence.fact.obligation != obligation
+            || evidence.fact.proposition != *goal
+        {
             return None;
         }
         let used = |hypotheses: &Hypotheses| {
@@ -2471,6 +2476,7 @@ impl Donated<'_> {
                 proof_system_marker: evidence.certificate.proof_system_marker,
                 proof: evidence.certificate.proof.clone(),
             },
+            fact: evidence.fact.clone(),
         })
     }
 

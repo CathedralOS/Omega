@@ -2622,34 +2622,17 @@ fn decide_borrowing(
     if let Some(borrowed) = donated
         .and_then(|donated| donated.borrow(obligation, &goal, &hypotheses, narrowed.as_ref()))
     {
-        let premises = if borrowed.narrowed {
-            narrowed.as_ref()
-        } else {
-            Some(&hypotheses)
+        let premises = match narrowed {
+            Some(narrowed) if borrowed.narrowed => narrowed,
+            _ => hypotheses,
         };
-        if let Some(premises) = premises
-            && let Ok(fact) = verify_certificate(
-                context,
-                id,
-                obligation,
-                &goal,
-                &premises.assumptions,
-                &premises.axioms,
-                &borrowed.certificate,
-            )
-        {
-            let premises = match narrowed {
-                Some(narrowed) if borrowed.narrowed => narrowed,
-                _ => hypotheses,
-            };
-            return Ok(Evidence {
-                goal,
-                assumptions: premises.assumption_rows,
-                axioms: premises.axiom_rows,
-                certificate: borrowed.certificate,
-                fact,
-            });
-        }
+        return Ok(Evidence {
+            goal,
+            assumptions: premises.assumption_rows,
+            axioms: premises.axiom_rows,
+            certificate: borrowed.certificate,
+            fact: borrowed.fact,
+        });
     }
     if let Some(narrowed) = narrowed
         && let Ok(certificate) = search_certificate(
