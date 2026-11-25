@@ -453,3 +453,48 @@ fn an_unused_domain_predicate_must_form_for_every_const_index() {
     .judged(|_| {})
     .accepted();
 }
+
+#[test]
+fn a_transparent_domain_alias_keeps_the_predicates_of_its_leaves() {
+    let declarations = "domain i32::Positive requires self > 0;
+        domain i32::Positive::Small requires self < 100;
+        domain i32::Odd requires self != 2;
+        domain i32::Limited = i32::Positive::Small & i32::Odd;
+        domain i32::Again = i32::Limited;
+        machine keep(x: i32 in Again) -> i32 in Positive::Small & Odd { x }";
+    let check = |value| {
+        Program::of(&format!(
+            "{declarations}
+            machine f() -> i32 in Positive::Small & Odd {{ {value}i32 as +Positive::Small +Odd }}"
+        ))
+        .judged(|_| {})
+    };
+    check(7).accepted();
+    assert_eq!(check(2).rejected().unproved.len(), 1);
+}
+
+#[test]
+fn an_unused_domain_alias_checks_its_constituents() {
+    for (declarations, reason) in [
+        ("domain i32::Bad = i32::Left & i32::Absent;", "i32::Absent"),
+        (
+            "domain u32::Other; domain i32::Bad = u32::Other;",
+            "incompatible carriers",
+        ),
+        (
+            "domain i32::Bad = i32::Other; domain i32::Other = i32::Bad;",
+            "domain alias cycle",
+        ),
+        ("public domain i32::Bad = i32::Left;", "private domain"),
+        (
+            "domain<T [copy]> T::Marker; domain i32::Bad = i32::Marker;",
+            "requiring a type or index application",
+        ),
+    ] {
+        let source = format!("domain i32::Left; {declarations} machine ok() -> i32 {{ 0i32 }}");
+        let Err(refusal) = Program::try_of(&[("product/main.omg", &source)]) else {
+            panic!("accepted {declarations}");
+        };
+        assert!(refusal.message.contains(reason), "{refusal:?}");
+    }
+}

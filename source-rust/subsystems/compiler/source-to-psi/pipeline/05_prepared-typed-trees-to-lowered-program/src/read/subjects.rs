@@ -38,6 +38,8 @@ its symbol was declared in, never from a path or a name:
 - A declaration with no source file cannot be placed, so it is refused.
 */
 
+mod domain_declarations;
+
 use semantic_vocabulary::{MachineId, PackageKeyIdentity};
 use source_provenance::DependencyScope;
 use symbols::SymbolHandle;
@@ -569,28 +571,16 @@ impl Program<'_> {
             })();
             self.keep(read)?;
         }
+        let mut domain_forms =
+            vec![domain_declarations::DomainForm::Unread; typed.domain_definitions().len()];
         let mut schemas = domain_schemas.iter().peekable();
         for domain in typed.domain_definitions() {
             let schema = schemas.next_if(|row| row.declaration == domain.symbol);
             let read = (|| -> Checked<()> {
-                if self.owner(entry, domain.symbol, subjects, purpose)? != Owner::Subject {
-                    return Ok(());
+                if self.owner(entry, domain.symbol, subjects, purpose)? == Owner::Subject {
+                    self.subject_domain(entry, domain, schema, &mut domain_forms)?;
                 }
-                self.served(entry, domain.symbol)?;
-                if !judged_where_used(typed, domain) {
-                    return Err(refuse(
-                        entry,
-                        Construct::Machine,
-                        Unserved::Declaration(
-                            "domain with a cleanup machine, operators or unsupported parameters",
-                        ),
-                    ));
-                }
-                // Its predicates are stated wherever a type carries the
-                // domain; a declaration nothing uses must still be one the
-                // route reads.
-                self.admitted_declarations.include(domain.symbol);
-                self.declared_domain_schema(entry, domain, schema)
+                Ok(())
             })();
             self.keep(read)?;
         }
