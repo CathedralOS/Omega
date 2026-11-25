@@ -1485,9 +1485,9 @@ same_sign> as SameSign;` is read into the mathematical signature when
     or a formal passed twice, which the specification permits.
   - Anything that needs the kernel's `effective` assumption (equal classes
     give related representatives). The specification allows it only for a
-    relation shown to be a mere proposition, and a quotient declaration has
-    nowhere to select that evidence
-    ([quotient evidence question](../../../OWNER_QUESTIONS.md#quotient-mere-proposition-evidence)).
+    relation shown to be a mere proposition, and requires the declaration to
+    [select a closed `MereEquivalence`](../../spec/proofs/quotients.md#formation-and-representation).
+    The reader still needs to consume that conformance.
     The compiler uses soundness only, which holds for any relation.
   - A generic quotient, a quotient of data that has storage, and the
     nineteen runtime quotient programs under
