@@ -352,8 +352,9 @@ pub fn elaborate_for(
 ) -> Checked<Elaboration> {
     // The first refusal read is the one a reading that stops there meets;
     // `prepare_compilation` reports the rest beside it.
-    let mut prepared = elaborate_source_for(typed, compilation, publication, shared_reading(typed))
-        .map_err(|mut refused| refused.swap_remove(0))?;
+    let mut prepared =
+        elaborate_source_for(typed, compilation, publication, shared_reading(typed), &[])
+            .map_err(|mut refused| refused.swap_remove(0))?;
     publication::finalize_source(
         typed,
         &mut prepared.program,
@@ -368,6 +369,7 @@ fn elaborate_source_for<'source>(
     compilation: Compilation<'_>,
     publication: terminal_codec::TerminalPublication,
     captures: SharedReading,
+    domain_schemas: &[prepared_source::DomainSchema],
 ) -> Result<PreparedProgram<'source>, Vec<Refusal>> {
     if typed.is_legacy_build_prefix() {
         return Err(vec![Refusal::at(
@@ -421,7 +423,12 @@ fn elaborate_source_for<'source>(
         program.keep(read).map_err(alone)?;
     }
     program
-        .subject_declarations(first, compilation.subjects, compilation.purpose)
+        .subject_declarations(
+            first,
+            compilation.subjects,
+            compilation.purpose,
+            domain_schemas,
+        )
         .map_err(alone)?;
     let bodies = read_bodies(&mut program, first).map_err(alone)?;
     // Past reading, each step works over the whole closure, so the first

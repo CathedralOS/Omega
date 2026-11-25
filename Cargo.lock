@@ -2193,6 +2193,7 @@ dependencies = [
  "diagnostics",
  "layout-plans",
  "prepared-source-issuer",
+ "semantic-vocabulary",
  "symbols",
  "typed-trees",
 ]

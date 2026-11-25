@@ -85,6 +85,7 @@ pub fn prepare_compilation(
     compilation: crate::Compilation<'_>,
     publication: terminal_codec::TerminalPublication,
 ) -> Result<LoweredCompilationWithSource, Vec<diagnostics::Diagnostic>> {
+    let domain_schemas = typed.domain_schemas();
     let typed = typed.trees();
     match crate::check_bound_callable_shapes(typed, compilation.bindings) {
         Ok(failures) if !failures.is_empty() => {
@@ -161,6 +162,7 @@ pub fn prepare_compilation(
             compilation,
             publication,
             captures.clone(),
+            domain_schemas,
         ) {
             Ok(prepared) => (
                 Ok(prepared.program),

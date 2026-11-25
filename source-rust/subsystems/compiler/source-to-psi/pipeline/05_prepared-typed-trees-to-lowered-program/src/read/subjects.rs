@@ -461,6 +461,7 @@ impl Program<'_> {
         entry: MachineId,
         subjects: &[Option<PackageKeyIdentity>],
         purpose: DependencyScope,
+        domain_schemas: &[prepared_source::DomainSchema],
     ) -> Checked<()> {
         // A concrete evaluation asks for its existing entry and call closure,
         // not a full check of the source files retained for name resolution.
@@ -568,7 +569,9 @@ impl Program<'_> {
             })();
             self.keep(read)?;
         }
+        let mut schemas = domain_schemas.iter().peekable();
         for domain in typed.domain_definitions() {
+            let schema = schemas.next_if(|row| row.declaration == domain.symbol);
             let read = (|| -> Checked<()> {
                 if self.owner(entry, domain.symbol, subjects, purpose)? != Owner::Subject {
                     return Ok(());
@@ -587,7 +590,7 @@ impl Program<'_> {
                 // domain; a declaration nothing uses must still be one the
                 // route reads.
                 self.admitted_declarations.include(domain.symbol);
-                self.declared_predicates(entry, domain)
+                self.declared_domain_schema(entry, domain, schema)
             })();
             self.keep(read)?;
         }

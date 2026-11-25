@@ -4,7 +4,33 @@ use crate::source_state::{CallableApplication, TypedTrees, domain, types};
 use semantic_vocabulary::SemanticDomainId;
 use symbols::SymbolHandle;
 
-pub(crate) fn prepare(program: &mut TypedTrees) {
+pub(crate) fn prepare(program: &mut TypedTrees) -> Vec<prepared_source::DomainSchema> {
+    // A family's own predicates are checked even when no caller applies it.
+    // Use the same argument substitution as for any other application.
+    let mut schemas = Vec::new();
+    for position in 0..program.domain_definitions().len() {
+        let domain = program.domain_definitions().at(position);
+        if domain.type_parameters.is_empty()
+            || (domain.predicate_presence == language_core::DomainPredicatePresence::Absent
+                && domain.facts.is_empty()
+                && domain.content_projections.is_empty())
+            || !domain::has_direct_index_telescope(program, domain)
+        {
+            continue;
+        }
+        let (symbol, carrier, arguments) = (
+            domain.symbol,
+            domain.target_type,
+            domain.index_arguments.clone(),
+        );
+        let application = program
+            .retain_domain_application(symbol, carrier, &arguments)
+            .map_err(|error| error.message);
+        schemas.push(prepared_source::DomainSchema {
+            declaration: symbol,
+            application,
+        });
+    }
     // Copying a fact may retain more applications. Visit those rows in the same pass.
     let mut position = 0;
     while let Some(row) = program.applied_domain_applications.get(position) {
@@ -19,6 +45,7 @@ pub(crate) fn prepare(program: &mut TypedTrees) {
         }
         position += 1;
     }
+    schemas
 }
 
 fn apply(
@@ -38,27 +65,43 @@ fn apply(
         return Err("applied domain has an incomplete declaration telescope");
     }
 
-    let source_subject = theory.subject_symbol;
-    let subject = if source_subject.is_valid() {
-        program.symbols.insert_generated_root_from(
-            source_subject,
-            program.symbols.get(source_subject).kind,
-            theory.subject_name.as_str(),
-        )
-    } else {
-        source_subject
-    };
+    // The declaration application has its original subject and expression
+    // occurrences. An identity substitution must preserve their source selections.
     let parameters = program.domain_type_parameters(&theory);
-    let mut application = CallableApplication::for_type_parameters(
-        declaration,
-        parameters.iter().zip(arguments.iter().copied()),
-        source_subject
-            .is_valid()
-            .then_some((source_subject, subject)),
-    );
-    theory.target_type = application.type_reference(program, theory.target_type)?;
-    theory.subject_symbol = subject;
-    theory.facts = application.facts(program, theory.facts)?;
+    let own_binders = parameters.iter().zip(arguments).all(|(parameter, argument)| {
+        matches!(program.type_reference_table.type_reference(*argument), types::TypeReferenceNode::Named { symbol, .. } if *symbol == parameter.symbol)
+    });
+    if !own_binders {
+        let source_subject = theory.subject_symbol;
+        let subject = if source_subject.is_valid() {
+            program.symbols.insert_generated_root_from(
+                source_subject,
+                program.symbols.get(source_subject).kind,
+                theory.subject_name.as_str(),
+            )
+        } else {
+            source_subject
+        };
+        let parameters = program.domain_type_parameters(&theory);
+        let mut application = CallableApplication::for_type_parameters(
+            declaration,
+            parameters.iter().zip(arguments.iter().copied()),
+            source_subject
+                .is_valid()
+                .then_some((source_subject, subject)),
+        );
+        theory.target_type = application.type_reference(program, theory.target_type)?;
+        theory.subject_symbol = subject;
+        theory.facts = application.facts(program, theory.facts)?;
+        if let Some(selection) = theory.cleanup_selection {
+            theory.cleanup_selection = Some(apply_cleanup_selection(
+                program,
+                &mut application,
+                selection,
+                declaration,
+            )?);
+        }
+    }
     theory.type_parameters = Default::default();
     theory.index_arguments.clear();
     theory.semantic_id = identity;
@@ -66,14 +109,6 @@ fn apply(
         theory.semantic_roles.denotation_dimension.map(|_| identity);
     theory.semantic_roles.arithmetic_policy =
         theory.semantic_roles.arithmetic_policy.map(|_| identity);
-    if let Some(selection) = theory.cleanup_selection {
-        theory.cleanup_selection = Some(apply_cleanup_selection(
-            program,
-            &mut application,
-            selection,
-            declaration,
-        )?);
-    }
     Ok(theory)
 }
 
@@ -183,7 +218,7 @@ mod tests {
                 .retain_domain_application(declaration, argument, indices)
                 .unwrap();
         }
-        prepare(&mut program);
+        assert!(prepare(&mut program).is_empty());
         let rows = &program.applied_domain_applications;
         assert_eq!(
             rows.get(0)
@@ -206,7 +241,7 @@ mod tests {
             &TypeReferenceNode::Unit
         );
         let prepared = rows.clone();
-        prepare(&mut program);
+        assert!(prepare(&mut program).is_empty());
         assert_eq!(program.applied_domain_applications, prepared);
     }
 }

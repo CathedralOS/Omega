@@ -13,6 +13,7 @@ path = "lib.rs"
 [dependencies]
 prepared-source-issuer = { path = "issuer" }
 typed-trees = { path = "../typed-trees" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 layout-plans = { path = "../../../psi/layouts/geometry" }
 arena = { path = "../../../../../foundation/arena" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
