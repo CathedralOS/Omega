@@ -3440,14 +3440,26 @@ impl<'t> Program<'t> {
         {
             self.unify(id, &free, result, expected, &mut bound)?;
         }
-        if let Some(span) = source.span()
-            && let Some(names) = self.names.get_mut(id)
-        {
-            let shown = arguments
-                .iter()
-                .map(|argument| self.typed.expression_table.display_name(*argument))
-                .collect();
-            names.calls.push((span, shown));
+        if let Some(span) = source.span() {
+            // A boundary requirement has no `MachineNames` of its own, so
+            // the caller records the name it called.
+            let callee = match &callee {
+                CallTarget::Machine(machine) => self.symbols.get(*machine).copied(),
+                CallTarget::Boundary { boundary } => {
+                    self.boundaries.row(*boundary).map(|row| row.source)
+                }
+                CallTarget::Selected { .. } => None,
+            }
+            .filter(|symbol| symbol.is_valid())
+            .map(|symbol| self.typed.symbols.name(symbol).to_owned());
+            if let Some(names) = self.names.get_mut(id) {
+                let shown = arguments
+                    .iter()
+                    .map(|argument| self.typed.expression_table.display_name(*argument))
+                    .collect();
+                names.calls.push((span, shown));
+                names.callees.extend(callee.map(|name| (span, name)));
+            }
         }
         let mut read = Vec::with_capacity(arguments.len());
         let mut lenders = Vec::new();
