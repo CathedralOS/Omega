@@ -3,7 +3,7 @@
 use crate::source_state::TypedTrees;
 use crate::source_state::references::{DeclarationSelection, conformance_header_dependencies};
 use crate::source_state::trait_definition::Supply;
-use checked_program_to_psi::production;
+use checked_program_to_psi as production;
 use symbols::SymbolHandle;
 
 /// Every declaration the request reaches from its entries, selections,

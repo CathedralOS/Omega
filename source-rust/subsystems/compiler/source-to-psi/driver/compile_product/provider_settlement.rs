@@ -2,14 +2,14 @@
 //! declared numeric capabilities; this worklist cannot evaluate native ABI
 //! plans or emit code.
 use crate::driver::judge_lowered_source;
-use checked_program_to_psi::production;
+use checked_program_to_psi as production;
 use checked_program_to_psi::provider_choice_inputs;
 use checked_program_to_psi::provider_supply::{
     JudgedProvider, PreparedTargetSupply, ReachedBoundaryRequirement, SupplySelection,
     TargetSupplyRequest,
 };
 use diagnostics::Diagnostic;
-use prepared_typed_trees_to_lowered_program::lowering::source_roster;
+use prepared_typed_trees_to_lowered_program::source_roster;
 
 /// The slot and provider one selection names, as the roster states a supply.
 /// A selection of an operator family names each coordinate as its own slot.

@@ -31,8 +31,8 @@ use super::authority::Access;
 use super::clause_calls::callee_scope;
 use super::contracts::{ClauseScope, ResultTerm, formal_place, static_read_path};
 use super::types::{OPEN_CARRIER_FAMILY, TypeTruth};
-use crate::lowering::body::{Qualification, ValueType};
-use crate::lowering::{SourceOrigin, Unserved, refuse, reject};
+use crate::body::{Qualification, ValueType};
+use crate::{SourceOrigin, Unserved, refuse, reject};
 
 /// The sort of term the caller needs.
 pub(super) enum ClauseUse<'a> {
@@ -299,8 +299,8 @@ impl Program<'_> {
                     // "embedding a wrapped sum does not turn it into
                     // unbounded addition".
                     if !matches!(
-                        crate::lowering::policy::suffix(binary.policy),
-                        crate::lowering::policy::Suffix::Unwritten
+                        crate::policy::suffix(binary.policy),
+                        crate::policy::Suffix::Unwritten
                     ) {
                         return Err(unavailable("policy operator on mathematical integers"));
                     }
@@ -770,7 +770,7 @@ impl Program<'_> {
                     ),
                     // `left <op><suffix> right`: the value the operator
                     // computes under its policy. The operator means here
-                    // what it means in a body (`crate::lowering::policy`):
+                    // what it means in a body (`crate::policy`):
                     // both operands are unqualified integers of one carrier,
                     // an anonymous operand lands in its partner's carrier, a
                     // shift's count keeps its own type, and the result is
@@ -796,13 +796,13 @@ impl Program<'_> {
                                 | BinaryOperator::GreaterOrEqual
                         );
                         let expected = if comparison { None } else { expected };
-                        let suffix = match crate::lowering::policy::suffix(binary.policy) {
-                            crate::lowering::policy::Suffix::Unwritten => None,
+                        let suffix = match crate::policy::suffix(binary.policy) {
+                            crate::policy::Suffix::Unwritten => None,
                             // "An arithmetic operation whose selected meaning
                             // can transfer control cannot form a proof term.
                             // It is not silently read as Exact or
                             // mathematical arithmetic."
-                            crate::lowering::policy::Suffix::Trapping => {
+                            crate::policy::Suffix::Trapping => {
                                 return Err(reject(
                                     id,
                                     SourceOrigin::of(table.source_span(read)),
@@ -811,7 +811,7 @@ impl Program<'_> {
                                      not read as exact or mathematical arithmetic",
                                 ));
                             }
-                            crate::lowering::policy::Suffix::Total(policy) => Some(policy),
+                            crate::policy::Suffix::Total(policy) => Some(policy),
                         };
                         let anonymous = (
                             self.wholly_anonymous(binary.left),
@@ -821,7 +821,7 @@ impl Program<'_> {
                             return Err(reject(
                                 id,
                                 source_left,
-                                crate::lowering::policy::WHOLLY_ANONYMOUS,
+                                crate::policy::WHOLLY_ANONYMOUS,
                             ));
                         }
                         let ((left, left_type), (right, right_type)) = if anonymous.0 {
@@ -940,7 +940,7 @@ impl Program<'_> {
                                     "arithmetic contract term has no selected integer carrier",
                                 ));
                             };
-                            crate::lowering::policy::term(operation, policy, carrier, left, right)
+                            crate::policy::term(operation, policy, carrier, left, right)
                                 .ok_or_else(|| {
                                 unavailable(
                                     "selected arithmetic operator has no canonical contract term",
@@ -980,7 +980,7 @@ impl Program<'_> {
                             .clause_term(id, scope, unary.operand, ClauseUse::Scalar(expected))?
                             .scalar(id)?;
                         let Some(result @ ValueType::Scalar(ScalarType::Integer(carrier), _)) =
-                            crate::lowering::policy::bitwise_not_type(value_type)
+                            crate::policy::bitwise_not_type(value_type)
                         else {
                             return Err(unavailable(
                                 "bitwise complement on an operand without a core word signature",
@@ -1178,7 +1178,7 @@ impl Program<'_> {
                         let source = SourceOrigin::of(table.source_span(read));
                         let measured = self.layout_query(id, call, query, source)?;
                         let (
-                            crate::lowering::body::ExpressionKind::ScalarApplication {
+                            crate::body::ExpressionKind::ScalarApplication {
                                 application,
                             },
                             Some(ValueType::Scalar(scalar_type, qualification)),
@@ -1540,7 +1540,7 @@ impl Program<'_> {
                     // value.
                     let runs = parameter.is_none();
                     if (runs
-                        && (!matches!(envelope.service_reach, crate::lowering::static_contracts::SourceServiceCeiling::Closed(ref row) if row.is_empty())
+                        && (!matches!(envelope.service_reach, crate::static_contracts::SourceServiceCeiling::Closed(ref row) if row.is_empty())
                             || !envelope.invocations.is_empty()
                             || !signature.declares_no_crash_route))
                         || !matches!(envelope.termination, terminal_psi::TerminalCallableTermination::Terminates { ref premises } if premises.is_empty())
@@ -1759,7 +1759,7 @@ impl Program<'_> {
                 ValueType::Rigid(parameter) => ClauseCarrier::Parameter(parameter.0),
                 ValueType::Record(record, _, _) => {
                     match self.records.get(record).map(|record| &record.shape) {
-                        Some(crate::lowering::StorageShape::TypeParameter(parameter)) => {
+                        Some(crate::StorageShape::TypeParameter(parameter)) => {
                             ClauseCarrier::Parameter(parameter.0)
                         }
                         Some(_) => ClauseCarrier::Structural(record),
@@ -1777,7 +1777,7 @@ impl Program<'_> {
             values.push(ClauseValue { carrier, operand });
             if reading_scalar {
                 let term =
-                    crate::lowering::body::scalar_clause_value(inferred).ok_or_else(|| {
+                    crate::body::scalar_clause_value(inferred).ok_or_else(|| {
                         unavailable("clause application needs a scalar result and operands")
                     })?;
                 return Ok(ClauseTerm::Scalar(term, expected));

@@ -65,18 +65,18 @@ pub(super) fn frontier_with_core(
         } else {
             build_source = Some(id);
         }
-        let tokens = crate::checking::frontend_fixture::Lexer::new(text)
+        let tokens = crate::frontend_fixture::Lexer::new(text)
             .tokenize()
             .unwrap();
         match &mut syntax {
             None => {
                 syntax = Some(
-                    crate::checking::frontend_fixture::parse_syntax_trees_with_id(id, &tokens)
+                    crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens)
                         .unwrap(),
                 );
             }
             Some(syntax) => {
-                crate::checking::frontend_fixture::parse(syntax, id, &tokens).unwrap();
+                crate::frontend_fixture::parse(syntax, id, &tokens).unwrap();
             }
         }
     }
@@ -105,10 +105,10 @@ pub(super) fn frontier_with_core(
                         core_scope,
                     )
                     .source_id;
-                let tokens = crate::checking::frontend_fixture::Lexer::new(text)
+                let tokens = crate::frontend_fixture::Lexer::new(text)
                     .tokenize()
                     .unwrap();
-                crate::checking::frontend_fixture::parse(&mut syntax, id, &tokens).unwrap();
+                crate::frontend_fixture::parse(&mut syntax, id, &tokens).unwrap();
                 loaded.push((file, id));
                 id
             }
@@ -240,14 +240,14 @@ fn a_compilation_claims_the_subject_declarations_of_its_own_purpose_only() {
 /// declaration; only then is its closure returned for table inspection.
 pub(super) fn judge_build(
     build: &str,
-) -> Result<RouteVerdict, crate::checking::CompilationRefusal> {
+) -> Result<RouteVerdict, crate::CompilationRefusal> {
     judge_build_with_core(build, &[])
 }
 
 pub(super) fn judge_build_with_core(
     build: &str,
     core: &[(&str, &str, &str)],
-) -> Result<RouteVerdict, crate::checking::CompilationRefusal> {
+) -> Result<RouteVerdict, crate::CompilationRefusal> {
     let typed = crate::prepare_fixture(frontier_with_core(
         "machine product_entry() { }",
         build,
@@ -255,7 +255,7 @@ pub(super) fn judge_build_with_core(
         core,
     ));
     let entry = symbol(typed.trees(), "build_entry");
-    let verdicts = crate::checking::judge_compilation(
+    let verdicts = crate::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
             roster(&[entry], &[Some(package())], DependencyScope::Build),
@@ -297,10 +297,10 @@ fn a_build_subject_cannot_hide_a_generic_guarantee_rejection() {
 /// generic check form and refinement witness it declares.
 pub(super) fn judge_build_all(
     build: &str,
-) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
+) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     let typed = crate::prepare_fixture(frontier_of("machine product_entry() { }", build));
     let entry = symbol(typed.trees(), "build_entry");
-    crate::checking::judge_compilation(
+    crate::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
             roster(&[entry], &[Some(package())], DependencyScope::Build),
@@ -315,7 +315,7 @@ pub(super) fn judge_build_all(
 fn the_checker_judges_a_build_program_as_an_invocation() {
     let typed = crate::prepare_fixture(frontier());
     let entry = symbol(typed.trees(), "build_entry");
-    let mut verdicts = crate::checking::judge_compilation(
+    let mut verdicts = crate::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
             roster(&[entry], &[Some(package())], DependencyScope::Build),

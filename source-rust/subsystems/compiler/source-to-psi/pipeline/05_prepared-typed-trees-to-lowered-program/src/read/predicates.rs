@@ -53,13 +53,13 @@ use super::authority::has_predicates;
 use super::clause_terms::ClauseUse;
 use super::contracts::{ClauseScope, DataSubject, ResultTerm};
 use super::{Program, Slot};
-use crate::lowering::body::{Qualification, ValueType};
-use crate::lowering::{ClauseText, Unserved, refuse};
+use crate::body::{Qualification, ValueType};
+use crate::{ClauseText, Unserved, refuse};
 
 /// One predicate of a declared domain: the symbol its `self` resolved to
 /// and the clause's expression.
 struct Predicate<'t> {
-    instance: crate::lowering::body::DomainInstance,
+    instance: crate::body::DomainInstance,
     domain: &'t crate::source_state::domain::DomainDefinition,
     expression: ExpressionHandle,
 }
@@ -94,7 +94,7 @@ impl<'t> Program<'t> {
         scope: &ClauseScope<'_>,
         membership: &crate::source_state::domain::ProofMembershipFact,
     ) -> Checked<(
-        Option<crate::lowering::body::RuntimeMembership>,
+        Option<crate::body::RuntimeMembership>,
         Option<(Proposition, ClauseText)>,
     )> {
         let ((fact, clause), arguments) = self.with_clause_arguments(id, |program| {
@@ -121,12 +121,12 @@ impl<'t> Program<'t> {
         scope: &ClauseScope<'_>,
         membership: &crate::source_state::domain::ProofMembershipFact,
     ) -> Checked<(
-        Option<crate::lowering::body::RuntimeMembership>,
+        Option<crate::body::RuntimeMembership>,
         Option<(Proposition, ClauseText)>,
     )> {
         let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
         let typed = self.typed;
-        let domain = crate::lowering::body::DomainInstance {
+        let domain = crate::body::DomainInstance {
             declaration: membership.domain_symbol,
             identity: membership.semantic_domain,
         };
@@ -151,12 +151,12 @@ impl<'t> Program<'t> {
             );
         let qualification = Qualification {
             policy: None,
-            domains: crate::lowering::body::DomainSet::EMPTY
+            domains: crate::body::DomainSet::EMPTY
                 .with(domain)
                 .ok_or_else(|| unavailable("runtime membership domain roster"))?,
         };
         let at =
-            crate::lowering::SourceOrigin::of(typed.expression_table.source_span(membership.value));
+            crate::SourceOrigin::of(typed.expression_table.source_span(membership.value));
         let (subject, clauses) =
             if let Some((root, path, actual @ ValueType::Record(carrier, _, _))) =
                 self.projected(id, scope, membership.value)?
@@ -173,7 +173,7 @@ impl<'t> Program<'t> {
                     .ok_or_else(|| unavailable("runtime membership storage qualification"))?;
                 let clauses = self.storage_predicates(id, scope, subject, root, &path)?;
                 (
-                    crate::lowering::body::RuntimeMembershipSubject::Structural {
+                    crate::body::RuntimeMembershipSubject::Structural {
                         root,
                         path,
                         carrier,
@@ -191,7 +191,7 @@ impl<'t> Program<'t> {
                 self.declared_domain(id, domain, plain, definition.target_type, at)?;
                 let clauses = self.of_value(id, scope, qualification, &subject)?;
                 (
-                    crate::lowering::body::RuntimeMembershipSubject::Scalar(subject),
+                    crate::body::RuntimeMembershipSubject::Scalar(subject),
                     clauses,
                 )
             };
@@ -202,14 +202,14 @@ impl<'t> Program<'t> {
         if nominal {
             let result_subject = match (&subject, scope.result) {
                 (
-                    crate::lowering::body::RuntimeMembershipSubject::Scalar(ScalarTerm::Value {
+                    crate::body::RuntimeMembershipSubject::Scalar(ScalarTerm::Value {
                         id,
                         ..
                     }),
                     ResultTerm::Named(result, ..),
                 ) => *id == result,
                 (
-                    crate::lowering::body::RuntimeMembershipSubject::Scalar(
+                    crate::body::RuntimeMembershipSubject::Scalar(
                         ScalarTerm::BooleanField { root, .. }
                         | ScalarTerm::IntegerField { root, .. }
                         | ScalarTerm::IeeeFloatField { root, .. },
@@ -217,7 +217,7 @@ impl<'t> Program<'t> {
                     ResultTerm::Structural(result, _),
                 ) => *root == result,
                 (
-                    crate::lowering::body::RuntimeMembershipSubject::Structural { root, .. },
+                    crate::body::RuntimeMembershipSubject::Structural { root, .. },
                     ResultTerm::Structural(result, _),
                 ) => *root == result,
                 _ => false,
@@ -228,16 +228,16 @@ impl<'t> Program<'t> {
                 ));
             }
         }
-        let fact = nominal.then_some(crate::lowering::body::RuntimeMembership { subject, domain });
+        let fact = nominal.then_some(crate::body::RuntimeMembership { subject, domain });
         if clauses.is_empty() {
             return Ok((fact, None));
         }
         let proposition = if clauses.len() == 1 {
             clauses.pop().expect("one predicate clause")
         } else {
-            Proposition::Conjunction(crate::lowering::canonical::clauses(
+            Proposition::Conjunction(crate::canonical::clauses(
                 clauses,
-                crate::lowering::canonical::Repeated::Merge,
+                crate::canonical::Repeated::Merge,
                 id,
             )?)
         };
@@ -508,7 +508,7 @@ impl<'t> Program<'t> {
         let domain = &self.declared_domains[slot];
         let instance = domain.instance;
         let carrier = domain.carrier;
-        let domains = crate::lowering::DomainSet::EMPTY
+        let domains = crate::DomainSet::EMPTY
             .with(instance)
             .ok_or_else(|| {
                 refuse(
@@ -533,7 +533,7 @@ impl<'t> Program<'t> {
                 if clauses.is_empty() {
                     None
                 } else {
-                    Some(crate::lowering::canonical::conjunction(clauses, id)?)
+                    Some(crate::canonical::conjunction(clauses, id)?)
                 }
             }
             ValueType::Record(record, _, regions) => {
@@ -543,7 +543,7 @@ impl<'t> Program<'t> {
                         &[],
                         ValueType::Record(record, qualification, regions),
                     )?;
-                    Some(crate::lowering::canonical::conjunction(clauses, id)?)
+                    Some(crate::canonical::conjunction(clauses, id)?)
                 } else {
                     None
                 }
@@ -615,14 +615,14 @@ impl<'t> Program<'t> {
         if let ValueType::Record(row, _, _) = result
             && matches!(
                 self.data_type(id, row)?.shape,
-                crate::lowering::StorageShape::ByteSequence(carrier) if !carrier.is_shared_readable_view()
+                crate::StorageShape::ByteSequence(carrier) if !carrier.is_shared_readable_view()
             )
         {
             return Err(unserved(
                 "cast that adds a domain with predicates to a byte sequence",
             ));
         }
-        let Some(root) = crate::lowering::body::self_place() else {
+        let Some(root) = crate::body::self_place() else {
             return Err(unserved("cast subject place identity"));
         };
         let value_type = result
@@ -714,16 +714,16 @@ impl<'t> Program<'t> {
             Some(carrier) => carrier,
             None => self.value_type(id, definition.target_type)?,
         };
-        let domain = crate::lowering::body::DomainInstance {
+        let domain = crate::body::DomainInstance {
             declaration: definition.symbol,
             identity: definition.semantic_id,
         };
         let at =
-            crate::lowering::SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent);
+            crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
         self.declared_domain(id, domain, carrier, definition.target_type, at)?;
         match carrier {
             ValueType::Scalar(scalar_type, _) => {
-                let domains = crate::lowering::body::DomainSet::EMPTY
+                let domains = crate::body::DomainSet::EMPTY
                     .with(domain)
                     .ok_or_else(|| {
                         refuse(
@@ -800,7 +800,7 @@ impl<'t> Program<'t> {
                         Unserved::Type("primitive byte domain without its readable descriptor"),
                     ));
                 }
-                let domains = crate::lowering::body::DomainSet::EMPTY
+                let domains = crate::body::DomainSet::EMPTY
                     .with(predicate.instance)
                     .ok_or_else(|| {
                         refuse(
@@ -888,7 +888,7 @@ impl<'t> Program<'t> {
                 return Ok(Vec::new());
             }
         }
-        let Some(root) = crate::lowering::body::self_place() else {
+        let Some(root) = crate::body::self_place() else {
             return Err(refuse(
                 id,
                 Construct::Machine,

@@ -19,7 +19,7 @@ use super::{
     contracts::{ClauseScope, ResultTerm},
     logical::{MathematicalAddressContext, MathematicalInputs},
 };
-use crate::lowering::{Unserved, refuse};
+use crate::{Unserved, refuse};
 
 pub(super) fn mathematical_sort(
     typed: &crate::source_state::TypedTrees,
@@ -248,9 +248,9 @@ impl<'t> Program<'t> {
                 .clause_term(id, scope, *argument, ClauseUse::Scalar(Some(scalar)))?
                 .scalar(id)?;
             if actual
-                != crate::lowering::body::ValueType::Scalar(
+                != crate::body::ValueType::Scalar(
                     scalar,
-                    crate::lowering::body::Qualification::NONE,
+                    crate::body::Qualification::NONE,
                 )
             {
                 return Err(unserved("mathematical premise input carrier differs"));
@@ -400,8 +400,8 @@ impl<'t> Program<'t> {
 #[cfg(test)]
 mod address_context_tests {
     use super::*;
-    use crate::lowering::body::ValueType;
-    use crate::lowering::read::Slot;
+    use crate::body::ValueType;
+    use crate::read::Slot;
     use crate::source_state::TypedTrees;
     use crate::source_state::expression::BinaryOperator;
     use crate::source_state::expression::{TableBinaryExpression, TableNamePath};
@@ -649,7 +649,7 @@ mod address_context_tests {
                 homed: false,
                 erased: false,
                 borrowed: None,
-                borrowed_regions: crate::lowering::body::Regions::NONE,
+                borrowed_regions: crate::body::Regions::NONE,
             })
             .collect::<Vec<_>>();
         let values = [ValueId::new(1), ValueId::new(2)];

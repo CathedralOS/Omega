@@ -269,7 +269,7 @@ pub(crate) fn reference_graph_with_nominal_calls(
     nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
 ) -> Checked<Vec<terminal_semantics::descriptor_results::DescriptorMachine>> {
     let lowered = module.machine(machine).ok_or_else(|| {
-        crate::checking::refusal(
+        crate::refusal(
             RefusalReason::ForeignIdentity,
             machine,
             Construct::Machine,
@@ -322,7 +322,7 @@ fn graph_refusal(
     module: &terminal_psi::TerminalModule,
     error: terminal_semantics::descriptor_results::DescriptorGraphError,
 ) -> terminal_check_tables::Refusal {
-    crate::checking::refusal(
+    crate::refusal(
         RefusalReason::Unsupported,
         error.machine(),
         error
@@ -844,7 +844,7 @@ impl<'a> Storage<'a> {
         let (Some((invocation, row)), None) = (invocations.next(), invocations.next()) else {
             return Err(self.foreign(concerns, "a call does not have exactly one invocation row"));
         };
-        let actual = crate::checking::call_contracts::invocation(
+        let actual = crate::call_contracts::invocation(
             module,
             self.lowered,
             tables,
@@ -1425,7 +1425,7 @@ impl<'a> Storage<'a> {
             // exclusive child suspends its parent branch).
             let at = (
                 block.id,
-                crate::checking::position(block.operations.len(), self.machine)?,
+                crate::position(block.operations.len(), self.machine)?,
             );
             if holds(lifetime, &at) {
                 // A dispatch has one edge per case, so it is named by its
@@ -1459,7 +1459,7 @@ impl<'a> Storage<'a> {
             for (edge, actions) in block.terminator.cleanup_rosters() {
                 let concerns = Construct::Edge(edge);
                 for (ordinal, action) in actions.iter().enumerate() {
-                    let ordinal = crate::checking::position(ordinal, self.machine)?;
+                    let ordinal = crate::position(ordinal, self.machine)?;
                     if !cleanup_cohorts
                         .get(&(loan.obligation, edge, ordinal))
                         .is_some_and(|cohort| !cohort.surviving.is_empty())
@@ -1578,7 +1578,7 @@ impl<'a> Storage<'a> {
         for block in &self.lowered.blocks {
             let at = (
                 block.id,
-                crate::checking::position(block.operations.len(), self.machine)?,
+                crate::position(block.operations.len(), self.machine)?,
             );
             for (edge, actions) in block.terminator.cleanup_rosters() {
                 if actions.is_empty() {
@@ -1622,7 +1622,7 @@ impl<'a> Storage<'a> {
                     if surviving.is_empty() && authorized.is_empty() {
                         break;
                     }
-                    let ordinal = crate::checking::position(ordinal, self.machine)?;
+                    let ordinal = crate::position(ordinal, self.machine)?;
                     result.insert(
                         (loan.obligation, *edge, ordinal),
                         CleanupCohort {
@@ -1872,7 +1872,7 @@ impl<'a> Storage<'a> {
             }
             _ => "the successor borrow exceeds its source permission",
         };
-        crate::checking::refusal(
+        crate::refusal(
             RefusalReason::ConflictingLoan(conflict),
             self.machine,
             at,
@@ -1910,7 +1910,7 @@ impl<'a> Storage<'a> {
                     if !permitted
                         || access.is_exclusive() && parent == Some(ReferenceAccess::Shared)
                     {
-                        return Err(crate::checking::refusal(
+                        return Err(crate::refusal(
                             RefusalReason::Conflict,
                             self.machine,
                             concerns,
@@ -1976,7 +1976,7 @@ impl<'a> Storage<'a> {
                     })?;
                 let actions = rosters[position].1;
                 for (ordinal, action) in actions.iter().enumerate() {
-                    let ordinal = crate::checking::position(ordinal, self.machine)?;
+                    let ordinal = crate::position(ordinal, self.machine)?;
                     let cleaned = self.stored_at(action.place(), action.path(), concerns)?;
                     let backing = LoanRegion::Storage(
                         self.cleanup_backing(references, &cleaned, edge, ordinal, concerns)?,
@@ -1985,7 +1985,7 @@ impl<'a> Storage<'a> {
                         competing_borrows(*access, capture, ReferenceAccess::Mutable, &backing)
                             .is_some()
                     }) {
-                        return Err(crate::checking::refusal(
+                        return Err(crate::refusal(
                             RefusalReason::Conflict,
                             self.machine,
                             concerns,
@@ -2001,7 +2001,7 @@ impl<'a> Storage<'a> {
                             if captured.iter().any(|(access, capture)| {
                                 competing_borrows(*access, capture, effect, &backing).is_some()
                             }) {
-                                return Err(crate::checking::refusal(
+                                return Err(crate::refusal(
                                     RefusalReason::Conflict,
                                     self.machine,
                                     concerns,
@@ -2130,7 +2130,7 @@ impl<'a> Storage<'a> {
                 ReferenceAccess::WriteOnly => child.access == ReferenceAccess::WriteOnly,
             };
             if !compatible {
-                return Err(crate::checking::refusal(
+                return Err(crate::refusal(
                     RefusalReason::Conflict,
                     self.machine,
                     concerns,
@@ -2479,7 +2479,7 @@ impl<'a> Storage<'a> {
                 let arguments = operation.kind.structural_arguments();
                 let site = InvocationSite::Operation(operation.id);
                 let call =
-                    crate::checking::call_contracts::inputs_at(self.lowered, site)?.map(|_| site);
+                    crate::call_contracts::inputs_at(self.lowered, site)?.map(|_| site);
                 let retained = terminal_semantics::reference_call_lifetimes(
                     module,
                     self.lowered,
@@ -2502,9 +2502,9 @@ impl<'a> Storage<'a> {
             }
             // A terminator that is a call lends as an operation does; the
             // loans of one that never returns are disposed of on its edge.
-            if let Some(site) = crate::checking::call_contracts::terminator_site(&block.terminator)
+            if let Some(site) = crate::call_contracts::terminator_site(&block.terminator)
             {
-                let inputs = crate::checking::call_contracts::inputs_at(self.lowered, site)?
+                let inputs = crate::call_contracts::inputs_at(self.lowered, site)?
                     .ok_or_else(|| {
                         self.foreign(
                             Construct::Block(block.id),
@@ -2946,7 +2946,7 @@ impl<'a> Storage<'a> {
                         }
                         terminal_semantics::plain_affine::Site::Edge(at) => Construct::Edge(at),
                     };
-                    crate::checking::refusal(
+                    crate::refusal(
                         RefusalReason::Unestablished,
                         self.machine,
                         concerns,
@@ -2963,7 +2963,7 @@ impl<'a> Storage<'a> {
                         }
                         None => Construct::Machine,
                     };
-                    crate::checking::refusal(
+                    crate::refusal(
                         RefusalReason::Violation,
                         self.machine,
                         concerns,
@@ -3019,7 +3019,7 @@ impl<'a> Storage<'a> {
             for block in &self.lowered.blocks {
                 let position = (
                     block.id,
-                    crate::checking::position(block.operations.len(), self.machine)?,
+                    crate::position(block.operations.len(), self.machine)?,
                 );
                 for (edge, actions) in block.terminator.cleanup_rosters() {
                     for (ordinal, action) in actions.iter().enumerate() {
@@ -3027,7 +3027,7 @@ impl<'a> Storage<'a> {
                             action,
                             terminal_psi::TerminalAffineCleanupAction::InvokeOwned(_)
                         ) {
-                            let ordinal = crate::checking::position(ordinal, self.machine)?;
+                            let ordinal = crate::position(ordinal, self.machine)?;
                             let effect = references
                                 .invocation_flow_at(
                                     self.machine,

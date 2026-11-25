@@ -15,8 +15,8 @@ use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
 
 use super::Program;
 use super::clause_terms::ClauseUse;
-use crate::lowering::body::{Expression, ExpressionKind, Policy, Qualification, ValueType};
-use crate::lowering::{Unserved, refuse};
+use crate::body::{Expression, ExpressionKind, Policy, Qualification, ValueType};
+use crate::{Unserved, refuse};
 
 /// Machine contracts name their entry State; source traversal owns the
 /// same clause under its uniquely registered machine declaration.
@@ -219,7 +219,7 @@ impl Program<'_> {
             && qualification == declared.qualification()
             && let Some(row) = self.records.get(record)
             && let Some(source) = self.record_sources.get(record)
-            && let crate::lowering::StorageShape::ByteSequence(carrier) = row.shape
+            && let crate::StorageShape::ByteSequence(carrier) = row.shape
             && super::bytes::byte_record_source_matches(self.typed, machine, row, source)?
         {
             // A mutable formal's carrier omits access because its separate
@@ -237,7 +237,7 @@ impl Program<'_> {
         } else if let ValueType::Record(record, _, _) = operand
             && matches!(
                 self.data_type(machine, record)?.shape,
-                crate::lowering::StorageShape::ElementView { access: None, .. }
+                crate::StorageShape::ElementView { access: None, .. }
             )
         {
             self.view_type_with_formal_access(machine, reference, true)?
@@ -520,9 +520,9 @@ impl Program<'_> {
                     typed, owner, spelling, operands,
                 )
             {
-                return Err(crate::lowering::reject(
+                return Err(crate::reject(
                     machine,
-                    crate::lowering::SourceOrigin::of(
+                    crate::SourceOrigin::of(
                         typed.expression_table.source_span(expression),
                     ),
                     format!(

@@ -44,7 +44,7 @@ use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 
 use super::Program;
-use crate::lowering::{Unserved, refuse};
+use crate::{Unserved, refuse};
 use crate::source_state::trait_definition::AppliedTraitScope;
 
 /// Whose declaration a symbol is, for one compilation.
@@ -232,7 +232,7 @@ impl Program<'_> {
     pub fn supplied_slots(
         &mut self,
         entry: MachineId,
-        supplies: &[crate::lowering::Supply],
+        supplies: &[crate::Supply],
     ) -> Checked<()> {
         let typed = self.typed;
         let unserved = |what| {
@@ -331,7 +331,7 @@ impl Program<'_> {
                     self.conformance_method_bodies(entry, &application, header, machine)?
                 {
                     let requirement = header.symbol;
-                    let witness = crate::lowering::ConformanceWitness {
+                    let witness = crate::ConformanceWitness {
                         declaring_trait: owner.symbol,
                         requirement,
                         implementation: machine.symbol,
@@ -350,7 +350,7 @@ impl Program<'_> {
                     // needs a declaration and a candidate for provider planning.
                     if owner.is_boundary {
                         self.boundary_declaration(root, requirement)?;
-                        let supplied = crate::lowering::SuppliedRequirement {
+                        let supplied = crate::SuppliedRequirement {
                             provider: supply.provider,
                             requirement,
                             machine: root,

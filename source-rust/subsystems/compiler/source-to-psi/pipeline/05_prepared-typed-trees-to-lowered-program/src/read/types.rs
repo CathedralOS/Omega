@@ -4,7 +4,7 @@ The type family of the reader: which typed-tree type is a scalar, by the
 (`places`), and the type and value an integer literal lands on.
 */
 
-use crate::lowering::body::Qualification;
+use crate::body::Qualification;
 use crate::source_state::closed_numeric;
 use crate::source_state::expression::{ExpressionHandle, ExpressionNode};
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -15,7 +15,7 @@ use terminal_check_tables::{Checked, Construct};
 
 use super::Program;
 use super::carriers::{Bound, Scope, Written};
-use crate::lowering::body::{Policy, ValueType};
+use crate::body::{Policy, ValueType};
 
 /// What a static type proposition says (`Program::type_truth`): decided,
 /// or left open by the premises of a rigid type parameter.
@@ -60,7 +60,7 @@ pub(super) enum Reading {
     /// That stated value itself, where a Boolean literal is its answer.
     Stated,
 }
-use crate::lowering::{Unserved, refuse};
+use crate::{Unserved, refuse};
 
 /// The checker's integer for a source carrier. The checker states integer
 /// values as host 128-bit integers, so a wider carrier is refused by name.
@@ -170,7 +170,7 @@ impl<'t> Program<'t> {
     pub(crate) fn domain_theory(
         &self,
         id: MachineId,
-        domain: crate::lowering::body::DomainInstance,
+        domain: crate::body::DomainInstance,
     ) -> Checked<&'t crate::source_state::domain::DomainDefinition> {
         self.domain_theory_in_scope(
             id,
@@ -185,7 +185,7 @@ impl<'t> Program<'t> {
     pub(crate) fn domain_theory_in_scope(
         &self,
         id: MachineId,
-        domain: crate::lowering::body::DomainInstance,
+        domain: crate::body::DomainInstance,
         scope: Option<&crate::source_state::SourceTypeScope>,
     ) -> Checked<&'t crate::source_state::domain::DomainDefinition> {
         if let Some(application) = self.typed.domain_application(domain.declaration, domain.identity)
@@ -619,7 +619,7 @@ impl Program<'_> {
                 Bound::Value(ValueType::Record(
                     record_id,
                     Qualification::NONE,
-                    crate::lowering::body::Regions::NONE,
+                    crate::body::Regions::NONE,
                 )) => {
                     let source = self.record_sources.get(record_id)?;
                     if let Some(application) = &source.application {
@@ -1227,7 +1227,7 @@ impl Program<'_> {
                     if domain.subject == DomainConstraintSubject::Declared =>
                 {
                     self.named_domain(id, domain)?;
-                    let instance = crate::lowering::body::DomainInstance {
+                    let instance = crate::body::DomainInstance {
                         declaration: domain.symbol,
                         identity: domain.semantic_id,
                     };
@@ -1335,9 +1335,9 @@ impl Program<'_> {
             return Ok(());
         };
         let name = domain.name.as_str();
-        Err(crate::lowering::reject(
+        Err(crate::reject(
             id,
-            crate::lowering::SourceOrigin::of(written.source_span),
+            crate::SourceOrigin::of(written.source_span),
             format!(
                 "this type names the domain `{name}`, but no domain of that name is visible here: \
                  an unknown name in a type is an error wherever it appears"
@@ -1359,10 +1359,10 @@ impl Program<'_> {
     pub(super) fn declared_domain(
         &mut self,
         id: MachineId,
-        domain: crate::lowering::body::DomainInstance,
+        domain: crate::body::DomainInstance,
         carrier: ValueType,
         carrier_type: TypeReferenceHandle,
-        at: crate::lowering::SourceOrigin,
+        at: crate::SourceOrigin,
     ) -> Checked<()> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
         let typed = self.typed;
@@ -1395,7 +1395,7 @@ impl Program<'_> {
         ) {
             return unserved("constrained by a domain that refines another domain");
         }
-        let Some(plain) = carrier.qualified(crate::lowering::body::Qualification::NONE) else {
+        let Some(plain) = carrier.qualified(crate::body::Qualification::NONE) else {
             return unserved("domain on a type parameter");
         };
         let subject =
@@ -1455,8 +1455,8 @@ impl Program<'_> {
     fn written_domain(
         &self,
         constraints: arena::HandleSpan<crate::source_state::types::TypeConstraintNode>,
-        domain: crate::lowering::body::DomainInstance,
-    ) -> crate::lowering::SourceOrigin {
+        domain: crate::body::DomainInstance,
+    ) -> crate::SourceOrigin {
         self.typed
             .type_reference_table
             .constraints(constraints)
@@ -1471,10 +1471,10 @@ impl Program<'_> {
                 _ => None,
             })
             .map_or(
-                crate::lowering::SourceOrigin::Unpositioned(
-                    crate::lowering::Unpositioned::SpanAbsent,
+                crate::SourceOrigin::Unpositioned(
+                    crate::Unpositioned::SpanAbsent,
                 ),
-                |written| crate::lowering::SourceOrigin::of(written.source_span),
+                |written| crate::SourceOrigin::of(written.source_span),
             )
     }
 
@@ -1494,7 +1494,7 @@ impl Program<'_> {
         id: MachineId,
         declaration: &crate::source_state::domain::DomainDefinition,
         carrier: ValueType,
-        at: crate::lowering::SourceOrigin,
+        at: crate::SourceOrigin,
     ) -> Checked<()> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
         let typed = self.typed;
@@ -1520,7 +1520,7 @@ impl Program<'_> {
                 ValueType::Rigid(_) => return unserved("domain on a type parameter"),
             };
             if !copies {
-                return Err(crate::lowering::reject(
+                return Err(crate::reject(
                     id,
                     at,
                     format!(
@@ -1664,13 +1664,13 @@ impl Program<'_> {
             |fixed| format!("`{fixed}`"),
         );
         let at = |expression| {
-            crate::lowering::SourceOrigin::of(typed.expression_table.source_span(expression))
+            crate::SourceOrigin::of(typed.expression_table.source_span(expression))
         };
         // numeric_values.md, "Fractional-intermediate diagnostics": "Integer
         // landing of a fractional final value rejects with its exact value and
         // destination type."
         let Some(value) = evaluated.value.to_integer_exact() else {
-            return Err(crate::lowering::reject(
+            return Err(crate::reject(
                 id,
                 at(expression),
                 format!(
@@ -1684,7 +1684,7 @@ impl Program<'_> {
         // diagnostic identifies that origin: `(7 / 2) * 2` is 7, but lands
         // only through an `as`.
         if evaluated.fractional_origin.is_valid() && landing == AnonymousLanding::Implicit {
-            return Err(crate::lowering::reject(
+            return Err(crate::reject(
                 id,
                 at(evaluated.fractional_origin),
                 format!(
@@ -1713,7 +1713,7 @@ impl Program<'_> {
             }
             // "computational integer landing requires an integral result,
             // destination range where bounded".
-            Some(_) | None => Err(crate::lowering::reject(
+            Some(_) | None => Err(crate::reject(
                 id,
                 at(expression),
                 format!(

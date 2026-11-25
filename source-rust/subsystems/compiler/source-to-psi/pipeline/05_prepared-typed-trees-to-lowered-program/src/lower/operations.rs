@@ -4,7 +4,7 @@ evaluation order, and the `OperationSafety` obligation of each partial one.
 A record-typed expression is storage and goes to `places`.
 */
 
-use crate::lowering::body::Qualification;
+use crate::body::Qualification;
 use semantic_vocabulary::{ObligationId, OperationId, ScalarType, ValueId};
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::ValueOrigin;
@@ -13,8 +13,8 @@ use terminal_psi::{Operation, OperationKind, OperationResult};
 
 use super::places::{Bound, Witness};
 use super::{Evaluation, Lowering, Reached, Value, declaration};
-use crate::lowering::body::{Expression, ExpressionKind, Policy, Strict, ValueType};
-use crate::lowering::{SourceOrigin, Unserved, refuse};
+use crate::body::{Expression, ExpressionKind, Policy, Strict, ValueType};
+use crate::{SourceOrigin, Unserved, refuse};
 
 impl Lowering<'_> {
     pub(super) fn operation_identity(&mut self, source: SourceOrigin) -> OperationId {
@@ -341,12 +341,12 @@ impl Lowering<'_> {
                 Ok(Reached::Value(Value::Unit))
             }
             ExpressionKind::Atomic(operation) => match operation {
-                crate::lowering::body::AtomicOperation::Access {
+                crate::body::AtomicOperation::Access {
                     place,
                     event,
                     operands,
                 } => self.atomic_access(place, *event, operands, result, source),
-                crate::lowering::body::AtomicOperation::Fence(ordering) => {
+                crate::body::AtomicOperation::Fence(ordering) => {
                     let operation = self.operation_identity(source);
                     self.emit(
                         operation,
@@ -691,7 +691,7 @@ impl Lowering<'_> {
                 Unserved::Expression("policy arithmetic at a parameter width"),
             ));
         }
-        if policy == Policy::Saturating && crate::lowering::policy::shifts(strict) {
+        if policy == Policy::Saturating && crate::policy::shifts(strict) {
             let carrier = result
                 .and_then(|scalar| scalar.as_integer())
                 .ok_or_else(|| self.internal("a saturating shift has no integer result"))?;
@@ -712,7 +712,7 @@ impl Lowering<'_> {
                 lowering: self,
                 source,
             };
-            return crate::lowering::policy::saturating_shift_left(
+            return crate::policy::saturating_shift_left(
                 &mut computation,
                 closed,
                 left,
@@ -722,7 +722,7 @@ impl Lowering<'_> {
         }
         let operation = self.operation_identity(source);
         // The total operations are the ones a clause's term names too.
-        if let Some(kind) = crate::lowering::policy::total(strict, policy, left, right) {
+        if let Some(kind) = crate::policy::total(strict, policy, left, right) {
             return self.emit(operation, result, kind);
         }
         if policy == Policy::Trapping {
@@ -977,7 +977,7 @@ struct IntegerOperations<'a, 'program> {
     source: SourceOrigin,
 }
 
-impl crate::lowering::policy::IntegerComputation for IntegerOperations<'_, '_> {
+impl crate::policy::IntegerComputation for IntegerOperations<'_, '_> {
     type Value = ValueId;
     type Error = terminal_check_tables::Refusal;
 

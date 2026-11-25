@@ -1225,7 +1225,7 @@ fn a_view_used_after_a_cyclic_byte_write_keeps_its_loan() {
     let verdict = judge(invocation(&retained)).unwrap();
     assert!(
         matches!(verdict, RouteVerdict::Rejected { ref conflicts, .. }
-        if conflicts.iter().any(|row| row.conflict == crate::checking::LoanConflict::ExclusiveAndShared)),
+        if conflicts.iter().any(|row| row.conflict == crate::LoanConflict::ExclusiveAndShared)),
         "a prior view used after the write must keep its loan: {verdict:?}"
     );
 }

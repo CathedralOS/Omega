@@ -29,7 +29,7 @@ fn prepared_terminal_input_keeps_contracts_without_the_typed_owner() {
             .expect("fixture must lower to checker input")
             .program
         };
-        let mut verdicts = crate::checking::judge_compilation(input);
+        let mut verdicts = crate::judge_compilation(input);
         assert_eq!(verdicts.len(), 1);
         let verdict = verdicts.remove(0).unwrap();
         match (accepted, verdict) {

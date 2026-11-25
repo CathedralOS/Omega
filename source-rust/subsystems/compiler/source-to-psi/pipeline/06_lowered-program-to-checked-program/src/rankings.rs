@@ -1,7 +1,7 @@
 //! A loop that promises to finish must decrease on every cycle. Check the actual
 //! graph, the measure passed to each successor, and each required comparison.
 
-use crate::checking::{graph::Graph, places::Storage, refusal};
+use crate::{graph::Graph, places::Storage, refusal};
 use semantic_vocabulary::{
     BlockId, CycleComponentId, EdgeId, IntegerType, IntegerValue, MachineId, ObligationId,
     Proposition, ScalarTerm, ScalarType, ValueId,
@@ -484,10 +484,10 @@ fn acyclic(
 pub(super) fn settle_comparisons(
     machine: &TerminalMachine,
     bindings: &Bindings,
-    decided: &mut [Option<Checked<crate::checking::Discharged>>],
-    mut certify: impl FnMut(ObligationId, EdgeId, Proposition) -> Checked<crate::checking::Evidence>,
+    decided: &mut [Option<Checked<crate::Discharged>>],
+    mut certify: impl FnMut(ObligationId, EdgeId, Proposition) -> Checked<crate::Evidence>,
 ) -> Checked<()> {
-    use crate::checking::Discharged;
+    use crate::Discharged;
     use terminal_check_tables::UnprovedCause::{NoDerivation, NoRuleForGoalForm};
 
     let slot = |id: ObligationId| (id.get() - 1) as usize;
@@ -596,10 +596,10 @@ pub(super) fn settle_comparisons(
 
 pub(crate) fn publish_comparisons(
     machine: &mut TerminalMachine,
-    discharge: &crate::checking::MachineDischarge,
+    discharge: &crate::MachineDischarge,
 ) -> Checked<()> {
     for verdict in discharge.verdicts.values() {
-        let Ok(crate::checking::Discharged::FiniteIntegerRanking(relation)) = verdict else {
+        let Ok(crate::Discharged::FiniteIntegerRanking(relation)) = verdict else {
             continue;
         };
         let index = cycles(machine)

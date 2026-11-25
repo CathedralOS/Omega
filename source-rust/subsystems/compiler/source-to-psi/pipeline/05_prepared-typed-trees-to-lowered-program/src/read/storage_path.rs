@@ -7,8 +7,8 @@ use std::borrow::Borrow;
 use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct};
 
-use crate::lowering::body::{Expression, ExpressionKind};
-use crate::lowering::{Unserved, refuse};
+use crate::body::{Expression, ExpressionKind};
+use crate::{Unserved, refuse};
 
 type Capture = arena::Handle<crate::source_state::expression::CompletedValueCapture>;
 
@@ -139,7 +139,7 @@ pub(super) fn names_storage(place: &Expression) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lowering::{SourceOrigin, Unpositioned};
+    use crate::{SourceOrigin, Unpositioned};
 
     fn expression(kind: ExpressionKind) -> Expression {
         Expression {

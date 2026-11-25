@@ -8,7 +8,7 @@ use semantic_vocabulary::MachineId;
 use terminal_check_tables::Checked;
 
 use super::{Program, services};
-use crate::lowering::provider_selections::{
+use crate::provider_selections::{
     ProviderSelections, SourceProviderSelection, SourceProviderSelections,
 };
 
@@ -31,7 +31,7 @@ impl<'source> Program<'source> {
         };
         let symbol_key =
             |symbol: symbols::SymbolHandle| (symbol.arena_index(), symbol.generation());
-        let supply_key = |row: &crate::lowering::SuppliedRequirement| {
+        let supply_key = |row: &crate::SuppliedRequirement| {
             (
                 symbol_key(row.provider),
                 symbol_key(row.requirement),
@@ -199,7 +199,7 @@ impl<'source> Program<'source> {
             for question in questions {
                 let (
                     Some(candidate),
-                    crate::lowering::static_contracts::SourceImplementation::Machine(machine),
+                    crate::static_contracts::SourceImplementation::Machine(machine),
                 ) = (&question.provider, question.implementation)
                 else {
                     continue;
@@ -218,7 +218,7 @@ impl<'source> Program<'source> {
                         services::unavailable(context, "provider lost its exact receiving header")
                     })?
                     .source;
-                let row = crate::lowering::SuppliedRequirement {
+                let row = crate::SuppliedRequirement {
                     provider,
                     requirement,
                     machine,
@@ -243,7 +243,7 @@ impl<'source> Program<'source> {
                 },
                 provider_application,
                 provider_package: typed.symbols.symbol_package_identity(provider),
-                provider_custody: crate::lowering::selection_questions::declaration_custody(
+                provider_custody: crate::selection_questions::declaration_custody(
                     typed, provider,
                 )
                 .map_err(|reason| services::unavailable(context, reason.to_string()))?,

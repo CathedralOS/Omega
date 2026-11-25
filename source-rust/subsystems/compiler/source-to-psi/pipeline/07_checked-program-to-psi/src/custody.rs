@@ -3,9 +3,9 @@
 
 use crate::declaration_selection::NativeBindingFormation;
 use crate::declaration_selection::ProductDeclarationRequest;
-use crate::production::ProducedTerminalApplication;
-use crate::production::TerminalBuildFilesystemCall;
-use crate::production::{TerminalBuildBindings, TerminalBuildFilesystem, TerminalBuildRequests};
+use crate::ProducedTerminalApplication;
+use crate::TerminalBuildFilesystemCall;
+use crate::{TerminalBuildBindings, TerminalBuildFilesystem, TerminalBuildRequests};
 use diagnostics::Diagnostic;
 use psi_authorization::selection_questions::ProductSchemaCustody;
 use record_storage::RecordWriter;
@@ -40,11 +40,11 @@ mod schema_tests {
 // An emitted call site does not authenticate its saved source action or Product
 // operands. These records need their accepted source correspondence rejoined.
 fn require_saved_build_correspondence(
-    bindings: &[crate::production::TerminalBuildBindingCall],
+    bindings: &[crate::TerminalBuildBindingCall],
     declarations: &[Arc<ProductDeclarationRequest>],
-    queries: &[crate::production::TerminalBuildQueryCall],
+    queries: &[crate::TerminalBuildQueryCall],
     native_formations: &[NativeBindingFormation],
-    requests: &[crate::production::TerminalBuildRequestCall],
+    requests: &[crate::TerminalBuildRequestCall],
     filesystem: &[TerminalBuildFilesystemCall],
 ) -> Result<(), &'static str> {
     if bindings.is_empty()
@@ -71,7 +71,7 @@ pub struct ProducedTerminalProgram {
     pub(crate) applications: Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>>,
     pub(crate) provenance: psi_publication_records::TerminalMachineProvenance,
     pub(crate) source_records: Vec<crate::source_state::SourceRecordCorrespondence>,
-    pub(crate) source_selections: Option<Arc<crate::production::TerminalSourceSelections>>,
+    pub(crate) source_selections: Option<Arc<crate::TerminalSourceSelections>>,
 }
 
 impl record_storage::Record for ProducedTerminalProgram {
@@ -127,11 +127,11 @@ impl record_storage::Record for ProducedTerminalProgram {
             let bytes = Vec::<u8>::read(input)?;
             let artifact = CanonicalTerminalArtifact::from_bytes(&bytes)
                 .map_err(|error| input.error(error.to_string()))?;
-            let calls: Arc<[crate::production::TerminalBuildBindingCall]> = Record::read(input)?;
+            let calls: Arc<[crate::TerminalBuildBindingCall]> = Record::read(input)?;
             let declarations: Arc<[Arc<ProductDeclarationRequest>]> = Record::read(input)?;
-            let queries: Arc<[crate::production::TerminalBuildQueryCall]> = Record::read(input)?;
+            let queries: Arc<[crate::TerminalBuildQueryCall]> = Record::read(input)?;
             let native_formations: Arc<[NativeBindingFormation]> = Record::read(input)?;
-            let requests: Arc<[crate::production::TerminalBuildRequestCall]> = Record::read(input)?;
+            let requests: Arc<[crate::TerminalBuildRequestCall]> = Record::read(input)?;
             let filesystem: Arc<[TerminalBuildFilesystemCall]> = Record::read(input)?;
             // Code identity authenticates the emitted call, not the independently
             // decoded protocol action or Product operands. Only accepted source
@@ -167,7 +167,7 @@ impl record_storage::Record for ProducedTerminalProgram {
                 }
             }
             let view = artifact.view().into();
-            crate::production::build_bindings::validate_companions(
+            crate::build_bindings::validate_companions(
                 view,
                 &calls,
                 &queries,
@@ -204,7 +204,7 @@ impl ProducedTerminalProgram {
     pub fn source_records(&self) -> &[crate::source_state::SourceRecordCorrespondence] {
         &self.source_records
     }
-    pub fn source_selections(&self) -> Option<&Arc<crate::production::TerminalSourceSelections>> {
+    pub fn source_selections(&self) -> Option<&Arc<crate::TerminalSourceSelections>> {
         self.source_selections.as_ref()
     }
     /// Seal source publication metadata into the artifact. Each bound application's
@@ -261,7 +261,7 @@ impl ProducedTerminalProgram {
 
 #[derive(Clone, Copy, Default)]
 pub struct TerminalProductionCustody<'a> {
-    pub applications: &'a [crate::production::TerminalApplicationCustody<'a>],
+    pub applications: &'a [crate::TerminalApplicationCustody<'a>],
     /// Captured anonymous Build source may be used only in this invocation.
     pub invocation_sources: Option<&'a dyn crate::source_inputs::InvocationSourceConsent>,
 }

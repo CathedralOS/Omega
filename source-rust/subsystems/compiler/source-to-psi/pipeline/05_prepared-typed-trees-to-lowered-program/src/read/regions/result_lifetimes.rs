@@ -4,7 +4,7 @@
 //! uses the existing AllElements family path, never an unchecked source index.
 
 use super::{Program, Region};
-use crate::lowering::body::{BorrowedReferent, Signature, StorageShape, ValueType};
+use crate::body::{BorrowedReferent, Signature, StorageShape, ValueType};
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use terminal_psi::{
     BoundaryLifetimeDependency, BoundaryReferenceDestination, BoundaryReferenceOutput,
@@ -516,7 +516,7 @@ impl Frontier<'_, '_> {
 
     fn fields(
         &mut self,
-        source: &[crate::lowering::body::RecordField],
+        source: &[crate::body::RecordField],
         canonical: &[terminal_psi::StructuralFieldDeclaration],
         substitution: &Substitution,
         path: &mut Vec<StructuralPathSegment>,

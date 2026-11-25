@@ -2,7 +2,7 @@
 //! their scalar sources; neither an IEEE comparison nor equality of raw bits
 //! denotes this proposition.
 
-use crate::lowering::{Unserved, refuse};
+use crate::{Unserved, refuse};
 use crate::source_state::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use crate::source_state::signature::SignatureContractKind;
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};

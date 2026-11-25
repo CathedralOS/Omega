@@ -8,7 +8,7 @@
 //! assembles the cases with the family's induction.
 
 use super::*;
-use crate::checking::laws::{SignatureJudgment, UnprovedLaw};
+use crate::laws::{SignatureJudgment, UnprovedLaw};
 
 const BOUND: &str =
     include_str!("../../tests/fixtures/indexed_family/pass/vector_sum_bound/main.omg");
@@ -37,7 +37,7 @@ fn judged(source: &str) -> Vec<RouteVerdict> {
         terminal_codec::TerminalPublication::Invocation,
     )
     .unwrap();
-    crate::checking::judge_compilation(compilation.program)
+    crate::judge_compilation(compilation.program)
         .into_iter()
         .map(|verdict| verdict.expect("a judged part"))
         .collect()

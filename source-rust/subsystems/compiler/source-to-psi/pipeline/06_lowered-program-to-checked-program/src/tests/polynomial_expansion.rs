@@ -15,7 +15,7 @@
 //! one stops the proof as out of budget, never as wrong.
 
 use super::*;
-use crate::checking::laws::{SignatureJudgment, UnprovedLaw};
+use crate::laws::{SignatureJudgment, UnprovedLaw};
 use terminal_check_tables::mathematics::{OperandLaw, operand_law};
 
 const POLYNOMIAL: &str =
@@ -73,7 +73,7 @@ fn compile(source: &str, core: &[(&str, &str, &str)]) -> Vec<RouteVerdict> {
         terminal_codec::TerminalPublication::Invocation,
     )
     .unwrap();
-    crate::checking::judge_compilation(compilation.program)
+    crate::judge_compilation(compilation.program)
         .into_iter()
         .map(|verdict| verdict.expect("a judged part"))
         .collect()
@@ -297,7 +297,7 @@ ensures core\\Identity::<Peano>(plus(times(a, {nested}), times(a, {nested})), ti
 
 #[test]
 fn expansion_is_counted_before_it_is_built_and_each_mutual_law_still_applies() {
-    use crate::checking::equality::{
+    use crate::equality::{
         Definitions, Distribution, License, Licenses, MAX_SUMMANDS, SearchError, prove_licensed,
     };
     use proof_admission::{

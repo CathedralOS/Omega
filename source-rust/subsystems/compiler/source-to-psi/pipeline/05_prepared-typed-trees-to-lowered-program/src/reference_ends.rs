@@ -2,7 +2,7 @@
 //! Releases precede the operation, or the dispatch, after the last use;
 //! handles the complement. Both are planned by the same owned-region walk.
 
-use crate::lowering::{SourceOrigin, Unpositioned, Unserved, refuse};
+use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 use arena::IdTable;
 use semantic_vocabulary::{CanonicalStructuralPathSegment, MachineId};
 use terminal_check_tables::bindings::{self, Content, Segment, WriteRow};

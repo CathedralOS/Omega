@@ -60,7 +60,7 @@ nothing else: lowering never asks what a place holds.
 #[path = "places_contents.rs"]
 mod contents;
 
-use crate::lowering::body::Qualification;
+use crate::body::Qualification;
 use arena::IdTable;
 use semantic_vocabulary::{
     BlockId, DomainSemanticId, IntegerValue, MachineId, OperationId, PlaceId, ScalarType,
@@ -86,11 +86,11 @@ use terminal_psi::{
 use terminal_semantics::CollectionExtent;
 
 use super::{Evaluation, Lowering, Reached, Value};
-use crate::lowering::body::{
+use crate::body::{
     Body, Expression, ExpressionKind, RecordField, RecordType, Signature, Statement, StorageShape,
     Target, ValueType,
 };
-use crate::lowering::{SourceOrigin, Unpositioned, Unserved, refuse};
+use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 
 /// The module's record types as lowering needs them: the reader's table and,
 /// beside it, the interned identity Terminal Psi's declarations and
@@ -289,7 +289,7 @@ pub(crate) struct Declared<'a> {
     pub records: Records<'a>,
     pub identities: TerminalIdentityTable,
     pub structural_types: Vec<StructuralTypeDeclaration>,
-    pub structural_domains: crate::lowering::qualifications::StructuralDomains,
+    pub structural_domains: crate::qualifications::StructuralDomains,
     pub native_layouts: NativeLayoutCatalog,
 }
 
@@ -313,7 +313,7 @@ pub(crate) fn declare<'a, 'b>(
     types: &'a IdTable<StructuralTypeId, RecordType>,
     bodies: &'b IdTable<MachineId, Body>,
     signatures: impl Iterator<Item = &'b Signature>,
-    byte_domains: &[crate::lowering::body::SourceByteDomain],
+    byte_domains: &[crate::body::SourceByteDomain],
     typed_source: Option<&crate::source_state::TypedTrees>,
     mut identities: TerminalIdentityTableBuilder,
 ) -> Checked<Declared<'a>> {
@@ -356,11 +356,11 @@ pub(crate) fn declare<'a, 'b>(
                         // An exclusive view instead transports its affine permission
                         // as an ordinary structural descriptor, like a typed view.
                         match types.get(nested).map(|row| &row.shape) {
-                            Some(crate::lowering::StorageShape::AtomicCell(cell)) => {
+                            Some(crate::StorageShape::AtomicCell(cell)) => {
                                 inline_carrier = Some(nested);
                                 StructuralFieldType::from(*cell)
                             }
-                            Some(crate::lowering::StorageShape::ByteSequence(carrier))
+                            Some(crate::StorageShape::ByteSequence(carrier))
                                 if is_stored_view(*carrier) =>
                             {
                                 // The view type the field was read as stays
@@ -379,7 +379,7 @@ pub(crate) fn declare<'a, 'b>(
                                     }
                                 }
                             }
-                            Some(crate::lowering::StorageShape::ByteSequence(
+                            Some(crate::StorageShape::ByteSequence(
                                 terminal_psi::ByteSequenceCarrier::BorrowedView {
                                     access: Some(StructuralAccess::MutableBorrow),
                                 },
@@ -388,7 +388,7 @@ pub(crate) fn declare<'a, 'b>(
                             {
                                 StructuralFieldType::Structural(nested)
                             }
-                            Some(crate::lowering::StorageShape::ByteSequence(_)) => {
+                            Some(crate::StorageShape::ByteSequence(_)) => {
                                 return Err(refuse(
                                     entry,
                                     Construct::Machine,
@@ -422,12 +422,12 @@ pub(crate) fn declare<'a, 'b>(
         field_identities.push(indexes);
         payload_identities.push(case_indexes);
         let shape = match &record.shape {
-            crate::lowering::StorageShape::AtomicCell(cell) => {
+            crate::StorageShape::AtomicCell(cell) => {
                 StructuralTypeShape::AtomicCell(*cell)
             }
-            crate::lowering::StorageShape::Opaque => StructuralTypeShape::Opaque,
-            crate::lowering::StorageShape::TypeParameter(_) => StructuralTypeShape::TypeParameter,
-            crate::lowering::StorageShape::Record(_) => {
+            crate::StorageShape::Opaque => StructuralTypeShape::Opaque,
+            crate::StorageShape::TypeParameter(_) => StructuralTypeShape::TypeParameter,
+            crate::StorageShape::Record(_) => {
                 // The natural layout row of a record with no authored layout:
                 // no policy and no realization. Its nominal native identities
                 // are left absent, as the current pipeline leaves any it cannot
@@ -450,7 +450,7 @@ pub(crate) fn declare<'a, 'b>(
                     storage: StructuralRecordStorage::Packed,
                 }
             }
-            crate::lowering::StorageShape::Sum(_) => StructuralTypeShape::Sum {
+            crate::StorageShape::Sum(_) => StructuralTypeShape::Sum {
                 cases: cases
                     .into_iter()
                     .map(|(case, fields)| StructuralCaseDeclaration {
@@ -461,7 +461,7 @@ pub(crate) fn declare<'a, 'b>(
                     })
                     .collect(),
             },
-            crate::lowering::StorageShape::FixedArray {
+            crate::StorageShape::FixedArray {
                 element, length, ..
             } => {
                 if element.get() >= id.get() {
@@ -476,13 +476,13 @@ pub(crate) fn declare<'a, 'b>(
                     length: *length,
                 }
             }
-            crate::lowering::StorageShape::PrimitiveScalar { scalar_type, .. } => {
+            crate::StorageShape::PrimitiveScalar { scalar_type, .. } => {
                 StructuralTypeShape::PrimitiveScalar(*scalar_type)
             }
-            crate::lowering::StorageShape::ByteSequence(carrier) => {
+            crate::StorageShape::ByteSequence(carrier) => {
                 StructuralTypeShape::ByteSequence(*carrier)
             }
-            crate::lowering::StorageShape::Reference { referent, access } => {
+            crate::StorageShape::Reference { referent, access } => {
                 if types.get(*referent).is_none() {
                     return Err(refuse(
                         entry,
@@ -495,7 +495,7 @@ pub(crate) fn declare<'a, 'b>(
                     access: *access,
                 }
             }
-            crate::lowering::StorageShape::ElementView {
+            crate::StorageShape::ElementView {
                 element, access, ..
             } => {
                 if element.get() >= id.get() {
@@ -628,7 +628,7 @@ pub(crate) fn declare<'a, 'b>(
     let mut primitives: Vec<(ValueType, String, StructuralTypeId)> = types
         .iter()
         .filter_map(|(id, row)| match row.shape {
-            crate::lowering::StorageShape::PrimitiveScalar {
+            crate::StorageShape::PrimitiveScalar {
                 scalar_type,
                 qualification,
             } => Some((
@@ -746,7 +746,7 @@ pub(crate) fn declare<'a, 'b>(
             source_span: None,
             detail: format!("byte domain source identity: {detail}"),
         })?;
-        let declaration = crate::lowering::qualifications::domain_identity(
+        let declaration = crate::qualifications::domain_identity(
             typed,
             &sources,
             source.source,
@@ -871,7 +871,7 @@ pub(crate) fn declare<'a, 'b>(
             types,
             zero_eligibility: zero_eligibility(types),
             inhabitation: terminal_semantics::inhabitation::Inhabitation::prepare(
-                &crate::lowering::inhabitation::SourceContracts(types),
+                &crate::inhabitation::SourceContracts(types),
             )
             .map_err(|_| {
                 refuse(
@@ -887,7 +887,7 @@ pub(crate) fn declare<'a, 'b>(
         },
         identities: identities.build(),
         structural_types,
-        structural_domains: crate::lowering::qualifications::StructuralDomains {
+        structural_domains: crate::qualifications::StructuralDomains {
             declarations: structural_domains,
             source_bindings: domain_bindings,
         },
@@ -1192,7 +1192,7 @@ fn expression_homes<'b>(
         ExpressionKind::Call {
             callee, arguments, ..
         } => {
-            if let crate::lowering::body::CallTarget::Selected { callable, .. } = callee {
+            if let crate::body::CallTarget::Selected { callable, .. } = callee {
                 expression_homes(callable, slots, homes);
             }
             for argument in arguments {
@@ -1223,7 +1223,7 @@ impl Records<'_> {
         &self,
         record: StructuralTypeId,
         qualification: Qualification,
-        qualifications: &crate::lowering::qualifications::Qualifications,
+        qualifications: &crate::qualifications::Qualifications,
         machine: MachineId,
     ) -> Checked<Memberships> {
         let mut memberships = Memberships::default();
@@ -1245,7 +1245,7 @@ impl Records<'_> {
         record: StructuralTypeId,
         qualification: Qualification,
         prefix: &mut Vec<StructuralPathSegment>,
-        qualifications: &crate::lowering::qualifications::Qualifications,
+        qualifications: &crate::qualifications::Qualifications,
         machine: MachineId,
         memberships: &mut Memberships,
     ) -> Checked<()> {
@@ -1867,7 +1867,7 @@ impl<'a> Lowering<'a> {
         &self,
         owner: StructuralTypeId,
         case: usize,
-    ) -> Checked<&'a crate::lowering::body::CaseType> {
+    ) -> Checked<&'a crate::body::CaseType> {
         self.record_type(owner)?
             .cases()
             .get(case)
@@ -2026,7 +2026,7 @@ impl<'a> Lowering<'a> {
             _ => ValueType::Record(
                 storage,
                 record_qualification,
-                crate::lowering::body::Regions::NONE,
+                crate::body::Regions::NONE,
             ),
         })
     }
@@ -2199,12 +2199,12 @@ impl<'a> Lowering<'a> {
             .push(parameter);
         // Adding a domain still needs an arrival proof, even for an empty
         // predicate theory.
-        let subject = crate::lowering::body::self_place()
+        let subject = crate::body::self_place()
             .ok_or_else(|| self.internal("cast subject place identity"))?;
         let mut predicate = Vec::with_capacity(clauses.len());
         for clause in clauses {
             self.name_clause_contents(clause, &[(subject, exact)], None)?;
-            predicate.push(crate::lowering::canonical::substitute_parameters(
+            predicate.push(crate::canonical::substitute_parameters(
                 clause,
                 &[],
                 &[place],
@@ -2225,7 +2225,7 @@ impl<'a> Lowering<'a> {
             self.invariants.push(terminal_psi::ScalarBlockInvariant {
                 machine: id,
                 header: cast,
-                predicate: crate::lowering::canonical::conjunction(predicate, id)?,
+                predicate: crate::canonical::conjunction(predicate, id)?,
                 arrivals: Vec::new(),
             });
         }
@@ -2385,7 +2385,7 @@ impl<'a> Lowering<'a> {
         }
         let operation = self.operation_identity(source);
         let value_type =
-            ValueType::Record(record, qualification, crate::lowering::body::Regions::NONE);
+            ValueType::Record(record, qualification, crate::body::Regions::NONE);
         let (copy, exact) = self.produce(
             operation,
             value_type,
@@ -2543,7 +2543,7 @@ impl<'a> Lowering<'a> {
             }
             ExpressionKind::ByteLiteral(bytes) => {
                 if !matches!(self.record_type(record)?.shape,
-                    crate::lowering::StorageShape::ByteSequence(carrier) if carrier.is_shared_readable_view())
+                    crate::StorageShape::ByteSequence(carrier) if carrier.is_shared_readable_view())
                 {
                     return Err(self.internal("a byte literal requires a shared byte view"));
                 }
@@ -5306,8 +5306,8 @@ impl<'a> Lowering<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lowering::body::{ArmGuard, CallTarget};
-    use crate::lowering::{Borrowed, CrashCeiling, Policy, Signature, Termination};
+    use crate::body::{ArmGuard, CallTarget};
+    use crate::{Borrowed, CrashCeiling, Policy, Signature, Termination};
     use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 
     #[test]
@@ -5350,15 +5350,15 @@ mod tests {
         let sum = add(
             "Sum",
             StorageShape::Sum(vec![
-                crate::lowering::CaseType {
+                crate::CaseType {
                     id: StructuralCaseId::new(1).unwrap(),
                     identity: "First".into(),
                     fields: Vec::new(),
                 },
-                crate::lowering::CaseType {
+                crate::CaseType {
                     id: StructuralCaseId::new(2).unwrap(),
                     identity: "Other".into(),
-                    fields: vec![crate::lowering::RecordField {
+                    fields: vec![crate::RecordField {
                         id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
                         identity: "ref".into(),
                         value_type: ValueType::record(reference),
@@ -5427,12 +5427,12 @@ mod tests {
             "Conditional",
             StructuralMultiplicity::Affine,
             StorageShape::Sum(vec![
-                crate::lowering::body::CaseType {
+                crate::body::CaseType {
                     id: empty,
                     identity: "Empty".into(),
                     fields: Vec::new(),
                 },
-                crate::lowering::body::CaseType {
+                crate::body::CaseType {
                     id: live,
                     identity: "Live".into(),
                     fields: vec![field(6, "token", token)],
@@ -5577,16 +5577,16 @@ mod tests {
             borrowed: vec![Borrowed {
                 position: 0,
                 access: language_core::ReferenceAccess::Shared,
-                referent: crate::lowering::body::BorrowedReferent::Value,
-                regions: crate::lowering::body::Regions::NONE,
+                referent: crate::body::BorrowedReferent::Value,
+                regions: crate::body::Regions::NONE,
                 home: Some("plain-u32".into()),
             }],
             result: Some(plain),
             membership_ensures: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
-            reaches: crate::lowering::Ceiling::Inferred,
-            invokes: crate::lowering::Ceiling::Inferred,
+            reaches: crate::Ceiling::Inferred,
+            invokes: crate::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
             ranking: None,
@@ -5717,7 +5717,7 @@ mod tests {
             assert_eq!(row.shape, StructuralTypeShape::PrimitiveScalar(scalar));
         }
         let elaboration =
-            crate::lowering::lower_bodies(machine, &bodies, &signatures, &types).unwrap();
+            crate::lower_bodies(machine, &bodies, &signatures, &types).unwrap();
         let lowered = &elaboration.module.machines[0];
         assert_eq!(lowered.structural_parameters[0].structural_type, plain_id);
         let homes: Vec<_> = lowered

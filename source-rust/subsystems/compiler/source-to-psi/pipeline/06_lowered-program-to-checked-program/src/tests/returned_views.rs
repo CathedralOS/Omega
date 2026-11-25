@@ -34,7 +34,7 @@ fn elaborate(text: &str) -> Checked<crate::lowering::Elaboration> {
 /// What the checker says of the Product `text`, judged from its `entry`:
 /// `accepted`, `rejected` with its conflicts, or the refusal's text.
 fn verdict(text: &str) -> String {
-    match crate::checking::judge(elaborate(text)) {
+    match crate::judge(elaborate(text)) {
         Ok(RouteVerdict::Accepted(_)) => "accepted".to_owned(),
         Ok(RouteVerdict::FallBack(refusal)) | Err(refusal) => refusal.detail,
         Ok(RouteVerdict::Rejected { conflicts, .. }) => {
@@ -72,7 +72,7 @@ machine entry() -> u64 {
         "    boxes.cells[0].value = 3u64;\n    cell.value = 7u64;",
     );
     assert!(matches!(
-        crate::checking::judge(elaborate(&write_while_lent)),
+        crate::judge(elaborate(&write_while_lent)),
         Ok(RouteVerdict::Rejected { conflicts, .. }) if !conflicts.is_empty()
     ));
 
@@ -108,7 +108,7 @@ machine entry() -> u64 {
         removed.is_some(),
         "the helper return disposes its parent on an earlier edge"
     );
-    let rejected = crate::checking::judge(Ok(incomplete));
+    let rejected = crate::judge(Ok(incomplete));
     let refusal = match rejected {
         Err(refusal) | Ok(RouteVerdict::FallBack(refusal)) => refusal,
         other => panic!("missing parent cleanup reached another verdict: {other:?}"),
@@ -143,7 +143,7 @@ machine entry() -> u64 {
         "    window.length",
         "    room.cells[1u64].number = 5u64;\n    window[0u64].number",
     );
-    let result = crate::checking::judge(elaborate(&conflicting));
+    let result = crate::judge(elaborate(&conflicting));
     assert!(
         matches!(&result, Ok(RouteVerdict::Rejected { conflicts, .. }) if !conflicts.is_empty()),
         "{result:?}"
@@ -171,7 +171,7 @@ machine entry() reaches Fs invokes Fs {
 "#;
     assert_eq!(verdict(source), "accepted");
     let unpromised = source.replace("ensures result.length > 0u64", "");
-    let result = crate::checking::judge(elaborate(&unpromised)).unwrap();
+    let result = crate::judge(elaborate(&unpromised)).unwrap();
     assert!(
         matches!(&result, RouteVerdict::Rejected { unproved, .. }
             if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
@@ -197,7 +197,7 @@ machine entry() -> u64 reaches Reader invokes Reader {
         &["entry"],
         terminal_codec::TerminalPublication::Portable,
     );
-    let verdicts = crate::checking::judge_compilation(prepared);
+    let verdicts = crate::judge_compilation(prepared);
     let [Ok(RouteVerdict::Accepted(accepted))] = verdicts.as_slice() else {
         panic!("{verdicts:?}");
     };
@@ -274,10 +274,10 @@ machine entry() -> u8 reaches Fs invokes Fs {
         "    match view.length",
         "    token.bytes[0] = 5u8;\n    match view.length",
     );
-    let result = crate::checking::judge(elaborate(&changed)).unwrap();
+    let result = crate::judge(elaborate(&changed)).unwrap();
     assert!(
         matches!(&result, RouteVerdict::Rejected { conflicts, .. }
-            if conflicts.iter().any(|row| row.conflict == crate::checking::LoanConflict::ChangeWhileBorrowed)),
+            if conflicts.iter().any(|row| row.conflict == crate::LoanConflict::ChangeWhileBorrowed)),
         "{result:?}"
     );
 }
@@ -306,7 +306,7 @@ machine entry() -> i32 reaches ErrorState invokes ErrorState {
 }
 "#;
     assert_eq!(verdict(source), "accepted");
-    let conflicts = match crate::checking::judge(elaborate(
+    let conflicts = match crate::judge(elaborate(
         &source.replace("read(@mutable other, slot)", "read(@mutable token, slot)"),
     )) {
         Ok(RouteVerdict::Rejected { conflicts, .. }) => conflicts,
@@ -314,8 +314,8 @@ machine entry() -> i32 reaches ErrorState invokes ErrorState {
     };
     assert!(conflicts.iter().any(|conflict| matches!(
         conflict.conflict,
-        crate::checking::LoanConflict::ExclusiveAndShared
-            | crate::checking::LoanConflict::ChangeWhileBorrowed
+        crate::LoanConflict::ExclusiveAndShared
+            | crate::LoanConflict::ChangeWhileBorrowed
     )));
 }
 
@@ -408,15 +408,15 @@ machine entry() reaches Fs invokes Fs {
         "use_path(@mutable source, bytes)",
     );
     assert_ne!(source, invalid);
-    let rejected = crate::checking::judge(elaborate(&invalid));
+    let rejected = crate::judge(elaborate(&invalid));
     let Ok(RouteVerdict::Rejected { conflicts, .. }) = rejected else {
         panic!("the Token input must remain borrowed through use_path: {rejected:?}");
     };
     assert!(
         conflicts.iter().any(|conflict| matches!(
             conflict.conflict,
-            crate::checking::LoanConflict::ExclusiveAndShared
-                | crate::checking::LoanConflict::ChangeWhileBorrowed
+            crate::LoanConflict::ExclusiveAndShared
+                | crate::LoanConflict::ChangeWhileBorrowed
         )),
         "changing the retained Token input must conflict: {conflicts:?}"
     );
@@ -431,7 +431,7 @@ fn provider_permission_cannot_be_claimed_as_owned_storage(source: &str) {
     use terminal_check_tables::obligations::Lender;
     let input = elaborate(source).unwrap();
     assert!(matches!(
-        crate::checking::judge(Ok(input.clone())),
+        crate::judge(Ok(input.clone())),
         Ok(RouteVerdict::Accepted(_))
     ));
     let mut changed = input;
@@ -465,7 +465,7 @@ fn provider_permission_cannot_be_claimed_as_owned_storage(source: &str) {
     };
     *lender = Lender::Owner;
     assert!(
-        matches!(crate::checking::judge(Ok(changed)),
+        matches!(crate::judge(Ok(changed)),
         Err(Refusal { reason: RefusalReason::ForeignIdentity, detail, .. })
         if detail.starts_with(
             "reborrow names a different immediate parent occurrence:"
@@ -491,7 +491,7 @@ machine entry() reaches Fs invokes Fs {
     use terminal_check_tables::bindings::{PlaceOrigin, Segment};
     use terminal_check_tables::obligations::Lender;
     let mut input = elaborate(source).unwrap();
-    let verdict = crate::checking::judge(Ok(input.clone()));
+    let verdict = crate::judge(Ok(input.clone()));
     assert!(
         matches!(verdict, Ok(RouteVerdict::Accepted(_))),
         "{verdict:?}"
@@ -536,7 +536,7 @@ machine entry() reaches Fs invokes Fs {
         unreachable!()
     };
     *lender = Lender::Owner;
-    let forged = crate::checking::judge(Ok(input));
+    let forged = crate::judge(Ok(input));
     assert!(
         matches!(forged,
         Err(Refusal { reason: RefusalReason::ForeignIdentity, ref detail, .. })
@@ -785,7 +785,7 @@ fn boundary_reference_completion_reads_inline_record_leaves() {
         PROVIDER_NESTED_RECORD_REFERENCE,
         DIRECT_PROVIDER_FIELD,
     ] {
-        let verdict = crate::checking::judge(elaborate(source));
+        let verdict = crate::judge(elaborate(source));
         assert!(
             matches!(verdict, Ok(RouteVerdict::Accepted(_))),
             "the shared provider contract establishes its typed record leaves: {verdict:?}"
@@ -803,7 +803,7 @@ fn boundary_reference_completion_reads_a_caller_chosen_provider_result() {
     assert_eq!(groups.len(), 1);
     assert!(groups[0].inputs.is_empty());
     assert_eq!(groups[0].results, vec![Vec::new()]);
-    let verdict = crate::checking::judge(Ok(elaborated));
+    let verdict = crate::judge(Ok(elaborated));
     assert!(
         matches!(verdict, Ok(RouteVerdict::Accepted(_))),
         "the shared provider reference must retain its exact permission: {verdict:?}"
@@ -872,7 +872,7 @@ fn provider_reference_has_no_captured_address(source: &str) {
         "provider permission must not fabricate an original storage address",
     );
     assert!(matches!(
-        crate::checking::judge(Ok(input)),
+        crate::judge(Ok(input)),
         Ok(RouteVerdict::Accepted(_))
     ));
 }
@@ -888,7 +888,7 @@ fn provider_reference_value_is_unknown(source: &str) {
         "machine entry() -> i32 ensures result == 0i32",
     );
     assert_ne!(changed, source);
-    let verdict = crate::checking::judge(elaborate(&changed));
+    let verdict = crate::judge(elaborate(&changed));
     let Ok(RouteVerdict::Rejected {
         formations,
         violations,
@@ -963,14 +963,14 @@ machine entry() -> i32 reaches Source invokes Source {
         "    eat(token);\n    let value: i32 = read(slot);",
     );
     assert_ne!(changed, source);
-    let result = crate::checking::judge(elaborate(&changed));
+    let result = crate::judge(elaborate(&changed));
     let Ok(RouteVerdict::Rejected { conflicts, .. }) = result else {
         panic!("a provider reference must retain its exact input loan: {result:?}");
     };
     assert!(conflicts.iter().any(|conflict| matches!(
         conflict.conflict,
-        crate::checking::LoanConflict::ExclusiveAndShared
-            | crate::checking::LoanConflict::ChangeWhileBorrowed
+        crate::LoanConflict::ExclusiveAndShared
+            | crate::LoanConflict::ChangeWhileBorrowed
     )));
 }
 
@@ -1168,7 +1168,7 @@ fn boundary_result_lifetime_metadata_is_independently_validated() {
         );
         assert!(
             !matches!(
-                crate::checking::judge(Ok(malformed)),
+                crate::judge(Ok(malformed)),
                 Ok(RouteVerdict::Accepted(_))
             ),
             "the sole checker accepted corruption {corruption}"
@@ -1444,7 +1444,7 @@ machine entry() crashes Trap {
     );
     assert_eq!(verdict(&conflict), "rejected: 1 conflicts");
     let beyond = source.replace("@mutable cells[index]", "@mutable cells[index + 2u64]");
-    let result = crate::checking::judge(elaborate(&beyond)).unwrap();
+    let result = crate::judge(elaborate(&beyond)).unwrap();
     assert!(
         matches!(&result, RouteVerdict::Rejected { unproved, .. }
             if unproved.iter().any(|row| matches!(row.kind, ObligationKind::OperationSafety { .. }))),
@@ -1465,13 +1465,13 @@ machine entry() {
     use terminal_check_tables::bindings::{PlaceOrigin, Segment};
     use terminal_check_tables::obligations::Lender;
     let mut input = elaborate(source).unwrap();
-    let verdict = crate::checking::judge(Ok(input.clone()));
+    let verdict = crate::judge(Ok(input.clone()));
     assert!(
         matches!(verdict, Ok(RouteVerdict::Accepted(_))),
         "{verdict:?}"
     );
     let beyond = source.replace("view[0]", "view[2]");
-    let unbounded = crate::checking::judge(elaborate(&beyond));
+    let unbounded = crate::judge(elaborate(&beyond));
     assert!(
         matches!(&unbounded, Ok(RouteVerdict::Rejected { unproved, .. })
             if unproved.iter().any(|failure| matches!(failure.kind, ObligationKind::OperationSafety { .. }))),
@@ -1524,7 +1524,7 @@ machine entry() {
         unreachable!()
     };
     *lender = Lender::Owner;
-    let forged = crate::checking::judge(Ok(input));
+    let forged = crate::judge(Ok(input));
     assert!(
         matches!(forged,
         Err(Refusal { reason: RefusalReason::ForeignIdentity, ref detail, .. })

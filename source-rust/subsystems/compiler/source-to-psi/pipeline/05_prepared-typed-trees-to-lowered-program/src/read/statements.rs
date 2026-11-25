@@ -22,8 +22,8 @@ use terminal_psi::StructuralAccess;
 use super::authority::Access;
 use super::references::reference_access_violation;
 use super::{Program, Slot};
-use crate::lowering::body::{ExpressionKind, Qualification, Statement, ValueType};
-use crate::lowering::{SourceOrigin, Unserved, refuse, reject};
+use crate::body::{ExpressionKind, Qualification, Statement, ValueType};
+use crate::{SourceOrigin, Unserved, refuse, reject};
 
 impl Program<'_> {
     pub(super) fn evaluated_expression(
@@ -34,7 +34,7 @@ impl Program<'_> {
         discards_result: bool,
     ) -> Checked<Statement> {
         let mut expression = self.expression(id, slots, expression, None)?;
-        crate::lowering::operational::boundary(&mut expression);
+        crate::operational::boundary(&mut expression);
         Ok(Statement::Evaluate {
             expression,
             discards_result,
@@ -46,7 +46,7 @@ impl Program<'_> {
         id: MachineId,
         slots: &[Slot],
         handle: StatementHandle,
-    ) -> Checked<crate::lowering::body::Expression> {
+    ) -> Checked<crate::body::Expression> {
         let StatementNode::Call(call) = self.typed.statement_table.statement(handle) else {
             return Err(refuse(
                 id,
@@ -74,8 +74,8 @@ impl Program<'_> {
     /// `ensures`; erase the call if fact-only." The call becomes a theorem
     /// application that names the theorem's machine. A mathematical body
     /// is read as a proof instead, where a citation is the theorem itself.
-    fn cite_theorem(&self, called: &mut crate::lowering::body::Expression) {
-        use crate::lowering::body::{CallTarget, ExpressionKind};
+    fn cite_theorem(&self, called: &mut crate::body::Expression) {
+        use crate::body::{CallTarget, ExpressionKind};
         if self.mathematical {
             return;
         }
@@ -123,7 +123,7 @@ impl Program<'_> {
                 .get(id)
                 .and_then(|signature| signature.borrowed(index))
                 .is_some_and(|borrowed| {
-                    borrowed.referent == crate::lowering::body::BorrowedReferent::Value
+                    borrowed.referent == crate::body::BorrowedReferent::Value
                 })
         {
             return Err(refuse(
@@ -149,7 +149,7 @@ impl Program<'_> {
                 Unserved::Typing("assigned value type"),
             )
         };
-        let assigned = |program: &Self, value: &crate::lowering::Expression, place: ValueType| {
+        let assigned = |program: &Self, value: &crate::Expression, place: ValueType| {
             program.mistyped(
                 id,
                 value.source,
@@ -187,13 +187,13 @@ impl Program<'_> {
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, slots, path)?;
                 if let Some((referent, _)) = self.reference_referent(id, slots[slot].value_type)? {
-                    let descriptor = crate::lowering::Expression {
+                    let descriptor = crate::Expression {
                         call_context: None,
                         kind: ExpressionKind::Slot(slot),
                         result: Some(slots[slot].value_type),
                         source,
                     };
-                    let destination = crate::lowering::Expression {
+                    let destination = crate::Expression {
                         call_context: None,
                         kind: ExpressionKind::Referent(Box::new(descriptor)),
                         result: Some(referent),
@@ -264,7 +264,7 @@ impl Program<'_> {
                 Ok(if stored || slot_home.is_some() {
                     Statement::Store {
                         slot_home,
-                        destination: crate::lowering::Expression {
+                        destination: crate::Expression {
                             call_context: None,
                             kind: ExpressionKind::Slot(slot),
                             result: Some(value_type),
@@ -307,7 +307,7 @@ impl Program<'_> {
                     let Some(value_type @ ValueType::Record(record, _, _)) = base.result else {
                         return Err(typing());
                     };
-                    use crate::lowering::StorageShape::ByteSequence;
+                    use crate::StorageShape::ByteSequence;
                     use terminal_psi::{ByteSequenceCarrier::BorrowedView, StructuralAccess};
 
                     let writable = match self.data_type(id, record)?.shape {
@@ -521,7 +521,7 @@ impl Program<'_> {
                 .symbols
                 .symbol_provenance_source_span(local.symbol)
                 .map_or(
-                    SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent),
+                    SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
                     SourceOrigin::of,
                 );
             self.zero_established(id, value_type, None, source)?;
@@ -554,7 +554,7 @@ impl Program<'_> {
                 homed: value_type.scalar().is_some(),
                 erased: false,
                 borrowed: None,
-                borrowed_regions: crate::lowering::body::Regions::NONE,
+                borrowed_regions: crate::body::Regions::NONE,
             };
             return Ok((
                 slot,
@@ -579,7 +579,7 @@ impl Program<'_> {
             self.expression(id, slots, local.initial_value, declared)?
         };
         if !local.is_operand_capture {
-            crate::lowering::operational::boundary(&mut value);
+            crate::operational::boundary(&mut value);
         }
         let Some(value_type) = value.result else {
             return Err(refuse(
@@ -653,7 +653,7 @@ impl Program<'_> {
             homed: false,
             erased: false,
             borrowed: None,
-            borrowed_regions: crate::lowering::body::Regions::NONE,
+            borrowed_regions: crate::body::Regions::NONE,
         };
         Ok((
             slot,
@@ -702,7 +702,7 @@ impl Program<'_> {
         block: &crate::source_state::expression::TableBlockExpression,
         expected: Option<ValueType>,
         source: SourceOrigin,
-    ) -> Checked<crate::lowering::Expression> {
+    ) -> Checked<crate::Expression> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Statement(what));
         if slots.len() < self.block_slot_base
             || slots.len() - self.block_slot_base > self.block_slots.len()
@@ -724,7 +724,7 @@ impl Program<'_> {
         block: &crate::source_state::expression::TableBlockExpression,
         expected: Option<ValueType>,
         source: SourceOrigin,
-    ) -> Checked<crate::lowering::Expression> {
+    ) -> Checked<crate::Expression> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Statement(what));
         let typed = self.typed;
         let mut statements = Vec::new();
@@ -785,7 +785,7 @@ impl Program<'_> {
         } else {
             None
         };
-        Ok(crate::lowering::Expression {
+        Ok(crate::Expression {
             call_context: None,
             result: value.as_ref().and_then(|value| value.result),
             kind: ExpressionKind::Block { statements, value },
@@ -818,11 +818,11 @@ impl Program<'_> {
                 homed: false,
                 erased: true,
                 borrowed: None,
-                borrowed_regions: crate::lowering::body::Regions::NONE,
+                borrowed_regions: crate::body::Regions::NONE,
             };
-            let term = crate::lowering::body::Expression {
+            let term = crate::body::Expression {
                 call_context: None,
-                kind: crate::lowering::body::ExpressionKind::Boolean(true),
+                kind: crate::body::ExpressionKind::Boolean(true),
                 result: Some(value_type),
                 source: SourceOrigin::of(
                     self.typed.expression_table.source_span(local.initial_value),
@@ -867,7 +867,7 @@ impl Program<'_> {
             homed: false,
             erased: true,
             borrowed: None,
-            borrowed_regions: crate::lowering::body::Regions::NONE,
+            borrowed_regions: crate::body::Regions::NONE,
         };
         Ok((
             slot,

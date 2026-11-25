@@ -14,7 +14,7 @@ use terminal_psi::{
     TerminalCallableTermination, TerminalModule,
 };
 
-use crate::lowering::{Elaboration, Unserved, refuse};
+use crate::{Elaboration, Unserved, refuse};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum SourceInvocation {
@@ -122,7 +122,7 @@ impl ServiceMap {
         let schemas = catalog
             .retain_service_applications(&applications)
             .map_err(|error| {
-                crate::lowering::read::services::unavailable(context, error.message)
+                crate::read::services::unavailable(context, error.message)
             })?;
         let declarations = registry
             .iter()
@@ -222,7 +222,7 @@ impl ServiceMap {
         let prepared = (|| {
             for source in &self.declarations {
                 let schema = source.schema.surface().map_err(|error| {
-                    crate::lowering::read::services::unavailable(context, error.message)
+                    crate::read::services::unavailable(context, error.message)
                 })?;
                 if schema.declaration.root_application_identity() != Some(source.identity.as_str())
                 {
@@ -232,7 +232,7 @@ impl ServiceMap {
                     ));
                 }
                 let declaration = schema.nominal_identity.as_ref().map_err(|error| {
-                    crate::lowering::read::services::unavailable(context, error.message.clone())
+                    crate::read::services::unavailable(context, error.message.clone())
                 })?;
                 let application = identities.intern(&source.identity);
                 schemas.push(terminal_psi::TerminalServiceSchema {
@@ -253,7 +253,7 @@ impl ServiceMap {
         prepared?;
         module.interfaces.service_schemas =
             terminal_psi::TerminalServiceSchema::join(&module.interfaces.service_schemas, &schemas)
-                .map_err(|reason| crate::lowering::read::services::unavailable(context, reason))?;
+                .map_err(|reason| crate::read::services::unavailable(context, reason))?;
         Ok(names)
     }
 }
@@ -344,7 +344,7 @@ pub(crate) fn authored_ceiling_owner(
                 current = machine.symbol;
                 continue;
             }
-            if let Some(template) = crate::lowering::template_of(typed, current) {
+            if let Some(template) = crate::template_of(typed, current) {
                 current = template;
                 continue;
             }
@@ -378,7 +378,7 @@ pub(crate) fn authored_source_ceiling(
     if !has_authored_ceiling(typed, context, symbol)? {
         return Ok(None);
     }
-    crate::lowering::read::services::finite_reach(typed, context, row).map(Some)
+    crate::read::services::finite_reach(typed, context, row).map(Some)
 }
 
 /// State canonical rows from actual lowered direct, callable and boundary calls.
@@ -423,7 +423,7 @@ pub(crate) fn publish(
             .requirement_ceilings
             .get(*requirement)
             .ok_or_else(|| unavailable(*requirement, "requirement lost its service ceiling"))?;
-        if let crate::lowering::Ceiling::Authored(reach) = &ceiling.reaches {
+        if let crate::Ceiling::Authored(reach) = &ceiling.reaches {
             *published.get_mut(position(*requirement)?).ok_or_else(|| {
                 unavailable(
                     *requirement,

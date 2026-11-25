@@ -17,7 +17,7 @@ use super::*;
 /// with what it judged wrong, else the refusal's text.
 fn verdict(build: &str) -> String {
     match judge_build(build) {
-        Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+        Err(crate::CompilationRefusal::Elaboration(refusal))
         | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
         Ok(RouteVerdict::Accepted(accepted)) => {
             accepted.publish_invocation().unwrap();
@@ -148,7 +148,7 @@ pub(super) fn run(text: &str) -> Result<terminal_interpreter::TerminalExecutionS
         },
         terminal_codec::TerminalPublication::Invocation,
     );
-    let accepted = match crate::checking::judge(elaborated) {
+    let accepted = match crate::judge(elaborated) {
         Ok(RouteVerdict::Accepted(accepted)) => accepted,
         Ok(RouteVerdict::FallBack(refusal)) | Err(refusal) => return Err(refusal.detail),
         Ok(other) => return Err(format!("{other:?}")),
@@ -548,7 +548,7 @@ fn a_missing_stored_reference_disposition_is_refused() {
         }
     }
     assert!(removed > 0);
-    let refused = crate::checking::judge(Ok(elaborated)).unwrap_err();
+    let refused = crate::judge(Ok(elaborated)).unwrap_err();
     assert!(
         refused.detail.contains("no explicit last-use disposition"),
         "{refused:?}"

@@ -224,7 +224,7 @@ mod tests {
         use terminal_check_tables::{RefusalReason, RefusalSite, UnprovedCause};
 
         let identity = PropositionId::new(1).unwrap();
-        let refusal = crate::checking::derive_contract_obligation(
+        let refusal = crate::derive_contract_obligation(
             RefusalSite::Program,
             &PropositionContext::default(),
             ObligationId::new(1).unwrap(),
@@ -364,7 +364,7 @@ mod tests {
     }
 
     fn accepted() -> RouteVerdict {
-        crate::checking::judge(Ok(elaboration(
+        crate::judge(Ok(elaboration(
             terminal_codec::TerminalPublication::Portable,
         )))
         .unwrap()
@@ -374,7 +374,7 @@ mod tests {
     fn invocation_publication_keeps_the_judged_module_and_scope() {
         let stated = elaboration(terminal_codec::TerminalPublication::Invocation);
         let closure = accept_compilation(vec![
-            crate::checking::judge(Ok(stated)).map_err(CompilationRefusal::Elaboration),
+            crate::judge(Ok(stated)).map_err(CompilationRefusal::Elaboration),
         ])
         .unwrap()
         .closure;
@@ -400,7 +400,7 @@ mod tests {
             let publication = terminal_codec::TerminalPublication::Invocation;
             let complete = elaboration_with(publication, &source, None);
             let stated = elaboration_with(publication, &source, Some("pause"));
-            let RouteVerdict::AcceptedPrefix(closure) = crate::checking::judge(Ok(stated)).unwrap()
+            let RouteVerdict::AcceptedPrefix(closure) = crate::judge(Ok(stated)).unwrap()
             else {
                 panic!("a projected unit entry still owes its suffix");
             };
@@ -415,7 +415,7 @@ mod tests {
                     && matches!(block.terminator, terminal_psi::Terminator::Jump { .. })
             }));
             let RouteVerdict::Accepted(closure_full) =
-                crate::checking::judge(Ok(complete)).unwrap()
+                crate::judge(Ok(complete)).unwrap()
             else {
                 panic!("the ordinary call returns normally");
             };
@@ -452,7 +452,7 @@ machine pause() suspends {}
                 Some("pause"),
                 &["gauge", "held"],
             );
-            let verdict = crate::checking::judge(Ok(stated)).unwrap();
+            let verdict = crate::judge(Ok(stated)).unwrap();
             if legal {
                 assert!(
                     matches!(verdict, RouteVerdict::AcceptedPrefix(_)),
@@ -525,7 +525,7 @@ machine pause() suspends {}
             .unwrap();
         scalars.push(unreturned);
         let diagnostics = accept_compilation(vec![
-            crate::checking::judge(Ok(forged)).map_err(CompilationRefusal::Elaboration),
+            crate::judge(Ok(forged)).map_err(CompilationRefusal::Elaboration),
         ])
         .unwrap_err();
         assert!(
@@ -534,7 +534,7 @@ machine pause() suspends {}
                 .contains("a live scalar has no declaration in its machine")),
             "{diagnostics:?}"
         );
-        let RouteVerdict::AcceptedPrefix(closure) = crate::checking::judge(Ok(stated)).unwrap()
+        let RouteVerdict::AcceptedPrefix(closure) = crate::judge(Ok(stated)).unwrap()
         else {
             panic!("the partial body must receive its own checked verdict");
         };

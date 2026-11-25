@@ -26,7 +26,7 @@ use terminal_semantics::substitution::clauses::{ClauseBindings, substitute_claus
 /// changing it; no admission token is persisted.
 pub struct ReplayScope<'a> {
     elaboration: &'a mut terminal_check_tables::program::Elaboration,
-    pub(super) inferred_calls: crate::checking::entry_inputs::InferredCalls,
+    pub(super) inferred_calls: crate::entry_inputs::InferredCalls,
     pub(super) inferred_results: Vec<(MachineId, u32, terminal_psi::ContractClause)>,
 }
 
@@ -39,7 +39,7 @@ fn denied_domain_cast(
         .get(denied.domain)
         .map(|source| source.label.clone())
         .unwrap_or_else(|| format!("domain {}", denied.domain.get()));
-    crate::checking::refusal(
+    crate::refusal(
         RefusalReason::Violation,
         denied.machine,
         Construct::Edge(denied.edge),
@@ -52,11 +52,11 @@ fn denied_domain_cast(
 
 pub fn prepare_replay<'source>(
     elaboration: &'source mut terminal_check_tables::program::Elaboration,
-    activity: &mut crate::checking::ProofSearchActivity,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<ReplayScope<'source>> {
-    crate::checking::nominal_calls::validate(elaboration)?;
-    crate::checking::theorems::validate_parameters(&elaboration.module)?;
-    crate::checking::theorems::finalize_citations(&mut elaboration.module, activity)?;
+    crate::nominal_calls::validate(elaboration)?;
+    crate::theorems::validate_parameters(&elaboration.module)?;
+    crate::theorems::finalize_citations(&mut elaboration.module, activity)?;
     let requirements = elaboration
         .requirements
         .iter()
@@ -87,7 +87,7 @@ pub fn prepare_replay<'source>(
                 ),
                 other => (fallback(), format!("invalid declared scalar qualifications: {other:?}")),
             };
-            crate::checking::refusal(RefusalReason::ForeignIdentity, machine, Construct::Machine, &detail)
+            crate::refusal(RefusalReason::ForeignIdentity, machine, Construct::Machine, &detail)
         })?;
     // Declared linear leaves owe their claims even when the producer omitted
     // every claim row. Check that premise before following the supplied rows.
@@ -95,7 +95,7 @@ pub fn prepare_replay<'source>(
         &elaboration.module.types.structural_types,
     )
     .map_err(|detail| {
-        crate::checking::refusal(
+        crate::refusal(
             RefusalReason::ForeignIdentity,
             elaboration
                 .module
@@ -120,7 +120,7 @@ pub fn prepare_replay<'source>(
                 QualificationViolation::Establishment(denied) => {
                     denied_domain_cast(elaboration, denied)
                 }
-                QualificationViolation::MemoryAccess { machine, operation } => crate::checking::refusal(
+                QualificationViolation::MemoryAccess { machine, operation } => crate::refusal(
                     RefusalReason::Violation,
                     machine,
                     Construct::Operation(operation),
@@ -128,7 +128,7 @@ pub fn prepare_replay<'source>(
                 ),
             };
         }
-        crate::checking::refusal(
+        crate::refusal(
             RefusalReason::ForeignIdentity,
             error
                 .machine
@@ -208,31 +208,31 @@ impl ReplayScope<'_> {
 
     pub(crate) fn infer_inputs(
         &mut self,
-        unreached: &mut crate::checking::Unreached,
+        unreached: &mut crate::Unreached,
         inhabitation: &terminal_semantics::inhabitation::Inhabitation,
-        activity: &mut crate::checking::ProofSearchActivity,
+        activity: &mut crate::ProofSearchActivity,
     ) -> Checked<()> {
-        crate::checking::entry_inputs::infer(self, unreached, inhabitation, activity)
+        crate::entry_inputs::infer(self, unreached, inhabitation, activity)
     }
 
     pub(crate) fn infer_results(
         &mut self,
-        unreached: &mut crate::checking::Unreached,
+        unreached: &mut crate::Unreached,
         inhabitation: &terminal_semantics::inhabitation::Inhabitation,
-        activity: &mut crate::checking::ProofSearchActivity,
+        activity: &mut crate::ProofSearchActivity,
     ) -> Checked<()> {
-        crate::checking::result_summaries::infer(self, unreached, inhabitation, activity)
+        crate::result_summaries::infer(self, unreached, inhabitation, activity)
     }
 
     pub(crate) fn require(
         &mut self,
         callee: MachineId,
         predicate: Proposition,
-        sites: &crate::checking::entry_inputs::CallSites,
-        activity: &mut crate::checking::ProofSearchActivity,
+        sites: &crate::entry_inputs::CallSites,
+        activity: &mut crate::ProofSearchActivity,
     ) -> Checked<()> {
         // This publisher forms the proposed contract before changing it.
-        crate::checking::entry_inputs::require(
+        crate::entry_inputs::require(
             self.elaboration,
             &mut self.inferred_calls,
             callee,
@@ -247,10 +247,10 @@ impl ReplayScope<'_> {
         machine: MachineId,
         summary: Proposition,
         exits: &[(semantic_vocabulary::EdgeId, ValueId)],
-        activity: &mut crate::checking::ProofSearchActivity,
+        activity: &mut crate::ProofSearchActivity,
     ) -> Checked<()> {
         // This publisher also forms the complete replacement before use.
-        crate::checking::result_summaries::publish(
+        crate::result_summaries::publish(
             self.elaboration,
             machine,
             summary,
@@ -264,7 +264,7 @@ impl ReplayScope<'_> {
             .invocation_scope()
             .is_some()
         {
-            let declaration = crate::checking::terminal_machine(
+            let declaration = crate::terminal_machine(
                 &self.elaboration.module.machines,
                 machine,
                 machine,
@@ -275,7 +275,7 @@ impl ReplayScope<'_> {
                 .enumerate()
                 .next_back()
                 .ok_or_else(|| {
-                    crate::checking::refusal(
+                    crate::refusal(
                         terminal_check_tables::RefusalReason::ForeignIdentity,
                         machine,
                         terminal_check_tables::Construct::Machine,
@@ -284,7 +284,7 @@ impl ReplayScope<'_> {
                 })?;
             self.inferred_results.push((
                 machine,
-                crate::checking::position(ordinal, machine)?,
+                crate::position(ordinal, machine)?,
                 added.clone(),
             ));
         }
@@ -293,7 +293,7 @@ impl ReplayScope<'_> {
 
     pub(super) fn publish_rankings(
         &mut self,
-        discharges: &arena::IdTable<MachineId, crate::checking::MachineDischarge>,
+        discharges: &arena::IdTable<MachineId, crate::MachineDischarge>,
     ) -> Checked<()> {
         for machine in &mut self.elaboration.module.machines {
             if machine.ranked_scc.is_none() {
@@ -301,17 +301,17 @@ impl ReplayScope<'_> {
             }
             let discharge =
                 terminal_check_tables::row(discharges, machine.id, machine.id, Construct::Machine)?;
-            crate::checking::rankings::publish_comparisons(machine, discharge)?;
+            crate::rankings::publish_comparisons(machine, discharge)?;
         }
         Ok(())
     }
 
     pub(crate) fn finalize_callable_refinements(
         &mut self,
-        activity: &mut crate::checking::ProofSearchActivity,
+        activity: &mut crate::ProofSearchActivity,
     ) -> Checked<()> {
-        crate::checking::finalize_callable_refinements(&mut self.elaboration.module, activity)?;
-        crate::checking::theorems::finalize_citations(&mut self.elaboration.module, activity)
+        crate::finalize_callable_refinements(&mut self.elaboration.module, activity)?;
+        crate::theorems::finalize_citations(&mut self.elaboration.module, activity)
     }
 
     // Kept private to the replay implementation. No caller can obtain a
@@ -380,7 +380,7 @@ struct Facts {
     equations: Vec<Proposition>,
 }
 
-impl crate::checking::known::ProofValues for Facts {
+impl crate::known::ProofValues for Facts {
     fn count(&self) -> usize {
         self.values.len()
     }
@@ -416,7 +416,7 @@ struct Scope<'a, 'activity> {
     subject_prefix: Vec<Segment>,
     completion: bool,
     facts: Facts,
-    activity: &'activity mut crate::checking::ProofSearchActivity,
+    activity: &'activity mut crate::ProofSearchActivity,
 }
 
 impl Scope<'_, '_> {
@@ -495,7 +495,7 @@ impl Scope<'_, '_> {
                 BindingError::Unsupported("contract logical inputs have unsupported scalar types")
             })?;
         let probe = ObligationId::new(1).expect("nonzero");
-        let certificate = crate::checking::search_certificate(
+        let certificate = crate::search_certificate(
             &context,
             &self.facts,
             self.diagnostic,
@@ -507,7 +507,7 @@ impl Scope<'_, '_> {
             self.activity,
         )
         .map_err(BindingError::Unproved)?;
-        crate::checking::verify_certificate(
+        crate::verify_certificate(
             &context,
             self.diagnostic,
             probe,
@@ -536,7 +536,7 @@ impl Scope<'_, '_> {
 
     fn error(&self, error: BindingError, owner: &str) -> Refusal {
         match error {
-            BindingError::Unsupported(detail) => crate::checking::refusal(
+            BindingError::Unsupported(detail) => crate::refusal(
                 RefusalReason::Unsupported,
                 self.diagnostic,
                 Construct::Machine,
@@ -549,7 +549,7 @@ impl Scope<'_, '_> {
                     ) => RefusalReason::Unsupported,
                     _ => RefusalReason::Violation,
                 };
-                crate::checking::refusal(
+                crate::refusal(
                     reason,
                     self.diagnostic,
                     Construct::Machine,
@@ -949,7 +949,7 @@ pub(crate) fn contract(
     module: &TerminalModule,
     diagnostic: MachineId,
     contract: &MachineContract,
-    activity: &mut crate::checking::ProofSearchActivity,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     let guards: Vec<_> = crash_clauses(&contract.crash_routes)
         .chain(
@@ -1033,7 +1033,7 @@ pub(crate) fn contract(
 pub(crate) fn module(
     module: &TerminalModule,
     predicate_sources: &[terminal_check_tables::program::PredicateSource],
-    activity: &mut crate::checking::ProofSearchActivity,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     let diagnostic = module
         .machines
@@ -1045,7 +1045,7 @@ pub(crate) fn module(
         .windows(2)
         .any(|pair| pair[0].declaration >= pair[1].declaration)
     {
-        return Err(crate::checking::refusal(
+        return Err(crate::refusal(
             RefusalReason::ForeignIdentity,
             diagnostic,
             Construct::Machine,
@@ -1059,7 +1059,7 @@ pub(crate) fn module(
             .map(|position| &predicate_sources[position]);
         let diagnostic = source.map_or(diagnostic, |source| source.machine);
         let invalid = |detail: &str| {
-            crate::checking::refusal(
+            crate::refusal(
                 RefusalReason::ForeignIdentity,
                 diagnostic,
                 Construct::Machine,
@@ -1141,7 +1141,7 @@ pub(crate) fn module(
             module,
             diagnostic,
             inputs: boundary.scalar_contract_parameters().ok_or_else(|| {
-                crate::checking::refusal(
+                crate::refusal(
                     RefusalReason::Unsupported,
                     diagnostic,
                     Construct::Machine,
@@ -1365,7 +1365,7 @@ fn add_projected_defaults<'types>(
 fn data_domains(
     module: &TerminalModule,
     diagnostic: MachineId,
-    activity: &mut crate::checking::ProofSearchActivity,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     let mut predicates = module
         .types.structural_domains
@@ -1377,7 +1377,7 @@ fn data_domains(
         .collect::<Vec<_>>();
     predicates.sort_unstable_by_key(|&(carrier, domain, _)| (carrier, domain));
     let carrier_error = |detail| {
-        crate::checking::refusal(
+        crate::refusal(
             RefusalReason::ForeignIdentity,
             diagnostic,
             Construct::Machine,

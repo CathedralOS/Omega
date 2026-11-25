@@ -8,12 +8,12 @@ use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
 use terminal_psi::{ExternalProviderConformance, ExternalProviderOwner, TerminalModule};
 
-use crate::lowering::{Signature, boundaries::BoundaryNamespace, callables::CallableNamespace};
+use crate::{Signature, boundaries::BoundaryNamespace, callables::CallableNamespace};
 
 pub use terminal_check_tables::contracts::ExternalProviderCandidate;
 
 #[cfg(any(test, feature = "test-support"))]
-pub type ProviderContractHeader = crate::lowering::callable_headers::CallableHeader;
+pub type ProviderContractHeader = crate::callable_headers::CallableHeader;
 
 #[derive(Debug, Clone)]
 pub(crate) struct ProviderOwnerSource {
@@ -28,8 +28,8 @@ pub(crate) struct ExternalProviderSource {
     pub state: SymbolHandle,
     pub requirement: BoundaryMachineId,
     pub signature: Signature,
-    pub envelope: crate::lowering::reach::SourceEnvelope,
-    pub declaration: crate::lowering::declare::BoundaryDeclarationSource,
+    pub envelope: crate::reach::SourceEnvelope,
+    pub declaration: crate::declare::BoundaryDeclarationSource,
     pub provider: Option<ProviderOwnerSource>,
     pub package: Option<PackageKeyIdentity>,
     pub requirement_package: Option<PackageKeyIdentity>,
@@ -50,16 +50,16 @@ impl ExternalProviderNamespace {
         &self,
         context: MachineId,
         signatures: &IdTable<MachineId, Signature>,
-        outcomes: &IdTable<MachineId, crate::lowering::Outcome>,
-        records: &crate::lowering::lower::places::Records<'_>,
+        outcomes: &IdTable<MachineId, crate::Outcome>,
+        records: &crate::lower::places::Records<'_>,
         callables: &CallableNamespace,
         boundaries: &BoundaryNamespace,
-        services: &crate::lowering::reach::ServiceMap,
-        qualifications: &mut crate::lowering::qualifications::Qualifications,
+        services: &crate::reach::ServiceMap,
+        qualifications: &mut crate::qualifications::Qualifications,
         module: &mut TerminalModule,
         typed_source: Option<&crate::source_state::TypedTrees>,
     ) -> Checked<Vec<ExternalProviderCandidate>> {
-        let refuse = |detail| crate::lowering::read::services::unavailable(context, detail);
+        let refuse = |detail| crate::read::services::unavailable(context, detail);
         if !module.interfaces.external_providers.is_empty() {
             return Err(refuse(
                 "native candidates cannot overwrite checked provider publication",
@@ -78,7 +78,7 @@ impl ExternalProviderNamespace {
                 refuse("native candidate requirement lost its source declaration")
             })?;
             let mut header = |signature: &Signature| {
-                crate::lowering::lower::signature_header(
+                crate::lower::signature_header(
                     context,
                     signature,
                     signatures,
@@ -93,7 +93,7 @@ impl ExternalProviderNamespace {
             let required_header = header(&required.signature)?;
             let required_envelope = services.envelope(context, &required.envelope)?;
             let supplied_envelope = services.envelope(context, &source.envelope)?;
-            let realization = crate::lowering::declare::provider_declaration(
+            let realization = crate::declare::provider_declaration(
                 typed_source,
                 &source.declaration,
                 &source.signature,
@@ -116,7 +116,7 @@ impl ExternalProviderNamespace {
                     .map_err(|_| {
                         refuse("native provider owner lost its exact toolchain source identities")
                     })?;
-                    let declaration = crate::lowering::declare::nominal(
+                    let declaration = crate::declare::nominal(
                         typed,
                         &sources,
                         owner.nominal,

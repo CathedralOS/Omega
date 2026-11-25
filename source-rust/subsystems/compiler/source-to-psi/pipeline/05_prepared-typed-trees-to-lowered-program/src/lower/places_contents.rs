@@ -84,7 +84,7 @@ impl Observation {
 }
 
 impl Lowering<'_> {
-    pub(in crate::lowering::lower) fn name_clause_contents(
+    pub(in crate::lower) fn name_clause_contents(
         &mut self,
         clause: &Proposition,
         bindings: &[(PlaceId, ExactPlaceId)],
@@ -93,7 +93,7 @@ impl Lowering<'_> {
         self.name_call_clause_contents(clause, bindings, result, &[])
     }
 
-    pub(in crate::lowering::lower) fn name_call_clause_contents(
+    pub(in crate::lower) fn name_call_clause_contents(
         &mut self,
         clause: &Proposition,
         bindings: &[(PlaceId, ExactPlaceId)],
@@ -149,7 +149,7 @@ impl Lowering<'_> {
     /// Named qualifications and type defaults name the same current storage
     /// that restoration checks inspect. Inventory those clauses before sealing
     /// snapshot identities; preparing a question supplies no proof of it.
-    pub(in crate::lowering::lower) fn name_default_contents(
+    pub(in crate::lower) fn name_default_contents(
         &mut self,
         machine: &terminal_psi::TerminalMachine,
         types: &[terminal_psi::StructuralTypeDeclaration],
@@ -269,7 +269,7 @@ impl Lowering<'_> {
         Ok(())
     }
 
-    pub(in crate::lowering::lower) fn name_storage_contents(
+    pub(in crate::lower) fn name_storage_contents(
         &mut self,
         machine: &terminal_psi::TerminalMachine,
     ) -> Checked<()> {

@@ -27,11 +27,11 @@ use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::CrashRouteGuard;
 
-use crate::lowering::body::{
+use crate::body::{
     Body, Borrowed, CallTarget, CrashCeiling, Expression, ExpressionKind, Regions, Signature,
     Statement, Target, Termination, ValueType,
 };
-use crate::lowering::{Unserved, refuse};
+use crate::{Unserved, refuse};
 
 #[path = "components_graph.rs"]
 mod graph;

@@ -10,7 +10,7 @@ use semantic_vocabulary::{MachineId, StructuralTypeId};
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
 
 use super::{Program, places::literal_value_type, regions::Substitution};
-use crate::lowering::{Expression, ExpressionKind, SourceOrigin, ValueType};
+use crate::{Expression, ExpressionKind, SourceOrigin, ValueType};
 
 fn invalid(machine: MachineId, detail: impl Into<String>) -> Refusal {
     Refusal {
@@ -296,7 +296,7 @@ impl Program<'_> {
                     field.value_type
                         == ValueType::Scalar(
                             ScalarType::Boolean,
-                            crate::lowering::body::Qualification::NONE,
+                            crate::body::Qualification::NONE,
                         )
                 }
                 _ => false,

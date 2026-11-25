@@ -31,7 +31,7 @@ use terminal_check_tables::Checked;
 use terminal_check_tables::values::RigidType;
 
 use super::Program;
-use crate::lowering::body::ValueType;
+use crate::body::ValueType;
 
 /// One field of `integer::Carrier`, by the name the exact toolchain
 /// declaration gives it.
@@ -417,10 +417,10 @@ impl Program<'_> {
                 }
             };
             if !self.rigid_carriers[position].1.assume(facet, truth) {
-                return Err(crate::lowering::refuse(
+                return Err(crate::refuse(
                     id,
                     terminal_check_tables::Construct::Machine,
-                    crate::lowering::Unserved::Contract(
+                    crate::Unserved::Contract(
                         "integer carrier premises that contradict each other",
                     ),
                 ));

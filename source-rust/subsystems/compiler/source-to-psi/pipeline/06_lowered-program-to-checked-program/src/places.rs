@@ -92,8 +92,8 @@ use terminal_psi::{
     TerminalMachineResult, Terminator, ValueDeclaration,
 };
 
-use crate::checking::graph::Graph;
-use crate::checking::{StorageUse, refusal};
+use crate::graph::Graph;
+use crate::{StorageUse, refusal};
 
 mod arrivals;
 mod backing;
@@ -441,11 +441,11 @@ fn stated_cases(
             continue;
         };
         let Ok(call) =
-            crate::checking::call_contracts::invocation(module, lowered, tables, id, row)
+            crate::call_contracts::invocation(module, lowered, tables, id, row)
         else {
             continue;
         };
-        let crate::checking::call_contracts::ResultFormal::Structural(formal, _) =
+        let crate::call_contracts::ResultFormal::Structural(formal, _) =
             call.contract.result
         else {
             continue;
@@ -1156,7 +1156,7 @@ pub(crate) struct Storage<'a> {
     fixed_write_indices: IdTable<ValueId, Option<u64>>,
     writes_by_root: BTreeMap<(BlockId, PlaceId), Vec<usize>>,
     arrivals: Vec<Vec<arrivals::Arrival>>,
-    cleanup_writes: Vec<crate::checking::owned_cleanup::Write>,
+    cleanup_writes: Vec<crate::owned_cleanup::Write>,
     observations: Vec<BTreeMap<Lineage, Vec<Observation>>>,
     /// The `requires` clauses of each data type, by its identity
     /// (`Elaboration::domains`).
@@ -1316,7 +1316,7 @@ impl<'a> Storage<'a> {
         storage.initial_contents_are_declared(references, tables)?;
         storage.log = storage.stores(references, value_types)?;
         storage.cleanup_writes =
-            crate::checking::owned_cleanup::writes(module, lowered, references)?;
+            crate::owned_cleanup::writes(module, lowered, references)?;
         storage.log_is_stated(tables)?;
         storage.cleanup_log_is_stated(tables)?;
         // All writes have been authenticated against their operations. Keep the
@@ -1407,7 +1407,7 @@ impl<'a> Storage<'a> {
     fn validate_float_meaning_source(
         &self,
         source: &ScalarTerm,
-    ) -> Result<(), crate::checking::Unbound> {
+    ) -> Result<(), crate::Unbound> {
         let sources = self
             .float_meanings
             .get_or_init(|| {
@@ -1417,11 +1417,11 @@ impl<'a> Storage<'a> {
                 terminal_semantics::float_meaning_sources::Sources::for_machine(self.lowered)
             })
             .as_ref()
-            .map_err(|detail| crate::checking::Unbound::Unsupported(detail))?;
+            .map_err(|detail| crate::Unbound::Unsupported(detail))?;
         sources
             .source(source)
             .map(|_| ())
-            .map_err(crate::checking::Unbound::Unsupported)
+            .map_err(crate::Unbound::Unsupported)
     }
 
     /// Whether `operation` writes into storage that already holds a value: a
@@ -1679,7 +1679,7 @@ impl<'a> Storage<'a> {
             storage: self,
             references,
             tables,
-            scalars: crate::checking::scalar_actuals(actuals),
+            scalars: crate::scalar_actuals(actuals),
             places,
             callee_formals,
             extent_owner,
@@ -1771,7 +1771,7 @@ impl<'a> Storage<'a> {
         references: &'s mut DescriptorAnalysis<'a>,
         tables: &'s MachineTables,
         actuals: &[Actual],
-        call: &crate::checking::call_contracts::Invocation<'s>,
+        call: &crate::call_contracts::Invocation<'s>,
         site: OperationId,
         concerns: Construct,
     ) -> Checked<Returned<'s, 'a, AtCall<'s, 'a>>> {
@@ -1785,7 +1785,7 @@ impl<'a> Storage<'a> {
         )?;
         let result = call.contract.result;
         let operation = self.operation(site, concerns)?;
-        use crate::checking::call_contracts::ResultFormal;
+        use crate::call_contracts::ResultFormal;
         let (structural, scalar) = match (result, &operation.result) {
             (ResultFormal::Unit, terminal_psi::OperationResult::Unit) => (None, None),
             (ResultFormal::Scalar(formal), terminal_psi::OperationResult::Scalar(actual)) => {
@@ -2016,10 +2016,10 @@ impl<'a> Storage<'a> {
             place: &owner.place,
             found: Vec::new(),
         };
-        match crate::checking::substitute(&self.clause(owner, concerns)?, &mut names) {
-            Ok(_) | Err(crate::checking::Unbound::Unproved(_)) => {}
-            Err(crate::checking::Unbound::Unsupported(_)) => return Ok(false),
-            Err(crate::checking::Unbound::Refused(refused)) => return Err(refused),
+        match crate::substitute(&self.clause(owner, concerns)?, &mut names) {
+            Ok(_) | Err(crate::Unbound::Unproved(_)) => {}
+            Err(crate::Unbound::Unsupported(_)) => return Ok(false),
+            Err(crate::Unbound::Refused(refused)) => return Err(refused),
         }
         // Compare the complete captured storage versions. A descriptor-relative
         // write can change a clause on its original lender even when their
@@ -2180,7 +2180,7 @@ impl<'a> Storage<'a> {
         formal_type: StructuralTypeId,
         path: &[CanonicalStructuralPathSegment],
         concerns: Construct,
-    ) -> Result<Lineage, crate::checking::Unbound> {
+    ) -> Result<Lineage, crate::Unbound> {
         if path.is_empty() {
             return Ok(actual.clone());
         }
@@ -2194,7 +2194,7 @@ impl<'a> Storage<'a> {
                     path,
                 )
             })
-            .ok_or(crate::checking::Unbound::Unsupported(
+            .ok_or(crate::Unbound::Unsupported(
                 "a contract projection has no corresponding field on the actual storage",
             ))?;
         extended(actual.clone(), &path)
@@ -2800,13 +2800,13 @@ impl<'a> Storage<'a> {
                 let operation = self.operation(id, concerns)?;
                 if let Some(semantics) =
                     terminal_semantics::proof_bearing_scalar_leaf_semantics(operation, types)
-                        .map_err(crate::checking::semantics_refusal(self.machine, id))?
+                        .map_err(crate::semantics_refusal(self.machine, id))?
                     && semantics.obligation() == obligation
                 {
                     return semantics
                         .canonical_goal()
                         .kernel_proposition()
-                        .map_err(crate::checking::semantics_refusal(self.machine, id));
+                        .map_err(crate::semantics_refusal(self.machine, id));
                 }
                 if let OperationKind::ByteSequenceSubslice {
                     obligation: owned, ..
@@ -3100,7 +3100,7 @@ impl<'a> Storage<'a> {
             ));
         }
         terminal_semantics::operation_safety_goal(operation, types)
-            .map_err(crate::checking::semantics_refusal(
+            .map_err(crate::semantics_refusal(
                 self.machine,
                 operation.id,
             ))?
@@ -3664,7 +3664,7 @@ impl<'a> Storage<'a> {
             segments: parent.to_vec(),
         };
         let operation = self.operation(row.operation, concerns)?;
-        if crate::checking::call_contracts::operation_inputs(operation).is_none() {
+        if crate::call_contracts::operation_inputs(operation).is_none() {
             return Ok(false);
         }
         let (block, after) = self
@@ -4754,10 +4754,10 @@ impl<'a> Storage<'a> {
                     result: ScalarTerm::value(observed, scalar_type),
                     scalar_type,
                 };
-                match crate::checking::substitute(clause, &mut bindings) {
+                match crate::substitute(clause, &mut bindings) {
                     Ok(Proposition::Truth | Proposition::Falsehood) => {}
                     Ok(premise) => premises.push(premise),
-                    Err(crate::checking::Unbound::Unproved(_)) => {}
+                    Err(crate::Unbound::Unproved(_)) => {}
                     Err(unbound) => return Err(unbound.refusal(self.machine, concerns)),
                 }
             }
@@ -5729,7 +5729,7 @@ impl<'a> Storage<'a> {
         actual: &Lineage,
         concerns: Construct,
         position: (BlockId, usize),
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         let mut required = terminal_psi::ByteSequencePredicateSet::EMPTY;
         required.insert(predicate);
         if actual.segments.is_empty()
@@ -5753,7 +5753,7 @@ impl<'a> Storage<'a> {
         predicate: semantic_vocabulary::ByteSequencePredicate,
         actual: &Lineage,
         concerns: Construct,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         let mut memo = IdTable::from_rows(
             self.lowered
                 .structural_places
@@ -5761,7 +5761,7 @@ impl<'a> Storage<'a> {
                 .map(|place| (place.id, BytePredicateState::Unseen)),
         )
         .map_err(|_| {
-            crate::checking::Unbound::Unsupported(
+            crate::Unbound::Unsupported(
                 "byte source places are not dense in declaration order",
             )
         })?;
@@ -5774,27 +5774,27 @@ impl<'a> Storage<'a> {
         actual: &Lineage,
         concerns: Construct,
         memo: &mut IdTable<PlaceId, BytePredicateState>,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         if !actual.segments.is_empty() {
-            return Err(crate::checking::Unbound::Unsupported(
+            return Err(crate::Unbound::Unsupported(
                 "a byte predicate of a view inside other storage",
             ));
         }
         let state = memo
             .get_mut(actual.root)
-            .ok_or(crate::checking::Unbound::Unsupported(
+            .ok_or(crate::Unbound::Unsupported(
                 "a byte source names no declared place",
             ))?;
         match state {
             BytePredicateState::Resolved(result) => return Ok(result.clone()),
             BytePredicateState::Visiting => {
-                return Err(crate::checking::Unbound::Unsupported(
+                return Err(crate::Unbound::Unsupported(
                     "a byte predicate of a view copied in a cycle",
                 ));
             }
             BytePredicateState::Unseen => *state = BytePredicateState::Visiting,
         }
-        let refused = crate::checking::Unbound::Refused;
+        let refused = crate::Unbound::Refused;
         let place = actual.root;
         let establishes_predicate = || {
             terminal_semantics::byte_sequence_source_predicates(self.module, self.lowered, place)
@@ -5805,7 +5805,7 @@ impl<'a> Storage<'a> {
                 let bytes = self
                     .literal_bytes(place, concerns)
                     .map_err(refused)?
-                    .ok_or(crate::checking::Unbound::Unsupported(
+                    .ok_or(crate::Unbound::Unsupported(
                         "a byte literal has no exact establishment",
                     ))?;
                 ScalarTerm::Boolean(predicate.holds_for(bytes))
@@ -5822,7 +5822,7 @@ impl<'a> Storage<'a> {
                                 .is_some_and(|ty| ty.shape.is_shared_readable_byte_view())
                     });
                 if !shared {
-                    return Err(crate::checking::Unbound::Unsupported(
+                    return Err(crate::Unbound::Unsupported(
                         "a byte predicate of an input that is not an immutable shared byte view",
                     ));
                 }
@@ -5830,14 +5830,14 @@ impl<'a> Storage<'a> {
             }
             StructuralPlaceKind::BlockParameter { .. } => {
                 let formal = terminal_semantics::arrival_parameter(self.lowered, place).ok_or(
-                    crate::checking::Unbound::Unsupported("a byte arrival has no exact formal"),
+                    crate::Unbound::Unsupported("a byte arrival has no exact formal"),
                 )?;
                 if !self
                     .module
                     .structural_type(formal.structural_type)
                     .is_some_and(|ty| ty.shape.is_shared_readable_byte_view())
                 {
-                    return Err(crate::checking::Unbound::Unsupported(
+                    return Err(crate::Unbound::Unsupported(
                         "a byte arrival is not a shared view",
                     ));
                 }
@@ -5888,25 +5888,25 @@ impl<'a> Storage<'a> {
                         // from its exact source; no annotation proves this term.
                         ScalarTerm::byte_sequence_predicate(predicate, place, Vec::new())
                     } else {
-                        return Err(crate::checking::Unbound::Unsupported(
+                        return Err(crate::Unbound::Unsupported(
                             "a byte result does not establish this predicate",
                         ));
                     }
                 } else {
-                    return Err(crate::checking::Unbound::Unsupported(
+                    return Err(crate::Unbound::Unsupported(
                         "a byte result has no admitted predicate source",
                     ));
                 }
             }
             _ => {
-                return Err(crate::checking::Unbound::Unsupported(
+                return Err(crate::Unbound::Unsupported(
                     "a byte predicate has no established source",
                 ));
             }
         };
         *memo
             .get_mut(place)
-            .ok_or(crate::checking::Unbound::Unsupported(
+            .ok_or(crate::Unbound::Unsupported(
                 "a byte source lost its declared place",
             ))? = BytePredicateState::Resolved(result.clone());
         Ok(result)
@@ -5958,7 +5958,7 @@ impl<'a> Storage<'a> {
                 (block, before),
             ) {
                 Ok(term) => term,
-                Err(crate::checking::Unbound::Refused(refusal)) => return Err(refusal),
+                Err(crate::Unbound::Refused(refusal)) => return Err(refusal),
                 Err(_) => continue,
             };
             for inherited in ByteSequencePredicate::ALL {
@@ -6078,7 +6078,7 @@ impl<'a> Storage<'a> {
                         touches.push(Touch {
                             cleanup: Some((
                                 edge,
-                                crate::checking::position(ordinal, self.machine)?,
+                                crate::position(ordinal, self.machine)?,
                             )),
                             at: Construct::Edge(edge),
                             block: block.id,
@@ -6584,7 +6584,7 @@ struct Held<'s, 'a> {
 fn extended(
     mut place: Lineage,
     path: &[CanonicalStructuralPathSegment],
-) -> Result<Lineage, crate::checking::Unbound> {
+) -> Result<Lineage, crate::Unbound> {
     for segment in path {
         place.segments.push(match segment {
             CanonicalStructuralPathSegment::Field(field) => Segment::Field(*field),
@@ -6604,7 +6604,7 @@ fn indexed_place(
     tables: &MachineTables,
     mut actual: Lineage,
     path: &[semantic_vocabulary::ScalarReadProjection],
-) -> Result<Lineage, crate::checking::Unbound> {
+) -> Result<Lineage, crate::Unbound> {
     use semantic_vocabulary::ScalarReadProjection;
     for step in path {
         let segment = match step {
@@ -6626,8 +6626,8 @@ fn index_segment(
     tables: &MachineTables,
     parent: &Lineage,
     term: &ScalarTerm,
-) -> Result<Segment, crate::checking::Unbound> {
-    use crate::checking::Unbound;
+) -> Result<Segment, crate::Unbound> {
+    use crate::Unbound;
     use semantic_vocabulary::IntegerValue;
     let value = match term {
         ScalarTerm::Value { id, .. } => Some(*id),
@@ -6710,9 +6710,9 @@ impl<'a> Held<'_, 'a> {
         &self,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
-    ) -> Result<Lineage, crate::checking::Unbound> {
+    ) -> Result<Lineage, crate::Unbound> {
         if Some(root) != terminal_check_tables::program::self_place() {
-            return Err(crate::checking::Unbound::Unsupported(
+            return Err(crate::Unbound::Unsupported(
                 "a data clause names storage other than its own value",
             ));
         }
@@ -6739,49 +6739,49 @@ pub(crate) struct Returned<'s, 'a, Inputs> {
 /// evaluated. A completion read changes its observation point, never the
 /// argument or the reference identity it follows.
 pub(crate) trait InputPlaces<'a>:
-    crate::checking::Bindings<Error = crate::checking::Unbound>
+    crate::Bindings<Error = crate::Unbound>
 {
     fn references(&mut self) -> &mut DescriptorAnalysis<'a>;
     fn input_place(
         &self,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
-    ) -> Result<Lineage, crate::checking::Unbound>;
+    ) -> Result<Lineage, crate::Unbound>;
 }
 
 impl<'s, 'a, Inputs: InputPlaces<'a>> Returned<'s, 'a, Inputs> {
     fn formal_access(
         &self,
         root: PlaceId,
-    ) -> Result<terminal_psi::StructuralAccess, crate::checking::Unbound> {
+    ) -> Result<terminal_psi::StructuralAccess, crate::Unbound> {
         terminal_psi::StructuralParameterDeclaration::find_by_place(self.input_formals, root)
             .map(|formal| formal.access)
-            .ok_or(crate::checking::Unbound::Unsupported(
+            .ok_or(crate::Unbound::Unsupported(
                 "a completion clause names storage that is no formal",
             ))
     }
 
-    fn owned_inputs(&mut self, root: PlaceId) -> Result<&mut Inputs, crate::checking::Unbound> {
+    fn owned_inputs(&mut self, root: PlaceId) -> Result<&mut Inputs, crate::Unbound> {
         if self.formal_access(root)? != terminal_psi::StructuralAccess::Owned {
-            return Err(crate::checking::Unbound::Unsupported(
+            return Err(crate::Unbound::Unsupported(
                 "borrowed completion storage has no post-call observation",
             ));
         }
         Ok(&mut self.inputs)
     }
 
-    fn held(&mut self) -> Result<Held<'_, 'a>, crate::checking::Unbound> {
+    fn held(&mut self) -> Result<Held<'_, 'a>, crate::Unbound> {
         let (_, place) = self
             .structural
             .as_ref()
-            .ok_or(crate::checking::Unbound::Unsupported(
+            .ok_or(crate::Unbound::Unsupported(
                 "no structural result correspondence",
             ))?;
         let (block, up_to) = self
             .storage
             .graph
             .locate(self.point)
-            .map_err(crate::checking::Unbound::Refused)?;
+            .map_err(crate::Unbound::Refused)?;
         Ok(Held {
             point: Some(self.point),
             storage: self.storage,
@@ -6797,12 +6797,12 @@ impl<'s, 'a, Inputs: InputPlaces<'a>> Returned<'s, 'a, Inputs> {
     fn held_at<'p>(
         &'p mut self,
         place: &'p Lineage,
-    ) -> Result<Held<'p, 'a>, crate::checking::Unbound> {
+    ) -> Result<Held<'p, 'a>, crate::Unbound> {
         let (block, up_to) = self
             .storage
             .graph
             .locate(self.point)
-            .map_err(crate::checking::Unbound::Refused)?;
+            .map_err(crate::Unbound::Refused)?;
         Ok(Held {
             point: Some(self.point),
             storage: self.storage,
@@ -6816,8 +6816,8 @@ impl<'s, 'a, Inputs: InputPlaces<'a>> Returned<'s, 'a, Inputs> {
     }
 }
 
-impl<'a, Inputs: InputPlaces<'a>> crate::checking::Bindings for Returned<'_, 'a, Inputs> {
-    type Error = crate::checking::Unbound;
+impl<'a, Inputs: InputPlaces<'a>> crate::Bindings for Returned<'_, 'a, Inputs> {
+    type Error = crate::Unbound;
     fn whole_input(&mut self, root: PlaceId) -> Result<PlaceId, Self::Error> {
         self.owned_inputs(root)?.whole_input(root)
     }
@@ -6829,12 +6829,12 @@ impl<'a, Inputs: InputPlaces<'a>> crate::checking::Bindings for Returned<'_, 'a,
         &mut self,
         id: ValueId,
         scalar_type: ScalarType,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         if let Some((formal, actual)) = self.scalar
             && id == formal
         {
             if self.tables.values.get(actual).map(|row| row.scalar_type) != Some(scalar_type) {
-                return Err(crate::checking::Unbound::Unsupported(
+                return Err(crate::Unbound::Unsupported(
                     "returned scalar type differs from its contract",
                 ));
             }
@@ -6848,19 +6848,19 @@ impl<'a, Inputs: InputPlaces<'a>> crate::checking::Bindings for Returned<'_, 'a,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         if self
             .structural
             .as_ref()
             .is_some_and(|(declared, _)| *declared == root)
         {
             if version == semantic_vocabulary::ContentPlaceVersion::Entry {
-                return Err(crate::checking::Unbound::Unsupported(
+                return Err(crate::Unbound::Unsupported(
                     "a result has no invocation-entry contents",
                 ));
             }
             let subject = terminal_check_tables::program::self_place().ok_or(
-                crate::checking::Unbound::Unsupported("data subject identity"),
+                crate::Unbound::Unsupported("data subject identity"),
             )?;
             return self.held()?.field(version, subject, path, scalar_type);
         }
@@ -6869,7 +6869,7 @@ impl<'a, Inputs: InputPlaces<'a>> crate::checking::Bindings for Returned<'_, 'a,
             access,
             terminal_psi::StructuralAccess::SharedBorrow,
         ) {
-            return Err(crate::checking::Unbound::Unsupported(
+            return Err(crate::Unbound::Unsupported(
                 "a clause reads a write-only input",
             ));
         }
@@ -6880,7 +6880,7 @@ impl<'a, Inputs: InputPlaces<'a>> crate::checking::Bindings for Returned<'_, 'a,
         }
         let actual = self.inputs.input_place(root, path)?;
         let subject = terminal_check_tables::program::self_place().ok_or(
-            crate::checking::Unbound::Unsupported("data subject identity"),
+            crate::Unbound::Unsupported("data subject identity"),
         )?;
         self.held_at(&actual)?.field(
             semantic_vocabulary::ContentPlaceVersion::Current,
@@ -6895,19 +6895,19 @@ impl<'a, Inputs: InputPlaces<'a>> crate::checking::Bindings for Returned<'_, 'a,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
-    ) -> Result<Vec<ScalarTerm>, crate::checking::Unbound> {
+    ) -> Result<Vec<ScalarTerm>, crate::Unbound> {
         if self
             .structural
             .as_ref()
             .is_some_and(|(declared, _)| *declared == root)
         {
             if version == semantic_vocabulary::ContentPlaceVersion::Entry {
-                return Err(crate::checking::Unbound::Unsupported(
+                return Err(crate::Unbound::Unsupported(
                     "a result has no invocation-entry contents",
                 ));
             }
             let subject = terminal_check_tables::program::self_place().ok_or(
-                crate::checking::Unbound::Unsupported("data subject identity"),
+                crate::Unbound::Unsupported("data subject identity"),
             )?;
             return self
                 .held()?
@@ -6915,7 +6915,7 @@ impl<'a, Inputs: InputPlaces<'a>> crate::checking::Bindings for Returned<'_, 'a,
         }
         let access = self.formal_access(root)?;
         if !terminal_psi::structural_access_covers(access, StructuralAccess::SharedBorrow) {
-            return Err(crate::checking::Unbound::Unsupported(
+            return Err(crate::Unbound::Unsupported(
                 "a clause reads a write-only input",
             ));
         }
@@ -6936,14 +6936,14 @@ impl<'a, Inputs: InputPlaces<'a>> crate::checking::Bindings for Returned<'_, 'a,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         scalar_type: semantic_vocabulary::IntegerType,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         if self
             .structural
             .as_ref()
             .is_some_and(|(declared, _)| *declared == root)
         {
             let subject = terminal_check_tables::program::self_place().ok_or(
-                crate::checking::Unbound::Unsupported("data subject identity"),
+                crate::Unbound::Unsupported("data subject identity"),
             )?;
             return self.held()?.extent(subject, path, scalar_type);
         }
@@ -6960,19 +6960,19 @@ impl<'a, Inputs: InputPlaces<'a>> crate::checking::Bindings for Returned<'_, 'a,
         predicate: semantic_vocabulary::ByteSequencePredicate,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         if self
             .structural
             .as_ref()
             .is_some_and(|(declared, _)| *declared == root)
         {
             let subject = terminal_check_tables::program::self_place().ok_or(
-                crate::checking::Unbound::Unsupported("data subject identity"),
+                crate::Unbound::Unsupported("data subject identity"),
             )?;
             return self.held()?.byte_predicate(predicate, subject, path);
         }
         if self.formal_access(root)? != terminal_psi::StructuralAccess::SharedBorrow {
-            return Err(crate::checking::Unbound::Unsupported(
+            return Err(crate::Unbound::Unsupported(
                 "a byte predicate at completion of other than a shared input view",
             ));
         }
@@ -6983,14 +6983,14 @@ impl<'a, Inputs: InputPlaces<'a>> crate::checking::Bindings for Returned<'_, 'a,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         case: StructuralCaseId,
-    ) -> Result<bool, crate::checking::Unbound> {
+    ) -> Result<bool, crate::Unbound> {
         if self
             .structural
             .as_ref()
             .is_some_and(|(declared, _)| *declared == root)
         {
             let subject = terminal_check_tables::program::self_place().ok_or(
-                crate::checking::Unbound::Unsupported("data subject identity"),
+                crate::Unbound::Unsupported("data subject identity"),
             )?;
             return self.held()?.case(subject, path, case);
         }
@@ -7010,41 +7010,41 @@ impl AtEntry<'_, '_> {
         &self,
         leaf: Lineage,
         scalar_type: ScalarType,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         let storage = self.storage;
         let concerns = Construct::Machine;
         let kind = storage
             .root_kind(leaf.root, concerns)
-            .map_err(crate::checking::Unbound::Refused)?;
+            .map_err(crate::Unbound::Refused)?;
         if !matches!(kind, StructuralPlaceKind::Parameter { .. }) {
-            return Err(crate::checking::Unbound::Unsupported(
+            return Err(crate::Unbound::Unsupported(
                 "an entry clause names storage that is no formal",
             ));
         }
         if !matches!(
             storage
                 .shape(&leaf, concerns)
-                .map_err(crate::checking::Unbound::Refused)?,
+                .map_err(crate::Unbound::Refused)?,
             Shape::Scalar(_)
         ) {
-            return Err(crate::checking::Unbound::Unsupported(
+            return Err(crate::Unbound::Unsupported(
                 "an entry clause names storage that is no scalar field",
             ));
         }
         let held = storage
             .interned(self.tables, &leaf, concerns)
-            .map_err(crate::checking::Unbound::Refused)?
+            .map_err(crate::Unbound::Refused)?
             .and_then(|place| storage.initial_contents.get(index(place.get())).copied())
             .flatten()
-            .ok_or(crate::checking::Unbound::Unproved(
+            .ok_or(crate::Unbound::Unproved(
                 "no operation names the field, so its entry content has no value identity",
             ))?;
         let held_type =
             terminal_check_tables::row(&self.tables.values, held, storage.machine, concerns)
-                .map_err(crate::checking::Unbound::Refused)?
+                .map_err(crate::Unbound::Refused)?
                 .scalar_type;
         if held_type != scalar_type {
-            return Err(crate::checking::Unbound::Unsupported(
+            return Err(crate::Unbound::Unsupported(
                 "a formal's field holds a value of another type than its clause term",
             ));
         }
@@ -7052,8 +7052,8 @@ impl AtEntry<'_, '_> {
     }
 }
 
-impl crate::checking::Bindings for AtEntry<'_, '_> {
-    type Error = crate::checking::Unbound;
+impl crate::Bindings for AtEntry<'_, '_> {
+    type Error = crate::Unbound;
     fn whole_input(&mut self, root: PlaceId) -> Result<PlaceId, Self::Error> {
         self.input_place(root, &[]).map(|place| place.root)
     }
@@ -7067,7 +7067,7 @@ impl crate::checking::Bindings for AtEntry<'_, '_> {
         &mut self,
         id: ValueId,
         scalar_type: ScalarType,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         Ok(ScalarTerm::value(id, scalar_type))
     }
 
@@ -7077,7 +7077,7 @@ impl crate::checking::Bindings for AtEntry<'_, '_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         self.observation(self.input_place(root, path)?, scalar_type)
     }
 
@@ -7086,7 +7086,7 @@ impl crate::checking::Bindings for AtEntry<'_, '_> {
         root: PlaceId,
         path: &[semantic_vocabulary::ScalarReadProjection],
         ty: ScalarType,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         let actual = indexed_place(
             self.storage,
             self.tables,
@@ -7096,10 +7096,10 @@ impl crate::checking::Bindings for AtEntry<'_, '_> {
         if self
             .storage
             .interned(self.tables, &actual, Construct::Machine)
-            .map_err(crate::checking::Unbound::Refused)?
+            .map_err(crate::Unbound::Refused)?
             .is_none()
         {
-            return Err(crate::checking::Unbound::Unproved(
+            return Err(crate::Unbound::Unproved(
                 "no operation captures this indexed input at entry",
             ));
         }
@@ -7111,7 +7111,7 @@ impl crate::checking::Bindings for AtEntry<'_, '_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         scalar_type: semantic_vocabulary::IntegerType,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         let mut leaf = extended(
             Lineage {
                 root,
@@ -7130,7 +7130,7 @@ impl crate::checking::Bindings for AtEntry<'_, '_> {
         predicate: semantic_vocabulary::ByteSequencePredicate,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         self.input_place(root, path)?;
         Ok(ScalarTerm::byte_sequence_predicate(
             predicate,
@@ -7144,7 +7144,7 @@ impl crate::checking::Bindings for AtEntry<'_, '_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         case: StructuralCaseId,
-    ) -> Result<bool, crate::checking::Unbound> {
+    ) -> Result<bool, crate::Unbound> {
         // The machine's own `requires` states this place's case outright, so
         // it holds at entry. Nothing decides any other test in an entry
         // clause.
@@ -7160,7 +7160,7 @@ impl crate::checking::Bindings for AtEntry<'_, '_> {
             .iter()
             .find(|(known, _)| known.root == place.root && known.segments == place.segments)
             .map(|(_, known)| *known == case)
-            .ok_or(crate::checking::Unbound::Unsupported(
+            .ok_or(crate::Unbound::Unsupported(
                 "a case test in an entry clause",
             ))
     }
@@ -7175,19 +7175,19 @@ impl<'a> InputPlaces<'a> for AtEntry<'_, 'a> {
         &self,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
-    ) -> Result<Lineage, crate::checking::Unbound> {
+    ) -> Result<Lineage, crate::Unbound> {
         let formal = terminal_psi::StructuralParameterDeclaration::find_by_place(
             &self.storage.lowered.structural_parameters,
             root,
         )
-        .ok_or(crate::checking::Unbound::Unsupported(
+        .ok_or(crate::Unbound::Unsupported(
             "a clause names storage that is no input",
         ))?;
         if !terminal_psi::structural_access_covers(
             formal.access,
             terminal_psi::StructuralAccess::SharedBorrow,
         ) {
-            return Err(crate::checking::Unbound::Unsupported(
+            return Err(crate::Unbound::Unsupported(
                 "a clause reads a write-only input",
             ));
         }
@@ -7221,14 +7221,14 @@ impl<'a> AtCall<'_, 'a> {
         &self,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
-    ) -> Result<Lineage, crate::checking::Unbound> {
+    ) -> Result<Lineage, crate::Unbound> {
         // The callee's root is one of its record formals; the actual is the
         // place at the same position of the structural lane.
         let formal = self
             .callee_formals
             .iter()
             .find(|parameter| parameter.place == root)
-            .ok_or(crate::checking::Unbound::Unsupported(
+            .ok_or(crate::Unbound::Unsupported(
                 "clause names storage that is no record formal of the callee",
             ))?;
         self.storage.actual_projection(
@@ -7242,19 +7242,19 @@ impl<'a> AtCall<'_, 'a> {
     fn readable_actual(
         &self,
         formal: &terminal_psi::StructuralParameterDeclaration,
-    ) -> Result<&Lineage, crate::checking::Unbound> {
+    ) -> Result<&Lineage, crate::Unbound> {
         if !terminal_psi::structural_access_covers(
             formal.access,
             terminal_psi::StructuralAccess::SharedBorrow,
         ) {
-            return Err(crate::checking::Unbound::Unsupported(
+            return Err(crate::Unbound::Unsupported(
                 "a clause reads a write-only input",
             ));
         }
         usize::try_from(formal.position)
             .ok()
             .and_then(|position| self.places.get(position))
-            .ok_or(crate::checking::Unbound::Unsupported(
+            .ok_or(crate::Unbound::Unsupported(
                 "clause names storage that is no record formal of the callee",
             ))
     }
@@ -7413,19 +7413,19 @@ impl<'a> CallObservations<'_, 'a> {
     fn readable_actual(
         &self,
         formal: &terminal_psi::StructuralParameterDeclaration,
-    ) -> Result<&Lineage, crate::checking::Unbound> {
+    ) -> Result<&Lineage, crate::Unbound> {
         if !terminal_psi::structural_access_covers(
             formal.access,
             terminal_psi::StructuralAccess::SharedBorrow,
         ) {
-            return Err(crate::checking::Unbound::Unsupported(
+            return Err(crate::Unbound::Unsupported(
                 "a clause reads a write-only input",
             ));
         }
         usize::try_from(formal.position)
             .ok()
             .and_then(|position| self.places.get(position))
-            .ok_or(crate::checking::Unbound::Unsupported(
+            .ok_or(crate::Unbound::Unsupported(
                 "clause names storage that is no record formal of the callee",
             ))
     }
@@ -7800,8 +7800,8 @@ fn formal_observation_path(
     Some((formal, path))
 }
 
-impl crate::checking::Bindings for AtCall<'_, '_> {
-    type Error = crate::checking::Unbound;
+impl crate::Bindings for AtCall<'_, '_> {
+    type Error = crate::Unbound;
     fn whole_input(&mut self, root: PlaceId) -> Result<PlaceId, Self::Error> {
         let actual = self.actual(root, &[])?;
         let mut trace = self.storage.budget();
@@ -7816,10 +7816,10 @@ impl crate::checking::Bindings for AtCall<'_, '_> {
                 &mut trace,
                 self.concerns,
             )
-            .map_err(crate::checking::Unbound::Refused)?
+            .map_err(crate::Unbound::Refused)?
         {
             Reached::Input(parameter) => Ok(parameter),
-            _ => Err(crate::checking::Unbound::Unproved(
+            _ => Err(crate::Unbound::Unproved(
                 "no single input supplies this whole value",
             )),
         }
@@ -7832,8 +7832,8 @@ impl crate::checking::Bindings for AtCall<'_, '_> {
         &mut self,
         id: ValueId,
         scalar_type: ScalarType,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
-        crate::checking::scalar_actual(&self.scalars, self.tables, id, scalar_type)
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        crate::scalar_actual(&self.scalars, self.tables, id, scalar_type)
     }
 
     fn field(
@@ -7842,7 +7842,7 @@ impl crate::checking::Bindings for AtCall<'_, '_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         let actual = self.actual(root, path)?;
         self.held_at(&actual).observation(&actual, scalar_type)
     }
@@ -7852,10 +7852,10 @@ impl crate::checking::Bindings for AtCall<'_, '_> {
         root: PlaceId,
         path: &[semantic_vocabulary::ScalarReadProjection],
         ty: ScalarType,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         let formal =
             terminal_psi::StructuralParameterDeclaration::find_by_place(self.callee_formals, root)
-                .ok_or(crate::checking::Unbound::Unsupported(
+                .ok_or(crate::Unbound::Unsupported(
                     "indexed contract has no structural formal",
                 ))?;
         let actual = self.readable_actual(formal)?.clone();
@@ -7876,14 +7876,14 @@ impl crate::checking::Bindings for AtCall<'_, '_> {
                     })
                 })
         {
-            return Err(crate::checking::Unbound::Unproved(
+            return Err(crate::Unbound::Unproved(
                 "indexed contract formal and actual need corresponding element projections",
             ));
         }
         let observed = indexed_place(self.storage, self.tables, actual.clone(), path)
             .and_then(|leaf| self.held_at(&leaf).observation(&leaf, ty));
         match observed {
-            Err(error @ crate::checking::Unbound::Unproved(_)) => {
+            Err(error @ crate::Unbound::Unproved(_)) => {
                 self.shared_input_read(&actual, path, ty).ok_or(error)
             }
             other => other,
@@ -7896,7 +7896,7 @@ impl crate::checking::Bindings for AtCall<'_, '_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
-    ) -> Result<Vec<ScalarTerm>, crate::checking::Unbound> {
+    ) -> Result<Vec<ScalarTerm>, crate::Unbound> {
         let actual = self.actual(root, path)?;
         self.held_at(&actual)
             .observation_alternatives(&actual, scalar_type)
@@ -7907,7 +7907,7 @@ impl crate::checking::Bindings for AtCall<'_, '_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         scalar_type: semantic_vocabulary::IntegerType,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         let actual = self.actual(root, path)?;
         self.held_at(&actual).extent_of(&actual, scalar_type)
     }
@@ -7917,7 +7917,7 @@ impl crate::checking::Bindings for AtCall<'_, '_> {
         predicate: semantic_vocabulary::ByteSequencePredicate,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         let actual = self.actual(root, path)?;
         self.storage.byte_source_at(
             self.references,
@@ -7933,14 +7933,14 @@ impl crate::checking::Bindings for AtCall<'_, '_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         case: StructuralCaseId,
-    ) -> Result<bool, crate::checking::Unbound> {
+    ) -> Result<bool, crate::Unbound> {
         // A callee's `requires` that tests a case is owed like any other
         // clause: what was stored in the argument must show that case.
         let actual = self.actual(root, path)?;
         self.held_at(&actual)
             .case_at(&actual, case)
-            .map_err(crate::checking::Unbound::Refused)?
-            .ok_or(crate::checking::Unbound::Unproved(
+            .map_err(crate::Unbound::Refused)?
+            .ok_or(crate::Unbound::Unproved(
                 "the case a requires clause tests is not established by structure at this call",
             ))
     }
@@ -7959,7 +7959,7 @@ impl<'a> AtJoin<'_, 'a> {
         &self,
         formal: &terminal_psi::StructuralParameterDeclaration,
         path: &[Segment],
-    ) -> Result<Lineage, crate::checking::Unbound> {
+    ) -> Result<Lineage, crate::Unbound> {
         let mut leaf = self.inputs.readable_actual(formal)?.clone();
         for &step in path {
             let segment = if let Segment::RuntimeIndex { selector } = step {
@@ -7969,7 +7969,7 @@ impl<'a> AtJoin<'_, 'a> {
                     .find(|(from, _)| *from == selector)
                     .map_or(selector, |(_, to)| *to);
                 let row = self.inputs.tables.values.get(actual).ok_or(
-                    crate::checking::Unbound::Unsupported(
+                    crate::Unbound::Unsupported(
                         "an incoming snapshot has no index value",
                     ),
                 )?;
@@ -8018,8 +8018,8 @@ impl<'a> AtJoin<'_, 'a> {
     }
 }
 
-impl crate::checking::Bindings for AtJoin<'_, '_> {
-    type Error = crate::checking::Unbound;
+impl crate::Bindings for AtJoin<'_, '_> {
+    type Error = crate::Unbound;
 
     fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
         self.inputs.storage.validate_float_meaning_source(source)
@@ -8041,9 +8041,9 @@ impl crate::checking::Bindings for AtJoin<'_, '_> {
             self.inputs.storage.machine,
             self.inputs.concerns,
         )
-        .map_err(crate::checking::Unbound::Refused)?;
+        .map_err(crate::Unbound::Refused)?;
         if actual.scalar_type != scalar_type {
-            return Err(crate::checking::Unbound::Unsupported(
+            return Err(crate::Unbound::Unsupported(
                 "join argument has another scalar carrier",
             ));
         }
@@ -8053,7 +8053,7 @@ impl crate::checking::Bindings for AtJoin<'_, '_> {
                 &self.inputs.tables.places,
                 place,
             )
-            .map_err(crate::checking::Unbound::Refused)?;
+            .map_err(crate::Unbound::Refused)?;
             if let Some(formal) = terminal_psi::StructuralParameterDeclaration::find_by_place(
                 self.inputs.callee_formals,
                 observed.root,
@@ -8081,7 +8081,7 @@ impl crate::checking::Bindings for AtJoin<'_, '_> {
     ) -> Result<Vec<ScalarTerm>, Self::Error> {
         match self.value(value, scalar_type) {
             Ok(value) => return Ok(vec![value]),
-            Err(crate::checking::Unbound::Unproved(_)) => {}
+            Err(crate::Unbound::Unproved(_)) => {}
             Err(error) => return Err(error),
         }
         let value = self
@@ -8095,9 +8095,9 @@ impl crate::checking::Bindings for AtJoin<'_, '_> {
             self.inputs.storage.machine,
             self.inputs.concerns,
         )
-        .map_err(crate::checking::Unbound::Refused)?;
+        .map_err(crate::Unbound::Refused)?;
         let ValueOrigin::StorageContent { place, after: None } = actual.origin else {
-            return Err(crate::checking::Unbound::Unproved(
+            return Err(crate::Unbound::Unproved(
                 "the join has no saved input observation",
             ));
         };
@@ -8106,12 +8106,12 @@ impl crate::checking::Bindings for AtJoin<'_, '_> {
             &self.inputs.tables.places,
             place,
         )
-        .map_err(crate::checking::Unbound::Refused)?;
+        .map_err(crate::Unbound::Refused)?;
         let formal = terminal_psi::StructuralParameterDeclaration::find_by_place(
             self.inputs.callee_formals,
             observed.root,
         )
-        .ok_or(crate::checking::Unbound::Unproved(
+        .ok_or(crate::Unbound::Unproved(
             "the join snapshot names no destination formal",
         ))?;
         let leaf = self.incoming_snapshot(formal, &observed.segments)?;
@@ -8133,7 +8133,7 @@ impl crate::checking::Bindings for AtJoin<'_, '_> {
             .iter()
             .any(|formal| formal.place == root)
         {
-            return crate::checking::Bindings::field(
+            return crate::Bindings::field(
                 &mut self.inputs,
                 version,
                 root,
@@ -8156,12 +8156,12 @@ impl crate::checking::Bindings for AtJoin<'_, '_> {
                 path: path.to_vec(),
             },
             ScalarType::IeeeFloat(_) => {
-                return Err(crate::checking::Unbound::Unsupported(
+                return Err(crate::Unbound::Unsupported(
                     "join field has no scalar observation",
                 ));
             }
             ScalarType::Callable(_) => {
-                return Err(crate::checking::Unbound::Unsupported(
+                return Err(crate::Unbound::Unsupported(
                     "an opaque callable value is not a mathematical clause term",
                 ));
             }
@@ -8192,7 +8192,7 @@ impl crate::checking::Bindings for AtJoin<'_, '_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
-    ) -> Result<Vec<ScalarTerm>, crate::checking::Unbound> {
+    ) -> Result<Vec<ScalarTerm>, crate::Unbound> {
         if self
             .inputs
             .callee_formals
@@ -8219,7 +8219,7 @@ impl crate::checking::Bindings for AtJoin<'_, '_> {
             .iter()
             .any(|formal| formal.place == root)
         {
-            crate::checking::Bindings::extent(&mut self.inputs, root, path, scalar_type)
+            crate::Bindings::extent(&mut self.inputs, root, path, scalar_type)
         } else {
             Ok(ScalarTerm::ViewExtent {
                 root,
@@ -8241,7 +8241,7 @@ impl crate::checking::Bindings for AtJoin<'_, '_> {
             .iter()
             .any(|formal| formal.place == root)
         {
-            crate::checking::Bindings::byte_predicate(&mut self.inputs, predicate, root, path)
+            crate::Bindings::byte_predicate(&mut self.inputs, predicate, root, path)
         } else {
             Ok(ScalarTerm::byte_sequence_predicate(
                 predicate,
@@ -8258,10 +8258,10 @@ impl crate::checking::Bindings for AtJoin<'_, '_> {
         case: StructuralCaseId,
     ) -> Result<bool, Self::Error> {
         let actual = self.inputs.actual(root, path)?;
-        crate::checking::Bindings::case(
+        crate::Bindings::case(
             &mut self.inputs.held_at(&actual),
             terminal_check_tables::program::self_place().ok_or(
-                crate::checking::Unbound::Unsupported("data clause has no self coordinate"),
+                crate::Unbound::Unsupported("data clause has no self coordinate"),
             )?,
             &[],
             case,
@@ -8305,7 +8305,7 @@ impl<'a> InputPlaces<'a> for AtCall<'_, 'a> {
         &self,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
-    ) -> Result<Lineage, crate::checking::Unbound> {
+    ) -> Result<Lineage, crate::Unbound> {
         self.actual(root, path)
     }
 }
@@ -8360,15 +8360,15 @@ impl Held<'_, '_> {
         &mut self,
         leaf: &Lineage,
         scalar_type: ScalarType,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         let storage = self.storage;
         if !matches!(
             storage
                 .shape(leaf, self.concerns)
-                .map_err(crate::checking::Unbound::Refused)?,
+                .map_err(crate::Unbound::Refused)?,
             Shape::Scalar(declared) if declared == scalar_type
         ) {
-            return Err(crate::checking::Unbound::Unsupported(
+            return Err(crate::Unbound::Unsupported(
                 "a clause names storage with another scalar type",
             ));
         }
@@ -8383,11 +8383,11 @@ impl Held<'_, '_> {
                 &mut budget,
                 self.concerns,
             )
-            .map_err(crate::checking::Unbound::Refused)?;
+            .map_err(crate::Unbound::Refused)?;
         if let Reached::Extent(producer) = reached {
             let block = storage
                 .block(self.block)
-                .map_err(crate::checking::Unbound::Refused)?;
+                .map_err(crate::Unbound::Refused)?;
             let point = self
                 .up_to
                 .min(block.operations.len())
@@ -8404,21 +8404,21 @@ impl Held<'_, '_> {
                     scalar_type,
                     &budget,
                 )
-                .map_err(crate::checking::Unbound::Refused)?
-                .ok_or(crate::checking::Unbound::Unproved(
+                .map_err(crate::Unbound::Refused)?
+                .ok_or(crate::Unbound::Unproved(
                     "the descriptor's extent has no current endpoint correspondence",
                 ));
         }
         let Some((held, held_type)) = storage
             .reached_scalar_term(self.tables, reached, self.concerns)
-            .map_err(crate::checking::Unbound::Refused)?
+            .map_err(crate::Unbound::Refused)?
         else {
-            return Err(crate::checking::Unbound::Unproved(
+            return Err(crate::Unbound::Unproved(
                 "the clause's observation has no reaching value identity",
             ));
         };
         if held_type != scalar_type {
-            return Err(crate::checking::Unbound::Unsupported(
+            return Err(crate::Unbound::Unsupported(
                 "a clause's observation holds a value of another type than its term",
             ));
         }
@@ -8429,21 +8429,21 @@ impl Held<'_, '_> {
         &mut self,
         place: &Lineage,
         scalar_type: semantic_vocabulary::IntegerType,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         // A fixed array lends its declared extent. This is a type fact,
         // independent of its contents; loan and initialization checks still
         // decide whether the actual may supply the view.
         if let Shape::Typed(array) = self
             .storage
             .shape(place, self.concerns)
-            .map_err(crate::checking::Unbound::Refused)?
+            .map_err(crate::Unbound::Refused)?
             && let StructuralTypeShape::FixedArray {
                 length: terminal_psi::ArrayExtent::Literal(length),
                 ..
             } = self
                 .storage
                 .declaration(array, self.concerns)
-                .map_err(crate::checking::Unbound::Refused)?
+                .map_err(crate::Unbound::Refused)?
                 .shape
         {
             if scalar_type
@@ -8453,7 +8453,7 @@ impl Held<'_, '_> {
                 )
                 .expect("u64 is valid")
             {
-                return Err(crate::checking::Unbound::Unsupported(
+                return Err(crate::Unbound::Unsupported(
                     "an array view extent that is not a u64",
                 ));
             }
@@ -8462,7 +8462,7 @@ impl Held<'_, '_> {
                 semantic_vocabulary::IntegerValue::Unsigned(u128::from(length)),
             )
             .map_err(|error| {
-                crate::checking::Unbound::Refused(self.storage.foreign(
+                crate::Unbound::Refused(self.storage.foreign(
                     self.concerns,
                     &format!("invalid fixed-array extent: {error:?}"),
                 ))
@@ -8485,7 +8485,7 @@ pub(super) fn clause_input(
     tables: &MachineTables,
     value: ValueId,
     scalar_type: ScalarType,
-) -> Result<ScalarTerm, crate::checking::Unbound> {
+) -> Result<ScalarTerm, crate::Unbound> {
     match tables.values.get(value) {
         Some(row)
             if matches!(row.origin, ValueOrigin::MachineParameter { .. })
@@ -8494,19 +8494,19 @@ pub(super) fn clause_input(
         {
             Ok(ScalarTerm::value(value, scalar_type))
         }
-        _ => Err(crate::checking::Unbound::Unsupported(
+        _ => Err(crate::Unbound::Unsupported(
             "a data clause names a value that is no field of its own value",
         )),
     }
 }
 
-impl crate::checking::Bindings for Held<'_, '_> {
-    type Error = crate::checking::Unbound;
+impl crate::Bindings for Held<'_, '_> {
+    type Error = crate::Unbound;
     fn value(
         &mut self,
         value: ValueId,
         scalar_type: ScalarType,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         clause_input(self.tables, value, scalar_type)
     }
 
@@ -8516,9 +8516,9 @@ impl crate::checking::Bindings for Held<'_, '_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         if version != semantic_vocabulary::ContentPlaceVersion::Current {
-            return Err(crate::checking::Unbound::Unsupported(
+            return Err(crate::Unbound::Unsupported(
                 "a data predicate has no invocation-entry contents",
             ));
         }
@@ -8531,9 +8531,9 @@ impl crate::checking::Bindings for Held<'_, '_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
-    ) -> Result<Vec<ScalarTerm>, crate::checking::Unbound> {
+    ) -> Result<Vec<ScalarTerm>, crate::Unbound> {
         if version != semantic_vocabulary::ContentPlaceVersion::Current {
-            return Err(crate::checking::Unbound::Unsupported(
+            return Err(crate::Unbound::Unsupported(
                 "a data predicate has no invocation-entry contents",
             ));
         }
@@ -8545,7 +8545,7 @@ impl crate::checking::Bindings for Held<'_, '_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         scalar_type: semantic_vocabulary::IntegerType,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         self.extent_of(&self.beneath(root, path)?, scalar_type)
     }
 
@@ -8554,7 +8554,7 @@ impl crate::checking::Bindings for Held<'_, '_> {
         predicate: semantic_vocabulary::ByteSequencePredicate,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         // Membership selects a debt, never its proof. Only the existing byte
         // source judgment may supply a fact about these actual contents.
         let actual = self.beneath(root, path)?;
@@ -8572,11 +8572,11 @@ impl crate::checking::Bindings for Held<'_, '_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         case: StructuralCaseId,
-    ) -> Result<bool, crate::checking::Unbound> {
+    ) -> Result<bool, crate::Unbound> {
         let sum = self.beneath(root, path)?;
         self.case_at(&sum, case)
-            .map_err(crate::checking::Unbound::Refused)?
-            .ok_or(crate::checking::Unbound::Unproved(
+            .map_err(crate::Unbound::Refused)?
+            .ok_or(crate::Unbound::Unproved(
                 "the case the data requires clause tests is not established by structure here",
             ))
     }
@@ -8596,9 +8596,9 @@ impl Named<'_> {
         &mut self,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
-    ) -> Result<(), crate::checking::Unbound> {
+    ) -> Result<(), crate::Unbound> {
         if Some(root) != terminal_check_tables::program::self_place() {
-            return Err(crate::checking::Unbound::Unsupported(
+            return Err(crate::Unbound::Unsupported(
                 "a data clause names storage other than its own value",
             ));
         }
@@ -8607,8 +8607,8 @@ impl Named<'_> {
     }
 }
 
-impl crate::checking::Bindings for Named<'_> {
-    type Error = crate::checking::Unbound;
+impl crate::Bindings for Named<'_> {
+    type Error = crate::Unbound;
     /// An input the clause names is no storage beneath the value; the
     /// reading that binds the clause decides whether it may name it
     /// (`clause_input`).
@@ -8616,7 +8616,7 @@ impl crate::checking::Bindings for Named<'_> {
         &mut self,
         value: ValueId,
         scalar_type: ScalarType,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         Ok(ScalarTerm::value(value, scalar_type))
     }
 
@@ -8626,9 +8626,9 @@ impl crate::checking::Bindings for Named<'_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         if version != semantic_vocabulary::ContentPlaceVersion::Current {
-            return Err(crate::checking::Unbound::Unsupported(
+            return Err(crate::Unbound::Unsupported(
                 "a data predicate has no invocation-entry contents",
             ));
         }
@@ -8645,10 +8645,10 @@ impl crate::checking::Bindings for Named<'_> {
                 root,
                 path: path.to_vec(),
             }),
-            ScalarType::IeeeFloat(_) => Err(crate::checking::Unbound::Unsupported(
+            ScalarType::IeeeFloat(_) => Err(crate::Unbound::Unsupported(
                 "a clause term outside the scalar subset",
             )),
-            ScalarType::Callable(_) => Err(crate::checking::Unbound::Unsupported(
+            ScalarType::Callable(_) => Err(crate::Unbound::Unsupported(
                 "an opaque callable value is not a mathematical clause term",
             )),
         }
@@ -8687,9 +8687,9 @@ impl crate::checking::Bindings for Named<'_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         _: StructuralCaseId,
-    ) -> Result<bool, crate::checking::Unbound> {
+    ) -> Result<bool, crate::Unbound> {
         self.beneath(root, path)?;
-        Err(crate::checking::Unbound::Unproved(
+        Err(crate::Unbound::Unproved(
             "a case test is recorded, not decided",
         ))
     }
@@ -8710,13 +8710,13 @@ struct Observed<'s, 'a> {
     scalar_type: ScalarType,
 }
 
-impl crate::checking::Bindings for Observed<'_, '_> {
-    type Error = crate::checking::Unbound;
+impl crate::Bindings for Observed<'_, '_> {
+    type Error = crate::Unbound;
     fn value(
         &mut self,
         id: ValueId,
         scalar_type: ScalarType,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         self.held.value(id, scalar_type)
     }
 
@@ -8726,19 +8726,19 @@ impl crate::checking::Bindings for Observed<'_, '_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
-    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+    ) -> Result<ScalarTerm, crate::Unbound> {
         if version != semantic_vocabulary::ContentPlaceVersion::Current {
-            return Err(crate::checking::Unbound::Unsupported(
+            return Err(crate::Unbound::Unsupported(
                 "a data predicate has no invocation-entry contents",
             ));
         }
         if self.held.beneath(root, path)? != *self.leaf {
-            return Err(crate::checking::Unbound::Unproved(
+            return Err(crate::Unbound::Unproved(
                 "a field other than the one read provides no premise",
             ));
         }
         if scalar_type != self.scalar_type {
-            return Err(crate::checking::Unbound::Unsupported(
+            return Err(crate::Unbound::Unsupported(
                 "a read has another type than its clause term",
             ));
         }
@@ -8750,8 +8750,8 @@ impl crate::checking::Bindings for Observed<'_, '_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         case: StructuralCaseId,
-    ) -> Result<bool, crate::checking::Unbound> {
-        let place = self.selected.ok_or(crate::checking::Unbound::Unproved(
+    ) -> Result<bool, crate::Unbound> {
+        let place = self.selected.ok_or(crate::Unbound::Unproved(
             "the clause tests a case of a value above the storage the read observes",
         ))?;
         self.held.at_place(place).case(root, path, case)
@@ -8805,7 +8805,7 @@ mod observation_tests {
     }
 
     fn storage_fixture(source: &str) -> crate::lowering::Elaboration {
-        let typed = crate::checking::tests::rankings::typed_with_ranking_catalog(source);
+        let typed = crate::tests::rankings::typed_with_ranking_catalog(source);
         let typed = crate::prepare_fixture(typed);
         let root = typed
             .trees()
@@ -8849,8 +8849,8 @@ mod observation_tests {
              }",
         );
         assert!(matches!(
-            crate::checking::judge(Ok(original.clone())).unwrap(),
-            crate::checking::RouteVerdict::Accepted(_)
+            crate::judge(Ok(original.clone())).unwrap(),
+            crate::RouteVerdict::Accepted(_)
         ));
         for change_block in [false, true] {
             let mut input = original.clone();
@@ -8868,8 +8868,8 @@ mod observation_tests {
             } else {
                 *position = u32::MAX;
             }
-            let crate::checking::RouteVerdict::FallBack(refusal) =
-                crate::checking::judge(Ok(input)).unwrap()
+            let crate::RouteVerdict::FallBack(refusal) =
+                crate::judge(Ok(input)).unwrap()
             else {
                 panic!("a borrowed place outside its block header must refuse");
             };
@@ -9337,7 +9337,7 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
         }
         source.push_str(&format!("machine hop{count}(p: Point, choose: bool) -> u32 {{ transition choose {{ true -> p.x, false -> hop0(p, choose) }} }}\n"));
         let typed = crate::prepare_fixture(
-            crate::checking::tests::rankings::typed_with_ranking_catalog(&source),
+            crate::tests::rankings::typed_with_ranking_catalog(&source),
         );
         let entry = typed
             .trees()
@@ -9700,7 +9700,7 @@ machine entry() {
     fn block_entry_snapshots_keep_arrivals_sound_across_vacated_single_and_merged_paths() {
         let prepare_storage = |source: &str| {
             let typed = crate::prepare_fixture(
-                crate::checking::tests::rankings::typed_with_ranking_catalog(source),
+                crate::tests::rankings::typed_with_ranking_catalog(source),
             );
             let root = typed
                 .trees()

@@ -10,7 +10,7 @@
 // different fields of one record do not.
 
 use super::*;
-use crate::checking::LoanConflict;
+use crate::LoanConflict;
 use crate::lowering::{Borrowed, RecordField, RecordType};
 use language_core::ReferenceAccess;
 use semantic_vocabulary::{PlaceId, StructuralFieldId, StructuralTypeId};
@@ -230,14 +230,14 @@ fn two(first: ReferenceAccess, second: ReferenceAccess) -> Lending {
     }
 }
 
-pub(super) fn accepted(machines: Vec<Lending>) -> Box<crate::checking::AcceptedClosure> {
+pub(super) fn accepted(machines: Vec<Lending>) -> Box<crate::AcceptedClosure> {
     match judge(lower_lending(machines)).unwrap() {
         RouteVerdict::Accepted(closure) => closure,
         verdict => panic!("the program must be accepted: {verdict:?}"),
     }
 }
 
-fn conflicts(machines: Vec<Lending>) -> Vec<crate::checking::ConflictingUse> {
+fn conflicts(machines: Vec<Lending>) -> Vec<crate::ConflictingUse> {
     match judge(lower_lending(machines)).unwrap() {
         RouteVerdict::Rejected {
             unproved,
@@ -744,7 +744,7 @@ machine entry() crashes none {
     };
     // The product closure is accepted and runs. Its generic check form is
     // `a_rigid_requirement_call_borrows_its_declared_input_region`.
-    let RouteVerdict::Accepted(accepted) = crate::checking::judge_compilation(prepare())
+    let RouteVerdict::Accepted(accepted) = crate::judge_compilation(prepare())
         .remove(0)
         .unwrap()
     else {
@@ -780,8 +780,8 @@ machine entry() crashes none {
         headers, 1,
         "exactly the selected call carries a public header"
     );
-    let Err(crate::checking::CompilationRefusal::Elaboration(refused)) =
-        crate::checking::judge_compilation(erased).remove(0)
+    let Err(crate::CompilationRefusal::Elaboration(refused)) =
+        crate::judge_compilation(erased).remove(0)
     else {
         panic!("a selected call without its public header must be refused");
     };
@@ -844,7 +844,7 @@ machine entry() crashes none {
     assert_eq!(graph_refusal.operation(module), Some(operation));
     let detail = graph_refusal.in_module(module);
     assert!(detail.starts_with(reason), "{detail}");
-    let rejected = crate::checking::judge_compilation(missing_lifetimes).remove(0);
+    let rejected = crate::judge_compilation(missing_lifetimes).remove(0);
     let Ok(RouteVerdict::FallBack(refused)) = rejected else {
         panic!("missing lifetime evidence must refuse the selected call: {rejected:?}");
     };
@@ -1001,7 +1001,7 @@ fn an_original_returned_reference_keeps_its_backing_and_excludes_its_parent() {
     assert_eq!(unattributed.machine(), caller.id);
     assert_eq!(unattributed.operation(&duplicated), None);
 
-    let positive = crate::checking::judge(Ok(positive)).unwrap();
+    let positive = crate::judge(Ok(positive)).unwrap();
     let RouteVerdict::Accepted(accepted) = positive else {
         panic!("{positive:?}");
     };
@@ -1015,7 +1015,7 @@ fn an_original_returned_reference_keeps_its_backing_and_excludes_its_parent() {
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     let negative =
-        crate::checking::judge(prepared(&root.join("invalid_call_result/main.omg"))).unwrap();
+        crate::judge(prepared(&root.join("invalid_call_result/main.omg"))).unwrap();
     let RouteVerdict::Rejected {
         formations,
         violations,
@@ -1423,7 +1423,7 @@ fn canonical_reference_creation_rejects_an_unowned_carrier() {
 fn an_exclusive_loan_is_lent_on_to_a_parameter_that_only_observes() {
     use super::build_purpose::judge_build;
     let verdict = |build: &str| match judge_build(build) {
-        Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+        Err(crate::CompilationRefusal::Elaboration(refusal))
         | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
         Ok(RouteVerdict::Accepted(accepted)) => {
             accepted.publish_invocation().unwrap();
@@ -1590,7 +1590,7 @@ fn rigid_relay_with(
     edit: impl FnOnce(&mut crate::lowering::Elaboration),
 ) -> (
     crate::lowering::Elaboration,
-    Result<crate::checking::Discharge, String>,
+    Result<crate::Discharge, String>,
 ) {
     let typed = super::boundary_calls::typed(&format!("{HANDOFF}{relay}"));
     let symbol = typed
@@ -1601,13 +1601,13 @@ fn rigid_relay_with(
         .symbol;
     let mut form = crate::lowering::elaborate_generic(&typed, symbol).unwrap();
     edit(&mut form);
-    let mut activity = crate::checking::ProofSearchActivity::default();
-    let discharged = crate::checking::discharge(&mut form, &mut activity)
+    let mut activity = crate::ProofSearchActivity::default();
+    let discharged = crate::discharge(&mut form, &mut activity)
         .map_err(|refusal| format!("{refusal:?}"));
     (form, discharged)
 }
 
-fn rigid_relay(relay: &str) -> (crate::lowering::Elaboration, crate::checking::Discharge) {
+fn rigid_relay(relay: &str) -> (crate::lowering::Elaboration, crate::Discharge) {
     let (form, discharged) = rigid_relay_with(relay, |_| {});
     (form, discharged.unwrap())
 }
@@ -1719,7 +1719,7 @@ fn a_returned_requirement_result_publishes_its_input_region() {
 
 /// The product closure of `entry`, with `relay<Direct>` returning the
 /// selected call's result.
-fn returned_relay(entry: &str) -> crate::checking::RouteVerdict {
+fn returned_relay(entry: &str) -> crate::RouteVerdict {
     let text = format!(
         "{HANDOFF}machine relay<Chosen satisfies Handoff>(source: @mutable i64) -> @mutable i64 crashes none {{
     Chosen::hand(source)
@@ -1746,7 +1746,7 @@ fn returned_relay(entry: &str) -> crate::checking::RouteVerdict {
     )
     .expect("fixture must lower to checker input")
     .program;
-    crate::checking::judge_compilation(prepared)
+    crate::judge_compilation(prepared)
         .remove(0)
         .unwrap()
 }

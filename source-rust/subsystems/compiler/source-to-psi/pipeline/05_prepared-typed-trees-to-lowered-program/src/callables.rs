@@ -14,13 +14,13 @@ use terminal_psi::{
     TerminalMachineEnvelope, TerminalMachineResult, TerminalModule,
 };
 
-use crate::lowering::Signature;
+use crate::Signature;
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct CallableNamespace {
     pub contracts: IdTable<CallableContractId, CallableContract>,
     pub descriptors: IdTable<MachineDescriptorId, MachineSelection>,
-    pub envelopes: IdTable<MachineId, Option<crate::lowering::reach::SourceEnvelope>>,
+    pub envelopes: IdTable<MachineId, Option<crate::reach::SourceEnvelope>>,
     sources: Vec<Option<(RuntimeCallableContractHandle, CallableContractId)>>,
     pub resolving: Vec<RuntimeCallableContractHandle>,
 }
@@ -30,7 +30,7 @@ pub(crate) struct CallableContract {
     pub lifetimes: Vec<crate::source_state::type_identity::LifetimeParameterIdentity>,
     pub identity: String,
     pub signature: Signature,
-    pub envelope: crate::lowering::reach::SourceEnvelope,
+    pub envelope: crate::reach::SourceEnvelope,
 }
 
 #[derive(Debug, Clone)]
@@ -46,7 +46,7 @@ impl CallableNamespace {
     pub fn bind_machine_envelope(
         &mut self,
         machine: MachineId,
-        envelope: crate::lowering::reach::SourceEnvelope,
+        envelope: crate::reach::SourceEnvelope,
     ) -> Result<(), &'static str> {
         while self.envelopes.len() < machine.get() as usize {
             self.envelopes.push(None);
@@ -106,14 +106,14 @@ impl CallableNamespace {
         &self,
         context: MachineId,
         signatures: &IdTable<MachineId, Signature>,
-        outcomes: &IdTable<MachineId, crate::lowering::Outcome>,
-        records: &crate::lowering::lower::places::Records<'_>,
-        boundaries: &crate::lowering::boundaries::BoundaryNamespace,
+        outcomes: &IdTable<MachineId, crate::Outcome>,
+        records: &crate::lower::places::Records<'_>,
+        boundaries: &crate::boundaries::BoundaryNamespace,
         tables: &CheckTables,
-        services: &crate::lowering::reach::ServiceMap,
-        qualifications: &mut crate::lowering::qualifications::Qualifications,
+        services: &crate::reach::ServiceMap,
+        qualifications: &mut crate::qualifications::Qualifications,
         module: &mut TerminalModule,
-        declarations: Option<&crate::lowering::read::Program<'_>>,
+        declarations: Option<&crate::read::Program<'_>>,
     ) -> Checked<()> {
         let refuse = |reason: &str| Refusal {
             source_span: None,
@@ -146,7 +146,7 @@ impl CallableNamespace {
             .map_err(|_| refuse("callable contract namespace exceeds its identity width"))?;
         let mut catalog = TerminalCallableCatalog::default();
         for (id, contract) in self.contracts.iter() {
-            let header = crate::lowering::lower::signature_header(
+            let header = crate::lower::signature_header(
                 context,
                 &contract.signature,
                 signatures,

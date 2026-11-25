@@ -9,9 +9,9 @@ use terminal_psi::{
     CallingStaticOperand, ProofCallableAssociation, TargetMachineCallable,
 };
 
-use crate::lowering::read::calling::SourceCallingPolicies;
-use crate::lowering::read::storage_metadata::PreparedCallingDescriptions;
-use crate::lowering::{Elaboration, read::services};
+use crate::read::calling::SourceCallingPolicies;
+use crate::read::storage_metadata::PreparedCallingDescriptions;
+use crate::{Elaboration, read::services};
 
 /// Canonical storage produced by the common source metadata owner. The key
 /// remains the complete ABI application's compact coordinate; the producer

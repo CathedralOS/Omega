@@ -12,7 +12,7 @@ fn resolve_and_type(source: &str) -> TypedTrees {
             assert_eq!(witness.ranking_view, RankingViewId::NULL);
         }
     }
-    crate::typing::lower_symbol_resolved_trees(&resolved).expect("ranking subjects type")
+    crate::lower_symbol_resolved_trees(&resolved).expect("ranking subjects type")
 }
 
 fn witness<'program>(program: &'program TypedTrees, name: &str) -> &'program RankingWitness {
@@ -98,7 +98,7 @@ fn ranking_defaults_preserve_exact_binders_and_bound_shell_traversal() {
             .unwrap();
         witness.ranking_view = RankingViewId::NULL;
         witness.view_path.clear();
-        crate::typing::lowerer::progress::settle_machine_ranking_default(
+        crate::lowerer::progress::settle_machine_ranking_default(
             program,
             &program.symbols,
             machine,

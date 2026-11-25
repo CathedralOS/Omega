@@ -238,7 +238,7 @@ pub(crate) fn tail_call<'a>(
 ) -> Checked<TailCall<'a>> {
     let caller = sites.caller;
     let malformed = |detail| {
-        crate::checking::refusal(
+        crate::refusal(
             RefusalReason::ForeignIdentity,
             caller.id,
             Construct::Edge(edge),
@@ -395,7 +395,7 @@ pub(crate) fn inputs_at(
                         else {
                             return None;
                         };
-                        Some(Inputs::declared(crate::checking::owned_cleanup::inputs(
+                        Some(Inputs::declared(crate::owned_cleanup::inputs(
                             cleanup,
                         )))
                     }),
@@ -403,7 +403,7 @@ pub(crate) fn inputs_at(
     });
     let first = inputs.next();
     if inputs.next().is_some() {
-        return Err(crate::checking::refusal(
+        return Err(crate::refusal(
             RefusalReason::ForeignIdentity,
             caller.id,
             Construct::Machine,
@@ -422,7 +422,7 @@ pub(crate) fn invocation<'a>(
 ) -> Checked<Invocation<'a>> {
     let concerns = Construct::Invocation(id);
     let refuse = |detail| {
-        crate::checking::refusal(RefusalReason::ForeignIdentity, caller.id, concerns, detail)
+        crate::refusal(RefusalReason::ForeignIdentity, caller.id, concerns, detail)
     };
     let inputs = inputs_at(caller, row.site)?
         .ok_or_else(|| refuse("invocation row restates no lowered call"))?;
@@ -503,7 +503,7 @@ pub(crate) fn invocation<'a>(
                     InvocationSite::ExternalCompletion(_),
                 ) => {
                     if !boundary.crash_routes.is_empty() {
-                        return Err(crate::checking::refusal(
+                        return Err(crate::refusal(
                             RefusalReason::Unsupported,
                             caller.id,
                             concerns,
@@ -546,7 +546,7 @@ pub(crate) fn invocation<'a>(
                 || matches!(&boundary.result, terminal_psi::BoundaryMachineResult::Structural(result)
                 if !result.qualifications.is_empty())
             {
-                return Err(crate::checking::refusal(
+                return Err(crate::refusal(
                     RefusalReason::Unsupported,
                     caller.id,
                     concerns,
@@ -563,7 +563,7 @@ pub(crate) fn invocation<'a>(
                 || !boundary.result_reference_regions.is_empty()
                 || !boundary.program_local_root_introductions.is_empty()
             {
-                return Err(crate::checking::refusal(
+                return Err(crate::refusal(
                     RefusalReason::Unsupported,
                     caller.id,
                     concerns,

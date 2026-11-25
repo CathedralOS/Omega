@@ -3,7 +3,7 @@
 
 use crate::source_resolved as resolved;
 use crate::source_state as typed;
-use crate::typing::tables::type_constraints;
+use crate::tables::type_constraints;
 use diagnostics::Diagnostic;
 
 pub fn access_borrow_factory(

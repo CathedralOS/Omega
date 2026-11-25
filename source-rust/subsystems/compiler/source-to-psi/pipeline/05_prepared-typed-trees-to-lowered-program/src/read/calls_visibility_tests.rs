@@ -323,8 +323,8 @@ impl Fixture {
         }
     }
 
-    fn call_source(&self, caller: SymbolHandle) -> crate::lowering::SourceOrigin {
-        crate::lowering::SourceOrigin::of(self.typed.symbols.symbol_source_span(caller).unwrap())
+    fn call_source(&self, caller: SymbolHandle) -> crate::SourceOrigin {
+        crate::SourceOrigin::of(self.typed.symbols.symbol_source_span(caller).unwrap())
     }
 }
 
@@ -565,7 +565,7 @@ fn selecting_a_private_native_schema_does_not_require_app_call_visibility() {
 
 #[test]
 fn a_generic_body_keeps_boundary_routing_and_private_visibility() {
-    use crate::lowering::body::{CallTarget, ExpressionKind};
+    use crate::body::{CallTarget, ExpressionKind};
     use crate::source_state::statement::TableCall;
 
     let fixture = Fixture::new(true);
@@ -669,9 +669,9 @@ fn selected_native_declarations_preserve_each_operational_flag() {
         let fixture = Fixture::with_effects(true, suspends, blocks);
         // Selecting a declaration does not invoke it. Read the declaration
         // module through ordinary elaboration and its publication metadata.
-        let elaboration = crate::lowering::elaborate(
+        let elaboration = crate::elaborate(
             &fixture.typed,
-            crate::lowering::Compilation {
+            crate::Compilation {
                 calling: None,
                 providers: None,
                 entries: &[],
@@ -769,9 +769,9 @@ fn a_build_boundary_publishes_its_own_complete_service_contract() {
         .expect("the Build declaration has a complete schema")
         .declaration
         .declaration_commitment();
-    let elaboration = crate::lowering::elaborate(
+    let elaboration = crate::elaborate(
         &fixture.typed,
-        crate::lowering::Compilation {
+        crate::Compilation {
             entries: &[],
             subjects: &[],
             purpose: DependencyScope::Build,

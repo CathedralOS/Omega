@@ -39,8 +39,8 @@ use terminal_check_tables::{Checked, Construct};
 use super::Program;
 use super::clause_terms::ClauseUse;
 use super::contracts::{ClauseScope, ResultTerm};
-use crate::lowering::body::{Qualification, ValueType};
-use crate::lowering::{Unserved, refuse};
+use crate::body::{Qualification, ValueType};
+use crate::{Unserved, refuse};
 
 /// A called machine prepared for unfolding: its parameter bindings, its body
 /// expression and its declared result.

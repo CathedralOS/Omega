@@ -18,7 +18,7 @@ pub(super) fn judged_typed(
 pub(super) fn judged_typed_result(
     typed: &crate::source_state::TypedTrees,
     select_first: bool,
-) -> Result<RouteVerdict, crate::checking::CompilationRefusal> {
+) -> Result<RouteVerdict, crate::CompilationRefusal> {
     whole_subject_result(judged_parts(typed, select_first))
 }
 
@@ -26,8 +26,8 @@ pub(super) fn judged_typed_result(
 /// Keep the first failure in judgment order. Only an entirely accepted batch
 /// returns the original closure, whose tables callers may inspect.
 pub(super) fn whole_subject_result(
-    mut verdicts: Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>>,
-) -> Result<RouteVerdict, crate::checking::CompilationRefusal> {
+    mut verdicts: Vec<Result<RouteVerdict, crate::CompilationRefusal>>,
+) -> Result<RouteVerdict, crate::CompilationRefusal> {
     assert!(
         !verdicts.is_empty(),
         "a subject must have a closure judgment"
@@ -41,14 +41,14 @@ pub(super) fn whole_subject_result(
 fn judged_parts(
     typed: &crate::source_state::TypedTrees,
     select_first: bool,
-) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
+) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     let typed = &crate::prepare_fixture(typed.clone());
     let selected = if select_first {
         vec![typed.trees().machines()[0].symbol]
     } else {
         Vec::new()
     };
-    crate::checking::judge_compilation(
+    crate::judge_compilation(
         crate::lowering::prepare_compilation(
             typed,
             crate::lowering::Compilation {
@@ -95,7 +95,7 @@ fn declaration_only_library_checks_requirements_without_an_executable_machine() 
     let declaration = requirement.declaration;
     // A boundary requirement with no formals cannot invoke parameter zero.
     requirement.envelope.invocations = vec![terminal_psi::TerminalCallableInvocation::Parameter(0)];
-    let refusal = crate::checking::static_contracts::admit(elaboration).unwrap_err();
+    let refusal = crate::static_contracts::admit(elaboration).unwrap_err();
     assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
     assert_eq!(
         refusal.site,

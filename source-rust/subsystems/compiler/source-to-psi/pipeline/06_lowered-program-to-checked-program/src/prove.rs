@@ -73,7 +73,7 @@ mod tests;
 #[path = "prove/widths.rs"]
 mod widths;
 
-use crate::checking::known::{Fact, ProofValues, ValueRows, is_branch_fact};
+use crate::known::{Fact, ProofValues, ValueRows, is_branch_fact};
 
 /// Why no certificate was built. Diagnostic only.
 pub(crate) type Unproven = &'static str;
@@ -91,7 +91,7 @@ fn fact_proof_for_refutation(
 ) -> ProofNode {
     #[cfg(test)]
     {
-        let mut work = crate::checking::known::FactProofWork::default();
+        let mut work = crate::known::FactProofWork::default();
         let proof = facts[index].proof_with_work(facts, &mut work);
         activity.refutation_fact_nodes = activity.refutation_fact_nodes.saturating_add(work.nodes);
         proof
@@ -111,7 +111,7 @@ fn fact_proof_for_literal_bound(
 ) -> ProofNode {
     #[cfg(test)]
     {
-        let mut work = crate::checking::known::FactProofWork::default();
+        let mut work = crate::known::FactProofWork::default();
         let proof = facts[index].proof_with_work(facts, &mut work);
         activity.literal_bound_fact_nodes =
             activity.literal_bound_fact_nodes.saturating_add(work.nodes);
@@ -776,7 +776,7 @@ impl ProofSearchActivity {
 #[derive(Debug)]
 struct ActiveCut {
     proposition: Proposition,
-    origin: Option<crate::checking::known::DisjunctionOrigin>,
+    origin: Option<crate::known::DisjunctionOrigin>,
 }
 
 #[derive(Clone)]
@@ -799,7 +799,7 @@ pub(crate) struct Prover<'a> {
     activity: &'a mut ProofSearchActivity,
     context: &'a PropositionContext,
     assumptions: Assumptions<'a>,
-    normalized_premises: crate::checking::known::NormalizedPremises,
+    normalized_premises: crate::known::NormalizedPremises,
     axioms: &'a [Proposition],
     values: &'a dyn ProofValues,
     facts: Vec<Fact>,
@@ -816,7 +816,7 @@ pub(crate) struct Prover<'a> {
     /// `by_transport` cites after `equations` alone fails (`Known`).
     arrival_equations: Vec<usize>,
     arrival_definitions: ValueRows<Option<usize>>,
-    transport: crate::checking::known::TransportInputs,
+    transport: crate::known::TransportInputs,
     /// `[upper, lower]` in the exact declared value namespace. A contract
     /// witness may begin at any real formal ID, not only at value one.
     bounds: ValueRows<[Slot; 2]>,
@@ -1111,11 +1111,11 @@ impl<'a> Prover<'a> {
         axioms: &'a [Proposition],
         values: &'a dyn ProofValues,
         activity: &'a mut ProofSearchActivity,
-        parent: Option<(&[Fact], &crate::checking::known::NormalizedPremises)>,
+        parent: Option<(&[Fact], &crate::known::NormalizedPremises)>,
     ) -> Self {
-        let mut branch = crate::checking::known::BranchPreparation::new(parent);
+        let mut branch = crate::known::BranchPreparation::new(parent);
         activity.started = activity.started.saturating_add(1);
-        let crate::checking::known::Known {
+        let crate::known::Known {
             #[cfg(test)]
             normalization_checks,
             facts,
@@ -1123,7 +1123,7 @@ impl<'a> Prover<'a> {
             definitions,
             arrival_equations,
             arrival_definitions,
-        } = crate::checking::known::Known::prepare(
+        } = crate::known::Known::prepare(
             context,
             assumptions.iter(),
             axioms,
@@ -1132,7 +1132,7 @@ impl<'a> Prover<'a> {
         );
         let implications = ImplicationConclusions::new(&facts);
         let float_integer_equalities = float_integer::Equalities::new(&facts);
-        let transport = crate::checking::known::TransportInputs::new(equations.len());
+        let transport = crate::known::TransportInputs::new(equations.len());
         let exact_facts = ExactFacts::new(&facts);
         #[cfg(test)]
         {
@@ -1211,7 +1211,7 @@ impl<'a> Prover<'a> {
         if equations.is_empty() {
             return None;
         }
-        crate::checking::known::Known::transport_inputs(
+        crate::known::Known::transport_inputs(
             &self.facts,
             equations,
             goal,
@@ -1272,7 +1272,7 @@ impl<'a> Prover<'a> {
     /// Reuse normalization's exact definition closure. Unrelated arithmetic
     /// must not consume this goal's transport budget or duplicate proof trees.
     fn select_transport_inputs(&mut self, proposition: &Proposition) {
-        crate::checking::known::Known::transport_inputs(
+        crate::known::Known::transport_inputs(
             &self.facts,
             &self.equations,
             proposition,
@@ -2594,7 +2594,7 @@ impl<'a> Prover<'a> {
             return None;
         }
         let goal = Proposition::LessOrEqual(left.clone(), right.clone());
-        crate::checking::known::Known::transport_inputs(
+        crate::known::Known::transport_inputs(
             &self.facts,
             &self.equations,
             &goal,
@@ -2712,7 +2712,7 @@ impl<'a> Prover<'a> {
         };
         let smaller_fact = definition(smaller);
         let larger_fact = definition(larger);
-        let saturated = |fact: Option<&crate::checking::known::Fact>, subject: &ScalarTerm| {
+        let saturated = |fact: Option<&crate::known::Fact>, subject: &ScalarTerm| {
             matches!(subject, ScalarTerm::SaturatingIntegerSubtract { .. })
                 || fact.is_some_and(|fact| {
                     matches!(
@@ -2727,7 +2727,7 @@ impl<'a> Prover<'a> {
         // Even when a value is itself a formed difference, its reflexive
         // equation can name it as a whole: (end - cursor) -| 0 is compared
         // with that exact value without needing cursor itself to be zero.
-        let equations = |fact: Option<&crate::checking::known::Fact>, subject: &ScalarTerm| {
+        let equations = |fact: Option<&crate::known::Fact>, subject: &ScalarTerm| {
             let definition = fact
                 .filter(|fact| proof_admission::unsigned_difference(&fact.proposition).is_some())
                 .map(|fact| fact.proof(&self.facts));
@@ -3895,7 +3895,7 @@ impl<'a> Prover<'a> {
     fn compound_order_fact(&mut self, index: usize) -> ProofNode {
         #[cfg(test)]
         {
-            let mut work = crate::checking::known::FactProofWork::default();
+            let mut work = crate::known::FactProofWork::default();
             let proof = self.facts[index].proof_with_work(&self.facts, &mut work);
             self.activity.compound_order_fact_nodes = self
                 .activity
@@ -5083,7 +5083,7 @@ impl<'a> Prover<'a> {
                                 continue;
                             };
                             let scratch = transport.get_or_insert_with(|| {
-                                crate::checking::known::TransportInputs::new(self.equations.len())
+                                crate::known::TransportInputs::new(self.equations.len())
                             });
                             let Some(equalities) = self.order_transport(&order, &aligned, scratch)
                             else {
@@ -5209,9 +5209,9 @@ impl<'a> Prover<'a> {
         &self,
         retained: &Proposition,
         aligned: &Proposition,
-        transport: &mut crate::checking::known::TransportInputs,
+        transport: &mut crate::known::TransportInputs,
     ) -> Option<Vec<ProofNode>> {
-        crate::checking::known::Known::transport_inputs(
+        crate::known::Known::transport_inputs(
             &self.facts,
             &self.equations,
             aligned,

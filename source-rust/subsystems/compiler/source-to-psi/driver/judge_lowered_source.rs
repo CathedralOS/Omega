@@ -3,17 +3,17 @@
 //! checker's advisories for whoever reports the compilation.
 use crate::driver::prepare_typed_source;
 use artifacts::compile_timings::{CompileTimings, source as stages};
-use checked_program_to_psi::production;
-use checked_program_to_psi::production::{AcceptedTerminalSource, TerminalSourceCompilation};
+use checked_program_to_psi as production;
+use checked_program_to_psi::{AcceptedTerminalSource, TerminalSourceCompilation};
 use diagnostics::{Diagnostic, DiagnosticStage};
-use lowered_program_to_checked_program::checking::{
+use lowered_program_to_checked_program::{
     AcceptedAdvisories, CheckedPublication, judge_publication,
 };
 use optimization::PsiOptimizationSelections;
-use prepared_typed_trees_to_lowered_program::lowering::source_roster::{
+use prepared_typed_trees_to_lowered_program::source_roster::{
     SourceCompilationRoster, lower_roster,
 };
-use prepared_typed_trees_to_lowered_program::lowering::{
+use prepared_typed_trees_to_lowered_program::{
     LoweredSourcePublication, PreparedTypedTrees, lower_for_publication,
 };
 use typed_trees_to_prepared_typed_trees as preparation;

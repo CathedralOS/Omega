@@ -252,7 +252,7 @@ pub(crate) mod build_selections {
         let mut member_symbols = Default::default();
         table.push_name_path_member(
             &mut members,
-            crate::typing::lowerer::name::lower_name(&owner.name),
+            crate::lowerer::name::lower_name(&owner.name),
         );
         table.push_name_path_member_symbol(&mut member_symbols, owner.symbol);
         let receiver = table.insert(ExpressionNode::Name(TableNamePath::new(
@@ -323,7 +323,7 @@ pub(crate) mod build_selections {
                 })?;
             arguments[position] = emit(
                 helper.symbol,
-                crate::typing::lowerer::name::lower_name(&helper.name),
+                crate::lowerer::name::lower_name(&helper.name),
                 ExpressionHandle::invalid(),
                 vec![arguments[position]],
                 Default::default(),
@@ -333,7 +333,7 @@ pub(crate) mod build_selections {
         let prepared = prepared_selection.map(|(preparation, selection)| {
             let prepared = emit(
                 preparation.symbol,
-                crate::typing::lowerer::name::lower_name(&preparation.name),
+                crate::lowerer::name::lower_name(&preparation.name),
                 receiver,
                 vec![arguments[0]],
                 selection,
@@ -344,7 +344,7 @@ pub(crate) mod build_selections {
         });
         let committed = emit(
             commit.symbol,
-            crate::typing::lowerer::name::lower_name(&commit.name),
+            crate::lowerer::name::lower_name(&commit.name),
             receiver,
             arguments,
             committed_selection,
@@ -630,7 +630,7 @@ pub(crate) mod capture_product_operands {
     use crate::source_resolved::{
         SymbolResolvedTrees, expression as source_expression, types as source_types,
     };
-    use crate::typing::tables::{resolved_expressions, type_constraints};
+    use crate::tables::{resolved_expressions, type_constraints};
     use arena::{Handle, HandleSpan};
     use diagnostics::Diagnostic;
     use symbols::SymbolHandle;
@@ -725,7 +725,7 @@ pub(crate) mod capture_product_operands {
             symbol: SymbolHandle,
             kind: crate::declaration_selection::AuthoredDeclarationSelectionKind,
         ) -> Result<Handle<ProductOperandName>, Diagnostic> {
-            let occurrence = crate::typing::type_reference::retain_type_reference_recipe_selection(
+            let occurrence = crate::type_reference::retain_type_reference_recipe_selection(
                 self.source,
                 self.typed,
                 name,
@@ -994,7 +994,7 @@ pub(crate) mod capture_product_operands {
                     Source::Generic(generic) => (generic.base_symbol, &generic.base_name),
                     _ => return Err(Diagnostic::error("captured Product alias lost its written type application")),
                 };
-                crate::typing::type_reference::alias_uses::check_declaration(
+                crate::type_reference::alias_uses::check_declaration(
                     source, declaration, *declaration_source, name.source_span(),
                 )?;
                 // Product formation checks the written arguments and substitutes the
@@ -1403,8 +1403,8 @@ pub(crate) mod construction_destinations {
     };
     use crate::source_state::statement::{StatementNode, TransitionTargetNode};
     use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
-    use crate::typing::tables::{expression_table, expression_table_mut};
-    use crate::typing::typing_queries::selected_construction_field_type;
+    use crate::tables::{expression_table, expression_table_mut};
+    use crate::typing_queries::selected_construction_field_type;
     use diagnostics::Diagnostic;
     use symbols::SymbolHandle;
 
@@ -1482,13 +1482,13 @@ pub(crate) mod construction_destinations {
 
         let mut completed = completed_machines
             .iter()
-            .map(|symbol| crate::typing::lowerer::symbol_key(*symbol))
+            .map(|symbol| crate::lowerer::symbol_key(*symbol))
             .collect::<Vec<_>>();
         completed.sort_unstable();
         for (ordinal, machine) in program.machines().iter().enumerate() {
             if ordinal < machine_frontier
                 && completed
-                    .binary_search(&crate::typing::lowerer::symbol_key(machine.symbol))
+                    .binary_search(&crate::lowerer::symbol_key(machine.symbol))
                     .is_err()
             {
                 continue;
@@ -1602,7 +1602,7 @@ pub(crate) mod construction_destinations {
         // so later locals can read the type of an earlier operand.
         for (handle, owner, initializer) in inferred_locals {
             if let Some(reference) =
-                crate::typing::typing_queries::declared_expression_type(program, owner, initializer)
+                crate::typing_queries::declared_expression_type(program, owner, initializer)
                 && let StatementNode::LocalData(local) =
                     program.statement_table.statement_mut(handle)
             {
@@ -1651,7 +1651,7 @@ pub(crate) mod construction_destinations {
                     ),
                 )
             } else {
-                crate::typing::typing_queries::call_target_parameters(program, call.target)?
+                crate::typing_queries::call_target_parameters(program, call.target)?
             };
             let Some(parameters) = parameters else {
                 if let Some(argument) = call
@@ -1816,7 +1816,7 @@ pub(crate) mod construction_destinations {
         target: ExpressionHandle,
     ) -> Option<TypeReferenceHandle> {
         let declared =
-            crate::typing::typing_queries::declared_place_type(program, state, target).ok()?;
+            crate::typing_queries::declared_place_type(program, state, target).ok()?;
         let mut carrier = declared;
         while let TypeReferenceNode::Constrained { base_type, .. } =
             program.type_reference_table.type_reference(carrier)
@@ -1889,7 +1889,7 @@ pub(crate) mod construction_destinations {
         value.is_valid()
             && match program.expression_table.expression(value) {
                 ExpressionNode::Name(_) => {
-                    crate::typing::runtime_callables::named_value_needs_destination(program, value)
+                    crate::runtime_callables::named_value_needs_destination(program, value)
                 }
                 ExpressionNode::MachineValue(_)
                 | ExpressionNode::StructLiteral(_)
@@ -1949,7 +1949,7 @@ pub(crate) mod construction_destinations {
     }
 
     struct DestinationPreparation<'a> {
-        calls: crate::typing::constructor_applications::CallResultSelections<'a>,
+        calls: crate::constructor_applications::CallResultSelections<'a>,
         cast_destinations: Vec<TypeReferenceHandle>,
         contexts: Vec<ReceivingContexts>,
         unselected: Vec<ExpressionHandle>,
@@ -1961,7 +1961,7 @@ pub(crate) mod construction_destinations {
             program: &TypedTrees,
         ) -> Self {
             Self {
-                calls: crate::typing::constructor_applications::CallResultSelections::new(
+                calls: crate::constructor_applications::CallResultSelections::new(
                     source, program,
                 ),
                 cast_destinations: Vec::new(),
@@ -2085,7 +2085,7 @@ pub(crate) mod construction_destinations {
             destination: TypeReferenceHandle,
             mut lifetime_owner: SymbolHandle,
         ) -> Result<bool, Diagnostic> {
-            if crate::typing::runtime_callables::prepare_named_value(
+            if crate::runtime_callables::prepare_named_value(
                 program,
                 value,
                 destination,
@@ -2122,7 +2122,7 @@ pub(crate) mod construction_destinations {
                 }
                 self.cast_destinations[index] = destination;
                 let (operand, before) =
-                    crate::typing::domain_cast_accounting::call_operand_destination(
+                    crate::domain_cast_accounting::call_operand_destination(
                         self.calls.source(),
                         program,
                         value,
@@ -2220,7 +2220,7 @@ pub(crate) mod construction_destinations {
                 }
                 return Ok(landed);
             }
-            crate::typing::typing_queries::land_owned_fixed_byte_literal(
+            crate::typing_queries::land_owned_fixed_byte_literal(
                 program,
                 value,
                 destination,
@@ -2643,7 +2643,7 @@ pub(crate) mod construction_destinations {
             };
             assert_eq!((known.target, known.value), (target, value));
             assert_eq!(
-                crate::typing::typing_queries::declared_place_type(
+                crate::typing_queries::declared_place_type(
                     &program,
                     &program.machine_states(&program.machines()[0])[0],
                     target
@@ -3198,7 +3198,7 @@ pub(crate) mod construction_destinations {
         #[test]
         fn pending_call_result_context_waits_for_the_actual_receiving_type() {
             use crate::source_state::deferred_refusals::DeferredRequest;
-            let mut program = crate::typing::qualified_operator_home_tests::checked(&[
+            let mut program = crate::qualified_operator_home_tests::checked(&[
                 ("kit/only.omg", "public machine only() -> u32 in Saturating { 0u32 }"),
                 ("client.omg", "use kit\\only; machine pending() { let selected: u32 in Saturating = kit\\only(); }"),
             ]).unwrap();
@@ -3353,7 +3353,7 @@ pub(crate) mod installed_interrupts {
     use crate::declaration_selection::AuthoredDeclarationSelectionExposure as SelectionExposure;
     use crate::source_resolved as resolved;
     use crate::source_state::expression::InstalledInterruptOperationRequest;
-    use crate::typing::expressions::expression::lower_static_machine_argument;
+    use crate::expressions::expression::lower_static_machine_argument;
     use diagnostics::Diagnostic;
     use symbols::SymbolKind;
 
@@ -3413,7 +3413,7 @@ pub(crate) mod installed_interrupts {
         while let Some(application) = &continuation.application
             && application.member.is_valid()
         {
-            continuation = crate::typing::tables::resolved_expressions(program)
+            continuation = crate::tables::resolved_expressions(program)
                 .static_member(application.member)
                 .ok_or_else(|| {
                     Diagnostic::error("interrupt registrar member has no owning resolved record")
@@ -3517,7 +3517,7 @@ pub(crate) mod product_queries {
         ExpressionHandle, ExpressionNode, TableCallExpression, TableNamePath,
     };
     use crate::source_symbols::is_build_protocol;
-    use crate::typing::lowerer::name::lower_name;
+    use crate::lowerer::name::lower_name;
     use diagnostics::Diagnostic;
     use symbols::SymbolHandle;
 
@@ -3714,7 +3714,7 @@ pub(crate) mod product_selections {
     use crate::declaration_selection::ProductDeclarationRequest;
     use crate::declaration_selection::ProductOperandRole;
     use crate::source_symbols::JoinedPath;
-    use crate::typing::expressions::expression::lower_static_machine_argument;
+    use crate::expressions::expression::lower_static_machine_argument;
     use diagnostics::Diagnostic;
 
     pub(crate) struct Request {
@@ -3982,7 +3982,7 @@ pub(crate) mod product_selections {
                 .with_source_span(span));
         }
         let application = if nominal_application {
-            let captured = crate::typing::expressions::capture_product_operands::capture(
+            let captured = crate::expressions::capture_product_operands::capture(
                 source, typed, exposure, occurrences, operand,
                 u32::try_from(original_position).map_err(|_| Diagnostic::error("Build static argument position exceeds u32"))?,
             )?;
@@ -4060,8 +4060,8 @@ pub(crate) mod qualification_casts {
     use crate::source_state::types::{
         DomainConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
     };
-    use crate::typing::tables::expression_table;
-    use crate::typing::type_reference::domain_constraints::normalize_domain_constraints_for_type;
+    use crate::tables::expression_table;
+    use crate::type_reference::domain_constraints::normalize_domain_constraints_for_type;
     use diagnostics::Diagnostic;
     use symbols::SymbolHandle;
 
@@ -4112,7 +4112,7 @@ pub(crate) mod qualification_casts {
                 target.result_type = result.unwrap_or_default();
             }
         }
-        crate::typing::expression_meanings::prepare(
+        crate::expression_meanings::prepare(
             source,
             program,
             expression_frontier,
@@ -4200,7 +4200,7 @@ pub(crate) mod qualification_casts {
                     .unconstrained_type_reference(*referee);
             }
             let matches =
-                crate::typing::type_reference::domain_constraints::select_domain_candidates(
+                crate::type_reference::domain_constraints::select_domain_candidates(
                     source,
                     program,
                     carrier,

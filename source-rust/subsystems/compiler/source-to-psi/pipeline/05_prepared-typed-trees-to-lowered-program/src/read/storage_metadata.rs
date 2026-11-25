@@ -8,8 +8,8 @@ use terminal_check_tables::Checked;
 use terminal_psi::{CallingAbiStorage, CallingRuntimeFormal, CallingSignatureTelescope};
 
 use super::{Program, services};
-use crate::lowering::calling_publication::PreparedCallingStorage;
-use crate::lowering::read::calling::SourceCallingPolicies;
+use crate::calling_publication::PreparedCallingStorage;
+use crate::read::calling::SourceCallingPolicies;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(super) enum TypePurpose {

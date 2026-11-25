@@ -1,5 +1,5 @@
 use super::*;
-use crate::checking::ProofSearchActivity;
+use crate::ProofSearchActivity;
 use worker_budget::ExecutionBudget;
 
 fn cohort(valid: bool) -> crate::lowering::Elaboration {

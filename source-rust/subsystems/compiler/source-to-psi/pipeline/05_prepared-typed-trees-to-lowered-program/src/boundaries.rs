@@ -13,7 +13,7 @@ use terminal_psi::{
     TerminalModule,
 };
 
-use crate::lowering::{Outcome, Signature};
+use crate::{Outcome, Signature};
 
 #[derive(Debug, Clone)]
 pub(crate) struct BoundarySource {
@@ -21,10 +21,10 @@ pub(crate) struct BoundarySource {
     pub kind: semantic_vocabulary::BoundaryRequirementKind,
     pub owner: SymbolHandle,
     pub signature: Signature,
-    pub envelope: crate::lowering::reach::SourceEnvelope,
+    pub envelope: crate::reach::SourceEnvelope,
     pub completion: BoundaryCompletion,
     pub owning_service: Option<semantic_vocabulary::ServiceId>,
-    pub declaration: crate::lowering::declare::BoundaryDeclarationSource,
+    pub declaration: crate::declare::BoundaryDeclarationSource,
 }
 #[derive(Debug, Clone, Default)]
 pub(crate) struct BoundaryNamespace {
@@ -43,22 +43,22 @@ impl BoundaryNamespace {
     pub fn outcome(&self, boundary: BoundaryMachineId) -> Option<Outcome> {
         let source = self.row(boundary)?;
         let crash_routes = match &source.signature.crashes {
-            crate::lowering::body::CrashCeiling::Authored(routes) => routes.clone(),
-            crate::lowering::body::CrashCeiling::DeclaredNone => Vec::new(),
-            crate::lowering::body::CrashCeiling::Inferred => return None,
+            crate::body::CrashCeiling::Authored(routes) => routes.clone(),
+            crate::body::CrashCeiling::DeclaredNone => Vec::new(),
+            crate::body::CrashCeiling::Inferred => return None,
         };
         Some(Outcome {
             operational: [source.envelope.suspends, source.envelope.blocks],
             completes_normally: matches!(source.completion, BoundaryCompletion::NormalReturn),
             crash_routes,
             service_reach: match &source.signature.reaches {
-                crate::lowering::Ceiling::Authored(row) => row.clone(),
-                crate::lowering::Ceiling::Inferred => return None,
+                crate::Ceiling::Authored(row) => row.clone(),
+                crate::Ceiling::Inferred => return None,
             },
             fixed_service_reach: None,
             synchronous_entries: match &source.signature.invokes {
-                crate::lowering::Ceiling::Authored(row) => row.clone(),
-                crate::lowering::Ceiling::Inferred => return None,
+                crate::Ceiling::Authored(row) => row.clone(),
+                crate::Ceiling::Inferred => return None,
             },
         })
     }
@@ -67,12 +67,12 @@ impl BoundaryNamespace {
         context: MachineId,
         signatures: &IdTable<MachineId, Signature>,
         outcomes: &IdTable<MachineId, Outcome>,
-        records: &crate::lowering::lower::places::Records<'_>,
-        callables: &crate::lowering::callables::CallableNamespace,
-        services: &crate::lowering::reach::ServiceMap,
-        qualifications: &mut crate::lowering::qualifications::Qualifications,
+        records: &crate::lower::places::Records<'_>,
+        callables: &crate::callables::CallableNamespace,
+        services: &crate::reach::ServiceMap,
+        qualifications: &mut crate::qualifications::Qualifications,
         module: &mut TerminalModule,
-        declarations: Option<&crate::lowering::read::Program<'_>>,
+        declarations: Option<&crate::read::Program<'_>>,
     ) -> Checked<()> {
         let refusal = |detail: &str| Refusal {
             site: terminal_check_tables::RefusalSite::Machine(context, Construct::Machine),
@@ -86,7 +86,7 @@ impl BoundaryNamespace {
         qualifications.identities = std::mem::take(&mut module.identities).into_builder();
         for (id, source) in self.rows.iter() {
             let envelope = services.envelope(context, &source.envelope)?;
-            let header = crate::lowering::lower::signature_header(
+            let header = crate::lower::signature_header(
                 context,
                 &source.signature,
                 signatures,
@@ -130,7 +130,7 @@ impl BoundaryNamespace {
                     })
                 }
             };
-            let declaration = crate::lowering::declare::provider_declaration(
+            let declaration = crate::declare::provider_declaration(
                 declarations.map(|source| source.typed),
                 &source.declaration,
                 &source.signature,
@@ -210,12 +210,12 @@ impl BoundaryNamespace {
                             })?);
                         }
                     }
-                    crate::lowering::declare::boundary(
+                    crate::declare::boundary(
                         reader.typed,
                         source.source,
                         execution,
                         &source.signature,
-                        crate::lowering::declare::Published {
+                        crate::declare::Published {
                             operational: [envelope.suspends, envelope.blocks],
                             reach: &reach,
                             entries: &entries,

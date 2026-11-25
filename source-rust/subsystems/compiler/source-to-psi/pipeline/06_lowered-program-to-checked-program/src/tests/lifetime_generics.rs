@@ -25,7 +25,7 @@ fn accepted(build: &str) {
 
 fn refusal(build: &str) -> String {
     match judge_build(build) {
-        Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+        Err(crate::CompilationRefusal::Elaboration(refusal))
         | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
         // A program the compiler rejects reads as its one violation.
         Ok(RouteVerdict::Rejected { violations, .. }) if violations.len() == 1 => {
@@ -204,7 +204,7 @@ machine build_entry() {{ }}
 /// assumptions"). The closure comes first, then that form.
 fn lifetime_requirement(
     contract: &str,
-) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
+) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     let typed = crate::preparation::prepare_typed_trees(
         super::boundary_calls::typed(&format!(
             "data Holder {{ value: u32; }}
@@ -221,7 +221,7 @@ machine entry() -> u32 {{ let holder: Holder = Holder {{ value: 3 }}; Source::ta
     )
     .unwrap();
     let entry = super::boundary_calls::entry(typed.trees());
-    crate::checking::judge_compilation(
+    crate::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
             super::build_purpose::roster(
@@ -405,7 +405,7 @@ machine entry(action: Action, left: @[u8], right: @[u8], count: @mutable u64) {
             .as_mut()
             .unwrap();
         envelope.blocks = !envelope.blocks;
-        let refused = crate::checking::judge(Ok(forged));
+        let refused = crate::judge(Ok(forged));
         assert!(
             matches!(refused, Err(Refusal { reason: RefusalReason::ForeignIdentity, ref detail, .. })
             if detail.starts_with("abstract envelope differs from its complete source declaration")),
@@ -432,7 +432,7 @@ machine entry(action: Action, left: @[u8], right: @[u8], count: @mutable u64) {
     assert!(
         refused.iter().any(|verdict| matches!(
             verdict,
-            Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+            Err(crate::CompilationRefusal::Elaboration(refusal))
                 if refusal.reason == RefusalReason::Conflict
                     && refusal.detail == "selected machine exceeds the callable invocation ceiling"
         )),
@@ -509,7 +509,7 @@ machine entry(action: Action, left: @[u8], right: @[u8], count: @mutable u64) {
                         terminal_psi::TerminalCallableInvocation::Parameter(_)
                     )
                 });
-            let refused = crate::checking::ceilings::judge(&forged).unwrap_err();
+            let refused = crate::ceilings::judge(&forged).unwrap_err();
             assert_eq!(
                 refused.reason,
                 RefusalReason::ForeignIdentity,
@@ -532,7 +532,7 @@ machine entry(action: Action, left: @[u8], right: @[u8], count: @mutable u64) {
     ));
     assert!(
         refused.iter().any(|verdict| match verdict {
-            Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+            Err(crate::CompilationRefusal::Elaboration(refusal))
             | Ok(RouteVerdict::FallBack(refusal)) => refusal
                 .detail
                 .contains("call that gives one lifetime two regions"),

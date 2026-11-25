@@ -15,7 +15,7 @@ use numerics::arithmetic::ArithmeticDomain;
 use semantic_vocabulary::{IntegerType, ScalarTerm, ScalarType, ValueId};
 use terminal_psi::OperationKind;
 
-use crate::lowering::body::{Policy, Strict, ValueType};
+use crate::body::{Policy, Strict, ValueType};
 
 /// What the suffix written on one operator selects.
 pub(crate) enum Suffix {

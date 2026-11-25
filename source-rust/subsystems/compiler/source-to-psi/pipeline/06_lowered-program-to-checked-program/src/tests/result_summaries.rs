@@ -30,7 +30,7 @@ fn with_local_results(machines: Vec<Machine>, local: &[u64]) -> crate::lowering:
     elaboration
 }
 
-fn accepted(machines: Vec<Machine>, local: &[u64]) -> crate::checking::AcceptedClosure {
+fn accepted(machines: Vec<Machine>, local: &[u64]) -> crate::AcceptedClosure {
     match judge(Ok(with_local_results(machines, local))).unwrap() {
         RouteVerdict::Accepted(accepted) => *accepted,
         verdict => panic!("the program must be accepted: {verdict:?}"),
@@ -221,7 +221,7 @@ machine entry() -> bool {
         )
         .expect("fixture must lower to Psi")
         .program;
-        let mut verdicts = crate::checking::judge_compilation(prepared).into_iter();
+        let mut verdicts = crate::judge_compilation(prepared).into_iter();
         let primary = verdicts.next().unwrap().unwrap();
         if !public && same_unit && false_result {
             let RouteVerdict::Accepted(accepted) = primary else {

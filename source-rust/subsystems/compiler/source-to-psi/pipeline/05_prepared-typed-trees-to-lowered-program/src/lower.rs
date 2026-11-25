@@ -50,9 +50,9 @@ mod boundaries;
 macro_rules! continuing {
     ($evaluation:expr) => {
         match $evaluation? {
-            $crate::lowering::lower::Reached::Value(value) => value,
-            $crate::lowering::lower::Reached::Ended(call) => {
-                return Ok($crate::lowering::lower::Reached::Ended(call));
+            $crate::lower::Reached::Value(value) => value,
+            $crate::lower::Reached::Ended(call) => {
+                return Ok($crate::lower::Reached::Ended(call));
             }
         }
     };
@@ -84,17 +84,17 @@ use terminal_psi::{
 };
 
 use self::places::{Bound, Records, Witness};
-use crate::lowering::body::{Body, Signature, Signatures, Statement, ValueType};
-use crate::lowering::canonical;
-use crate::lowering::outcome::Outcome;
-use crate::lowering::{MachineSources, SourceOrigin, Unpositioned, Unserved, refuse, reject};
+use crate::body::{Body, Signature, Signatures, Statement, ValueType};
+use crate::canonical;
+use crate::outcome::Outcome;
+use crate::{MachineSources, SourceOrigin, Unpositioned, Unserved, refuse, reject};
 
 #[derive(Debug)]
 pub(crate) struct Lowered {
     pub machine: TerminalMachine,
     pub tables: MachineTables,
     pub sources: MachineSources,
-    pub designated: Vec<(OperationId, crate::lowering::DesignatedOperands)>,
+    pub designated: Vec<(OperationId, crate::DesignatedOperands)>,
     pub source_calls: Vec<crate::source_state::SourceCallCorrespondence>,
     pub theorem_applications: Vec<terminal_psi::TheoremApplication>,
     pub theorem_citations: Vec<terminal_psi::TheoremCitation>,
@@ -140,10 +140,10 @@ pub(crate) fn machine(
     outcomes: &IdTable<MachineId, Outcome>,
     records: &Records<'_>,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
-    callables: &crate::lowering::callables::CallableNamespace,
-    boundaries: &crate::lowering::boundaries::BoundaryNamespace,
+    callables: &crate::callables::CallableNamespace,
+    boundaries: &crate::boundaries::BoundaryNamespace,
     requirement: bool,
-    qualifications: &mut crate::lowering::qualifications::Qualifications,
+    qualifications: &mut crate::qualifications::Qualifications,
 ) -> Checked<Lowered> {
     let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
     let signature = signatures.get(id.into(), id)?;
@@ -190,7 +190,7 @@ pub(crate) fn machine(
 
 /// A signature's declarations, shared by named bodies and stored callable
 /// contracts. This creates no named machine or implementation selection.
-pub(crate) type SignatureHeader = crate::lowering::callable_headers::CallableHeader;
+pub(crate) type SignatureHeader = crate::callable_headers::CallableHeader;
 
 /// The same header preparation as an ordinary machine, without a body. The
 /// context names an existing machine for diagnostics; it is not published as
@@ -201,9 +201,9 @@ pub(crate) fn signature_header(
     signatures: &IdTable<MachineId, Signature>,
     outcomes: &IdTable<MachineId, Outcome>,
     records: &Records<'_>,
-    callables: &crate::lowering::callables::CallableNamespace,
-    boundaries: &crate::lowering::boundaries::BoundaryNamespace,
-    qualifications: &mut crate::lowering::qualifications::Qualifications,
+    callables: &crate::callables::CallableNamespace,
+    boundaries: &crate::boundaries::BoundaryNamespace,
+    qualifications: &mut crate::qualifications::Qualifications,
 ) -> Checked<SignatureHeader> {
     // Standalone callable signatures have no published machine contract.
     // Actual requirements supply their allocated contract ID instead.
@@ -216,7 +216,7 @@ pub(crate) fn signature_header(
         records,
         callables,
         boundaries,
-        crate::lowering::callable_headers::CallableCrashPolicy::Closed,
+        crate::callable_headers::CallableCrashPolicy::Closed,
         qualifications,
     )
 }
@@ -228,17 +228,17 @@ pub(crate) fn static_signature_header(
     signatures: &IdTable<MachineId, Signature>,
     outcomes: &IdTable<MachineId, Outcome>,
     records: &Records<'_>,
-    callables: &crate::lowering::callables::CallableNamespace,
-    boundaries: &crate::lowering::boundaries::BoundaryNamespace,
-    qualifications: &mut crate::lowering::qualifications::Qualifications,
+    callables: &crate::callables::CallableNamespace,
+    boundaries: &crate::boundaries::BoundaryNamespace,
+    qualifications: &mut crate::qualifications::Qualifications,
 ) -> Checked<SignatureHeader> {
     let policy = if matches!(
         signature.crashes,
-        crate::lowering::body::CrashCeiling::Inferred
+        crate::body::CrashCeiling::Inferred
     ) {
-        crate::lowering::callable_headers::CallableCrashPolicy::Open
+        crate::callable_headers::CallableCrashPolicy::Open
     } else {
-        crate::lowering::callable_headers::CallableCrashPolicy::Closed
+        crate::callable_headers::CallableCrashPolicy::Closed
     };
     callable_header(
         context,
@@ -261,10 +261,10 @@ fn callable_header(
     signatures: &IdTable<MachineId, Signature>,
     outcomes: &IdTable<MachineId, Outcome>,
     records: &Records<'_>,
-    callables: &crate::lowering::callables::CallableNamespace,
-    boundaries: &crate::lowering::boundaries::BoundaryNamespace,
-    crash_policy: crate::lowering::callable_headers::CallableCrashPolicy,
-    qualifications: &mut crate::lowering::qualifications::Qualifications,
+    callables: &crate::callables::CallableNamespace,
+    boundaries: &crate::boundaries::BoundaryNamespace,
+    crash_policy: crate::callable_headers::CallableCrashPolicy,
+    qualifications: &mut crate::qualifications::Qualifications,
 ) -> Checked<SignatureHeader> {
     // Header preparation constructs formals and the result without lowering
     // a body or looking up an invocation-specific public declaration.
@@ -287,14 +287,14 @@ fn callable_header(
         qualifications,
     )?;
     let routes = match &signature.crashes {
-        crate::lowering::body::CrashCeiling::DeclaredNone => Vec::new(),
-        crate::lowering::body::CrashCeiling::Authored(routes) => routes.clone(),
-        crate::lowering::body::CrashCeiling::Inferred
-            if crash_policy == crate::lowering::callable_headers::CallableCrashPolicy::Open =>
+        crate::body::CrashCeiling::DeclaredNone => Vec::new(),
+        crate::body::CrashCeiling::Authored(routes) => routes.clone(),
+        crate::body::CrashCeiling::Inferred
+            if crash_policy == crate::callable_headers::CallableCrashPolicy::Open =>
         {
             Vec::new()
         }
-        crate::lowering::body::CrashCeiling::Inferred => {
+        crate::body::CrashCeiling::Inferred => {
             return Err(
                 lowering.internal("a runtime callable header has no published crash ceiling")
             );
@@ -311,10 +311,10 @@ fn begin<'a>(
     signatures: Signatures<'a>,
     outcomes: &'a IdTable<MachineId, Outcome>,
     records: &'a Records<'a>,
-    callables: &'a crate::lowering::callables::CallableNamespace,
-    boundaries: &'a crate::lowering::boundaries::BoundaryNamespace,
+    callables: &'a crate::callables::CallableNamespace,
+    boundaries: &'a crate::boundaries::BoundaryNamespace,
     slots: &'a [ValueType],
-    qualifications: &'a mut crate::lowering::qualifications::Qualifications,
+    qualifications: &'a mut crate::qualifications::Qualifications,
 ) -> Checked<(Lowering<'a>, BlockId, Formals, TerminalMachineResult)> {
     let mut lowering = Lowering::new(
         id,
@@ -372,12 +372,12 @@ fn contract_header(
         result,
         result_lifetimes: None,
         declared_service_reach: match &signature.reaches {
-            crate::lowering::Ceiling::Authored(ceiling) => Some(ceiling.clone()),
-            crate::lowering::Ceiling::Inferred => None,
+            crate::Ceiling::Authored(ceiling) => Some(ceiling.clone()),
+            crate::Ceiling::Inferred => None,
         },
         declared_synchronous_entries: match &signature.invokes {
-            crate::lowering::Ceiling::Authored(ceiling) => Some(ceiling.clone()),
-            crate::lowering::Ceiling::Inferred => None,
+            crate::Ceiling::Authored(ceiling) => Some(ceiling.clone()),
+            crate::Ceiling::Inferred => None,
         },
         declared_crash_routes: signature.declared_crash_routes().map(<[_]>::to_vec),
         declared_suspension: signature.operational.suspension,
@@ -387,8 +387,8 @@ fn contract_header(
         published_service_ceiling: outcome.service_reach.clone(),
         published_synchronous_entries: outcome.synchronous_entries.clone(),
         termination: match signature.termination {
-            crate::lowering::Termination::Silent => semantic_vocabulary::Termination::NoGuarantee,
-            crate::lowering::Termination::Promised => semantic_vocabulary::Termination::Terminates,
+            crate::Termination::Silent => semantic_vocabulary::Termination::NoGuarantee,
+            crate::Termination::Promised => semantic_vocabulary::Termination::Terminates,
         },
         crash_routes: outcome.crash_routes.clone(),
         erased_scalar_formals: formals.erased,
@@ -409,8 +409,8 @@ pub(crate) fn declaration_contract(
     signatures: Signatures<'_>,
     outcomes: &IdTable<MachineId, Outcome>,
     records: &Records<'_>,
-    callables: &crate::lowering::callables::CallableNamespace,
-    qualifications: &mut crate::lowering::qualifications::Qualifications,
+    callables: &crate::callables::CallableNamespace,
+    qualifications: &mut crate::qualifications::Qualifications,
 ) -> Checked<MachineContract> {
     let selected = selected_body
         .map(|body| terminal_check_tables::row(outcomes, body, caller, Construct::Machine))
@@ -426,15 +426,15 @@ pub(crate) fn declaration_contract(
             .unwrap_or_default()
             .to_vec(),
         service_reach: match &signature.reaches {
-            crate::lowering::Ceiling::Authored(row) => row.clone(),
-            crate::lowering::Ceiling::Inferred => selected
+            crate::Ceiling::Authored(row) => row.clone(),
+            crate::Ceiling::Inferred => selected
                 .map(|outcome| outcome.service_reach.clone())
                 .unwrap_or_default(),
         },
         fixed_service_reach: None,
         synchronous_entries: match &signature.invokes {
-            crate::lowering::Ceiling::Authored(row) => row.clone(),
-            crate::lowering::Ceiling::Inferred => selected
+            crate::Ceiling::Authored(row) => row.clone(),
+            crate::Ceiling::Inferred => selected
                 .map(|outcome| outcome.synchronous_entries.clone())
                 .unwrap_or_default(),
         },
@@ -479,10 +479,10 @@ impl<'a> Lowering<'a> {
         signatures: Signatures<'a>,
         outcomes: &'a IdTable<MachineId, Outcome>,
         records: &'a Records<'a>,
-        callables: &'a crate::lowering::callables::CallableNamespace,
-        boundaries: &'a crate::lowering::boundaries::BoundaryNamespace,
+        callables: &'a crate::callables::CallableNamespace,
+        boundaries: &'a crate::boundaries::BoundaryNamespace,
         slot_types: &'a [ValueType],
-        qualifications: &'a mut crate::lowering::qualifications::Qualifications,
+        qualifications: &'a mut crate::qualifications::Qualifications,
     ) -> Self {
         let coercions_start = qualifications.catalog.coercions.len();
         Self {
@@ -789,16 +789,16 @@ struct Lowering<'a> {
     outcomes: &'a IdTable<MachineId, Outcome>,
     records: &'a Records<'a>,
     structural_types: &'a [terminal_psi::StructuralTypeDeclaration],
-    callables: &'a crate::lowering::callables::CallableNamespace,
-    boundaries: &'a crate::lowering::boundaries::BoundaryNamespace,
-    qualifications: &'a mut crate::lowering::qualifications::Qualifications,
+    callables: &'a crate::callables::CallableNamespace,
+    boundaries: &'a crate::boundaries::BoundaryNamespace,
+    qualifications: &'a mut crate::qualifications::Qualifications,
     /// The first qualification edge minted by this machine, carried from
     /// construction instead of searching all preceding machines' edges.
     coercions_start: usize,
     /// Complete declared types indexed by the values this lowering minted.
     /// Synthetic proof temporaries have no qualification; expression results
     /// and formals set theirs through the same owner before publication.
-    value_qualifications: Vec<Option<crate::lowering::body::Qualification>>,
+    value_qualifications: Vec<Option<crate::body::Qualification>>,
     /// What each root place is and the record type it holds, indexed by its
     /// `PlaceId`: the machine's structural place declarations.
     roots: IdTable<PlaceId, (StructuralPlaceKind, StructuralTypeId)>,
@@ -814,7 +814,7 @@ struct Lowering<'a> {
     path: Vec<Proposition>,
     tables: MachineTables,
     sources: MachineSources,
-    designated: Vec<(OperationId, crate::lowering::DesignatedOperands)>,
+    designated: Vec<(OperationId, crate::DesignatedOperands)>,
     source_calls: Vec<crate::source_state::SourceCallCorrespondence>,
     theorem_applications: Vec<terminal_psi::TheoremApplication>,
     theorem_citations: Vec<terminal_psi::TheoremCitation>,
@@ -877,7 +877,7 @@ struct Lowering<'a> {
     /// The block a guarded arm's guard turns away to, when nothing has been
     /// lowered into it yet: an unguarded arm that begins there is taken
     /// only on that edge and is an authored branch too.
-    fallthrough: Option<crate::lowering::Branch>,
+    fallthrough: Option<crate::Branch>,
     pending_build: Option<PendingBuildCall>,
     /// A state-head measure remains the same observation in its implementation
     /// blocks. Tail transfers separately measure the successor's actual values.
@@ -972,7 +972,7 @@ impl<'a> Lowering<'a> {
     fn qualify(
         &mut self,
         value: ValueId,
-        qualification: crate::lowering::body::Qualification,
+        qualification: crate::body::Qualification,
     ) -> Checked<()> {
         self.value_qualifications
             .resize(self.tables.values.len(), None);
@@ -998,7 +998,7 @@ impl<'a> Lowering<'a> {
             .get((value.id.get() - 1) as usize)
             .copied()
             .flatten()
-            .unwrap_or(crate::lowering::body::Qualification::NONE);
+            .unwrap_or(crate::body::Qualification::NONE);
         value.qualifications =
             self.qualifications
                 .scalar(self.id, value.scalar_type, qualification)?;
@@ -1115,7 +1115,7 @@ impl<'a> Lowering<'a> {
             if self.owns_body
                 && let Some(statement) = first
             {
-                self.sources.unreachable.push(crate::lowering::Unreachable {
+                self.sources.unreachable.push(crate::Unreachable {
                     statement: statement.into(),
                     call: call.into(),
                 });
@@ -1407,20 +1407,20 @@ impl<'a> Lowering<'a> {
             completes_normally: true,
             crash_routes,
             service_reach: match &self.signature.reaches {
-                crate::lowering::Ceiling::Authored(row) => row.clone(),
-                crate::lowering::Ceiling::Inferred => Vec::new(),
+                crate::Ceiling::Authored(row) => row.clone(),
+                crate::Ceiling::Inferred => Vec::new(),
             },
             fixed_service_reach: None,
             synchronous_entries: match &self.signature.invokes {
-                crate::lowering::Ceiling::Authored(row) => row.clone(),
-                crate::lowering::Ceiling::Inferred => Vec::new(),
+                crate::Ceiling::Authored(row) => row.clone(),
+                crate::Ceiling::Inferred => Vec::new(),
             },
         };
         let mut proof =
             contract_header(contract, self.signature, formals, result, ensures, &outcome);
         self.qualify_contract(&mut proof)?;
         Ok(SignatureHeader {
-            crash_policy: crate::lowering::callable_headers::CallableCrashPolicy::Closed,
+            crash_policy: crate::callable_headers::CallableCrashPolicy::Closed,
             scalar_parameters: proof.parameters.clone(),
             parameter_order: proof.parameter_order.clone(),
             structural_parameters: proof.structural_parameters.clone(),

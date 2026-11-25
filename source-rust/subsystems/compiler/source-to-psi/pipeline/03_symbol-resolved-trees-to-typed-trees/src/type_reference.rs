@@ -76,7 +76,7 @@ pub(crate) mod domain_constraints {
         DomainConstraint, DomainConstraintSubject, TypeConstraintNode,
     };
     use crate::source_symbols::JoinedPath;
-    use crate::typing::type_reference::domain_aliases::expand_domain_reference;
+    use crate::type_reference::domain_aliases::expand_domain_reference;
     use diagnostics::Diagnostic;
 
     pub(crate) fn normalize_domain_constraints(
@@ -258,7 +258,7 @@ pub(crate) mod domain_constraints {
                 let name = if atom.symbol.is_valid() {
                     atom.path
                         .last()
-                        .map(crate::typing::lowerer::name::lower_name)
+                        .map(crate::lowerer::name::lower_name)
                         .unwrap_or_else(|| Identifier::generated(""))
                 } else {
                     Identifier::generated(atom.path.joined_path())
@@ -449,7 +449,7 @@ use crate::declaration_selection::AuthoredDeclarationSelectionKind;
 use crate::source_resolved as resolved;
 use crate::source_selections::AuthoredDeclarationSelectionOccurrenceId;
 use crate::source_state as typed;
-use crate::typing::lowerer::Lowerer;
+use crate::lowerer::Lowerer;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use symbols::SymbolKind;
@@ -554,14 +554,14 @@ pub(crate) mod alias_uses {
                 .iter()
                 .find(|alias| alias.symbol == application.declaration)
                 .ok_or_else(|| {
-                    crate::typing::unavailable_judgment("selected type alias declaration")
+                    crate::unavailable_judgment("selected type alias declaration")
                         .with_source_span(site)
                 })?;
             let formals = program
                 .data_type_parameters
                 .span(alias.type_parameters)
                 .ok_or_else(|| {
-                    crate::typing::unavailable_judgment("declared type alias parameters").with_source_span(site)
+                    crate::unavailable_judgment("declared type alias parameters").with_source_span(site)
                 })?;
             let actuals = program
                 .type_reference_table
@@ -631,8 +631,8 @@ pub(crate) mod alias_uses {
                 type_argument_meets_bounds(program, formal, *actual).map_err(|stop| {
                     match stop {
                         Stop::Rejected(reason) => Diagnostic::error(reason),
-                        Stop::Unserved(reason) => crate::typing::unavailable_judgment(&reason),
-                        Stop::Defect(reason) => crate::typing::unavailable_judgment(reason),
+                        Stop::Unserved(reason) => crate::unavailable_judgment(&reason),
+                        Stop::Defect(reason) => crate::unavailable_judgment(reason),
                     }
                     .with_source_span(site)
                 })?;
@@ -819,7 +819,7 @@ pub(crate) mod const_arguments {
                         .map(|selection| selection.source_span)
                         .filter(|span| span.span.start != span.span.end);
                     let candidates =
-                        crate::typing::type_reference::domain_constraints::select_domain_candidates(
+                        crate::type_reference::domain_constraints::select_domain_candidates(
                             source,
                             program,
                             carrier,
@@ -980,7 +980,7 @@ pub(crate) mod const_arguments {
                             &mut owners,
                             owner,
                             &demanded,
-                            crate::typing::unavailable_judgment(
+                            crate::unavailable_judgment(
                                 "closed const argument declaration custody",
                             ),
                         )?;
@@ -2187,7 +2187,7 @@ pub(crate) mod constraints {
     use crate::source_resolved as resolved;
     use crate::source_resolved::SymbolResolvedTrees;
     use crate::source_state as typed;
-    use crate::typing::tables::{type_constraints, type_references};
+    use crate::tables::{type_constraints, type_references};
     use arena::HandleSpan;
     use diagnostics::Diagnostic;
 
@@ -2203,7 +2203,7 @@ pub(crate) mod constraints {
             let constraint = match constraint {
                 resolved::types::TypeConstraintNode::Named(name) => {
                     typed::types::TypeConstraintNode::Named(
-                        crate::typing::lowerer::name::lower_name(name),
+                        crate::lowerer::name::lower_name(name),
                     )
                 }
                 resolved::types::TypeConstraintNode::Domain(domain) => {
@@ -2263,7 +2263,7 @@ pub(crate) mod constraints {
         arguments: Vec<typed::types::TypeReferenceHandle>,
         exposure: Option<AuthoredDeclarationSelectionExposure>,
     ) -> typed::types::TypeConstraintNode {
-        let name = crate::typing::lowerer::name::lower_name(domain_name);
+        let name = crate::lowerer::name::lower_name(domain_name);
         typed::types::TypeConstraintNode::Domain(typed::types::DomainConstraint {
             subject: classify_domain_constraint_subject(name.as_str(), arguments.len()),
             name,
@@ -2287,7 +2287,7 @@ pub(crate) mod constraints {
         match constraint {
             resolved::types::TypeConstraint::Named(name) => {
                 Ok(typed::types::TypeConstraintNode::Named(
-                    crate::typing::lowerer::name::lower_name(name),
+                    crate::lowerer::name::lower_name(name),
                 ))
             }
             resolved::types::TypeConstraint::Domain(domain) => {
@@ -2298,7 +2298,7 @@ pub(crate) mod constraints {
                     .span_or_empty(domain.arguments)
                     .iter()
                     .map(|argument| {
-                        crate::typing::type_reference::lower_type_reference_into_trees_with_exposure(
+                        crate::type_reference::lower_type_reference_into_trees_with_exposure(
                             source_trees,
                             typed_trees,
                             argument,
@@ -2347,8 +2347,8 @@ pub(crate) mod direct {
     use application_identity::const_value;
     use diagnostics::Diagnostic;
 
-    use crate::typing::lowerer::name::{lower_name, lower_names};
-    use crate::typing::type_reference::constraints::lower_type_constraint_node_span_with_context;
+    use crate::lowerer::name::{lower_name, lower_names};
+    use crate::type_reference::constraints::lower_type_constraint_node_span_with_context;
 
     /*
         `u<N>` and `i<N>` reach typing only when their width is not a closed
@@ -2512,7 +2512,7 @@ pub(crate) mod direct {
                 }
             }
             resolved::types::TypeReference::ConstExpression(expression) => {
-                let expression = crate::typing::expressions::expression::lower_expression_handle_from_table_with_symbol_substitution(
+                let expression = crate::expressions::expression::lower_expression_handle_from_table_with_symbol_substitution(
                 Some(source_trees),
                 &source_trees.tables.bodies.expressions,
                 typed_trees,
@@ -2524,7 +2524,7 @@ pub(crate) mod direct {
                     .insert(typed::types::TypeReferenceNode::ConstExpression(expression)))
             }
             resolved::types::TypeReference::Callable { contract, .. } => {
-                let contract = crate::typing::runtime_callables::lower_contract_reference(
+                let contract = crate::runtime_callables::lower_contract_reference(
                     typed_trees,
                     *contract,
                 )?;
@@ -3337,7 +3337,7 @@ pub(crate) mod generic_origins {
                 .expressions
                 .source_span(source.expression);
             self.failure.get_or_insert_with(|| {
-                crate::typing::unavailable_judgment("closed const argument replay")
+                crate::unavailable_judgment("closed const argument replay")
                     .with_source_span(span)
             });
             None
@@ -3404,13 +3404,13 @@ pub(crate) mod table {
     use crate::source_resolved as resolved;
     use crate::source_resolved::SymbolResolvedTrees;
     use crate::source_state as typed;
-    use crate::typing::tables::type_references;
+    use crate::tables::type_references;
     use arena::HandleSpan;
     use diagnostics::Diagnostic;
 
-    use crate::typing::lowerer::name::lower_names;
-    use crate::typing::type_reference::constraints::lower_type_constraint_node_span_from_table;
-    use crate::typing::type_reference::direct::lower_fixed_array_type;
+    use crate::lowerer::name::lower_names;
+    use crate::type_reference::constraints::lower_type_constraint_node_span_from_table;
+    use crate::type_reference::direct::lower_fixed_array_type;
 
     fn lower_type_argument_handles(
         source_trees: &SymbolResolvedTrees,
@@ -3459,7 +3459,7 @@ pub(crate) mod table {
                         access: *access,
                         lifetime: lifetime
                             .as_ref()
-                            .map(crate::typing::lowerer::name::lower_name),
+                            .map(crate::lowerer::name::lower_name),
                     },
                 ))
             }
@@ -3548,7 +3548,7 @@ pub(crate) mod table {
                     Ok(typed_trees.type_reference_table.insert(
                         typed::types::TypeReferenceNode::Generic {
                             base_symbol: *base_symbol,
-                            base_name: crate::typing::lowerer::name::lower_name(base_name),
+                            base_name: crate::lowerer::name::lower_name(base_name),
                             lifetime_arguments: lower_names(lifetime_arguments),
                             arguments: lowered_arguments,
                         },
@@ -3556,7 +3556,7 @@ pub(crate) mod table {
                 }
             }
             resolved::types::TypeReferenceNode::ConstExpression(expression) => {
-                let expression = crate::typing::expressions::expression::lower_expression_handle_from_table_with_symbol_substitution(
+                let expression = crate::expressions::expression::lower_expression_handle_from_table_with_symbol_substitution(
                 Some(source_trees),
                 &source_trees.tables.bodies.expressions,
                 typed_trees,
@@ -3568,7 +3568,7 @@ pub(crate) mod table {
                     .insert(typed::types::TypeReferenceNode::ConstExpression(expression)))
             }
             resolved::types::TypeReferenceNode::Callable { contract } => {
-                let contract = crate::typing::runtime_callables::lower_contract_reference(
+                let contract = crate::runtime_callables::lower_contract_reference(
                     typed_trees,
                     *contract,
                 )?;
@@ -3909,7 +3909,7 @@ pub(crate) fn lower_named_type_reference(
             .type_reference_table
             .insert(typed::types::TypeReferenceNode::Named {
                 symbol,
-                name: crate::typing::lowerer::name::lower_name(name),
+                name: crate::lowerer::name::lower_name(name),
             });
     if source_trees.const_declaration(symbol).is_some() {
         typed_trees

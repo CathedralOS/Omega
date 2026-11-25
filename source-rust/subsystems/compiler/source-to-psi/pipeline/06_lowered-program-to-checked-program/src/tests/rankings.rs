@@ -1,6 +1,6 @@
 //! Loop progress controls tie each comparison to the cycle and value it checks.
 use super::*;
-use crate::checking::reverify;
+use crate::reverify;
 use terminal_check_tables::obligations::ObligationRow;
 use terminal_psi::{
     TerminalBlockNaturalRank, TerminalIntegerRankValue, TerminalNaturalCycle,
@@ -156,7 +156,7 @@ fn finite_integer_rankings_use_real_kernel_checked_edge_goals() {
         let mut elaboration = ranked(signed, tuple, false);
         let discharged = discharge(
             &mut elaboration,
-            &mut crate::checking::ProofSearchActivity::default(),
+            &mut crate::ProofSearchActivity::default(),
         )
         .unwrap();
         let tables = elaboration.tables.machines.get(id(1)).unwrap();
@@ -173,9 +173,9 @@ fn finite_integer_rankings_use_real_kernel_checked_edge_goals() {
                     };
                     assert_kernel_checked(&elaboration, 1, obligation, evidence);
                     let mut consumer = elaboration.clone();
-                    let mut activity = crate::checking::ProofSearchActivity::default();
+                    let mut activity = crate::ProofSearchActivity::default();
                     let mut replay =
-                        crate::checking::prepare_replay(&mut consumer, &mut activity).unwrap();
+                        crate::prepare_replay(&mut consumer, &mut activity).unwrap();
                     reverify(
                         &mut replay,
                         id(1),
@@ -249,7 +249,7 @@ fn exact_ranking_inventory_rejects_missing_surplus_swapped_and_stale_claims() {
         assert!(
             discharge(
                 &mut elaboration,
-                &mut crate::checking::ProofSearchActivity::default()
+                &mut crate::ProofSearchActivity::default()
             )
             .is_err(),
             "fault {fault} accepted"
@@ -285,15 +285,15 @@ pub(crate) fn typed_with_ranking_catalog(text: &str) -> crate::source_state::Typ
             source_admission::SourceOrigin::Toolchain,
         )
         .source_id;
-    let tokens = crate::checking::frontend_fixture::Lexer::new(text)
+    let tokens = crate::frontend_fixture::Lexer::new(text)
         .tokenize()
         .unwrap();
     let mut syntax =
-        crate::checking::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
-    let tokens = crate::checking::frontend_fixture::Lexer::new(prefix)
+        crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
+    let tokens = crate::frontend_fixture::Lexer::new(prefix)
         .tokenize()
         .unwrap();
-    crate::checking::frontend_fixture::parse(&mut syntax, core, &tokens).unwrap();
+    crate::frontend_fixture::parse(&mut syntax, core, &tokens).unwrap();
     let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
         syntax,
         sources: Some(Arc::new(sources)),
@@ -347,7 +347,7 @@ machine entry() -> u32 terminates crashes none {{ countdown(4) }}
                 if unproved.iter().any(|row| matches!(row.kind, ObligationKind::RankComparison { .. }))
             ) || matches!(
                 verdict, Ok(RouteVerdict::FallBack(refusal))
-                    | Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+                    | Err(crate::CompilationRefusal::Elaboration(refusal))
                 if refusal.detail.contains("removing strict rank edges")
             )),
             "the {next} recursive route must fail its progress obligation"
@@ -373,7 +373,7 @@ fn borrowed_slice_iterations_keep_their_measure_and_backing() {
         match result {
             Ok(RouteVerdict::Accepted(_)) => {}
             Ok(RouteVerdict::FallBack(refusal))
-            | Err(crate::checking::CompilationRefusal::Elaboration(refusal)) => {
+            | Err(crate::CompilationRefusal::Elaboration(refusal)) => {
                 panic!("borrowed iteration was refused: {}", refusal.detail);
             }
             other => panic!("borrowed iteration did not pass: {other:?}"),
@@ -386,7 +386,7 @@ fn every_complete_cycle_must_cross_a_strict_edge() {
     let mut elaboration = ranked(false, false, true);
     let refusal = discharge(
         &mut elaboration,
-        &mut crate::checking::ProofSearchActivity::default(),
+        &mut crate::ProofSearchActivity::default(),
     )
     .unwrap_err();
     assert!(
@@ -425,7 +425,7 @@ fn a_forged_successor_cannot_substitute_a_smaller_unrelated_value() {
     cycle.observations.get_mut(old.start()).value = zero;
     let refusal = discharge(
         &mut elaboration,
-        &mut crate::checking::ProofSearchActivity::default(),
+        &mut crate::ProofSearchActivity::default(),
     )
     .unwrap_err();
     assert!(
@@ -436,12 +436,12 @@ fn a_forged_successor_cannot_substitute_a_smaller_unrelated_value() {
 }
 
 fn observed_verdicts(
-    results: &[Result<RouteVerdict, crate::checking::CompilationRefusal>],
+    results: &[Result<RouteVerdict, crate::CompilationRefusal>],
 ) -> Vec<String> {
     results.iter().map(|result| match result {
         Ok(RouteVerdict::Accepted(_)) => String::from("accepted"),
         Ok(RouteVerdict::FallBack(refusal)) => format!("unsupported: {}", refusal.detail),
-        Err(crate::checking::CompilationRefusal::Elaboration(refusal)) => format!("elaboration refusal: {}", refusal.detail),
+        Err(crate::CompilationRefusal::Elaboration(refusal)) => format!("elaboration refusal: {}", refusal.detail),
         Ok(RouteVerdict::Rejected { formations, violations, unproved, unestablished, conflicts, exceeded }) => format!(
             "rejected: formations={formations:?}, violations={}, unproved={:?}, unestablished={}, conflicts={}, exceeded={}",
             violations.len(), unproved.iter().map(|row| &row.kind).collect::<Vec<_>>(), unestablished.len(), conflicts.len(), exceeded.len(),
@@ -471,7 +471,7 @@ machine entry() -> u32 terminates crashes none {{ countdown(4) }}
     // catalog/lookalike cohort retains no selection. Neither grants a theory.
     assert!(
         verdicts.iter().any(|verdict| matches!(verdict,
-            Err(crate::checking::CompilationRefusal::Elaboration(refusal)) | Ok(RouteVerdict::FallBack(refusal))
+            Err(crate::CompilationRefusal::Elaboration(refusal)) | Ok(RouteVerdict::FallBack(refusal))
                 if matches!(refusal.detail.as_str(),
                     "contract selected ranking view is not an admitted compiler ranking declaration while reading the body of `countdown`"
                         | "contract ranking view has no admitted resolved selection while reading the body of `countdown`")
@@ -582,7 +582,7 @@ machine entry() -> u64 {{ count(2, 5) }}
         let verdicts = super::boundary_calls::compilation_results_of(&program);
         assert!(
         verdicts.iter().any(|verdict| matches!(verdict,
-            Err(crate::checking::CompilationRefusal::Elaboration(refusal)) | Ok(RouteVerdict::FallBack(refusal))
+            Err(crate::CompilationRefusal::Elaboration(refusal)) | Ok(RouteVerdict::FallBack(refusal))
                 if refusal.detail.contains("ranking view is not an admitted compiler ranking declaration")
                     || refusal.detail.contains("ranking view has no admitted resolved selection")
         )),
@@ -599,7 +599,7 @@ fn selected_ranking_views_check_their_own_subject_and_catalog_header() {
     );
     let verdicts = super::boundary_calls::compilation_results_of(&scalar_length);
     assert!(verdicts.iter().any(|verdict| matches!(verdict,
-        Err(crate::checking::CompilationRefusal::Elaboration(refusal)) | Ok(RouteVerdict::FallBack(refusal)) if refusal.detail.contains("non-collection storage")
+        Err(crate::CompilationRefusal::Elaboration(refusal)) | Ok(RouteVerdict::FallBack(refusal)) if refusal.detail.contains("non-collection storage")
     )), "an acyclic clause still owes collection formation: {:?}", observed_verdicts(&verdicts));
     for (text, diagnostic) in [
         (
@@ -626,7 +626,7 @@ fn selected_ranking_views_check_their_own_subject_and_catalog_header() {
         let program = typed_with_ranking_catalog(text);
         let verdicts = super::boundary_calls::compilation_results_of(&program);
         assert!(verdicts.iter().any(|verdict| matches!(verdict,
-            Err(crate::checking::CompilationRefusal::Elaboration(refusal)) | Ok(RouteVerdict::FallBack(refusal)) if refusal.detail.contains(diagnostic)
+            Err(crate::CompilationRefusal::Elaboration(refusal)) | Ok(RouteVerdict::FallBack(refusal)) if refusal.detail.contains(diagnostic)
         )), "a selected view still owes its argument formation: {text}: {:?}", observed_verdicts(&verdicts));
     }
     let mut program = typed_with_ranking_catalog(
@@ -644,7 +644,7 @@ fn selected_ranking_views_check_their_own_subject_and_catalog_header() {
         .parameters = Default::default();
     let verdicts = super::boundary_calls::compilation_results_of(&program);
     assert!(verdicts.iter().any(|verdict| matches!(verdict,
-        Err(crate::checking::CompilationRefusal::Elaboration(refusal)) | Ok(RouteVerdict::FallBack(refusal)) if refusal.detail.contains("exactly one subject")
+        Err(crate::CompilationRefusal::Elaboration(refusal)) | Ok(RouteVerdict::FallBack(refusal)) if refusal.detail.contains("exactly one subject")
     )), "sealed source custody cannot hide a changed selected header: {:?}", observed_verdicts(&verdicts));
 }
 
@@ -693,7 +693,7 @@ fn a_slice_loop_must_shrink_the_slice_it_actually_passes() {
     assert!(results.iter().any(|result| matches!(result,
         Ok(RouteVerdict::Rejected { unproved, .. }) if unproved.iter().any(|row| matches!(row.kind, ObligationKind::RankComparison { .. }))
     ) || matches!(result,
-        Ok(RouteVerdict::FallBack(refusal)) | Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+        Ok(RouteVerdict::FallBack(refusal)) | Err(crate::CompilationRefusal::Elaboration(refusal))
         if refusal.detail.contains("removing strict rank edges")
     )), "passing the unchanged slice cannot prove descent: {:?}", observed_verdicts(&results));
 }
@@ -742,10 +742,10 @@ machine entry(sig: @Signature) -> bool terminates crashes none {{ walk(sig, 0, 4
     let verdicts = |guard| {
         super::boundary_calls::compilation_results_of(&typed_with_ranking_catalog(&source(guard)))
     };
-    let misplaced = |verdict: &Result<RouteVerdict, crate::checking::CompilationRefusal>| {
+    let misplaced = |verdict: &Result<RouteVerdict, crate::CompilationRefusal>| {
         matches!(
             verdict,
-            Ok(RouteVerdict::FallBack(refusal)) | Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+            Ok(RouteVerdict::FallBack(refusal)) | Err(crate::CompilationRefusal::Elaboration(refusal))
             if refusal.detail.contains("not created at the point of what owes it")
         )
     };

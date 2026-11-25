@@ -771,7 +771,7 @@ machine entry<'a>(holder: @mutable Holder<'a>, replacement: @'a [u8]) -> u64 {{
         feedback.operations = staged_call;
         lowered.blocks.insert(0, entry);
         lowered.blocks.push(feedback);
-        let graph = crate::checking::graph::Graph::new(lowered.id, &lowered, &tables).unwrap();
+        let graph = crate::graph::Graph::new(lowered.id, &lowered, &tables).unwrap();
         let types = tables.values.map(|_, row| row.scalar_type);
         // The test moved this body's operations into a loop. Reference
         // scratch, if demanded, must describe that actual modified body.
@@ -782,13 +782,13 @@ machine entry<'a>(holder: @mutable Holder<'a>, replacement: @'a [u8]) -> u64 {{
             .find(|machine| machine.id == lowered.id)
             .unwrap() = lowered.clone();
         let reference_graph =
-            crate::checking::places::reference_graph(&reference_module, lowered.id).unwrap();
+            crate::places::reference_graph(&reference_module, lowered.id).unwrap();
         let mut references =
             terminal_semantics::descriptor_results::DescriptorAnalysis::with_reference_slots(
                 &elaboration.module.types.structural_types,
                 &reference_graph,
             );
-        let storage = crate::checking::places::Storage::new(
+        let storage = crate::places::Storage::new(
             lowered.id,
             &lowered,
             &elaboration.module,

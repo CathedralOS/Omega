@@ -10,9 +10,6 @@ autobenches = false
 [features]
 test-support = []
 
-[lib]
-path = "lib.rs"
-
 [dependencies]
 proof-admission = { path = "../../../psi/semantics/proofs/bounded" }
 prepared-source = { path = "../../representations/prepared-source" }

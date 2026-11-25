@@ -708,7 +708,7 @@ impl<'a> Storage<'a> {
         if !borrowed_arrival && !place.segments.contains(&Segment::Referent) {
             return Ok(Backing::direct(place.clone()));
         }
-        let before = crate::checking::position(
+        let before = crate::position(
             before.min(self.block(block)?.operations.len()),
             self.machine,
         )?;
