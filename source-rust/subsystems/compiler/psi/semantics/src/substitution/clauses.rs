@@ -8,6 +8,39 @@ use semantic_vocabulary::{
     ScalarReadProjection, ScalarTerm, ScalarType, StructuralCaseId, ValueId,
 };
 
+/// What a case test says where a clause is used.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaseAnswer {
+    /// Structure decides it: what was stored, a dispatch edge or a stated
+    /// case.
+    Holds(bool),
+    /// Structure does not decide it, but the sum still holds what it held at
+    /// a storage boundary, where this Boolean logical name is true exactly
+    /// when the sum holds the case. The test is then a proposition over that
+    /// name, which knowledge at the boundary can decide.
+    Named(ValueId),
+}
+
+impl CaseAnswer {
+    /// The test as a proposition over the consumer's names.
+    pub fn proposition(self) -> Proposition {
+        match self {
+            Self::Holds(true) => Proposition::Truth,
+            Self::Holds(false) => Proposition::Falsehood,
+            Self::Named(id) => Proposition::Equal(
+                ScalarTerm::value(id, ScalarType::Boolean),
+                ScalarTerm::Boolean(true),
+            ),
+        }
+    }
+}
+
+impl From<bool> for CaseAnswer {
+    fn from(holds: bool) -> Self {
+        Self::Holds(holds)
+    }
+}
+
 /// Resolve a structural read through an ordinary field binding when every
 /// selector has a concrete position in the receiving scope.
 pub fn bind_fixed_read<B: ClauseBindings + ?Sized>(
@@ -125,13 +158,15 @@ pub trait ClauseBindings {
             "clause byte predicate has no byte source observation",
         ))
     }
-    /// Whether the sum at `path` beneath `root` is `case`, by structure.
+    /// Whether the sum at `path` beneath `root` is `case` where the clause is
+    /// used: decided by structure, or named by the Boolean the consumer
+    /// gives that sum's case at a storage boundary.
     fn case(
         &mut self,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         case: StructuralCaseId,
-    ) -> Result<bool, Self::Error>;
+    ) -> Result<CaseAnswer, Self::Error>;
 
     /// Resolve a case predicate, or retain its exact subject when only scalar
     /// names are being changed within the same machine.
@@ -141,13 +176,7 @@ pub trait ClauseBindings {
         path: &[CanonicalStructuralPathSegment],
         case: StructuralCaseId,
     ) -> Result<Proposition, Self::Error> {
-        self.case(root, path, case).map(|holds| {
-            if holds {
-                Proposition::Truth
-            } else {
-                Proposition::Falsehood
-            }
-        })
+        self.case(root, path, case).map(CaseAnswer::proposition)
     }
 
     /// Actual call imports must rejoin a projection to the current owner's
@@ -419,7 +448,7 @@ impl<Error: From<&'static str>> ClauseBindings for GoalAlternatives<'_, Error> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         case: StructuralCaseId,
-    ) -> Result<bool, Error> {
+    ) -> Result<CaseAnswer, Error> {
         self.bindings.case(root, path, case)
     }
 
@@ -449,14 +478,15 @@ impl<Error: From<&'static str>> ClauseBindings for GoalAlternatives<'_, Error> {
 /// replacing each of its names with what `bindings` says it stands for. The
 /// consumer owns the resolution of storage observations and value identities.
 ///
-/// A case test is not a value: where the clause is used the case is known by
-/// structure or not at all, so the test becomes `Truth` or `Falsehood` and
-/// the connective around it is simplified. A conjunction with a false
+/// A case test becomes `Truth` or `Falsehood` where structure decides it,
+/// and the connective around it is simplified. A conjunction with a false
 /// conjunct is false and a disjunction with a true disjunct is true whatever
 /// their other parts are, which is what lets a clause project a payload
 /// under the test of its case (data_and_literals.md: "inactive payloads
 /// cannot be projected"): the projection is only resolved when the test did
-/// not already decide its connective.
+/// not already decide its connective. Where structure does not decide it,
+/// the bindings may name the case the sum held at a storage boundary
+/// (`CaseAnswer::Named`), and the test is a Boolean equality over that name.
 ///
 /// Any other form is refused: substituting under a construct this function
 /// does not know would be a silent change of meaning.
@@ -961,7 +991,7 @@ mod tests {
             _: PlaceId,
             _: &[CanonicalStructuralPathSegment],
             _: StructuralCaseId,
-        ) -> Result<bool, Self::Error> {
+        ) -> Result<CaseAnswer, Self::Error> {
             Err("unbound case")
         }
     }
@@ -1076,7 +1106,7 @@ mod tests {
                 root: PlaceId,
                 path: &[CanonicalStructuralPathSegment],
                 case: StructuralCaseId,
-            ) -> Result<bool, Self::Error> {
+            ) -> Result<CaseAnswer, Self::Error> {
                 Inputs.case(root, path, case)
             }
 
@@ -1265,7 +1295,7 @@ mod meaning_template_tests {
             _: PlaceId,
             _: &[CanonicalStructuralPathSegment],
             _: StructuralCaseId,
-        ) -> Result<bool, Self::Error> {
+        ) -> Result<CaseAnswer, Self::Error> {
             Err("not a case")
         }
         fn validate_float_meaning_source(&mut self, _: &ScalarTerm) -> Result<(), Self::Error> {
@@ -1409,7 +1439,7 @@ mod sufficient_goal_tests {
             _: PlaceId,
             _: &[CanonicalStructuralPathSegment],
             _: StructuralCaseId,
-        ) -> Result<bool, Self::Error> {
+        ) -> Result<CaseAnswer, Self::Error> {
             Err("no case")
         }
     }

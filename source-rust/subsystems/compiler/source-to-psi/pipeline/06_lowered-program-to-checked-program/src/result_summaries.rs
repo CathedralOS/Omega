@@ -279,7 +279,7 @@ impl Bindings for Returned<'_> {
         _: PlaceId,
         _: &[CanonicalStructuralPathSegment],
         _: StructuralCaseId,
-    ) -> Result<bool, Unbound> {
+    ) -> Result<crate::CaseAnswer, Unbound> {
         Err(Unbound::Unproved("a case has no name in a result summary"))
     }
 }

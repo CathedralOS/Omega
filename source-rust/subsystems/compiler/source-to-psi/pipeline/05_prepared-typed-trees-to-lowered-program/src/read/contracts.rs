@@ -528,6 +528,18 @@ impl Program<'_> {
         })
     }
 
+    /// Whether `expression` is a case test, `x in S::C` or `x == S::C`.
+    fn tests_a_case(&self, expression: ExpressionHandle) -> bool {
+        expression.is_valid()
+            && matches!(
+                self.typed.expression_table.expression(expression),
+                ExpressionNode::Binary(binary)
+                    if binary.operator == BinaryOperator::CaseMembership
+                        || (binary.operator == BinaryOperator::Equal
+                            && self.named_case(binary.right).is_some())
+            )
+    }
+
     fn read_clause(
         &mut self,
         id: MachineId,
@@ -704,6 +716,46 @@ impl Program<'_> {
                 subject: StructuralCaseSubject::new(root, path),
                 case,
             });
+        }
+        // `flag == (x in S::C)`: a case test has no carrier value, but as an
+        // operand of `==` or `!=` it is the proposition it states (domains.md:
+        // "`x in A | B` states union membership", a proposition like any
+        // other). `L == R` is that both sides hold or neither does, and
+        // `L != R` that exactly one does, so the published clause vocabulary
+        // is unchanged and a proof splits on the two alternatives as for any
+        // `||`.
+        if matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual)
+            && (self.tests_a_case(binary.left) || self.tests_a_case(binary.right))
+        {
+            *operands = [self.operator_operand_reference(ValueType::plain(ScalarType::Boolean)); 2];
+            let left = self.clause(id, scope, binary.left)?;
+            let right = self.clause(id, scope, binary.right)?;
+            let not = |proposition: &Proposition| Proposition::Implication {
+                premise: Box::new(proposition.clone()),
+                conclusion: Box::new(Proposition::Falsehood),
+            };
+            let (first, second) = if operator == BinaryOperator::Equal {
+                ([left.clone(), right.clone()], [not(&left), not(&right)])
+            } else {
+                ([left.clone(), not(&right)], [not(&left), right.clone()])
+            };
+            let mut alternatives = Vec::with_capacity(2);
+            for parts in [first, second] {
+                let mut conjuncts = Vec::new();
+                for part in parts {
+                    match part {
+                        Proposition::Conjunction(inner) => conjuncts.extend(inner),
+                        other => conjuncts.push(other),
+                    }
+                }
+                alternatives.push(Proposition::Conjunction(canonical::clauses(
+                    conjuncts,
+                    Repeated::Refuse,
+                    id,
+                )?));
+            }
+            return canonical::clauses(alternatives, Repeated::Refuse, id)
+                .map(Proposition::Disjunction);
         }
         let comparison = match operator {
             BinaryOperator::And => {

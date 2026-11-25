@@ -621,7 +621,7 @@ impl crate::substitution::clauses::ClauseBindings for FieldSubject {
         _: semantic_vocabulary::PlaceId,
         _: &[semantic_vocabulary::CanonicalStructuralPathSegment],
         _: semantic_vocabulary::StructuralCaseId,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<crate::substitution::clauses::CaseAnswer, Self::Error> {
         Err("scalar domain predicate tests a structural case")
     }
 }

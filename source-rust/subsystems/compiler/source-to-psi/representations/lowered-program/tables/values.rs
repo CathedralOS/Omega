@@ -7,7 +7,7 @@ question over `ProgramPoint`s.
 */
 
 use semantic_vocabulary::{
-    BlockId, EdgeId, EvidenceTermId, OperationId, PropositionId, ScalarType,
+    BlockId, EdgeId, EvidenceTermId, OperationId, PropositionId, ScalarType, StructuralCaseId,
 };
 
 use crate::{ExactPlaceId, InvocationId, KnowledgeId, ProgramPoint};
@@ -73,6 +73,27 @@ pub enum ValueOrigin {
         place: ExactPlaceId,
         after: Option<OperationId>,
     },
+    /// Whether the sum at `place` holds `case` at the same boundaries a
+    /// `StorageContent` leaf is named at: its owner's invocation entry
+    /// (`None`), or the normal return of an exact call. A Boolean logical
+    /// name, so a clause can state which case a sum holds without deciding
+    /// it (data_and_literals.md, "Case constraints": "The data clause uses
+    /// ordinary well-formed contract propositions, including Boolean
+    /// combinations"). Like a content name it is not an executable operand,
+    /// and the storage checker follows later writes separately.
+    StorageCase {
+        place: ExactPlaceId,
+        case: StructuralCaseId,
+        after: Option<OperationId>,
+    },
+}
+
+impl ValueOrigin {
+    /// A logical name for what storage holds at a boundary, which no
+    /// operation evaluates.
+    pub fn is_storage_observation(self) -> bool {
+        matches!(self, Self::StorageContent { .. } | Self::StorageCase { .. })
+    }
 }
 
 /// One piece of knowledge: a proposition over value identities, where it is

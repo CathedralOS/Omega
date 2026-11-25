@@ -389,7 +389,7 @@ impl crate::Bindings for AtCleanupCall<'_, '_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         case: StructuralCaseId,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<crate::CaseAnswer, Self::Error> {
         self.inputs.case(root, path, case)
     }
 }

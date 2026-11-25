@@ -823,6 +823,16 @@ impl Program<'_> {
                     // owes a condition before it forms a term. Declaration
                     // formation checks that condition before using the
                     // clause.
+                    // A case test is a proposition, not a carrier value: it
+                    // is an operand only of `==` or `!=` in a whole clause
+                    // (`read_clause`), never of arithmetic or a call.
+                    ExpressionNode::Binary(binary)
+                        if binary.operator == BinaryOperator::CaseMembership =>
+                    {
+                        return Err(unavailable(
+                            "case test as a value outside a Boolean comparison",
+                        ));
+                    }
                     ExpressionNode::Binary(binary) => {
                         let source_left = SourceOrigin::of(table.source_span(binary.left));
                         // A comparison computes a Boolean from operands of

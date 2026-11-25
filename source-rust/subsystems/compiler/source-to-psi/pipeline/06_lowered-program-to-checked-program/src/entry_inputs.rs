@@ -952,7 +952,7 @@ impl Bindings for RenamedTerm<'_> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         case: StructuralCaseId,
-    ) -> Result<bool, Unbound> {
+    ) -> Result<crate::CaseAnswer, Unbound> {
         self.inner.case(root, path, case)
     }
 }
@@ -1075,7 +1075,7 @@ impl Bindings for InputBindings<'_, '_> {
         _: PlaceId,
         _: &[CanonicalStructuralPathSegment],
         _: StructuralCaseId,
-    ) -> Result<bool, Unbound> {
+    ) -> Result<crate::CaseAnswer, Unbound> {
         Err(Unbound::Unproved(
             "a caller storage case is not a callee input value",
         ))

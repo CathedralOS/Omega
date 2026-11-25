@@ -426,7 +426,9 @@ impl<'a> Storage<'a> {
                         self.graph.locate(ProgramPoint::AfterOperation(operation))?;
                     defined == block && position <= before
                 }
-                ValueOrigin::MachineResult | ValueOrigin::StorageContent { .. } => false,
+                ValueOrigin::MachineResult
+                | ValueOrigin::StorageContent { .. }
+                | ValueOrigin::StorageCase { .. } => false,
             };
             if !current {
                 return Ok(0);
@@ -663,7 +665,9 @@ impl<'a> Storage<'a> {
                 ValueOrigin::MachineParameter { .. } => continue,
                 ValueOrigin::BlockParameter { block, .. } => ProgramPoint::BlockEntry(block),
                 ValueOrigin::Operation(operation) => ProgramPoint::AfterOperation(operation),
-                ValueOrigin::MachineResult | ValueOrigin::StorageContent { .. } => return Ok(None),
+                ValueOrigin::MachineResult
+                | ValueOrigin::StorageContent { .. }
+                | ValueOrigin::StorageCase { .. } => return Ok(None),
             };
             if !self.graph.dominates(definition, stored)?
                 || !self.graph.dominates(definition, used)?

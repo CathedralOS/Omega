@@ -113,7 +113,7 @@ impl<Row, Literal: FnMut(&Row) -> Option<ScalarTerm>> ClauseBindings
         _: PlaceId,
         _: &[CanonicalStructuralPathSegment],
         _: StructuralCaseId,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<crate::substitution::clauses::CaseAnswer, Self::Error> {
         Err("the decoded scalar record has no sum case")
     }
 }

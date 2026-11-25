@@ -1,0 +1,7 @@
+// A case test is a Boolean operand of `==`. A `Bad` argument with a true
+// `flag` does not meet `flag == (outcome in Outcome::Good)`, so the call of
+// `relay` is refused.
+data Outcome { case Good; case Bad; }
+machine take(outcome: Outcome) requires outcome in Outcome::Good { }
+machine relay(outcome: Outcome, flag: bool) requires flag == (outcome in Outcome::Good) requires flag { take(outcome); }
+machine build_entry() { relay(Outcome::Bad, true); }

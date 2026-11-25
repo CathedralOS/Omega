@@ -1415,17 +1415,30 @@ type), and the clause's `ClauseScope` says what each name denotes there.
     callee's `ensures`, where it used to answer "unknown" (`stated_cases`
     in `places.rs`). A caller proves a required case from what it stored in
     the argument, and a callee proves a guaranteed case where it returns.
-    Still refused: a test beside an alternative (`(result in Result::Err)
-    || ..`), which may be false while the clause holds, and a test used as a
-    Boolean operand (`Model::valid(..) == (result in Result::Ok)`). Both
-    need a sum's case named as a content value, the way the lowered program
-    names each scalar leaf at entry and after each call
-    (`ValueOrigin::StorageContent`), so that a clause is a proposition over
-    it; that is a new content kind in the lowered program and in Terminal
-    Psi. The three sample families that write these clauses
-    (`resource_representation`, `representation_agreement`,
+    A test beside an alternative (`(result in Result::Err) || ..`), which
+    may be false while the clause holds, and a test used as a Boolean
+    operand (`Model::valid(..) == (result in Result::Ok)`) are served too
+    (2026-11-25). The lowered program names the case of each sum an input or
+    a call result holds, one Boolean per declared case, at entry and after
+    each call, the way it names each scalar leaf there
+    (`ValueOrigin::StorageCase` beside `ValueOrigin::StorageContent`); it
+    is a logical name, not a Terminal Psi operand. Where structure does not
+    decide a test, stage 06 states it over the name (`CaseAnswer::Named`),
+    knows that exactly one of a sum's names holds at each boundary, and
+    learns the name from a membership test or a dispatch on the sum. Stage
+    05 reads `L == R` over a case test as `(L && R) || (!L && !R)`. A
+    payload read still needs the case by structure, and a block formal's
+    case has no name yet. The three sample families that write these
+    clauses (`resource_representation`, `representation_agreement`,
     `buffered_representation_agreement`) are refused earlier for other
-    reasons today, so this change moves none of them.
+    reasons, so this change moves none of them: `representation_agreement`
+    stops at `u` in `let same_result<u: core\Level, ..>`, which
+    `BuiltinTypeAtom::is_builtin_type_spelling` takes for an integer type
+    because the empty digit suffix passes `all(is_ascii_digit)`;
+    `resource_representation` reuses the visible formal name `frame` in a
+    pattern (`value as frame`), which state_contracts.md forbids; and all
+    three then meet generic and lifetime refusals (a static implementation
+    family's binder or region proof, a trait with lifetime parameters).
   - "Identity operand has no term at its written carrier" for a field of a
     record formal outside the mathematical signature: the field arm serves
     data that contains itself only.

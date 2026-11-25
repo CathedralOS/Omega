@@ -497,6 +497,7 @@ impl<'a> Lowering<'a> {
             boundaries,
             roots: IdTable::default(),
             demanded_contents: Vec::new(),
+            demanded_cases: Vec::new(),
             path: Vec::new(),
             tables: MachineTables::default(),
             sources: MachineSources::default(),
@@ -805,6 +806,10 @@ struct Lowering<'a> {
     /// Scalar leaves requested by operations and clauses, indexed by exact
     /// place. Final lowering allocates their entry and returned snapshots.
     demanded_contents: Vec<Option<ScalarType>>,
+    /// Sum places whose case is requested at the same boundaries as
+    /// `demanded_contents`, by exact place, with the sum's type. Final
+    /// lowering names one Boolean per declared case of each.
+    demanded_cases: Vec<Option<StructuralTypeId>>,
     /// The branch decisions on the path to the open block, in program order:
     /// each the branch value equal to the Boolean its edge took. Every arm
     /// completes the machine, and a short-circuit or `match` rejoins its

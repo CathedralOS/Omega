@@ -1,0 +1,7 @@
+// A case test may stand beside an alternative. A `Bad` argument with a
+// false `flag` meets neither side of `(outcome in Outcome::Good) || flag`,
+// so the call of `relay` is refused.
+data Outcome { case Good; case Bad; }
+machine take(outcome: Outcome) requires outcome in Outcome::Good { }
+machine relay(outcome: Outcome, flag: bool) requires (outcome in Outcome::Good) || flag requires !flag { take(outcome); }
+machine build_entry() { relay(Outcome::Bad, false); }
