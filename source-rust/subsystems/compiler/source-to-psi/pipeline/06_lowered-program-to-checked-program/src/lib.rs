@@ -112,7 +112,6 @@ mod reuse;
 mod static_contracts;
 mod static_reach;
 mod theorems;
-mod unjudged;
 mod verdict;
 pub use publication::{AcceptedAdvisories, CheckedPublication, judge_publication};
 
@@ -2765,7 +2764,7 @@ fn verify_certificate(
     axioms: &[Proposition],
     certificate: &CertificateEnvelope,
 ) -> Checked<AcceptedFact> {
-    let accepted = verify_obligation(
+    verify_obligation(
         context,
         &Obligation {
             id: obligation,
@@ -2783,19 +2782,7 @@ fn verify_certificate(
             UnprovedCause::KernelRefused,
             format!("kernel {error:?}"),
         )
-    })?;
-    if goal.contains_declaration_identity()
-        && !matches!(&accepted.route, proof_admission::AcceptedFactRoute::CertificateDerived { acceptance, .. }
-            if matches!(acceptance.mathematical_core, proof_admission::MathematicalCoreDecision::Judged(_)))
-    {
-        return Err(unproved(
-            id,
-            obligation,
-            UnprovedCause::NoRuleForGoalForm,
-            "the mathematical kernel could not judge this compound Identity proposition".into(),
-        ));
-    }
-    Ok(accepted)
+    })
 }
 
 /// The scalar value an operation defines, if any: a call's result value.

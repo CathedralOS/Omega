@@ -109,9 +109,7 @@ fn a_program_over_the_library_nat_gets_its_whole_semiring_conformance() {
     // The program names none of the seven laws; the kernel judges every one.
     for machine in CONFORMANCE {
         let law = law(machine);
-        let MathematicalCoreDecision::Judged(receipt) = law.decision else {
-            panic!("the kernel must judge `{machine}`: {law:?}")
-        };
+        let MathematicalCoreDecision::Judged(receipt) = law.decision;
         assert_eq!(receipt.context_depth, 0, "{machine}");
         eprintln!(
             "{machine}: {} declarations, {} arena slots, {} conversion steps",

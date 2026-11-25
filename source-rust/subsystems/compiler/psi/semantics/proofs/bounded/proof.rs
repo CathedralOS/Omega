@@ -14,8 +14,9 @@ pub use terminal_psi::{ProofNode, ProofRule};
 
 use semantic_vocabulary::{IntegerMathTerm, Proposition, PropositionContext, ScalarTerm, ValueId};
 
-use crate::bounded_denotation::{BoundedDenotationError, verify_bounded_certificate_with_machine_parameters};
-use mathematical_kernel::Budget;
+use crate::bounded_denotation::{
+    BoundedDenotationError, verify_bounded_certificate_with_machine_parameters,
+};
 use crate::{
     IntegerAffineBoundConversionError, IntegerAffineWitnessError, IntegerCastBoundConversionError,
     IntegerCastChainWitnessError, IntegerCorrelatedForbiddenRootConversionError,
@@ -25,6 +26,7 @@ use equality_rules::{check_equality_symmetry, check_equality_transitivity};
 use integer_order_rules::{
     check_integer_add_order, check_integer_order_weakening, check_integer_subtract_order,
 };
+use mathematical_kernel::Budget;
 use propositional_rules::{check_assumption, check_conjunction_introduction, check_semantic_axiom};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -96,7 +98,6 @@ pub struct CertificateAcceptance {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MathematicalCoreDecision {
     Judged(MathematicalJudgmentReceipt),
-    Refused(&'static str),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -244,7 +245,7 @@ fn re_decide_in_mathematical_core(
     machine_parameter_values: &BTreeSet<ValueId>,
     proof: &ProofNode,
 ) -> Result<MathematicalCoreDecision, ProofError> {
-    match verify_bounded_certificate_with_machine_parameters(
+    verify_bounded_certificate_with_machine_parameters(
         context,
         goal,
         assumptions,
@@ -252,13 +253,9 @@ fn re_decide_in_mathematical_core(
         machine_parameter_values,
         proof,
         &mut Budget::default(),
-    ) {
-        Ok(denoted) => Ok(MathematicalCoreDecision::Judged(denoted.receipt())),
-        Err(BoundedDenotationError::Unsupported(family)) => {
-            Ok(MathematicalCoreDecision::Refused(family))
-        }
-        Err(error) => Err(ProofError::MathematicalCore(Box::new(error))),
-    }
+    )
+    .map(|denoted| MathematicalCoreDecision::Judged(denoted.receipt()))
+    .map_err(|error| ProofError::MathematicalCore(Box::new(error)))
 }
 
 pub(crate) mod add_order {
@@ -1877,10 +1874,7 @@ pub(crate) mod order_discreteness {
                     let accepted =
                         accept_certificate(&context, &goal, &[], from_ref(&premise), &proof)
                             .unwrap();
-                    let MathematicalCoreDecision::Judged(receipt) = accepted.mathematical_core
-                    else {
-                        panic!("strict-to-nonstrict discreteness reaches the core");
-                    };
+                    let MathematicalCoreDecision::Judged(receipt) = accepted.mathematical_core;
                     assert!(receipt.assumption_closure >= 1);
                     assert!(check_certificate(&context, &goal, &[], &[], &proof).is_err());
                     for wrong in [
@@ -4936,7 +4930,7 @@ mod tests {
                 assert_eq!(accepted.assumptions.len(), 1);
                 assert_eq!(accepted.assumptions[0].index, 0);
                 assert!(accepted.assumptions[0].proposition == goal, "the exact source premise remains in the receipt");
-                let MathematicalCoreDecision::Judged(receipt) = accepted.mathematical_core else { panic!("bounded rule labels cannot substitute for the kernel judgment"); };
+                let MathematicalCoreDecision::Judged(receipt) = accepted.mathematical_core;
                 assert_eq!(receipt.context_depth, 1);
                 assert_eq!(receipt.declarations, 0);
                 assert_eq!(receipt.assumption_closure, 0);
@@ -5011,7 +5005,7 @@ mod tests {
                 assert_eq!(accepted.assumptions.len(), 1);
                 assert_eq!(accepted.assumptions[0].index, 0);
                 assert!(accepted.assumptions[0].proposition == goal);
-                let MathematicalCoreDecision::Judged(receipt) = accepted.mathematical_core else { panic!("bounded rule labels cannot replace the exact kernel judgment"); };
+                let MathematicalCoreDecision::Judged(receipt) = accepted.mathematical_core;
                 assert_eq!(receipt.context_depth, 1);
                 assert_eq!(receipt.declarations, 0);
                 assert_eq!(receipt.assumption_closure, 0);
@@ -5084,10 +5078,7 @@ mod tests {
                     assert_eq!(accepted.assumptions[0].index, 0);
                     assert!(accepted.assumptions[0].proposition == goal);
                     assert!(accepted.semantic_axioms.is_empty());
-                    let MathematicalCoreDecision::Judged(receipt) = accepted.mathematical_core
-                    else {
-                        panic!("bounded rule labels cannot replace the complete kernel judgment");
-                    };
+                    let MathematicalCoreDecision::Judged(receipt) = accepted.mathematical_core;
                     assert_eq!(
                         (
                             receipt.declarations,

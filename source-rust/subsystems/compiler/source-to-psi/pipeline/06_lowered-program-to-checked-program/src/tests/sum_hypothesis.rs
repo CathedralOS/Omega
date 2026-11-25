@@ -76,9 +76,7 @@ fn a_hypothesis_about_two_addends_proves_a_sum_of_four() {
         .iter()
         .find(|law| law.machine == "add_pair_keeps_difference")
         .expect("the law");
-    let MathematicalCoreDecision::Judged(receipt) = law.decision else {
-        panic!("the kernel must judge the law: {law:?}")
-    };
+    let MathematicalCoreDecision::Judged(receipt) = law.decision;
     // The proof stands on the two laws of the conformance and nothing else:
     // the hypothesis is the law's own premise, bound in its statement.
     assert_eq!((receipt.context_depth, receipt.assumption_closure), (0, 2));

@@ -133,9 +133,7 @@ fn assumed_laws(
         .iter()
         .find(|law| law.machine == machine)
         .unwrap_or_else(|| panic!("the law `{machine}`: {judgment:?}"));
-    let MathematicalCoreDecision::Judged(receipt) = law.decision else {
-        panic!("the kernel must judge `{machine}`: {law:?}")
-    };
+    let MathematicalCoreDecision::Judged(receipt) = law.decision;
     let mut checked = terminal_codec::decode_mathematical_certificate(&law.certificate).unwrap();
     proof_admission::verify_mathematical_certificate(
         &mut checked.arena,

@@ -96,9 +96,7 @@ fn the_kernel_judges_peano_addition_associative_by_induction() {
         panic!("one law: {judgment:?}")
     };
     assert_eq!((law.machine.as_str(), law.clause), ("plus_assoc", 0));
-    let MathematicalCoreDecision::Judged(receipt) = law.decision else {
-        panic!("the kernel must judge the law: {law:?}")
-    };
+    let MathematicalCoreDecision::Judged(receipt) = law.decision;
     // Closed, and resting on no assumption: the data, its constructors and
     // `plus` are definitions.
     assert_eq!((receipt.context_depth, receipt.assumption_closure), (0, 0));
@@ -406,9 +404,7 @@ fn right_distributivity_regroups_under_the_associativity_law_of_its_conformance(
         .iter()
         .find(|law| law.machine == "times_distributes_right")
         .unwrap_or_else(|| panic!("the distributivity law: {judgment:?}"));
-    let MathematicalCoreDecision::Judged(receipt) = law.decision else {
-        panic!("the kernel must judge the law: {law:?}")
-    };
+    let MathematicalCoreDecision::Judged(receipt) = law.decision;
     // Closed, and resting on exactly one assumption.
     assert_eq!((receipt.context_depth, receipt.assumption_closure), (0, 1));
     eprintln!(
@@ -698,9 +694,7 @@ fn left_distributivity_reorders_under_the_commutativity_law_of_its_conformance()
         ("times_distributes", 2),
     ] {
         let law = law(machine);
-        let MathematicalCoreDecision::Judged(receipt) = law.decision else {
-            panic!("the kernel must judge `{machine}`: {law:?}")
-        };
+        let MathematicalCoreDecision::Judged(receipt) = law.decision;
         assert_eq!(
             (receipt.context_depth, receipt.assumption_closure),
             (0, assumptions),
