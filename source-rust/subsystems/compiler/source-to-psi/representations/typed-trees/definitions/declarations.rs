@@ -1728,6 +1728,19 @@ pub mod domain {
             })
     }
 
+    /// The parent in a written refinement path, at the membership application
+    /// retained for this declaration's own subject.
+    pub fn refinement_parent<'a>(
+        program: &'a TypedTrees,
+        domain: &'a DomainDefinition,
+    ) -> Option<&'a ProofMembershipFact> {
+        let (parent, _) = domain.name.as_str().rsplit_once("::")?;
+        subject_membership_facts(program, domain).find(|membership| {
+            program.domain_definition(membership.domain_symbol)
+                .is_some_and(|declaration| declaration.name.as_str() == parent)
+        })
+    }
+
     pub fn type_selects_semantic_domain(
         program: &TypedTrees,
         type_reference: TypeReferenceHandle,

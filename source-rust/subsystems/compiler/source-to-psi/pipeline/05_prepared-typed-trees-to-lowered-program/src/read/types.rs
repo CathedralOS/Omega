@@ -1211,6 +1211,7 @@ impl Program<'_> {
         use numerics::arithmetic::ArithmeticDomain;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
         let mut qualification = carrier.qualification();
+        let mut written = qualification.domains;
         let typed = self.typed;
         for constraint in typed.type_reference_table.constraints(constraints) {
             match constraint {
@@ -1232,13 +1233,15 @@ impl Program<'_> {
                         declaration: domain.symbol,
                         identity: domain.semantic_id,
                     };
-                    self.domain_theory(id, instance)?;
-                    let Some(domains) = qualification.domains.with(instance) else {
-                        return unserved(
-                            "constrained by one domain twice or by more than four declared domains",
-                        );
-                    };
-                    qualification.domains = domains;
+                    written = written.with(instance).ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Type("constrained by one domain twice or by more than four declared domains"),
+                        )
+                    })?;
+                    qualification.domains =
+                        self.with_refinement(id, qualification.domains, instance)?;
                 }
                 TypeConstraintNode::Domain(_) => {
                     return unserved("constrained by a compiler-owned domain");
@@ -1249,6 +1252,64 @@ impl Program<'_> {
             }
         }
         Ok(qualification)
+    }
+
+    fn with_refinement(
+        &self,
+        id: MachineId,
+        mut domains: crate::body::DomainSet,
+        mut member: crate::body::DomainInstance,
+    ) -> Checked<crate::body::DomainSet> {
+        while !domains.contains(member) {
+            let definition = self.domain_theory(id, member)?;
+            domains = domains.with(member).ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Type("more than four declared domains"),
+                )
+            })?;
+            let Some(parent) =
+                crate::source_state::domain::refinement_parent(self.typed, definition)
+            else {
+                break;
+            };
+            member = crate::body::DomainInstance {
+                declaration: parent.domain_symbol,
+                identity: parent.semantic_domain,
+            };
+        }
+        Ok(domains)
+    }
+
+    /// The parent is part of the hypothetical subject of the child's
+    /// declaration. Actual cast operands still owe that membership.
+    pub(super) fn declaration_subject(
+        &mut self,
+        id: MachineId,
+        definition: &crate::source_state::domain::DomainDefinition,
+    ) -> Checked<ValueType> {
+        let carrier = self.value_type(id, definition.target_type)?;
+        let Some(parent) = crate::source_state::domain::refinement_parent(self.typed, definition)
+        else {
+            return Ok(carrier);
+        };
+        let mut qualification = carrier.qualification();
+        qualification.domains = self.with_refinement(
+            id,
+            qualification.domains,
+            crate::body::DomainInstance {
+                declaration: parent.domain_symbol,
+                identity: parent.semantic_domain,
+            },
+        )?;
+        carrier.qualified(qualification).ok_or_else(|| {
+            refuse(
+                id,
+                Construct::Machine,
+                Unserved::Type("domain on a type parameter"),
+            )
+        })
     }
 
     /// One intermediate coordinate of a simultaneous cast. Its displayed
@@ -1413,13 +1474,15 @@ impl Program<'_> {
         if definition.cleanup_selection.is_some() {
             return unserved("constrained by a domain that selects a cleanup machine");
         }
+        let parent = crate::source_state::domain::refinement_parent(typed, definition);
         if crate::source_state::domain::subject_membership_facts(typed, definition).any(
             |membership| {
-                membership.domain_symbol != domain.declaration
-                    || membership.semantic_domain != domain.identity
+                Some(membership) != parent
+                    && (membership.domain_symbol != domain.declaration
+                        || membership.semantic_domain != domain.identity)
             },
         ) {
-            return unserved("constrained by a domain that refines another domain");
+            return unserved("domain with an additional subject membership requirement");
         }
         let Some(plain) = carrier.qualified(crate::body::Qualification::NONE) else {
             return unserved("domain on a type parameter");
@@ -1429,7 +1492,18 @@ impl Program<'_> {
                 Some(subject) => subject,
                 None => self.value_type(id, definition.target_type)?,
             };
-        let required = subject.qualification();
+        let mut required = subject.qualification();
+        if let Some(parent) = parent {
+            let instance = crate::body::DomainInstance {
+                declaration: parent.domain_symbol,
+                identity: parent.semantic_domain,
+            };
+            if !required.domains.contains(instance) {
+                required.domains = required.domains.with(instance).ok_or_else(|| {
+                    refuse(id, Construct::Machine, Unserved::Type("more than four declared domains"))
+                })?;
+            }
+        }
         if required.policy.is_some() {
             return unserved("a domain declared on an arithmetic-policy-qualified carrier");
         }

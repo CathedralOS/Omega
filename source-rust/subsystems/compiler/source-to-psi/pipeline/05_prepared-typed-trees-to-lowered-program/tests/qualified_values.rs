@@ -240,3 +240,62 @@ fn a_domain_declared_on_a_qualified_alias_keeps_its_carrier_membership() {
         })
         .accepted();
 }
+
+#[test]
+fn a_refined_scalar_formal_carries_its_complete_parent_chain() {
+    let program = Program::of(
+        "domain i32::Positive requires self > 0;
+         domain i32::Positive::Small requires self < 100;
+         domain i32::Positive::Small::NotTwo requires self != 2;
+         machine relay(x: i32 in Positive::Small::NotTwo) -> i32 in Positive::Small::NotTwo { x }",
+    );
+    let formal = program.machine("relay").parameters[0].qualifications;
+    program
+        .judged(|lowered| {
+            let catalog = &lowered.module.types.scalar_qualifications;
+            let domains = &catalog
+                .sets
+                .iter()
+                .find(|set| set.id == formal)
+                .unwrap()
+                .domains;
+            assert_eq!(domains.len(), 3);
+            let declared = |name: &str| {
+                catalog
+                    .domains
+                    .iter()
+                    .find(|row| {
+                        let application = lowered
+                            .domain_sources
+                            .get(row.semantic_domain)
+                            .unwrap()
+                            .application;
+                        program
+                            .trees()
+                            .domain_definition(application.declaration)
+                            .unwrap()
+                            .name
+                            .as_str()
+                            == name
+                    })
+                    .unwrap()
+            };
+            let positive = declared("i32::Positive");
+            let small = declared("i32::Positive::Small");
+            let not_two = declared("i32::Positive::Small::NotTwo");
+            assert!(
+                domains.contains(&positive.id)
+                    && domains.contains(&small.id)
+                    && domains.contains(&not_two.id)
+            );
+            assert_eq!(
+                small.required_memberships.as_deref(),
+                Some([positive.semantic_domain].as_slice())
+            );
+            assert_eq!(
+                not_two.required_memberships.as_deref(),
+                Some([small.semantic_domain].as_slice())
+            );
+        })
+        .accepted();
+}

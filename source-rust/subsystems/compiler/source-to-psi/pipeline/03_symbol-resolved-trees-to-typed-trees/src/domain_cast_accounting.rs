@@ -325,19 +325,8 @@ fn flatten(
 /* The domain whose path this domain's own path extends by one member. */
 fn parent(program: &TypedTrees, domain: SymbolHandle) -> Option<SymbolHandle> {
     let definition = program.domain_definition(domain)?;
-    crate::source_state::domain::subject_membership_facts(program, definition)
+    crate::source_state::domain::refinement_parent(program, definition)
         .map(|membership| membership.domain_symbol)
-        .find(|candidate| {
-            *candidate != domain
-                && program.domain_definition(*candidate).is_some_and(|parent| {
-                    definition
-                        .name
-                        .as_str()
-                        .strip_prefix(parent.name.as_str())
-                        .and_then(|rest| rest.strip_prefix("::"))
-                        .is_some_and(|leaf| !leaf.contains("::"))
-                })
-        })
 }
 
 fn is_ancestor(program: &TypedTrees, ancestor: SymbolHandle, mut child: SymbolHandle) -> bool {
