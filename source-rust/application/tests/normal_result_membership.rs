@@ -68,12 +68,11 @@ fn the_selected_body_must_establish_its_promised_domain() {
 fn unrestricted_issuance_needs_no_separate_origin_fact() {
     let fixture = fixture("fail");
     let source = std::fs::read_to_string(fixture.join("main.omg")).unwrap();
-    let selected =
-        r"access\new_plan(@schema, Issuance::Only { routes: [reflect\callable(tick_source)] })";
+    let selected = r"|access|::new_plan(@schema, |layout|::Issuance::Only { routes: [|reflect|::callable(tick_source)] })";
     assert_eq!(source.matches(selected).count(), 1);
     let source = source.replace(
         selected,
-        r"access\new_plan(@schema, Issuance::Unrestricted)",
+        r"|access|::new_plan(@schema, |layout|::Issuance::Unrestricted)",
     );
     let (output, report) = invoke(&fixture.join("build.omg"), &source);
     assert!(output.status.success(), "{report}");
@@ -86,16 +85,14 @@ fn unrestricted_issuance_needs_no_separate_origin_fact() {
 fn a_result_promise_cannot_hide_read_restrictions() {
     let fixture = fixture("run");
     let source = std::fs::read_to_string(fixture.join("main.omg")).unwrap();
-    let selected =
-        r"access\new_plan(@schema, Issuance::Only { routes: [reflect\callable(stamp)] })";
+    let selected = r"|access|::new_plan(@schema, |layout|::Issuance::Only { routes: [|reflect|::callable(stamp)] })";
     assert_eq!(source.matches(selected).count(), 1);
     let restricted = format!(
-        "let mutable plan: AccessPlan = {selected};\naccess\\allow_readers(@mutable plan, AccessRegion::Subject {{ schema: schema }}, [reflect\\callable(stamp)]);\nplan"
+        "let mutable plan: |layout|::AccessPlan = {selected};\n\
+         |access|::allow_readers(@mutable plan, |layout|::AccessRegion::Subject {{ schema: schema }}, \
+         [|reflect|::callable(stamp)]);\nplan"
     );
-    let source = format!(
-        "use omega\\language\\core\\AccessRegion;\n{}",
-        source.replace(selected, &restricted)
-    );
+    let source = source.replace(selected, &restricted);
     let (output, report) = invoke(&fixture.join("build.omg"), &source);
     assert!(!output.status.success(), "{report}");
     assert!(
