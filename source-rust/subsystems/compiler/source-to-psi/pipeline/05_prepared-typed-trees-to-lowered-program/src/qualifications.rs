@@ -745,7 +745,7 @@ impl Qualifications {
                 } else if domain.predicate.is_some() {
                     ScalarReturnOrigin::Proved
                 } else {
-                    continue;
+                    ScalarReturnOrigin::Vacuous
                 };
                 returns.push(ScalarReturnQualification {
                     site: ScalarReturnSite::Completion {

@@ -13,15 +13,23 @@ formation. Other storage recasts require an explicit reference formation.
 */
 
 use crate::qualifications::explain_policy_refusal;
-use crate::source_state::expression::{ExpressionHandle, TableCastExpression};
+use crate::source_state::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
 use crate::source_state::types::TypeReferenceNode;
 use language_core::ReferenceAccess;
 use semantic_vocabulary::{MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
 
 use super::{Program, Slot};
-use crate::body::{Expression, ExpressionKind, Policy, Qualification, ValueType};
+use crate::body::{DomainInstance, DomainSet, Expression, ExpressionKind, Policy, Qualification, ValueType};
 use crate::{SourceOrigin, Unserved, refuse, reject};
+
+struct DomainCast {
+    value: ExpressionHandle,
+    input: ValueType,
+    result: ValueType,
+    added: DomainSet,
+    removed: Vec<(DomainInstance, SourceOrigin)>,
+}
 
 impl Program<'_> {
     pub(super) fn cast(
@@ -34,7 +42,7 @@ impl Program<'_> {
     ) -> Checked<Expression> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         if let Some(entry) = cast.form.entry() {
-            return self.domain_entry(id, slots, cast, entry, source);
+            return self.domain_entry(id, slots, handle, cast, entry, source);
         }
         if let Some(access) = cast.form.recast_access() {
             if access != ReferenceAccess::Shared {
@@ -389,68 +397,139 @@ impl Program<'_> {
 }
 
 impl Program<'_> {
-    /// One entry of a domain cast, `value as =Keep -Remove +Add`
-    /// (`wiki/spec/language/domains.md`, "Domain-only casts"). Typing
-    /// accounted for the whole cast against the operand's declared type and
-    /// left this entry with the type after it. The reader types the operand
-    /// itself, so it does not take that accounting on trust: the entry must
-    /// do to the operand's type exactly what its sign says.
-    ///
-    /// | Entry | The operand's type | The result's type |
-    /// | `=D` | carries `D` | carries `D` |
-    /// | `-D` | carries `D` | does not carry `D` |
-    /// | `+D` | does not carry `D` | carries `D` |
-    ///
-    /// The value is never changed: "`as` never calls user code, rounds,
-    /// saturates, traps".
+    /// Interpret the source value once. All entries of this cast share one
+    /// result and one proof site, including entries written in reverse order.
     fn domain_entry(
         &mut self,
         id: MachineId,
         slots: &[Slot],
+        handle: ExpressionHandle,
         cast: &TableCastExpression,
         entry: language_core::cast_form::CastEntry,
         source: SourceOrigin,
     ) -> Checked<Expression> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
-        // A cast typing deferred is a row on its machine, raised before any
-        // body is read; an entry without its type here was never accounted.
-        if !cast.result_type.is_valid() {
-            return unserved("domain cast typing did not account for");
-        }
-        // The entry preserves the operand's lifetime (domains.md, "Mutable
-        // views": "The cast preserves the referent, lifetime and access
-        // mode"). One typing left elided, a quoted literal's, is a region
-        // variable its use decides, as a literal takes the lifetime its use
-        // requires.
         let elision = std::mem::replace(&mut self.elision, super::regions::Elision::Variables);
-        let result = self.value_type(id, cast.result_type);
+        let run = self.read_domain_cast(id, slots, handle, cast, entry);
         self.elision = elision;
-        let result = result?;
-        // A literal lands in the carrier of the type the cast gives it
-        // (domains.md, "Literals and expected types": "An expected type
-        // selects the carrier in which an anonymous literal lands"). A
-        // quoted literal's carrier is the view the cast qualifies, and an
-        // array literal's is the array: `[65u8, 66u8] as +Text` is a plain
-        // `[u8; 2]` given the domain.
-        let landing = if self.reference_referent(id, result)?.is_some()
-            || self.is_borrowed_view(result)
+        let DomainCast {
+            value,
+            input,
+            mut result,
+            added,
+            removed,
+        } = run?;
+        let landing =
+            if self.reference_referent(id, result)?.is_some() || self.is_borrowed_view(result) {
+                Some(input)
+            } else if self.wholly_anonymous(value) {
+                result.scalar().map(ValueType::plain)
+            } else if self.byte_literal_operand(value) || self.array_literal_operand(value) {
+                result.qualified(Qualification::NONE)
+            } else {
+                None
+            };
+        let operand = self.expression(id, slots, value, landing)?;
+        let unavailable = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
+        let actual = operand
+            .result
+            .ok_or_else(|| unavailable("domain cast of a Unit value"))?;
+        if actual.erased() != input.erased() {
+            return Err(unavailable(
+                "domain cast does not account for the operand's qualifications",
+            ));
+        }
+        // A cast preserves the operand's regions, including a literal's
+        // lifetime selected at use. Only its displayed domains change.
+        if let (ValueType::Record(row, qualification, _), ValueType::Record(_, _, regions)) =
+            (result, actual)
         {
-            Some(self.reference_entry_input(id, cast, entry, result)?)
-        } else if self.wholly_anonymous(cast.value) {
-            result.scalar().map(ValueType::plain)
-        } else if self.byte_literal_operand(cast.value) || self.array_literal_operand(cast.value) {
-            result.qualified(Qualification::NONE)
-        } else {
-            None
-        };
-        let operand = self.expression(id, slots, cast.value, landing)?;
-        self.entry_applied(id, cast, entry, operand, result, source)
+            result = ValueType::Record(row, qualification, regions);
+        }
+        for (domain, origin) in removed.into_iter().rev() {
+            self.domain_removal(id, domain, actual, origin)?;
+        }
+        if actual == result && added.is_empty() {
+            return Ok(operand);
+        }
+        self.establish_domains(id, operand, result, added, source)
     }
 
-    /// A reference cast consumes the descriptor, rather than observing its
-    /// referent. Read it with the input domains the entry requires; ordinary
-    /// loan formation and `domain_entry_change` still check the actual value.
-    fn reference_entry_input(
+    /// Recover the input from the signed entries and verify typing's
+    /// accounting coordinates. Only the complete cast presents a new type.
+    fn read_domain_cast(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        mut handle: ExpressionHandle,
+        first_read: &TableCastExpression,
+        mut entry: language_core::cast_form::CastEntry,
+    ) -> Checked<DomainCast> {
+        use language_core::cast_form::CastEntryKind;
+        let unavailable = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
+        let mut site = *first_read;
+        if !site.result_type.is_valid() {
+            return Err(unavailable("domain cast typing did not account for"));
+        }
+        let result = self.value_type(id, site.result_type)?;
+        let mut after = result;
+        let mut removed = Vec::new();
+        let mut added = DomainSet::EMPTY;
+        loop {
+            let before = self.entry_input(id, &site, entry, after)?;
+            if let Some(domain) = self.domain_entry_change(id, before, after, &site, entry)? {
+                match entry.kind {
+                    CastEntryKind::Add => {
+                        added = added
+                            .with(domain)
+                            .ok_or_else(|| unavailable("domain cast repeats an addition"))?;
+                    }
+                    CastEntryKind::Remove => {
+                        let at = SourceOrigin::of(self.typed.expression_table.source_span(handle));
+                        removed.push((domain, at));
+                    }
+                    CastEntryKind::Keep => {}
+                }
+            }
+            if entry.first {
+                return Ok(DomainCast {
+                    value: site.value,
+                    input: before,
+                    result,
+                    added,
+                    removed,
+                });
+            }
+            // Typing allocates nested operands before their consumers.
+            if site.value.arena_index() >= handle.arena_index() {
+                return Err(unavailable("domain cast lost its earlier entry"));
+            }
+            handle = site.value;
+            let ExpressionNode::Cast(previous) = self.node(id, handle)? else {
+                return Err(unavailable(
+                    "domain cast lost an entry of its simultaneous run",
+                ));
+            };
+            for test in self.typed.expression_table.executable_domain_tests(handle) {
+                self.require_membership_carrier(id, slots, *test)?;
+            }
+            site = *previous;
+            entry = site
+                .form
+                .entry()
+                .ok_or_else(|| unavailable("domain cast lost its first entry"))?;
+            if !site.result_type.is_valid()
+                || self.cast_coordinate_type(id, site.result_type)?.erased() != before.erased()
+            {
+                return Err(unavailable(
+                    "domain cast entries disagree on their qualifications",
+                ));
+            }
+            after = before;
+        }
+    }
+
+    /// Recover the input of this signed entry from its retained output.
+    fn entry_input(
         &self,
         id: MachineId,
         cast: &TableCastExpression,
@@ -462,15 +541,16 @@ impl Program<'_> {
             refuse(
                 id,
                 Construct::Machine,
-                Unserved::Typing("reference cast result does not account for its input domains"),
+                Unserved::Typing("domain cast result does not account for its input domains"),
             )
         };
         let mut before = result.qualification();
         if let Some(policy) = Policy::of_domain(cast.domain) {
-            before.policy = match entry.kind {
-                CastEntryKind::Add => None,
-                CastEntryKind::Remove => Some(policy),
-                CastEntryKind::Keep => before.policy,
+            before.policy = match (entry.kind, before.policy) {
+                (CastEntryKind::Add, Some(after)) if after == policy => None,
+                (CastEntryKind::Remove, None) => Some(policy),
+                (CastEntryKind::Keep, Some(after)) if after == policy => Some(after),
+                _ => return Err(unavailable()),
             };
         } else {
             if !cast.semantic_domain_symbol.is_valid()
@@ -492,52 +572,6 @@ impl Program<'_> {
         result.qualified(before).ok_or_else(unavailable)
     }
 
-    /// What one entry does to an operand already read, `result` being the
-    /// type after it.
-    fn entry_applied(
-        &mut self,
-        id: MachineId,
-        cast: &TableCastExpression,
-        entry: language_core::cast_form::CastEntry,
-        operand: Expression,
-        result: ValueType,
-        source: SourceOrigin,
-    ) -> Checked<Expression> {
-        use language_core::cast_form::CastEntryKind;
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
-        let Some(operand_type) = operand.result else {
-            return unserved("domain cast of a Unit value");
-        };
-        // The view the entry gives is the operand's, at the operand's
-        // region: the result type was read for its carrier and domains.
-        let result = match (result, operand_type) {
-            (ValueType::Record(row, qualification, _), ValueType::Record(_, _, regions)) => {
-                ValueType::Record(row, qualification, regions)
-            }
-            _ => result,
-        };
-        let domain = self.domain_entry_change(id, operand_type, result, cast, entry)?;
-        if entry.kind == CastEntryKind::Keep {
-            return Ok(operand);
-        }
-        if let Some(domain) = domain {
-            match entry.kind {
-                CastEntryKind::Add => {
-                    return self.add_domain(id, operand, result, domain, source);
-                }
-                _ => {
-                    self.domain_removal(id, domain, operand_type, source)?;
-                }
-            }
-        }
-        Ok(Expression {
-            call_context: None,
-            kind: ExpressionKind::Requalify(Box::new(operand)),
-            result: Some(result),
-            source,
-        })
-    }
-
     /// Add a domain after checking its predicates. Canonical checking decides
     /// whether the value already proves membership or its author may issue it.
     /// Fresh zero construction separately requires issuance authority.
@@ -549,45 +583,39 @@ impl Program<'_> {
         domain: crate::body::DomainInstance,
         source: SourceOrigin,
     ) -> Checked<Expression> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
-        // Calls and writes determine whether this cast forwards a proven
-        // domain or needs an authorized issuer. Canonical qualification
-        // checking judges that distinction on the actual lowered value.
-        self.domain_theory(id, domain)?;
-        // "Has predicates | Prove them for this value."
-        let (clauses, stated) = match (result, crate::body::DomainSet::EMPTY.with(domain))
-        {
-            (ValueType::Scalar(carrier, _), Some(domains)) => self.cast_predicates(
-                id,
-                Qualification {
-                    policy: None,
-                    domains,
-                },
-                carrier,
-            )?,
-            // An array or record, or a reference displaying a
-            // domain on its referent (`@text as +Terminated`):
-            // the clauses are stated over the plain value at one
-            // structural subject, which lowering binds to the
-            // cast's result (`record_cast_predicates`).
-            (ValueType::Record(..), Some(domains))
-                if super::authority::has_predicates(self.domain_theory(id, domain)?) =>
-            {
-                self.record_cast_predicates(
+        let added = DomainSet::EMPTY.with(domain).expect("one domain fits");
+        self.establish_domains(id, operand, result, added, source)
+    }
+
+    fn establish_domains(
+        &mut self,
+        id: MachineId,
+        operand: Expression,
+        result: ValueType,
+        added: DomainSet,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        let mut predicates = false;
+        for domain in added.members() {
+            predicates |= super::authority::has_predicates(self.domain_theory(id, domain)?);
+        }
+        let qualification = Qualification {
+            policy: None,
+            domains: added,
+        };
+        let (clauses, stated) = match result {
+            _ if !predicates => (Vec::new(), String::new()),
+            ValueType::Scalar(carrier, _) => self.cast_predicates(id, qualification, carrier)?,
+            ValueType::Record(..) => self.record_cast_predicates(id, qualification, result)?,
+            ValueType::Rigid(_) => {
+                return Err(refuse(
                     id,
-                    Qualification {
-                        policy: None,
-                        domains,
-                    },
-                    result,
-                )?
+                    Construct::Machine,
+                    Unserved::Expression(
+                        "cast that adds a domain with predicates to a value of a type parameter",
+                    ),
+                ));
             }
-            _ if super::authority::has_predicates(self.domain_theory(id, domain)?) => {
-                return unserved(
-                    "cast that adds a domain with predicates to a value of a type parameter",
-                );
-            }
-            _ => (Vec::new(), String::new()),
         };
         if !clauses.is_empty() {
             return Ok(Expression {
