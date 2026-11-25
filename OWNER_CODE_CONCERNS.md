@@ -75,6 +75,22 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+<a id="every-machine-check-replays-the-summaries-of-all-its-callees-again"></a>
+### Every machine check replays the summaries of all its callees again
+- Category: 4. Re-deriving
+- Where: [`Replay::summary`](source-rust/subsystems/compiler/psi/semantics/src/descriptors/replay/engine.rs#L3942), reached from the per-machine `DescriptorAnalysis` the checker builds in [`with_prepared_machine`](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/lib.rs#L1619) and that each `plain_affine::analyze` call builds for itself
+- Saw: each analysis starts empty, so a callee reached from many machines has its summary replayed once per caller. In a sampled release check of `samples/cli/arithmetic/popcount/main.omg` (perf, 20,286 samples, `omega-linux`), `Replay::summary` is on the stack in 19.6% of all samples, Psi 05 and Psi 06 together.
+- Cost: the largest single share of checking time for std-using programs; sharing summaries needs one table per unchanged module instead of one per analysis.
+- Reported: 2026-11-25, Claude Code, while profiling Psi 06 places and loans.
+
+<a id="the-checker-walks-each-machines-affine-ownership-three-times"></a>
+### The checker walks each machine's affine ownership three times
+- Category: 4. Re-deriving
+- Where: [`affine_plan`](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/verdict.rs#L1196) calls `plain_affine::plan_reference_ends` and then `plain_affine::verify_in`; [`minted`](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/minted.rs#L768) calls `plain_affine::verify_claims_in` for the same machine
+- Saw: each call runs [`analyze`](source-rust/subsystems/compiler/psi/semantics/src/plain_affine.rs#L1429) from scratch, building its own borrowed-storage graph and descriptor replay. The three calls are 2.7%, 2.3% and 2.6% of the same popcount profile.
+- Cost: about 7.6% of the compile repeats one walk in different modes.
+- Reported: 2026-11-25, Claude Code, while profiling Psi 06 places and loans.
+
 <a id="a-stated-case-is-decided-twice"></a>
 ### A stated case is decided by a table beside the case names
 - Category: 1. One idea, several implementations
