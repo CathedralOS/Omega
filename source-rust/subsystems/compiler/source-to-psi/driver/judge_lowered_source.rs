@@ -11,7 +11,7 @@ use lowered_program_to_checked_program::{
 };
 use optimization::PsiOptimizationSelections;
 use prepared_typed_trees_to_lowered_program::source_roster::{
-    SourceCompilationRoster, lower_roster,
+    LoweredRosterClosure, SourceCompilationRoster, lower_roster, lower_roster_closure,
 };
 use prepared_typed_trees_to_lowered_program::{
     LoweredSourcePublication, PreparedTypedTrees, lower_for_publication,
@@ -154,6 +154,30 @@ impl SourcePublication {
         timings
             .record_result(stages::LOWER, || lower_roster(roster, source))
             .map_err(|rows| DiagnosticStage::Lowering.attribute(rows))
+    }
+
+    /// Lower only the closure of `roster`, for provider settlement to read
+    /// before the driver decides to keep it (`complete_lowering`).
+    pub fn lower_closure<'source>(
+        source: &'source PreparedTypedTrees,
+        roster: SourceCompilationRoster,
+        timings: &mut CompileTimings,
+    ) -> Result<LoweredRosterClosure<'source>, Vec<Diagnostic>> {
+        timings
+            .record_result(stages::LOWER, || lower_roster_closure(roster, source))
+            .map_err(|rows| DiagnosticStage::Lowering.attribute(rows))
+    }
+
+    /// Finish lowering the closure settlement kept, as `lower_product` would.
+    pub fn complete_lowering(
+        closure: LoweredRosterClosure<'_>,
+        timings: &mut CompileTimings,
+    ) -> LoweredSourcePublication {
+        timings
+            .record_result(stages::LOWER, || {
+                Ok::<_, std::convert::Infallible>(closure.complete())
+            })
+            .unwrap_or_else(|never| match never {})
     }
 
     pub fn judge_lowered(

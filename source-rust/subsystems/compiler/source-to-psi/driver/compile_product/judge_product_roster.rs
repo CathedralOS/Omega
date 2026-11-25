@@ -2,8 +2,8 @@
 //! one Product judgment needs. The Product driver owns any subsequent work.
 use super::entry_contracts::selected_program_entry;
 use super::layout_scopes::layout_target_scopes;
-use super::{LoweredProduct, ProductEntry, ProductSourcePass};
-use crate::driver::{judge_lowered_source, prepare_typed_source};
+use super::{PreparedProduct, ProductEntry, ProductSourcePass};
+use crate::driver::prepare_typed_source;
 use crate::source_state::service_declarations::{
     PreparedServiceCatalog, provider_declarations::ProviderPlanningContext,
 };
@@ -22,11 +22,11 @@ fn program_roots(bindings: &[crate::RootBinding]) -> Vec<symbols::SymbolHandle> 
     roots
 }
 
-pub(super) fn prepare_and_lower(
+pub(super) fn prepare_roster(
     pass: &mut ProductSourcePass<'_, '_>,
     typed: crate::source_state::TypedTrees,
     chosen_defaults: &[crate::compile_product::provider_settlement::ChosenDefaultLayout],
-) -> Result<LoweredProduct, Vec<Diagnostic>> {
+) -> Result<PreparedProduct, Vec<Diagnostic>> {
     let build = &pass.inputs;
     let nominees = pass.roots.layout_origins(&typed)?;
     // A library is judged where it is demanded, not wholesale. Every native
@@ -293,15 +293,10 @@ pub(super) fn prepare_and_lower(
         calling: calling_inputs,
         providers: provider_inputs,
     });
-
-    let lowered = judge_lowered_source::SourcePublication::lower_product(
-        prepared.clone(),
-        roster,
-        pass.timings,
-    )?;
-    Ok(LoweredProduct {
+    Ok(PreparedProduct {
         program: Arc::clone(program),
-        lowered,
+        source: prepared,
+        roster,
         provider_defaults,
     })
 }

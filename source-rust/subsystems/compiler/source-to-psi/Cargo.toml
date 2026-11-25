@@ -167,6 +167,11 @@ path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/selected_calls
 required-features = ["test-support"]
 
 [[test]]
+name = "lowering_roster_closures"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/roster_closures.rs"
+required-features = ["test-support"]
+
+[[test]]
 name = "lowering_prepared_scalar_values"
 path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/prepared_scalar_values.rs"
 required-features = ["test-support"]

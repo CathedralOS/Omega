@@ -85,21 +85,136 @@ pub fn prepare_compilation(
     compilation: crate::Compilation<'_>,
     publication: terminal_codec::TerminalPublication,
 ) -> Result<LoweredCompilationWithSource, Vec<diagnostics::Diagnostic>> {
-    let domain_schemas = typed.domain_schemas();
-    let typed = typed.trees();
+    Ok(prepare_closure(typed, compilation, publication)?.complete())
+}
+
+/// One compilation lowered as far as its closure: the closure is read,
+/// specialized and finished, its generic forms are prepared, and the
+/// conformance rows it owes are listed. A Product's provider settlement reads
+/// only the closure, and a settlement that asks for other providers or
+/// layouts discards it, so the conformance witnesses and the mathematical
+/// signature are prepared by `complete`, for the compilation that is judged.
+/// `complete` yields exactly what preparing everything in one pass yields.
+pub(crate) struct PreparedClosure<'source> {
+    typed: &'source TypedTrees,
+    /// The compilation's subjects and purpose. The mathematical signature
+    /// is read for them, and each witness reports its outcome to them.
+    roots: (
+        Vec<Option<semantic_vocabulary::PackageKeyIdentity>>,
+        source_provenance::DependencyScope,
+    ),
+    reading: ClosureReading<'source>,
+}
+
+enum ClosureReading<'source> {
+    /// The bound callable shapes refused before any closure was read.
+    Unformed(TerminalCompilation),
+    Read(Box<ReadClosure<'source>>),
+}
+
+struct ReadClosure<'source> {
+    captures: crate::SharedReading,
+    closure: terminal_check_tables::Checked<crate::Elaboration>,
+    further: Vec<terminal_check_tables::Refusal>,
+    arrivals: Vec<terminal_check_tables::Checked<crate::CallableArrivalWitness>>,
+    source: crate::SourceCorrespondence,
+    forms: Vec<GenericForms>,
+    rows: Vec<WitnessRow<'source>>,
+    specializations: arena::IdTable<semantic_vocabulary::MachineId, Option<SymbolHandle>>,
+    selection_witnesses: Vec<(usize, usize)>,
+}
+
+impl<'source> PreparedClosure<'source> {
+    /// The lowered closure, when the bound shapes formed and reading it
+    /// refused nothing.
+    pub(crate) fn closure(&self) -> Option<&crate::Elaboration> {
+        match &self.reading {
+            ClosureReading::Read(read) => read.closure.as_ref().ok(),
+            ClosureReading::Unformed(_) => None,
+        }
+    }
+
+    /// Prepare the mathematical signature and every conformance witness the
+    /// closure and its generic forms owe, including the rows those witnesses
+    /// discover in turn.
+    pub(crate) fn complete(self) -> LoweredCompilationWithSource {
+        let read = match self.reading {
+            ClosureReading::Unformed(program) => {
+                return LoweredCompilationWithSource {
+                    program,
+                    source: Default::default(),
+                };
+            }
+            ClosureReading::Read(read) => *read,
+        };
+        let ReadClosure {
+            captures,
+            closure,
+            mut further,
+            arrivals,
+            mut source,
+            forms,
+            mut rows,
+            specializations,
+            selection_witnesses,
+        } = read;
+        let typed = self.typed;
+        let (subjects, purpose) = &self.roots;
+        // The declarations over data that contains itself are read apart from
+        // the closure: they become one kernel signature and no operations.
+        let mathematics = match crate::mathematics::read(typed, &self.roots, captures.clone()) {
+            Ok(mathematics) => mathematics,
+            Err(mut refused) => {
+                further.append(&mut refused);
+                Default::default()
+            }
+        };
+        let witnesses = prepare_witnesses(
+            typed,
+            &mut rows,
+            &forms,
+            &captures,
+            *purpose,
+            subjects,
+            &mut source,
+        );
+        LoweredCompilationWithSource {
+            source,
+            program: TerminalCompilation::Prepared(PreparedCompilation {
+                closure,
+                further,
+                arrivals,
+                forms,
+                witnesses,
+                specializations,
+                selection_witnesses,
+                mathematics,
+            }),
+        }
+    }
+}
+
+/// Lower the closure of `compilation` (`PreparedClosure`).
+pub(crate) fn prepare_closure<'source>(
+    owner: &'source crate::PreparedTypedTrees,
+    compilation: crate::Compilation<'_>,
+    publication: terminal_codec::TerminalPublication,
+) -> Result<PreparedClosure<'source>, Vec<diagnostics::Diagnostic>> {
+    let domain_schemas = owner.domain_schemas();
+    let typed = owner.trees();
+    let roots = (compilation.subjects.to_vec(), compilation.purpose);
+    let unformed = |program| PreparedClosure {
+        typed,
+        roots: roots.clone(),
+        reading: ClosureReading::Unformed(program),
+    };
     match crate::check_bound_callable_shapes(typed, compilation.bindings) {
         Ok(failures) if !failures.is_empty() => {
-            return Ok(LoweredCompilationWithSource {
-                program: TerminalCompilation::FormationFailures(failures),
-                source: Default::default(),
-            });
+            return Ok(unformed(TerminalCompilation::FormationFailures(failures)));
         }
         Ok(_) => {}
         Err(defect) => {
-            return Ok(LoweredCompilationWithSource {
-                program: TerminalCompilation::FormationDefect(defect),
-                source: Default::default(),
-            });
+            return Ok(unformed(TerminalCompilation::FormationDefect(defect)));
         }
     }
     let captures = crate::shared_reading(typed);
@@ -155,7 +270,6 @@ pub fn prepare_compilation(
     // Every refusal reading met is reported: the first as the closure's
     // verdict, the rest beside it (`PreparedCompilation::further`).
     let mut further = Vec::new();
-    let mathematical_roots = (compilation.subjects.to_vec(), compilation.purpose);
     let (mut closure, primary_source, signatures, prepared_applications, pending_publication) =
         match crate::elaborate_source_for(
             typed,
@@ -175,16 +289,6 @@ pub fn prepare_compilation(
                 let first = refused.remove(0);
                 further = refused;
                 (Err(first), None, Vec::new(), Vec::new(), None)
-            }
-        };
-    // The declarations over data that contains itself are read apart from
-    // the closure: they become one kernel signature and no operations.
-    let mathematics =
-        match crate::mathematics::read(typed, &mathematical_roots, captures.clone()) {
-            Ok(mathematics) => mathematics,
-            Err(mut refused) => {
-                further.append(&mut refused);
-                Default::default()
             }
         };
     let mut source = crate::SourceCorrespondence {
@@ -354,6 +458,38 @@ pub fn prepare_compilation(
         )?;
         Ok(elaboration)
     });
+    if let Ok(elaboration) = &mut closure {
+        retain_installation_reach(&mut elaboration.module)?;
+    }
+    Ok(PreparedClosure {
+        typed,
+        roots,
+        reading: ClosureReading::Read(Box::new(ReadClosure {
+            captures,
+            closure,
+            further,
+            arrivals,
+            source,
+            forms,
+            rows,
+            specializations,
+            selection_witnesses,
+        })),
+    })
+}
+
+/// Prepare the conformance witness of every row in order, and of every row
+/// those witnesses owe in turn, appending each one's source form to `source`.
+/// Each wave of newly discovered rows is prepared on the invocation's workers.
+fn prepare_witnesses<'source>(
+    typed: &'source TypedTrees,
+    rows: &mut Vec<WitnessRow<'source>>,
+    forms: &[GenericForms],
+    captures: &crate::SharedReading,
+    purpose: source_provenance::DependencyScope,
+    subjects: &[Option<semantic_vocabulary::PackageKeyIdentity>],
+    source: &mut crate::SourceCorrespondence,
+) -> Vec<terminal_check_tables::Checked<crate::Elaboration>> {
     let mut witnesses = Vec::new();
     let mut next = 0;
     while next < rows.len() {
@@ -375,13 +511,13 @@ pub fn prepare_compilation(
                     *signature,
                     crate::WitnessInputs {
                         captures: captures.clone(),
-                        purpose: compilation.purpose,
-                        outcome_subjects: Some(compilation.subjects),
+                        purpose,
+                        outcome_subjects: Some(subjects),
                     },
                 );
                 prepared.and_then(|mut prepared| {
                     crate::declare::close_specializations(
-                        &forms,
+                        forms,
                         std::mem::take(&mut prepared.prepared_applications),
                         &mut prepared.program,
                     )
@@ -437,22 +573,7 @@ pub fn prepare_compilation(
         }
         next = wave_end;
     }
-    if let Ok(elaboration) = &mut closure {
-        retain_installation_reach(&mut elaboration.module)?;
-    }
-    Ok(LoweredCompilationWithSource {
-        source,
-        program: TerminalCompilation::Prepared(PreparedCompilation {
-            closure,
-            further,
-            arrivals,
-            forms,
-            witnesses,
-            specializations,
-            selection_witnesses,
-            mathematics,
-        }),
-    })
+    witnesses
 }
 
 /// Record which installed services the entry can reach before the checker judges it.

@@ -10,7 +10,7 @@ use diagnostics::Diagnostic;
 use std::sync::Arc;
 
 mod judge_product_roster;
-use judge_product_roster::prepare_and_lower;
+use judge_product_roster::prepare_roster;
 
 mod behavior_exclusions;
 pub(crate) mod declaration_lookup;
@@ -250,22 +250,28 @@ pub(crate) fn prepare_lower_and_check(
         timings,
     };
     let mut layouts = Vec::new();
-    let mut current = prepare_and_lower(&mut pass, typed, &layouts)?;
+    let mut current = prepare_roster(&mut pass, typed, &layouts)?;
     let judged = loop {
         use provider_settlement::{
             LoweredSupplySource, ProductSupplySource, ProviderWork, next_provider_work,
             next_provider_work_from_lowered,
         };
-        // Settle layout defaults and provider supplies on the lowered module
-        // before running the Stage 06 checker so intermediate waves are not
-        // checked and discarded.
-        loop {
+        // Settle layout defaults and provider supplies on the lowered closure
+        // before completing and checking it. Settlement reads only the
+        // closure, so a roster it replaces is never given its conformance
+        // witnesses or checked by Stage 06.
+        let lowered = loop {
+            let closure = judge_lowered_source::SourcePublication::lower_closure(
+                &current.source,
+                current.roster,
+                pass.timings,
+            )?;
             let work = pass.timings.record_result(
                 artifacts::compile_timings::source::PROVIDER_SETTLEMENT,
                 || {
                     next_provider_work_from_lowered(LoweredSupplySource {
                         targets: pass.inputs.targets,
-                        lowered: &current.lowered,
+                        lowered: &closure,
                         build: &pass.explicit_providers,
                         native_bindings: &pass.native_supplies,
                         defaults: &current.provider_defaults,
@@ -274,37 +280,29 @@ pub(crate) fn prepare_lower_and_check(
                 },
             )?;
             match work {
-                ProviderWork::Complete => break,
-                ProviderWork::JudgeProviders(supplies) => {
-                    let mut roster = current
-                        .lowered
-                        .source()
-                        .roster
-                        .clone()
-                        .ok_or_else(|| {
-                            vec![Diagnostic::error(
-                                "lowered product lost its compilation roster during provider settlement",
-                            )]
-                        })?;
-                    roster.supplies.extend(supplies);
-                    let source = current.lowered.source().owner.clone();
-                    current.lowered = judge_lowered_source::SourcePublication::lower_product(
-                        source,
-                        roster,
+                ProviderWork::Complete => {
+                    break judge_lowered_source::SourcePublication::complete_lowering(
+                        closure,
                         pass.timings,
-                    )?;
+                    );
+                }
+                ProviderWork::JudgeProviders(supplies) => {
+                    let mut roster = closure.into_roster();
+                    roster.supplies.extend(supplies);
+                    current.roster = roster;
                 }
                 ProviderWork::PrepareLayouts(chosen) => {
+                    drop(closure);
                     layouts = chosen;
                     let typed = unprepared.clone().ok_or_else(|| vec![Diagnostic::error(
                         "a target chose a provider default absent from the source preparation frontier"
                     )])?;
-                    current = prepare_and_lower(&mut pass, typed, &layouts)?;
+                    current = prepare_roster(&mut pass, typed, &layouts)?;
                 }
             }
-        }
+        };
         let publication = Arc::new(judge_lowered_source::SourcePublication::judge_lowered(
-            current.lowered,
+            lowered,
             pass.inputs.optimizations.clone(),
             pass.timings,
         )?);
@@ -332,15 +330,10 @@ pub(crate) fn prepare_lower_and_check(
             ProviderWork::JudgeProviders(supplies) => {
                 let mut roster = judged.publication.roster()?.clone();
                 roster.supplies.extend(supplies);
-                let source = judged.publication.accepted()?.prepared().clone();
-                let lowered = judge_lowered_source::SourcePublication::lower_product(
-                    source,
-                    roster,
-                    pass.timings,
-                )?;
-                current = LoweredProduct {
+                current = PreparedProduct {
                     program: judged.program,
-                    lowered,
+                    source: judged.publication.accepted()?.prepared().clone(),
+                    roster,
                     provider_defaults: judged.provider_defaults,
                 };
             }
@@ -349,7 +342,7 @@ pub(crate) fn prepare_lower_and_check(
                 let typed = unprepared.clone().ok_or_else(|| vec![Diagnostic::error(
                     "a target chose a provider default absent from the source preparation frontier"
                 )])?;
-                current = prepare_and_lower(&mut pass, typed, &layouts)?;
+                current = prepare_roster(&mut pass, typed, &layouts)?;
             }
         }
     };
@@ -404,9 +397,12 @@ struct ProductSourcePass<'a, 'f> {
     timings: &'f mut crate::CompileTimings,
 }
 
-struct LoweredProduct {
+/// A Product source prepared for one set of chosen default layouts, with the
+/// roster to lower from it.
+struct PreparedProduct {
     program: Arc<crate::source_state::FrozenTypedTrees>,
-    lowered: prepared_typed_trees_to_lowered_program::LoweredSourcePublication,
+    source: prepared_typed_trees_to_lowered_program::PreparedTypedTrees,
+    roster: prepared_typed_trees_to_lowered_program::source_roster::SourceCompilationRoster,
     provider_defaults: Vec<provider_choice_inputs::TargetProviderDefaults>,
 }
 

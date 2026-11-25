@@ -38,11 +38,11 @@ pub(crate) fn selected_supplies(
 }
 
 /// What a Product's lowered module is extended from before running the checker:
-/// the frozen source and lowered elaboration, with the supplies the Build and
+/// the frozen source and lowered closure, with the supplies the Build and
 /// the target packages declare.
 pub(super) struct LoweredSupplySource<'a> {
     pub targets: &'a [super::source_targets::SourceTarget],
-    pub lowered: &'a prepared_typed_trees_to_lowered_program::LoweredSourcePublication,
+    pub lowered: &'a source_roster::LoweredRosterClosure<'a>,
     pub build: &'a [crate::compile_product::provider_declarations::ProviderSelection],
     pub native_bindings: &'a [provider_choice_inputs::NativeBuildSupply],
     pub defaults: &'a [crate::compile_product::provider_declarations::TargetProviderDefaults],
@@ -272,17 +272,11 @@ fn scan_provider_work(
 pub(super) fn next_provider_work_from_lowered(
     source: LoweredSupplySource<'_>,
 ) -> Result<ProviderWork, Vec<Diagnostic>> {
-    let terminal_check_tables::TerminalCompilation::Prepared(prepared) = source.lowered.program()
-    else {
+    let Some(elaboration) = source.lowered.closure() else {
         return Ok(ProviderWork::Complete);
     };
-    let Ok(elaboration) = &prepared.closure else {
-        return Ok(ProviderWork::Complete);
-    };
-    let Some(roster) = source.lowered.source().roster.as_ref() else {
-        return Ok(ProviderWork::Complete);
-    };
-    let trees = source.lowered.source().owner.trees();
+    let roster = source.lowered.roster();
+    let trees = source.lowered.source().trees();
     let demand = ModuleDemand::read_from_elaboration(trees, elaboration, roster)?;
     scan_provider_work(
         &demand,
