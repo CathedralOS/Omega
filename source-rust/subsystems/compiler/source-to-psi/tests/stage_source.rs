@@ -1485,6 +1485,39 @@ fn a_data_type_parameter_rejects_a_value_even_if_expansion_discards_it() {
 }
 
 #[test]
+fn a_type_argument_supplies_its_own_declarations_full_arity() {
+    let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
+    let declarations = "data Word { bits: u32; }
+        data Pair<A, B> { first: A; second: B; }
+        data Loan<'r> { item: @'r u8; }
+        data Plain<T> = Word;";
+    for (argument, missing) in [
+        ("Pair", Some("Pair")),
+        ("u8<u16>", Some("u8")),
+        ("@Pair", Some("Pair")),
+        ("Pair<u8, Pair>", Some("Pair")),
+        ("[Pair<u8<u16>, u8>]", Some("u8")),
+        ("Loan", Some("Loan")),
+        ("Loan<'r>", None),
+        ("Pair<u8, Pair<u8, u16>>", None),
+    ] {
+        let source = format!("{declarations} machine f<'r>(v: Plain<{argument}>) -> Word {{ v }}");
+        let (files, root) = captured(package, &source);
+        let result = compile(product(files, root, package, &[]).unwrap(), None);
+        if let Some(name) = missing {
+            let errors = result.expect_err(&source);
+            let expected = format!("type argument `{name}` has the wrong arity");
+            assert!(
+                errors.iter().any(|error| error.message.contains(&expected)),
+                "{errors:?}"
+            );
+        } else {
+            result.expect(&source);
+        }
+    }
+}
+
+#[test]
 fn competing_domain_families_use_the_qualifications_on_each_side() {
     let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
     let declarations = "data Word { bits: u32; }

@@ -9,6 +9,73 @@ use crate::source_state::types::{DomainConstraintSubject, FixedArrayLength, Type
 use arena::HandleSpan;
 use symbols::{SymbolHandle, SymbolKind};
 
+/// A type argument must denote a type, including beneath a structural
+/// wrapper. Its named head must receive its own declaration's full tuple.
+pub fn check_type_argument_head(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+) -> Result<(), String> {
+    let table = &program.type_reference_table;
+    let mut remaining = table.type_reference_count();
+    let (symbol, supplied_lifetimes, supplied_parameters) = loop {
+        if remaining == 0 || !table.contains_type_reference(reference) {
+            return Err("type argument contains a missing or cyclic type reference".into());
+        }
+        remaining -= 1;
+        match table.type_reference(reference) {
+            TypeReferenceNode::Reference { referee, .. }
+            | TypeReferenceNode::Constrained {
+                base_type: referee, ..
+            }
+            | TypeReferenceNode::FixedArray {
+                element_type: referee,
+                ..
+            }
+            | TypeReferenceNode::Slice {
+                element_type: referee,
+            } => reference = *referee,
+            TypeReferenceNode::Named { symbol, .. } => break (*symbol, 0, 0),
+            TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                lifetime_arguments,
+                ..
+            } => {
+                break (*base_symbol, lifetime_arguments.len(), arguments.len());
+            }
+            _ => return Ok(()),
+        }
+    };
+    if !program.symbols.symbols().nodes().is_valid(symbol) {
+        return Ok(());
+    }
+    let expected = if let Some(data) = program.unique_data_definition_by_symbol(symbol) {
+        (
+            data.lifetime_parameters.len(),
+            program.data_type_parameters(data).len(),
+        )
+    } else if program.symbols.builtin_type_atom(symbol).is_some()
+        || program
+            .data_type_parameter_by_symbol(symbol)
+            .is_some_and(|parameter| parameter.kind == TypeParameterKind::Type)
+    {
+        (0, 0)
+    } else {
+        return Ok(());
+    };
+    if expected != (supplied_lifetimes, supplied_parameters) {
+        return Err(format!(
+            "type argument `{}` has the wrong arity (expected {} lifetime and {} ordinary arguments, found {} and {})",
+            program.symbols.name(symbol),
+            expected.0,
+            expected.1,
+            supplied_lifetimes,
+            supplied_parameters
+        ));
+    }
+    Ok(())
+}
+
 /// Retain views for the new source references before constructor landing.
 /// Views do not publish declarations or establish their generic premises.
 pub fn prepare_from(program: &mut TypedTrees, first: usize) -> Result<(), String> {
@@ -538,14 +605,15 @@ impl<'source> ApplicationPreparation<'source> {
             {
                 return Err("data application refers to a missing type reference".into());
             }
-            if parameter.kind == TypeParameterKind::Type
-                && self.source.type_argument_names_value(argument)
-            {
-                return Err(format!(
-                    "data type argument for `{}` of `{}` requires a type but was supplied a value",
-                    parameter.name.as_str(),
-                    self.source.symbols.name(owner),
-                ));
+            if parameter.kind == TypeParameterKind::Type {
+                if self.source.type_argument_names_value(argument) {
+                    return Err(format!(
+                        "data type argument for `{}` of `{}` requires a type but was supplied a value",
+                        parameter.name.as_str(),
+                        self.source.symbols.name(owner),
+                    ));
+                }
+                check_type_argument_head(self.source, argument)?;
             }
         }
         if parameters.is_empty() {

@@ -851,6 +851,8 @@ pub(crate) mod alias_uses {
                     ))
                     .with_source_span(site));
                 }
+                typed_trees::data_applications::check_type_argument_head(program, *actual)
+                    .map_err(|reason| Diagnostic::error(reason).with_source_span(site))?;
                 type_argument_meets_bounds(program, formal, *actual).map_err(|stop| {
                     match stop {
                         Stop::Rejected(reason) => Diagnostic::error(reason),
