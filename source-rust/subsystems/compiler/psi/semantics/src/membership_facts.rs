@@ -1710,39 +1710,55 @@ fn analyze_observations(
             .contracts
             .iter()
             .any(|contract| !contract.proof.membership_ensures.is_empty());
-    let mut bodies = bodies.to_vec();
-    let (roots, promises) = if has_result_memberships {
+    let promises = if has_result_memberships {
         validate_headers(module)?;
-        let roots = module.machines.iter().map(|machine| machine.id).collect();
-        (roots, prepare_promises(module)?)
+        let declared = module
+            .machines
+            .iter()
+            .map(|machine| machine.id)
+            .collect::<BTreeSet<_>>();
+        if bodies.iter().any(|id| !declared.contains(id)) {
+            return Err(unavailable(
+                None,
+                "membership checking names an absent body",
+            ));
+        }
+        prepare_promises(module)?
     } else {
-        // A cast can forward a fact from a parameter or an earlier cast even
-        // when no machine or boundary promises a membership on return.
-        let cast_machines = module
-            .types
-            .scalar_qualifications
+        Vec::new()
+    };
+    // Callers read facts at qualification changes, establishment completions
+    // and executable tests. A body also owes any normal-result promise assigned
+    // to it by its own, selected, boundary or callable header.
+    let catalog = &module.types.scalar_qualifications;
+    let mut bodies = bodies.to_vec();
+    if tests.is_empty() {
+        let observed = catalog
             .coercions
             .iter()
-            .map(|change| change.machine)
+            .map(|row| row.machine)
+            .chain(catalog.returns.iter().map(|row| row.machine))
             .chain(
                 module
                     .types
                     .structural_qualification_changes
                     .iter()
-                    .map(|change| change.machine),
+                    .map(|row| row.machine),
             )
+            .chain(promises.iter().map(|(machine, _)| *machine))
             .collect::<BTreeSet<_>>();
-        if tests.is_empty() {
-            bodies.retain(|machine| cast_machines.contains(machine));
+        bodies.retain(|machine| observed.contains(machine));
+    }
+    if bodies.is_empty() {
+        return Ok(result);
+    }
+    // The descriptor builder follows calls from exactly these bodies, so a
+    // callee's returned storage and writes still constrain its caller.
+    let graphs = terminal_reference_graph_from(module, bodies.iter().copied()).map_err(|_| {
+        MembershipError {
+            machine: None,
+            detail: "runtime membership has no complete storage transfer graph",
         }
-        if bodies.is_empty() {
-            return Ok(result);
-        }
-        (bodies.clone(), Vec::new())
-    };
-    let graphs = terminal_reference_graph_from(module, roots).map_err(|_| MembershipError {
-        machine: None,
-        detail: "runtime membership has no complete storage transfer graph",
     })?;
     let mut graphs_by_id = graphs.iter().collect::<Vec<_>>();
     graphs_by_id.sort_unstable_by_key(|graph| graph.id);
@@ -2299,6 +2315,13 @@ mod tests {
             });
         module.execution.declaration_contracts.push(header);
         assert!(analyze(&module).is_ok());
+        assert!(matches!(
+            analyze_bodies(&module, &[MachineId::new(1).unwrap()]),
+            Err(MembershipError {
+                detail: "membership checking names an absent body",
+                ..
+            })
+        ));
         module.execution.declaration_contracts[0].membership_ensures[0] = RuntimeDomainMembership::Scalar {
             subject: ScalarTerm::value(ValueId::new(1).unwrap(), carrier),
             domain,
