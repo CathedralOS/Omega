@@ -274,3 +274,58 @@ fn explicit_domain_application_resolves_to_the_same_declared_type_equation() {
     assert!(!expected.is_empty());
     assert_eq!(rejected(&wrong_role), expected);
 }
+
+#[test]
+fn a_domain_carrier_forwards_its_const_binder_through_a_type_alias() {
+    use crate::source_resolved::types::{TypeConstraint, TypeReference};
+
+    let program = resolve_source(
+        r#"
+            data Word { bits: u32; }
+            domain<const N: u8> Word::Slot<N>;
+            data Slotted<const N: u8> = Word in Slot<N>;
+            domain<const N: u8> Slotted<N>::Ready<N>;
+        "#,
+    );
+    let alias = program.type_aliases.iter().next().expect("Slotted");
+    let domain = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "Slotted::Ready")
+        .expect("Slotted::Ready");
+    let binder = program.data_type_parameters(domain.type_parameters)[0].symbol;
+    assert!(binder.is_valid());
+    assert_ne!(
+        binder,
+        program.data_type_parameters(alias.type_parameters)[0].symbol
+    );
+
+    let TypeReference::AliasUse {
+        application,
+        expansion,
+        ..
+    } = &domain.target_type
+    else {
+        panic!("expected the applied carrier alias");
+    };
+    let TypeReference::Generic(applied) = application.as_ref() else {
+        panic!("expected Slotted<N>");
+    };
+    let TypeReference::Constrained(expanded) = expansion.as_ref() else {
+        panic!("expected Word in Slot<N>");
+    };
+    let [TypeConstraint::Domain(slot)] = program
+        .tables
+        .types
+        .constraints
+        .span_or_empty(expanded.constraints)
+    else {
+        panic!("expected Slot<N>");
+    };
+    for arguments in [applied.arguments, slot.arguments] {
+        let [TypeReference::Named { symbol, .. }] = program.child_type_references(arguments) else {
+            panic!("expected the forwarded const argument");
+        };
+        assert_eq!(*symbol, binder);
+    }
+}
