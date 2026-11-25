@@ -2400,7 +2400,7 @@ mod propositions {
                         if !self.structural_places.contains_key(root) {
                             return Err(PropositionError::UnknownStructuralPlace(*root));
                         }
-                        pending.extend(term.operands().into_iter().rev());
+                        term.push_operands_reversed(&mut pending);
                     }
                     crate::scalar_term_predicate_quint_pattern!(root, ..) => {
                         let Some(kind) = self.structural_places.get(root) else {
@@ -2415,7 +2415,7 @@ mod propositions {
                     ScalarTerm::Boolean(_)
                     | ScalarTerm::Integer { .. }
                     | ScalarTerm::IeeeFloatLiteral(_) => {}
-                    _ => pending.extend(term.operands().into_iter().rev()),
+                    _ => term.push_operands_reversed(&mut pending),
                 }
             }
             Ok(())
@@ -2803,6 +2803,10 @@ mod value_ids {
     ) -> (bool, bool) {
         let mut complete = true;
         let mut pending = vec![start];
+        // One operand buffer serves the whole walk; the stack pops the
+        // operands in declaration order.
+        let mut scalar_operands = Vec::new();
+        let mut math_operands = Vec::new();
         while let Some(node) = pending.pop() {
             if !matches!(node, Pending::Propositions(_)) && !step() {
                 return (false, false);
@@ -2872,9 +2876,8 @@ mod value_ids {
                         }
                     }
                     term => {
-                        for operand in term.operands().into_iter().rev() {
-                            pending.push(Pending::IntegerMath(operand));
-                        }
+                        term.append_operands(&mut math_operands);
+                        pending.extend(math_operands.drain(..).rev().map(Pending::IntegerMath));
                     }
                 },
                 Pending::Scalar(term) => {
@@ -2889,18 +2892,16 @@ mod value_ids {
                         }
                         ScalarTerm::StructuralRead { .. } => {
                             complete = false;
-                            for operand in term.operands().into_iter().rev() {
-                                pending.push(Pending::Scalar(operand));
-                            }
+                            term.append_operands(&mut scalar_operands);
+                            pending.extend(scalar_operands.drain(..).rev().map(Pending::Scalar));
                         }
                         crate::scalar_term_predicate_quint_pattern!(..) => complete = false,
                         ScalarTerm::Boolean(_)
                         | ScalarTerm::Integer { .. }
                         | ScalarTerm::IeeeFloatLiteral(_) => {}
                         _ => {
-                            for operand in term.operands().into_iter().rev() {
-                                pending.push(Pending::Scalar(operand));
-                            }
+                            term.append_operands(&mut scalar_operands);
+                            pending.extend(scalar_operands.drain(..).rev().map(Pending::Scalar));
                         }
                     }
                 }

@@ -962,6 +962,15 @@ impl<'a> Replay<'a> {
         ))
     }
 
+    /// The indexed form of `is_descriptor`: the type needs exactly one
+    /// declaration with a view-descriptor shape. Storage steps ask this per
+    /// root, so they must not scan every declaration in the module.
+    pub(crate) fn is_descriptor(&self, structural_type: StructuralTypeId) -> bool {
+        self.type_index
+            .unique(structural_type)
+            .is_some_and(|declaration| declaration.shape.is_view_descriptor())
+    }
+
     pub(crate) fn resolve_storage(
         &self,
         machine: &DescriptorMachine,
@@ -982,7 +991,7 @@ impl<'a> Replay<'a> {
     ) -> Option<&'state Value> {
         let ty = *machine.place_types.get(&root)?;
         if matches!(machine.place_definition(root)?, DescriptorDefinition::Arrival { access } if *access != StructuralAccess::Owned)
-            && !is_descriptor(self.types.iter(), ty)
+            && !self.is_descriptor(ty)
         {
             state.arrival_backing.get(&DescriptorLocation::whole(root))
         } else {
@@ -1326,9 +1335,9 @@ impl<'a> Replay<'a> {
             ) || matches!(
                 self.type_index.find(root_type)?.shape,
                 StructuralTypeShape::Reference { .. }
-            ) || is_descriptor(self.types.iter(), root_type);
+            ) || self.is_descriptor(root_type);
             let borrowed_arrival = matches!(definition, DescriptorDefinition::Arrival { access } if *access != StructuralAccess::Owned)
-                && !is_descriptor(self.types.iter(), root_type);
+                && !self.is_descriptor(root_type);
             let origins = self.root_storage_origins(machine, state, current.root);
             if borrowed_arrival
                 && origins
@@ -1812,7 +1821,7 @@ impl<'a> Replay<'a> {
         let endpoint = self.resolved_location(machine, state, location, depth)?.1?;
         Some(
             (!self.slot_kind.is_slot(self.types, endpoint)
-                && !is_descriptor(self.types.iter(), endpoint))
+                && !self.is_descriptor(endpoint))
             .then(|| DescriptorLocation {
                 root: location.root,
                 path: path.to_vec(),
@@ -1865,7 +1874,7 @@ impl<'a> Replay<'a> {
         }
         if location.path.is_empty()
             && matches!(machine.place_definition(location.root)?, DescriptorDefinition::Arrival { access } if *access != StructuralAccess::Owned)
-            && !is_descriptor(self.types.iter(), *machine.place_types.get(&location.root)?)
+            && !self.is_descriptor(*machine.place_types.get(&location.root)?)
             && !self
                 .slot_kind
                 .is_slot(self.types, *machine.place_types.get(&location.root)?)
@@ -2011,7 +2020,7 @@ impl<'a> Replay<'a> {
             } = row.definition
             {
                 if access == StructuralAccess::WriteOnlyBorrow
-                    && is_descriptor(self.types.iter(), structural_type)
+                    && self.is_descriptor(structural_type)
                 {
                     continue;
                 }
@@ -2020,7 +2029,7 @@ impl<'a> Replay<'a> {
                     .parameter_is_incoming_slot(self.types, structural_type)
                 {
                     Origin::Incoming(DescriptorLocation::whole(row.place))
-                } else if is_descriptor(self.types.iter(), structural_type) {
+                } else if self.is_descriptor(structural_type) {
                     Origin::Backing(DescriptorCallOrigin::Argument {
                         source: row.place,
                         projection: Projection::new(&[]),
@@ -2210,7 +2219,7 @@ impl<'a> Replay<'a> {
             return storage();
         };
         let ty = self.resolved_location(machine, state, source, reads)?.1?;
-        let value = if is_descriptor(self.types.iter(), ty) {
+        let value = if self.is_descriptor(ty) {
             self.read_with_depth(machine, state, source, reads)
         } else {
             storage()
@@ -2468,7 +2477,7 @@ impl<'a> Replay<'a> {
             // contents slot. Retain its captured address independently;
             // nested descriptor contents still require their own query.
             let borrowed_storage = binding.access != StructuralAccess::Owned
-                && !is_descriptor(self.types.iter(), structural_type);
+                && !self.is_descriptor(structural_type);
             if borrowed_storage || query.is_some() {
                 let value = if borrowed_storage {
                     if let Some((descriptor, projection)) = &binding.captured_storage {
@@ -3168,7 +3177,7 @@ impl<'a> Replay<'a> {
                     for (location, origin) in origins {
                         let origin = if matches!(origin, DescriptorCallOrigin::Argument { source, projection } if *source == location.root && location.path.is_empty() && projection == &Projection::new(&[]))
                             && machine.place_types.get(&location.root).is_some_and(|ty| {
-                                !is_descriptor(self.types.iter(), *ty)
+                                !self.is_descriptor(*ty)
                                     || machine
                                         .sequence_construction(
                                             self.types,

@@ -1129,7 +1129,7 @@ impl Replay<'_> {
                     return None;
                 }
                 let root_type = *machine.place_types.get(&source)?;
-                if is_descriptor(self.types.iter(), root_type)
+                if self.is_descriptor(root_type)
                     && projection.path.is_empty()
                     && self.parameter(machine, source).is_some()
                 {

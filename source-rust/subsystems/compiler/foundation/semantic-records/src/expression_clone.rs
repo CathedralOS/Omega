@@ -65,7 +65,27 @@ impl Clone for IntegerMathTerm {
 
 impl Clone for ScalarTerm {
     fn clone(&self) -> Self {
-        clone_tree(self, Self::append_operands, Self::copy_with_operands)
+        // Proof facts mostly copy values and literals. Copy those leaves
+        // directly instead of entering the operand walk and its two dispatches.
+        match self {
+            Self::Value { id, scalar_type } => Self::Value {
+                id: *id,
+                scalar_type: *scalar_type,
+            },
+            Self::Integer { scalar_type, value } => Self::Integer {
+                scalar_type: *scalar_type,
+                value: *value,
+            },
+            Self::Boolean(value) => Self::Boolean(*value),
+            Self::Application {
+                application,
+                scalar_type,
+            } => Self::Application {
+                application: *application,
+                scalar_type: *scalar_type,
+            },
+            _ => clone_tree(self, Self::append_operands, Self::copy_with_operands),
+        }
     }
 }
 
@@ -143,5 +163,67 @@ impl ScalarTerm {
             WrappingIntegerMultiply { scalar_type; left, right },
             SaturatingIntegerMultiply { scalar_type; left, right },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        IntegerSign, IntegerType, IntegerValue, ScalarApplicationId, ScalarTerm, ScalarType,
+        ValueId,
+    };
+
+    fn integer() -> IntegerType {
+        IntegerType::new(IntegerSign::Unsigned, 64).unwrap()
+    }
+
+    fn value(id: u64) -> ScalarTerm {
+        ScalarTerm::value(ValueId::new(id).unwrap(), ScalarType::Integer(integer()))
+    }
+
+    #[test]
+    fn leaf_terms_and_their_parents_clone_to_equal_terms() {
+        let leaves = [
+            value(3),
+            ScalarTerm::integer(integer(), IntegerValue::Unsigned(9)).unwrap(),
+            ScalarTerm::Boolean(true),
+            ScalarTerm::Application {
+                application: ScalarApplicationId::new(4).unwrap(),
+                scalar_type: ScalarType::Boolean,
+            },
+        ];
+        for leaf in &leaves {
+            assert_eq!(&leaf.clone(), leaf);
+        }
+        let difference = ScalarTerm::ExactIntegerSubtract {
+            scalar_type: integer(),
+            left: Box::new(value(1)),
+            right: Box::new(leaves[1].clone()),
+        };
+        let ScalarTerm::ExactIntegerSubtract { left, right, .. } = difference.clone() else {
+            panic!("expected subtraction")
+        };
+        assert_eq!((*left, *right), (value(1), leaves[1].clone()));
+    }
+
+    #[test]
+    fn term_walks_visit_operands_in_declaration_order() {
+        let sum = ScalarTerm::ExactIntegerAdd {
+            scalar_type: integer(),
+            left: Box::new(ScalarTerm::ExactIntegerSubtract {
+                scalar_type: integer(),
+                left: Box::new(value(1)),
+                right: Box::new(value(2)),
+            }),
+            right: Box::new(value(3)),
+        };
+        let mut seen = Vec::new();
+        sum.visit_terms(|term| {
+            if let ScalarTerm::Value { id, .. } = term {
+                seen.push(id.get());
+            }
+        });
+        assert_eq!(seen, [1, 2, 3]);
+        assert!(sum.validate().is_ok());
     }
 }
