@@ -1697,6 +1697,61 @@ impl<'a> Storage<'a> {
         Ok(())
     }
 
+    /// The read of a shared input's cell stated over that input as it
+    /// arrived: `items[i]` for the cell `i` of a formal `items: @[u64; 2]`.
+    /// The machine cannot write through a shared loan, so the cell holds its
+    /// entry contents throughout the body, and a clause may name it even if
+    /// no operation captures its index. `actual` is the input itself or a
+    /// static or selected path below it; `path` continues from there.
+    pub(crate) fn shared_entry_read(
+        &self,
+        tables: &MachineTables,
+        actual: &Lineage,
+        path: &[semantic_vocabulary::ScalarReadProjection],
+        ty: ScalarType,
+    ) -> Option<ScalarTerm> {
+        use semantic_vocabulary::ScalarReadProjection as Projection;
+        let input = terminal_psi::StructuralParameterDeclaration::find_by_place(
+            &self.lowered.structural_parameters,
+            actual.root,
+        )?;
+        if input.access != StructuralAccess::SharedBorrow
+            || path
+                .iter()
+                .any(|step| matches!(step, Projection::Referent | Projection::Extent))
+        {
+            return None;
+        }
+        let mut rebased = Vec::with_capacity(actual.segments.len() + path.len());
+        for segment in &actual.segments {
+            rebased.push(match *segment {
+                Segment::Field(field) => {
+                    Projection::from(CanonicalStructuralPathSegment::Field(field))
+                }
+                Segment::Case(case) => Projection::from(CanonicalStructuralPathSegment::Case(case)),
+                Segment::FixedIndex(index) => {
+                    Projection::from(CanonicalStructuralPathSegment::FixedIndex(index))
+                }
+                Segment::RuntimeIndex { selector } => Projection::Index(Box::new(
+                    ScalarTerm::value(selector, tables.values.get(selector)?.scalar_type),
+                )),
+                _ => return None,
+            });
+        }
+        rebased.extend_from_slice(path);
+        let mut fixed_storage = true;
+        let actual_type = terminal_semantics::structural_read_type_with_extents(
+            self.types.iter(),
+            input.structural_type,
+            &rebased,
+            |_, extent| fixed_storage &= extent.is_some(),
+        )?;
+        if actual_type != ty || !fixed_storage {
+            return None;
+        }
+        ScalarTerm::structural_read(actual.root, rebased, ty).ok()
+    }
+
     /// The names of this machine's own entry clause: a scalar formal is its
     /// value, and a field of a record formal is the value that field held
     /// at entry. fact_validity.md: "a valid initialized ordinary storage
@@ -1711,6 +1766,25 @@ impl<'a> Storage<'a> {
             storage: self,
             references,
             tables,
+            over_shared_inputs: false,
+        }
+    }
+
+    /// The same names as `at_entry`, except that a cell of a shared input is
+    /// read over that input (`shared_entry_read`) even when an operation
+    /// captured it. A clause over `items[index]` is then stated in the form a
+    /// call gives a cell it selects with another value: the caller's
+    /// `requires items[index] == 7` and a call's route `items[selected] == 0`
+    /// name the same storage term, and an equality `selected == index`
+    /// relates them.
+    pub(crate) fn at_entry_over_shared_inputs<'s>(
+        &'s self,
+        references: &'s mut DescriptorAnalysis<'a>,
+        tables: &'s MachineTables,
+    ) -> AtEntry<'s, 'a> {
+        AtEntry {
+            over_shared_inputs: true,
+            ..self.at_entry(references, tables)
         }
     }
 
@@ -7354,6 +7428,8 @@ pub(crate) struct AtEntry<'s, 'a> {
     storage: &'s Storage<'a>,
     references: &'s mut DescriptorAnalysis<'a>,
     tables: &'s MachineTables,
+    /// See `Storage::at_entry_over_shared_inputs`.
+    over_shared_inputs: bool,
 }
 
 impl AtEntry<'_, '_> {
@@ -7438,23 +7514,29 @@ impl crate::Bindings for AtEntry<'_, '_> {
         path: &[semantic_vocabulary::ScalarReadProjection],
         ty: ScalarType,
     ) -> Result<ScalarTerm, crate::Unbound> {
-        let actual = indexed_place(
-            self.storage,
-            self.tables,
-            self.input_place(root, &[])?,
-            path,
-        )?;
-        if self
+        let input = self.input_place(root, &[])?;
+        let actual = indexed_place(self.storage, self.tables, input.clone(), path)?;
+        let captured = self
             .storage
             .interned(self.tables, &actual, Construct::Machine)
             .map_err(crate::Unbound::Refused)?
-            .is_none()
-        {
-            return Err(crate::Unbound::Unproved(
-                "no operation captures this indexed input at entry",
-            ));
+            .is_some();
+        if captured && !self.over_shared_inputs {
+            return self.observation(actual, ty);
         }
-        self.observation(actual, ty)
+        // A cell no operation captures still names the input's entry
+        // contents, with its selectors stated over this machine's values,
+        // the form a call gives the same cell (`AtCall::structural_read`).
+        match self
+            .storage
+            .shared_entry_read(self.tables, &input, path, ty)
+        {
+            Some(read) => Ok(read),
+            None if captured => self.observation(actual, ty),
+            None => Err(crate::Unbound::Unproved(
+                "no operation captures this indexed input at entry",
+            )),
+        }
     }
 
     fn extent(
@@ -7661,46 +7743,8 @@ impl<'a> AtCall<'_, 'a> {
         path: &[semantic_vocabulary::ScalarReadProjection],
         ty: ScalarType,
     ) -> Option<ScalarTerm> {
-        use semantic_vocabulary::ScalarReadProjection as Projection;
-        let input = terminal_psi::StructuralParameterDeclaration::find_by_place(
-            &self.storage.lowered.structural_parameters,
-            actual.root,
-        )?;
-        if input.access != StructuralAccess::SharedBorrow
-            || path
-                .iter()
-                .any(|step| matches!(step, Projection::Referent | Projection::Extent))
-        {
-            return None;
-        }
-        let mut rebased = Vec::with_capacity(actual.segments.len() + path.len());
-        for segment in &actual.segments {
-            rebased.push(match *segment {
-                Segment::Field(field) => {
-                    Projection::from(CanonicalStructuralPathSegment::Field(field))
-                }
-                Segment::Case(case) => Projection::from(CanonicalStructuralPathSegment::Case(case)),
-                Segment::FixedIndex(index) => {
-                    Projection::from(CanonicalStructuralPathSegment::FixedIndex(index))
-                }
-                Segment::RuntimeIndex { selector } => Projection::Index(Box::new(
-                    ScalarTerm::value(selector, self.tables.values.get(selector)?.scalar_type),
-                )),
-                _ => return None,
-            });
-        }
-        rebased.extend_from_slice(path);
-        let mut fixed_storage = true;
-        let actual_type = terminal_semantics::structural_read_type_with_extents(
-            self.storage.types.iter(),
-            input.structural_type,
-            &rebased,
-            |_, extent| fixed_storage &= extent.is_some(),
-        )?;
-        if actual_type != ty || !fixed_storage {
-            return None;
-        }
-        ScalarTerm::structural_read(actual.root, rebased, ty).ok()
+        self.storage
+            .shared_entry_read(self.tables, actual, path, ty)
     }
 
     /// Find the source named by the operation that established this actual.
@@ -8542,7 +8586,25 @@ impl crate::Bindings for AtJoin<'_, '_> {
         {
             self.inputs.structural_read(root, path, ty)
         } else {
-            terminal_semantics::substitution::clauses::bind_fixed_read(self, root, path, ty)
+            match terminal_semantics::substitution::clauses::bind_fixed_read(self, root, path, ty) {
+                // A cell of this machine's shared input that no fixed
+                // position names keeps its entry contents at every arrival,
+                // so the join states it over that input as entry clauses do.
+                Err(crate::Unbound::Unproved(_) | crate::Unbound::Unsupported(_))
+                    if let Some(read) = self.inputs.storage.shared_entry_read(
+                        self.inputs.tables,
+                        &Lineage {
+                            root,
+                            segments: Vec::new(),
+                        },
+                        path,
+                        ty,
+                    ) =>
+                {
+                    Ok(read)
+                }
+                other => other,
+            }
         }
     }
 

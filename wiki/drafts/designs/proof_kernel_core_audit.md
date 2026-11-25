@@ -1403,16 +1403,25 @@ type), and the clause's `ClauseScope` says what each name denotes there.
     return already did, and the message is gone (2026-11-25). In
     `samples/cli/facts/indexed_crash_guard/`, `parameter`, `local`,
     `const_name`, `other_machine` and `target_body` are accepted and their
-    twins refused. `field` and `call_result` stop where a `requires` analog
-    stops: the prover cannot show the call's index equals the selector the
-    caller's `requires` names ("comparison term outside the scalar
-    subset"). `other_state` calls a nested machine whose omitted crash
-    route is inferred as `Truth`. `match_join` and the root package now
-    reach the checker: stage 05 no longer refuses the nested shared loan in
-    `finish(read_seven(@items, 0, true), @items)` (2026-11-25). There
-    `match_join` stops twice. Its call `maybe_zero(items, selected)` needs
-    the value `match` that yields `index` on both arms proved equal to
-    `index`, the same limit as `field`. Its private nested `finish` calls
+    twins refused. `field` and `call_result` are accepted too, and their
+    twins refused (2026-11-25): the call selects the cell with a value
+    equal to the caller's selector but not the same value
+    (`selection.index`, or a result with `ensures result == index`). A
+    cell of a shared input keeps its entry contents, so stage 06 states it
+    over that input wherever no operation captured it
+    (`Storage::shared_entry_read`, used by the entry, call and join
+    bindings), and also states each `requires` over a shared input's cell
+    in that form (`at_entry_over_shared_inputs`). The caller's
+    `items[index] == 7` and the call's `items[selected] == 0` then name
+    one term once `selected == index` is transported, and the prover bounds
+    a term with no value of its own by a literal it equals
+    (`literal_equality_bound`). `other_state` calls a nested machine whose
+    omitted crash route is inferred as `Truth`. `match_join` and the root
+    package now reach the checker: stage 05 no longer refuses the nested
+    shared loan in `finish(read_seven(@items, 0, true), @items)`
+    (2026-11-25). The call `maybe_zero(items, selected)` after its value
+    `match` is covered, since the join keeps `items[index] == 7` stated
+    over the input. Its private nested `finish` calls
     `read_seven(items, 0, false)` and owes `items[0] == 7`, which only
     [private entry inference](../../spec/language/state_contracts.md#private-entry-inference)
     for `finish` could supply. A route

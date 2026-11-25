@@ -1299,9 +1299,23 @@ fn fill_knowledge<'a>(
     let edge_entries = owned_cleanup::edge_entry_points(lowered, tables)?;
     theorems::fill(module, id, tables)?;
     for (clause, proposition) in lowered.contract.requires.iter().enumerate() {
-        let premises =
+        let mut premises =
             entry_snapshot_conjuncts(proposition, &mut storage.at_entry(references, tables))
                 .map_err(|unbound| unbound.refusal(id, Construct::Machine))?;
+        // A clause over a shared input's cell is also stated over the input
+        // itself, so a call that selects the cell with an equal value of
+        // another identity reads the same term (`at_entry_over_shared_inputs`).
+        // Both forms state the one clause at entry; nothing new is assumed.
+        let over_inputs = entry_snapshot_conjuncts(
+            proposition,
+            &mut storage.at_entry_over_shared_inputs(references, tables),
+        )
+        .map_err(|unbound| unbound.refusal(id, Construct::Machine))?;
+        for stated in over_inputs {
+            if !premises.contains(&stated) {
+                premises.push(stated);
+            }
+        }
         for stated in premises {
             push_knowledge(
                 tables,
