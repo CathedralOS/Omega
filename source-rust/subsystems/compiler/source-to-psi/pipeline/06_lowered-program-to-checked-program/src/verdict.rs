@@ -1169,7 +1169,11 @@ fn plan_affine_machines(
     MachineId,
     Option<Result<terminal_semantics::plain_affine::Plan, AffineRefusal>>,
 )> {
-    let plan = |machine: MachineId| affine_plan(module, machine, reference_ends.get(machine));
+    // Every machine's walks replay the same callees; the module replays each
+    // of them once for all its machines.
+    let summaries = terminal_semantics::plain_affine::AffineSummaries::new(module);
+    let plan =
+        |machine: MachineId| affine_plan(module, &summaries, machine, reference_ends.get(machine));
     let machines = &module.machines;
     if worker_budget::current_workers() == 1 || machines.len() < 2 {
         let mut plans = Vec::with_capacity(machines.len());
@@ -1205,8 +1209,10 @@ fn plan_affine_machines(
 
 /// The affine plan of `machine`: its dead stored references each have an
 /// explicit last-use disposition, and its owned values are used affinely.
+/// Both walks read one descriptor graph built from `machine`.
 fn affine_plan(
     module: &terminal_psi::TerminalModule,
+    summaries: &terminal_semantics::plain_affine::AffineSummaries<'_>,
     machine: MachineId,
     candidates: Option<&terminal_semantics::reference_ends::Candidates>,
 ) -> Result<terminal_semantics::plain_affine::Plan, AffineRefusal> {
@@ -1218,7 +1224,11 @@ fn affine_plan(
             "reference disposition lost its machine",
         )))
     })?;
-    let ends = terminal_semantics::plain_affine::plan_reference_ends(module, machine, candidates)
+    let walks =
+        terminal_semantics::plain_affine::MachineAffine::new(module, machine, Some(summaries))
+            .map_err(|error| AffineRefusal::of(affine_refusal(machine, error)))?;
+    let ends = walks
+        .plan_reference_ends(candidates)
         .map_err(|error| AffineRefusal::of(affine_refusal(machine, error)))?;
     if !ends.reference_ends.is_empty() {
         return Err(AffineRefusal::Decided(fall_back_or_defect(refusal(
@@ -1228,7 +1238,8 @@ fn affine_plan(
             "a dead stored reference has no explicit last-use disposition",
         ))));
     }
-    terminal_semantics::plain_affine::verify_in(module, machine)
+    walks
+        .verify()
         .map_err(|error| AffineRefusal::of(affine_refusal(machine, error)))
 }
 

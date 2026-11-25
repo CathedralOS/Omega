@@ -623,10 +623,13 @@ pub(crate) fn discharge_inner(
     );
     // Each machine's borrowed-storage replay reaches the same callees; the
     // module replays each of them once for all its machines.
-    let summaries = terminal_semantics::descriptor_results::ModuleSummaries::borrowed_storage(
-        module,
-        formed.nominal_calls(),
-    );
+    let summaries = ModuleReplays {
+        borrowed_storage: terminal_semantics::descriptor_results::ModuleSummaries::borrowed_storage(
+            module,
+            formed.nominal_calls(),
+        ),
+        affine: terminal_semantics::plain_affine::AffineSummaries::new(module),
+    };
     let machines =
         machine_batch::check(&mut checking.machines, activity, |id, tables, activity| {
             // A requirement has a contract and no body, so nothing about it is
@@ -784,7 +787,7 @@ fn machine(
     law_instances: &[MachineId],
     proved: &[(MachineId, &laws::LawJudgment)],
     empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
-    summaries: &terminal_semantics::descriptor_results::ModuleSummaries<'_>,
+    summaries: &ModuleReplays<'_>,
     borrow_ends: Option<&[(EdgeId, PlaceId)]>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<MachineDischarge> {
@@ -1521,6 +1524,19 @@ fn fill_knowledge<'a>(
     Ok(())
 }
 
+/// The callee summaries one module's machine checks share, so each callee
+/// is replayed once per module rather than once per checked caller. The two
+/// tables serve graphs built differently, and a summary from one does not
+/// describe the other's rows.
+pub(crate) struct ModuleReplays<'m> {
+    /// For each machine check's own borrowed-storage graph, which includes
+    /// the module's nominal calls.
+    borrowed_storage: terminal_semantics::descriptor_results::ModuleSummaries<'m>,
+    /// For the affine claim walk of each machine (`minted`), whose graph
+    /// has no nominal calls.
+    affine: terminal_semantics::plain_affine::AffineSummaries<'m>,
+}
+
 /// What deciding one machine's obligations needs: value types, dominance,
 /// and the proposition context; filling the knowledge table on the way.
 pub(crate) struct Prepared {
@@ -1609,7 +1625,7 @@ fn with_prepared_machine<Outcome>(
     id: MachineId,
     tables: &mut MachineTables,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
-    summaries: Option<&terminal_semantics::descriptor_results::ModuleSummaries<'_>>,
+    summaries: Option<&ModuleReplays<'_>>,
     check: impl FnOnce(PreparedMachine<'_, '_>, &mut MachineTables) -> Checked<Outcome>,
 ) -> Checked<(Prepared, Outcome)> {
     let module = formed.source();
@@ -1622,7 +1638,15 @@ fn with_prepared_machine<Outcome>(
     // owes, at its points, or deciding every row proves nothing (`minted`).
     // A consumer re-checking a saved proof decides rows too, so it checks
     // them the same way.
-    minted::follow_the_lowered_form(id, module, lowered, tables, &types, inhabitation)?;
+    minted::follow_the_lowered_form(
+        id,
+        module,
+        lowered,
+        tables,
+        &types,
+        inhabitation,
+        summaries.map(|summaries| &summaries.affine),
+    )?;
     minted::domains_are_declared(id, structural_types, domains)?;
     let graph = Graph::new(id, lowered, tables)?;
     theorems::validate(module, lowered, tables, &graph)?;
@@ -1638,7 +1662,7 @@ fn with_prepared_machine<Outcome>(
         // The graph is this module's closure with its nominal calls, which
         // is what the module's shared summaries were replayed from.
         if let Some(summaries) = summaries {
-            references.share_summaries(summaries, formed.nominal_calls());
+            references.share_summaries(&summaries.borrowed_storage, formed.nominal_calls());
         }
         let storage = places::Storage::new(
             id,

@@ -1041,40 +1041,198 @@ pub fn plan(machine: &TerminalMachine, types: &[StructuralTypeDeclaration]) -> R
     analyze(machine, types, false, None, None, None)
 }
 
-/// Resolve destructive reference paths with the same descriptor graph as
-/// storage and loan checking. The detached value never owns its lender's home.
+/// An affine walk's descriptor graph has no nominal calls. Its rows can share
+/// a module's summaries only with a table built from this same slice, which
+/// `ModuleSummaries` checks by address.
+static NO_NOMINAL_CALLS: [terminal_psi::generic_calls::NominalCallArgument; 0] = [];
+
+/// The callee summaries that every affine walk over one module replays. Each
+/// walk builds its machine's borrowed-storage graph without nominal calls,
+/// so the walks of all the module's machines, on any worker, can share one
+/// table: a walk takes a callee's summary from it only where its own replay
+/// would have produced the same one (`ModuleSummaries`). Build the table
+/// from the exact module the walks read; a walk over another module, even an
+/// equal copy, replays alone.
+pub struct AffineSummaries<'m> {
+    summaries: crate::descriptor_results::ModuleSummaries<'m>,
+}
+
+impl<'m> AffineSummaries<'m> {
+    pub fn new(module: &'m terminal_psi::TerminalModule) -> Self {
+        Self {
+            summaries: crate::descriptor_results::ModuleSummaries::borrowed_storage(
+                module,
+                &NO_NOMINAL_CALLS,
+            ),
+        }
+    }
+
+    /// Whether some walk has completed and published `machine`'s summary.
+    pub fn holds(&self, machine: semantic_vocabulary::MachineId) -> bool {
+        self.summaries.get(machine).is_some()
+    }
+}
+
+/// The affine walks of one machine in one module. Every walk that needs
+/// conditional storage reads the same borrowed-storage graph, built from
+/// this machine (`terminal_borrowed_storage_graph_from`); the first walk
+/// builds it and later walks reuse it. With an `AffineSummaries` table the
+/// walks also take callee summaries other walks of the module completed.
+/// Each answer is the one a walk alone would give.
+pub struct MachineAffine<'s> {
+    module: &'s terminal_psi::TerminalModule,
+    machine: &'s TerminalMachine,
+    summaries: Option<&'s AffineSummaries<'s>>,
+    graph: std::cell::OnceCell<
+        Result<
+            Vec<crate::descriptor_results::DescriptorMachine>,
+            crate::descriptor_results::DescriptorGraphError,
+        >,
+    >,
+}
+
+impl<'s> MachineAffine<'s> {
+    pub fn new(
+        module: &'s terminal_psi::TerminalModule,
+        identity: semantic_vocabulary::MachineId,
+        summaries: Option<&'s AffineSummaries<'s>>,
+    ) -> Result<Self, Error> {
+        Ok(Self {
+            module,
+            machine: module_machine(module, identity)?,
+            summaries,
+            graph: std::cell::OnceCell::new(),
+        })
+    }
+
+    fn graph(
+        &self,
+    ) -> Result<
+        &[crate::descriptor_results::DescriptorMachine],
+        crate::descriptor_results::DescriptorGraphError,
+    > {
+        match self.graph.get_or_init(|| {
+            crate::descriptor_results::terminal_borrowed_storage_graph_from(
+                self.module,
+                [self.machine.id],
+                &[],
+            )
+        }) {
+            Ok(graph) => Ok(graph),
+            Err(failure) => Err(*failure),
+        }
+    }
+
+    /// A fresh replay over this machine's graph, taking and publishing
+    /// callee summaries through the module's table when there is one.
+    fn references<'r>(
+        &'r self,
+        graph: &'r [crate::descriptor_results::DescriptorMachine],
+    ) -> crate::descriptor_results::DescriptorAnalysis<'r> {
+        let mut references =
+            crate::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
+                &self.module.types.structural_types,
+                graph,
+            );
+        if let Some(summaries) = self.summaries {
+            references.share_summaries(&summaries.summaries, &NO_NOMINAL_CALLS);
+        }
+        references
+    }
+
+    fn analyze(
+        &self,
+        bound_output: bool,
+        reference_candidates: Option<&crate::reference_ends::Candidates>,
+        claim_mode: Option<claims::Mode>,
+    ) -> Result<Plan, Error> {
+        analyze(
+            self.machine,
+            &self.module.types.structural_types,
+            bound_output,
+            Some(self),
+            reference_candidates,
+            claim_mode,
+        )
+    }
+
+    /// Resolve destructive reference paths with the same descriptor graph as
+    /// storage and loan checking. The detached value never owns its lender's home.
+    pub fn plan(&self) -> Result<Plan, Error> {
+        self.analyze(false, None, None)
+    }
+
+    /// Resolve dead descriptor candidates against the same exact ownership
+    /// frontier that supplies residual cleanup. Moved or already disposed
+    /// leaves are not released again, and borrowed descriptor storage never
+    /// grants disposition.
+    pub fn plan_reference_ends(
+        &self,
+        candidates: &crate::reference_ends::Candidates,
+    ) -> Result<Plan, Error> {
+        self.analyze(false, Some(candidates), None)
+    }
+
+    /// The receiving checker reconstructs both the exact backing and its schedule.
+    pub fn verify(&self) -> Result<Plan, Error> {
+        let has_owned_cleanup = self
+            .machine
+            .blocks
+            .iter()
+            .flat_map(|block| block.terminator.cleanup_rosters())
+            .any(|(_, actions)| {
+                actions
+                    .iter()
+                    .any(|action| matches!(action, TerminalAffineCleanupAction::InvokeOwned(_)))
+            });
+        verify_schedule(
+            self.machine,
+            self.analyze(
+                true,
+                None,
+                has_owned_cleanup.then_some(claims::Mode::Verify),
+            )?,
+        )
+    }
+
+    /// Emit logical claim rows from the same ownership walk that plans storage.
+    pub fn plan_claims(&self) -> Result<ClaimsPlan, Error> {
+        self.analyze(false, None, Some(claims::Mode::Publish))?
+            .claims
+            .ok_or(Error::malformed("claim producer lost its plan"))
+    }
+
+    /// Receiving retains authenticated declaration names and reconstructs
+    /// every move/call/return without taking the supplied transfer rows as
+    /// evidence.
+    pub fn verify_claims(&self) -> Result<ClaimsPlan, Error> {
+        let plan = self.analyze(true, None, Some(claims::Mode::Verify))?;
+        // Finish reconstructing the claim rows before reporting storage debt:
+        // malformed transport must still refuse as malformed, while an exact
+        // unavailable place is an ordinary ownership error, not missing support.
+        if let Some(unavailable) = plan.unavailable.into_iter().next() {
+            return Err(Error::Unavailable(unavailable));
+        }
+        plan.claims
+            .ok_or(Error::malformed("claim receiver lost its plan"))
+    }
+}
+
+/// `MachineAffine::plan` for one walk.
 pub fn plan_in(
     module: &terminal_psi::TerminalModule,
     identity: semantic_vocabulary::MachineId,
 ) -> Result<Plan, Error> {
-    let machine = module_machine(module, identity)?;
-    analyze(
-        machine,
-        &module.types.structural_types,
-        false,
-        Some(module),
-        None,
-        None,
-    )
+    MachineAffine::new(module, identity, None)?.plan()
 }
 
-/// Resolve dead descriptor candidates against the same exact ownership frontier
-/// that supplies residual cleanup. Moved or already disposed leaves are not
-/// released again, and borrowed descriptor storage never grants disposition.
+/// `MachineAffine::plan_reference_ends` for one walk.
 pub fn plan_reference_ends(
     module: &terminal_psi::TerminalModule,
     identity: semantic_vocabulary::MachineId,
     candidates: &crate::reference_ends::Candidates,
 ) -> Result<Plan, Error> {
-    let machine = module_machine(module, identity)?;
-    analyze(
-        machine,
-        &module.types.structural_types,
-        false,
-        Some(module),
-        Some(candidates),
-        None,
-    )
+    MachineAffine::new(module, identity, None)?.plan_reference_ends(candidates)
 }
 
 /// Reconstructs the canonical schedule without trusting the supplied actions.
@@ -1087,74 +1245,28 @@ pub fn verify(
     verify_schedule(machine, analyze(machine, types, true, None, None, None)?)
 }
 
-/// The receiving checker reconstructs both the exact backing and its schedule.
+/// `MachineAffine::verify` for one walk.
 pub fn verify_in(
     module: &terminal_psi::TerminalModule,
     identity: semantic_vocabulary::MachineId,
 ) -> Result<Plan, Error> {
-    let machine = module_machine(module, identity)?;
-    let has_owned_cleanup = machine
-        .blocks
-        .iter()
-        .flat_map(|block| block.terminator.cleanup_rosters())
-        .any(|(_, actions)| {
-            actions
-                .iter()
-                .any(|action| matches!(action, TerminalAffineCleanupAction::InvokeOwned(_)))
-        });
-    verify_schedule(
-        machine,
-        analyze(
-            machine,
-            &module.types.structural_types,
-            true,
-            Some(module),
-            None,
-            has_owned_cleanup.then_some(claims::Mode::Verify),
-        )?,
-    )
+    MachineAffine::new(module, identity, None)?.verify()
 }
 
-/// Emit logical claim rows from the same ownership walk that plans storage.
+/// `MachineAffine::plan_claims` for one walk.
 pub fn plan_claims_in(
     module: &terminal_psi::TerminalModule,
     identity: semantic_vocabulary::MachineId,
 ) -> Result<ClaimsPlan, Error> {
-    let machine = module_machine(module, identity)?;
-    analyze(
-        machine,
-        &module.types.structural_types,
-        false,
-        Some(module),
-        None,
-        Some(claims::Mode::Publish),
-    )?
-    .claims
-    .ok_or(Error::malformed("claim producer lost its plan"))
+    MachineAffine::new(module, identity, None)?.plan_claims()
 }
-/// Receiving retains authenticated declaration names and reconstructs every
-/// move/call/return without taking the supplied transfer rows as evidence.
+
+/// `MachineAffine::verify_claims` for one walk.
 pub fn verify_claims_in(
     module: &terminal_psi::TerminalModule,
     identity: semantic_vocabulary::MachineId,
 ) -> Result<ClaimsPlan, Error> {
-    let machine = module_machine(module, identity)?;
-    let plan = analyze(
-        machine,
-        &module.types.structural_types,
-        true,
-        Some(module),
-        None,
-        Some(claims::Mode::Verify),
-    )?;
-    // Finish reconstructing the claim rows before reporting storage debt:
-    // malformed transport must still refuse as malformed, while an exact
-    // unavailable place is an ordinary ownership error, not missing support.
-    if let Some(unavailable) = plan.unavailable.into_iter().next() {
-        return Err(Error::Unavailable(unavailable));
-    }
-    plan.claims
-        .ok_or(Error::malformed("claim receiver lost its plan"))
+    MachineAffine::new(module, identity, None)?.verify_claims()
 }
 
 fn module_machine(
@@ -1430,11 +1542,12 @@ fn analyze(
     machine: &TerminalMachine,
     types: &[StructuralTypeDeclaration],
     bound_output: bool,
-    module: Option<&terminal_psi::TerminalModule>,
+    walks: Option<&MachineAffine<'_>>,
     reference_candidates: Option<&crate::reference_ends::Candidates>,
     claim_mode: Option<claims::Mode>,
 ) -> Result<Plan, Error> {
     use semantic_vocabulary::StructuralPlaceKind;
+    let module = walks.map(|walks| walks.module);
     use terminal_psi::TerminalMachineResult;
     // A requirement has no activation to walk, but its signature still owns
     // exact claim rows. Prepare or verify those without inventing a body.
@@ -1958,24 +2071,29 @@ fn analyze(
             }
         }
     }
-    let reference_graph = if needs_storage_flow {
-        let module = module.ok_or(Error::unsupported(
+    let (reference_graph, mut references) = if needs_storage_flow {
+        let walks = walks.ok_or(Error::unsupported(
             "conditional storage analysis requires its exact module",
         ))?;
         // A reference can borrow an element through a slice. Its residence
         // follows both the slice's backing and the resulting reference.
-        crate::descriptor_results::terminal_borrowed_storage_graph_from(module, [machine.id], &[])
-            .map_err(|failure| Error::Unsupported {
-            detail: failure
-                .detail()
-                .unwrap_or("reference storage has no complete closure"),
-            site: (failure.machine() == machine.id)
-                .then(|| failure.operation(module))
-                .flatten()
-                .map(Site::Operation),
-        })?
+        let graph = match walks.graph() {
+            Ok(graph) => graph,
+            Err(failure) => {
+                return Err(Error::Unsupported {
+                    detail: failure
+                        .detail()
+                        .unwrap_or("reference storage has no complete closure"),
+                    site: (failure.machine() == machine.id)
+                        .then(|| failure.operation(walks.module))
+                        .flatten()
+                        .map(Site::Operation),
+                });
+            }
+        };
+        (graph, Some(walks.references(graph)))
     } else {
-        Vec::new()
+        (&[][..], None)
     };
     let mut graphed_machines = reference_graph
         .iter()
@@ -1983,12 +2101,6 @@ fn analyze(
         .filter(|id| *id != machine.id)
         .collect::<Vec<_>>();
     graphed_machines.sort_unstable();
-    let mut references = needs_storage_flow.then(|| {
-        crate::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
-            types,
-            &reference_graph,
-        )
-    });
     let backing = if keeps_borrowed_storage {
         let references = references.as_mut().ok_or(Error::malformed(
             "reference backing lost its storage analysis",

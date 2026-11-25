@@ -9,9 +9,7 @@ use terminal_check_tables::obligations::{ObligationKind, ObligationRow};
 use terminal_check_tables::program::MachineSources;
 use terminal_check_tables::{CheckTables, Checked, Construct, ProgramPoint};
 use terminal_psi::TerminalModule;
-use terminal_semantics::descriptor_results::{
-    DescriptorAnalysis, terminal_borrowed_storage_graph_from,
-};
+use terminal_semantics::descriptor_results::terminal_borrowed_storage_graph_from;
 use terminal_semantics::structural_qualifications::DefaultRequirements;
 
 pub(crate) fn install(
@@ -52,9 +50,11 @@ pub(crate) fn install(
         refused.detail = format!("{}: {}", refused.detail, error.in_module(module));
         refused
     })?;
+    // Each machine replays from its own analysis, and every analysis takes
+    // the callee summaries another one already completed.
+    let summaries = crate::reference_results::module_summaries(module);
     for (machine, required) in module.machines.iter().zip(defaults) {
-        let mut references =
-            DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, &graph);
+        let mut references = crate::reference_results::shared_analysis(module, &graph, &summaries);
         let unavailable =
             |detail| refuse(machine.id, Construct::Machine, Unserved::Machine(detail));
         let tables = tables
