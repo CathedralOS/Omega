@@ -18,7 +18,7 @@ use terminal_psi::TerminalMachine;
 fn chain(first: &str, second: &str) -> String {
     format!(
         "domain u8::A; domain u8::B; machine f(x: u8) -> u8 {{ \
-         let both = x as +{first} +{second}; let only = both as -A =B; only as -B }}"
+         let both: u8 in A & B = x as +{first} +{second}; let only: u8 in B = both as -A =B; only as -B }}"
     )
 }
 
@@ -63,11 +63,8 @@ fn domains_of(program: &Program, machine: &TerminalMachine, value: ValueId) -> V
     names
 }
 
-/// `x as +A +B` is two edges, `{A}` then `{A, B}`; `both as -A =B` leaves
-/// `{B}`; `only as -B` leaves nothing. Each coercion reads the value the
-/// previous one produced, starting at `x`. Writing `+B +A` instead makes
-/// the first edge `{B}`. A coercion row that reads `x` again instead of the
-/// previous cast's value is refused.
+/// The first cast adds both domains on the same edge in either spelling.
+/// Each subsequent cast consumes exactly the preceding edge's value.
 #[test]
 fn each_cast_edge_carries_the_previous_value_into_exactly_its_domains() {
     for (first, second) in [("A", "B"), ("B", "A")] {
@@ -83,7 +80,7 @@ fn each_cast_edge_carries_the_previous_value_into_exactly_its_domains() {
             .iter()
             .filter(|row| row.machine == f.id)
             .collect();
-        assert_eq!(coercions.len(), 4, "{coercions:?}");
+        assert_eq!(coercions.len(), 3, "{coercions:?}");
         let mut previous = x;
         for row in &coercions {
             assert_eq!(row.source, previous, "{row:?}");
@@ -95,7 +92,7 @@ fn each_cast_edge_carries_the_previous_value_into_exactly_its_domains() {
             .collect();
         assert_eq!(
             sets,
-            [vec![first], vec!["A", "B"], vec!["B"], vec![]],
+            [vec!["A", "B"], vec!["B"], vec![]],
             "+{first} +{second}"
         );
         program.judged(|_| {}).accepted();
@@ -119,5 +116,34 @@ fn each_cast_edge_carries_the_previous_value_into_exactly_its_domains() {
                 .contains("scalar coercion is not bound to its exact successor argument"),
             "{refusal:?}"
         );
+    }
+}
+
+#[test]
+fn a_simultaneous_cast_forms_the_complete_qualified_carrier() {
+    for (adds, removes) in [
+        ("+Selected +Positive", "-Positive -Selected"),
+        ("+Positive +Selected", "-Selected -Positive"),
+    ] {
+        let program = Program::of(&format!(
+            "domain u16::Positive requires self > 0u16;
+             data Count = u16 in Positive;
+             domain Count::Selected;
+             machine make() -> Count in Selected {{ 7u16 as {adds} }}
+             machine drop(x: Count in Selected) -> u16 {{ x as {removes} }}"
+        ));
+        let catalog = &program.elaboration().module.types.scalar_qualifications;
+        for name in ["make", "drop"] {
+            let machine = program.machine(name).id;
+            assert_eq!(
+                catalog
+                    .coercions
+                    .iter()
+                    .filter(|row| row.machine == machine)
+                    .count(),
+                1
+            );
+        }
+        program.judged(|_| {}).accepted();
     }
 }

@@ -2425,7 +2425,7 @@ impl Program<'_> {
     /// An anonymous literal lands on the carrier. A carrier that is not a
     /// plain scalar (a record, a type parameter, a generic or indexed
     /// family) is judged by the predicate's own reading, as before.
-    fn require_membership_carrier(
+    pub(super) fn require_membership_carrier(
         &mut self,
         id: MachineId,
         slots: &[Slot],

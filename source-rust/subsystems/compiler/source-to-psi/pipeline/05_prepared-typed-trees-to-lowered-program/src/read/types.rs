@@ -1182,19 +1182,20 @@ impl Program<'_> {
     ) -> Checked<ValueType> {
         let carrier = self.value_type(id, base_type)?;
         let qualification = self.type_qualification(id, carrier, constraints)?;
-        for domain in qualification.domains.members() {
-            if !carrier.qualification().domains.contains(domain) {
-                let at = self.written_domain(constraints, domain);
-                self.declared_domain(id, domain, carrier, base_type, at)?;
-            }
-        }
-        carrier.qualified(qualification).ok_or_else(|| {
+        let result = carrier.qualified(qualification).ok_or_else(|| {
             refuse(
                 id,
                 Construct::Machine,
                 Unserved::Type("domain on a type parameter"),
             )
-        })
+        })?;
+        for domain in qualification.domains.members() {
+            if !carrier.qualification().domains.contains(domain) {
+                let at = self.written_domain(constraints, domain);
+                self.declared_domain(id, domain, result, base_type, at)?;
+            }
+        }
+        Ok(result)
     }
 
     /// Read the qualification once for both type formation and casts. Type
@@ -1248,6 +1249,31 @@ impl Program<'_> {
             }
         }
         Ok(qualification)
+    }
+
+    /// One intermediate coordinate of a simultaneous cast. Its displayed
+    /// domains need a complete carrier only at the input and result of the run.
+    pub(super) fn cast_coordinate_type(
+        &mut self,
+        id: MachineId,
+        handle: TypeReferenceHandle,
+    ) -> Checked<ValueType> {
+        if let TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } = self.typed.type_reference_table.type_reference(handle)
+        {
+            let carrier = self.value_type(id, *base_type)?;
+            let qualification = self.type_qualification(id, carrier, *constraints)?;
+            return carrier.qualified(qualification).ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Type("domain on a type parameter"),
+                )
+            });
+        }
+        self.value_type(id, handle)
     }
 
     /// Read a scalar domain cast's result without forming a new domain or
