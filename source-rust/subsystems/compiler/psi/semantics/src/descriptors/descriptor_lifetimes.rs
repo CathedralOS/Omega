@@ -175,7 +175,7 @@ impl DescriptorFlowEdge {
     /// Move the available names across this exact successor. Cleanup
     /// affects names that remain in storage. A block argument instead
     /// keeps the value captured before running the cleanup.
-    fn is_plain_fallthrough(&self) -> bool {
+    pub(crate) fn is_plain_fallthrough(&self) -> bool {
         self.parameters.is_empty()
             && self.definitions.is_empty()
             && self.effects.is_empty()
@@ -324,6 +324,7 @@ pub fn descriptor_location_live_positions(
         descriptor,
         DescriptorStart::AfterDefinition,
         false,
+        None,
         |_, _| false,
     )
     .live
@@ -343,12 +344,49 @@ struct DescriptorDemand {
     names: BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>>,
 }
 
+/// Exact per-place dead-tail cutoff for `reference_ends::candidates`.
+/// When `cutoff[place] == Some((block, stop_ordinal))`, `place` is never
+/// touched again after `stop_ordinal - 1`, never escapes, is never borrowed
+/// from, and the step from `stop_ordinal - 1` to `stop_ordinal` is a
+/// single-predecessor plain fallthrough in an acyclic block graph. Neither
+/// liveness nor reference-end eligibility can change past `(block, stop_ordinal)`,
+/// so walks can stop propagating `place` there.
+pub(crate) struct DeadTailCutoff {
+    acyclic: bool,
+    stops: Vec<Option<DescriptorPosition>>,
+}
+
+impl DeadTailCutoff {
+    pub(crate) fn new(acyclic: bool, stops: Vec<Option<DescriptorPosition>>) -> Self {
+        Self { acyclic, stops }
+    }
+
+    pub(crate) fn is_acyclic(&self) -> bool {
+        self.acyclic
+    }
+
+    pub(crate) fn stops_after(
+        &self,
+        place: semantic_vocabulary::PlaceId,
+        at: DescriptorPosition,
+    ) -> bool {
+        let Some(idx) = usize::try_from(place.get() - 1).ok() else {
+            return false;
+        };
+        let Some(Some((block, stop_ordinal))) = self.stops.get(idx).copied() else {
+            return false;
+        };
+        at.0 == block && at.1 >= stop_ordinal
+    }
+}
+
 fn location_live_positions(
     steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
     birth: DescriptorPosition,
     descriptor: &DescriptorLocation,
     start: DescriptorStart,
     borrowed_authority: bool,
+    cutoff: Option<&DeadTailCutoff>,
     needs_contents: impl Fn(DescriptorPosition, &DescriptorLocation) -> bool,
 ) -> DescriptorDemand {
     type Occurrence = (DescriptorPosition, DescriptorLocation);
@@ -407,6 +445,9 @@ fn location_live_positions(
         for edge in &step.successors {
             if edge.is_plain_fallthrough() {
                 for output in &outputs {
+                    if cutoff.is_some_and(|c| c.stops_after(output.root, *position)) {
+                        continue;
+                    }
                     let next = (edge.target, output.clone());
                     predecessors
                         .entry(next.clone())
@@ -417,6 +458,9 @@ fn location_live_positions(
                 continue;
             }
             for output in &outputs {
+                if cutoff.is_some_and(|c| c.stops_after(output.root, *position)) {
+                    continue;
+                }
                 let destinations = if borrowed_authority {
                     edge.forward_authority(output)
                 } else {
@@ -573,11 +617,16 @@ impl<'a> FlowPredecessors<'a> {
         }
         Self { predecessors }
     }
+
+    pub(crate) fn count(&self, position: DescriptorPosition) -> usize {
+        self.predecessors.get(&position).map_or(0, Vec::len)
+    }
 }
 
 pub(crate) fn descriptor_entry_lifetime_with_contents_indexed(
     steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
     predecessors: &FlowPredecessors<'_>,
+    cutoff: Option<&DeadTailCutoff>,
     entry: DescriptorPosition,
     descriptor: &DescriptorLocation,
     needs_contents: impl Fn(DescriptorPosition, &DescriptorLocation) -> bool,
@@ -585,6 +634,7 @@ pub(crate) fn descriptor_entry_lifetime_with_contents_indexed(
     descriptor_lifetime_with_predecessors(
         steps,
         Some(predecessors),
+        cutoff,
         entry,
         descriptor,
         DescriptorStart::AtEntry,
@@ -596,6 +646,7 @@ pub(crate) fn descriptor_entry_lifetime_with_contents_indexed(
 pub(crate) fn descriptor_location_lifetime_with_contents_indexed(
     steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
     predecessors: &FlowPredecessors<'_>,
+    cutoff: Option<&DeadTailCutoff>,
     birth: DescriptorPosition,
     descriptor: &DescriptorLocation,
     needs_contents: impl Fn(DescriptorPosition, &DescriptorLocation) -> bool,
@@ -603,6 +654,7 @@ pub(crate) fn descriptor_location_lifetime_with_contents_indexed(
     descriptor_lifetime_with_predecessors(
         steps,
         Some(predecessors),
+        cutoff,
         birth,
         descriptor,
         DescriptorStart::AfterDefinition,
@@ -614,12 +666,15 @@ pub(crate) fn descriptor_location_lifetime_with_contents_indexed(
 pub(crate) fn descriptor_continuation_locations_indexed(
     steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
     predecessors: &FlowPredecessors<'_>,
+    same_block_max: Option<DescriptorPosition>,
     at: DescriptorPosition,
     descriptor: &DescriptorLocation,
 ) -> BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>> {
     transported_locations_with_predecessors(
         steps,
         Some(predecessors),
+        None,
+        same_block_max,
         at,
         descriptor,
         DescriptorStart::AtEntry,
@@ -639,6 +694,7 @@ fn descriptor_lifetime(
     descriptor_lifetime_with_predecessors(
         steps,
         None,
+        None,
         birth,
         descriptor,
         start,
@@ -647,16 +703,26 @@ fn descriptor_lifetime(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn descriptor_lifetime_with_predecessors(
     steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
     predecessors: Option<&FlowPredecessors<'_>>,
+    cutoff: Option<&DeadTailCutoff>,
     birth: DescriptorPosition,
     descriptor: &DescriptorLocation,
     start: DescriptorStart,
     sparse: bool,
     needs_contents: impl Fn(DescriptorPosition, &DescriptorLocation) -> bool,
 ) -> DescriptorLifetime {
-    let demand = location_live_positions(steps, birth, descriptor, start, true, needs_contents);
+    let demand = location_live_positions(
+        steps,
+        birth,
+        descriptor,
+        start,
+        true,
+        cutoff,
+        needs_contents,
+    );
     let mut surviving = BTreeMap::new();
     let authorized = if start == DescriptorStart::AfterDefinition
         && !is_fresh_definition(steps, birth, descriptor, &demand.live)
@@ -666,6 +732,8 @@ fn descriptor_lifetime_with_predecessors(
         transported_locations_with_predecessors(
             steps,
             predecessors,
+            cutoff,
+            None,
             birth,
             descriptor,
             start,
@@ -851,6 +919,8 @@ fn transported_locations(
     transported_locations_with_predecessors(
         steps,
         None,
+        None,
+        None,
         birth,
         descriptor,
         start,
@@ -860,9 +930,12 @@ fn transported_locations(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn transported_locations_with_predecessors(
     steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
     predecessors: Option<&FlowPredecessors<'_>>,
+    cutoff: Option<&DeadTailCutoff>,
+    same_block_max: Option<DescriptorPosition>,
     birth: DescriptorPosition,
     descriptor: &DescriptorLocation,
     start: DescriptorStart,
@@ -920,9 +993,35 @@ fn transported_locations_with_predecessors(
             if edge.target == birth {
                 continue;
             }
+            if let Some((block, max_ord)) = same_block_max
+                && (edge.target.0 != block || edge.target.1 > max_ord)
+            {
+                continue;
+            }
             let edge_birth = start == DescriptorStart::OnEdgeTo(edge.target) && position == birth;
             if edge.is_plain_fallthrough() && !edge_birth {
                 if after.is_empty() {
+                    continue;
+                }
+                if let Some(cutoff) = cutoff {
+                    let mut kept = after
+                        .iter()
+                        .filter(|item| !cutoff.stops_after(item.root, position))
+                        .peekable();
+                    if kept.peek().is_none() {
+                        continue;
+                    }
+                    if predecessors.get(&edge.target).is_some_and(|rows| rows.len() > 1) {
+                        needs_must_pass = true;
+                    }
+                    let target_set = established.entry(edge.target).or_default();
+                    let before_len = target_set.len();
+                    for item in kept {
+                        target_set.insert(item.clone());
+                    }
+                    if target_set.len() != before_len {
+                        worklist.insert(edge.target);
+                    }
                     continue;
                 }
                 if predecessors.get(&edge.target).is_some_and(|rows| rows.len() > 1) {
@@ -943,6 +1042,17 @@ fn transported_locations_with_predecessors(
             }
             let mut transported = if after.is_empty() {
                 BTreeSet::new()
+            } else if let Some(cutoff) = cutoff {
+                let filtered: BTreeSet<_> = after
+                    .iter()
+                    .filter(|item| !cutoff.stops_after(item.root, position))
+                    .cloned()
+                    .collect();
+                if filtered.is_empty() {
+                    BTreeSet::new()
+                } else {
+                    edge.transport_locations(&filtered, invalidate_containers, true)
+                }
             } else {
                 edge.transport_locations(after, invalidate_containers, true)
             };
@@ -1007,6 +1117,17 @@ fn transported_locations_with_predecessors(
                         }
                         let mut transported = if after.is_empty() {
                             BTreeSet::new()
+                        } else if let Some(cutoff) = cutoff {
+                            let filtered: BTreeSet<_> = after
+                                .iter()
+                                .filter(|item| !cutoff.stops_after(item.root, *predecessor))
+                                .cloned()
+                                .collect();
+                            if filtered.is_empty() {
+                                BTreeSet::new()
+                            } else {
+                                edge.transport_locations(&filtered, invalidate_containers, false)
+                            }
                         } else {
                             edge.transport_locations(&after, invalidate_containers, false)
                         };

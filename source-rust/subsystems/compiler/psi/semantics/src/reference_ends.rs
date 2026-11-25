@@ -4,13 +4,14 @@
 //! carry the result to the checker, interpreter and native lowering.
 
 use crate::descriptor_lifetimes::{
-    DescriptorLocation, DescriptorPosition, FlowPredecessors, canonical_descriptor_location,
-    descriptor_continuation_locations_indexed, descriptor_entry_lifetime_with_contents_indexed,
+    DeadTailCutoff, DescriptorLocation, DescriptorPosition, FlowPredecessors,
+    canonical_descriptor_location, descriptor_continuation_locations_indexed,
+    descriptor_entry_lifetime_with_contents_indexed,
     descriptor_location_lifetime_with_contents_indexed, descriptor_path,
 };
 use crate::descriptor_results::{DescriptorAnalysis, DescriptorSlotKind};
 use arena::IdTable;
-use semantic_vocabulary::{MachineId, OperationId};
+use semantic_vocabulary::{BlockId, MachineId, OperationId, PlaceId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{OperationKind, StructuralAccess, StructuralArgument, TerminalModule};
 
@@ -261,6 +262,194 @@ fn indexed_store_contents(
     Ok(contents)
 }
 
+fn is_acyclic_block_graph(
+    machine: &terminal_psi::TerminalMachine,
+    flow: &BTreeMap<DescriptorPosition, crate::descriptor_lifetimes::DescriptorFlowStep>,
+) -> bool {
+    let mut ids: Vec<BlockId> = machine.blocks.iter().map(|b| b.id).collect();
+    ids.sort_unstable();
+    let count = ids.len();
+    let mut in_degree = vec![0usize; count];
+    let mut adj: Vec<Vec<usize>> = vec![Vec::new(); count];
+    for (&(src_blk, src_ord), step) in flow {
+        let Ok(u) = ids.binary_search(&src_blk) else {
+            return false;
+        };
+        for edge in &step.successors {
+            if edge.target.0 == src_blk {
+                if edge.target.1 <= src_ord {
+                    return false;
+                }
+                continue;
+            }
+            let Ok(v) = ids.binary_search(&edge.target.0) else {
+                return false;
+            };
+            adj[u].push(v);
+            in_degree[v] += 1;
+        }
+    }
+    let mut queue: Vec<usize> = (0..count).filter(|&i| in_degree[i] == 0).collect();
+    let mut visited = 0usize;
+    while let Some(u) = queue.pop() {
+        visited += 1;
+        for &v in &adj[u] {
+            in_degree[v] -= 1;
+            if in_degree[v] == 0 {
+                queue.push(v);
+            }
+        }
+    }
+    visited == count
+}
+
+fn build_dead_tail_cutoff(
+    module: &TerminalModule,
+    machine: &terminal_psi::TerminalMachine,
+    flow: &BTreeMap<DescriptorPosition, crate::descriptor_lifetimes::DescriptorFlowStep>,
+    predecessors: &FlowPredecessors<'_>,
+    contents: &[(DescriptorPosition, DescriptorLocation)],
+) -> DeadTailCutoff {
+    if !is_acyclic_block_graph(machine, flow) {
+        return DeadTailCutoff::new(false, Vec::new());
+    }
+    #[derive(Default, Clone)]
+    struct Touch {
+        ineligible: bool,
+        block: Option<BlockId>,
+        last_ordinal: u32,
+    }
+    let mut touches: Vec<Touch> = Vec::new();
+    fn touch_slot(touches: &mut Vec<Touch>, place: PlaceId) -> &mut Touch {
+        let idx = usize::try_from(place.get() - 1).unwrap_or(usize::MAX);
+        if idx >= touches.len() {
+            touches.resize_with(idx + 1, Touch::default);
+        }
+        &mut touches[idx]
+    }
+    let mark_ineligible = |touches: &mut Vec<Touch>, place: PlaceId| {
+        touch_slot(touches, place).ineligible = true;
+    };
+    let record = |touches: &mut Vec<Touch>, place: PlaceId, block: BlockId, ordinal: u32| {
+        let entry = touch_slot(touches, place);
+        match entry.block {
+            None => {
+                entry.block = Some(block);
+                entry.last_ordinal = ordinal;
+            }
+            Some(existing) if existing == block => {
+                if ordinal > entry.last_ordinal {
+                    entry.last_ordinal = ordinal;
+                }
+            }
+            Some(_) => entry.ineligible = true,
+        }
+    };
+    for param in &machine.structural_parameters {
+        mark_ineligible(&mut touches, param.place);
+    }
+    for (_, loc) in contents {
+        mark_ineligible(&mut touches, loc.root);
+    }
+    for block in &machine.blocks {
+        for (ordinal, operation) in block.operations.iter().enumerate() {
+            let Ok(ordinal) = u32::try_from(ordinal) else {
+                continue;
+            };
+            if let Some(output) = operation.result.as_structural() {
+                record(&mut touches, output.place, block.id, ordinal);
+            }
+            match &operation.kind {
+                OperationKind::EstablishReference { source, .. }
+                | OperationKind::EstablishAccessReference { source, .. }
+                | OperationKind::EstablishElementView { source, .. }
+                | OperationKind::EstablishMutableElementView { source, .. } => {
+                    mark_ineligible(&mut touches, source.place);
+                }
+                _ => {}
+            }
+            for arg in operation.kind.structural_arguments() {
+                record(&mut touches, arg.place, block.id, ordinal);
+            }
+            if (operation.declared_invocation().is_some()
+                || operation.kind.callable_invocation().is_some()
+                || matches!(operation.kind, OperationKind::CallDynamic { .. }))
+                && operation.result.as_structural().is_some_and(|result| {
+                    terminal_psi::structural_type_has_borrowed_storage_by(
+                        |id| module.structural_type(id),
+                        result.structural_type,
+                    )
+                })
+            {
+                for arg in operation.kind.structural_arguments() {
+                    mark_ineligible(&mut touches, arg.place);
+                }
+            }
+        }
+    }
+    for (&(block, ordinal), step) in flow {
+        for input in step.observed_inputs() {
+            record(&mut touches, input.root, block, ordinal);
+            if step.may_escape {
+                mark_ineligible(&mut touches, input.root);
+            }
+        }
+        for def in &step.definitions {
+            record(&mut touches, def.root, block, ordinal);
+        }
+        for (src, dst) in step.derivations.iter().chain(&step.authority_derivations) {
+            record(&mut touches, src.root, block, ordinal);
+            record(&mut touches, dst.root, block, ordinal);
+        }
+        for edge in &step.successors {
+            for loc in edge.parameters.iter().chain(&edge.definitions) {
+                mark_ineligible(&mut touches, loc.root);
+            }
+            for (_, effect) in &edge.effects {
+                for loc in &effect.definitions {
+                    mark_ineligible(&mut touches, loc.root);
+                }
+                for (src, dst) in effect
+                    .derivations
+                    .iter()
+                    .chain(&effect.authority_derivations)
+                {
+                    mark_ineligible(&mut touches, src.root);
+                    mark_ineligible(&mut touches, dst.root);
+                }
+            }
+            for binding in &edge.bindings {
+                mark_ineligible(&mut touches, binding.parameter.root);
+                if let Some(src) = binding.source.exact_location() {
+                    mark_ineligible(&mut touches, src.root);
+                }
+            }
+        }
+    }
+    let stops: Vec<Option<DescriptorPosition>> = touches
+        .iter()
+        .map(|entry| {
+            if entry.ineligible {
+                return None;
+            }
+            let block = entry.block?;
+            let last_pos = (block, entry.last_ordinal);
+            let next_pos = (block, entry.last_ordinal.checked_add(1)?);
+            let step = flow.get(&last_pos)?;
+            if step.successors.len() == 1
+                && step.successors[0].is_plain_fallthrough()
+                && step.successors[0].target == next_pos
+                && predecessors.count(next_pos) == 1
+            {
+                Some(next_pos)
+            } else {
+                None
+            }
+        })
+        .collect();
+    DeadTailCutoff::new(true, stops)
+}
+
 fn machine_candidates(
     module: &TerminalModule,
     machine: &terminal_psi::TerminalMachine,
@@ -281,6 +470,7 @@ fn machine_candidates(
             .is_ok_and(|index| contents[index].1.contains(name))
     };
     let predecessors = FlowPredecessors::new(flow);
+    let cutoff = build_dead_tail_cutoff(module, machine, flow, &predecessors, &contents);
     let mut dead = BTreeMap::<DescriptorPosition, BTreeSet<DescriptorLocation>>::new();
     let mut live = BTreeMap::<DescriptorPosition, BTreeSet<DescriptorLocation>>::new();
     let mut lifetimes = Vec::new();
@@ -311,6 +501,7 @@ fn machine_candidates(
             lifetimes.push(descriptor_entry_lifetime_with_contents_indexed(
                 flow,
                 &predecessors,
+                Some(&cutoff),
                 (machine.entry, 0),
                 &slot,
                 needs_contents,
@@ -345,7 +536,16 @@ fn machine_candidates(
                     )
                 })?,
             );
-            let retained = crate::reference_call_lifetimes(module, machine, operation, analysis)
+            let retained =
+                crate::references::reference_completion::reference_call_lifetimes_indexed(
+                    module,
+                    machine,
+                    operation,
+                    analysis,
+                    Some(&predecessors),
+                    Some(&cutoff),
+                    Some(birth),
+                )
                 .map_err(|error| Error::from_graph(module, error))?;
             if !retained.is_empty() {
                 let call = operation.declared_invocation().ok_or_else(|| {
@@ -377,6 +577,7 @@ fn machine_candidates(
                         prepared,
                         flow,
                         &predecessors,
+                        cutoff.is_acyclic(),
                         birth,
                         &retained.lifetime,
                         &source,
@@ -390,6 +591,7 @@ fn machine_candidates(
                 let lifetime = descriptor_location_lifetime_with_contents_indexed(
                     flow,
                     &predecessors,
+                    Some(&cutoff),
                     birth,
                     &slot,
                     needs_contents,
@@ -405,6 +607,7 @@ fn machine_candidates(
                         prepared,
                         flow,
                         &predecessors,
+                        cutoff.is_acyclic(),
                         birth,
                         &lifetime,
                         source,
@@ -577,11 +780,13 @@ fn machine_candidates(
     Ok(candidates)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn add_dependencies(
     module: &TerminalModule,
     prepared: &crate::descriptor_results::DescriptorMachine,
     flow: &BTreeMap<DescriptorPosition, crate::descriptor_lifetimes::DescriptorFlowStep>,
     predecessors: &FlowPredecessors<'_>,
+    acyclic: bool,
     birth: DescriptorPosition,
     lifetime: &crate::descriptor_lifetimes::DescriptorLifetime,
     source: &StructuralArgument,
@@ -590,6 +795,25 @@ fn add_dependencies(
         BTreeSet<(DescriptorLocation, DescriptorLocation)>,
     >,
 ) -> Result<(), String> {
+    if lifetime.authorized.is_empty() {
+        return Ok(());
+    }
+    let same_block_max = if acyclic {
+        let mut max_ord = birth.1;
+        let mut all_same_block = true;
+        for &(block, ord) in lifetime.authorized.keys() {
+            if block != birth.0 {
+                all_same_block = false;
+                break;
+            }
+            if ord > max_ord {
+                max_ord = ord;
+            }
+        }
+        all_same_block.then_some((birth.0, max_ord))
+    } else {
+        None
+    };
     let source_type = prepared
         .place_types
         .get(&source.place)
@@ -629,7 +853,13 @@ fn add_dependencies(
             .collect()
     };
     for parent in parents {
-        let homes = descriptor_continuation_locations_indexed(flow, predecessors, birth, &parent);
+        let homes = descriptor_continuation_locations_indexed(
+            flow,
+            predecessors,
+            same_block_max,
+            birth,
+            &parent,
+        );
         for (at, children) in &lifetime.authorized {
             for child in children {
                 for parent in homes
