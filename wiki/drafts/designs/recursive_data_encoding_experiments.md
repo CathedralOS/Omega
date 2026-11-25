@@ -126,6 +126,22 @@ Mutual soundness negative checks (4/4 refused): mutual negative cycle (`A { MkA(
 1. **Arena allocation on huge `K`-case inductives (`O(K²)` → flat `O(K)` with +81 kernel LOC):** In `opt_c_stress`, `Ast50 bounds_mono` used only 1,723 steps (2.6% of budget, 135.6 ms) but allocated 265,566 arena terms because each ι-reduction rebuilt the `Apply` spine over all `K` minors for each recursive child, `instantiate_levels` re-allocated level-parameter-free subtrees, closed terms missed the inference cache across case scopes, and structural equality walked shared handles. Fixing those four sharing paths in `opt_c_opt` (**+81 net kernel LOC**, 0 new `Term` variants, 0 new rules; total kernel delta **+1,296 LOC**, **-2,559 net production LOC** once `W`/`IW` are retired) cut `Ast50 bounds_mono` from **265,566 → 46,113 terms (5.76×)** and **106.64 ms → 11.88 ms (9.0×)**—flat `O(K)` scaling (922 terms/ctor at `K = 50` vs. 898 terms/ctor at `K = 7` for `Expr+Stmt`). `Ast50 copy(e) = e` dropped from 131,736 → 34,240 terms (40.71 → 6.67 ms, 6.1×), and single reduction on `C49` dropped from 273 → 146 steps (6.22 → 1.48 ms, 4.2×).
 2. **Unary `Nat` ceiling at `147 × 147` → solved with 0 kernel changes via binary `Pos`/`BinNat`:** Unary `Nat` scales as `3n + 4` steps for `+` and `3n² + 7n + 4` for `*` (`mul(150, 150)` = 68,554 steps, 124 ms, zero stack overflow at depth 22,500). Defining binary naturals (`Pos` = `One | Bit0 | Bit1`, `BinNat` = `Zero | OfPos`) as ordinary Option C inductives in `opt_c_opt` (**0 kernel changes**) drops `mul(150, 150)` from 68,554 steps (fails ceiling) to **239 steps (0.42 ms, 0.36% of budget)**, `mul(1,000, 1,000)` to **508 steps (0.68 ms)**, and `mul(100,000, 100,000) == 10,000,000,000` to **761 steps (3,655 terms, 0.82 ms, 1.16% of budget)**, with induction proofs (`pos_add_one_r`: 41 steps / 0.12 ms; `pos_add_succ_r`: 293 steps / 0.90 ms) checking cleanly.
 
+## Follow-up: well-founded recursion (`Acc`) and `div`/`mod` without fuel (`opt_c_wf`)
+
+To test higher-order, indexed, universe-polymorphic inductives—and check whether Option C solves [decrease of a computed subject](../../../OWNER_QUESTIONS.md#decrease-of-a-computed-subject) without the fuel shortcut—we declared `Acc<u, v> (A : Type u) (R : A -> A -> Type v) : A -> Type max(u, v)` (`Acc.intro : Π(x : A). (Π(y : A). R y x -> Acc A R y) -> Acc A R x`) in `opt_c_wf` with **0 kernel changes** and **0 assumptions**. All **157/157** tests passed:
+
+| Stage / Check | Steps | Arena Terms | Wall-Clock (ms) | Fits `65,536` | Assumptions |
+|---|---:|---:|---:|:---:|:---:|
+| `Acc<u, v>` declaration | **0** | 345 | 0.59 | Yes | 0 |
+| `Acc.rec` higher-order ι-reduction | **1** | — | — | Yes | 0 |
+| `nat_wf : ∀n. Acc Nat lt n` | **93** | 4,161 | 3.30 | Yes | 0 |
+| Full `div`/`mod` + `div_mod_identity` + `mod_lt` sig | **748** | 33,549 | 9.99 | Yes (1.1%) | 0 |
+| `div(a, b) * b + mod(a, b) = a` (`div_mod_identity`) | **168** | 43,657 | 3.11 | Yes | 0 |
+| Closed `div(17, 5) == 3` / `mod(17, 5) == 2` | **521** / **647** | 38.4k / 38.7k | 1.23 / 1.85 | Yes | 0 |
+| Closed `div(29, 7) == 4` & `mod(29, 7) == 1` | **2,152** | 49,910 | 5.12 | Yes | 0 |
+
+Soundness negative checks: `Acc Nat (=) Zero -> Void` is provable in 8 steps (reflexive relations are uninhabited under `Acc`), and `check_type` refuses both a bogus `Acc Nat (=) Zero` construction and a non-decreasing recursive call in `Acc.rec` (`le_refl x` where `lt x x` is required).
+
 ## Limits of these measurements
 
 - Prototypes were tested at the `mathematical-kernel` crate level only; stage 05 elaboration, Psi wire encoding, and end-to-end Omega programs were not updated or run.
