@@ -26,6 +26,8 @@ pub enum InstallationBindingError {
 pub(crate) struct BoundExecutionPlan<'input> {
     prepared: &'input PreparedExecutionPlan,
     installations: &'input BoundInstallations,
+    pub(crate) remainder_mask: bool,
+    pub(crate) scaled_loads: bool,
 }
 
 impl<'input> BoundExecutionPlan<'input> {
@@ -54,6 +56,8 @@ impl<'input> BoundExecutionPlan<'input> {
         Ok(Self {
             prepared,
             installations,
+            remainder_mask: false,
+            scaled_loads: false,
         })
     }
 

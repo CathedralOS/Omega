@@ -397,7 +397,7 @@ pub fn resolve(
         | Address::RestoreFloatingControl { .. }
         | Address::HostedWriteByteI32 { .. }
         | Address::HostedReadByte { .. } => hosted_window_displacement(function, frame, symbolic)?,
-        Address::Load8Indexed { .. } => 0,
+        Address::Load8Indexed { .. } | Address::LoadScaledIndex { .. } => 0,
         Address::AccessorScalarAccess { byte_offset, .. }
         | Address::LoadPacked { byte_offset, .. }
         | Address::StorePacked { byte_offset, .. }
@@ -536,6 +536,11 @@ pub fn validate_address(
             base_operand: 0,
             byte_offset,
         } if candidate.displacement == i64::from(byte_offset) => Ok(()),
+        Address::LoadScaledIndex {
+            base_operand: 0,
+            index_operand: 1,
+            element_bytes: 2 | 4 | 8,
+        } if candidate.displacement == 0 => Ok(()),
         Address::Load8Indexed {
             base_operand: 0,
             index_operand: 1,

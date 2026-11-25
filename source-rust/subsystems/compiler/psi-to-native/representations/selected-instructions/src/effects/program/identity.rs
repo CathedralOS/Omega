@@ -234,6 +234,9 @@ mod instruction {
             SelectedInstructionKind::HostedWriteByteI32 { .. } => 23,
             SelectedInstructionKind::ByteViewAddress => 22,
             SelectedInstructionKind::Load8Indexed => 21,
+            SelectedInstructionKind::Load16Indexed
+            | SelectedInstructionKind::Load32Indexed
+            | SelectedInstructionKind::Load64Indexed => 253,
             SelectedInstructionKind::Store64 { .. } => 17,
             SelectedInstructionKind::FrameAddress { .. } => 18,
             SelectedInstructionKind::InvokeNoNormal { .. } => 248,

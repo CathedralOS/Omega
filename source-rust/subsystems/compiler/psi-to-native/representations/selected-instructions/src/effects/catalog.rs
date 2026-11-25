@@ -83,6 +83,7 @@ mod constraint_keys {
                 self.load16,
                 self.load32,
                 self.load8_indexed,
+                self.scaled_indexed_load,
                 self.store64,
                 self.frame_address,
                 self.byte_literal_image_address,
@@ -289,6 +290,9 @@ mod constraint_keys {
                 }
                 MachineSemanticKind::Store => return self.rows.store,
                 MachineSemanticKind::AddressOffset => return self.rows.address_offset,
+                MachineSemanticKind::Load16Indexed
+                | MachineSemanticKind::Load32Indexed
+                | MachineSemanticKind::Load64Indexed => return self.rows.scaled_indexed_load,
                 MachineSemanticKind::Load8Indexed => return self.rows.load8_indexed,
                 MachineSemanticKind::Load64 => return self.rows.load64,
                 MachineSemanticKind::LoadPacked3
@@ -550,6 +554,9 @@ macro_rules! machine_semantic_kinds {
         }
 
         impl MachineSemanticKind {
+            pub const fn indexed_load_bytes(self) -> Option<u16> {
+                match self { Self::Load8Indexed => Some(1), Self::Load16Indexed => Some(2), Self::Load32Indexed => Some(4), Self::Load64Indexed => Some(8), _ => None }
+            }
             #[allow(unused_assignments)]
             const FIXED: [Self; 0 $(+ machine_semantic_kinds!(@count $kind $variant $(($payload))?))*] = {
                 let mut fixed = [Self::Crash; 0 $(+ machine_semantic_kinds!(@count $kind $variant $(($payload))?))*];
@@ -583,6 +590,9 @@ machine_semantic_kinds! {
     { fixed BitsToFloat32 },
     { fixed BitsToFloat64 },
     { fixed Load8Indexed },
+    { fixed Load16Indexed },
+    { fixed Load32Indexed },
+    { fixed Load64Indexed },
     { fixed CompareI64Zero },
     { fixed MaterializeI64 },
     { fixed CopyI64 },
@@ -755,6 +765,7 @@ impl MachineSemanticKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[rustfmt::skip]
 pub enum MachineAlternativeFamily {
     GlobalDescriptorTableLoad,
     GlobalDescriptorTableStore,
@@ -804,6 +815,9 @@ pub enum MachineAlternativeFamily {
     BitsToFloat32,
     BitsToFloat64,
     Load8Indexed,
+    Load16Indexed,
+    Load32Indexed,
+    Load64Indexed,
     CompareI64Zero,
     MaterializeI64,
     CopyI64,
@@ -935,6 +949,9 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::AddressOffset => Self::AddressOffset,
             MachineSemanticKind::ByteViewAddress => Self::ByteViewAddress,
             MachineSemanticKind::Load8Indexed => Self::Load8Indexed,
+            MachineSemanticKind::Load16Indexed => Self::Load16Indexed,
+            MachineSemanticKind::Load32Indexed => Self::Load32Indexed,
+            MachineSemanticKind::Load64Indexed => Self::Load64Indexed,
             MachineSemanticKind::CompareI64Zero => Self::CompareI64Zero,
             MachineSemanticKind::MaterializeI64 => Self::MaterializeI64,
             MachineSemanticKind::CopyI64 => Self::CopyI64,

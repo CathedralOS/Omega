@@ -116,6 +116,7 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub load16: Option<RegisterConstraintKey>,
     pub load32: Option<RegisterConstraintKey>,
     pub load8_indexed: Option<RegisterConstraintKey>,
+    pub scaled_indexed_load: Option<RegisterConstraintKey>,
     pub copy_bytes: Option<RegisterConstraintKey>,
     pub zero_bytes: Option<RegisterConstraintKey>, // Bulk zero fill: two preserved inputs and one early-clobber cursor scratch.
     pub scan_byte_sequence: Option<RegisterConstraintKey>, // Byte-sequence predicate scan: two preserved inputs, two early-clobber scratch, one 0/1 result.

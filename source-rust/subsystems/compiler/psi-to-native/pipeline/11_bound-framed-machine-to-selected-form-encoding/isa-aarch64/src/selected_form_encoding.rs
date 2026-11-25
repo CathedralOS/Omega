@@ -14667,6 +14667,9 @@ mod selected_forms {
             | SelectedInstructionKind::LoadEncodedScalar
             | SelectedInstructionKind::StoreEncodedScalar
             | SelectedInstructionKind::Load8Indexed
+            | SelectedInstructionKind::Load16Indexed
+            | SelectedInstructionKind::Load32Indexed
+            | SelectedInstructionKind::Load64Indexed
             | selected_instructions::load_width_triple_pattern!(..)
             | SelectedInstructionKind::Load64 { .. }
             | SelectedInstructionKind::LoadPacked { .. }

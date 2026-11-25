@@ -80,6 +80,9 @@ pub fn classify(kind: &Kind) -> machine_code::fault_origins::FaultOperation {
             | Kind::StorePacked { .. }
             | Kind::Store { .. }
             | Kind::Load8Indexed
+            | Kind::Load16Indexed
+            | Kind::Load32Indexed
+            | Kind::Load64Indexed
             | Kind::Load8 { .. }
             | Kind::Load16 { .. }
             | Kind::Load32 { .. }

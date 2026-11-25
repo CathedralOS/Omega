@@ -157,6 +157,7 @@ impl SelectedImageAddressReference {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[rustfmt::skip]
 pub enum SelectedInstructionKind {
     InvokeNoNormal {
         target: SelectedCallTarget,
@@ -228,6 +229,9 @@ pub enum SelectedInstructionKind {
     },
     ByteViewAddress,
     Load8Indexed,
+    Load16Indexed,
+    Load32Indexed,
+    Load64Indexed,
     Load64 {
         byte_offset: u32,
     },
@@ -396,6 +400,25 @@ pub enum SelectedInstructionKind {
 }
 
 impl SelectedInstructionKind {
+    pub const fn from_wide_indexed_load_bytes(bytes: u8) -> Option<Self> {
+        match bytes {
+            2 => Some(Self::Load16Indexed),
+            4 => Some(Self::Load32Indexed),
+            8 => Some(Self::Load64Indexed),
+            _ => None,
+        }
+    }
+
+    pub const fn indexed_load_bytes(self) -> Option<u16> {
+        match self {
+            Self::Load8Indexed => Some(1),
+            Self::Load16Indexed => Some(2),
+            Self::Load32Indexed => Some(4),
+            Self::Load64Indexed => Some(8),
+            _ => None,
+        }
+    }
+
     pub const fn call_target(self) -> Option<SelectedCallTarget> {
         match self {
             Self::CallScalar { target }
@@ -451,6 +474,7 @@ macro_rules! layout_dependent_selected_transfers {
 }
 
 #[macro_export]
+#[rustfmt::skip]
 macro_rules! dedicated_selected_forms {
     () => {
         $crate::SelectedInstructionKind::AccessorScalarAccess { .. }
@@ -465,6 +489,9 @@ macro_rules! dedicated_selected_forms {
             | $crate::SelectedInstructionKind::StoreEncodedScalar
             | $crate::SelectedInstructionKind::CompareByteSequences
             | $crate::SelectedInstructionKind::Load8Indexed
+            | $crate::SelectedInstructionKind::Load16Indexed
+            | $crate::SelectedInstructionKind::Load32Indexed
+            | $crate::SelectedInstructionKind::Load64Indexed
             | $crate::SelectedInstructionKind::Load8 { .. }
             | $crate::SelectedInstructionKind::Load16 { .. }
             | $crate::SelectedInstructionKind::Load32 { .. }

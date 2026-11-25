@@ -14,6 +14,7 @@ pub use provider_admission::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[rustfmt::skip]
 pub enum LoweringError {
     Publication {
         machine: MachineId,
@@ -65,6 +66,11 @@ pub enum LoweringError {
         operation: OperationId,
         boundary: semantic_vocabulary::BoundaryMachineId,
         reason: &'static str,
+    },
+    TargetOptimizationArchitecture {
+        rule: optimization_core::Optimization,
+        required: target::Architecture,
+        actual: target::Architecture,
     },
     UnconsumedOptimizationPhase(optimization_core::OptimizationExecutionPhase),
     UnsupportedIeeeFloatFmaRealization(OperationId),

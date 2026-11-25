@@ -156,6 +156,16 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
             crate::codec_bytes::push_encoded(bytes, base_operand.to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
         }
+        Some(crate::PhysicalAddressOperation::LoadScaledIndex {
+            base_operand,
+            index_operand,
+            element_bytes,
+        }) => {
+            bytes.push(17);
+            crate::codec_bytes::push_encoded(bytes, base_operand.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, index_operand.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, element_bytes.to_le_bytes());
+        }
         Some(crate::PhysicalAddressOperation::Load8Indexed {
             base_operand,
             index_operand,

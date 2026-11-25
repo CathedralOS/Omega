@@ -620,6 +620,9 @@ fn encoded_effects(
         S::LoadPacked5 => load(5, vec![1, 2]),
         S::LoadPacked6 => load(6, vec![1, 2]),
         S::LoadPacked7 => load(7, vec![1, 2]),
+        S::Load16Indexed | S::Load32Indexed | S::Load64Indexed => {
+            return Err(Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch);
+        }
         S::Load8Indexed => memory(
             vec![0, 1],
             vec![2],

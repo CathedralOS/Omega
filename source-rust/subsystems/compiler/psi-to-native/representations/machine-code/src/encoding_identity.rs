@@ -103,6 +103,16 @@ fn encode_encoding_row(
                 } => {
                     encode_base_byte_offset(hasher, 7, base_operand, byte_offset);
                 }
+                Address::LoadScaledIndex {
+                    base_operand,
+                    index_operand,
+                    element_bytes,
+                } => {
+                    hasher.byte(17);
+                    hasher.raw(&base_operand.to_le_bytes());
+                    hasher.raw(&index_operand.to_le_bytes());
+                    hasher.raw(&element_bytes.to_le_bytes());
+                }
                 Address::Load8Indexed {
                     base_operand,
                     index_operand,

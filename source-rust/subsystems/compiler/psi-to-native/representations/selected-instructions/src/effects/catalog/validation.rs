@@ -2349,6 +2349,9 @@ pub(super) fn validate_declaration(
         | MachineSemanticKind::Load32
         | MachineSemanticKind::Load64
         | MachineSemanticKind::Load8Indexed
+        | MachineSemanticKind::Load16Indexed
+        | MachineSemanticKind::Load32Indexed
+        | MachineSemanticKind::Load64Indexed
         | MachineSemanticKind::LoadPacked3
         | MachineSemanticKind::LoadPacked5
         | MachineSemanticKind::LoadPacked6
@@ -2409,6 +2412,9 @@ pub(super) fn validate_declaration(
         | MachineSemanticKind::Load32
         | MachineSemanticKind::Load64
         | MachineSemanticKind::Load8Indexed
+        | MachineSemanticKind::Load16Indexed
+        | MachineSemanticKind::Load32Indexed
+        | MachineSemanticKind::Load64Indexed
         | MachineSemanticKind::LoadPacked3
         | MachineSemanticKind::LoadPacked5
         | MachineSemanticKind::LoadPacked6
@@ -3198,6 +3204,20 @@ fn validate_encoded_effects(
             }
             && encoded.control == MachineEncodedControlEffect::IndirectExternalCallV1
             && encoded.external_operand_reads.contains(&pointer_operand) => {}
+        (
+            MachineEncodedMemoryEffect::ReadScaledIndexV1 {
+                pointer_operand: 0,
+                index_operand: 1,
+                element_bytes,
+            },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if architecture == target::Architecture::X86_64
+            && matches!(element_bytes, 2 | 4 | 8)
+            && declaration.semantic.indexed_load_bytes() == Some(element_bytes)
+            && declaration.memory == crate::MachineMemoryEffect::ReadPointerV1
+            && encoded.external_operand_reads == [0, 1]
+            && encoded.external_operand_writes == [2] => {}
         (
             MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
                 pointer_operand,

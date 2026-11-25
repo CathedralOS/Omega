@@ -568,6 +568,13 @@ fn build_instruction(
             Kind::FrameAddress { slot, byte_offset } => {
                 Some(Address::FrameAddress { slot, byte_offset })
             }
+            kind @ (Kind::Load16Indexed | Kind::Load32Indexed | Kind::Load64Indexed) => {
+                Some(Address::LoadScaledIndex {
+                    base_operand: 0,
+                    index_operand: 1,
+                    element_bytes: kind.indexed_load_bytes().expect("indexed width"),
+                })
+            }
             Kind::Load8Indexed => Some(Address::Load8Indexed {
                 base_operand: 0,
                 index_operand: 1,
