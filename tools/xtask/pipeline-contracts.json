@@ -19802,7 +19802,7 @@
       "kind": "definition",
       "meaning": "Retain the accepted source and roster and publish one canonical Psi artifact for the optimization selection the checked closure executed.",
       "producer": "stage 07 checked source publication",
-      "signature": "9e50817fa4ad89e583d5c0ff68743b6986ec49f963f377ac2e34dae48e230ed7"
+      "signature": "de9f561761f2d2d9811670be2d7f963480315b06fbc89e689f903ece6ca81f85"
     },
     {
       "consumers": [
@@ -19813,7 +19813,7 @@
       "kind": "checker",
       "meaning": "Admit declaration selections against the captured Product package scope. The source driver reads the checker's advisories itself and measures them separately.",
       "producer": "stage 07 checked source publication",
-      "signature": "1f2762763cd7325dc7f6e8ff450a58c8165e160531f9207328751d5bc848e0a3"
+      "signature": "cb254b99b50deeebdf5c564d0aa9831038ee079c0b82deb871d1f112822e3c38"
     },
     {
       "consumers": [
