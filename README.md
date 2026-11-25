@@ -13,6 +13,11 @@ Omega is built for software where performance is critical and failure is costly,
 
 Its first major application is **[Cathedral](https://github.com/CathedralOS/Cathedral)**, an operating system being developed alongside the language. Cathedral applies the design to kernel problems: managing memory, controlling hardware, and running untrusted software.
 
+Additionally, Omega can serve as a native language, interpreted language, or embeded scripted language:
+- `omega build <target.omg>` to build a native application
+- `omega run <target.omg>` to run interpreted
+- Pull in Omega as a package to embed it as a scripting language
+
 **Pre-Alpha.** The Rust compiler is under active development. The language
 design is ahead of its implementation; native support is not finished.
 
@@ -437,15 +442,34 @@ and [provider selection under build policy](wiki/language_guide/chapter_19_capab
 [Device loans](wiki/spec/resources/device_access.md) ·
 [Concurrency](wiki/language_guide/chapter_18_concurrency.md)
 
+## Fleet orchestration
+
+Since an Omega Application can use the compiler as a library, a normal Omega app can orchestrate complex multi-binary build flows.
+
+For instance, an orchestrator can build a fleet of services while checking how they fit together. Each service owns its build. The release application owns the connections between services and the rules those connections must satisfy.
+
+Suppose the public API must be able to reach My Account, and every route there must pass through Authorization.
+
+```mermaid
+flowchart LR
+    api[Public API] --> auth[Authorization] --> account[My Account]
+    api -. direct bypass .-> account
+    api -.-> log[Logging] -. indirect bypass .-> account
+```
+
+The release application asks each checked build which outgoing operations its entry points can invoke, including calls through helpers, callbacks, and selected providers. It combines those answers with its endpoint bindings and checks two things: **a route to My Account exists**, and **removing Authorization leaves no route**. Disconnecting My Account entirely fails the first. Both illegal paths fail the second check.
+
+Of course, the guarantee depends on what each service can actually reach. If the API receives an unrestricted socket that can connect to My Account, the release application cannot rule out a bypass. If the installed transport confines the API to its declared peers, the check can use that guarantee.
 
 ## Omega's big bets
 
-| The bet | What it demands |
+| The bet | How Omega helps |
 | --- | --- |
 | High assurance and high performance become the baseline. | Correctness without sacrificing speed. |
 | Malicious and buggy code proliferate. | Verify claims about capabilities, performance, and stability instead of trusting assertions. |
 | Software permeates areas where failure is intolerable. | Guarantees strong enough for transportation, medicine, and operating systems. |
 | Systems become increasingly distributed. | Checkable contracts across services and binaries, not just within one program. |
+| Teams Become Smaller | Guarantees that nothing is broken. Better to know up front than find out in production. |
 | Coding intelligence becomes powerful and cheap. | Design around checking abundant generated code, not merely making it easier to write. |
 | Waste becomes unacceptable. | Stop treating garbage collection, emulation, and layers of bloat as unavoidable costs. |
 
