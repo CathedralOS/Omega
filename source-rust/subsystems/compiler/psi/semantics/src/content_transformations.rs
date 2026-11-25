@@ -21,6 +21,7 @@ pub mod boundary_calls;
 pub(crate) mod boundary_correspondence;
 pub mod declarations;
 pub mod entry_claims;
+pub mod forwarding;
 
 pub fn structural_path<'a>(
     types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,

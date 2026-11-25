@@ -346,6 +346,10 @@ fn admit_provider_selections(
                     candidate: selection.candidate,
                 });
             };
+            terminal_semantics::provider_candidates::conservation::verify(module, candidate)
+                .map_err(|reason| ProviderInstallationError::SemanticDecode(
+                    terminal_codec::CodecError::MalformedStructuralFoundation(reason),
+                ))?;
             installed.insert(
                 selection.boundary,
                 AdmittedProviderSelection {

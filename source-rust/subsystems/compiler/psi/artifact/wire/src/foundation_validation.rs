@@ -2813,6 +2813,8 @@ pub(crate) mod declaration_foundations {
             );
         }
         validate_provider_scalar_contract(boundary, machine, &module.types.structural_domains)?;
+        terminal_semantics::provider_candidates::conservation::verify(module, candidate)
+            .map_err(CodecError::MalformedStructuralFoundation)?;
         super::scalar_boundary_contracts::validate_provider(module, boundary, &machine.parameters)?;
         for parameter in &candidate.signature.parameters {
             if !has_structural_type(module, parameter.structural_type) {
@@ -12254,6 +12256,8 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     let has_boundary_content = terminal_semantics::content_transformations::boundary_calls::has_declared_conservation(module);
     for machine in &module.machines {
         machine_foundations::validate_machine(module, machine, &mut transfers, &inhabitation)?;
+        terminal_semantics::content_transformations::forwarding::checked_returns(module, machine)
+            .map_err(CodecError::MalformedStructuralFoundation)?;
         if has_boundary_content || !machine.content_partition_compositions.is_empty() {
             terminal_semantics::content_transformations::boundary_calls::verify_machine(module, machine)
                 .map_err(CodecError::MalformedStructuralFoundation)?;

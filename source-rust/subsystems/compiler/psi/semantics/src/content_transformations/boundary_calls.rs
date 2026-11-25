@@ -96,24 +96,13 @@ pub fn verify_machine(
 ) -> Result<(), &'static str> {
     let expected = for_machine(module, machine)?;
     let mut actual = Vec::new();
+    let mut used_boundaries = BTreeSet::new();
     for row in &machine.content_partition_compositions {
         let producer = machine
             .operation(row.producer_operation)
             .ok_or("content composition has no producer operation")?;
         if let OperationKind::BoundaryCall { boundary, .. } = &producer.kind {
-            // Describing a normal call in an open unit does not establish that a
-            // candidate can discharge the public law. Candidate/body witness
-            // replay is required before publishing that combination.
-            if module
-                .interfaces
-                .provider_candidates
-                .iter()
-                .any(|candidate| candidate.boundary == *boundary)
-            {
-                return Err(
-                    "boundary content call needs the checked provider body's conservation correspondence",
-                );
-            }
+            used_boundaries.insert(*boundary);
             actual.push(row);
         } else if producer.kind.direct_callee().is_none() {
             return Err("content composition producer is not a normal declared call");
@@ -123,6 +112,11 @@ pub fn verify_machine(
         return Err("boundary content compositions differ from the exact normal call occurrences");
     }
     if !expected.is_empty() {
+        for candidate in &module.interfaces.provider_candidates {
+            if used_boundaries.contains(&candidate.boundary) {
+                crate::provider_candidates::conservation::verify(module, candidate)?;
+            }
+        }
         // The equation cannot authenticate the completion receipt it consumes.
         crate::plain_affine::verify_claims_in(module, machine.id).map_err(
             |_| "boundary content completion receipt disagrees with the live claim frontier",

@@ -733,6 +733,25 @@ pub enum BoundaryContentGuarantee {
     RetainedBorrow(RetainedBorrowCustody),
 }
 
+impl BoundaryContentGuarantee {
+    /// Reconstruct the authored laws with the verified structural parameter
+    /// and result coordinates of this callable.
+    pub fn from_contract(contract: &crate::MachineContract) -> Result<Vec<Self>, &'static str> {
+        let result = contract.result.structural().map(|result| result.place);
+        let mut guarantees = Vec::new();
+        for clause in &contract.ensures {
+            if let Proposition::ContentConservation(law) = &clause.proposition {
+                let report = ContentConservationGuarantee::from_declaration(
+                    law, &contract.structural_parameters, result,
+                )?;
+                guarantees.push(Self::Conservation(report));
+            }
+        }
+        guarantees.sort();
+        Ok(guarantees)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProgramLocalRootIntroductionSchema {
     pub argument_index: u32,
