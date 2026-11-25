@@ -123,3 +123,19 @@ fn a_resident_view_checks_its_lent_extent_before_asking_for_custody() {
         assert!(report.contains("main.omg:18:"), "{report}");
     }
 }
+
+#[test]
+fn a_resident_view_preserves_the_placement_even_with_a_shared_policy() {
+    let (output, report) = inspect(
+        r#"machine carry(input: @mutable |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Resident<WordPlacement, Word>) -> @mutable Word in Word::Other {
+    |access|::view_resident_mut::<WordPlacement, Word, Word in Word::Other>(input)
+}"#,
+    );
+    assert!(!output.status.success(), "{report}");
+    let (placement, view) = report
+        .lines()
+        .find_map(|line| line.split_once("but the requested view carries"))
+        .expect(&report);
+    assert!(placement.contains("Word::Placed"), "{report}");
+    assert!(view.contains("Word::Other"), "{report}");
+}
