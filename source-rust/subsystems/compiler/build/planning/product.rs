@@ -141,15 +141,70 @@ impl ProductStage<'_> {
             self.product.evaluated().configuration.project_declaration,
             Some(BuildDeclaration::Application(_))
         );
-        let contract = profile.program_entry_slot().source_contract();
-        let bound_entry = self.entries.iter().any(|entry| {
-            entry.slot.rsplit_once("::") == Some((contract.owner, contract.slot_name))
-        });
-        if application || bound_entry {
-            self.program(profile, Vec::new())?.check_target(timings)
-        } else {
-            compiler::check(self.source(), timings)
+        if !application && !self.binds_entry(profile) {
+            return compiler::check(self.source(), timings);
         }
+        // "An explicit `--target` selection narrows realization only and
+        // never narrows checking" (build/configuration.md, "Multi-target
+        // compilation"). So every other target the Build binds an entry for
+        // is checked too: its entry contract, its selected providers and its
+        // demanded constants. A target with no address model (the Alpha
+        // bootstrap) is checked only when requested, as its entry row is
+        // (`TASKS.md`, **BUILD-OWNED-TARGET-SELECTION**).
+        let mut checked = vec![profile];
+        checked.extend(TargetProfile::ALL.into_iter().filter(|&other| {
+            other != profile
+                && self.binds_entry(other)
+                && target::TargetSemantics::close_address_model(other).is_some()
+        }));
+        if checked.len() == 1 {
+            return self.program(profile, Vec::new())?.check_target(timings);
+        }
+        let stage = ProductStage {
+            rollback: self.rollback.clone(),
+            ..self.product.product_stage(&checked)?
+        };
+        let names = checked
+            .iter()
+            .map(|target| target.target_name())
+            .collect::<Vec<_>>();
+        let mut advisories = Vec::new();
+        let publications = source_compiler::compile_for_targets_with_timings(
+            stage.source(),
+            &names,
+            Some(&mut advisories),
+            timings,
+        )?;
+        for (target, publication) in checked.into_iter().zip(publications) {
+            let program = Program::CheckedSource {
+                publication,
+                suppliers: stage.product,
+                runtime_consent: stage.runtime_consent(target)?,
+                target: stage.native_target(target, Vec::new())?,
+            };
+            let row = |mut diagnostics: Vec<Diagnostic>| {
+                if target != profile {
+                    for diagnostic in &mut diagnostics {
+                        diagnostic.message = format!(
+                            "the `{}` Build row: {}",
+                            target.target_name(),
+                            diagnostic.message
+                        );
+                    }
+                }
+                diagnostics
+            };
+            advisories.extend(program.check_target(timings).map_err(row)?);
+        }
+        Ok(advisories)
+    }
+
+    /// Whether the Build binds a program entry for `profile`.
+    fn binds_entry(&self, profile: TargetProfile) -> bool {
+        let contract = profile.program_entry_slot().source_contract();
+        self.entries.iter().any(|entry| {
+            entry.slot.rsplit_once("::") == Some((contract.owner, contract.slot_name))
+        })
     }
 
     pub fn source(&self) -> StageSource<'_> {

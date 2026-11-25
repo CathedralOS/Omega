@@ -42,10 +42,8 @@ eligibility adds no call edge, and composition checks the selected graph. The
 lowered-form checker follows the ratified rule and accepts those programs, so the
 twins now place the cycle in a selected provider.
 
-The selected-cycle check runs only for a target that is realized. `omega --check
---target linux_x86_64` therefore accepts these twins, whose cycle is in the
-Windows row, although checking for one target must not narrow checking;
-`TASKS.md` **BUILD-OWNED-TARGET-SELECTION** tracks checking every row's selection.
+Checking for one target checks every row, so `omega --check --target
+linux_x86_64` refuses these twins too, naming the `windows_x86_64` Build row.
 
 | Place | Transport |
 | --- | --- |

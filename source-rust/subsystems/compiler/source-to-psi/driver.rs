@@ -23,6 +23,7 @@ use compile_product::{
     CompletedProductSource, ProductEntry, ProductSourceInputs, prepare_lower_and_check,
 };
 use diagnostics::Diagnostic;
+use std::sync::Arc;
 
 pub(crate) fn publish_stage(
     source: StageSource<'_>,
@@ -86,9 +87,11 @@ impl ProductSourceInputs<'_> {
     }
 }
 
+/// One deployment of a checked source judgment. Several deployments of the
+/// same judgment share its artifact and differ only in their provider supply.
 pub(crate) fn published_target(
     artifact: PublishedPsi,
-    checked: compile_product::CompletedProductSource,
+    checked: &compile_product::CompletedProductSource,
     target: &str,
     subject: Option<semantic_vocabulary::PackageKeyIdentity>,
 ) -> Result<PublishedTargetProgram, Vec<Diagnostic>> {
@@ -99,10 +102,10 @@ pub(crate) fn published_target(
         subject,
         artifact,
         providers,
-        exclusions: checked.exclusions,
+        exclusions: checked.exclusions.clone(),
         runtime_declarations: RuntimePermissionDeclarations {
-            source: checked.program,
-            root_grants: checked.grants.into(),
+            source: Arc::clone(&checked.program),
+            root_grants: checked.grants.as_slice().into(),
             has_assumed_bindings: !checked.declarations.assumed_bindings.is_empty(),
         },
     })
