@@ -59,6 +59,24 @@ ensures core\Identity::<T>(add(a, b), add(b, a));
 This law states identity of results, independently of any selected comparison.
 The body of each supplied theorem must prove it.
 
+### Record identity from field identities
+
+For two values of the same concrete record type whose identity is determined
+by its fields, the checker must derive `core\Identity::<R>(a, b)` when it
+has identity evidence for every corresponding field of those exact values.
+The author may leave the proof body empty. A cited theorem that establishes
+a missing field identity supplies the same premise as an entry requirement.
+
+The checker constructs a proof of the existing kernel `Id` goal by
+reconstructing the records from their projections and substituting the
+established field identities. The kernel checks the proof. This derivation
+uses only evidence valid at the goal and emits no executable comparison.
+An opaque type parameter supplies no field decomposition. A visible subset
+of fields is insufficient when other components contribute to identity,
+including erased data. Ordinary visibility, value-version and custody rules
+apply. For a descriptor, identity of its value alone proves nothing about
+the contents of referenced storage or permission to access it.
+
 ### Equality bridges and comparison facts
 
 An executable equality fact does not itself license identity substitution.
@@ -847,6 +865,11 @@ entry requirements, the default- and named-domain predicates of established
 subjects, branch and pattern facts on the path, the guarantees of completed
 calls, the exact definitions of locals, and each integer subject's carrier
 bounds.
+
+**Record identity.** The [field-identity rule](#record-identity-from-field-identities)
+is required whenever the valid premises establish every field identity needed
+to reconstruct the two records. When this derivation lacks evidence, report
+the field whose identity is still required.
 
 **Order reasoning.** An order atom compares two integer terms with `<`, `<=`
 or `==`, where each term is a literal, a subject, or a subject plus or minus a

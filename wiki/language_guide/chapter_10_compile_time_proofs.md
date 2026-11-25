@@ -173,6 +173,24 @@ ensures core\Identity::<T>(add(a, b), add(b, a));
 Equality and identity differ for floats: `0.0 == -0.0` is true although the
 values are not identical, and a NaN is identical to itself but not `==` to itself.
 
+For an ordinary record, a proof may finish as soon as its fields agree:
+
+```omega
+data Point { x: u32; y: u32; }
+
+machine same_point(a: Point, b: Point)
+requires
+    core\Identity::<u32>(a.x, b.x),
+    core\Identity::<u32>(a.y, b.y)
+ensures
+    core\Identity::<Point>(a, b)
+{}
+```
+
+The empty body suffices because the caller has proved both field identities.
+Remove the second premise and the checker still needs proof about `y`.
+A theorem cited in the body can supply it. [Record identity from field identities](../spec/proofs/contracts.md#record-identity-from-field-identities)
+
 ## When a proof fails
 
 First read the failure category. Unsupported source is an implementation gap,
