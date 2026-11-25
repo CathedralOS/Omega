@@ -422,11 +422,6 @@ impl PlanningSource {
             })?;
         let activation = evaluation
             .execution()
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "the next Build stage has no admitted execution",
-                )]
-            })?
             .resume(
                 previous,
                 interval.plan.incoming_preparation_path().ok_or_else(|| {

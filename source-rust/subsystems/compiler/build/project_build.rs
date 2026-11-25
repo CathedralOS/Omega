@@ -186,7 +186,7 @@ impl ReturnedPlanningStage {
 
     /// Join the exact acquired sources to the dependency requests that this Build issued.
     pub fn source_result(&mut self) -> Result<BuildSourceResult<'_>, CompileFailure> {
-        self.evaluation.source_result(Some(&mut self.returned))
+        self.evaluation.source_result(&mut self.returned)
     }
 
     pub fn complete(
@@ -207,12 +207,7 @@ pub fn interpret(
     } = stage;
     let mut context = None;
     let result = (|| {
-        let execution = evaluation.execution().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "Build planning requires an admitted execution",
-            )]
-        })?;
-        let host = execution.host()?;
+        let host = evaluation.execution().host()?;
         let mut activation = host.start().map_err(refusal)?;
         let mut build_dependencies = source
             .supplied_libraries
@@ -223,7 +218,6 @@ pub fn interpret(
             if !source.stage.outgoing_preparation_paths().is_empty() {
                 evaluation
                     .execution()
-                    .ok_or_else(|| refusal("the Build stage lost its admitted execution".into()))?
                     .arm_preparations(&mut activation, &source.stage)?;
             }
             let ran = run(

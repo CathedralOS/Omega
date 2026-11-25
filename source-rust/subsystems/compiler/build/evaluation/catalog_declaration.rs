@@ -66,8 +66,7 @@ impl PreparedBuildEvaluation {
         returned: crate::ReturnedBuild,
     ) -> Result<SourceBuildDeclaration, CompileFailure> {
         let capture = self.require_catalog_acquisition(&returned)?;
-        self.validate_source_join(Some(&returned), None, true)?;
-        let evaluated = self.complete(Some(returned))?;
+        let evaluated = self.settle(returned, None, true)?;
         let Some(declaration @ BuildDeclaration::Workspace(_)) =
             evaluated.configuration.project_declaration.as_ref()
         else {
