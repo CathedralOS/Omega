@@ -214,7 +214,7 @@ impl Program<'_> {
                     actual,
                     definition.target_type,
                     at,
-                    super::types::DomainUse::Test,
+                    super::types::DomainUse::test(definition.requires_result_membership()),
                 )?;
             }
         }

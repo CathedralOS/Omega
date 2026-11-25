@@ -168,7 +168,7 @@ impl<'t> Program<'t> {
                 actual,
                 definition.target_type,
                 at,
-                super::types::DomainUse::Test,
+                super::types::DomainUse::test(nominal),
             )
         };
         let (subject, clauses) =
