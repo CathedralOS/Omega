@@ -147,6 +147,7 @@ impl ConstantRead {
         let source = prepared.trees();
         prepared
             .constants()
+            .filter(|constant| !is_immutable_toolchain_literal(source, constant))
             .map(|constant| Self {
                 name: source.symbols.name(constant.symbol).to_owned(),
                 declaration: crate::source_symbols::retain_declaration(
@@ -157,6 +158,113 @@ impl ConstantRead {
                 value: constant.evaluated_value.clone(),
             })
             .collect()
+    }
+}
+
+/// Pure literal or constructor constants in compiler-owned Build toolchain
+/// sources (`<build-prelude>`, `<default-build>`, and `core`) cannot change on
+/// rejoin, so Build rechecks do not owe constant settlement for them alone.
+fn is_immutable_toolchain_literal(
+    source: &FrozenTypedTrees,
+    constant: &crate::source_state::constant::ConstDeclaration,
+) -> bool {
+    if constant.evaluated_value.is_none()
+        || constant.pending_target_observation
+        || constant.evaluation_entry.is_valid()
+        || source.tables.machines.is_valid(constant.evaluation_entry)
+        || constant.evaluation_expression.is_valid()
+        || !constant.authored_initializer.is_valid()
+        || !source
+            .expression_table
+            .expression_is_valid(constant.authored_initializer)
+    {
+        return false;
+    }
+    let Ok(declaration) =
+        crate::source_symbols::retain_declaration(&source.symbols, constant.symbol)
+    else {
+        return false;
+    };
+    is_immutable_toolchain_build_file(declaration.source())
+        && is_pure_literal_initializer(source, constant.authored_initializer)
+}
+
+fn is_immutable_toolchain_build_file(file: &source_admission::SourceFile) -> bool {
+    file.origin == source_admission::SourceOrigin::Toolchain
+        && file.package_identity.is_none()
+        && file.dependency_scope == source_provenance::DependencyScope::Build
+        && file.resolution_stratum == source_admission::SourceResolutionStratum::Base
+        && (source_admission::source_identity::is_build_prelude_path(&file.path)
+            || file.path
+                == std::path::Path::new(source_admission::source_identity::DEFAULT_BUILD_PATH)
+            || file.package_root.file_name().and_then(|name| name.to_str()) == Some("core"))
+}
+
+fn is_immutable_toolchain_build_symbol(
+    source: &FrozenTypedTrees,
+    symbol: symbols::SymbolHandle,
+) -> bool {
+    source
+        .symbols
+        .symbol_provenance_source_span(symbol)
+        .and_then(|span| source.symbols.source_file(span))
+        .is_some_and(is_immutable_toolchain_build_file)
+}
+
+fn is_pure_literal_initializer(
+    source: &FrozenTypedTrees,
+    handle: crate::source_state::expression::ExpressionHandle,
+) -> bool {
+    use crate::source_state::expression::{ExpressionNode, UnaryOperator};
+    if !handle.is_valid() || !source.expression_table.expression_is_valid(handle) {
+        return false;
+    }
+    match source.expression_table.expression(handle) {
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
+        | ExpressionNode::String(_) => true,
+        ExpressionNode::Unary(unary)
+            if matches!(
+                unary.operator,
+                UnaryOperator::BitwiseNot | UnaryOperator::LogicalNot
+            ) =>
+        {
+            is_pure_literal_initializer(source, unary.operand)
+        }
+        ExpressionNode::Binary(binary) if binary.negation => {
+            is_pure_literal_initializer(source, binary.left)
+                && is_pure_literal_initializer(source, binary.right)
+        }
+        ExpressionNode::ArrayLiteral(elements) => source
+            .expression_table
+            .expression_handles(*elements)
+            .iter()
+            .all(|&element| is_pure_literal_initializer(source, element)),
+        ExpressionNode::StructLiteral(literal) => {
+            !literal.zero_omitted_fields
+                && literal.type_symbol.is_valid()
+                && is_immutable_toolchain_build_symbol(source, literal.type_symbol)
+                && literal
+                    .case_symbol
+                    .is_none_or(|case| is_immutable_toolchain_build_symbol(source, case))
+                && source
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .iter()
+                    .all(|field| is_pure_literal_initializer(source, field.value))
+        }
+        ExpressionNode::Name(path)
+            if !path.static_application.is_valid() && !path.reserved_result_of.is_valid() =>
+        {
+            path.resolved_symbol().is_some_and(|symbol| {
+                source.symbols.symbols().nodes().is_valid(symbol)
+                    && source.symbols.get(symbol).kind == symbols::SymbolKind::Variant
+                    && is_immutable_toolchain_build_symbol(source, symbol)
+            })
+        }
+        _ => false,
     }
 }
 
