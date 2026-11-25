@@ -11,7 +11,7 @@ use service_surface::{
 use symbols::SymbolHandle;
 
 use crate::source_state::TypedTrees;
-use crate::source_state::domain::{DomainIssuance, ProofFact};
+use crate::source_state::domain::ProofFact;
 use crate::source_state::expression::{ExpressionHandle, ExpressionNode};
 use crate::source_state::signature::{SignatureContract, SignatureContractKind};
 use crate::source_state::trait_definition::AppliedTraitScope;
@@ -59,9 +59,7 @@ impl<'program> NormalMemberships<'program> {
                         membership.semantic_domain,
                     )
                     .ok_or("normal membership has no exact domain definition")?;
-                if matches!(definition.issuance(), DomainIssuance::Unrestricted)
-                    && definition.access_policy.is_none()
-                {
+                if !definition.requires_result_membership() {
                     continue;
                 }
                 let sources = self

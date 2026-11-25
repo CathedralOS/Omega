@@ -1199,6 +1199,14 @@ pub mod domain {
                 && self.cleanup_selection.is_none()
         }
 
+        /// A normal-return promise for this domain must preserve membership on
+        /// the actual returned value, independently of its predicate clauses.
+        pub fn requires_result_membership(&self) -> bool {
+            !self.content_projections.is_empty()
+                || self.access_policy.is_some()
+                || !matches!(self.issuance(), DomainIssuance::Unrestricted)
+        }
+
         /// An empty theory has nothing about contents left to translate.
         /// No proposition alone does not prove the declaration is empty.
         pub fn has_complete_empty_theory(&self) -> bool {

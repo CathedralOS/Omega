@@ -2,19 +2,35 @@
 //! are source declarations; neither field spelling nor a report fingerprint
 //! identifies which application the machine implements.
 
+mod body;
+mod naturals;
+
 use super::Program;
 use crate::{Unserved, refuse};
 use crate::source_state::domain::DomainDefinition;
 use crate::source_state::machine::{Machine, SatisfiedDeclaration};
 use crate::source_state::types::TypeReferenceNode;
 use language_core::core_vocabulary::CoreVocabulary;
-use semantic_vocabulary::MachineId;
+use semantic_vocabulary::{
+    ContentAlgebra, ContentAlgebraKind, ContentProjectionExpression, MachineId,
+};
 use terminal_check_tables::{Checked, Construct};
+
+#[derive(Clone)]
+pub(crate) struct Definition {
+    pub algebra: ContentAlgebra,
+    pub expression: ContentProjectionExpression,
+}
+
+struct Header {
+    algebra: ContentAlgebra,
+    result: crate::source_state::types::TypeReferenceHandle,
+}
 
 impl Program<'_> {
     /// Check the source header before its ordinary mathematical or executable
     /// judgment. The projection body still owes that separate judgment.
-    pub(super) fn projection_subject(&self, id: MachineId, machine: &Machine) -> Checked<()> {
+    pub(super) fn projection_subject(&self, id: MachineId, machine: &Machine) -> Checked<bool> {
         let typed = self.typed;
         if !typed
             .machine_trait_conformances(machine)
@@ -27,7 +43,7 @@ impl Program<'_> {
                         .is_some_and(|name| name.as_str() == "project")
             })
         {
-            return Ok(());
+            return Ok(false);
         }
         let domain = typed
             .domain_definition(machine.attached_domain_symbol)
@@ -42,14 +58,15 @@ impl Program<'_> {
                 )
             })?;
         self.projection_header(id, domain, machine.symbol)
+            .map(|_| true)
     }
 
-    pub(super) fn projection_header(
+    fn projection_header(
         &self,
         id: MachineId,
         domain: &DomainDefinition,
         symbol: symbols::SymbolHandle,
-    ) -> Checked<()> {
+    ) -> Checked<Header> {
         let typed = self.typed;
         let missing = |what| refuse(id, Construct::Machine, Unserved::Declaration(what));
         let invalid = |rule| {
@@ -170,17 +187,50 @@ impl Program<'_> {
             if !lifetime_arguments.is_empty() {
                 return Err(missing("content algebra with region arguments"));
             }
-            if !matches!(
-                typed.core_vocabulary(*base_symbol),
-                Some(CoreVocabulary::IntervalSet | CoreVocabulary::CountedQuantity)
-            ) {
-                return Err(invalid(
-                    "core Content requires IntervalSet<Space> or CountedQuantity<Unit>",
-                ));
-            }
-            exact(*parameter, symbol)?;
-            Ok(())
+            let kind = match typed.core_vocabulary(*base_symbol) {
+                Some(CoreVocabulary::IntervalSet) => ContentAlgebraKind::IntervalSet,
+                Some(CoreVocabulary::CountedQuantity) => ContentAlgebraKind::CountedQuantity,
+                _ => {
+                    return Err(invalid(
+                        "core Content requires IntervalSet<Space> or CountedQuantity<Unit>",
+                    ));
+                }
+            };
+            Ok(Header {
+                algebra: ContentAlgebra {
+                    kind,
+                    parameter: exact(*parameter, symbol)?,
+                },
+                result: *algebra,
+            })
         })();
         read.map_err(|failure| self.read_failure_at(failure, symbol, "the core Content projection"))
+    }
+    /// Normalize a concrete publication against its own applied result and
+    /// subject. A stored membership may expose only a fully read publication.
+    pub(super) fn form_content_projection(
+        &mut self,
+        id: MachineId,
+        domain: &DomainDefinition,
+        carrier: crate::body::ValueType,
+    ) -> Checked<Option<Definition>> {
+        let missing = |what| refuse(id, Construct::Machine, Unserved::Declaration(what));
+        let symbol = match domain.content_projections.as_slice() {
+            [] => return Ok(None),
+            [symbol] => *symbol,
+            _ => {
+                return Err(missing(
+                    "several core Content publications for one exact qualification",
+                ));
+            }
+        };
+        let header = self.projection_header(id, domain, symbol)?;
+        let formed = self
+            .closed_projection_body(id, symbol, header, carrier)
+            .map_err(|failure| {
+                self.read_failure_at(failure, symbol, "the core Content projection")
+            })?;
+        self.admitted_declarations.include(symbol);
+        Ok(Some(formed))
     }
 }

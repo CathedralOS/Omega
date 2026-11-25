@@ -939,6 +939,37 @@ pub mod control_flow {
             pub statement_nodes: HandleSpan<StatementNode>,
         }
 
+        impl State {
+            /// The sole value returned by an expression body, including the
+            /// unconditional value transition that resolution can write for it.
+            pub fn returned_expression(
+                &self,
+                program: &crate::source_state::TypedTrees,
+            ) -> Option<crate::source_state::expression::ExpressionHandle> {
+                use crate::source_state::statement::{
+                    TransitionExit, TransitionGuardNode, TransitionTargetNode,
+                };
+                let table = &program.statement_table;
+                match table.statements(self.statement_nodes) {
+                    [StatementNode::Expression(value)] => Some(*value),
+                    [StatementNode::Transition(transition)]
+                        if transition.patterns.is_empty()
+                            && transition.guard == TransitionGuardNode::Always
+                            && transition.exit == TransitionExit::Ordinary
+                            && !transition.continuation.is_valid()
+                            && transition.proof_selectors.is_empty()
+                            && transition.target.is_valid() =>
+                    {
+                        match table.transition_target(transition.target) {
+                            TransitionTargetNode::Value(value) => Some(*value),
+                            _ => None,
+                        }
+                    }
+                    _ => None,
+                }
+            }
+        }
+
         pub fn state_by_symbol<'arena>(
             states: arena::RootRows<'arena, State>,
             symbol: SymbolHandle,

@@ -3,6 +3,8 @@
 //! logical observations have no runtime representation or transferable receipt;
 //! every partial computation uses the ordinary scalar goal and proof kernel.
 
+mod content_projections;
+
 use std::borrow::Cow;
 use std::cell::OnceCell;
 use std::collections::BTreeSet;
@@ -417,6 +419,34 @@ struct Scope<'a, 'activity> {
     completion: bool,
     facts: Facts,
     activity: &'activity mut crate::ProofSearchActivity,
+}
+
+impl<'a, 'activity> Scope<'a, 'activity> {
+    fn data_subject(
+        module: &'a TerminalModule,
+        diagnostic: MachineId,
+        subject: PlaceId,
+        carrier: StructuralTypeId,
+        activity: &'activity mut crate::ProofSearchActivity,
+    ) -> Self {
+        Self {
+            module,
+            diagnostic,
+            inputs: Vec::new(),
+            result: None,
+            roots: vec![Root {
+                place: subject,
+                ty: carrier,
+                borrowed: false,
+                result: false,
+                has_entry: false,
+            }],
+            subject_prefix: Vec::new(),
+            completion: false,
+            facts: Facts::default(),
+            activity,
+        }
+    }
 }
 
 impl Scope<'_, '_> {
@@ -1174,6 +1204,7 @@ pub(crate) fn module(
         scope.clauses(&boundary.scalar_ensures, "boundary ensures")?;
     }
     data_domains(module, diagnostic, activity)?;
+    content_projections::form(module, diagnostic, activity)?;
     for domain in &module.types.scalar_qualifications.domains {
         if let Some(predicate) = &domain.predicate
             && owes([&predicate.proposition])
@@ -1394,23 +1425,8 @@ fn data_domains(
         if domains.is_empty() && !owes(&declared.requires) {
             continue;
         }
-        let mut scope = Scope {
-            module,
-            diagnostic,
-            inputs: Vec::new(),
-            result: None,
-            roots: vec![Root {
-                place: default_subject,
-                ty: declared.id,
-                borrowed: false,
-                result: false,
-                has_entry: false,
-            }],
-            subject_prefix: Vec::new(),
-            completion: false,
-            facts: Facts::default(),
-            activity: &mut *activity,
-        };
+        let mut scope =
+            Scope::data_subject(module, diagnostic, default_subject, declared.id, activity);
         let subjects = std::iter::once((default_subject, declared.requires.as_slice()))
             .chain(domains.iter().filter_map(|(_, _, predicate)| {
                 let predicate = predicate.as_ref()?;

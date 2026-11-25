@@ -142,13 +142,7 @@ impl<'t> Program<'t> {
                 "runtime contract membership governed by an access policy",
             ));
         }
-        // The complete service keeps an authored policy-backed promise even
-        // when its evaluated plan permits unrestricted issuance.
-        let nominal = definition.access_policy.is_some()
-            || !matches!(
-                definition.issuance(),
-                crate::source_state::domain::DomainIssuance::Unrestricted
-            );
+        let nominal = definition.requires_result_membership();
         let qualification = Qualification {
             policy: None,
             domains: crate::body::DomainSet::EMPTY
@@ -683,6 +677,17 @@ impl<'t> Program<'t> {
         definition: &crate::source_state::domain::DomainDefinition,
     ) -> Checked<()> {
         if !has_predicates(definition) {
+            if !definition.content_projections.is_empty() {
+                let carrier = self.value_type(id, definition.target_type)?;
+                let domain = crate::body::DomainInstance {
+                    declaration: definition.symbol,
+                    identity: definition.semantic_id,
+                };
+                let at = crate::SourceOrigin::Unpositioned(
+                    crate::Unpositioned::SpanAbsent,
+                );
+                self.declared_domain(id, domain, carrier, definition.target_type, at)?;
+            }
             return Ok(());
         }
         // A slice domain has a logical, unsized subject. Authenticate its

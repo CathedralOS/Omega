@@ -29,9 +29,6 @@ is refused, as is any recursion through unfolding.
 */
 
 use crate::source_state::expression::TableCallExpression;
-use crate::source_state::statement::{
-    StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
-};
 use semantic_vocabulary::{MachineId, ScalarTerm, ScalarType, ValueId};
 use symbols::{SymbolHandle, SymbolKind};
 use terminal_check_tables::{Checked, Construct};
@@ -224,24 +221,8 @@ impl Program<'_> {
             return unserved("called machine in a clause is not a closed, contract-free body");
         }
         let result = result(self, declaration, state)?;
-        // The body's one value: a trailing expression, or the unconditional
-        // value transition stage 02 writes for a body that is only a value.
-        let body = match typed.statement_table.statements(state.statement_nodes) {
-            [StatementNode::Expression(body)] => *body,
-            [StatementNode::Transition(transition)]
-                if transition.patterns.is_empty()
-                    && transition.guard == TransitionGuardNode::Always
-                    && transition.exit == TransitionExit::Ordinary
-                    && !transition.continuation.is_valid()
-                    && transition.proof_selectors.is_empty()
-                    && transition.target.is_valid() =>
-            {
-                match typed.statement_table.transition_target(transition.target) {
-                    TransitionTargetNode::Value(body) => *body,
-                    _ => return unserved("called machine in a clause is not one value expression"),
-                }
-            }
-            _ => return unserved("called machine in a clause is not one value expression"),
+        let Some(body) = state.returned_expression(typed) else {
+            return unserved("called machine in a clause is not one value expression");
         };
         let parameters = typed.state_parameters(state);
         let mut bound = Vec::with_capacity(parameters.len());

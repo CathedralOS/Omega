@@ -153,6 +153,7 @@ pub(crate) struct DeclaredDomain {
     pub instance: crate::body::DomainInstance,
     pub carrier: ValueType,
     pub predicate: Option<semantic_vocabulary::Proposition>,
+    pub content_projection: Option<content_projections::Definition>,
     pub complete_predicate_theory: bool,
 }
 
@@ -1103,6 +1104,7 @@ mod tests {
                 },
                 carrier,
                 predicate: None,
+                content_projection: None,
                 complete_predicate_theory: false,
             }));
         let bodies = arena::IdTable::default();
@@ -1176,6 +1178,7 @@ mod tests {
             instance: unprepared_instance,
             carrier,
             predicate: None,
+            content_projection: None,
             complete_predicate_theory: false,
         });
         assert_eq!(

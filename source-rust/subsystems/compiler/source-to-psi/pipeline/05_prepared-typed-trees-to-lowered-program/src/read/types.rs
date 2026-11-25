@@ -1376,9 +1376,6 @@ impl Program<'_> {
             )
         })?;
         self.domain_type_bounds(id, declaration, carrier, at)?;
-        for &projection in &declaration.content_projections {
-            self.projection_header(id, declaration, projection)?;
-        }
         if definition.alias.is_some() {
             return unserved("constrained by a domain alias");
         }
@@ -1419,11 +1416,23 @@ impl Program<'_> {
             if self.value_type(id, laid.semantic_type)? != subject {
                 return unserved("constrained by a domain declared on another carrier");
             }
+            if !declaration.content_projections.is_empty() {
+                return unserved("a content projection on laid layout storage");
+            }
             if definition.predicate_presence != language_core::DomainPredicatePresence::Absent
                 || !definition.facts.is_empty()
             {
                 return unserved("a predicate domain on laid layout storage");
             }
+        }
+        if !declaration.content_projections.is_empty()
+            && (!matches!(plain, ValueType::Record(..))
+                || crate::source_state::byte_predicates::byte_slice_domain_predicate(
+                    typed, definition,
+                )
+                .is_some())
+        {
+            return unserved("a content projection without an ordinary structural carrier");
         }
         self.admitted_declarations.include(domain.declaration);
         // Primitive byte domains already retain their predicate on the byte
@@ -1442,7 +1451,9 @@ impl Program<'_> {
                     values: self.scope.clone(),
                     source: self.source_scope.clone(),
                 });
+            let content_projection = self.form_content_projection(id, declaration, plain)?;
             self.declared_domains.push(super::DeclaredDomain {
+                content_projection,
                 schema_scope,
                 instance: domain,
                 carrier: plain,
