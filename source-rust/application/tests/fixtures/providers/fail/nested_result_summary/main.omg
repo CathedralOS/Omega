@@ -1,0 +1,33 @@
+// The positive twin whose nested `ok()` returns 1. Its body-derived result
+// is `result == 1i32`, so the implementation's `ensures result == 0i32`
+// cannot be proved.
+boundary trait SelectedEvaluate {
+    machine evaluate(x: u64) -> i32
+        reaches none crashes Trap ensures result == 0i32;
+}
+
+Evaluator satisfies SelectedEvaluate {
+    machine evaluate(x: u64) -> i32
+        reaches none crashes Trap ensures result == 0i32
+    {
+        transition x == 0u64 {
+            true -> ok(),
+            _ -> bad()
+        }
+        machine ok() -> i32 {
+            1i32
+        }
+        machine bad() -> i32 {
+            crash Trap;
+        }
+    }
+}
+
+machine main() crashes Trap {
+    transition SelectedEvaluate::evaluate(0u64) == 0i32 {
+        true -> done(),
+        _ -> failed()
+    }
+    machine done() {}
+    machine failed() { crash Trap; }
+}

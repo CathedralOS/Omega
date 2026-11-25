@@ -1,0 +1,34 @@
+// The selected implementation's `ensures result == 0i32` holds because its
+// nested `ok()` returns 0: an exact checked call in the same verification
+// unit may use the callee's body-derived result
+// (`wiki/spec/language/state_contracts.md`, "Local call summaries").
+boundary trait SelectedEvaluate {
+    machine evaluate(x: u64) -> i32
+        reaches none crashes Trap ensures result == 0i32;
+}
+
+Evaluator satisfies SelectedEvaluate {
+    machine evaluate(x: u64) -> i32
+        reaches none crashes Trap ensures result == 0i32
+    {
+        transition x == 0u64 {
+            true -> ok(),
+            _ -> bad()
+        }
+        machine ok() -> i32 {
+            0i32
+        }
+        machine bad() -> i32 {
+            crash Trap;
+        }
+    }
+}
+
+machine main() crashes Trap {
+    transition SelectedEvaluate::evaluate(0u64) == 0i32 {
+        true -> done(),
+        _ -> failed()
+    }
+    machine done() {}
+    machine failed() { crash Trap; }
+}
