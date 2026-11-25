@@ -685,6 +685,7 @@ impl Minted<'_> {
         let places = terminal_codec::contract_forms::call_storage(
             &self.module.types.structural_types,
             |place| self.lowered.structural_place_type(place),
+            |value| self.tables.values.get(value).map(|row| row.scalar_type),
             inputs.structural_arguments,
         );
         let crash_routes = terminal_codec::contract_forms::substituted_routes(

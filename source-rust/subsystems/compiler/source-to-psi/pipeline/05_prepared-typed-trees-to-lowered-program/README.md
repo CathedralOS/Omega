@@ -735,12 +735,13 @@ mistaken for a value of the caller. A crash guard is read in the scope of an
 entry `requires`, so it may read a formal's field or element
 (`crashes Trap items[index] == 0`). Lowering names the leaves it reads in the
 callee and at each call, and a call's crash continuations name the storage
-each structural actual stands for: its place, followed by the static path a
+each structural actual stands for: its place, followed by the path a
 projected actual lends, so `items[index]` over `@pair.items` becomes
-`pair.items[index]` (`contract_forms::call_storage`). A guard over an actual
-with no static path, such as an element chosen at run time (`@rows[row]`),
-is refused (`contract clause names a structural formal whose actual has no
-static path`).
+`pair.items[index]`, and over an element chosen at run time (`@rows[row]`)
+it becomes `rows[row][index]`, with the selector as an index over the
+caller's value (`contract_forms::call_storage`). A guard over an actual
+whose path has no canonical form is refused (`contract clause names a
+structural formal whose actual has no canonical path`).
 
 ### Erased scalar bindings
 

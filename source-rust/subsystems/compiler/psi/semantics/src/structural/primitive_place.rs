@@ -402,6 +402,49 @@ pub fn canonical_static_projection<'a>(
     Some((canonical?, tip))
 }
 
+/// The read projections of a path that may select an element at run time:
+/// each static step keeps its canonical segment, and each run-time index
+/// becomes an `Index` over the selector's value. `rows[row]` yields
+/// `[Index(row)]` where `canonical_static_projection` yields nothing. A
+/// path with any other step that has no canonical form has none here either.
+pub fn canonical_read_projection<'a>(
+    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    value_type: impl Fn(semantic_vocabulary::ValueId) -> Option<ScalarType>,
+) -> Option<(
+    Vec<semantic_vocabulary::ScalarReadProjection>,
+    &'a StructuralTypeDeclaration,
+)> {
+    use semantic_vocabulary::{ScalarReadProjection, ScalarTerm};
+    let mut steps = Vec::with_capacity(path.len());
+    let ProjectionTip::Declared(tip) =
+        walk_primitive_projection(declarations, root, path, plain_scalar_field, |step| {
+            steps.push(step)
+        })?
+    else {
+        return None;
+    };
+    if steps.len() != path.len() {
+        return None;
+    }
+    let projection = steps
+        .into_iter()
+        .zip(path)
+        .map(|(step, segment)| match (step, segment) {
+            (Some(segment), _) => Some(ScalarReadProjection::Static(segment)),
+            (None, StructuralPathSegment::RuntimeIndex { index, .. }) => {
+                Some(ScalarReadProjection::Index(Box::new(ScalarTerm::value(
+                    *index,
+                    value_type(*index)?,
+                ))))
+            }
+            (None, _) => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some((projection, tip))
+}
+
 pub enum Position<Scalar = ScalarType> {
     Declared(StructuralTypeId),
     ScalarField(Scalar),
