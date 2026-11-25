@@ -399,6 +399,11 @@ pub(crate) fn lower_type_parameters(
                                 syntax_trees,
                                 contract.parameters,
                             )?,
+                            result: lower_type_reference_handle(
+                                lowerer,
+                                syntax_trees,
+                                contract.result,
+                            )?,
                         },
                     },
                     None,

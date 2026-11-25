@@ -244,6 +244,7 @@ impl SignatureInputs {
                                 )
                             }),
                     );
+                    self.types.push((scope, contract.result));
                 }
                 _ => {}
             }

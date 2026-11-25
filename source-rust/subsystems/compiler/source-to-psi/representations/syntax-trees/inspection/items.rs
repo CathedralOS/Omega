@@ -266,6 +266,7 @@ pub struct TypeParameterSnapshot {
 pub struct PropositionParameterSignatureSnapshot {
     pub name: IdentifierSnapshot,
     pub parameters: Vec<StateParameterSnapshot>,
+    pub result: TypeReferenceSnapshot,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -833,6 +834,7 @@ pub(crate) fn snapshot_type_parameter(
                     .map(|contract| PropositionParameterSignatureSnapshot {
                         name: snapshot_identifier(syntax_trees, &contract.name),
                         parameters: snapshot_state_parameters(syntax_trees, contract.parameters),
+                        result: snapshot_type_reference_handle(syntax_trees, contract.result),
                     }),
             ),
         };

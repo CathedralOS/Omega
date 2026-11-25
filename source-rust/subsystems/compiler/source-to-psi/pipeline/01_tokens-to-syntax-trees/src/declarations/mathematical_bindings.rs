@@ -114,7 +114,7 @@ fn parse_mathematical_parameter<'tokens, 'source>(
     ))
 }
 
-fn parse_mathematical_type<'tokens, 'source>(
+pub(crate) fn parse_mathematical_type<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, MathematicalTypeHandle> {

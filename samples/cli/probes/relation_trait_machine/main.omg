@@ -1,8 +1,8 @@
-// Core relation traits parameterized by PROPOSITIONS:
+// Core relation traits parameterized by RELATION FAMILIES:
 // `use omega\language\core\relation` (depend-free) imports
 // Reflexive/Symmetric/Transitive/Antisymmetric — each
-// `trait X<C, proposition Relation>` carries one law; a user
-// `proposition` binds the parameter through `satisfies`.
+// `trait X<C, R: C -> C -> core\Type>` carries one law; a user
+// `proposition` binds the family through `satisfies`.
 //
 //   * `related` is a defined proposition (code equality), so every
 //     realizer proves its law from the requirement's own premises.

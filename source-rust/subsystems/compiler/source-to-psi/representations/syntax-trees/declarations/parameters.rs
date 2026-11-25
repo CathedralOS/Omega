@@ -79,5 +79,8 @@ pub enum MachineParameterContract {
 )]
 pub struct PropositionParameterSignature {
     pub name: Identifier,
+    /// One parameter per arrow domain.
     pub parameters: HandleSpan<StateParameterHandle>,
+    /// The final codomain: the family's result sort.
+    pub result: crate::types::TypeReferenceHandle,
 }

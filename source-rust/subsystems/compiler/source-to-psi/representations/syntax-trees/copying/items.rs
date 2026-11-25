@@ -893,6 +893,7 @@ impl SyntaxCopy<'_> {
                                 name: contract.name.clone(),
                                 parameters: this
                                     .copy_state_parameter_handle_span(other, contract.parameters),
+                                result: this.copy_type_reference_handle(other, contract.result),
                             }),
                     },
                 };
