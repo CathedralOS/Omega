@@ -1313,8 +1313,9 @@ mod integer_types {
         }
 
         pub fn validate(&self) -> Result<(), PropositionError> {
-            let mut pending = vec![self];
-            while let Some(term) = pending.pop() {
+            let mut pending = Vec::new();
+            let mut next = Some(self);
+            while let Some(term) = next.take().or_else(|| pending.pop()) {
                 match term {
                     Self::MathValue { .. } => {}
                     Self::Embed(term) => {
@@ -2071,8 +2072,11 @@ mod propositions {
 
     impl Proposition {
         pub fn validate(&self) -> Result<(), PropositionError> {
-            let mut pending = vec![self];
-            while let Some(proposition) = pending.pop() {
+            // Most propositions are one comparison. Visit the root before
+            // touching the stack, so they validate without allocating.
+            let mut pending = Vec::new();
+            let mut next = Some(self);
+            while let Some(proposition) = next.take().or_else(|| pending.pop()) {
                 match proposition {
                     Self::Truth | Self::Falsehood => {}
                     Self::Atom(_) => {}
@@ -2233,8 +2237,9 @@ mod propositions {
         }
 
         fn validate_value_terms(&self, proposition: &Proposition) -> Result<(), PropositionError> {
-            let mut pending = vec![proposition];
-            while let Some(proposition) = pending.pop() {
+            let mut pending = Vec::new();
+            let mut next = Some(proposition);
+            while let Some(proposition) = next.take().or_else(|| pending.pop()) {
                 match proposition {
                     Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
                     Proposition::DeclarationIdentity(clause) => {
@@ -2310,8 +2315,9 @@ mod propositions {
             &self,
             term: &IntegerMathTerm,
         ) -> Result<(), PropositionError> {
-            let mut pending = vec![term];
-            while let Some(term) = pending.pop() {
+            let mut pending = Vec::new();
+            let mut next = Some(term);
+            while let Some(term) = next.take().or_else(|| pending.pop()) {
                 match term {
                     IntegerMathTerm::Embed(term) => self.validate_term(term)?,
                     IntegerMathTerm::MathValue { source_type, value } => {
@@ -2381,8 +2387,11 @@ mod propositions {
         }
 
         fn validate_term(&self, term: &ScalarTerm) -> Result<(), PropositionError> {
-            let mut pending = vec![term];
-            while let Some(term) = pending.pop() {
+            // Most terms are one value or literal: check the root before
+            // touching the stack, so they validate without allocating.
+            let mut pending = Vec::new();
+            let mut next = Some(term);
+            while let Some(term) = next.take().or_else(|| pending.pop()) {
                 match term {
                     ScalarTerm::Value { id, scalar_type } => {
                         let Some(expected) = self.value_types.get(id) else {

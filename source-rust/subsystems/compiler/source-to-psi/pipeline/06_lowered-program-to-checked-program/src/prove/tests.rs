@@ -1304,6 +1304,69 @@ fn a_taken_equality_can_supply_a_counterexample_between_both_extrema() {
     }
 }
 
+/// A sum's case names hold exactly one case (`case_name_premises`). An arm
+/// that excludes one case leaves the others possible: the counterexample
+/// chooses one of them, and the refutation stops before any case split. When
+/// facts exclude every case, there is no counterexample and the split refutes.
+#[test]
+fn a_counterexample_chooses_one_case_of_each_sum() {
+    let values = IdTable::from_rows((1..=3).map(|raw| {
+        (
+            ValueId::new(raw).unwrap(),
+            ValueRow {
+                scalar_type: ScalarType::Boolean,
+                origin: ValueOrigin::MachineParameter {
+                    position: u32::try_from(raw - 1).unwrap(),
+                },
+                rigid: None,
+            },
+        )
+    }))
+    .unwrap();
+    let name = |raw| ScalarTerm::value(ValueId::new(raw).unwrap(), ScalarType::Boolean);
+    let holds = |raw, value| Proposition::Equal(name(raw), ScalarTerm::Boolean(value));
+    let mut names = vec![Proposition::Disjunction(vec![
+        holds(1, true),
+        holds(2, true),
+        holds(3, true),
+    ])];
+    for chosen in 1..=3 {
+        names.push(Proposition::Implication {
+            premise: Box::new(holds(chosen, true)),
+            conclusion: Box::new(Proposition::Conjunction(
+                (1..=3)
+                    .filter(|other| *other != chosen)
+                    .map(|other| holds(other, false))
+                    .collect(),
+            )),
+        });
+    }
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let mut possible = names.clone();
+    possible.push(holds(1, false));
+    let mut activity = ProofSearchActivity::default();
+    let mut prover = Prover::new(&context, &possible, &[], &values, &mut activity);
+    assert!(prover.has_scalar_counterexample(&Proposition::Falsehood));
+    assert!(prover.prove(&Proposition::Falsehood).is_err());
+    assert_eq!(prover.remaining_case_branches, CASE_BRANCH_BUDGET);
+
+    let mut impossible = names;
+    impossible.extend((1..=3).map(|raw| holds(raw, false)));
+    let mut prover = Prover::new(&context, &impossible, &[], &values, &mut activity);
+    assert!(!prover.has_scalar_counterexample(&Proposition::Falsehood));
+    let proof = prover.prove(&Proposition::Falsehood).unwrap();
+    proof_admission::accept_certificate(
+        &context,
+        &Proposition::Falsehood,
+        &impossible,
+        &[],
+        &proof,
+    )
+    .unwrap();
+}
+
 #[test]
 fn sibling_disjunctions_in_one_premise_remain_separate_cuts() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();

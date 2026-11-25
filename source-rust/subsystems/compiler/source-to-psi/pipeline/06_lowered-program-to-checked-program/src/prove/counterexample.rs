@@ -46,11 +46,70 @@ impl Prover<'_> {
                     continue;
                 };
                 for (subject, literal) in [(left, right), (right, left)] {
-                    if let ScalarTerm::Value { id, .. } = subject
-                        && let ScalarTerm::Integer { scalar_type, value } = literal
-                        && let Some(slot) = values.get_mut(*id)
+                    let ScalarTerm::Value { id, .. } = subject else {
+                        continue;
+                    };
+                    let proposed = match literal {
+                        ScalarTerm::Integer { scalar_type, value } => {
+                            (ScalarType::Integer(*scalar_type), *value)
+                        }
+                        ScalarTerm::Boolean(holds) => (
+                            ScalarType::Boolean,
+                            IntegerValue::Unsigned(u128::from(*holds)),
+                        ),
+                        _ => continue,
+                    };
+                    if let Some(slot) = values.get_mut(*id) {
+                        *slot = Some(Some(proposed));
+                    }
+                }
+            }
+            // Exactly one of a sum's case names holds at each boundary
+            // (`case_name_premises`). No extremal assignment satisfies that, so
+            // without a choice every machine with a sum in scope paid the whole
+            // bounded case split. Choose one case: the one a taken fact already
+            // names, else the first case on the lower pass and the last on the
+            // upper. The other names are false, unless a fact already set them.
+            for fact in &self.facts {
+                let Proposition::Disjunction(parts) = fact.proposition() else {
+                    continue;
+                };
+                let Some(names) = distinct_positive_boolean_choice(parts) else {
+                    continue;
+                };
+                // A defined name is computed from its definition below.
+                if names
+                    .iter()
+                    .any(|id| self.definitions.get(*id).is_some_and(Option::is_some))
+                {
+                    continue;
+                }
+                let set = |id: &ValueId| values.get(*id).copied().flatten().flatten();
+                let truth = |holds: bool| {
+                    (
+                        ScalarType::Boolean,
+                        IntegerValue::Unsigned(u128::from(holds)),
+                    )
+                };
+                let chosen = names
+                    .iter()
+                    .position(|id| set(id) == Some(truth(true)))
+                    .or_else(|| {
+                        let open = |id: &ValueId| set(id) != Some(truth(false));
+                        if upper {
+                            names.iter().rposition(open)
+                        } else {
+                            names.iter().position(open)
+                        }
+                    });
+                let Some(chosen) = chosen else {
+                    continue;
+                };
+                for (position, id) in names.iter().enumerate() {
+                    if let Some(slot) = values.get_mut(*id)
+                        && slot.is_none()
                     {
-                        *slot = Some(Some((ScalarType::Integer(*scalar_type), *value)));
+                        *slot = Some(Some(truth(position == chosen)));
                     }
                 }
             }
