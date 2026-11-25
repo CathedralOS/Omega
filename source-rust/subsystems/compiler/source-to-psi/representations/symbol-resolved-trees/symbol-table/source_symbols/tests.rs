@@ -1529,6 +1529,47 @@ mod module_namespaces {
         );
     }
 
+    #[test]
+    fn a_carrier_relative_refinement_keeps_its_parent_and_file_visibility() {
+        let mut sources = SourceMap::default();
+        for file in ["main.omg", "other.omg"] {
+            sources.add(PathBuf::from(file), "Small".into());
+        }
+        let mut builder =
+            SymbolTableBuilder::with_sources_and_top_level_bindings(Some(sources.into()), Vec::new());
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let domains = SymbolTableBuilder::child_handles(
+            builder.insert_children(
+                root,
+                [
+                    "i32::Positive::Small",
+                    "i32::Negative::Small",
+                    "u8::Positive::Small",
+                ]
+                .into_iter()
+                .zip([0, 0, 1])
+                .map(|(value, file)| {
+                    (
+                        SymbolKind::Domain,
+                        SymbolNameRef::OwnedSource {
+                            value,
+                            source_span: reference(file),
+                        },
+                    )
+                }),
+            ),
+        )
+        .collect::<Vec<_>>();
+        let symbols = builder.finish();
+        assert!(symbols.domain_name_reaches(domains[0], "Positive::Small", reference(0)));
+        assert!(!symbols.domain_name_reaches(domains[1], "Positive::Small", reference(0)));
+        assert!(!symbols.domain_name_reaches(domains[2], "Positive::Small", reference(0)));
+        assert_eq!(
+            domain_reference(&symbols, 0, "Positive::Small"),
+            Some(domains[0])
+        );
+    }
+
     fn generic_domain_table() -> (SymbolTable, SymbolHandle, SymbolHandle) {
         let mut sources = SourceMap::default();
         for name in ["main.omg", "local.omg", "bounds.omg"] {
