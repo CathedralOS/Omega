@@ -1,5 +1,5 @@
 //! Check a returned Build again on its opened Product's sources, either at once
-//! or while the caller keeps opening the Products that consume it.
+//! or while the caller keeps working on the Products that consume it.
 
 use super::{PlannedProduct, locate_failure, refusal};
 use artifacts::compile_timings::CompileTimings;
@@ -8,12 +8,12 @@ use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use source_compiler::SourcePreparation;
 use source_compiler::compile_time_invocations::SourceCompletionAccounting;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 
 /// The returned Build entry checked again on its Product's sources, so the
 /// constants it read are judged in the context the Product compiles. The check
 /// owns everything it reads, so it can run while the Product is used to form
-/// its handoff and while the Products that consume it are opened.
+/// its handoff and while the Products that consume it are opened and checked.
 pub(super) struct BuildRecheck {
     stage: Result<source_compiler::BuildStageSource, Vec<Diagnostic>>,
     files: Arc<source_compiler::representations::source_inputs::SourceMap>,
@@ -93,6 +93,11 @@ impl BuildRecheck {
         }
     }
 
+    /// Start this recheck on an idle worker of the invocation's budget.
+    pub(super) fn start(self) -> PendingRecheck {
+        PendingRecheck::start(move || self.run())
+    }
+
     fn check(
         self,
         timings: &mut CompileTimings,
@@ -130,6 +135,111 @@ impl BuildRecheck {
     }
 }
 
+type RecheckJob = Box<dyn FnOnce() -> CheckedBuildRecheck + Send>;
+
+enum RecheckState {
+    /// No thread has claimed the check yet.
+    Waiting(RecheckJob),
+    Running,
+    Finished(std::thread::Result<CheckedBuildRecheck>),
+    /// The result was taken, or the check was dropped before it started.
+    Spent,
+}
+
+/// One recheck shared by the worker that may run it and the Product that
+/// waits for it. Whichever claims it first runs it: a worker that picks it
+/// up, or the thread that needs its result. So waiting never depends on a
+/// free worker, and a check nobody started is never run after it is dropped.
+struct RecheckSlot {
+    state: Mutex<RecheckState>,
+    finished: Condvar,
+}
+
+impl RecheckSlot {
+    fn state(&self) -> MutexGuard<'_, RecheckState> {
+        // The check runs outside the lock, so a poisoned lock holds a
+        // complete state.
+        self.state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn claim(&self) -> Option<RecheckJob> {
+        let mut state = self.state();
+        if !matches!(*state, RecheckState::Waiting(_)) {
+            return None;
+        }
+        match std::mem::replace(&mut *state, RecheckState::Running) {
+            RecheckState::Waiting(job) => Some(job),
+            _ => None,
+        }
+    }
+
+    fn run(&self, job: RecheckJob) {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(job));
+        *self.state() = RecheckState::Finished(result);
+        self.finished.notify_all();
+    }
+
+    fn run_if_waiting(&self) {
+        if let Some(job) = self.claim() {
+            self.run(job);
+        }
+    }
+}
+
+/// A Build recheck that may still be running. [`Self::join`] waits for it,
+/// running it on the calling thread if no worker has started it.
+pub(super) struct PendingRecheck(Arc<RecheckSlot>);
+
+impl PendingRecheck {
+    fn start(job: impl FnOnce() -> CheckedBuildRecheck + Send + 'static) -> Self {
+        let slot = Arc::new(RecheckSlot {
+            state: Mutex::new(RecheckState::Waiting(Box::new(job))),
+            finished: Condvar::new(),
+        });
+        // Off a budget worker no long-lived pool exists to run the check, so
+        // it runs when its result is needed.
+        if worker_budget::on_budget_worker() {
+            let shared = Arc::clone(&slot);
+            rayon::spawn(move || shared.run_if_waiting());
+        }
+        Self(slot)
+    }
+
+    /// The recheck's result. A panic inside the check resumes here.
+    fn join(self) -> Option<CheckedBuildRecheck> {
+        self.0.run_if_waiting();
+        let mut state = self.0.state();
+        while matches!(*state, RecheckState::Running) {
+            state = self
+                .0
+                .finished
+                .wait(state)
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+        }
+        match std::mem::replace(&mut *state, RecheckState::Spent) {
+            RecheckState::Finished(Ok(checked)) => Some(checked),
+            RecheckState::Finished(Err(panic)) => {
+                drop(state);
+                std::panic::resume_unwind(panic)
+            }
+            _ => None,
+        }
+    }
+}
+
+impl Drop for PendingRecheck {
+    /// A recheck whose Product was abandoned is not started; one already
+    /// running finishes on its worker and its result is discarded.
+    fn drop(&mut self) {
+        let mut state = self.0.state();
+        if matches!(*state, RecheckState::Waiting(_)) {
+            *state = RecheckState::Spent;
+        }
+    }
+}
+
 impl PlannedProduct {
     /// Settle this Product with the recheck it owed. A result for another
     /// Product is refused, and so is a missing one.
@@ -158,11 +268,11 @@ impl PlannedProduct {
 /// once its recheck passes.
 pub struct PendingProduct {
     product: PlannedProduct,
-    owed: Option<(Arc<()>, usize)>,
+    owed: Option<(Arc<()>, PendingRecheck)>,
 }
 
 impl PendingProduct {
-    pub(super) fn new(product: PlannedProduct, owed: Option<(Arc<()>, usize)>) -> Self {
+    pub(super) fn new(product: PlannedProduct, owed: Option<(Arc<()>, PendingRecheck)>) -> Self {
         Self { product, owed }
     }
 
@@ -175,83 +285,35 @@ impl PendingProduct {
         self.product.build_handoff(profile)
     }
 
-    /// Return the Product once its recheck from `checked` has passed.
-    pub fn settle(self, checked: &mut CheckedRechecks) -> Result<PlannedProduct, CompileFailure> {
-        let (owed, result) = match self.owed {
-            Some((token, slot)) => (Some(token), checked.take(slot)),
+    /// Wait for this Product's recheck and return the Product once it passed.
+    pub fn settle(self) -> Result<PlannedProduct, CompileFailure> {
+        let (owed, checked) = match self.owed {
+            Some((token, pending)) => (Some(token), pending.join()),
             None => (None, None),
         };
-        self.product.settle_recheck(owed, result)
+        self.product.settle_recheck(owed, checked)
     }
 }
 
-/// Build rechecks running alongside the caller inside [`with_build_rechecks`].
-pub struct BuildRechecks<'r, 's> {
-    scope: &'r rayon::Scope<'s>,
-    results: &'s Mutex<Vec<Option<CheckedBuildRecheck>>>,
+/// Run `body`, which opens Products and settles their Build rechecks, on a
+/// worker of the invocation's budget. A recheck then runs on that budget, or
+/// on the thread that settles it, and never on a small-stack thread.
+pub fn with_build_rechecks<R: Send>(body: impl FnOnce() -> R + Send) -> R {
+    worker_budget::within_budget(body)
 }
 
-impl<'s> BuildRechecks<'_, 's> {
-    pub(super) fn start(&self, recheck: BuildRecheck) -> Result<usize, CompileFailure> {
-        self.spawn(move || recheck.run())
-    }
-
-    fn spawn(
-        &self,
-        recheck: impl FnOnce() -> CheckedBuildRecheck + Send + 's,
-    ) -> Result<usize, CompileFailure> {
-        let mut results = self
-            .results
-            .lock()
-            .map_err(|_| refusal("the Build recheck results are poisoned".into()))?;
-        let slot = results.len();
-        results.push(None);
-        let shared = self.results;
-        self.scope.spawn(move |_| {
-            let checked = recheck();
-            // A slot left empty is refused when its Product settles.
-            if let Ok(mut results) = shared.lock() {
-                results[slot] = Some(checked);
-            }
-        });
-        Ok(slot)
-    }
-}
-
-/// The finished rechecks of one [`with_build_rechecks`] call.
-pub struct CheckedRechecks(Vec<Option<CheckedBuildRecheck>>);
-
-impl CheckedRechecks {
-    fn take(&mut self, slot: usize) -> Option<CheckedBuildRecheck> {
-        self.0.get_mut(slot).and_then(Option::take)
-    }
-}
-
-/// Run `body` while the Build rechecks it starts run on the invocation's
-/// workers, and return once every recheck has finished.
-pub fn with_build_rechecks<R: Send>(
-    body: impl FnOnce(&BuildRechecks<'_, '_>) -> R + Send,
-) -> (R, CheckedRechecks) {
-    let results = Mutex::new(Vec::new());
-    let value = worker_budget::within_budget(|| {
-        rayon::scope(|scope| {
-            body(&BuildRechecks {
-                scope,
-                results: &results,
-            })
-        })
-    });
-    // `rayon::scope` resumes any recheck panic before this point.
-    let results = results
-        .into_inner()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    (value, CheckedRechecks(results))
+/// Whether a recheck started now keeps its workers after the caller returns.
+/// Off the invocation's budget, `with_build_rechecks` lends a pool only for
+/// its own call, so its rechecks must settle inside it.
+pub fn rechecks_outlive_caller() -> bool {
+    worker_budget::on_budget_worker()
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{CheckedBuildRecheck, with_build_rechecks};
+    use super::{CheckedBuildRecheck, PendingRecheck};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     fn passed(product: &Arc<()>) -> CheckedBuildRecheck {
         CheckedBuildRecheck {
@@ -261,45 +323,81 @@ mod tests {
         }
     }
 
-    /// Each started recheck finishes before `with_build_rechecks` returns, and
-    /// its result settles only the Product that owes it.
+    /// A recheck's result settles only the Product that owes it.
     #[test]
     fn a_recheck_result_settles_only_the_product_that_owes_it() {
         let [first, second] = [Arc::new(()), Arc::new(())];
-        let (slots, mut checked) = with_build_rechecks(|rechecks| {
-            let first = Arc::clone(&first);
-            let second = Arc::clone(&second);
-            [
-                rechecks.spawn(move || passed(&first)).unwrap(),
-                rechecks.spawn(move || passed(&second)).unwrap(),
-            ]
-        });
-        assert!(CheckedBuildRecheck::owed_to(&first, checked.take(slots[0])).is_ok());
-        // The second Product's result cannot settle the first.
-        assert!(CheckedBuildRecheck::owed_to(&first, checked.take(slots[1])).is_err());
-        // Each result settles once, and a slot never started has none.
-        assert!(CheckedBuildRecheck::owed_to(&first, checked.take(slots[0])).is_err());
-        assert!(CheckedBuildRecheck::owed_to(&second, checked.take(2)).is_err());
+        let owner = Arc::clone(&first);
+        let checked = PendingRecheck::start(move || passed(&owner)).join();
+        assert!(CheckedBuildRecheck::owed_to(&second, checked).is_err());
+        let owner = Arc::clone(&first);
+        let checked = PendingRecheck::start(move || passed(&owner)).join();
+        assert!(CheckedBuildRecheck::owed_to(&first, checked).is_ok());
+        // A missing result is refused.
+        assert!(CheckedBuildRecheck::owed_to(&first, None).is_err());
     }
 
     /// A refused recheck keeps its refusal for the Product that settles it.
     #[test]
     fn a_refused_recheck_refuses_its_product() {
         let product = Arc::new(());
-        let (slot, mut checked) = with_build_rechecks(|rechecks| {
-            let owner = Arc::clone(&product);
-            rechecks
-                .spawn(move || CheckedBuildRecheck {
-                    result: Err(super::refusal("recheck refused".into())),
-                    ..passed(&owner)
-                })
-                .unwrap()
-        });
-        let settled = CheckedBuildRecheck::owed_to(&product, checked.take(slot)).unwrap();
+        let owner = Arc::clone(&product);
+        let checked = PendingRecheck::start(move || CheckedBuildRecheck {
+            result: Err(super::refusal("recheck refused".into())),
+            ..passed(&owner)
+        })
+        .join();
+        let settled = CheckedBuildRecheck::owed_to(&product, checked).unwrap();
         let refusal = settled.result.unwrap_err().into_diagnostics();
         assert_eq!(
             refusal[0].message,
             "Build activation failed: recheck refused"
         );
+    }
+
+    /// With every budget worker busy, the thread that waits runs the check
+    /// itself, and a worker that reaches it later does not run it again.
+    #[test]
+    fn the_waiting_thread_runs_a_recheck_no_worker_started() {
+        let budget = worker_budget::ExecutionBudget::with_workers(1).unwrap();
+        let runs = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let checked = budget.run(|| {
+            let product = Arc::new(());
+            let counted = Arc::clone(&runs);
+            let owner = Arc::clone(&product);
+            // The only worker is this thread, so the spawned job cannot start
+            // before `join`.
+            let pending = PendingRecheck::start(move || {
+                counted.fetch_add(1, Ordering::SeqCst);
+                passed(&owner)
+            });
+            CheckedBuildRecheck::owed_to(&product, pending.join()).is_ok()
+        });
+        // Running another operation lets the worker reach the queued job,
+        // which finds the check already claimed.
+        budget.run(|| ());
+        assert!(checked);
+        assert_eq!(runs.load(Ordering::SeqCst), 1);
+    }
+
+    /// A recheck nobody started never runs once its Product is dropped.
+    #[test]
+    fn a_dropped_recheck_that_never_started_never_runs() {
+        let ran = Arc::new(AtomicBool::new(false));
+        let observed = Arc::clone(&ran);
+        let product = Arc::new(());
+        drop(PendingRecheck::start(move || {
+            observed.store(true, Ordering::SeqCst);
+            passed(&product)
+        }));
+        assert!(!ran.load(Ordering::SeqCst));
+    }
+
+    /// A panic inside the check resumes on the thread that waits for it.
+    #[test]
+    fn a_panicking_recheck_panics_where_it_is_awaited() {
+        let pending = PendingRecheck::start(|| panic!("recheck panicked"));
+        let unwound = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| pending.join()));
+        assert!(unwound.is_err());
     }
 }

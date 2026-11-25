@@ -17,8 +17,8 @@ pub use package_review::CheckedPackagePolicy;
 #[path = "planning/source.rs"]
 mod source;
 pub use source::{
-    BuildRechecks, CheckedRechecks, PendingProduct, PlannedProduct, PlanningRequest,
-    PlanningSources, PreparedPlanningStage, prepare, with_build_rechecks,
+    PendingProduct, PlannedProduct, PlanningRequest, PlanningSources, PreparedPlanningStage,
+    prepare, rechecks_outlive_caller, with_build_rechecks,
 };
 
 use build_declarations::BuildRequest;
@@ -106,17 +106,16 @@ impl SettledDependency {
     }
 
     /// Open the Product while this Build is checked again on the Product's
-    /// sources in `rechecks`. Its handoff can be formed at once; the Product
-    /// itself is released only after that check passes.
+    /// sources on an idle worker. Its handoff can be formed at once; the
+    /// Product itself is released only after that check passes.
     pub fn open_pending(
         &self,
         inputs: PackageCompilationInputs,
-        rechecks: &BuildRechecks<'_, '_>,
     ) -> Result<PendingProduct, CompileFailure> {
         self.require_own_graph(&inputs)?;
         self.source
             .clone()
-            .open_pending(self.evaluated.clone(), Some(&inputs), rechecks)
+            .open_pending(self.evaluated.clone(), Some(&inputs))
     }
 
     fn require_own_graph(&self, inputs: &PackageCompilationInputs) -> Result<(), CompileFailure> {

@@ -75,6 +75,14 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+<a id="resuming-a-typing-from-retained-source-costs-more-than-typing-afresh"></a>
+### Resuming a typing from retained source costs more than typing afresh
+- Category: 4. Re-deriving
+- Where: [`select_retained_source`](source-rust/subsystems/compiler/source-to-psi/driver/resolve_and_type/activation.rs#L123) and [`extend_declarations`](source-rust/subsystems/compiler/source-to-psi/driver/resolve_and_type.rs#L338)
+- Saw: on `omega --check samples/cli/arithmetic/popcount/main.omg` it resumes none of the five `std` typings. Product requests start with an empty frontend list ([`into_request`](source-rust/subsystems/compiler/source-to-psi/driver/stage_sources.rs#L76)), each package gets a fresh `SourcePreparation` ([`SourceHost::execute`](source-rust/subsystems/package-manager/project/mod.rs#L215)), and the two Build rechecks miss on imports because the Product forest gives `core/extent.omg` an extra `ProductFileAlias` binding. An experiment that shared one preparation per invocation and let popcount's Product resume from `std`'s handoff typing (257 files) did resume, but Product Psi 02+03 rose by about 1 s: `complete_selected` 2.4 s, `activate_sources` 0.6 s, `extend_declarations` 2.1 s to append one file, then `complete_authored` 2.3 s.
+- Cost: every Build typing scans its candidates for nothing, and wiring more requests into the mechanism slows them down until activation and extension cost less than a fresh typing.
+- Reported: 2026-11-25, Claude Code, while making retained-source reuse fire for popcount's `std` typings.
+
 <a id="the-interpreter-rebuilds-the-whole-module-callable-projection-on-every-capability-check"></a>
 ### The interpreter rebuilds the whole-module callable projection on every capability check
 - Category: 4. Re-deriving

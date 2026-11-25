@@ -14,6 +14,7 @@ use build_declarations::DependencyPurpose;
 use diagnostics::Diagnostic;
 use package_compilation::{BuildSnapshotRequest, PackageCompilationInputs};
 use project_build::{PlanningRequest, PlanningSources, ReturnedPlanningStage};
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::rc::Rc;
@@ -371,8 +372,18 @@ impl SourceHost<'_, '_> {
 
 type Deployment = Result<Rc<project_build::PlannedProduct>, Vec<Diagnostic>>;
 
-/// The Product prepared for each requested deployment target.
-pub struct ProjectProducts(Vec<(TargetProfile, Deployment)>);
+/// The Product prepared for each requested deployment target, and the
+/// dependency Build rechecks each may still owe.
+pub struct ProjectProducts(
+    Vec<(TargetProfile, Deployment)>,
+    Vec<(TargetProfile, RefCell<OwedRechecks>)>,
+);
+
+/// The dependency rechecks one deployment owes, until they are settled once.
+enum OwedRechecks {
+    Running(services::DependencyRechecks),
+    Settled(Result<(), Vec<Diagnostic>>),
+}
 
 impl ProjectProducts {
     fn shared(profiles: &[TargetProfile], planned: project_build::PlannedProduct) -> Self {
@@ -382,7 +393,30 @@ impl ProjectProducts {
                 .iter()
                 .map(|&target| (target, Ok(Rc::clone(&planned))))
                 .collect(),
+            Vec::new(),
         )
+    }
+
+    /// Wait for the dependency Build rechecks the Product for `target` still
+    /// owes. Their refusal is that Product's result, ahead of any refusal of
+    /// its own, so report nothing about the Product before this returns. The
+    /// Build work they measured is returned once, by the first call.
+    pub fn settle_rechecks(
+        &self,
+        target: TargetProfile,
+    ) -> Result<CompileTimings, Vec<Diagnostic>> {
+        let Some((_, owed)) = self.1.iter().find(|(profile, _)| *profile == target) else {
+            return Ok(CompileTimings::default());
+        };
+        let mut owed = owed.borrow_mut();
+        let settled = match std::mem::replace(&mut *owed, OwedRechecks::Settled(Ok(()))) {
+            OwedRechecks::Running(rechecks) => rechecks
+                .settle()
+                .map_err(|failure| failure.into_diagnostics()),
+            OwedRechecks::Settled(result) => result.map(|()| CompileTimings::default()),
+        };
+        *owed = OwedRechecks::Settled(settled.as_ref().map(|_| ()).map_err(Clone::clone));
+        settled
     }
 
     pub fn select(
@@ -462,6 +496,7 @@ pub fn open_product(
 
 /// Resolve and execute the authored Build once for the entire deployment set.
 /// The returned Product keeps the same source capture, grant joins and Build return.
+/// Every dependency Build recheck has passed before it returns.
 pub fn open_products(
     input: ProjectInput<'_>,
     profiles: &[TargetProfile],
@@ -469,6 +504,49 @@ pub fn open_products(
     timings: bool,
     build_directory: &Path,
     snapshot: Option<BuildSnapshotRequest>,
+) -> Result<ProjectProducts, Vec<diagnostics::Diagnostic>> {
+    open_products_with(
+        input,
+        profiles,
+        offline,
+        timings,
+        build_directory,
+        snapshot,
+        false,
+    )
+}
+
+/// [`open_products`], except that a dependency Build recheck may still be
+/// running when it returns, so the caller can check the Product meanwhile.
+/// Call [`ProjectProducts::settle_rechecks`] for a target before reporting
+/// anything about its Product.
+pub fn open_products_alongside_rechecks(
+    input: ProjectInput<'_>,
+    profiles: &[TargetProfile],
+    offline: bool,
+    timings: bool,
+    build_directory: &Path,
+    snapshot: Option<BuildSnapshotRequest>,
+) -> Result<ProjectProducts, Vec<diagnostics::Diagnostic>> {
+    open_products_with(
+        input,
+        profiles,
+        offline,
+        timings,
+        build_directory,
+        snapshot,
+        true,
+    )
+}
+
+fn open_products_with(
+    input: ProjectInput<'_>,
+    profiles: &[TargetProfile],
+    offline: bool,
+    timings: bool,
+    build_directory: &Path,
+    snapshot: Option<BuildSnapshotRequest>,
+    alongside: bool,
 ) -> Result<ProjectProducts, Vec<diagnostics::Diagnostic>> {
     use crate::operations::begin_local_project_preparation;
     use package_compilation::build_execution::BuildSnapshotCapture;
@@ -495,7 +573,7 @@ pub fn open_products(
             .map(|(target, reason)| (target, Err(vec![Diagnostic::error(reason.to_string())])))
             .collect();
         if rejected.len() == profiles.len() {
-            return Ok(ProjectProducts(rejected));
+            return Ok(ProjectProducts(rejected, Vec::new()));
         }
         let selected = match snapshot.as_ref().map(|snapshot| snapshot.capture()) {
             Some(BuildSnapshotCapture::Scoped(selected)) => Some(selected),
@@ -570,6 +648,7 @@ pub fn open_products(
             ));
         }
         let root = resolved.root.settle_dependency(resolved.inputs)?;
+        let mut owed = Vec::new();
         Ok(ProjectProducts(
             decisions
                 .into_iter()
@@ -587,14 +666,16 @@ pub fn open_products(
                             .map(|policy| policy.root_permissions())
                             .transpose()
                             .map_err(|reason| vec![Diagnostic::error(reason)])?;
-                        let planned = sources
+                        let (planned, rechecks) = sources
                             .dependency_product(
                                 &root,
                                 build_declarations::DependencyPurpose::Product,
                                 target,
                                 &mut dependencies,
+                                alongside,
                             )
                             .map_err(|failure| error(failure.into()))?;
+                        owed.push((target, RefCell::new(OwedRechecks::Running(rechecks))));
                         let planned = planned
                             .with_dependency_timings(dependencies.take_timings())
                             .with_component_suppliers(dependencies.into_suppliers());
@@ -606,7 +687,48 @@ pub fn open_products(
                     (target, product)
                 })
                 .collect(),
+            owed,
         ))
     })();
     session.dispose(result).map_err(error)
+}
+
+#[cfg(test)]
+mod owed_recheck_tests {
+    use super::{OwedRechecks, ProjectProducts};
+    use diagnostics::Diagnostic;
+    use std::cell::RefCell;
+    use target::TargetProfile;
+
+    /// A refused dependency recheck stays its deployment's result however
+    /// often it is settled, so the CLI can settle inside the check and again
+    /// before reporting, and still report that refusal first.
+    #[test]
+    fn a_settled_recheck_refusal_is_returned_every_time() {
+        let refused = vec![Diagnostic::error("dependency recheck refused")];
+        let products = ProjectProducts(
+            Vec::new(),
+            vec![
+                (
+                    TargetProfile::LinuxX64,
+                    RefCell::new(OwedRechecks::Settled(Err(refused.clone()))),
+                ),
+                (
+                    TargetProfile::LinuxArm64,
+                    RefCell::new(OwedRechecks::Running(Default::default())),
+                ),
+            ],
+        );
+        for _ in 0..2 {
+            assert_eq!(
+                products
+                    .settle_rechecks(TargetProfile::LinuxX64)
+                    .unwrap_err(),
+                refused
+            );
+            assert!(products.settle_rechecks(TargetProfile::LinuxArm64).is_ok());
+        }
+        // A deployment that owes no recheck settles at once.
+        assert!(products.settle_rechecks(TargetProfile::MacosArm64).is_ok());
+    }
 }

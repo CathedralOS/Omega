@@ -57,3 +57,6 @@ path = "tests/project_preparation.rs"
 [[test]]
 name = "diamond_builds"
 path = "tests/diamond_builds.rs"
+
+[dev-dependencies]
+worker-budget = { path = "../compiler/foundation/worker-budget" }

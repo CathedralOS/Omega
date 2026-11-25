@@ -159,3 +159,96 @@ public TestImage satisfies |image|::ProgramImage {
         "{errors:?}"
     );
 }
+
+/// A dependency whose Build read a constant is checked again on its Product's
+/// sources. Opened alongside that check, the consuming Product is the same one
+/// `open_products` returns once every check has finished, and the check is
+/// settled only when the caller asks for it.
+#[test]
+fn a_dependency_recheck_can_finish_after_the_consuming_product_opens() {
+    configure();
+    let temp = TemporaryDirectory::create("project-recheck", false).unwrap();
+    let client = temp.path().join("client");
+    write_package(
+        &client,
+        r#"use main.omg as app;
+machine build(builder: @mutable Build) {
+    Build::application(builder, "client");
+    _ = Build::dependency(builder, dependency\from_source(Source::Path { location: "library" }));
+    Build::bind(builder, windows_x86_64\ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64\ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64\ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64\ProgramEntry, |app|::main);
+}"#,
+        "machine main() {}",
+    );
+    let library = client.join("library");
+    write_package(
+        &library,
+        r#"use selected.omg as selection;
+machine build(builder: @mutable Build) {
+    transition |selection|::original() {
+        true -> shared(builder), false -> alternate(builder),
+    }
+    machine shared(builder: @mutable Build) { Build::package(builder, "shared"); }
+    machine alternate(builder: @mutable Build) { Build::package(builder, "alternate"); }
+}"#,
+        "public machine helper() {}",
+    );
+    fs::write(
+        library.join("selected.omg"),
+        "public machine original() -> bool { true }",
+    )
+    .unwrap();
+    let target = TargetProfile::host_if_supported().unwrap();
+    let entry = client.join("build.omg");
+    let handoffs = |products: &package_manager::project::ProjectProducts| {
+        let inputs = products.select(target).unwrap().package_inputs().unwrap();
+        let package = inputs
+            .dependency_target_for_purpose(inputs.root(), DependencyPurpose::Product, "shared")
+            .unwrap();
+        assert_eq!(inputs.package_name(package), Some("shared"));
+        inputs
+            .dependency_build_handoffs()
+            .map(|row| {
+                (
+                    inputs.package_name(row.package()).unwrap().to_owned(),
+                    row.source_consumption_commitment(),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    let open = |alongside| {
+        let open = if alongside {
+            package_manager::project::open_products_alongside_rechecks
+        } else {
+            open_products
+        };
+        open(
+            ProjectInput::File(&entry),
+            &[target],
+            true,
+            true,
+            &temp.path().join("out"),
+            None,
+        )
+        .unwrap()
+    };
+    let settled = open(false);
+    // `open_products` finished every recheck, so none is left to settle.
+    assert!(!settled.settle_rechecks(target).unwrap().is_enabled());
+    // Two workers let the recheck run while this thread reads the Product.
+    let budget = worker_budget::ExecutionBudget::with_workers(2).unwrap();
+    let alongside = budget.run(|| {
+        let products = open(true);
+        let opened = handoffs(&products);
+        let recheck = products.settle_rechecks(target).unwrap();
+        assert!(
+            recheck.is_enabled(),
+            "the dependency's recheck was still owed"
+        );
+        assert!(!products.settle_rechecks(target).unwrap().is_enabled());
+        opened
+    });
+    assert_eq!(alongside, handoffs(&settled));
+}
