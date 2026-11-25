@@ -12,8 +12,9 @@ pub use arrivals::{
 pub(crate) mod locations;
 pub(crate) mod residences;
 pub use locations::{
-    canonical_descriptor_location, descriptor_location, descriptor_location_type,
-    descriptor_path, fixed_runtime_index_alternatives, view_element_descriptor_prefix,
+    StructuralTypeIndex, canonical_descriptor_location, descriptor_location,
+    descriptor_location_type, descriptor_path, fixed_runtime_index_alternatives,
+    view_element_descriptor_prefix,
 };
 pub use residences::{DescriptorResidenceRules, descriptor_residence_live_positions};
 

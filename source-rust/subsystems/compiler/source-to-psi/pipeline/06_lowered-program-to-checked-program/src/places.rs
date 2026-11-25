@@ -1205,6 +1205,9 @@ pub(crate) struct Storage<'a> {
         Result<terminal_semantics::float_meaning_sources::Sources, &'static str>,
     >,
     types: &'a [StructuralTypeDeclaration],
+    /// The same declarations by identity. Path walks read a declaration at
+    /// every step, and a scan of the list costs its whole length each time.
+    type_index: terminal_semantics::descriptor_lifetimes::StructuralTypeIndex<'a>,
     graph: &'a Graph,
     initial_contents: Vec<Option<ValueId>>,
     returned_contents: Vec<Vec<(ExactPlaceId, ValueId)>>,
@@ -1357,6 +1360,9 @@ impl<'a> Storage<'a> {
             module,
             float_meanings: std::cell::OnceCell::new(),
             types: &module.types.structural_types,
+            type_index: terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
+                &module.types.structural_types,
+            ),
             graph,
             initial_contents: contents.entry,
             returned_contents: contents.calls,
@@ -2716,16 +2722,30 @@ impl<'a> Storage<'a> {
         path: &[StructuralPathSegment],
         concerns: Construct,
     ) -> Checked<Lineage> {
-        let segments = if path.is_empty() {
-            Vec::new()
+        self.stored_beneath(root, path, &[], concerns)
+    }
+
+    /// `stored_at` followed by `beneath`, with one shape walk over the
+    /// whole place. The walk visits the stored prefix first, so a prefix
+    /// that does not resolve fails with the same refusal either way.
+    fn stored_beneath(
+        &self,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+        beneath: &[Segment],
+        concerns: Construct,
+    ) -> Checked<Lineage> {
+        let mut segments = if path.is_empty() {
+            Vec::with_capacity(beneath.len())
         } else {
             terminal_semantics::resolved_structural_path(
-                self.types.iter(),
+                &self.type_index,
                 self.root_type(root, concerns)?,
                 path,
             )
             .map_err(|detail| self.unsupported(concerns, detail))?
         };
+        segments.extend_from_slice(beneath);
         let place = Lineage { root, segments };
         // Resolving the shape checks each case against the sum it is
         // applied to.
@@ -2971,7 +2991,7 @@ impl<'a> Storage<'a> {
                         projection.root,
                         prefix,
                         terminal_semantics::runtime_structural_field(
-                            self.types.iter(),
+                            &self.type_index,
                             root,
                             prefix,
                         )
@@ -3105,7 +3125,7 @@ impl<'a> Storage<'a> {
                 let root = self.root_type(source.place, concerns)?;
                 let Some(terminal_psi::StructuralTypeShape::ElementView { element, .. }) =
                     terminal_semantics::runtime_structural_path_tip(
-                        self.types.iter(),
+                        &self.type_index,
                         root,
                         &source.path,
                     )
@@ -4446,13 +4466,13 @@ impl<'a> Storage<'a> {
                     budget.add_supply(destination, supply);
                 }
                 budget.crossed_entries[index(block.get())] = true;
-                let mut asked_of: Vec<BlockId> = Vec::new();
-                for predecessor in self.graph.predecessors(block)? {
-                    // A block that enters by two edges is listed twice.
-                    if asked_of.contains(predecessor) {
+                let predecessors = self.graph.predecessors(block)?;
+                for (position, predecessor) in predecessors.iter().enumerate() {
+                    // A block that enters by two edges is listed twice; ask
+                    // it once, at its first listing.
+                    if predecessors[..position].contains(predecessor) {
                         continue;
                     }
-                    asked_of.push(*predecessor);
                     if let Some(changed) =
                         self.cleanup_arrival(asked, resolved, *predecessor, block)?
                     {

@@ -43,7 +43,7 @@ impl TypeSlot {
 /// Pre-indexed view over a module's structural type declarations so descriptor
 /// replay resolves types, inline carriers, leaf carriers and representation
 /// views in O(1) instead of scanning the full declaration slice on every step.
-pub(crate) struct StructuralTypeIndex<'a> {
+pub struct StructuralTypeIndex<'a> {
     types: &'a [StructuralTypeDeclaration],
     dense: Option<Vec<TypeSlot>>,
     sparse: Vec<(StructuralTypeId, TypeSlot)>,
@@ -52,7 +52,7 @@ pub(crate) struct StructuralTypeIndex<'a> {
 }
 
 impl<'a> StructuralTypeIndex<'a> {
-    pub(crate) fn new(types: &'a [StructuralTypeDeclaration]) -> Self {
+    pub fn new(types: &'a [StructuralTypeDeclaration]) -> Self {
         let mut max_id = 0u64;
         let mut leaf_indices = Vec::new();
         for (index, declaration) in types.iter().enumerate() {
@@ -119,7 +119,7 @@ impl<'a> StructuralTypeIndex<'a> {
         self.slot(id).first().map(|index| &self.types[index])
     }
 
-    pub(crate) fn unique(&self, id: StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> {
+    pub fn unique(&self, id: StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> {
         self.slot(id).unique().map(|index| &self.types[index])
     }
 

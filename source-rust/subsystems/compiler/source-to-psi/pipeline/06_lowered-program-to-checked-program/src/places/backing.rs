@@ -783,9 +783,7 @@ impl<'a> Storage<'a> {
                     break;
                 }
             }
-            let mut resolved = self.stored_at(*source, &path, concerns)?;
-            resolved.segments.extend_from_slice(suffix);
-            self.shape(&resolved, concerns)?;
+            let resolved = self.stored_beneath(*source, &path, suffix, concerns)?;
             regions.push(CapturedRegion {
                 place: resolved,
                 origin: Some(origin),
