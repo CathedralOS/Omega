@@ -47,6 +47,8 @@ pub(crate) fn unproved(
 ) -> String {
     let names = elaboration.names.get(machine);
     match kind {
+        ObligationKind::ExecutableMembership { .. } =>
+            String::from("the tested value must retain authorized provenance for this domain"),
         ObligationKind::IntegerWidthPositive { parameter } => {
             let binder = tables
                 .values

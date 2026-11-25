@@ -1137,6 +1137,10 @@ pub(crate) fn follow_the_lowered_form(
                     ));
                 }
             }
+            // The source test is itself a question over the completed operand.
+            // Its row introduces no premise; the nominal judgment checks its
+            // exact place or SSA value at the recorded execution point.
+            ObligationKind::ExecutableMembership { .. } => {}
             // Kinds the route does not serve are refused where they are
             // decided (`goal`).
             ObligationKind::Claim { .. }

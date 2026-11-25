@@ -1268,7 +1268,8 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<
                 collect_expression(default, calls);
             }
         }
-        E::Strict { left, right, .. } | E::ShortCircuit { left, right, .. } => {
+        E::TestMembership { subject: left, predicate: right, .. }
+        | E::Strict { left, right, .. } | E::ShortCircuit { left, right, .. } => {
             collect_expression(left, calls);
             collect_expression(right, calls);
         }

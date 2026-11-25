@@ -862,7 +862,13 @@ fn live_entries(
                     observe(&mut before, candidate.argument.place)?;
                 }
             }
+            // A borrowed header receives an already captured address. Its
+            // backing must survive the incoming edge's cleanup even when
+            // the destination never reads its formal.
             for parameter in &block.structural_parameters {
+                if parameter.access != StructuralAccess::Owned {
+                    observe(&mut before, parameter.place)?;
+                }
                 before.remove(valid(parameter.place)?);
             }
             let old = live

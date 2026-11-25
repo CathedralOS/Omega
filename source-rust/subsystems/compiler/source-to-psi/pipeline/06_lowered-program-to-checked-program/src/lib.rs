@@ -98,6 +98,7 @@ mod known;
 mod laws;
 mod machine_batch;
 mod machine_inputs;
+mod membership_tests;
 mod minted;
 mod nominal_calls;
 mod operational;
@@ -206,6 +207,8 @@ pub enum TargetCondition {
 /// What discharged one obligation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Discharged {
+    /// Dataflow across all reaching edges established this nominal membership.
+    RetainedMembership,
     /// A typed source Identity checked against its actual mathematical term.
     Identity(equality::Judgment),
     /// The declared closed projection follows this unchanged owned entry claim on every normal return.
@@ -285,6 +288,7 @@ impl Discharged {
             | Self::Window(_)
             | Self::Preserved
             | Self::Lent
+            | Self::RetainedMembership
             | Self::FiniteIntegerRanking(_) => None,
         }
     }
@@ -841,6 +845,9 @@ fn check_prepared_machine(
     let invariants = &module.proofs.scalar_block_invariants;
     let mut decided: Vec<Option<Checked<Discharged>>> =
         (0..tables.obligations.len()).map(|_| None).collect();
+    for (index, verdict) in membership_tests::judge(module, id, graph, tables)? {
+        decided[index] = Some(verdict);
+    }
     // Loans are judged by structure, not proved (`places::loans`).
     let (lent, conflicts) = storage.loans(references, module, tables, borrow_ends)?;
     for (obligation, verdict) in lent {
@@ -2463,6 +2470,7 @@ fn stated_goal<'a>(
         | ObligationKind::RestorationWindow { .. }
         | ObligationKind::DomainDebt { .. }
         | ObligationKind::EstablishmentDebt { .. }
+        | ObligationKind::ExecutableMembership { .. }
         | ObligationKind::WellFoundedness { .. } => Err(refusal(
             RefusalReason::Unsupported,
             id,

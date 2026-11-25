@@ -859,6 +859,7 @@ fn conflict_statement(
 /// one, as the source does.
 fn describe_kind(kind: ObligationKind) -> String {
     match kind {
+        ObligationKind::ExecutableMembership { .. } => String::from("retained domain membership"),
         ObligationKind::IntegerWidthPositive { .. } => String::from("positive integer width"),
         ObligationKind::OperationSafety { .. } => String::from("operation safety"),
         ObligationKind::TheoremRequirement { clause, .. } => {

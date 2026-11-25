@@ -361,6 +361,10 @@ fn establishment_routes(
 }
 
 impl Qualifications {
+    pub(crate) fn scalar_domain_id(&self, instance: DomainInstance) -> Option<ScalarDomainId> {
+        self.domains.iter().find(|(declared, _)| *declared == instance).map(|(_, id)| *id)
+    }
+
     /// The module identity assigned to this domain application on its exact carrier.
     pub(crate) fn structural_domain_id(
         &self,
@@ -410,11 +414,7 @@ impl Qualifications {
         let unavailable = |what| refuse(machine, Construct::Machine, Unserved::Contract(what));
         Ok(match &membership.subject {
             RuntimeMembershipSubject::Scalar(subject) => {
-                let domain = self
-                    .domains
-                    .iter()
-                    .find(|(instance, _)| *instance == membership.domain)
-                    .map(|(_, domain)| *domain)
+                let domain = self.scalar_domain_id(membership.domain)
                     .ok_or_else(|| {
                         unavailable("runtime scalar membership lost its exact domain")
                     })?;

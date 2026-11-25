@@ -34,6 +34,7 @@ pub(super) struct DomainCast {
     pub(super) input: ValueType,
     pub(super) result: ValueType,
     added: DomainSet,
+    tests: Vec<(Expression, DomainInstance)>,
     pub(super) removed: Vec<(DomainInstance, SourceOrigin)>,
 }
 
@@ -422,6 +423,7 @@ impl Program<'_> {
             input,
             mut result,
             added,
+            tests,
             removed,
         } = run?;
         let landing =
@@ -434,7 +436,8 @@ impl Program<'_> {
             } else {
                 None
             };
-        let operand = self.expression(id, slots, value, landing)?;
+        let operand = self.expression(id, slots, value, landing)?
+            .with_membership_tests(tests.into_iter().rev());
         let unavailable = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
         let actual = operand
             .result
@@ -502,6 +505,7 @@ impl Program<'_> {
         let mut after = result;
         let mut removed = Vec::new();
         let mut added = DomainSet::EMPTY;
+        let mut tests = Vec::new();
         loop {
             if matches!(context, CastContext::Clause) && entry.kind == CastEntryKind::Add {
                 // A clause cannot assume its own assertion to establish a domain.
@@ -536,6 +540,7 @@ impl Program<'_> {
                     input: before,
                     result,
                     added,
+                    tests,
                     removed,
                 });
             }
@@ -550,8 +555,12 @@ impl Program<'_> {
                 ));
             };
             if let CastContext::Body(slots) = context {
-                for test in self.typed.expression_table.executable_domain_tests(handle) {
-                    self.require_membership_carrier(id, slots, *test)?;
+                // The run is read from its outermost entry back to its
+                // operand. Restore source order when wrapping that operand.
+                for test in self.typed.expression_table.executable_domain_tests(handle).iter().rev() {
+                    if let Some(question) = self.require_membership_carrier(id, slots, *test)? {
+                        tests.push(question);
+                    }
                 }
             }
             site = *previous;

@@ -333,6 +333,10 @@ impl Lowering<'_> {
             None => None,
         };
         match &expression.kind {
+            ExpressionKind::TestMembership { subject, domain, predicate } => {
+                continuing!(self.observe_membership(subject, *domain, source));
+                self.expression(predicate)
+            }
             ExpressionKind::TheoremApplication {
                 source: theorem,
                 arguments,

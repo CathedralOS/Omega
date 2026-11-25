@@ -19,6 +19,8 @@ pub(super) fn walk<'a, E>(
 ) -> Result<&'a Expression, E> {
     loop {
         match &place.kind {
+            ExpressionKind::TestMembership { predicate, .. } => place = predicate,
+
             ExpressionKind::TheoremApplication { .. } => return Ok(place),
             ExpressionKind::Field { base, .. }
             | ExpressionKind::Payload { base, .. }

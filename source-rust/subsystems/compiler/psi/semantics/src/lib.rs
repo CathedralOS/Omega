@@ -27,7 +27,9 @@ pub use domain_issuance::DeniedEstablishment;
 pub mod float_meaning_sources;
 pub mod inhabitation;
 mod membership_facts;
-pub use membership_facts::validate_boundary_normal_memberships;
+pub use membership_facts::{
+    MembershipTest, TestedMembership, test_memberships, validate_boundary_normal_memberships,
+};
 pub mod normal_completion;
 pub mod numeric_primitives;
 pub mod plain_affine;

@@ -281,7 +281,11 @@ pub(crate) mod expression {
                     .ok_or_else(|| {
                         Diagnostic::error("indexed membership needs the operand's resolved carrier")
                     })?;
-                instance = target.retain_domain_application(domain_symbol, carrier, arguments)?;
+                let indices = target.type_reference_table
+                    .insert_type_reference_handles(arguments.iter().copied());
+                (instance, _) = crate::type_reference::selected_domain_application(
+                    target, domain_symbol, carrier, indices,
+                )?;
                 let family = target
                     .domain_definition(domain_symbol)
                     .expect("retained domain declaration");

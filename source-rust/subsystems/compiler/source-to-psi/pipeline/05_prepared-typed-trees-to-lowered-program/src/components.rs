@@ -745,6 +745,10 @@ fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut BodyW
                 expression(arm, terminal, sites);
             }
         }
+        ExpressionKind::TestMembership { subject, predicate, .. } => {
+            expression(subject, false, sites);
+            expression(predicate, terminal, sites);
+        }
         ExpressionKind::Strict { left, right, .. }
         | ExpressionKind::ShortCircuit { left, right, .. } => {
             expression(left, false, sites);

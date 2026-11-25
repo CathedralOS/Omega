@@ -403,9 +403,15 @@ impl<'t> Program<'t> {
         handle: ExpressionHandle,
         expected: Option<ValueType>,
     ) -> Checked<Expression> {
+        let mut questions = Vec::new();
+        for test in self.typed.expression_table.executable_domain_tests(handle) {
+            if let Some(question) = self.require_membership_carrier(id, slots, *test)? {
+                questions.push(question);
+            }
+        }
         let value = self.read_expression(id, slots, handle, expected)?;
         self.complete_formed_operator(id, handle, &value)?;
-        Ok(value)
+        Ok(value.with_membership_tests(questions.into_iter()))
     }
 
     fn read_expression(
@@ -417,13 +423,6 @@ impl<'t> Program<'t> {
     ) -> Checked<Expression> {
         let typed = self.typed;
         let node = self.node(id, handle)?;
-        // Typing expands `x in D` into D's predicate with `self` replaced by
-        // `x` and keeps the subject and domain on that predicate. The
-        // predicate alone cannot show the carrier (an empty one is `true`),
-        // so the carrier is checked here, where the subject's type is known.
-        for test in typed.expression_table.executable_domain_tests(handle) {
-            self.require_membership_carrier(id, slots, *test)?;
-        }
         if let ExpressionNode::Call(call) = node
             && call.runtime_call.is_none()
             && call.layout_query.is_none()
@@ -2234,6 +2233,10 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             (ExpressionKind::CollectionMeasure { base: a, measure: am }, ExpressionKind::CollectionMeasure { base: b, measure: bm }) => am == bm && both(a, b),
             (ExpressionKind::ByteSequencePredicate { base: a, predicate: ap }, ExpressionKind::ByteSequencePredicate { base: b, predicate: bp }) => ap == bp && both(a, b),
             (ExpressionKind::Slot(a), ExpressionKind::Slot(b)) => a == b,
+            (
+                ExpressionKind::TestMembership { subject: a, domain: ad, predicate: ap },
+                ExpressionKind::TestMembership { subject: b, domain: bd, predicate: bp },
+            ) => ad == bd && same_computation(a, b) && same_computation(ap, bp),
             (ExpressionKind::SavedSubject(a), ExpressionKind::SavedSubject(b)) => a == b,
             (
                 ExpressionKind::Strict {
@@ -2394,6 +2397,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             }
             (
                 ExpressionKind::Atomic(_)
+                | ExpressionKind::TestMembership { .. }
                 | ExpressionKind::SavedSubject(_)
                 | ExpressionKind::Integer(_)
                 | ExpressionKind::Float(_)
@@ -2473,19 +2477,14 @@ impl Program<'_> {
         Ok(())
     }
 
-    /// `wiki/spec/language/domains.md`, "Carrier-exact membership": "Before
-    /// substituting a candidate into the domain predicate, form membership
-    /// against the domain's exact resolved applied carrier", so `7u8 in
-    /// Small` over a `u16` domain is ill-formed even though seven fits both.
-    /// An anonymous literal lands on the carrier. A carrier that is not a
-    /// plain scalar (a record, a type parameter, a generic or indexed
-    /// family) is judged by the predicate's own reading, as before.
+    /// Form the predicate on its declared carrier. Routed membership also
+    /// needs evidence for this completed operand at the test's execution point.
     pub(super) fn require_membership_carrier(
         &mut self,
         id: MachineId,
         slots: &[Slot],
         test: crate::source_state::expression::ExecutableDomainTest,
-    ) -> Checked<()> {
+    ) -> Checked<Option<(Expression, crate::body::DomainInstance)>> {
         let definition = if test.application.is_valid() {
             Some(self.domain_theory(
                 id,
@@ -2504,19 +2503,35 @@ impl Program<'_> {
                 Unserved::Typing("membership in a domain without its declaration"),
             ));
         };
-        let target_type = definition.target_type;
+        let routed = definition.requires_result_membership();
         if !self.typed.domain_type_parameters(definition).is_empty()
             || !definition.index_arguments.is_empty()
         {
-            return Ok(());
+            if routed {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Expression("routed membership without its applied domain"),
+                ));
+            }
+            return Ok(None);
         }
+        let target_type = definition.target_type;
         let carrier = self.value_type(id, target_type)?;
         let landing = self
             .wholly_anonymous(test.subject)
             .then_some(carrier.erased());
         let subject = self.expression(id, slots, test.subject, landing)?;
         self.checked_membership_carrier(id, definition, carrier, subject.result, subject.source)?;
-        if test.application.is_valid() {
+        let domain = crate::body::DomainInstance {
+            declaration: test.domain,
+            identity: if test.application.is_valid() {
+                test.application
+            } else {
+                definition.semantic_id
+            },
+        };
+        if routed || test.application.is_valid() {
             let actual = subject.result.ok_or_else(|| {
                 refuse(
                     id,
@@ -2526,17 +2541,14 @@ impl Program<'_> {
             })?;
             self.form_domain(
                 id,
-                crate::body::DomainInstance {
-                    declaration: test.domain,
-                    identity: test.application,
-                },
+                domain,
                 actual,
                 target_type,
                 subject.source,
                 super::types::DomainUse::Test,
             )?;
         }
-        Ok(())
+        Ok(routed.then_some((subject, domain)))
     }
 
     pub(super) fn checked_membership_carrier(

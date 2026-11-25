@@ -5024,7 +5024,8 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
                 spans(default, binder, out);
             }
         }
-        ExpressionKind::Strict { left, right, .. }
+        ExpressionKind::TestMembership { subject: left, predicate: right, .. }
+        | ExpressionKind::Strict { left, right, .. }
         | ExpressionKind::ShortCircuit { left, right, .. } => {
             spans(left, binder, out);
             spans(right, binder, out);
