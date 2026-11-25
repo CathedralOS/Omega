@@ -15,7 +15,7 @@ justify its name.
 
 ```text
 omega [--check [--floor-only]] [--verify] [--validator <ExactName>]... [--every-validator] <root.omg>
-omega build [--compare-tests] <root.omg>
+omega build [--allow Network] [--compare-tests] <root.omg>
 omega run [--engine native|psi] [--target <name>] <root.omg>
 omega source parse [--] <file>
 omega source rewrite <ExactRule>... [--check] <root.omg>
@@ -29,6 +29,9 @@ omega psi inspect --artifact <file>
 
 These forms show routing, not an exhaustive restatement of existing options.
 Build and run share the same [initial entry selection](#build-first-entry-selection).
+`--allow Network` permits the root Build to use an admitted live network provider.
+Omitting it leaves the root offline. Each dependency Build requires an explicit
+[delegation at registration](scoped_execution.md#live-networking-in-a-build).
 `omega build --compare-tests` requests [native/Psi comparison of registered
 tests](testing.md#comparing-native-and-psi-tests). This replaces `omega run --both`.
 `omega source parse` checks the syntax of the whole file. Success

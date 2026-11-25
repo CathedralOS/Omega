@@ -87,6 +87,9 @@ package, build purpose, operation, logical resource scope, bounds, and applicabl
 profile/target context. Delegation uses explicitly supplied capabilities and
 cannot widen their authority.
 
+The root invocation sets the [live network ceiling](scoped_execution.md#live-networking-in-a-build).
+The parent chooses whether to delegate its grant on each dependency registration.
+
 The parent can [supply a filesystem for one dependency](scoped_execution.md#supplying-a-filesystem-to-a-child-build)
 when it registers that dependency. It may compose a restricted or virtual
 provider without the child knowing its physical representation. Alternative

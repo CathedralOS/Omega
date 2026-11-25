@@ -64,12 +64,20 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-<a id="build-network-and-subprocess-grants"></a>
-### 1. Should an interpreted build be able to request network access or launch a host tool?
+<a id="build-subprocess-grants"></a>
+### 1. May an interpreted Build launch a host tool?
 
-A release build might need to fetch a pinned firmware image or run a vendor image packer. For each operation, should the caller perform it outside Omega and supply the captured bytes, or may the build request it through a scoped host service? If admitted, what does the consumer approve and the executor enforce for the remote resource or the executable, its inputs and its outputs?
+A firmware Build may need a vendor image packer. Today the caller can run it
+in an earlier stage and hand over the resulting file. Should a Build also be
+able to request a tool launch? If so, what executable, input and output views,
+and host capabilities does the consumer approve, and how does the host enforce
+those limits on the launched process? Approving a filename alone cannot
+confine the packer's filesystem or network access.
 
-The default build has neither service. The [network reach rules](wiki/spec/build/platform_services.md#network-reach) classify a networking call and its provider. The open choice is whether a Build may receive a live provider or launch a host tool. The existing rules distinguish a machine's transitive service reach, the consumer's acceptance of a restricted operation and the actual resource the executor supplies. Package retrieval already runs under the resolver's separate authority. [Build host restrictions](wiki/spec/build/execution.md#restricted-build-requests) · [Service reach](wiki/spec/language/effects.md#declarations) · [Restricted-build acceptance](wiki/spec/packages/acceptance.md#restricted-build-acceptance) · [Resolver transport](wiki/spec/packages/resolver_security.md#host-routed-network-transport)
+The [Build network grant](wiki/spec/build/scoped_execution.md#live-networking-in-a-build)
+covers only networking. [Build host restrictions](wiki/spec/build/execution.md#restricted-build-requests)
+and [restricted-build acceptance](wiki/spec/packages/acceptance.md#restricted-build-acceptance)
+separate policy approval from the host's ability to confine execution.
 
 <a id="supplying-build-library-bindings"></a>
 ### 2. Which external libraries does a Build need for its own computation, and how should its caller supply them?
