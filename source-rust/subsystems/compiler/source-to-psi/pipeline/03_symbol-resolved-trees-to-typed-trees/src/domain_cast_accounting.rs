@@ -50,13 +50,6 @@ enum Atom {    Declared(SymbolHandle, semantic_vocabulary::SemanticDomainId),
 
 type Spelled = (Atom, String, Option<TypeConstraintNode>);
 
-struct Member {
-    atom: Atom,
-    label: String,
-    node: Option<TypeConstraintNode>, // The operand type's own constraint, when it spells this domain.
-    attached: bool,                   // Listed by the type itself, not only implied as an ancestor.
-}
-
 struct Named {
     handle: ExpressionHandle,
     entry: CastEntry,
@@ -322,26 +315,65 @@ fn flatten(
     (reference, layers.into_iter().flatten().collect())
 }
 
-/* The domain whose path this domain's own path extends by one member. */
-fn parent(program: &TypedTrees, domain: SymbolHandle) -> Option<SymbolHandle> {
-    let definition = program.domain_definition(domain)?;
-    crate::source_state::domain::refinement_parent(program, definition)
-        .map(|membership| membership.domain_symbol)
-}
-
-fn is_ancestor(program: &TypedTrees, ancestor: SymbolHandle, mut child: SymbolHandle) -> bool {
-    while let Some(next) = parent(program, child) {
-        if next == ancestor {
-            return true;
+/// Follow the declaration's own parent membership at the child's exact application.
+/// Before preparation only its index expressions need substitution here.
+fn ancestors(
+    program: &mut TypedTrees,
+    carrier: TypeReferenceHandle,
+    mut child: Atom,
+) -> Result<Vec<Spelled>, Unaccounted> {
+    use crate::source_state::{CallableApplication, domain::refinement_parent};
+    let unavailable = || Unaccounted::Deferred(DeferredRequest::DomainCastUnnamedConstraint);
+    let mut ancestors = Vec::new();
+    while let Atom::Declared(symbol, identity) = child {
+        let prepared = program.domain_definition_for_instance(symbol, identity);
+        let Some(declaration) = prepared.or_else(|| program.domain_definition(symbol)) else {
+            return Err(unavailable());
+        };
+        let Some(fact) = refinement_parent(program, declaration) else {
+            break;
+        };
+        let parent = fact.domain_symbol;
+        let mut parent_id = fact.semantic_domain;
+        let mut arguments = program
+            .type_reference_table
+            .type_reference_handles(fact.domain_arguments)
+            .to_vec();
+        if prepared.is_none() {
+            let bindings = program
+                .domain_arguments_for_instance(symbol, identity)
+                .ok_or_else(unavailable)?;
+            let parameters = program.domain_type_parameters(declaration);
+            if parameters.len() != bindings.len() {
+                return Err(unavailable());
+            }
+            let mut application = CallableApplication::for_type_parameters(
+                symbol,
+                parameters.iter().zip(bindings.iter().copied()),
+                None,
+            );
+            for argument in &mut arguments {
+                *argument = application
+                    .type_reference(program, *argument)
+                    .map_err(|_| unavailable())?;
+            }
+            parent_id = program.retain_domain_application(parent, carrier, &arguments)?;
         }
-        child = next;
+        let definition = program.domain_definition(parent).ok_or_else(unavailable)?;
+        child = Atom::Declared(parent, parent_id);
+        ancestors.push((
+            child,
+            domain_label(program, definition),
+            Some(TypeConstraintNode::Domain(DomainConstraint {
+                name: definition.name.clone(),
+                symbol: parent,
+                semantic_id: parent_id,
+                arguments,
+                ..DomainConstraint::default()
+            })),
+        ));
     }
-    false
-}
-
-fn implies(program: &TypedTrees, child: Atom, ancestor: Atom) -> bool {
-    matches!((child, ancestor), (Atom::Declared(child, _), Atom::Declared(ancestor, _))
-            if child != ancestor && is_ancestor(program, ancestor, child))
+    Ok(ancestors)
 }
 
 fn declared_atom(program: &TypedTrees, symbol: SymbolHandle) -> Option<(Atom, String)> {
@@ -584,60 +616,44 @@ fn operand_type(
 
 /* What the operand's type carries: its own constraints and each one's ancestors. */
 fn carried(
-    program: &TypedTrees,
+    program: &mut TypedTrees,
+    carrier: TypeReferenceHandle,
     constraints: &[TypeConstraintNode],
-) -> Result<Vec<Member>, Unaccounted> {
-    let mut members: Vec<Member> = Vec::new();
+) -> Result<Vec<Spelled>, Unaccounted> {
+    let mut members: Vec<Spelled> = Vec::new();
     for constraint in constraints {
-        match constraint {
-            TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Exact) => {}
-            TypeConstraintNode::ArithmeticDomain(policy) => members.push(Member {
-                atom: Atom::Policy(*policy),
-                label: policy.name().to_owned(),
-                node: Some(constraint.clone()),
-                attached: true,
-            }),
+        let (atom, label) = match constraint {
+            TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Exact) => continue,
+            TypeConstraintNode::ArithmeticDomain(policy) => {
+                (Atom::Policy(*policy), policy.name().to_owned())
+            }
             TypeConstraintNode::Domain(domain)
                 if domain.subject == DomainConstraintSubject::Declared
                     && domain.symbol.is_valid() =>
             {
-                let atom = Atom::Declared(domain.symbol, domain.semantic_id);
-                match members.iter_mut().find(|member| member.atom == atom) {
-                    Some(member) => {
-                        member.attached = true;
-                        member.node = Some(constraint.clone());
-                    }
-                    None => members.push(Member {
-                        atom,
-                        label: program.domain_definition(domain.symbol).map_or_else(
-                            || domain.name.as_str().to_owned(),
-                            |definition| domain_label(program, definition),
-                        ),
-                        node: Some(constraint.clone()),
-                        attached: true,
-                    }),
-                }
-                let mut ancestor = parent(program, domain.symbol);
-                while let Some(symbol) = ancestor {
-                    if let Some((atom, label)) = declared_atom(program, symbol)
-                        && !members.iter().any(|member| member.atom == atom)
-                    {
-                        members.push(Member {
-                            atom,
-                            label,
-                            node: None,
-                            attached: false,
-                        });
-                    }
-                    ancestor = parent(program, symbol);
-                }
+                (
+                    Atom::Declared(domain.symbol, domain.semantic_id),
+                    program.domain_definition(domain.symbol).map_or_else(
+                        || domain.name.as_str().to_owned(),
+                        |definition| domain_label(program, definition),
+                    ),
+                )
             }
-            // A compiler-owned domain or a constraint no declaration
-            // answered: nothing here says how an entry names it.
             TypeConstraintNode::Domain(_) | TypeConstraintNode::Named(_) => {
                 return Err(Unaccounted::Deferred(
                     DeferredRequest::DomainCastUnnamedConstraint,
                 ));
+            }
+        };
+        let written = (atom, label, Some(constraint.clone()));
+        if let Some(existing) = members.iter_mut().find(|entry| entry.0 == atom) {
+            *existing = written;
+        } else {
+            members.push(written);
+        }
+        for parent in ancestors(program, carrier, atom)? {
+            if !members.iter().any(|entry| entry.0 == parent.0) {
+                members.push(parent);
             }
         }
     }
@@ -771,13 +787,13 @@ fn account_run(
         .map_or(operand_type, |(referee, _, _)| *referee);
     let (carrier, constraints) = flatten(program, accounted);
     let operand_display = program.display_type_reference_with_constraints(operand_type);
-    let members = carried(program, &constraints)?;
+    let members = carried(program, carrier, &constraints)?;
     let named = named_domains(source, program, run, carrier)?;
 
     // Each entry against what the operand carries.
     for entry in &named {
         for (atom, domain_label, _) in &entry.atoms {
-            let carried = members.iter().any(|member| member.atom == *atom);
+            let carried = members.iter().any(|member| member.0 == *atom);
             match entry.entry.kind {
                 CastEntryKind::Add if carried => {
                     return Err(refuse(
@@ -811,34 +827,52 @@ fn account_run(
             .find(|entry| entry.atoms.iter().any(|(named, _, _)| *named == atom))
             .map(|entry| entry.entry.kind)
     };
-    for member in &members {
-        if kind_of(member.atom).is_none() {
+    // Only an addition implicitly accounts for its ancestors. An explicitly
+    // named ancestor keeps its written position, in either order.
+    let mut inherited: Vec<(ExpressionHandle, Spelled)> = Vec::new();
+    for entry in &named {
+        if entry.entry.kind == CastEntryKind::Remove {
+            continue;
+        }
+        for (atom, label, _) in &entry.atoms {
+            for parent in ancestors(program, carrier, *atom)? {
+                match kind_of(parent.0) {
+                    Some(CastEntryKind::Remove) => {
+                        return Err(refuse(
+                            program,
+                            entry.handle,
+                            format!(
+                                "domain cast would leave `{label}` without its parent `{}`",
+                                parent.1,
+                            ),
+                        )
+                        .into());
+                    }
+                    None if entry.entry.kind == CastEntryKind::Add
+                        && !inherited.iter().any(|(_, member)| member.0 == parent.0) =>
+                    {
+                        inherited.push((entry.handle, parent));
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    for (atom, label, _) in &members {
+        if kind_of(*atom).is_none() && !inherited.iter().any(|(_, member)| member.0 == *atom) {
             return Err(refuse(
                 program,
                 outermost,
                 format!(
                     "domain cast leaves attached domain `{label}` unaccounted for: the operand's type `{operand_display}` carries `{label}`, so the cast names it as `={label}` to keep it or `-{label}` to remove it",
-                    label = member.label,
                 ),
-            )
-            .into());
+            ).into());
         }
     }
-
-    // The result set: a child never outlives its parent.
-    let mut result: Vec<Spelled> = members
+    let policies = named
         .iter()
-        .filter(|member| kind_of(member.atom) == Some(CastEntryKind::Keep))
-        .map(|member| (member.atom, member.label.clone(), member.node.clone()))
-        .collect();
-    for entry in &named {
-        if entry.entry.kind == CastEntryKind::Add {
-            result.extend(entry.atoms.iter().cloned());
-        }
-    }
-    // One arithmetic policy per type: `Wrapping & Saturating` has no single meaning for `+`.
-    let policies = result
-        .iter()
+        .filter(|entry| entry.entry.kind != CastEntryKind::Remove)
+        .flat_map(|entry| &entry.atoms)
         .filter(|(atom, _, _)| matches!(atom, Atom::Policy(_)))
         .map(|(_, label, _)| format!("`{label}`"))
         .collect::<Vec<_>>();
@@ -853,64 +887,21 @@ fn account_run(
         )
         .into());
     }
-    for (atom, label, _) in &result {
-        let Atom::Declared(symbol, _) = atom else {
-            continue;
-        };
-        if let Some(parent) = parent(program, *symbol)
-            && let Some((parent_atom, parent_label)) = declared_atom(program, parent)
-            && !result.iter().any(|(member, _, _)| *member == parent_atom)
-        {
-            return Err(refuse(
-                program,
-                outermost,
-                format!(
-                    "domain cast would leave `{label}` without its parent `{parent_label}`; a child domain travels with its ancestors, so keep or add `{parent_label}` as well, or remove `{label}`",
-                ),
-            )
-            .into());
-        }
-    }
-
-    /*
-        Give each entry the type before it and after it. The entries are one
-        simultaneous accounting; the running set only spells the types the
-        nodes carry, in the order written. It starts at what the operand's
-        type lists and changes as each entry is applied. A type spells a
-        child without its ancestors, so an ancestor is spelled only while no
-        listed domain implies it.
-    */
-    let mut running: Vec<Spelled> = members
-        .iter()
-        .filter(|member| member.attached)
-        .map(|member| (member.atom, member.label.clone(), member.node.clone()))
-        .collect();
+    // Intermediate entries carry the exact set accounted for so far.
+    // Only the whole simultaneous run needs a closed refinement chain.
+    let mut running = members;
     for entry in &named {
         let before = spell(source, program, carrier, &running)?;
         match entry.entry.kind {
             CastEntryKind::Keep => {}
             CastEntryKind::Remove => {
-                for (atom, _, _) in &entry.atoms {
-                    running.retain(|(member, _, _)| member != atom);
-                }
-                for member in &members {
-                    if kind_of(member.atom) == Some(CastEntryKind::Keep)
-                        && !running.iter().any(|(listed, _, _)| {
-                            *listed == member.atom || implies(program, *listed, member.atom)
-                        })
-                    {
-                        running.push((member.atom, member.label.clone(), member.node.clone()));
-                    }
-                }
+                running.retain(|member| !entry.atoms.iter().any(|removed| removed.0 == member.0))
             }
             CastEntryKind::Add => {
-                for (atom, label, node) in &entry.atoms {
-                    running.retain(|(listed, _, _)| !implies(program, *atom, *listed));
-                    if !running
-                        .iter()
-                        .any(|(listed, _, _)| implies(program, *listed, *atom))
-                    {
-                        running.push((*atom, label.clone(), node.clone()));
+                running.extend(entry.atoms.iter().cloned());
+                for (_, parent) in inherited.iter().filter(|(site, _)| *site == entry.handle) {
+                    if !running.iter().any(|member| member.0 == parent.0) {
+                        running.push(parent.clone());
                     }
                 }
             }

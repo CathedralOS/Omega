@@ -251,6 +251,7 @@ pub(crate) mod contracts {
                 source: &crate::source_resolved::SymbolResolvedTrees,
                 program: &mut TypedTrees,
                 owners: &crate::source_state::references::ProgramOperandOwners,
+                include: impl Fn(arena::Handle<ProofFact>) -> bool,
             ) -> Result<(), Diagnostic> {
                 use crate::declaration_selection::{
                     AuthoredDeclarationSelectionKind as Kind,
@@ -260,6 +261,7 @@ pub(crate) mod contracts {
                 let unselected = program
                     .proof_facts
                     .iter()
+                    .filter(|(handle, _)| include(*handle))
                     .filter_map(|(handle, fact)| match fact {
                         ProofFact::Membership(membership)
                             if !membership.domain_symbol.is_valid()
@@ -654,7 +656,7 @@ pub(crate) mod contracts {
                     membership.semantic_domain = semantic_vocabulary::SemanticDomainId::NULL;
                     let owners =
                         crate::source_state::references::collect_program_operand_owners(&program);
-                    let error = normalize(&resolved, &mut program, &owners).unwrap_err();
+                    let error = normalize(&resolved, &mut program, &owners, |_| true).unwrap_err();
                     assert!(
                         error
                             .message
@@ -677,6 +679,7 @@ pub(crate) mod contracts {
                         &crate::source_resolved::SymbolResolvedTrees::default(),
                         &mut program,
                         &owners,
+                        |_| true,
                     )
                     .unwrap();
                     assert_eq!(
@@ -695,6 +698,7 @@ pub(crate) mod contracts {
                         &crate::source_resolved::SymbolResolvedTrees::default(),
                         &mut program,
                         &owners,
+                        |_| true,
                     )
                     .unwrap_err();
                     assert!(
@@ -916,10 +920,15 @@ pub(crate) mod contracts {
         pub(crate) fn intern_proof_membership_instances(
             program: &mut typed::TypedTrees,
             owners: &typed::references::ProgramOperandOwners,
+            include: impl Fn(arena::Handle<typed::domain::ProofFact>) -> bool,
         ) -> Result<(), Diagnostic> {
             let mut types = crate::typing_queries::DeclaredExpressionTypes::default();
             let mut instances = Vec::new();
-            for (handle, fact) in program.proof_facts.iter() {
+            for (handle, fact) in program
+                .proof_facts
+                .iter()
+                .filter(|(handle, _)| include(*handle))
+            {
                 let Some(membership) = fact.as_membership() else {
                     continue;
                 };

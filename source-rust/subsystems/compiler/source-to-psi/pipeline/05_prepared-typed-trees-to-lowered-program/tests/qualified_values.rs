@@ -299,3 +299,39 @@ fn a_refined_scalar_formal_carries_its_complete_parent_chain() {
         })
         .accepted();
 }
+
+#[test]
+fn adding_a_refinement_accounts_for_its_ancestors_on_the_same_value() {
+    const DOMAINS: &str = "domain i32::Positive requires self > 0;
+        domain i32::Positive::Small requires self < 100;
+        domain i32::Positive::Seven requires self == 7;";
+    Program::of(&format!("{DOMAINS}
+        machine short() -> i32 in Positive::Small {{ 7 as +Positive::Small }}
+        machine parent_first() -> i32 in Positive::Small {{ 7 as +Positive +Positive::Small }}
+        machine child_first() -> i32 in Positive::Small {{ 7 as +Positive::Small +Positive }}
+        machine siblings() -> i32 in Positive::Small & Positive::Seven {{
+            7 as +Positive::Small +Positive::Seven
+        }}
+        machine forget(x: i32 in Positive::Small) -> i32 in Positive {{ x as =Positive -Positive::Small }}
+        machine restore(x: i32 in Positive) -> i32 in Positive::Small
+            requires (x as -Positive) < 100 {{ x as +Positive::Small }}"))
+        .judged(|_| {}).accepted();
+    for value in [0, 150] {
+        let rejection = Program::of(&format!(
+            "{DOMAINS}
+            machine wrong() -> i32 in Positive::Small {{ {value} as +Positive::Small }}"
+        ))
+        .judged(|_| {})
+        .rejected();
+        assert_eq!(rejection.unproved.len(), 1, "{rejection:?}");
+    }
+    let source = format!("{DOMAINS}
+        machine orphan(x: i32 in Positive) -> i32 in Positive::Small {{ x as -Positive +Positive::Small }}");
+    let refusal = Program::try_of(&[("product/main.omg", &source)])
+        .err()
+        .expect("removing the parent conflicts with adding its child");
+    assert!(
+        refusal.message.contains("without its parent `Positive`"),
+        "{refusal:?}"
+    );
+}
