@@ -4,6 +4,7 @@
 
 use crate::source_state::FrozenTypedTrees;
 use checked_program::CheckedProgram;
+use terminal_check_tables::program::Elaboration;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 
@@ -13,6 +14,7 @@ pub struct AcceptedTerminalSource {
     closure: Arc<CheckedProgram>,
     correspondence: lowered_source_publication::SourceCorrespondence,
     requirement_reviews: Vec<lowered_source_publication::RequirementReview>,
+    generic_callables: Vec<(symbols::SymbolHandle, Arc<Elaboration>)>,
     publication: terminal_codec::TerminalPublication,
     pub(crate) package_review_numeric: crate::package_review::NumericReviewInventory,
 }
@@ -228,13 +230,18 @@ impl AcceptedTerminalSource {
         >,
     ) -> Result<(Self, Option<crate::SourceCompilationRoster>), Vec<Diagnostic>> {
         let (mut source, closure, further_forms) = judgment.into_source_and_program();
-        if source.correspondence.forms.len() != 1 + further_forms
+        if source.correspondence.forms.len() != 1 + further_forms.len()
             || source.correspondence.forms.iter().any(Option::is_none)
         {
             return Err(vec![Diagnostic::error(
                 "not supported yet: the checker could not judge this program (accepted forms lost their exact source correspondence); this is a defect of the checker, and the program is refused rather than accepted without a verdict",
             )]);
         }
+        let generic_callables = source.correspondence.forms[1..]
+            .iter()
+            .zip(further_forms)
+            .filter_map(|(form, program)| Some((form.as_ref()?.generic_callable?, program)))
+            .collect();
         let mut requirement_reviews: Vec<_> = source
             .correspondence
             .forms
@@ -250,6 +257,7 @@ impl AcceptedTerminalSource {
                 closure,
                 correspondence: source.correspondence,
                 requirement_reviews,
+                generic_callables,
                 publication: source.publication,
                 package_review_numeric: Default::default(),
             },
@@ -622,6 +630,17 @@ impl AcceptedTerminalSource {
 
     pub fn closure(&self) -> &CheckedProgram {
         &self.closure
+    }
+
+    /// Each accepted check form rooted at this public generic declaration, including
+    /// the alternatives of a complete static partition.
+    pub fn generic_callable_forms(
+        &self,
+        declaration: symbols::SymbolHandle,
+    ) -> impl Iterator<Item = &Elaboration> {
+        self.generic_callables
+            .iter()
+            .filter_map(move |(owner, program)| (*owner == declaration).then_some(program.as_ref()))
     }
 
     /// Facts from the requirement's own accepted declaration form. Equal

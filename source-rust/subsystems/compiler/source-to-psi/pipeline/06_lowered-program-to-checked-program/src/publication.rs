@@ -65,16 +65,23 @@ pub fn judge_publication<Input: CompilationForPublication>(
         seals,
         executed,
     ));
+    let additional: Vec<_> = additional
+        .into_iter()
+        .map(|part| (Arc::new(part.elaboration), part.discharge))
+        .collect();
+    let forms = additional
+        .iter()
+        .map(|(form, _)| Arc::clone(form))
+        .collect();
     let publication =
-        CheckedPublication::from_judgment(CHECKER, source, Arc::clone(&program), additional.len());
+        CheckedPublication::from_judgment(CHECKER, source, Arc::clone(&program), forms);
     Ok((
         publication,
         AcceptedAdvisories::new(program, discharge, original_for_diagnostics, additional),
     ))
 }
 
-/// All semantic verdicts accepted. Additional parts supply only their
-/// diagnostics after the source correspondence has been checked.
+/// The root, generic forms and witnesses of a completely accepted compilation.
 #[derive(Debug)]
 struct AcceptedCompilation {
     closure: Box<AcceptedClosure>,

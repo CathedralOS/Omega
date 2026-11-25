@@ -14,6 +14,9 @@ pub struct SourceCorrespondence {
 
 #[derive(Debug, Clone, Default)]
 pub struct SourceFormCorrespondence {
+    /// The public machine whose authored generic body this particular form checks.
+    /// A conformance witness or an application does not review the template.
+    pub generic_callable: Option<symbols::SymbolHandle>,
     pub records: Vec<crate::source_state::SourceRecordCorrespondence>,
     /// Declaration-owned review facts from this exact form. They become
     /// available only after every form of the source compilation accepts.

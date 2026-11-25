@@ -84,18 +84,19 @@ pub fn prepare_accepted_publication(
 pub struct CheckedPublication<Input: CompilationForPublication> {
     source: Input::Source,
     program: Arc<CheckedProgram>,
-    further_forms: usize,
+    // These checked generic and witness forms have no executable publication authority.
+    further_forms: Vec<Arc<Elaboration>>,
 }
 
 impl<Input: CompilationForPublication> CheckedPublication<Input> {
     /// Return the source of `Input` with the program the checker accepted for
-    /// it. `further_forms` counts the generic forms and conformance witnesses
+    /// it. `further_forms` holds the generic forms and conformance witnesses
     /// accepted beside the root closure. Only stage 06 holds the issuer.
     pub fn from_judgment(
         _issuer: CheckerIssuer,
         source: Input::Source,
         program: Arc<CheckedProgram>,
-        further_forms: usize,
+        further_forms: Vec<Arc<Elaboration>>,
     ) -> Self {
         Self {
             source,
@@ -104,9 +105,11 @@ impl<Input: CompilationForPublication> CheckedPublication<Input> {
         }
     }
 
-    /// The retained source, the accepted root closure, and how many further
+    /// The retained source, the accepted root closure, and the further
     /// forms the checker accepted beside it.
-    pub fn into_source_and_program(self) -> (Input::Source, Arc<CheckedProgram>, usize) {
+    pub fn into_source_and_program(
+        self,
+    ) -> (Input::Source, Arc<CheckedProgram>, Vec<Arc<Elaboration>>) {
         (self.source, self.program, self.further_forms)
     }
 }
