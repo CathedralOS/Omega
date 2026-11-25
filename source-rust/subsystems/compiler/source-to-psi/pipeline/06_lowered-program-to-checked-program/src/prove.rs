@@ -5227,10 +5227,8 @@ impl<'a> Prover<'a> {
         let mut fallback = None;
         let mut transport = None;
         for target in std::iter::once(target).chain(exchanged.as_ref()) {
-            let mut checked_roots: Vec<(
-                &ScalarTerm,
-                Option<_>,
-            )> = Vec::new();
+            let mut checked_roots: std::collections::HashMap<&ScalarTerm, Option<_>> =
+                std::collections::HashMap::new();
             for fact in &self.facts {
                 let (left, right, strict) = match fact.proposition() {
                     Proposition::LessOrEqual(left, right) => (left, right, false),
@@ -5238,53 +5236,54 @@ impl<'a> Prover<'a> {
                     _ => continue,
                 };
                 for (root_endpoint, root) in [left, right].into_iter().enumerate() {
-                    let cached = if let Some((_, entry)) =
-                        checked_roots.iter().find(|(seen, _)| *seen == root)
-                    {
-                        entry.as_ref()
-                    } else {
-                        let def_fact_and_axiom = match root {
-                            ScalarTerm::Value { id, .. } => self
-                                .definitions
-                                .get(*id)
-                                .and_then(|slot| *slot)
-                                .and_then(|definition| {
-                                    let fact_index = self.equations[definition];
-                                    self.facts[fact_index]
-                                        .axiom
-                                        .map(|axiom_index| (fact_index, axiom_index))
-                                }),
-                            _ => None,
-                        };
-                        let entry = if !target_values.is_empty()
-                            && !term_shares_value(root, &target_values)
-                            && !def_fact_and_axiom.is_some_and(|(fact_index, _)| {
-                                matches!(
-                                    self.facts[fact_index].proposition(),
-                                    Proposition::Equal(eq_left, eq_right)
-                                        if term_shares_value(eq_left, &target_values)
-                                            || term_shares_value(eq_right, &target_values)
-                                )
-                            }) {
-                            None
-                        } else {
-                            let mut witness = IntegerAffineWitness {
-                                root: root.clone(),
-                                target: target.clone(),
-                                definition_axioms: Vec::new(),
-                                literal_axioms: Vec::new(),
+                    if !target_values.is_empty() && matches!(root, ScalarTerm::Integer { .. }) {
+                        continue;
+                    }
+                    let cached = checked_roots
+                        .entry(root)
+                        .or_insert_with(|| {
+                            let def_fact_and_axiom = match root {
+                                ScalarTerm::Value { id, .. } => self
+                                    .definitions
+                                    .get(*id)
+                                    .and_then(|slot| *slot)
+                                    .and_then(|definition| {
+                                        let fact_index = self.equations[definition];
+                                        self.facts[fact_index]
+                                            .axiom
+                                            .map(|axiom_index| (fact_index, axiom_index))
+                                    }),
+                                _ => None,
                             };
-                            if let Some((_, index)) = def_fact_and_axiom {
-                                witness.definition_axioms.push(index);
-                                witness.literal_axioms.push(None);
+                            if !target_values.is_empty()
+                                && !term_shares_value(root, &target_values)
+                                && !def_fact_and_axiom.is_some_and(|(fact_index, _)| {
+                                    matches!(
+                                        self.facts[fact_index].proposition(),
+                                        Proposition::Equal(eq_left, eq_right)
+                                            if term_shares_value(eq_left, &target_values)
+                                                || term_shares_value(eq_right, &target_values)
+                                    )
+                                })
+                            {
+                                None
+                            } else {
+                                let mut witness = IntegerAffineWitness {
+                                    root: root.clone(),
+                                    target: target.clone(),
+                                    definition_axioms: Vec::new(),
+                                    literal_axioms: Vec::new(),
+                                };
+                                if let Some((_, index)) = def_fact_and_axiom {
+                                    witness.definition_axioms.push(index);
+                                    witness.literal_axioms.push(None);
+                                }
+                                check_integer_affine_witness(self.context, self.axioms, &witness)
+                                    .ok()
+                                    .map(|form| (witness, form))
                             }
-                            check_integer_affine_witness(self.context, self.axioms, &witness)
-                                .ok()
-                                .map(|form| (witness, form))
-                        };
-                        checked_roots.push((root, entry));
-                        checked_roots.last().and_then(|(_, entry)| entry.as_ref())
-                    };
+                        })
+                        .as_ref();
                     let Some((witness, form)) = cached else {
                         continue;
                     };
