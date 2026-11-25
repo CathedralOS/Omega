@@ -110,11 +110,17 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
         .map(|n| directory.join(n))
         .find(|p| p.is_file());
     // A program under a `fail/` folder within its fixture group pins the
-    // rejection it exists to produce, as a negative twin does.
+    // rejection it exists to produce, as a negative twin does. A project inside
+    // another project's folder is that project's path dependency, such as
+    // `fail/content_projection_foreign_package/owner`, and checks on its own;
+    // only its own name or rejection file makes it negative.
+    let dependency = directory
+        .parent()
+        .is_some_and(|parent| parent.join("build.omg").is_file());
     let is_negative = matches!(dir_name, "invalid" | "intended_invalid" | "out_of_bounds")
         || dir_name.starts_with("invalid_")
-        || rel_path.split('/').any(|p| p == "fail")
-        || (diag_file.is_some() && rel_path.split('/').any(|p| p == "controls"));
+        || (!dependency && rel_path.split('/').any(|p| p == "fail"))
+        || (diag_file.is_some() && rel_path.split('/').any(|p| p == "controls" || p == "fail"));
 
     let inferred = if is_negative {
         "intended-invalid"
@@ -1103,6 +1109,25 @@ mod tests {
         assert!(judge_rejection(&sample, Some(1), unrouted).is_err());
         assert!(judge_rejection(&sample, Some(101), verdict).is_err());
         fs::remove_dir_all(directory).unwrap();
+    }
+
+    /// A `fail/` fixture is negative; a package nested in its folder is its
+    /// path dependency and checks, unless it pins a rejection of its own.
+    #[test]
+    fn a_dependency_inside_a_failing_fixture_is_not_a_negative() {
+        let root = execution::reserve_directory(&std::env::temp_dir()).unwrap();
+        let fixture = root.join("fixtures/core/fail/foreign_package");
+        let owner = fixture.join("owner");
+        fs::create_dir_all(&owner).unwrap();
+        for directory in [&fixture, &owner] {
+            fs::write(directory.join("main.omg"), "machine main() {}\n").unwrap();
+            fs::write(directory.join("build.omg"), "").unwrap();
+        }
+        assert_eq!(project_at(&fixture, &root).unwrap().role, "intended-invalid");
+        assert_eq!(project_at(&owner, &root).unwrap().role, "check-only");
+        fs::write(owner.join("expected.txt"), "cannot prove\n").unwrap();
+        assert_eq!(project_at(&owner, &root).unwrap().role, "intended-invalid");
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
