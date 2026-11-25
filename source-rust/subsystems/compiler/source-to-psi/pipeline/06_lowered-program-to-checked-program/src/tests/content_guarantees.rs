@@ -164,6 +164,7 @@ fn with_content(source: &str) -> crate::source_state::TypedTrees {
         &[
             ("content.omg", "Content", CONTENT),
             ("content.omg", "CountedQuantity", CONTENT),
+            ("content.omg", "IntervalSet", CONTENT),
             ("nat.omg", "Nat", NAT),
             ("algebra.omg", "CommutativeSemiring", ALGEBRA),
         ],
@@ -234,4 +235,37 @@ fn selected_provider_must_return_the_promised_input_under_its_result_field() {
             || refused.contains("does not forward the content claim of the promised input"),
         "{refused}"
     );
+}
+
+#[test]
+fn opening_a_qualified_partition_keeps_each_projection_on_its_original_claim() {
+    let lower = |source| {
+        let typed = with_content(source);
+        let entry = symbol(&typed, "partition");
+        let prepared = crate::prepare_fixture(typed);
+        crate::lowering::elaborate_for(
+            prepared.trees(),
+            roster(&[entry], &[], DependencyScope::Product),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+    };
+    let mut lowered = lower(include_str!(
+        "../../../../../../../../samples/cli/facts/independent_content_partition/local/main.omg"
+    )).unwrap();
+    let machine = &lowered.module.machines[0];
+    let id = machine.id;
+    let [entry] = machine.content_entry_claims.as_slice() else {
+        panic!("the two domains qualify one owned input")
+    };
+    assert_eq!(entry.projections.len(), 2);
+    assert_eq!(machine.entry_claims[0].claim, entry.claim);
+    terminal_semantics::plain_affine::verify_claims_in(&lowered.module, id).unwrap();
+
+    lowered.module.machines[0].contract.content_entry_claims.clear();
+    assert!(terminal_semantics::plain_affine::verify_claims_in(&lowered.module, id).is_err());
+
+    let missing = lower(include_str!(
+        "../../../../../../../../samples/cli/facts/independent_content_partition/invalid_local/main.omg"
+    )).err().expect("one law cannot account for both domains");
+    assert!(missing.detail.contains("partition law for each independent input projection"));
 }
