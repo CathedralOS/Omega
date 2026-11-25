@@ -1,88 +1,75 @@
 // Expected exit: 0
 // A granted vacant extent retains actual backing through transport, initialization, permitted writes, and extraction.
-use omega\language\core\Extent;
-use omega\language\core\ExtentRootProvider;
-use omega\language\core\Granted::content;
-use omega\language\core\VacantContentTransfer;
-use omega\language\core\VacantExtentParts;
-use omega\language\core\split_vacant_extent;
-use omega\language\core\Access;
-use omega\language\core\Access::view_resident_mut;
-use omega\language\core\AccessExtraction;
-use omega\language\core\AccessOutcome;
-use omega\language\core\AccessPlan;
-use omega\language\core\AccessPlan::inaccessible;
-use omega\language\core\AccessPlan::with;
-use omega\language\core\AtomicCapability;
-use omega\language\core\BoundaryReach;
-use omega\language\core\Exposure;
-use omega\language\core\ExternalCapability;
-use omega\language\core\FieldAccess;
-use omega\language\core\FieldEntry;
-use omega\language\core\FieldPlan;
-use omega\language\core\LayoutPlan;
-use omega\language\core\NativeAccess;
-use omega\language\core\PeerWritability;
-use omega\language\core\RelativeRange;
-use omega\language\core\ResourceProfile;
-use omega\language\core\ResourceProfileSupply;
-use omega\language\core\ResourceRegion;
-use omega\language\core\Schema;
-use omega\language\core\StableCapability;
-use omega\language\core\read;
-use omega\language\core\write;
-use omega\language\core\ProcessExit;
-use omega\language\core\IntervalSet;
-use omega\language\core\Nat;
+
+use {omega}/language/core/extent.omg as extent;
+use {omega}/language/core/content.omg as content;
+use {omega}/language/core/nat.omg as nat;
+use {omega}/language/core/process_exit.omg as process;
+use {omega}/language/core/layout.omg as layout;
+use {omega}/language/core/access/access.omg as access;
+use {omega}/language/core/reflect/reflect.omg as reflect;
 
 data TestMemory {}
 public data Word { prefix: u64; value: u64; suffix: u64; }
-public data WordPlacement {}
+public data WordStorage = |layout|::LayoutStorage<Word, WordLayout>;
+public domain Word::Placed access WordAccess;
+public data WordPlacement = Word in Word::Placed;
 
-machine WordPlacement::plan(schema: Schema) -> AccessPlan {
-    let mutable entries: [FieldEntry; 64];
-    entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
-    entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 8 } };
-    entries[2] = FieldEntry { key: schema.fields[2].key, representation: FieldPlan::At { offset: 16 } };
-    let layout: LayoutPlan = LayoutPlan { entries: entries, entry_count: 3, size_fixed: 24, size_is_dynamic: false, align: 8 };
-    let first: AccessPlan = AccessPlan::with(AccessPlan::inaccessible(layout), schema.fields[0].key,
-        FieldAccess::Stable { read: true, take: false, write: true, swap: false, exposure: Exposure::Exported });
-    let second: AccessPlan = AccessPlan::with(first, schema.fields[1].key,
-        FieldAccess::Stable { read: true, take: false, write: true, swap: false, exposure: Exposure::Exported });
-    AccessPlan::with(second, schema.fields[2].key,
-        FieldAccess::Stable { read: true, take: false, write: true, swap: false, exposure: Exposure::Exported })
+public WordLayout satisfies |layout|::FixedLayout<Word> {
+    machine plan(schema: |layout|::Schema, target: |layout|::LayoutTarget) -> |layout|::LayoutPlan
+    reaches none crashes none terminates {
+        let mutable entries: [|layout|::FieldEntry; 64];
+        entries[0] = |layout|::FieldEntry { key: schema.fields[0].key, representation: |layout|::FieldPlan::At { offset: 0 } };
+        entries[1] = |layout|::FieldEntry { key: schema.fields[1].key, representation: |layout|::FieldPlan::At { offset: 8 } };
+        entries[2] = |layout|::FieldEntry { key: schema.fields[2].key, representation: |layout|::FieldPlan::At { offset: 16 } };
+        |layout|::LayoutPlan { entries: entries, entry_count: 3, size_fixed: 24, size_is_dynamic: false, align: 8 }
+    }
 }
 
-MemorySupply satisfies ResourceProfileSupply<TestMemory> {
-    machine profile(storage: @Extent in Granted) -> ResourceProfile {
+public WordAccess satisfies |layout|::AccessPolicy {
+    machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan
+    reaches none crashes none terminates {
+        let mutable plan: |layout|::AccessPlan = |access|::new_plan(@schema, |layout|::Issuance::Unrestricted);
+        |access|::observe(@mutable plan, |reflect|::field(Word::prefix),
+            |layout|::FieldAccess::Stable { read: true, take: false, write: true, swap: false, exposure: |layout|::Exposure::Exported });
+        |access|::observe(@mutable plan, |reflect|::field(Word::value),
+            |layout|::FieldAccess::Stable { read: true, take: false, write: true, swap: false, exposure: |layout|::Exposure::Exported });
+        |access|::observe(@mutable plan, |reflect|::field(Word::suffix),
+            |layout|::FieldAccess::Stable { read: true, take: false, write: true, swap: false, exposure: |layout|::Exposure::Exported });
+        plan
+    }
+}
+
+MemorySupply satisfies |layout|::ResourceProfileSupply<TestMemory> {
+    machine profile(storage: @|extent|::Extent in |extent|::Extent::Granted) -> |layout|::ResourceProfile {
         let services: [u64; 32];
-        let mutable regions: [ResourceRegion; 32];
-        regions[0] = ResourceRegion {
-            range: RelativeRange { offset: 0, length: storage.length },
-            peer: PeerWritability::Exclusive,
-            stable: StableCapability::ReadWrite,
-            external: ExternalCapability::None,
-            atomic: AtomicCapability::None,
-            reach: BoundaryReach { services: services, service_count: 0 },
+        let mutable regions: [|layout|::ResourceRegion; 32];
+        regions[0] = |layout|::ResourceRegion {
+            range: |layout|::RelativeRange { offset: 0, length: storage.length },
+            peer: |layout|::PeerWritability::Exclusive,
+            stable: |layout|::StableCapability::ReadWrite,
+            external: |layout|::ExternalCapability::None,
+            atomic: |layout|::AtomicCapability::None,
+            reach: |layout|::BoundaryReach { services: services, service_count: 0 },
         };
-        ResourceProfile { regions: regions, region_count: 1 }
+        |layout|::ResourceProfile { regions: regions, region_count: 1 }
     }
 }
 
 boundary trait NativeAllocation {
     machine allocate(count: u64, width: u64) -> addr reaches none crashes none;
 }
-TestRoots satisfies ExtentRootProvider {
-    machine grant(root: Extent) -> Extent { root }
+TestRoots satisfies |extent|::ExtentRootProvider {
+    machine grant(root: |extent|::Extent) -> |extent|::Extent { root }
 }
-TestVacant satisfies VacantContentTransfer {
-    machine transfer(storage: Extent in Granted) -> Extent
-        ensures result in Granted,
-            core\Identity::<IntervalSet<Nat>>(
-                Granted::content(old(@storage)),
-                Granted::content(@result)
+TestVacant satisfies |extent|::VacantContentTransfer {
+    machine transfer(storage: |extent|::Extent in |extent|::Extent::Granted) -> |extent|::Extent
+        ensures result in |extent|::Extent::Granted,
+            core\Identity::<|content|::IntervalSet<|nat|::Nat>>(
+                |extent|::Granted::content(old(@storage)),
+                |extent|::Granted::content(@result)
             )
-    { storage as Extent }
+    { storage as - |extent|::Extent::Granted }
 }
 
 // Place: const_name.
@@ -91,46 +78,50 @@ machine main() crashes Trap {
     let address: addr = NativeAllocation::allocate(1, CAPACITY);
     transition address != 0 { true -> allocated(address), false -> bad() }
     machine allocated(address: addr) {
-        let granted: Extent in Granted = ExtentRootProvider::grant(Extent { base: address, length: CAPACITY });
-        let vacant: Extent in Granted & Vacant = VacantContentTransfer::transfer(granted);
+        let granted: |extent|::Extent in |extent|::Extent::Granted =
+            |extent|::ExtentRootProvider::grant(|extent|::Extent { base: address, length: CAPACITY })
+                as + |extent|::Extent::Granted;
+        let vacant: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant =
+            |extent|::VacantContentTransfer::transfer(granted)
+                as + |extent|::Extent::Granted + |extent|::Extent::Vacant;
         transition vacant.length == CAPACITY { true -> partition(vacant), false -> bad() }
     }
-    machine partition(vacant: Extent in Granted & Vacant) requires vacant.length == CAPACITY {
-        let parts: VacantExtentParts = split_vacant_extent(vacant, 32);
-        let first: Extent in Granted & Vacant = transport(parts.taken, true);
-        let second: Extent in Granted & Vacant = transport(parts.rest, false);
+    machine partition(vacant: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant) requires vacant.length == CAPACITY {
+        let parts: |extent|::VacantExtentParts = |extent|::split_vacant_extent(vacant, 32);
+        let first: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant = transport(parts.taken, true);
+        let second: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant = transport(parts.rest, false);
         transition first.length == 32 && second.length == 32 {
             true -> done(first, second),
             false -> bad()
         }
     }
-    machine done(first: Extent in Granted & Vacant, second: Extent in Granted & Vacant) { ProcessExit::exit_process(0); }
+    machine done(first: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant, second: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant) { |process|::ProcessExit::exit_process(0); }
     machine bad() { crash Trap; }
 }
 
-machine transport(storage: Extent in Granted & Vacant, choose: bool) -> Extent in Granted & Vacant crashes Trap { exercise(storage) }
+machine transport(storage: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant, choose: bool) -> |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant crashes Trap { exercise(storage) }
 
-machine exercise(vacant: Extent in Granted & Vacant) -> Extent in Granted & Vacant crashes Trap {
-    transition NativeAccess::<WordPlacement, Word, TestMemory>::initialize(vacant, Word { prefix: 101, value: 17, suffix: 103 }) {
-        AccessOutcome::Ready { view } -> extract(view),
-        AccessOutcome::Rejected { returned, reason } -> bad()
+machine exercise(vacant: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant) -> |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant crashes Trap {
+    transition |access|::initialize_owned::<WordPlacement, Word>(vacant, Word { prefix: 101, value: 17, suffix: 103 }) {
+        |layout|::AccessOutcome::Ready { view } -> extract(view),
+        |layout|::AccessOutcome::Rejected { returned, reason } -> bad()
     }
 
-    machine extract(storage: Extent in Granted & Resident<WordPlacement, Word>) -> Extent in Granted & Vacant {
-        let mutable retained: Extent in Granted & Resident<WordPlacement, Word> = storage;
-        let view: @mutable Access<WordPlacement, Word> = Access::view_resident_mut::<WordPlacement, Word>(@mutable retained);
-        let before: u64 = read(@view.value);
-        write(@mutable view.value, 29u64);
-        transition NativeAccess::<WordPlacement, Word, TestMemory>::move_out(retained) {
-            AccessExtraction::Moved { storage, value } -> finish(storage, value, before)
-        }
+    machine extract(storage: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Resident<WordPlacement, Word>) -> |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant {
+        let mutable retained: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Resident<WordPlacement, Word> = storage;
+        let view: @mutable WordStorage in Word::Placed = |access|::view_resident_mut::<WordPlacement, Word, WordStorage in Word::Placed>(@mutable retained);
+        let before: u64 = view.value;
+        view.value = 29u64;
+        let released: |layout|::AccessReturn<|extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant, Word> =
+            |access|::move_out_owned::<WordPlacement, Word>(retained);
+        transition { _ -> finish(released.source, released.custody, before) }
     }
 
-    machine finish(storage: Extent in Granted & Vacant, value: Word, before: u64) -> Extent in Granted & Vacant {
+    machine finish(storage: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant, value: Word, before: u64) -> |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant {
         transition before == 17 && value.value == 29 && value.prefix == 101 && value.suffix == 103 {
             true -> storage,
             false -> bad()
         }
     }
-    machine bad() -> Extent in Granted & Vacant { crash Trap; }
+    machine bad() -> |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant { crash Trap; }
 }

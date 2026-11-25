@@ -14,16 +14,17 @@ access each requires separate authority. The existing allocation, profile,
 geometry, qualification, lifecycle, cleanup, and neighbor-canary checks remain
 part of the example.
 
-The local grant and vacancy providers return a bare `Extent`. Their result
-guarantees supply the evidence for the named domain casts. The local control
+The grant and vacancy providers return a bare `Extent`. Their result
+guarantees supply the evidence for the named domain casts. Each control
 keeps its grant and attempts to add vacancy without the transfer.
 
-For `Extent::Resident<P, Word>` the specified index is `Word in Word::Placed`. The domain selects `WordAccess`, and `WordStorage` supplies the fixed representation. The local sample still uses a separate empty `WordPlacement` record. Its migration to a transparent alias is tracked under **DOMAIN-ACCESS-AUTHORITY**. [Resident custody](../../../../wiki/spec/resources/access.md#establishment-and-retirement) · [Migration](../../../../TASKS.md)
+Each example uses `WordPlacement`, a transparent alias for `Word in Word::Placed`,
+as the index in `Extent::Resident<P, Word>`. The domain selects `WordAccess`,
+and `WordStorage` supplies the fixed representation. [Resident custody](../../../../wiki/spec/resources/access.md#establishment-and-retirement)
 
-The local example and its control parsed after their migration to the public
-owned lifecycle. All nine pairs still need optimized checking, native/Psi
-agreement for the positives, the intended vacancy refusals for the controls,
-and a clean corpus record. The historical results below identify the source
+All nine pairs use the public owned lifecycle. The positives still need
+native/Psi agreement, and the controls must fail at the cast that adds vacancy.
+The historical results below identify the source
 and compiler used in those runs.
 
 Each place obtains 64 actual zeroed bytes from the admitted host allocator,
