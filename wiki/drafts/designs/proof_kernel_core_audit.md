@@ -1429,10 +1429,11 @@ type), and the clause's `ClauseScope` says what each name denotes there.
     helper's call states for that cell (`field_crossings`, 2026-11-25), so
     `match_join` is accepted. A route
     over an actual that lends a field (`@pair.items`) names that field
-    path at the call (2026-11-25). Two limits fail closed: a route over an
-    actual with no static path (`@rows[row]`) is refused by name, and a
+    path at the call, and one over an element chosen at run time
+    (`@rows[row]`) names that element, its selector kept as an index
+    (`terminal_semantics::canonical_read_projection`, 2026-11-25). A
     forwarder over a `@mutable` formal is refused whether or not it writes
-    the guarded element.
+    the guarded element (fails closed).
   - "case membership" in a machine clause (`read_clause`) refused a form
     the specification admits, and is now served where the clause states the
     test outright (2026-11-24). A case is a domain: "A case implicitly

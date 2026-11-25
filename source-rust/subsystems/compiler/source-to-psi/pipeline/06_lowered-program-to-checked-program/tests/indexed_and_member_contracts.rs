@@ -452,24 +452,31 @@ fn a_requirement_reads_the_cell_an_equal_selector_chooses() {
     );
 }
 
-/// An actual that lends an element chosen at run time (`@rows[row]`) has no
-/// static path for a restated route to name, so the call is refused by name
-/// rather than its route dropped: an untranslated continuation cannot erase
-/// a crash (calls_and_outcomes.md, "Call contracts").
+/// An actual that lends an element chosen at run time (`@rows[row]`) keeps
+/// its selector: the callee's guard `items[index] == 0` names `rows[row][0]`
+/// at the call. `requires rows[row][0] == 7` covers it; the twins drop that
+/// requirement or state it of the sibling cell `rows[row][1]`, and are
+/// refused for the uncovered route (AGENTS.md rule 3).
 #[test]
-fn a_crash_guard_over_a_runtime_selected_actual_is_refused_by_name() {
-    let refused = rejected(
-        "machine maybe_zero(items: @[u64; 2], index: u64) -> u64 \
-         requires index < 2 crashes Trap items[index] == 0 \
-         { transition items[index] == 0 { true -> bad(), false -> (items[index]) } \
-           machine bad() -> u64 { crash Trap; } } \
-         machine pick(rows: @[[u64; 2]; 2], row: u64) -> u64 requires row < 2 \
-         { maybe_zero(@rows[row], 0) }",
-    );
-    assert!(
-        refused.contains("clause names a structural formal whose actual has no static path"),
-        "{refused}"
-    );
+fn a_crash_guard_over_a_runtime_selected_actual_reads_that_element() {
+    let program = |requires: &str| {
+        format!(
+            "machine maybe_zero(items: @[u64; 2], index: u64) -> u64 \
+             requires index < 2 crashes Trap items[index] == 0 \
+             {{ transition items[index] == 0 {{ true -> bad(), false -> (items[index]) }} \
+                machine bad() -> u64 {{ crash Trap; }} }} \
+             public machine pick(rows: @[[u64; 2]; 2], row: u64) -> u64 requires row < 2 \
+             {requires} {{ maybe_zero(@rows[row], 0) }}"
+        )
+    };
+    accepted(&program("requires rows[row][0] == 7"));
+    for twin in ["", "requires rows[row][1] == 7"] {
+        let refused = rejected(&program(twin));
+        assert!(
+            unproved(&refused) && refused.contains("CrashCoverage"),
+            "{twin}: {refused}"
+        );
+    }
 }
 
 /// A forwarder over `@mutable` storage that writes the element before the

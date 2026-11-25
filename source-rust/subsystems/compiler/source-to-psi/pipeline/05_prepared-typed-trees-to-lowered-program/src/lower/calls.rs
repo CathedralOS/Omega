@@ -654,7 +654,8 @@ impl Lowering<'_> {
 
     /// A call's crash continuations restated over the storage each
     /// structural actual stands for here: `items[index]` over a formal lent
-    /// `@pair.items` becomes `pair.items[index]`. The checker restates the
+    /// `@pair.items` becomes `pair.items[index]`, and over `@rows[row]` it
+    /// becomes `rows[row][index]`. The checker restates the
     /// retained row by the same wire rule, from the same place types.
     fn crash_continuations(
         &self,
@@ -665,6 +666,7 @@ impl Lowering<'_> {
         let places = terminal_codec::contract_forms::call_storage(
             self.structural_types,
             |place| self.roots.get(place).map(|(_, root_type)| *root_type),
+            |value| self.tables.values.get(value).map(|row| row.scalar_type),
             structural,
         );
         canonical::substituted_routes(routes, scalars, &places, self.id)
