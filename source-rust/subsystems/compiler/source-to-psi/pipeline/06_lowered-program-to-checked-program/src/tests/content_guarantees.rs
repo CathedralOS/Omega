@@ -269,3 +269,42 @@ fn opening_a_qualified_partition_keeps_each_projection_on_its_original_claim() {
     )).err().expect("one law cannot account for both domains");
     assert!(missing.detail.contains("partition law for each independent input projection"));
 }
+
+#[test]
+fn independently_qualified_intervals_cover_the_consumed_range_on_every_return() {
+    const SOURCE: &str = include_str!(
+        "../../../../../../../../samples/cli/facts/independent_content_partition/local/main.omg"
+    );
+    let verify = |source: &str| -> Result<(), String> {
+        let typed = with_content(source);
+        let entry = symbol(&typed, "partition");
+        let prepared = crate::prepare_fixture(typed);
+        let lowered = crate::lowering::elaborate_for(
+            prepared.trees(),
+            roster(&[entry], &[], DependencyScope::Product),
+            terminal_codec::TerminalPublication::Invocation,
+        ).map_err(|error| error.detail.to_string())?;
+        let module = &lowered.module;
+        let machine = module.machines.iter().find(|machine| !machine.content_entry_claims.is_empty()).unwrap();
+        let claim = machine.content_entry_claims[0].claim;
+        let returns = terminal_semantics::content_transformations::forwarding::checked_returns(module, machine)?;
+        assert_eq!(returns, [(0, claim), (1, claim)]);
+        terminal_semantics::structural_qualifications::validate_shape_for_bodies(module, &[machine.id])
+            .map_err(|error| error.detail.to_owned())
+    };
+    verify(SOURCE).unwrap();
+    let branched = SOURCE.replace(
+        "whole.base == 10 && whole.length == 48 && requested == 16", "requested <= whole.length",
+    ).replace("let { base, length } = whole;", r#"let { base, length } = whole;
+        let rest_base: u64 = match requested < length {
+            true -> base + requested,
+            false -> base,
+        };"#).replace("right: Region { base: base + requested", "right: Region { base: rest_base");
+    verify(&branched).unwrap();
+    for wrong in ["base + requested - 1", "base + requested + 1"] {
+        let corrupted = SOURCE.replace("right: Region { base: base + requested", &format!("right: Region {{ base: {wrong}"));
+        assert!(verify(&corrupted).unwrap_err().contains("overlap or leave an unproved gap"));
+    }
+    let short = SOURCE.replace("length: length - requested", "length: length - requested - 1");
+    assert!(verify(&short).unwrap_err().contains("do not reach the input endpoint"));
+}

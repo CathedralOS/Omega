@@ -170,9 +170,10 @@ checked body that authors the theorem proves it from its normal return: each
 projection is the owner's normalized expression over the subject's fields,
 `old(place)` reads the entry revision, and `separate` of counted quantities is
 the magnitude sum, with Exact fixed-width arithmetic read as its mathematical
-value. A body whose pieces do not sum to the consumed input rejects; an
-interval-set theorem has no body judgment yet. Every
-established claim has its own identity, distinct from its current path, root
+value. A counted partition must sum to the consumed input. For half-open intervals,
+the nonempty pieces must adjoin without overlap and cover both endpoints
+of the consumed interval. An empty piece contributes no points regardless
+of its base. Every established claim has its own identity, distinct from its current path, root
 lineage, content and permissions. Moving a place moves its claim subtree;
 aggregate construction nests claims and destructuring reverses that operation.
 Ambiguous origin/outcome mapping rejects rather than guessing.
