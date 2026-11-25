@@ -1259,22 +1259,30 @@ fn resolve_realizations<'catalog>(
     catalog: &'catalog [MachineCatalogEntry],
     requirement_shape: Option<&str>,
 ) -> Vec<(&'catalog MachineCatalogEntry, &'catalog State)> {
-    let mut candidates = catalog
-        .iter()
-        .filter(|machine| {
-            (!row.realization_machine.is_valid() || machine.symbol == row.realization_machine)
-                && row
-                    .provisional_realization_ordinal
-                    .is_none_or(|ordinal| machine.ordinal == ordinal)
-        })
-        .filter_map(|machine| {
-            if row.realization_state.is_valid() {
-                return machine
-                    .states
-                    .iter()
-                    .find(|state| state.symbol == row.realization_state)
-                    .map(|state| (machine, state));
-            }
+    /*
+        A machine realizes the row when it has the row's identity, an entry
+        state, and the requirement's result shape. The shape renders strings,
+        so a row named only by spelling realizes just the machines its name
+        filter or namespace lookup asks about, never the whole catalog. Every
+        filter is a pure test of one machine, so the candidates and their
+        catalog order are the same as testing every machine first.
+    */
+    let realize = |machine: &'catalog MachineCatalogEntry| {
+        if row.realization_machine.is_valid() && machine.symbol != row.realization_machine {
+            return None;
+        }
+        if row
+            .provisional_realization_ordinal
+            .is_some_and(|ordinal| machine.ordinal != ordinal)
+        {
+            return None;
+        }
+        let state = if row.realization_state.is_valid() {
+            machine
+                .states
+                .iter()
+                .find(|state| state.symbol == row.realization_state)
+        } else {
             let leaf = machine
                 .name
                 .as_str()
@@ -1286,39 +1294,41 @@ fn resolve_realizations<'catalog>(
                     .iter()
                     .find(|state| state.name.as_str() == name)
             })
-            .map(|state| (machine, state))
-        })
-        .filter(|(_, state)| {
-            requirement_shape.is_none_or(|shape| {
-                result_dispatch_shape(program, state.return_type.as_ref()) == shape
-            })
-        })
-        .collect::<Vec<_>>();
+        }?;
+        requirement_shape
+            .is_none_or(|shape| result_dispatch_shape(program, state.return_type.as_ref()) == shape)
+            .then_some((machine, state))
+    };
     if row.realization_machine.is_valid() || row.provisional_realization_ordinal.is_some() {
-        return candidates;
+        return catalog.iter().filter_map(realize).collect();
     }
-    if let Some(reference) = row.authored_realization_source_span {
-        let selected = program
-            .symbols
-            .lookup_signature_free_top_level_from_source_matching(
-                row.realization_name.as_str(),
-                &[SymbolKind::Machine],
-                reference,
-                |symbol| {
-                    candidates
-                        .iter()
-                        .any(|(machine, _)| machine.symbol == symbol)
-                },
-            );
-        candidates.retain(|(machine, _)| match selected {
-            SymbolLookup::Unique(symbol) => machine.symbol == symbol,
-            SymbolLookup::Ambiguous { first, second } => {
-                machine.symbol == first || machine.symbol == second
-            }
-            SymbolLookup::NotFound => false,
-        });
-    } else {
-        candidates.retain(|(machine, _)| machine.name == row.realization_name);
-    }
-    candidates
+    let Some(reference) = row.authored_realization_source_span else {
+        return catalog
+            .iter()
+            .filter(|machine| machine.name == row.realization_name)
+            .filter_map(realize)
+            .collect();
+    };
+    let selected = program
+        .symbols
+        .lookup_signature_free_top_level_from_source_matching(
+            row.realization_name.as_str(),
+            &[SymbolKind::Machine],
+            reference,
+            |symbol| {
+                catalog
+                    .iter()
+                    .any(|machine| machine.symbol == symbol && realize(machine).is_some())
+            },
+        );
+    let is_selected = |symbol: SymbolHandle| match selected {
+        SymbolLookup::Unique(selected) => symbol == selected,
+        SymbolLookup::Ambiguous { first, second } => symbol == first || symbol == second,
+        SymbolLookup::NotFound => false,
+    };
+    catalog
+        .iter()
+        .filter(|machine| is_selected(machine.symbol))
+        .filter_map(realize)
+        .collect()
 }

@@ -120,7 +120,7 @@ mod generated_extension {
 mod hierarchy {
     use crate::source_inputs::SourceMap;
     use crate::source_symbols::{
-        SourceScopedTopLevelBinding, SymbolKind, SymbolNameRef, SymbolTableBuilder,
+        SourceScopedTopLevelBinding, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder,
     };
     use source_admission::SourceOrigin;
     use source_admission::SourceResolutionStratum;
@@ -265,6 +265,55 @@ mod hierarchy {
         assert_eq!(symbols.get(machine), before.get(machine));
         assert_eq!(symbols.get(local), before.get(local));
         assert_eq!(symbols.child_handles(root).unwrap().nth(1), Some(generated));
+    }
+
+    #[test]
+    fn root_domain_roster_matches_the_root_children_and_follows_extensions() {
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = SymbolTableBuilder::child_handles(builder.insert_children(
+            root,
+            [
+                (SymbolKind::Machine, SymbolNameRef::Static("main")),
+                (SymbolKind::Domain, SymbolNameRef::Static("Even")),
+                (SymbolKind::Data, SymbolNameRef::Static("Pair")),
+                (SymbolKind::Domain, SymbolNameRef::Static("Pair::Small")),
+            ],
+        ))
+        .collect::<Vec<_>>();
+        let symbols = builder.finish();
+        let roster_domains = |symbols: &SymbolTable| {
+            symbols
+                .child_handles(symbols.root())
+                .unwrap()
+                .filter(|symbol| symbols.get(*symbol).kind == SymbolKind::Domain)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            symbols.root_domain_children().collect::<Vec<_>>(),
+            [children[1], children[3]]
+        );
+        assert_eq!(
+            symbols.root_domain_children().collect::<Vec<_>>(),
+            roster_domains(&symbols)
+        );
+
+        // The roster above warmed the root index; a new declaration must not
+        // be hidden by it.
+        let mut extension = symbols.begin_extension(None, Vec::new());
+        let generated = extension.insert_top_level([
+            (SymbolKind::Machine, SymbolNameRef::Static("helper")),
+            (SymbolKind::Domain, SymbolNameRef::Static("Odd")),
+        ]);
+        let extended = extension.finish();
+        assert_eq!(
+            extended.root_domain_children().collect::<Vec<_>>(),
+            [children[1], children[3], generated[1]]
+        );
+        assert_eq!(
+            extended.root_domain_children().collect::<Vec<_>>(),
+            roster_domains(&extended)
+        );
     }
 
     #[test]

@@ -368,6 +368,8 @@ mod indices {
     pub(super) struct RootNameIndex {
         pub(super) by_name: arena::HandleKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
         pub(super) by_leaf: arena::HandleKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
+        /* Root children of kind `Domain`, in root roster order. */
+        pub(super) domains: Vec<SymbolHandle>,
     }
 
     /*
@@ -3383,6 +3385,21 @@ impl SymbolTable {
     }
 
     /*
+        Root-level children of kind `Domain`, in the order `child_handles(root())`
+        yields them. Domain selection asks which families an authored spelling
+        reaches; reading this roster skips every declaration that cannot be one.
+        Like `child_handles`, it applies no source-activation filter.
+    */
+    pub fn root_domain_children(&self) -> impl Iterator<Item = SymbolHandle> + '_ {
+        self.root_names
+            .0
+            .get_or_init(|| self.root_name_index())
+            .domains
+            .iter()
+            .copied()
+    }
+
+    /*
         Root-level children whose full name is exactly `name`, in the order
         `child_handles(root())` yields them, probed through the root name
         index rather than a scan of the whole root roster.
@@ -3667,6 +3684,9 @@ impl SymbolTable {
                         .entry(leaf.into())
                         .or_default()
                         .push((position as u32, symbol));
+                }
+                if self.get(symbol).kind == SymbolKind::Domain {
+                    index.domains.push(symbol);
                 }
             }
         }

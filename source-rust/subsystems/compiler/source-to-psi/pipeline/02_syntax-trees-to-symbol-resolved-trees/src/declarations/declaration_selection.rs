@@ -316,14 +316,8 @@ impl<'base> ConstantSelection<'base> {
             return None;
         }
         let mut candidates = Vec::new();
-        for symbol in self
-            .symbols
-            .child_handles(self.symbols.root())
-            .into_iter()
-            .flatten()
-        {
-            if self.symbols.get(symbol).kind != SymbolKind::Domain
-                || self.symbols.name(symbol) != leaf
+        for symbol in self.symbols.root_domain_children() {
+            if self.symbols.name(symbol) != leaf
                 || !self
                     .symbols
                     .source_reference_can_see_symbol(reference, symbol)
@@ -516,13 +510,16 @@ impl<'base> ConstantSelection<'base> {
         if selected == symbol {
             return true;
         }
+        // Test the kind before rendering a path: most root symbols are not
+        // domains, and `display_path` allocates for each one it renders.
+        if self.symbols.get(symbol).kind != SymbolKind::Domain {
+            return false;
+        }
         if authored.contains("::") && self.symbols.display_path(symbol, "::") == authored {
             return false;
         }
-        self.symbols.get(symbol).kind == SymbolKind::Domain
-            && self
-                .symbols
-                .source_reference_can_see_symbol(reference, symbol)
+        self.symbols
+            .source_reference_can_see_symbol(reference, symbol)
             && crate::resolution::names::domain_name_reaches(
                 &self.symbols,
                 symbol,
@@ -530,6 +527,30 @@ impl<'base> ConstantSelection<'base> {
                 authored,
                 reference,
             )
+    }
+
+    /*
+        The root symbols `domain_symbol_is_reachable` can accept for these
+        selections, in root order. Only a selection itself passes without being
+        a domain, so the domain roster serves whenever every valid selection is
+        a domain; any other selection keeps the whole root roster.
+    */
+    fn reachable_domain_candidates(
+        &self,
+        selected: &[symbols::SymbolHandle],
+    ) -> Box<dyn Iterator<Item = symbols::SymbolHandle> + '_> {
+        if selected.iter().all(|symbol| {
+            !symbol.is_valid() || self.symbols.get(*symbol).kind == SymbolKind::Domain
+        }) {
+            Box::new(self.symbols.root_domain_children())
+        } else {
+            Box::new(
+                self.symbols
+                    .child_handles(self.symbols.root())
+                    .into_iter()
+                    .flatten(),
+            )
+        }
     }
 
     /*
@@ -552,10 +573,7 @@ impl<'base> ConstantSelection<'base> {
             .unwrap_or_else(symbols::SymbolHandle::invalid);
         selected.is_valid()
             || self
-                .symbols
-                .child_handles(self.symbols.root())
-                .into_iter()
-                .flatten()
+                .reachable_domain_candidates(&[selected])
                 .any(|symbol| {
                     self.domain_symbol_is_reachable(symbol, selected, authored, reference)
                 })
@@ -583,10 +601,7 @@ impl<'base> ConstantSelection<'base> {
                 reference,
             )
             .unwrap_or_else(symbols::SymbolHandle::invalid);
-        self.symbols
-            .child_handles(self.symbols.root())
-            .into_iter()
-            .flatten()
+        self.reachable_domain_candidates(&[selected])
             .filter(|symbol| {
                 self.domain_symbol_is_reachable(*symbol, selected, authored, reference)
             })
@@ -636,12 +651,7 @@ impl<'base> ConstantSelection<'base> {
                 )
             })
             .unwrap_or_else(symbols::SymbolHandle::invalid);
-        for symbol in self
-            .symbols
-            .child_handles(self.symbols.root())
-            .into_iter()
-            .flatten()
-        {
+        for symbol in self.reachable_domain_candidates(&[selected, relative_selected]) {
             if !self.domain_symbol_is_reachable(symbol, selected, authored, reference)
                 && !relative.as_ref().is_some_and(|relative| {
                     self.domain_symbol_is_reachable(symbol, relative_selected, relative, reference)
