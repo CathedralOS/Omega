@@ -29,8 +29,7 @@ authored `build.omg` code can run:
 `PreparedBuildEvaluation` holds the admitted execution
 without borrowing the source map or compiler session, allowing the project Build driver
 to compile dependency packages while the activation is suspended and then rejoin
-the returned activation via `validate_return`, `source_result`,
-`validate_source_join`, and `complete`.
+its returned activation with the acquired source graph in `complete_with_sources`.
 */
 
 use crate::PreparedBuildExecution;
@@ -191,7 +190,7 @@ impl PreparedBuildEvaluation {
         Ok(())
     }
 
-    pub fn validate_return(&self, returned: &crate::ReturnedBuild) -> Result<(), CompileFailure> {
+    fn validate_return(&self, returned: &crate::ReturnedBuild) -> Result<(), CompileFailure> {
         self.execution
             .validate_return(returned)
             .map_err(|diagnostics| {
@@ -203,49 +202,15 @@ impl PreparedBuildEvaluation {
     }
 
     pub fn source_result<'result>(
-        &'result mut self,
-        returned: Option<&'result mut crate::ReturnedBuild>,
+        &self,
+        returned: &'result mut crate::ReturnedBuild,
     ) -> Result<crate::BuildSourceResult<'result>, CompileFailure> {
-        let failure = |diagnostics| {
-            CompileFailure::source_completion(
-                diagnostics,
-                self.source_completion_accounting.clone(),
-            )
-        };
-        let returned = returned.ok_or_else(|| {
-            failure(vec![Diagnostic::error(
-                "Build source result requires its executed activation",
-            )])
-        })?;
-        self.execution.validate_return(returned).map_err(failure)?;
+        self.validate_return(returned)?;
         Ok(crate::BuildSourceResult::executed(returned))
     }
 
-    pub fn validate_source_join(
-        &self,
-        returned: Option<&crate::ReturnedBuild>,
-        inputs: Option<&PackageCompilationInputs>,
-        initially_unbound: bool,
-    ) -> Result<(), CompileFailure> {
-        let failure = |diagnostics| {
-            CompileFailure::source_completion(
-                diagnostics,
-                self.source_completion_accounting.clone(),
-            )
-        };
-        let returned = returned.ok_or_else(|| {
-            failure(vec![Diagnostic::error(
-                "Build source join requires its executed activation",
-            )])
-        })?;
-        self.execution.validate_return(returned).map_err(failure)?;
-        returned
-            .validate_source_join(inputs, initially_unbound)
-            .map_err(|reason| failure(vec![Diagnostic::error(reason)]))
-    }
-
-    pub fn execution(&mut self) -> Option<&mut PreparedBuildExecution> {
-        Some(&mut self.execution)
+    pub fn execution(&mut self) -> &mut PreparedBuildExecution {
+        &mut self.execution
     }
 
     /// Settle the returned activation against the source graph supplied for Product.
@@ -254,18 +219,25 @@ impl PreparedBuildEvaluation {
         returned: crate::ReturnedBuild,
         inputs: Option<&PackageCompilationInputs>,
     ) -> Result<EvaluatedBuild, CompileFailure> {
-        self.validate_source_join(
-            Some(&returned),
-            inputs,
-            self.base_source_consumption_commitment.is_none(),
-        )?;
-        self.complete(Some(returned))
+        let initially_unbound = self.base_source_consumption_commitment.is_none();
+        self.settle(returned, inputs, initially_unbound)
     }
 
-    pub fn complete(
+    fn settle(
         self,
-        returned: Option<crate::ReturnedBuild>,
+        returned: crate::ReturnedBuild,
+        inputs: Option<&PackageCompilationInputs>,
+        initially_unbound: bool,
     ) -> Result<EvaluatedBuild, CompileFailure> {
+        self.validate_return(&returned)?;
+        returned
+            .validate_source_join(inputs, initially_unbound)
+            .map_err(|reason| {
+                CompileFailure::source_completion(
+                    vec![Diagnostic::error(reason)],
+                    self.source_completion_accounting.clone(),
+                )
+            })?;
         let Self {
             execution,
             restricted_build_requests,
@@ -278,11 +250,6 @@ impl PreparedBuildEvaluation {
         let failure = |diagnostics| {
             CompileFailure::source_completion(diagnostics, source_completion_accounting.clone())
         };
-        let returned = returned.ok_or_else(|| {
-            failure(vec![Diagnostic::error(
-                "Build completion requires its returned activation",
-            )])
-        })?;
         let configuration = Arc::new(execution.complete(returned).map_err(failure)?);
         let last = configuration.accepted_builds.last().ok_or_else(|| {
             failure(vec![Diagnostic::error(
