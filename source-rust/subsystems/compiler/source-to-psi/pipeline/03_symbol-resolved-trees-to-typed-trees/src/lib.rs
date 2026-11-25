@@ -109,6 +109,9 @@ mod bodyless_headers_tests;
 #[cfg(test)]
 mod applied_service_tests;
 
+#[cfg(test)]
+mod relation_family_tests;
+
 pub(crate) use contracts_and_signatures::{contracts, signatures};
 
 pub(crate) mod expressions {

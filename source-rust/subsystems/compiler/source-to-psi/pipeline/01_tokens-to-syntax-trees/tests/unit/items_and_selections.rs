@@ -1076,14 +1076,12 @@ fn proposition_declarations_reject_retired_brace_evidence_with_migration_guidanc
 }
 
 #[test]
-fn parses_trait_proposition_parameter_with_authored_signature() {
+fn parses_a_trait_relation_family_from_its_mathematical_type() {
     let source = r#"
-        trait Reflexive<C, proposition Relation>
-        requires proposition Relation(left: C, right: C);
-        {
+        trait Reflexive<C, R: C -> C -> core\Type> {
         }
     "#;
-    let parsed = crate::tests::parse_source(source, "proposition parameter should parse");
+    let parsed = crate::tests::parse_source(source, "a relation family should parse");
     let trait_definitions = crate::tests::root_traits(&parsed);
     let [trait_definition] = trait_definitions.as_slice() else {
         panic!("one trait expected");
@@ -1095,33 +1093,35 @@ fn parses_trait_proposition_parameter_with_authored_signature() {
         contract: Some(contract),
     } = &parameters[1].kind
     else {
-        panic!("Relation should retain a proposition signature");
+        panic!("R should be a relation family");
     };
-    assert_eq!(contract.name.as_str(&parsed), "Relation");
+    assert_eq!(contract.name.as_str(&parsed), "R");
     assert_eq!(parsed.items.state_parameters(contract.parameters).len(), 2);
+    assert!(contract.result.is_valid());
     let snapshot = parsed.snapshot_json().expect("snapshot should succeed");
     assert!(snapshot.contains("\"kind\":\"proposition\""));
     assert!(snapshot.contains("\"proposition_contract\""));
-
-    let retired = crate::tests::parse_tokenized_error(
-        "trait Reflexive<C, proposition Relation>\nwhere proposition Relation(left: C, right: C);\n{}",
-        "retired `where proposition` must reject",
-    );
-    crate::tests::expect_error(&retired, "write `requires proposition Relation(...);`");
 }
 
 #[test]
-fn trait_proposition_parameter_requires_authored_signature() {
-    let tokens = Lexer::new("trait Reflexive<C, proposition Relation> {}")
-        .tokenize()
-        .expect("tokenize should succeed");
-    let diagnostic = parse_syntax_trees(&tokens)
-        .expect_err("a proposition parameter without its signature must reject");
-    assert!(
-        diagnostic
-            .message
-            .contains("requires an authored declaration-site signature")
-    );
+fn the_former_proposition_parameter_spelling_is_refused() {
+    for (source, message) in [
+        (
+            "trait Reflexive<C, proposition Relation> {}",
+            "`<proposition Relation>` is retired",
+        ),
+        (
+            "trait Reflexive<C, R: C -> C -> core\\Type>\nrequires proposition R(left: C, right: C);\n{}",
+            "`requires proposition Relation(...);` is retired",
+        ),
+        (
+            "trait Reflexive<C, R: core\\Type> {}",
+            "needs at least one domain",
+        ),
+    ] {
+        let error = crate::tests::parse_tokenized_error(source, "the spelling must reject");
+        crate::tests::expect_error(&error, message);
+    }
 }
 
 #[test]

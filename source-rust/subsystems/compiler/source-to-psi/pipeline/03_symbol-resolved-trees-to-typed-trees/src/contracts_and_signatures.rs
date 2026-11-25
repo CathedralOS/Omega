@@ -1586,6 +1586,27 @@ pub(crate) mod signatures {
                     Ok(typed::data::TypeParameterKind::Machine { contract })
                 }
                 resolved::data::TypeParameterKind::Proposition { contract } => {
+                    // The kernel reads every relation family as a family of
+                    // types at the lowest universe, so its written result
+                    // must be exactly `core\Type`.
+                    let resolved::types::TypeReference::Named { symbol, .. } = &contract.result
+                    else {
+                        return Err(Diagnostic::error(format!(
+                            "relation family `{}` must end in `core\\Type`, with its universe level elided",
+                            contract.name.as_str()
+                        )));
+                    };
+                    if lowerer
+                        .source_trees
+                        .symbols
+                        .fixed_core_declaration_for_symbol(*symbol)
+                        != Some(symbols::FixedCoreDeclaration::Type)
+                    {
+                        return Err(Diagnostic::error(format!(
+                            "relation family `{}` must end in `core\\Type`, a family of types",
+                            contract.name.as_str()
+                        )));
+                    }
                     let mut parameters = arena::HandleSpan::empty();
                     for parameter in lowerer.source_trees.state_parameters(contract.parameters) {
                         let parameter =

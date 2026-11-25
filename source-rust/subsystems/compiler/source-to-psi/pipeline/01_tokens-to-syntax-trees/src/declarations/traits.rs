@@ -1,9 +1,7 @@
 use crate::contracts::signatures::parse_signature_clauses;
 use crate::declarations::operators::parse_operator_spelling;
 use crate::machine_bodies::parse_body;
-use crate::parameters::callable::{
-    parse_optional_parameters, parse_optional_return_type, parse_parameter,
-};
+use crate::parameters::callable::{parse_optional_return_type, parse_parameter};
 use crate::parameters::generics::GenericParameterSyntax;
 use crate::parameters::generics::parse_generic_parameters;
 use crate::parameters::requirements::parse_machine_parameter_contracts;
@@ -13,7 +11,7 @@ use crate::types::references::parse_type_reference_handle;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{PropositionParameterSignature, StateSignature, TraitDefinition};
+use syntax_trees::item::{StateSignature, TraitDefinition};
 use syntax_trees::types::TypeReferenceNode;
 use tokens::{KeywordKind, PunctuationKind};
 
@@ -55,7 +53,7 @@ pub(crate) fn parse_trait_definition<'tokens, 'source>(
             "a transparent refinement takes no `requires` clauses; bounds on its parameters belong to the base trait",
         ));
     }
-    let ((), next) = parse_proposition_parameter_contracts(syntax_trees, type_parameters, input)?;
+    let ((), next) = reject_proposition_parameter_contracts(input)?;
     input = next;
     let ((), next) = parse_machine_parameter_contracts(syntax_trees, type_parameters, input)?;
     validate_machine_parameter_contracts(syntax_trees, type_parameters, next)?;
@@ -188,7 +186,8 @@ pub(crate) fn parse_trait_definition<'tokens, 'source>(
         signature.contracts = clauses.contracts;
         signature.terminates_guarantee = clauses.terminates_guarantee;
         signature.declares_no_crash_route = clauses.declares_no_crash_route;
-        let (default_body, next) = parse_body(syntax_trees, rest, signature.return_type.is_valid())?;
+        let (default_body, next) =
+            parse_body(syntax_trees, rest, signature.return_type.is_valid())?;
         signature.default_body = default_body;
         let handle = syntax_trees.items.insert_state_signature(&signature);
         let handle = syntax_trees.items.append_state_signature_handle(handle);
@@ -285,13 +284,12 @@ fn parse_refinement_clause<'tokens, 'source>(
             let keyword_source_span = Some(input.current_source_span());
             input = input.take_contextual("ensures")?;
             let (binding, fact_input) = input.take_optional_label()?;
-            let (facts, rest) =
-                crate::contracts::facts::parse_required_proof_facts_until(
-                    syntax_trees,
-                    fact_input,
-                    refinement_reaches_clause_boundary,
-                    false,
-                )?;
+            let (facts, rest) = crate::contracts::facts::parse_required_proof_facts_until(
+                syntax_trees,
+                fact_input,
+                refinement_reaches_clause_boundary,
+                false,
+            )?;
             contracts.push(syntax_trees::item::CapabilityContract {
                 kind: syntax_trees::item::CapabilityContractKind::Ensures,
                 keyword_source_span,
@@ -322,7 +320,9 @@ fn parse_refinement_clause<'tokens, 'source>(
                 &mut installation_bound,
                 refinement_reaches_clause_boundary,
             )?;
-            signature.service_reaches = syntax_trees.type_references.insert_type_reference_handles(reaches);
+            signature.service_reaches = syntax_trees
+                .type_references
+                .insert_type_reference_handles(reaches);
             continue;
         }
         if input.at_contextual("suspends") {
@@ -380,74 +380,20 @@ fn refinement_reaches_clause_boundary(input: Input<'_, '_>) -> bool {
         || input.at_contextual("ensures")
 }
 
-fn parse_proposition_parameter_contracts<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    type_parameters: HandleSpan<syntax_trees::item::TypeParameter>,
-    mut input: Input<'tokens, 'source>,
+/// A relation family declares its signature as its binder's mathematical
+/// type; the former `requires proposition Relation(...);` clause is retired.
+fn reject_proposition_parameter_contracts<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ()> {
-    loop {
-        if !input.at_contextual("requires") {
-            break;
-        }
-        let after_requires = input.take_contextual("requires")?;
-        if !after_requires.at_contextual("proposition") {
-            break;
-        }
-        let after_proposition = after_requires.take_contextual("proposition")?;
-        let (name, after_name) = after_proposition.take_identifier()?;
-        let Some(parameter_index) = syntax_trees
-            .items
-            .type_parameters(type_parameters)
-            .iter()
-            .position(|parameter| parameter.name.as_str(syntax_trees) == name.as_str(syntax_trees))
-        else {
-            return Err(after_name.error_here(format!(
-                "`requires proposition {}` has no matching `<proposition {}>` parameter",
-                name.as_str(syntax_trees),
-                name.as_str(syntax_trees),
-            )));
-        };
-        match &syntax_trees.items.type_parameters(type_parameters)[parameter_index].kind {
-            syntax_trees::item::TypeParameterKind::Proposition { contract: None } => {}
-            syntax_trees::item::TypeParameterKind::Proposition { contract: Some(_) } => {
-                return Err(after_name.error_here(format!(
-                    "proposition parameter `{}` already has a declaration-site signature",
-                    name.as_str(syntax_trees),
-                )));
-            }
-            _ => {
-                return Err(after_name.error_here(format!(
-                    "`{}` is not a proposition parameter; declare it as `<proposition {}>` first",
-                    name.as_str(syntax_trees),
-                    name.as_str(syntax_trees),
-                )));
-            }
-        }
-        let (parameters, rest) = parse_optional_parameters(syntax_trees, after_name)?;
-        let rest = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
-        syntax_trees.items.type_parameters_mut(type_parameters)[parameter_index].kind =
-            syntax_trees::item::TypeParameterKind::Proposition {
-                contract: Some(PropositionParameterSignature { name, parameters }),
-            };
-        input = rest;
-    }
-
-    if let Some(missing) = syntax_trees
-        .items
-        .type_parameters(type_parameters)
-        .iter()
-        .find(|parameter| {
-            matches!(
-                parameter.kind,
-                syntax_trees::item::TypeParameterKind::Proposition { contract: None }
-            )
-        })
+    if input.at_contextual("requires")
+        && input
+            .take_contextual("requires")
+            .is_ok_and(|rest| rest.at_contextual("proposition"))
     {
-        return Err(input.error_here(format!(
-            "proposition parameter `{}` requires an authored declaration-site signature: write `requires proposition {}(...);`",
-            missing.name.as_str(syntax_trees),
-            missing.name.as_str(syntax_trees),
-        )));
+        return Err(input.error_here(
+            "`requires proposition Relation(...);` is retired; declare the relation family \
+             with its mathematical type in the parameter list, like `<C, R: C -> C -> core\\Type>`",
+        ));
     }
     Ok(((), input))
 }

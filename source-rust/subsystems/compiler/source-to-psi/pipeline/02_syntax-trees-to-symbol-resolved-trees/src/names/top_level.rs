@@ -1622,6 +1622,13 @@ pub(super) fn assign_proposition_parameter_signature_symbols(
             &mut parameter.type_reference,
         );
     }
+    crate::resolution::names::type_references::assign_type_reference_symbol_with_locals_and_constraints(
+        symbols,
+        child_type_references,
+        type_constraints,
+        inherited_type_parameters,
+        &mut contract.result,
+    );
 }
 
 /*

@@ -162,18 +162,10 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
                 .then_some(MachineParameterContract::RequirementIdentity);
             (name, TypeParameterKind::Machine { contract }, input)
         } else if input.at_contextual("proposition") {
-            if !allow_proposition_parameters {
-                return Err(input.error_here(
-                    "`<proposition Relation>` is currently legal only on a trait declaration",
-                ));
-            }
-            let input = input.take_contextual("proposition")?;
-            let (name, input) = input.take_identifier()?;
-            (
-                name,
-                TypeParameterKind::Proposition { contract: None },
-                input,
-            )
+            return Err(input.error_here(
+                "`<proposition Relation>` is retired; declare a relation family with its \
+                 mathematical type, like `<C, R: C -> C -> core\\Type>`",
+            ));
         } else {
             let (name, input) = input.take_identifier()?;
             (name, TypeParameterKind::Type, input)
@@ -236,6 +228,27 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
             )));
         }
 
+        // A trait's relation family `R: C -> C -> core\Type` is the binder a
+        // `R(left, right)` application in its requirements names; its arrow
+        // domains are the family's parameters.
+        if matches!(kind, TypeParameterKind::Type)
+            && allow_proposition_parameters
+            && input.at_punctuation(PunctuationKind::Colon)
+        {
+            let rest = input.take_punctuation(PunctuationKind::Colon, ":")?;
+            let (family, rest) =
+                crate::declarations::mathematical_bindings::parse_mathematical_type(
+                    syntax_trees,
+                    rest,
+                )?;
+            let contract = relation_family_signature(syntax_trees, &name, family)
+                .map_err(|message| rest.error_here(message))?;
+            kind = TypeParameterKind::Proposition {
+                contract: Some(contract),
+            };
+            input = rest;
+        }
+
         if matches!(kind, TypeParameterKind::Type)
             && allow_value_parameters
             && input.at_punctuation(PunctuationKind::Colon)
@@ -279,7 +292,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
             && input.at_punctuation(PunctuationKind::LeftBracket)
         {
             return Err(input.error_here(
-                "a proposition parameter takes its signature in a mandatory `requires proposition Name(...);` clause, not property brackets",
+                "a relation family takes its signature as its mathematical type, not property brackets",
             ));
         }
         let bounds = if input.at_punctuation(PunctuationKind::LeftBracket) {
@@ -307,4 +320,74 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
         type_parameters,
         conformance_bounds,
     )
+}
+
+/// The signature of a relation family binder written as its mathematical
+/// type: each arrow domain is one parameter, named by its dependent binder
+/// when it has one, and the final codomain is the family's result sort,
+/// which name resolution checks.
+fn relation_family_signature(
+    syntax_trees: &mut SyntaxTrees,
+    name: &Identifier,
+    family: syntax_trees::item::MathematicalTypeHandle,
+) -> Result<syntax_trees::item::PropositionParameterSignature, String> {
+    use syntax_trees::item::{MathematicalTypeNode, StateParameterNode};
+    let family_name = name.as_str(syntax_trees).to_owned();
+    let mut domains = Vec::new();
+    let mut at = family;
+    let result = loop {
+        match syntax_trees.items.mathematical_type(at).clone() {
+            MathematicalTypeNode::Arrow {
+                binder,
+                domain,
+                codomain,
+            } => {
+                let MathematicalTypeNode::Ordinary(domain) =
+                    syntax_trees.items.mathematical_type(domain).clone()
+                else {
+                    return Err(format!(
+                        "relation family `{family_name}` takes ordinary types as its domains, \
+                         not functions or applied families"
+                    ));
+                };
+                domains.push((binder, domain));
+                at = codomain;
+            }
+            MathematicalTypeNode::Ordinary(result) => break result,
+            MathematicalTypeNode::Application { .. } => {
+                return Err(format!(
+                    "relation family `{family_name}` must end in its result sort, \
+                     like `C -> C -> core\\Type`"
+                ));
+            }
+        }
+    };
+    if domains.is_empty() {
+        return Err(format!(
+            "`{family_name}: ...` in a trait declares a relation family, which needs at least \
+             one domain, like `{family_name}: C -> C -> core\\Type`"
+        ));
+    }
+    let mut parameters = HandleSpan::empty();
+    for (position, (binder, type_reference)) in domains.into_iter().enumerate() {
+        let parameter_name = binder.unwrap_or_else(|| {
+            Identifier::new(format!("{family_name}#{position}"), name.source_span())
+        });
+        let handle = syntax_trees
+            .items
+            .insert_state_parameter_node(StateParameterNode {
+                name: parameter_name,
+                type_reference,
+                is_const: false,
+                is_mutable: false,
+                relevance: language_core::BindingRelevance::Relevant,
+            });
+        let handle = syntax_trees.items.append_state_parameter_handle(handle);
+        parameters.push_contiguous(handle);
+    }
+    Ok(syntax_trees::item::PropositionParameterSignature {
+        name: name.clone(),
+        parameters,
+        result,
+    })
 }
