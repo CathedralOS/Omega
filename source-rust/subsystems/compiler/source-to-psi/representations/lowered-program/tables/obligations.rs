@@ -77,6 +77,10 @@ pub enum ObligationKind {
     EstablishmentDebt { place: ExactPlaceId },
 
     // Proof questions.
+    /// `domains.md#refinement-and-tests`: an executable test of a routed
+    /// domain needs retained authorized provenance of this exact operand.
+    /// Testing it grants no new qualification or evidence.
+    ExecutableMembership { subject: MembershipSubject },
     /// A used static integer width is positive at its owning entry.
     /// `wiki/spec/language/numeric_values.md`, "Width-indexed integers":
     /// "Generic formation proves positivity under the declaration's static
@@ -190,6 +194,18 @@ pub enum Lender {
     Provider,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MembershipSubject {
+    Scalar {
+        value: ValueId,
+        domain: semantic_vocabulary::ScalarDomainId,
+    },
+    Structural {
+        place: ExactPlaceId,
+        domain: semantic_vocabulary::StructuralDomainId,
+    },
+}
+
 impl ObligationKind {
     /// These rows describe a question/resource immediately before execution,
     /// not an establishment snapshot or an entry/edge contract. Inserting a
@@ -206,6 +222,7 @@ impl ObligationKind {
             | Self::DomainDebt { .. }
             | Self::EstablishmentDebt { .. }
             | Self::IntegerWidthPositive { .. }
+            | Self::ExecutableMembership { .. }
             | Self::TheoremRequirement { .. }
             | Self::ArrivalInvariant { .. }
             | Self::NormalGuarantee { .. }

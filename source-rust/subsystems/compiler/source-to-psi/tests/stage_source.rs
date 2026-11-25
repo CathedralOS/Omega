@@ -1798,3 +1798,83 @@ machine main() {}
         "{missing:?}"
     );
 }
+
+#[test]
+fn routed_membership_tests_require_evidence_for_the_completed_operand() {
+    let package = PackageKeyIdentity::from_digest([0x76; 32]).unwrap();
+    for (declaration, carrier) in [("", "u32"), ("data Word { bits: u32; }", "Word")] {
+        let definitions = format!(
+            "{declaration}
+             domain {carrier}::Stamp established by issue;
+             machine issue(x: {carrier}) -> {carrier} ensures result in Stamp {{
+                 let held: {carrier} in Stamp = x as +Stamp;
+                 held as -Stamp
+             }}"
+        );
+        for (qualifier, body, accepts) in [
+            (" in Stamp", "x in Stamp".to_string(), true),
+            (
+                "",
+                format!("let plain: {carrier} = issue(x); plain in Stamp"),
+                true,
+            ),
+            ("", "x in Stamp".to_string(), false),
+            (
+                "",
+                format!("let proved: {carrier} = issue(x); y in Stamp"),
+                false,
+            ),
+            (
+                "",
+                format!("let mutable proved: {carrier} = issue(x); proved = y; proved in Stamp"),
+                false,
+            ),
+        ] {
+            let source = format!(
+                "{definitions}
+                machine test(x: {carrier}{qualifier}, y: {carrier}) -> bool {{ {body} }}"
+            );
+            let (files, root) = captured(package, &source);
+            let result = compile(product(files, root, package, &[]).unwrap(), None);
+            if accepts {
+                result.expect("the operand carries authorized provenance");
+            } else {
+                let errors = result.expect_err("a routed test needs evidence for its own operand");
+                assert!(
+                    errors
+                        .iter()
+                        .any(|error| error.message.contains("authorized provenance")),
+                    "{errors:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn routed_membership_tests_preserve_the_domain_index() {
+    let package = PackageKeyIdentity::from_digest([0x77; 32]).unwrap();
+    for (declaration, carrier) in [("", "u64"), ("data Word { bits: u64; }", "Word")] {
+        for index in [7, 8] {
+            let source = format!(
+                "{declaration}
+                 domain<const N: u64> {carrier}::Stamp<N> established by issue;
+                 machine issue(x: {carrier}) -> {carrier} in Stamp<8> {{ x as +Stamp<8> }}
+                 machine test(x: {carrier} in Stamp<8>) -> bool {{ x in Stamp::<{index}> }}"
+            );
+            let (files, root) = captured(package, &source);
+            let result = compile(product(files, root, package, &[]).unwrap(), None);
+            if index == 8 {
+                result.expect("the qualified formal and the test use the same application");
+            } else {
+                let errors = result.expect_err("the other index needs its own issuance");
+                assert!(
+                    errors
+                        .iter()
+                        .any(|error| error.message.contains("authorized provenance")),
+                    "{errors:?}"
+                );
+            }
+        }
+    }
+}

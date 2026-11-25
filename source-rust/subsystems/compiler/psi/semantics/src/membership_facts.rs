@@ -1649,6 +1649,48 @@ pub(crate) fn analyze_bodies(
     module: &TerminalModule,
     bodies: &[MachineId],
 ) -> Judged<MembershipFacts> {
+    analyze_observations(module, bodies, &[], &mut [])
+}
+
+/// Nominal provenance of an exact completed operand at one position. A
+/// membership test reads that provenance without introducing a qualification.
+pub enum TestedMembership {
+    Scalar {
+        value: ValueId,
+        domain: ScalarDomainId,
+    },
+    Structural {
+        place: DescriptorLocation,
+        domain: StructuralDomainId,
+    },
+}
+
+pub struct MembershipTest {
+    pub position: DescriptorPosition,
+    pub subject: TestedMembership,
+}
+
+/// Answer the body's tests together using the same dataflow that checks
+/// cast provenance and normal-result membership. Answers retain source order.
+pub fn test_memberships(
+    module: &TerminalModule,
+    machine: MachineId,
+    tests: &[MembershipTest],
+) -> Result<Vec<bool>, &'static str> {
+    if tests.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut answers = vec![false; tests.len()];
+    analyze_observations(module, &[machine], tests, &mut answers).map_err(|error| error.detail)?;
+    Ok(answers)
+}
+
+fn analyze_observations(
+    module: &TerminalModule,
+    bodies: &[MachineId],
+    tests: &[MembershipTest],
+    answers: &mut [bool],
+) -> Judged<MembershipFacts> {
     use crate::descriptor_results::{DescriptorAnalysis, terminal_reference_graph_from};
     let mut result = MembershipFacts::default();
     let has_result_memberships = module
@@ -1690,7 +1732,9 @@ pub(crate) fn analyze_bodies(
                     .map(|change| change.machine),
             )
             .collect::<BTreeSet<_>>();
-        bodies.retain(|machine| cast_machines.contains(machine));
+        if tests.is_empty() {
+            bodies.retain(|machine| cast_machines.contains(machine));
+        }
         if bodies.is_empty() {
             return Ok(result);
         }
@@ -1811,6 +1855,12 @@ pub(crate) fn analyze_bodies(
             .iter()
             .map(|(_, position)| (*position, None))
             .collect();
+        for test in tests {
+            if !flow.contains_key(&test.position) {
+                return Err(unavailable(machine.id, "membership test has no execution point"));
+            }
+            edge_facts.entry(test.position).or_insert(None);
+        }
         let mut completed = BTreeMap::new();
         let mut pending = BTreeSet::from([graph.entry]);
         while let Some(position) = pending.pop_first() {
@@ -2023,6 +2073,26 @@ pub(crate) fn analyze_bodies(
             std::mem::swap(earlier, later);
             true
         });
+        for (test, answer) in tests.iter().zip(answers.iter_mut()) {
+            let query = match &test.subject {
+                TestedMembership::Scalar { value, domain } => Fact {
+                    subject: Subject::Value(*value),
+                    domain: Domain::Scalar(*domain),
+                },
+                TestedMembership::Structural { place, domain } => Fact {
+                    subject: Subject::Storage {
+                        version: ContentPlaceVersion::Current,
+                        location: place.clone(),
+                    },
+                    domain: Domain::Structural(*domain),
+                },
+            };
+            if let Some(Some(available)) = edge_facts.get(&test.position)
+                && let Some((fact, _)) = observe(module, machine, &mut storage, test.position, query)
+            {
+                *answer = available.proves(module, &fact);
+            }
+        }
         machine_facts.before = edge_facts
             .into_iter()
             .filter_map(|(position, facts)| Some((position, facts?)))

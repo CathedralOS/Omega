@@ -153,7 +153,7 @@ enum StorageEffect {
 }
 
 impl Lineage {
-    fn descriptor_location(
+    pub(super) fn descriptor_location(
         &self,
     ) -> Option<terminal_semantics::descriptor_lifetimes::DescriptorLocation> {
         use terminal_semantics::descriptor_lifetimes::DescriptorLocation;

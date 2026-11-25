@@ -1183,7 +1183,8 @@ fn expression_homes<'b>(
                 expression_homes(arm, slots, homes);
             }
         }
-        ExpressionKind::Strict { left, right, .. }
+        ExpressionKind::TestMembership { subject: left, predicate: right, .. }
+        | ExpressionKind::Strict { left, right, .. }
         | ExpressionKind::ShortCircuit { left, right, .. } => {
             expression_homes(left, slots, homes);
             expression_homes(right, slots, homes);
@@ -1615,6 +1616,68 @@ fn owned_result(
 }
 
 impl<'a> Lowering<'a> {
+    pub(super) fn observe_membership(
+        &mut self,
+        subject: &Expression,
+        domain: crate::body::DomainInstance,
+        source: SourceOrigin,
+    ) -> Evaluation<()> {
+        use terminal_check_tables::obligations::MembershipSubject;
+        let (question, at) = match subject.result {
+            Some(ValueType::Scalar(..)) => {
+                let value = continuing!(self.scalar(subject));
+                let domain = self
+                    .qualifications
+                    .scalar_domain_id(domain)
+                    .ok_or_else(|| self.internal("membership test lost its exact scalar domain"))?;
+                (MembershipSubject::Scalar { value, domain }, self.here()?)
+            }
+            Some(ValueType::Record(_, qualification, _)) => {
+                let value = continuing!(self.located(subject));
+                let domain = self
+                    .qualifications
+                    .structural_domain_id(domain, value.record)
+                    .ok_or_else(|| {
+                        self.internal("membership test lost its exact structural domain")
+                    })?;
+                // Observe the completed place before this edge can retire its
+                // owner. The ordinary shared capture keeps it live until the
+                // test, including when an empty predicate needs no fields.
+                let continuation = self.block(source);
+                let site = ExecutionSite::Block(self.current()?);
+                self.measure_indexed_views(value.root, &value.path, source)?;
+                let path = self.storage_path(&value.path, site, source)?;
+                let at = self.here()?;
+                let held = self.memberships(value.record, qualification)?;
+                self.forward_borrow(
+                    continuation,
+                    StructuralArgument {
+                        place: value.root,
+                        path,
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                    value.record,
+                    held,
+                    source,
+                )?;
+                (
+                    MembershipSubject::Structural {
+                        place: value.place,
+                        domain,
+                    },
+                    at,
+                )
+            }
+            _ => return Err(self.internal("membership test needs a runtime value")),
+        };
+        self.obligation(
+            ObligationKind::ExecutableMembership { subject: question },
+            at,
+            source,
+        );
+        Ok(Reached::Value(()))
+    }
+
     /// A complete pattern ends the wrapper at its captured place. It neither
     /// acquires another home nor copies or moves any component's contents.
     pub(super) fn decompose(&mut self, subject: &Expression) -> Evaluation<()> {
@@ -2449,6 +2512,10 @@ impl<'a> Lowering<'a> {
                     record,
                     fresh: true,
                 }))
+            }
+            ExpressionKind::TestMembership { subject, domain, predicate } => {
+                continuing!(self.observe_membership(subject, *domain, expression.source));
+                self.located(predicate)
             }
             ExpressionKind::SavedSubject(capture) => {
                 let mut at = self

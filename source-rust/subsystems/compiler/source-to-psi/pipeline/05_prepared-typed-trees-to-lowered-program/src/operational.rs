@@ -243,7 +243,8 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
                 expression(machine, arm)?;
             }
         }
-        ExpressionKind::Strict { left, right, .. }
+        ExpressionKind::TestMembership { subject: left, predicate: right, .. }
+        | ExpressionKind::Strict { left, right, .. }
         | ExpressionKind::ShortCircuit { left, right, .. } => {
             expression(machine, left)?;
             expression(machine, right)?;

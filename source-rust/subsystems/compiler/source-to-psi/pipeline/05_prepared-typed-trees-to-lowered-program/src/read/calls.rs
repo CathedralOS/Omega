@@ -4506,7 +4506,8 @@ impl Touches<'_> {
                 }
                 result
             }
-            ExpressionKind::Strict { left, right, .. }
+            ExpressionKind::TestMembership { subject: left, predicate: right, .. }
+            | ExpressionKind::Strict { left, right, .. }
             | ExpressionKind::ShortCircuit { left, right, .. } => Ok(self
                 .expression(left, false, captures)?
                 || self.expression(right, false, captures)?),

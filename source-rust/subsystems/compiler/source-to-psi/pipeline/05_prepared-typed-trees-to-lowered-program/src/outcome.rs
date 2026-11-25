@@ -706,6 +706,9 @@ impl<'b> Walk<'b> {
             // A Trapping operation is its own `Trap` site (numeric_values.md,
             // "Policy operators": it "contributes that route to its
             // machine's crash contract like any other Trapping operation").
+            ExpressionKind::TestMembership { subject, predicate, .. } => {
+                Ok(self.expression(machine, subject)? && self.expression(machine, predicate)?)
+            }
             ExpressionKind::Strict {
                 policy,
                 left,

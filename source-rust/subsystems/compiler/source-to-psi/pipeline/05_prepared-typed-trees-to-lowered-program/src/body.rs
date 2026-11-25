@@ -1091,6 +1091,27 @@ pub struct Expression {
     pub source: SourceOrigin,
 }
 
+impl Expression {
+    pub(crate) fn with_membership_tests(
+        mut self,
+        tests: impl DoubleEndedIterator<Item = (Expression, DomainInstance)>,
+    ) -> Self {
+        for (subject, domain) in tests.rev() {
+            self = Self {
+                call_context: None,
+                result: self.result,
+                source: self.source,
+                kind: ExpressionKind::TestMembership {
+                    subject: Box::new(subject),
+                    domain,
+                    predicate: Box::new(self),
+                },
+            };
+        }
+        self
+    }
+}
+
 /// Convert a checked clause value into the scalar lane, retaining the
 /// declaration and ordered application operands at every node.
 pub(crate) fn scalar_clause_value(
@@ -1162,6 +1183,13 @@ pub enum ExpressionKind {
     },
     /// The enclosing match's already captured place, never its selector again.
     SavedSubject(arena::Handle<crate::source_state::expression::CompletedValueCapture>),
+    /// A logical test needs the operand's prior nominal evidence even when
+    /// its runtime predicate never reads that operand.
+    TestMembership {
+        subject: Box<Expression>,
+        domain: DomainInstance,
+        predicate: Box<Expression>,
+    },
     Integer(IntegerValue),
     /// Exact IEEE representation after one rounding at the landing boundary.
     Float(semantic_vocabulary::IeeeFloatValue),
