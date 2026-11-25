@@ -1,7 +1,5 @@
 //! Prove the boundary's declared content equation from the selected machine's normal returns.
-use std::collections::BTreeMap;
-
-use semantic_vocabulary::Proposition;
+use semantic_vocabulary::{CanonicalStructuralPathSegment, PlaceId, Proposition};
 use terminal_psi::{
     BoundaryContentGuarantee, BoundaryMachineDeclaration, ProviderCandidateConformance,
     TerminalMachine, TerminalModule,
@@ -34,9 +32,14 @@ pub fn verify(
         let BoundaryContentGuarantee::Conservation(report) = row else {
             continue;
         };
-        let required = crate::substitution::substitute_proposition_structural_places(
+        let required = crate::substitution::substitute_proposition_structural_places_with(
             &Proposition::ContentConservation(report.conservation.clone()),
-            &substitution,
+            &|place| {
+                substitution
+                    .binary_search_by_key(&place, |(formal, _)| *formal)
+                    .ok()
+                    .map(|index| &substitution[index].1)
+            },
         )?;
         if !machine
             .ensures
@@ -49,26 +52,20 @@ pub fn verify(
     forwarding::checked_returns(module, machine).map(|_| ())
 }
 
-type Places = BTreeMap<
-    semantic_vocabulary::PlaceId,
-    (
-        semantic_vocabulary::PlaceId,
-        Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-    ),
->;
+type FormalPlace = (PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>));
 
 fn formal_places(
     boundary: &BoundaryMachineDeclaration,
     body: &TerminalMachine,
     candidate: &ProviderCandidateConformance,
-) -> Result<Places, &'static str> {
+) -> Result<Vec<FormalPlace>, &'static str> {
     let inputs = &boundary.structural_parameters;
     if candidate.refinement.positional_parameters.len() != inputs.len()
         || body.structural_parameters.len() != inputs.len()
     {
         return Err("content provider mapping does not cover its structural parameters");
     }
-    let mut places = BTreeMap::new();
+    let mut places = Vec::with_capacity(inputs.len() + 1);
     for (index, row) in candidate
         .refinement
         .positional_parameters
@@ -86,7 +83,7 @@ fn formal_places(
         {
             return Err("content provider input differs from the required carrier or position");
         }
-        places.insert(inputs[index].place, (actual.place, Vec::new()));
+        places.push((inputs[index].place, (actual.place, Vec::new())));
     }
     let (formal, carrier) = boundary
         .structural_contract_result()
@@ -96,6 +93,10 @@ fn formal_places(
         .structural()
         .filter(|result| result.structural_type == carrier)
         .ok_or("content provider result has a different carrier")?;
-    places.insert(formal, (actual.place, Vec::new()));
+    places.push((formal, (actual.place, Vec::new())));
+    places.sort_unstable_by_key(|(formal, _)| *formal);
+    if places.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        return Err("content provider repeats a declared structural place");
+    }
     Ok(places)
 }

@@ -966,9 +966,9 @@ fn check_prepared_machine(
             continue;
         }
         if let ObligationKind::NormalGuarantee { clause, .. } = row.kind
-            && let Some(claim) = content_returns.get(&(clause as usize))
+            && let Ok(index_in_returns) = content_returns.binary_search_by_key(&(clause as usize), |&(ordinal, _)| ordinal)
         {
-            decided[index] = Some(Ok(Discharged::ForwardedContent(*claim)));
+            decided[index] = Some(Ok(Discharged::ForwardedContent(content_returns[index_in_returns].1)));
             continue;
         }
         // A theorem over indexed data: the signature proved this clause.

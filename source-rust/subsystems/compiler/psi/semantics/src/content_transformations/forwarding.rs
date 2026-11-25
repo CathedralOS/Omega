@@ -1,7 +1,6 @@
 //! Check conservation guaranteed by forwarding an unchanged structural claim.
 use super::{ancestry, declarations, entry_claims, structural_path};
 use semantic_vocabulary::{ContentConservation, ContentPlaceVersion, ContentTerm, Proposition};
-use std::collections::BTreeMap;
 use terminal_psi::{OperationKind, StructuralAccess, TerminalMachine, TerminalModule, Terminator};
 
 /// Checked content obligations are indexed by the same clause ordinal as
@@ -10,11 +9,11 @@ use terminal_psi::{OperationKind, StructuralAccess, TerminalMachine, TerminalMod
 pub fn checked_returns(
     module: &TerminalModule,
     machine: &TerminalMachine,
-) -> Result<BTreeMap<usize, semantic_vocabulary::ClaimId>, &'static str> {
-    let mut proved = BTreeMap::new();
+) -> Result<Vec<(usize, semantic_vocabulary::ClaimId)>, &'static str> {
+    let mut proved = Vec::new();
     for (ordinal, clause) in machine.ensures.iter().enumerate() {
         if let Proposition::ContentConservation(law) = &clause.proposition {
-            proved.insert(ordinal, forwarded_projection(module, machine, law)?);
+            proved.push((ordinal, forwarded_projection(module, machine, law)?));
         }
     }
     if !proved.is_empty() {

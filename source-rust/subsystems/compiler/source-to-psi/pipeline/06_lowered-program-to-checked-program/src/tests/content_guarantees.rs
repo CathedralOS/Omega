@@ -192,7 +192,7 @@ fn checked_conservation_follows_the_owned_input_through_an_explicit_erasure() {
         matches!(clause.proposition, Proposition::ContentConservation(_))
     )).unwrap();
     let returns = terminal_semantics::content_transformations::forwarding::checked_returns(module, machine).unwrap();
-    assert_eq!(returns.values().copied().collect::<Vec<_>>(), [machine.entry_claims[0].claim]);
+    assert_eq!(returns, [(0, machine.entry_claims[0].claim)]);
     let mut changed = module.clone();
     let candidate = changed.machines.iter_mut().find(|body| body.id == machine.id).unwrap();
     for block in &mut candidate.blocks {
