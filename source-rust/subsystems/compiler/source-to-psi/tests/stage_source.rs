@@ -1061,6 +1061,35 @@ fn a_fixed_carrier_keeps_its_indexed_domain_under_both_local_spellings() {
 }
 
 #[test]
+fn an_indexed_domain_retains_the_members_of_its_applied_carrier() {
+    let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
+    for (input_domain, returned_index, refusal) in [
+        (" in Live<Placed, Word>", "Word in Word::Placed", None),
+        ("", "Word in Word::Placed", Some("carries no domain")),
+        (" in Live<Placed, Word>", "Word in Word::Other", Some("but this value carries")),
+    ] {
+        let source = format!(
+            "data Word {{ bits: u64; }}
+             domain Word::Placed;
+             domain Word::Other;
+             data Placed = Word in Word::Placed;
+             data Segment<P, T> [linear] {{ value: T; }}
+             domain<P, T> Segment<P, T>::Live<P, T>;
+             machine carry(value: Segment<Placed, Word>{input_domain})
+                 -> Segment<{returned_index}, Word> in Live<{returned_index}, Word> {{ value }}"
+        );
+        let (files, root) = captured(package, &source);
+        let result = compile(product(files, root, package, &[]).unwrap(), None);
+        if let Some(refusal) = refusal {
+            let errors = result.expect_err("returning the segment must preserve its domain");
+            assert!(errors.iter().any(|error| error.message.contains(refusal)), "{errors:?}");
+        } else {
+            result.expect("the alias and expanded index describe the same live segment");
+        }
+    }
+}
+
+#[test]
 fn a_file_qualified_domain_still_requires_its_declared_carrier() {
     let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
     for (domains, accepts_byte) in [
