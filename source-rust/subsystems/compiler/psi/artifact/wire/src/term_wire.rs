@@ -41,14 +41,15 @@ pub(crate) mod mathematical_certificate_wire {
     use std::collections::HashMap;
 
     use mathematical_kernel::{
-        Declaration, Level, MathematicalCertificate, Sort, Term, TermArena, TermHandle,
+        Declaration, DeclarationKind, Level, MathematicalCertificate, Sort, Term, TermArena,
+        TermHandle,
     };
 
     use super::CodecError;
     use super::wire::{Reader, Writer, bounded_count, decode_canonical, decode_counted};
 
     const MAGIC: &[u8; 8] = b"PSICORE\0";
-    const FORMAT_MARKER: u16 = 3;
+    const FORMAT_MARKER: u16 = 4;
 
     pub struct DecodedMathematicalCertificate {
         pub arena: TermArena,
@@ -100,6 +101,33 @@ pub(crate) mod mathematical_certificate_wire {
                 }
                 None => writer.u8(0),
             }
+            match declaration.kind {
+                DeclarationKind::Ordinary => writer.u8(0),
+                DeclarationKind::Inductive {
+                    num_mutual,
+                    mutual_index,
+                    num_params,
+                    num_constructors,
+                } => {
+                    writer.u8(1);
+                    writer.u32(num_mutual);
+                    writer.u32(mutual_index);
+                    writer.u32(num_params);
+                    writer.u32(num_constructors);
+                }
+                DeclarationKind::Constructor {
+                    inductive,
+                    constructor_index,
+                } => {
+                    writer.u8(2);
+                    writer.u32(inductive);
+                    writer.u32(constructor_index);
+                }
+                DeclarationKind::Recursor { inductive } => {
+                    writer.u8(3);
+                    writer.u32(inductive);
+                }
+            }
         }
         writer.len(
             "mathematical certificate context",
@@ -144,10 +172,28 @@ pub(crate) mod mathematical_certificate_wire {
                     } else {
                         None
                     };
+                    let kind = match reader.u8()? {
+                        0 => DeclarationKind::Ordinary,
+                        1 => DeclarationKind::Inductive {
+                            num_mutual: reader.u32()?,
+                            mutual_index: reader.u32()?,
+                            num_params: reader.u32()?,
+                            num_constructors: reader.u32()?,
+                        },
+                        2 => DeclarationKind::Constructor {
+                            inductive: reader.u32()?,
+                            constructor_index: reader.u32()?,
+                        },
+                        3 => DeclarationKind::Recursor {
+                            inductive: reader.u32()?,
+                        },
+                        tag => return Err(CodecError::InvalidTag("declaration kind", tag)),
+                    };
                     signature.push(Declaration {
                         level_arity,
                         ty,
                         body,
+                        kind,
                     });
                 }
                 let context_count = bounded_count(reader, 1)?;
