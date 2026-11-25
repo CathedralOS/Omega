@@ -51,6 +51,11 @@ pub struct MachineNames {
     /// The span of each call this machine makes and the authored text of
     /// its arguments in position order.
     pub calls: Vec<(SourceSpan, Vec<String>)>,
+    /// The span of each call to a named machine or boundary requirement and
+    /// that callee's authored name, so a diagnostic can name a callee that
+    /// has no `MachineNames` of its own, such as `SelectedForward::forward`.
+    /// A call through a callable value names no declaration and has none.
+    pub callees: Vec<(SourceSpan, String)>,
     /// The span of each call that lends storage, the position among the
     /// call's runtime actuals of each argument that is a loan, and the
     /// binding at the root of the lent place as authored.
@@ -167,6 +172,15 @@ impl MachineNames {
             .iter()
             .find(|(span, at, _)| *span == site && *at == position)
             .map(|(_, _, name)| name.as_str())
+    }
+
+    /// The authored name of the machine or boundary requirement the call at
+    /// `site` names.
+    pub fn callee(&self, site: SourceSpan) -> Option<&str> {
+        self.callees
+            .iter()
+            .find(|(span, _)| *span == site)
+            .map(|(_, name)| name.as_str())
     }
 
     /// The argument texts of the call at `site`.

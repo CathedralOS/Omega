@@ -46,7 +46,7 @@ Each place has an `invalid_<place>/` twin whose `main.omg` omits only the `requi
 error: call from `read_seven` to `maybe_zero` has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 ```
 
-(or `call from read_seven to forward` for `other_machine`; `invalid_target_body` is refused for the same uncovered route but names the machine `read_seven`, not the boundary call). Check a twin with `omega --check samples/cli/facts/indexed_crash_guard/invalid_<place>/main.omg`.
+(or `call from read_seven to forward` for `other_machine` and `target_body`, whose call is the boundary requirement `SelectedForward::forward`). Check a twin with `omega --check samples/cli/facts/indexed_crash_guard/invalid_<place>/main.omg`.
 
 ## Requirements and Evidence
 
@@ -61,13 +61,13 @@ This row establishes that an entry observation `items[index] == 7` with `index <
 - **Composition:** In those eight places the crash-guarded index bound composes into the consuming `maybe_zero` invocation: the call substitutes the exact actuals (`items`, `index`), and a forwarder's own published route covers the call it forwards. Each `<place>/main.omg` vs. `invalid_<place>/main.omg` differs solely in the presence versus deletion of the precondition `requires items[index] == 7`, maintaining identical carrier shapes, bounds, and operations.
 - **Soundness boundaries:** Every `invalid_<place>/main.omg` twin is refused at
   compile time. `invalid_parameter`, `invalid_local`, `invalid_field`,
-  `invalid_call_result`, `invalid_match_join`, `invalid_const_name` and
-  `invalid_other_machine` fail closed because omitting the equality leaves the
+  `invalid_call_result`, `invalid_match_join`, `invalid_const_name`,
+  `invalid_other_machine` and `invalid_target_body` fail closed because omitting the equality leaves the
   zero-element crash route uncovered: `read_seven` is `pub`, so the compiler
   refuses public crash omission with `error: call from read_seven to ... has an
   uncovered Trap crash route; publish a same-cause route whose guard covers
-  this invocation`. `invalid_target_body` is refused for the same route but
-  names the machine (`machine read_seven has an uncovered Trap crash`).
+  this invocation`. `invalid_target_body` is refused for the same route at
+  its boundary call (`call from read_seven to forward`).
   `invalid_other_state` is refused for the
   call from `read_seven` to the nested `consume`, the same cause that stops
   its positive.

@@ -360,32 +360,39 @@ fn crash_coverage(
         return format!("cannot prove crash coverage in {}", owner(names, site));
     };
     // A call site is an operation, or a block that ends in a call with no
-    // normal return; either way the invocation row names the callee.
-    let callee = tables
-        .invocations
-        .iter()
-        .find(|(_, row)| match (crash, row.site) {
-            (CrashSite::Operation(operation), InvocationSite::Operation(called)) => {
-                operation == called
-            }
-            (CrashSite::Block(block), InvocationSite::InvokeNoNormal(edge)) => tables
-                .edges
-                .get(edge)
-                .is_some_and(|row| row.source == block),
-            _ => false,
-        })
-        .and_then(|(_, row)| match row.callee {
-            Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(callee)) => {
-                elaboration.names.get(callee)
-            }
-            Callee::Selected { .. }
-            | Callee::Declared(semantic_vocabulary::TargetMachineCallable::Boundary(_)) => None,
-        });
+    // normal return or in a boundary call's completion; either way the
+    // invocation row says it is a call.
+    let at_site = |site: InvocationSite| match (crash, site) {
+        (CrashSite::Operation(operation), InvocationSite::Operation(called)) => operation == called,
+        (
+            CrashSite::Block(block),
+            InvocationSite::InvokeNoNormal(edge) | InvocationSite::ExternalCompletion(edge),
+        ) => tables
+            .edges
+            .get(edge)
+            .is_some_and(|row| row.source == block),
+        _ => false,
+    };
+    let call = tables.invocations.iter().find(|(_, row)| at_site(row.site));
+    // A machine callee has names of its own. A boundary requirement has
+    // none, so the caller's record of the call at this site names it.
+    let callee = call.and_then(|(_, row)| match row.callee {
+        Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(callee)) => {
+            elaboration
+                .names
+                .get(callee)
+                .map(|callee| callee.machine.as_str())
+        }
+        Callee::Declared(semantic_vocabulary::TargetMachineCallable::Boundary(_)) => {
+            names.callee(site.span()?)
+        }
+        Callee::Selected { .. } => None,
+    });
     match callee {
         Some(callee) => format!(
-            "call from `{}` to `{}` has an uncovered {cause:?} crash route; publish a \
+            "call from `{}` to `{callee}` has an uncovered {cause:?} crash route; publish a \
              same-cause route whose guard covers this invocation",
-            names.machine, callee.machine
+            names.machine
         ),
         None => format!(
             "machine `{}` has an uncovered {cause:?} crash; publish a same-cause `crashes` \

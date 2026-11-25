@@ -1077,3 +1077,31 @@ fn a_guard_on_an_array_element_reaches_a_helper_that_borrows_the_array() {
         }
     }
 }
+
+#[test]
+fn an_uncovered_boundary_call_names_the_member_it_calls() {
+    // A boundary requirement has no machine names of its own, so the
+    // diagnostic for its uncovered crash route names the member the caller
+    // wrote, as it names a machine callee. The twin covers the route with
+    // `requires index != 0` and is accepted.
+    for (requires, accepted) in [("", false), ("requires index != 0", true)] {
+        let source = format!(
+            "boundary trait Forward {{
+                machine forward(index: u64) -> u64 reaches none crashes Trap index == 0;
+            }}
+            public machine entry(index: u64) -> u64 invokes Forward {requires} {{
+                Forward::forward(index)
+            }}"
+        );
+        match judge_source_arrivals(&source, &[]) {
+            RouteVerdict::Accepted(_) if accepted => {}
+            RouteVerdict::Rejected { unproved, .. } if !accepted => assert!(
+                unproved.iter().any(|row| row
+                    .statement
+                    .contains("call from `entry` to `forward` has an uncovered Trap crash route")),
+                "{unproved:?}"
+            ),
+            verdict => panic!("{requires:?} decides the boundary call: {verdict:?}"),
+        }
+    }
+}
