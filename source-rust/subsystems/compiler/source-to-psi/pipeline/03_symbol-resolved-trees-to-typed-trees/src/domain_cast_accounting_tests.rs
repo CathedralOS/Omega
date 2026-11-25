@@ -819,3 +819,24 @@ fn a_qualified_domain_cast_still_requires_its_exact_data_carrier() {
         error.message
     );
 }
+
+#[test]
+fn a_refinement_subject_supplies_the_carrier_of_its_indexed_parent() {
+    let (_, typed) = source(
+        "domain<const N: u8> u32::At<N>;
+         domain u32::At<3>::Child;
+         machine make() -> u32 in At::Child { 7u32 as +At::Child }",
+    );
+    let child = typed
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.name.as_str() == "u32::At::Child")
+        .unwrap();
+    let parent = crate::source_state::domain::refinement_parent(&typed, child).unwrap();
+    let applied = typed
+        .domain_application(parent.domain_symbol, parent.semantic_domain)
+        .unwrap();
+    assert!(applied.is_closed);
+    assert_eq!(applied.arguments.len(), 1);
+    assert!(typed.deferred_refusals_of(child.symbol).next().is_none());
+}

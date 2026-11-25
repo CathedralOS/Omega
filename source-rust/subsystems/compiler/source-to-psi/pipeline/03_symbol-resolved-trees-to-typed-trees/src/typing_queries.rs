@@ -1718,6 +1718,15 @@ impl DeclaredExpressionTypes {
         {
             return Some(retained);
         }
+        // A domain declaration binds its own self to the declared carrier.
+        // Its refinement facts can therefore select indexed parents before
+        // any machine binds or supplies a value of this domain.
+        if matches!(table.expression(expression), ExpressionNode::Name(_))
+            && let Some(domain) = program.domain_definition(owner)
+            && crate::source_state::domain::domain_subject_reference(program, domain, expression)
+        {
+            return Some(domain.target_type);
+        }
         // A requirement's namespace receiver is not a value argument. Read its
         // exact public signature before a surrounding cast accounts for the
         // result's domains; the receiving type cannot supply that information.
