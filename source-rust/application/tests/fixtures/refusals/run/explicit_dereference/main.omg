@@ -12,9 +12,15 @@ ensures result <= $v
         false -> (0u8),
     }
 }
+machine held(f: @bool) -> bool
+requires $f
+{
+    $f
+}
 machine main() crashes Trap {
     let byte: u8 = 4;
-    transition read(@byte) == 4u8 { true -> done(), false -> failed() }
+    let on: bool = true;
+    transition read(@byte) == 4u8 && held(@on) { true -> done(), false -> failed() }
     machine done() {}
     machine failed() { crash Trap; }
 }

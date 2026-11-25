@@ -1,6 +1,6 @@
 // Formals passed by reference and the loans a call forms for them.
 //
-//     machine bump(x: @mutable u32) requires x < 10 { x = x + 1; }
+//     machine bump(x: @mutable u32) requires $x < 10 { $x = $x + 1; }
 //     machine main() { let mutable y: u32 = 3; bump(@mutable y); }
 //
 // The callee reads and stores the caller's storage in place, its `requires`
@@ -208,7 +208,7 @@ fn referent_below_ten() -> Proposition {
     )
 }
 
-/// `machine bump(x: @mutable u32) requires x < 10 { x = x + 1; }`
+/// `machine bump(x: @mutable u32) requires $x < 10 { $x = $x + 1; }`
 fn bump() -> Lending {
     Lending {
         borrowed: vec![(0, ReferenceAccess::Mutable)],

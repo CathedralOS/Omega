@@ -113,18 +113,25 @@ fn a_reference_read_without_dollar_is_refused_at_every_value_place() {
     // `read`'s clauses: an operand of a comparison in its `requires` and in
     // its `ensures`. `read`'s body: a binding, a field initializer, a match
     // subject, an operator operand, a call argument and an arm result.
-    let places = source.matches("$v").count();
-    assert_eq!(places, 8, "the program reads `v` at eight places");
-    for occurrence in 0..places {
-        let (text, line, column) = edited(&source, "$v", occurrence, "v");
-        refuses(
-            "explicit_dereference",
-            &occurrence.to_string(),
-            &text,
-            line,
-            column,
-            "Omega never inserts a dereference",
+    // `held`'s `requires` is the Boolean referent itself, and its body
+    // returns it.
+    for (reference, count) in [("$v", 8), ("$f", 2)] {
+        let places = source.matches(reference).count();
+        assert_eq!(
+            places, count,
+            "the program reads `{reference}` at {count} places"
         );
+        for occurrence in 0..places {
+            let (text, line, column) = edited(&source, reference, occurrence, &reference[1..]);
+            refuses(
+                "explicit_dereference",
+                &format!("{}{occurrence}", &reference[1..]),
+                &text,
+                line,
+                column,
+                "Omega never inserts a dereference",
+            );
+        }
     }
 }
 

@@ -589,7 +589,18 @@ impl Program<'_> {
                     conclusion: Box::new(Proposition::Falsehood),
                 });
             }
-            ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            // A clause that is one Boolean value reads it as an operand is
+            // read: `requires $flag` over `flag: @bool` reads the referent,
+            // and `clause_term` refuses a bare `flag`.
+            node @ (ExpressionNode::Name(_)
+            | ExpressionNode::Member(_)
+            | ExpressionNode::Indexed(_)
+            | ExpressionNode::Unary(_))
+                if match node {
+                    ExpressionNode::Unary(unary) => unary.operator == UnaryOperator::Dereference,
+                    _ => true,
+                } =>
+            {
                 let (term, value_type) = self
                     .clause_term(
                         id,
