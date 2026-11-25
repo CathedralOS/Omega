@@ -120,9 +120,8 @@ pub(crate) mod access_views {
                 let Some(template) = program.machine(declaration) else {
                     return Ok(None);
                 };
-                let Some(SealedIntrinsic::PlacementLifecycle { operation, content }) = program
-                    .symbols
-                    .sealed_declaration(declaration, template.name.as_str())
+                let Some(SealedIntrinsic::PlacementLifecycle { operation, content }) =
+                    program.symbols.sealed_intrinsic(declaration)
                 else {
                     return Ok(None);
                 };

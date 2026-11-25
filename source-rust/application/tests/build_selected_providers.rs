@@ -329,14 +329,14 @@ machine storage_probe() {}
             "WordPlacement",
             "Word",
             "Word",
-            "`Word` is an ordinary value type",
+            "`|app|::Word` is an ordinary value type",
         ),
         (
             "wrong_resident_schema",
             "OtherPlacement",
             "Other",
             "WordStorage",
-            "storage represents `Word`, but the operation requires `Other`",
+            "storage represents `Word`, but the operation requires `|app|::Other`",
         ),
     ] {
         let build = format!(
