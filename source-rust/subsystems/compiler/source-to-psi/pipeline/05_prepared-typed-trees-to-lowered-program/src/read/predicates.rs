@@ -41,6 +41,7 @@ an array element and a partial write inside such a value (`read::authority`)
 retain their independent establishment restrictions.
 */
 
+use crate::source_state::domain::ProofFact;
 use crate::source_state::expression::ExpressionHandle;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, MachineId, PlaceId, Proposition, ScalarTerm, ScalarType,
@@ -274,7 +275,11 @@ impl<'t> Program<'t> {
                 id,
                 "domain requires span",
             )?;
+            let parent = crate::source_state::domain::refinement_parent(self.typed, definition);
             for fact in facts {
+                if matches!(fact, ProofFact::Membership(member) if parent == Some(member)) {
+                    continue;
+                }
                 let expression = self.fact(id, fact)?;
                 if !self.states_nothing(id, expression, false)? {
                     predicates.push(Predicate {
@@ -675,7 +680,7 @@ impl<'t> Program<'t> {
     ) -> Checked<()> {
         if !has_predicates(definition) {
             if !definition.content_projections.is_empty() {
-                let carrier = self.value_type(id, definition.target_type)?;
+                let carrier = self.declaration_subject(id, definition)?;
                 let domain = crate::body::DomainInstance {
                     declaration: definition.symbol,
                     identity: definition.semantic_id,
@@ -714,7 +719,7 @@ impl<'t> Program<'t> {
         }
         let carrier = match self.logical_byte_domain_carrier(id, definition.target_type, None)? {
             Some(carrier) => carrier,
-            None => self.value_type(id, definition.target_type)?,
+            None => self.declaration_subject(id, definition)?,
         };
         let domain = crate::body::DomainInstance {
             declaration: definition.symbol,
