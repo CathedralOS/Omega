@@ -154,7 +154,7 @@ public spellings.
   [foreign storage and lifetime](spec/build/foreign_storage.md),
   [machine-state evidence](spec/build/machine_state_evidence.md),
   [provider selection](spec/build/provider_selection.md),
-  [root-assumed bindings (exceptional use only)](spec/build/assumed_binding_contracts.md),
+  [native borrows and Unsafe admission](spec/resources/native_borrows.md),
   [embedding and interpreted components](spec/build/embedding.md),
   [task activation and lifecycle](spec/build/task_runtime.md),
   [service permissions](spec/build/permissions.md),
@@ -170,7 +170,8 @@ public spellings.
   [hardware materialization](spec/build/hardware_materialization.md), and
   [executable installation](spec/build/executable_installation.md).
 - Packages: [source selection](spec/packages/sources.md),
-  [project locks](spec/packages/locks.md),
+  [staged package inputs](spec/packages/staged_inputs.md),
+  [version 4 project locks](spec/packages/locks.md),
   [declaration and carried-type boundaries](spec/packages/boundaries.md),
   [core and ordinary libraries](spec/packages/toolchain.md),
   [compiler-derived review](spec/packages/review.md),

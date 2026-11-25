@@ -1,5 +1,12 @@
 # Project locks
 
+**Version 4 workflow.** The [staged package input contract](staged_inputs.md)
+moves revision selection into ordinary source and removes implicit lock
+discovery from the proposed Build path. This page records the separate duties
+of the existing lock during migration. In particular its accepted semantic
+bindings and restricted-operation approvals still need a caller-owned handoff
+before the lock can be retired.
+
 The lock is retained project intent, not a certificate of package safety.
 [Acceptance](acceptance.md) owns review and decision authority;
 [source selection](sources.md) owns resolution and immutable graph construction.
@@ -45,7 +52,7 @@ from a package name. Purpose, checked target, and build execution profile remain
 exact occurrence coordinates; root, dependency, Product, and Build acceptance
 are not interchangeable.
 
-[Assumed binding relationships](../build/assumed_binding_contracts.md) are
+In version 4, [assumed binding relationships](../build/assumed_binding_contracts.md) are
 risk-bearing assumption rows: retain the required/supplied contract identities,
 positional mapping, admitted semantic difference, runtime/root scope, and exact
 selected implementation and semantic-dependency commitment. These are not the

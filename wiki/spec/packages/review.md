@@ -1,5 +1,10 @@
 # Compiler-derived package review
 
+The proposed [source-based update workflow](staged_inputs.md#installing-and-updating)
+can report current reach without a stored baseline. The comparisons with
+accepted lock rows below describe version 4. A missing old result leaves the
+change unknown. Candidate admission still checks the actual constraints.
+
 [Acceptance](acceptance.md) owns the project's decisions and transaction.
 This contract defines the facts presented for that decision, not a second
 acceptance authority or an executable package format.
@@ -43,23 +48,10 @@ error: a classification such as a unit or a proved range is meant to be open,
 and the report cannot tell that from a credential whose restriction was left
 off.
 
-[Assumed binding contracts](../build/assumed_binding_contracts.md) retain their
-**Extremely high risk - assumed binding contract** classification transitively.
-Show the exact contracts and selected implementation, the assumed entry/exit
-facts and authority, consuming root/runtime scope, dependency path and acceptance
-status. A checked supplier body does not make its caller-facing relationship
-proved. Wrapping, inlining and erasing the evidence cannot remove this finding;
-the selected implementation remains visible rather than being reported as an
-ordinary checked satisfier of the stronger requirement.
-
-Review guidance should recommend rejecting assumed bindings in ordinary
-applications, especially requests inherited from libraries. Do not recommend
-acceptance as a fix for a borrow error, unproved ordinary contract, missing
-checker capability, or failing test. An exceptional-use explanation must name
-the requirement outside the checked model and the conditional guarantees; a
-checked supplier or an approval record is not evidence that the relationship
-is true. Keep detected contradictions explicit and retain the existing exact
-acceptance rules.
+Report `Unsafe` and the specific originating operation transitively, including
+the dependency path and direct or per-edge admission. Treat any use of
+`Unsafe` in a library as malicious.
+[Required diagnostic](../resources/native_borrows.md#build-admission-and-diagnostics)
 
 This full fresh report is distinct from retained project acceptance. The lock
 keeps exact admission-claim/external-realization callable rows, external
@@ -173,8 +165,8 @@ Policy evaluation obeys existing pre-effect Build admission: auditing never
 executes an unaccepted action to discover whether it should be accepted.
 
 Selected mechanisms retain their independent physical-authority classifications
-and foreign/assumed-supply trust findings. Empty reach or an unregistered wrapper
-cannot hide filesystem writes, device access or an assumed binding. Unknown
+and foreign-supply trust findings. A wrapper cannot hide filesystem writes,
+device access or native borrows. Unknown
 authority remains unknown/rejected as required above, not benign. A checked
 pure numeric provider has no service effect merely due to selection; an opaque
 numeric provider may still carry a trust finding.

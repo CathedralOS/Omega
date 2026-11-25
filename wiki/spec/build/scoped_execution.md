@@ -69,6 +69,11 @@ or evidence systems:
 
 ## Dependency declarations and binding
 
+The [staged package input contract](../packages/staged_inputs.md#from-source-to-the-next-stage)
+describes how a project's preparing stage supplies libraries to a successor
+Build and how an ordinary product registration differs. Stages use the same
+fixed-import and filesystem rules as other compilations.
+
 The invoker supplies the external package bindings for the root Build. A parent
 supplies the bindings for each child Build when configuring the child's request.
 Each child gets its own scope. Supplying a library grants no host access and
@@ -221,14 +226,12 @@ use main.omg as app;
 Build::bind(builder, |abi|::ProgramEntry, |app|::start);
 Build::bind_native::<WindowsAudioPlaybackIo::c_play_sound>(builder, windows_x86_64, native_locator);
 Build::select_provider::<|abi|::Console, TestConsole>(builder);
-Build::assume_binding_contract::<WritableMemory::claim, RangeSupplier::supply>(builder);
 _ = builder.tests.group::<Tests::memory>();
 ```
 
 Only those declaration-reference operands are resolved in the product context,
 using the occurrence's package authority, exact target, and complete expected
-slot/requirement signature. The `bind`, `select_provider` and
-`assume_binding_contract` operations themselves run
+slot/requirement signature. The `bind_native` and `select_provider` operations themselves run
 as admitted Build operations. No product receiver, function body, initializer,
 or provider is executed. A user-defined same-named method or generic helper gets
 no special resolution. This extends the existing "selection is not invocation"
@@ -243,13 +246,6 @@ running Build activation. This accepted form replaces source `via` and
 per-symbol forwarding declarations; its implementation and migration remain
 `BUILD-OWNED-NATIVE-BINDINGS` work under
 [foreign bindings](foreign_bindings.md#build-owned-native-binding).
-
-The assumed-binding operation registers a root-authorized runtime relationship
-only. Neither its implementation nor its admitted facts become build-executable;
-the [runtime-only prohibition](assumed_binding_contracts.md#runtime-only) applies
-independently of product-reference resolution. Its presence in the operand
-examples is not a recommendation: ordinary programs should reject assumed
-bindings, and helpers must not add one to make a rejected product compile.
 
 [Test-group registration](testing.md#registration-and-discovery) selects one exact
 product requirement. A test product selects providers for its requirements through

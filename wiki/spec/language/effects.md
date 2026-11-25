@@ -286,6 +286,13 @@ Recoverable failure and cancellation are result
 sums, not `fails` clauses. Resource capacity follows explicit capabilities and
 dependent contracts, not a `budget` or quantitative service member.
 
+## Unsafe reach
+
+`Unsafe` is a memberless boundary parent of `RawMemoryRead`, `RawMemoryWrite`,
+`BorrowMutabilityUpgrade`, and `ForeignCodeExecution`. Report each specific atom
+and its parent through ordinary reach closure. Admission and diagnostics follow
+the [native borrow contract](../resources/native_borrows.md#build-admission-and-diagnostics).
+
 ## Native images and foreign calls
 
 Core declares two distinct service identities. `NativeImageLoad` covers an
@@ -293,14 +300,17 @@ operation that can load a native executable image into the running process or
 execution environment. `ForeignCodeExecution` covers an operation that can
 enter an implementation across a foreign boundary. Declare the union of what
 the interface permits, including initializers. Both identities propagate
-through helpers and appear in the full reach report.
+through helpers and appear in the full reach report. Foreign execution also
+contributes its parent `Unsafe`. Loading alone does not. Entering independently
+supplied native bytes crosses the foreign boundary even if an embedded Omega
+compiler emitted them from checked source.
 
 | Operation | Reach from loading or entering code |
 | --- | --- |
 | Read a component file into a byte buffer | Neither. The filesystem read has its own reach. |
-| Load a checked Omega native component with no foreign entry | `NativeImageLoad`. Calling its checked export follows that export's declared reach. |
-| Call an already-loaded foreign SDK routine | `ForeignCodeExecution`, plus the routine's other declared services. |
-| Load a library through an operation that may run a foreign initializer | `NativeImageLoad + ForeignCodeExecution`, even if a particular image has no initializer. |
+| Place an image without entering foreign code or running a foreign initializer | `NativeImageLoad`. A later entry into independently supplied native code contributes its own reach. |
+| Call an already-loaded foreign SDK routine | `ForeignCodeExecution + Unsafe`, plus the routine's other declared services. |
+| Load a library through an operation that may run a foreign initializer | `NativeImageLoad + ForeignCodeExecution + Unsafe`, even if a particular image has no initializer. |
 
 Ordinary allocation of non-executable storage has its allocator's own reach.
 Executable installation of a native image reports `NativeImageLoad` even when

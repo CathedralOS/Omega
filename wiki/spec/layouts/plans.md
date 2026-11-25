@@ -84,7 +84,7 @@ public trait FixedLayout<T> {
 
 The empty reach ceiling and termination guarantee apply to the complete
 selected execution closure. Ordinary checked helpers are permitted; hidden
-host calls, runtime-only assumed bindings, and imported effects are not.
+host calls, native borrow operations, and imported effects are not.
 `LayoutTarget` supplies immutable target representation facts, including scalar
 geometry, alignment, endianness and applicable ABI facts. It grants no access
 to host services, private source structure, or compiler storage.

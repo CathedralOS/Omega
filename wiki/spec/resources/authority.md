@@ -70,10 +70,7 @@ reservation, backing, lifetime and custody sufficient for that execution.
 Provider selection chooses the implementing code. Ordinary boundary/foreign
 admission justifies exact external behavior, incoming resources and assumptions;
 qualified arguments establish the caller's authority over the particular
-subject. `reaches` records possible effects and grants none of these. An
-[assumed binding](../build/assumed_binding_contracts.md#runtime-only) is not
-the routine way to fill missing authority, incorrect contracts, failed proofs
-or compiler realization gaps in ordinary code.
+subject. `reaches` records possible effects and grants none of these. Forming a [native borrow](native_borrows.md) grants no domain membership.
 
 Enforce the corresponding obligation at the lowest callable dangerous
 primitive too, or make it inaccessible except through a genuinely checked
@@ -236,10 +233,8 @@ a selected case payload of the owned result carrier under the spelling above,
 or an exact ordinary parameter with the domain's carrier. A routed result binds
 the selected occurrence; a parameter introduction requires an installed
 external-root invocation. At an ordinary call that parameter remains a
-precondition. An explicit root-assumed runtime relationship may instead introduce
-an authorized input qualification at its exact crossing under the
-[assumed-binding rules](../build/assumed_binding_contracts.md#compatibility-and-direction);
-this is not an ordinary checked call or a new domain issuer. The receipt retains
+precondition. Only an authorized establishment route can issue the qualification.
+The receipt retains
 boundary trait, exact requirement/signature,
 subject position, selected provider, and installation/invocation evidence.
 

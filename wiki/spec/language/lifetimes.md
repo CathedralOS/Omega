@@ -91,7 +91,9 @@ takes the lifetime its use requires. The body must establish every returned view
 for every admissible choice, including its backing, access and retention. It
 cannot assume the choice coincides with an input lifetime, and checking never
 shortens the promised lifetime to fit a local or input borrow. Instantiating a
-lifetime creates neither backing nor retention authority.
+lifetime creates neither backing nor retention authority. For a
+[native borrow formed from an address](../resources/native_borrows.md#forming-a-borrow),
+the unsafe caller vouches for both throughout the chosen lifetime.
 
 ```omega
 machine package_name() -> @[u8] { "my_library" }

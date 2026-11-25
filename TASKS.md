@@ -223,6 +223,8 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 - **BUILD-PROGRAM-LAUNCH.** Implement the [Build program launch contract](wiki/spec/build/program_launch.md) across core, the Build library, CLI, admission and host adapters. Exercise exact binding and delegation beside an ungranted sibling, a changed executable, an unenforceable sandbox, normal and abnormal exits, failed start and timeout. Verify zero storage is `NotRun`, a returned result excludes that case, and a denied Build produces no first effect.
 
+- **STAGED-PACKAGE-INPUTS.** Draft. After the [remaining design decisions](wiki/spec/packages/staged_inputs.md#remaining-design-decisions) land, implement the staged binding handoff, library-owned Git pin requests and checked consumer ceilings. Exercise the same package standalone and nested, an offline pinned rebuild, a forbidden transitive reach and a conditional declaration the editor must leave untouched. Migrate restricted Build approvals, terminal permissions, external assumptions and exact compiler inputs. Reject old assumed-binding registrations without translating their receipts into reach grants.
+
 - **FIXED-BUILD-IMPORTS.** Resolve the root's caller-supplied libraries and each child's configured libraries before that Build enters. A missing helper must reject before an earlier observable write, including when its use is conditional. Keep product registration and generated source for [later compilations](wiki/spec/build/scoped_execution.md#checked-build-stages). Migrate callers and probes, then retire self-registration through `Build::build_dependency` and the route that compiles a successor program after `Build::prepare_dependency`.
   - Preserve [ordinary interpreter suspension](source-rust/subsystems/interpreter/embedding/continuation.rs) in the same checked program. Keep a borrow and an outstanding return obligation live across a wait, use the borrowed value after resumption and make a repeated initializer observable.
 
@@ -288,7 +290,11 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 ## P2 - Materialization and access policies
 
-- **ADDRESS-EXPOSURE.** (covers **DEFERRED-RECAST-ESTABLISHMENT**, **DEVICE-EXTENT-ACCESS**, **SYMBOLIC-MATERIALIZATION**, **NATIVE-CODE-LAYOUT-QUERIES**, **ASSUMED-BINDING-CONTRACTS**) Complete [storage-cast windows](wiki/spec/layouts/recasts.md#deferred-establishment-on-exclusive-storage-casts), [device access](wiki/spec/resources/device_access.md) (`device_extent_access`), [symbolic storage written after handoff](wiki/spec/layouts/plans.md), [`address_of`/`code_layout`](wiki/spec/language/counts_and_addresses.md#address-exposure), and [`assume_binding_contract`](wiki/spec/build/assumed_binding_contracts.md).
+- **ADDRESS-EXPOSURE.** (covers **DEFERRED-RECAST-ESTABLISHMENT**, **DEVICE-EXTENT-ACCESS**, **SYMBOLIC-MATERIALIZATION**, **NATIVE-CODE-LAYOUT-QUERIES**) Complete [storage-cast windows](wiki/spec/layouts/recasts.md#deferred-establishment-on-exclusive-storage-casts), [device access](wiki/spec/resources/device_access.md) (`device_extent_access`), [symbolic storage written after handoff](wiki/spec/layouts/plans.md), and [`address_of`/`code_layout`](wiki/spec/language/counts_and_addresses.md#address-exposure).
+
+- **NATIVE-BORROW-ADMISSION.** Implement [the three core operations](wiki/spec/resources/native_borrows.md), native lowering, interpreter rejection of address-to-borrow calls, and independent product opt-ins and per-edge ceilings for reachable code including `ForeignCodeExecution` under `Unsafe`.
+  - Exercise a native byte write, a directly returned reference with adequate backing, a visible conflicting alias or expired lifetime, and an upgrade that must invalidate facts about the referent. Check the same missing-admission diagnostic directly and across two dependency edges. Reject an interpreted address-to-borrow call through a helper.
+  - Retire the registration, provider-plan override and old approval path. Migrate the `assumed_binding_input_authority` and `assumed_binding_result_bound` fixtures to checked issuance/adapters or explicit rejection. Verify that neither an old receipt nor a borrow operation establishes a domain qualification or a contradictory postcondition.
 
 ## P3 - Terminal Psi, proofs, and observation
 

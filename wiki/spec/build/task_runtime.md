@@ -49,8 +49,7 @@ domain merely named Authorized is insufficient. An admitted entry may establish
 initial authority under its exact contract, and checked code may delegate or
 forward it without an endless chain of new tokens. Selection chooses the code;
 it does not mint runtime authority. Ordinary native/boundary admission preserves
-its assumptions and physical-authority obligations; an assumed binding is not
-a routine repair for a missing proof, capability contract or realization.
+its assumptions and physical-authority obligations.
 
 Authority to start work is independent of available capacity. `start` must
 establish the required reservation/backing and custody before execution;

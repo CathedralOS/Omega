@@ -284,8 +284,8 @@ a supported executable provider.
 Every callable dangerous primitive also obeys
 [initial-call authority](../resources/authority.md#initial-call-authority),
 including low-level routes beneath a checked wrapper. Ordinary native admission
-retains its exact assumptions and permissions; assumed bindings are not a
-routine escape from missing proofs, authority contracts or implementations.
+retains its exact assumptions and permissions. Provider selection requires
+conformance with the selected contract.
 The [provider delivery plan](../../drafts/designs/runtime_provider_authority.md)
 requires both unauthorized-call negatives and working authorized providers.
 

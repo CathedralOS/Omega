@@ -59,8 +59,8 @@ it under existing scoped delegation; there is no endless token-minting chain.
 
 Provider selection, default/shipped status and `reaches` grant no caller
 authority. Ordinary foreign/boundary admission binds actual behavior and
-incoming resources to an exact contract; `Build::assume_binding_contract` is
-not a routine workaround for missing proofs, bad contracts or compiler gaps.
+incoming resources to an exact contract. Provider selection requires checked
+conformance to the caller-facing requirement.
 
 Authority and capacity are independent. `start` establishes reservation/backing
 and takes genuine custody before execution; `try_start` can reject and returns

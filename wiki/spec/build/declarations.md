@@ -289,15 +289,6 @@ graph, not provider-slot selection. Transitive reach,
 invocation, blocking/suspension, termination, observations, and authority
 demands compose into the root's published ceiling.
 
-`Build::assume_binding_contract::<Required::operation, Supplied::operation>(builder)` is an
-evaluated root-authorized product selection under the
-[assumed-binding contract](assumed_binding_contracts.md), not a statically
-projected project/dependency declaration. Its exact product references do not
-execute either requirement or grant any assumption to the build-host context.
-Ordinary applications should not use this selection. Build helpers and libraries
-must not insert it as a workaround for a failed provider contract or checker
-diagnostic; the exceptional-use rationale belongs to the consuming root.
-
 Filesystem operations use ordinary explicitly supplied backing and selected
 implementations. The old BuildSource/BuildOutput filesystem facets are retired
 under `STAGED-BUILD-CAPABILITIES`, not the public dependency-helper interface.
@@ -389,7 +380,9 @@ search for undeclared build files. Source kinds are extensible; Git is not the
 semantic definition of a source. There is no independent package version field:
 the exact resolved source supplies instance identity.
 
-The workspace owns its lock; dependency locks do not pin the consumer's graph.
+Under [staged package inputs](../packages/staged_inputs.md), each package
+authors its direct requests. Workspace membership supplies no pins or approvals.
+In the version 4 workflow the workspace owns its lock and dependency locks do not pin the consumer's graph.
 Membership does not merge acceptance across roots. A multi-root workspace lock
 must retain each root's source closure, target sections and acceptance separately;
 neither catalog membership nor another root's acceptance can fill missing state.

@@ -610,14 +610,8 @@ one activates no operator syntax and registers nothing with Build.
 
 ## Transparent refinements
 
-A root [assumed binding contract](../build/assumed_binding_contracts.md) is an
-explicit runtime installation relationship, not a conformance or transparent
-refinement. Each implementation still checks against its own declared contract.
-Neither `satisfies` nor ordinary generic conformance selection may use the
-unproved relationship as though it were checked conformance evidence.
-Do not replace a rejected ordinary conformance with an assumed binding. Repair
-the implementation, establish the required facts, correct the declared contract,
-or fix the checker if it rejects a valid program.
+A provider whose contract differs from the requirement needs a checked
+refinement or adapter. Build admission supplies no conformance evidence.
 
 ```omega
 public trait LocalLogger = Logger {
