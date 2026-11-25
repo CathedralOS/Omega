@@ -856,6 +856,27 @@ fn step(value: IntegerValue, increase: bool) -> Option<IntegerValue> {
     }
 }
 
+fn collect_term_values(term: &ScalarTerm, out: &mut Vec<ValueId>) {
+    if let ScalarTerm::Value { id, .. } = term {
+        if !out.contains(id) {
+            out.push(*id);
+        }
+        return;
+    }
+    for operand in term.operands() {
+        collect_term_values(operand, out);
+    }
+}
+
+fn term_shares_value(term: &ScalarTerm, targets: &[ValueId]) -> bool {
+    if let ScalarTerm::Value { id, .. } = term {
+        return targets.contains(id);
+    }
+    term.operands()
+        .into_iter()
+        .any(|operand| term_shares_value(operand, targets))
+}
+
 fn term_mentions(term: &ScalarTerm, target: &ScalarTerm) -> bool {
     term == target
         || term
@@ -5039,6 +5060,8 @@ impl<'a> Prover<'a> {
             .ok(),
             _ => None,
         };
+        let mut target_values = Vec::new();
+        collect_term_values(target, &mut target_values);
         let mut fallback = None;
         let mut transport = None;
         for target in std::iter::once(target).chain(exchanged.as_ref()) {
@@ -5048,18 +5071,40 @@ impl<'a> Prover<'a> {
                     Proposition::LessThan(left, right) => (left, right, true),
                     _ => continue,
                 };
-                let order = Proposition::LessOrEqual(left.clone(), right.clone());
                 for (root_endpoint, root) in [left, right].into_iter().enumerate() {
+                    let def_fact_and_axiom = match root {
+                        ScalarTerm::Value { id, .. } => self
+                            .definitions
+                            .get(*id)
+                            .and_then(|slot| *slot)
+                            .and_then(|definition| {
+                                let fact_index = self.equations[definition];
+                                self.facts[fact_index]
+                                    .axiom
+                                    .map(|axiom_index| (fact_index, axiom_index))
+                            }),
+                        _ => None,
+                    };
+                    if !target_values.is_empty()
+                        && !term_shares_value(root, &target_values)
+                        && !def_fact_and_axiom.is_some_and(|(fact_index, _)| {
+                            matches!(
+                                self.facts[fact_index].proposition(),
+                                Proposition::Equal(eq_left, eq_right)
+                                    if term_shares_value(eq_left, &target_values)
+                                        || term_shares_value(eq_right, &target_values)
+                            )
+                        })
+                    {
+                        continue;
+                    }
                     let mut witness = IntegerAffineWitness {
                         root: root.clone(),
                         target: target.clone(),
                         definition_axioms: Vec::new(),
                         literal_axioms: Vec::new(),
                     };
-                    if let ScalarTerm::Value { id, .. } = root
-                        && let Some(Some(definition)) = self.definitions.get(*id)
-                        && let Some(index) = self.facts[self.equations[*definition]].axiom
-                    {
+                    if let Some((_, index)) = def_fact_and_axiom {
                         witness.definition_axioms.push(index);
                         witness.literal_axioms.push(None);
                     }
@@ -5068,6 +5113,7 @@ impl<'a> Prover<'a> {
                     else {
                         continue;
                     };
+                    let order = Proposition::LessOrEqual(left.clone(), right.clone());
                     let (conclusion, transported) = match map_integer_affine_bound(&form, &order) {
                         Ok(conclusion) => (conclusion, None),
                         Err(_) => {
