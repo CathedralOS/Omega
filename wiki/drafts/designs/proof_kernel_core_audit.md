@@ -470,7 +470,6 @@ program.
 | --- | --- | --- |
 | An operator expression with no recorded selection is completed with no check | `complete_operator` returns `Ok(())` when the loop over `authored_selection_occurrences` finds no `Operator` selection (`05_.../src/read/source_operators.rs:447-484`). Two cross-checks found it independently. Stage 02 gives every binary, indexed and unary expression such a selection, except a type predicate such as `T == u32` and a type operand (`02_.../selections/authored_selections.rs:1323-1337`), so the gap opens only if a selection is lost between the stages. | A missing record means builtin |
 | The validator of scalar domains on stores lists the storing operations by hand and ends in `_ => {}` | `psi/semantics/src/scalar_qualifications.rs:376-409`. A field read now carries its declared domain, so soundness rests on every store being in this list. One is already missing: the list has no `ElementViewWrite`, while the read side a few lines below trusts `ElementViewRead` to carry the element's declared domain (`:424-446`). Stage 05 does not emit `ElementViewWrite` today; a Psi module from elsewhere, or a later lowering, would pass unchecked. | A hand-listed match with an accepting default arm |
-| A certificate the mathematical kernel declined is accepted with a marker nobody reads | `MathematicalCoreDecision::Refused` is read only by tests (`bounded/proof.rs:238-262`). This is L4. | A verdict stored as an unread flag |
 | The foundation class of each proof rule (constructive, trusted, classical) has no consumer | `AcceptedProofRule::foundation` is called only by tests in its own file (`bounded/classicality.rs`). The tests pin the table; no certificate is checked against it. | Audit described, not connected |
 | A const argument is written into the type table as a name with no symbol and parsed back from its digits | `typed-trees/type_records/data_applications.rs:99-108`, `typed-trees/expressions/values.rs:73-77` | A value carried as text |
 | The stored-field `range_obligation` slot has no producer | Stage 05 writes `None` at all six sites (`05_.../src/lower/places.rs:3611-4964`). It is unreachable today because stage 05 reads only whole-field placements (`AuthoredFieldStorage::Direct`, `read/source_records/layouts.rs:443-448`). The fit proof that [layout plans](../../spec/layouts/plans.md) require must arrive with narrowed integer fields. | A slot with readers and no writer |
@@ -596,17 +595,21 @@ What the code shows:
   `MathematicalArgument` hold a `type_identity: String`
   (`proposition.rs:1466-1500`), against the lowered program's rule that no
   decision is keyed on text.
-- **Some certificates are accepted without the mathematical kernel judging
-  them.** `bounded_denotation.rs` names all 33 rules, but nine sites return
+- **A certificate the mathematical kernel cannot translate is refused.**
+  `bounded_denotation.rs` names all 33 rules; eleven sites return
   `Unsupported` for a shape it cannot translate (for example "a carrier bound
-  of an integer whose width is a parameter"). Admission then records
-  `MathematicalCoreDecision::Refused` and still accepts the certificate on
-  the bounded rule (`bounded/proof.rs:257-259`). Nothing in `source-to-psi`
-  read that decision, so nobody counted these. Since 2026-11-24 stage 06
-  counts them per obligation kind and shape (`unjudged.rs`) and adds a note
-  to an accepted compilation's advisories, which `omega --check` prints and
-  `xtask sweep` records per program; there were 14 such return sites then.
-  Closing or refusing the shapes is still owed (`TASKS.md`).
+  of an integer whose width is a parameter"). Since #5715,
+  `re_decide_in_mathematical_core` turns every `BoundedDenotationError`,
+  `Unsupported` included, into `ProofError::MathematicalCore`
+  (`bounded/proof.rs`), and stage 06 reports it as "the proof kernel refused
+  the certificate". Rules the core cannot derive still reach the kernel as
+  rule-instance assumptions, as [the metatheory](../../spec/proofs/kernel_metatheory.md)
+  sanctions. No program on `main` is known to reach an `Unsupported` site;
+  most guard invariants an earlier check already established. One of them,
+  the citation crossing in `same_denotation`, cannot fire on a well-formed
+  proposition: a math equality must hold its endpoints in sorted order, so
+  its lowered `Equal` lifts back to the same proposition
+  (`a_math_equality_cited_at_its_lowered_form_denotes_identically`).
 - **Terminal Psi has one slot per construct.** `mathematical_carriers`,
   `identity_formations` and `indexed_theorems` each carry one kind of
   declaration, and none has a writer.
@@ -621,7 +624,7 @@ checked against the code but not built.
 | L1 | **One term reader in stage 05.** One function reads an expression into a term at every position. `ClauseScope` supplies only what each name denotes there (a formal, the entry snapshot for `old`, the result, a field of the value being built). | the position axis: a term form served once is served in every clause, domain predicate, definition body and erased argument | readers per term form: 1; refusals that name a position: 0 |
 | L2 | **Four general term forms.** Add an application of a published declaration to argument terms, `Id` at a type, a constructor of a `data` case applied to its fields, and a projection of a field from a term. These are the four forms the old judge's term type had and `Proposition` lacks. The existing scalar, integer and float forms stay as the cases the arithmetic rules work on. | the operand axis: Identity for every type (C5), a call to a machine with no body, a definition with binders (C1) and a quotient relation (C10) become the same four forms, with one reader, one prover route (reflexivity, symmetry, transitivity, congruence, constructor injectivity) and one translation to the kernel | equality forms a new type needs: 0 |
 | L3 | **One signature table in the lowered program**, written by stage 05 and checked once by stage 06 with `check_signature`. Publication fills the three tables the wire format already specifies (indexed theorem rows, mathematical carriers and the Id formation catalog with its shared certificate, [encoding](../../spec/terminal-psi/encoding.md)) from that one table. The wire format does not change: [Psi claim admission](psi_claim_admission.md) says "No codec retirement". An earlier version of this row replaced the three wire tables; a reviewer pointed out that they are ratified. | a table and a wire reader per construct | writers per declaration kind: 1 |
-| L4 | **Stage 06 reads `MathematicalCoreDecision`** and reports how many accepted certificates the mathematical kernel did not judge, per obligation kind. Close the nine shapes or refuse them. | a second basis of trust that nobody measures | accepted without the kernel's judgment: 0 |
+| L4 | Done in #5715: **a shape the kernel cannot translate is refused.** `MathematicalCoreDecision` has only `Judged`; every translation error refuses the certificate. | a second basis of trust that nobody measures | accepted without the kernel's judgment: 0 |
 | L5 | **Typed identities in `ProofTerm`** in place of `type_identity: String`. | decisions keyed on text | text keys in `ProofTerm`: 0 |
 
 L1 and L2 replace R1's separate routes for definitions, Identity and
@@ -946,7 +949,7 @@ there adds a case per construct, take the rule here instead.
 | 5 | Move each existing term form into the single reader and delete the reader it came from | stage 05 | each position refusal listed [above](#how-a-clause-becomes-a-proof-term-today), with its twin |
 | 6 | The rest of R2: value-indexed families. Needs value-indexed type arguments (`Vector<previous, previous_total>`) evaluated in stage 03 first. | stages 03, 05 | `source_indexed_*`, once their other blockers are repaired |
 | 7 | Quotient formation (L2, L3) and the correspondence judgment (R3) | stages 05, 06 | none in the library or samples today; the corpus had 43 fixtures to recover a pair from |
-| — | In parallel, each independent: (a) divide/remainder/shift endpoints from an interval divisor in `IntegerAffineBound`; (b) irreflexivity of `<` on an open value; (c) L4; (d) L5 | stage 06, kernel | S06 README:1039-1052 programs |
+| — | In parallel, each independent: (a) divide/remainder/shift endpoints from an interval divisor in `IntegerAffineBound`; (b) irreflexivity of `<` on an open value; (c) L5 | stage 06, kernel | S06 README:1039-1052 programs |
 | later | `core\Level` binders in stages 02-03 and the Squash mapping, when a program needs them and open question 1 is answered | stages 02-03, 05 | `representation_agreement`, the only family that uses a level |
 
 Step 1 is small on purpose. [Check on the lowered form](check_on_lowered_form.md#lane-order)

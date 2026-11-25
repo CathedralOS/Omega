@@ -17895,6 +17895,73 @@ mod tests {
         );
     }
 
+    /// The other direction of the crossing above: a retained math equality
+    /// cited at its lowered `Equal` form. `same_denotation` needs no
+    /// symmetry step because a math equality must already hold its
+    /// endpoints in the order `lift_fixed_integer_relation` sorts them into,
+    /// so the goal re-lifts to the retained proposition itself. The twin
+    /// swaps only the premise's endpoints and is refused as malformed.
+    #[test]
+    fn a_math_equality_cited_at_its_lowered_form_denotes_identically() {
+        let (x_id, x) = value(1);
+        let (y_id, y) = value(2);
+        let context = PropositionContext::from_value_types([
+            (x_id, unsigned64_type()),
+            (y_id, unsigned64_type()),
+        ])
+        .expect("context");
+        let embed = |term| semantic_vocabulary::IntegerMathTerm::embed(term).expect("u64 embeds");
+        let retained = Proposition::IntegerMathEqual(embed(x.clone()), embed(y.clone()));
+        let goal = crate::lower_integer_math_relation(&retained).expect("u64 endpoints lower");
+        assert_eq!(goal, Proposition::Equal(x.clone(), y.clone()));
+        assert_eq!(
+            crate::lift_fixed_integer_relation(&goal).as_ref(),
+            Some(&retained),
+        );
+        let swapped = Proposition::IntegerMathEqual(embed(y), embed(x));
+        for (assumptions, axioms, proof) in [
+            (
+                from_ref(&retained),
+                &[][..],
+                assumption_proof(goal.clone(), 0),
+            ),
+            (
+                &[][..],
+                from_ref(&retained),
+                semantic_axiom_proof(goal.clone(), 0),
+            ),
+        ] {
+            let denoted = verify_bounded_certificate(
+                &context,
+                &goal,
+                assumptions,
+                axioms,
+                &proof,
+                &mut budget(),
+            )
+            .expect("the lowered citation verifies");
+            assert!(
+                matches!(
+                    denoted.arena.get(denoted.certificate.term),
+                    Term::Variable(_)
+                ),
+                "the cited variable is the whole certificate",
+            );
+            let swapped = from_ref(&swapped);
+            let (assumptions, axioms) = if assumptions.is_empty() {
+                (assumptions, swapped)
+            } else {
+                (swapped, axioms)
+            };
+            assert!(matches!(
+                crate::accept_certificate(&context, &goal, assumptions, axioms, &proof),
+                Err(ProofError::MalformedProposition(
+                    semantic_vocabulary::PropositionError::NonCanonicalIntegerMathEqualityOperands
+                )),
+            ));
+        }
+    }
+
     #[test]
     fn the_closure_names_every_judgment_premise() {
         let p = atom(1);
