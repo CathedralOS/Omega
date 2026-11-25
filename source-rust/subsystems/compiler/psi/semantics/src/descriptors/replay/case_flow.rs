@@ -447,19 +447,40 @@ fn written_locations(
     Some(writes)
 }
 
-fn survives(
-    storage: &Storage,
-    writes: Option<&[DescriptorLocation]>,
-    subject: &DescriptorLocation,
-) -> bool {
-    let Some(writes) = writes else {
-        return false;
-    };
-    writes.is_empty()
-        || (storage.contains(subject)
-            && writes
-                .iter()
-                .all(|write| storage.contains(write) && !values::overlaps(write, subject)))
+/// Which remembered case facts outlive one step's writes. Whether every write
+/// stays inside owned storage does not depend on the subject, so the step
+/// decides it once instead of once per remembered subject.
+enum Survival<'writes> {
+    /// The step writes nothing, so every fact survives.
+    All,
+    /// The writes are unknown or reach outside owned storage.
+    Nothing,
+    /// An owned subject survives unless a write overlaps it.
+    Disjoint(&'writes [DescriptorLocation]),
+}
+
+impl<'writes> Survival<'writes> {
+    fn new(storage: &Storage, writes: Option<&'writes [DescriptorLocation]>) -> Self {
+        match writes {
+            None => Self::Nothing,
+            Some([]) => Self::All,
+            Some(writes) if writes.iter().all(|write| storage.contains(write)) => {
+                Self::Disjoint(writes)
+            }
+            Some(_) => Self::Nothing,
+        }
+    }
+
+    fn keeps(&self, storage: &Storage, subject: &DescriptorLocation) -> bool {
+        match self {
+            Self::All => true,
+            Self::Nothing => false,
+            Self::Disjoint(writes) => {
+                storage.contains(subject)
+                    && writes.iter().all(|write| !values::overlaps(write, subject))
+            }
+        }
+    }
 }
 
 pub(crate) fn transport<'locations>(
@@ -485,7 +506,8 @@ pub(crate) fn transport<'locations>(
     if derivations.peek().is_none() && writes.as_ref().is_some_and(Vec::is_empty) {
         return Some(base.cases.clone());
     }
-    let keep = |subject: &DescriptorLocation| survives(storage, writes.as_deref(), subject);
+    let survival = Survival::new(storage, writes.as_deref());
+    let keep = |subject: &DescriptorLocation| survival.keeps(storage, subject);
     let mut cases = if writes.is_none() {
         CurrentCases::default()
     } else {
@@ -617,13 +639,14 @@ pub(crate) fn retire_query(
                 })
                 .collect::<Option<Vec<_>>>()
         });
+    let survival = Survival::new(storage, writes.as_deref());
     let cases = Arc::make_mut(&mut after.cases);
     cases
         .facts
-        .retain(|subject, _| survives(storage, writes.as_deref(), subject));
+        .retain(|subject, _| survival.keeps(storage, subject));
     cases
         .copies
-        .retain(|subject| survives(storage, writes.as_deref(), subject));
+        .retain(|subject| survival.keeps(storage, subject));
 }
 
 pub(crate) fn join(left: &CurrentCases, right: &CurrentCases) -> CurrentCases {

@@ -75,6 +75,14 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+<a id="related-image-searches-its-checked-roots-linearly-for-every-fact"></a>
+### `related_image` searches its checked roots linearly for every fact
+- Category: 10. Verifying costs more than writing
+- Where: [`Prover::related_image`](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/prove.rs#L5242), the `checked_roots.iter().find(|(seen, _)| *seen == root)` lookup
+- Saw: for each order fact, both endpoints are compared by full `ScalarTerm` equality against every root already checked, so one call costs facts × distinct roots tree comparisons. In a `perf` call-graph profile of a release `omega --check` of `samples/cli/arithmetic/popcount/main.omg` (`omega-linux`, 29,853 samples, 2026-11-25), `ScalarTerm::eq` was 3.1% of all samples, and 2.8% of that sat under `related_image` (through `arithmetic_images` from `arithmetic_image` and `arithmetic`).
+- Cost: about 3% of the whole check spent comparing terms. A lookup keyed by the root term (sorted or hashed once per call) would make it linear in the facts.
+- Reported: 2026-11-25, Claude Code, while profiling `semantic-vocabulary` term equality; the fix is in Psi 06, outside that task's scope.
+
 <a id="resuming-a-typing-from-retained-source-costs-more-than-typing-afresh"></a>
 ### Resuming a typing from retained source costs more than typing afresh
 - Category: 4. Re-deriving

@@ -70,7 +70,7 @@ impl<Value> LocationMap<Value> {
     }
 }
 
-impl<Value: Clone> LocationMap<Value> {
+impl<Value: Clone + PartialEq> LocationMap<Value> {
     pub(super) fn get_mut(&mut self, location: &DescriptorLocation) -> Option<&mut Value> {
         let index = self.page(location).ok()?;
         let page = &mut self.pages.get_mut(index)?.1;
@@ -94,28 +94,50 @@ impl<Value: Clone> LocationMap<Value> {
                 index
             }
         };
-        Arc::make_mut(&mut self.pages[index].1).insert(location, value)
+        let page = &mut self.pages[index].1;
+        // A saved state shares this page. Rewriting a value it already holds
+        // leaves the map unchanged, so keep sharing instead of copying the page.
+        if Arc::get_mut(page).is_none()
+            && let Some(existing) = page.get(&location)
+            && *existing == value
+        {
+            return Some(value);
+        }
+        Arc::make_mut(page).insert(location, value)
     }
 
     pub(super) fn retain(&mut self, mut keep: impl FnMut(&DescriptorLocation, &Value) -> bool) {
         self.pages.retain_mut(|(_, page)| {
-            let mut removed = Vec::new();
-            for (location, value) in page.iter() {
-                if !keep(location, value) {
-                    removed.push(location.clone());
-                }
+            if let Some(page) = Arc::get_mut(page) {
+                page.retain(|location, value| keep(location, value));
+                return !page.is_empty();
             }
-            if removed.is_empty() {
+            // A saved state shares this page. Copy only the rows that stay,
+            // and only once a row leaves; an unchanged page stays shared.
+            let mut rows = page.iter();
+            let mut kept = 0;
+            let removed = rows.by_ref().find(|(location, value)| {
+                let stays = keep(location, value);
+                kept += usize::from(stays);
+                !stays
+            });
+            if removed.is_none() {
                 return true;
             }
-            if removed.len() == page.len() {
+            let mut copy = page
+                .iter()
+                .take(kept)
+                .map(|(location, value)| (location.clone(), value.clone()))
+                .collect::<Vec<_>>();
+            copy.extend(
+                rows.filter(|(location, value)| keep(location, value))
+                    .map(|(location, value)| (location.clone(), value.clone())),
+            );
+            if copy.is_empty() {
                 return false;
             }
-            let page = Arc::make_mut(page);
-            for location in removed {
-                page.remove(&location);
-            }
-            !page.is_empty()
+            *page = Arc::new(copy.into_iter().collect());
+            true
         });
     }
 
@@ -159,7 +181,7 @@ impl<Value: Clone> LocationMap<Value> {
     }
 }
 
-impl<Value: Clone> Extend<(DescriptorLocation, Value)> for LocationMap<Value> {
+impl<Value: Clone + PartialEq> Extend<(DescriptorLocation, Value)> for LocationMap<Value> {
     fn extend<Items: IntoIterator<Item = (DescriptorLocation, Value)>>(&mut self, items: Items) {
         for (location, value) in items {
             self.insert(location, value);
@@ -167,7 +189,7 @@ impl<Value: Clone> Extend<(DescriptorLocation, Value)> for LocationMap<Value> {
     }
 }
 
-impl<Value: Clone> FromIterator<(DescriptorLocation, Value)> for LocationMap<Value> {
+impl<Value: Clone + PartialEq> FromIterator<(DescriptorLocation, Value)> for LocationMap<Value> {
     fn from_iter<Items: IntoIterator<Item = (DescriptorLocation, Value)>>(items: Items) -> Self {
         let mut locations = Self::new();
         locations.extend(items);
@@ -175,7 +197,7 @@ impl<Value: Clone> FromIterator<(DescriptorLocation, Value)> for LocationMap<Val
     }
 }
 
-impl<Value: Clone, const COUNT: usize> From<[(DescriptorLocation, Value); COUNT]>
+impl<Value: Clone + PartialEq, const COUNT: usize> From<[(DescriptorLocation, Value); COUNT]>
     for LocationMap<Value>
 {
     fn from(items: [(DescriptorLocation, Value); COUNT]) -> Self {
@@ -267,6 +289,91 @@ mod tests {
                 copies: Arc::clone(&self.copies),
             }
         }
+    }
+
+    impl PartialEq for Counted {
+        fn eq(&self, other: &Self) -> bool {
+            self.value == other.value
+        }
+    }
+
+    fn counted_roots(
+        ids: std::ops::RangeInclusive<u64>,
+        copies: &Arc<AtomicUsize>,
+    ) -> LocationMap<Counted> {
+        ids.map(|id| {
+            (
+                root(id),
+                Counted {
+                    value: id,
+                    copies: Arc::clone(copies),
+                },
+            )
+        })
+        .collect()
+    }
+
+    #[test]
+    fn rewriting_a_held_value_keeps_the_saved_page_shared() {
+        let copies = Arc::new(AtomicUsize::new(0));
+        let before = counted_roots(1..=128, &copies);
+        let mut after = before.clone();
+        after.insert(
+            root(70),
+            Counted {
+                value: 70,
+                copies: Arc::clone(&copies),
+            },
+        );
+        assert_eq!(copies.load(Ordering::Relaxed), 0);
+        assert!(Arc::ptr_eq(&before.pages[1].1, &after.pages[1].1));
+        // A different value still copies only its own page.
+        after.insert(
+            root(70),
+            Counted {
+                value: 7,
+                copies: Arc::clone(&copies),
+            },
+        );
+        assert_eq!(copies.load(Ordering::Relaxed), ROOTS_PER_PAGE as usize);
+        assert!(Arc::ptr_eq(&before.pages[0].1, &after.pages[0].1));
+        assert_eq!(before.get(&root(70)).unwrap().value, 70);
+        assert_eq!(after.get(&root(70)).unwrap().value, 7);
+    }
+
+    #[test]
+    fn retaining_from_a_saved_state_copies_only_the_rows_that_stay() {
+        let copies = Arc::new(AtomicUsize::new(0));
+        let before = counted_roots(1..=192, &copies);
+        let mut after = before.clone();
+        let mut asked = Vec::new();
+        // Page 0 keeps every row, page 1 loses its odd roots and page 2 empties.
+        after.retain(|location, _| {
+            let id = location.root.get();
+            asked.push(id);
+            id <= 64 || (id <= 128 && id % 2 == 0)
+        });
+        assert_eq!(
+            asked,
+            (1..=192).collect::<Vec<_>>(),
+            "each row is asked once, in order"
+        );
+        assert_eq!(copies.load(Ordering::Relaxed), 32);
+        assert!(Arc::ptr_eq(&before.pages[0].1, &after.pages[0].1));
+        assert_eq!(after.pages.len(), 2);
+        assert_eq!(
+            after.keys().map(|key| key.root.get()).collect::<Vec<_>>(),
+            (1..=64).chain((66..=128).step_by(2)).collect::<Vec<_>>()
+        );
+        assert_eq!(before.iter().count(), 192);
+        // `before` still holds page 0, so dropping root 2 copies its other 63 rows.
+        after.retain(|location, _| location.root.get() != 2);
+        assert_eq!(copies.load(Ordering::Relaxed), 32 + 63);
+        // Once no saved state holds a page, retain filters it in place.
+        drop(before);
+        after.retain(|location, _| location.root.get() > 64);
+        assert_eq!(copies.load(Ordering::Relaxed), 32 + 63);
+        assert_eq!(after.pages.len(), 1);
     }
 
     #[test]

@@ -20,13 +20,13 @@ mod validation {
     impl ScalarTerm {
         pub fn validate(&self) -> Result<(), PropositionError> {
             let mut pending = vec![Step::Visit(self)];
+            let mut operands = Vec::new();
             while let Some(step) = pending.pop() {
                 match step {
                     Step::Visit(term) => {
                         pending.push(Step::Finalize(term));
-                        for operand in term.operands().into_iter().rev() {
-                            pending.push(Step::Visit(operand));
-                        }
+                        term.append_operands(&mut operands);
+                        pending.extend(operands.drain(..).rev().map(Step::Visit));
                     }
                     Step::Finalize(term) => term.validate_after_operands()?,
                 }
@@ -1662,6 +1662,14 @@ impl ScalarTerm {
         append_scalar_operands!(self, operands, iter, as_ref);
     }
 
+    /// Pushes the operands so a stack pops them in declaration order. Walks
+    /// share one stack this way instead of allocating a `Vec` per operator node.
+    pub(crate) fn push_operands_reversed<'a>(&'a self, pending: &mut Vec<&'a Self>) {
+        let first = pending.len();
+        self.append_operands(pending);
+        pending[first..].reverse();
+    }
+
     pub fn operands(&self) -> Vec<&ScalarTerm> {
         let mut operands = Vec::new();
         self.append_operands(&mut operands);
@@ -1683,7 +1691,7 @@ impl ScalarTerm {
                         return false;
                     }
                 }
-                _ => pending.extend(term.operands()),
+                _ => term.append_operands(&mut pending),
             }
         }
         true
