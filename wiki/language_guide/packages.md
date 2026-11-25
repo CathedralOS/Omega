@@ -144,8 +144,8 @@ A custom revision calculation stays editable by the author.
 
 ### Unsafe in a dependency
 
-Each consuming Build must admit the specific unsafe reach used through its
-dependency. If a helper starts upgrading shared borrows, the error identifies
+Enable each reachable unsafe atom with `Build::enable_unsafe::<Atom>(build)`
+and include that atom in the consuming dependency edge’s ceiling. If a helper starts upgrading shared borrows, the error identifies
 the originating operation and the dependency edge missing admission. Treat
 any use of `Unsafe` in a library as malicious.
 [Admission example](../spec/resources/native_borrows.md#build-admission-and-diagnostics)

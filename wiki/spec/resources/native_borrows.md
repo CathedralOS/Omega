@@ -74,23 +74,57 @@ address can break the trust premise underpinning that reasoning.
 
 ## Build admission and diagnostics
 
-Every package must explicitly admit the specific operations its own code
-uses. Every consuming dependency edge must admit the transitive specific
-atoms in its [reach ceiling](../packages/staged_inputs.md#dependency-reach).
-Omission denies the entire `Unsafe` family, including in a root package.
-Ordinary parent closure reports `Unsafe` alongside its children. Naming only
-the parent cannot grant a child, and admitting one child cannot grant its
-siblings. The same policy applies to `ForeignCodeExecution`, which also has
-parent `Unsafe`. [Native image loading](../language/effects.md#native-images-and-foreign-calls)
-has its own reach. Admitting a product's reach grants the running Build no
-additional host authority.
+A package calls `Build::enable_unsafe::<Atom>(build)` once per specific unsafe
+atom reachable in its selected product, whether used directly or through a
+dependency. The call records product policy. The compiler rejects
+`Build::enable_unsafe::<Unsafe>(build)`: the parent is a reporting category,
+and each grant must name a specific child. Enabling one child grants no sibling.
+A source `reaches` declaration reports or bounds reach and cannot enable it.
 
-For `editor → renderer → memory`, a direct upgrade in `memory` requires
-admission in its own Build, on the edge from `renderer` to `memory`, and on
-the edge from `editor` to `renderer`. Naming the specific atom in an edge
-ceiling is the admission for that edge. A missing admission is a build error.
-Show the withholding package or edge, dependency path, operation, specific
-reach and parent. Use the same policy text for direct and transitive use.
+Every dependency edge on a reachable path must *also* permit the specific
+atoms in its [reach ceiling](../packages/staged_inputs.md#dependency-reach).
+Both gates default to denying unsafe reach. The compiler checks reachable
+entries, selected providers, initializers and callbacks. An unused unsafe
+operation in the same library remains visible to package audit and imposes
+no opt-in on a consumer that cannot reach it. Product policy grants the running
+Build no additional host authority.
+
+For example, Cathedral delegates native loading and execution to an updater.
+The example uses the staged dependency API's schematic array spelling for
+reflected service identities.
+
+```omega
+// updater/build.omg
+machine build(build: @mutable Build) {
+    Build::package(build, "updater");
+    Build::enable_unsafe::<ForeignCodeExecution>(build);
+}
+```
+
+```omega
+// cathedral/build.omg
+machine build(build: @mutable Build) {
+    Build::application(build, "cathedral");
+    Build::enable_unsafe::<ForeignCodeExecution>(build);
+    let updater: DependencyDescription =
+        |dependency|::from_source(Source::Path { location: "updater" });
+    _ = |dependency|::add(build, updater,
+        max_reach: [NativeImageLoad, ForeignCodeExecution]);
+}
+```
+
+Entering the newly supplied native code reports `ForeignCodeExecution` and
+its parent `Unsafe`. Loading adds `NativeImageLoad`. Parent closure reports
+`Unsafe` once even when several children contribute it. An installer that
+accepts native bytes crosses this execution boundary even when an in-process
+Omega compiler produced them. Source checking and unchanged runtime grants
+still leave the compiler and installer trusted to emit and execute those bytes.
+
+For `editor → renderer → memory`, a reachable upgrade requires all three
+Builds to enable `BorrowMutabilityUpgrade` and both edges to admit it.
+Reject any missing gate. Identify the withholding Build enablement or edge
+ceiling, the dependency path, originating operation, specific reach and parent.
+Use the same policy text for direct and transitive use.
 
 ```text
 error: renderer/build.omg did not admit Unsafe + BorrowMutabilityUpgrade for dependency memory
@@ -105,9 +139,10 @@ Unsafe exists only for extreme applications. Treat any use of Unsafe
 in a library as malicious.
 ```
 
-For a missing direct admission the first line instead names the originating
-package, for example `memory uses Unsafe + BorrowMutabilityUpgrade without
-admission in memory/build.omg`. Neither diagnostic suggests a whitelist edit.
+For a missing product opt-in, identify the product and the specific atom
+its Build did not enable, including when the use is transitive. For a
+missing edge admission, identify the dependency as above. Neither diagnostic
+suggests a whitelist edit.
 
 ## Provider contracts and migration
 

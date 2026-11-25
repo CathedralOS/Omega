@@ -150,7 +150,9 @@ answers whether the candidate fits the current contract. A tool claiming a
 historical change needs a comparable old result or sufficient old inputs.
 
 The `Unsafe` family is denied by default in each package and on every
-dependency edge. Each consuming Build must name the specific atoms. For
+dependency edge. Each product, including a consuming product with transitive
+reach, must call `Build::enable_unsafe::<Atom>(build)` for each reachable
+specific child. Its dependency-edge ceiling independently bounds each use. For
 example, admitting `BorrowMutabilityUpgrade` permits an upgrade through an
 existing borrow. Switching the dependency to `borrow_mutable_at` requires
 `RawMemoryRead` and `RawMemoryWrite`. The compiler diagnoses a missing
