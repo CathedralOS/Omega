@@ -59,6 +59,10 @@ mod invocation_site;
 pub use invocation_site::{CheckedSourceCall, SourceInvocationSite};
 mod application;
 pub use crate::source_state::trait_definition::Supply as TerminalSourceSupply;
+pub use accepted::{
+    AcceptedTerminalSource, ConstantRead, DeclaredBoundaryRequirement, PreparedTerminalPublication,
+    boundary_requirements_declared_for,
+};
 pub use lowered_source_publication::Compilation as TerminalSourceCompilation;
 pub use lowered_source_publication::provider_selections::{
     ProviderSelectionInput as TerminalProviderSelectionInput,
@@ -69,9 +73,6 @@ pub use lowered_source_publication::{
     ProgramEntryContractSelection as TerminalProgramEntryContractSelection,
 };
 pub use terminal_check_tables::program::SuppliedRequirement as TerminalSuppliedRequirement;
-pub use accepted::{
-    AcceptedTerminalSource, ConstantRead, DeclaredBoundaryRequirement, PreparedTerminalPublication,
-};
 pub use terminal_semantics::callable_values::CallableBoundaryImplementation;
 
 mod build_bindings;

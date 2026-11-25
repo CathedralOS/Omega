@@ -59,4 +59,12 @@ impl LoweredSourcePublication {
     ) -> Self {
         Self { program, source }
     }
+
+    pub fn program(&self) -> &TerminalCompilation {
+        &self.program
+    }
+
+    pub fn source(&self) -> &PublicationSource {
+        &self.source
+    }
 }
