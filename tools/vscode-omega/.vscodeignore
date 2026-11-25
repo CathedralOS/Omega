@@ -5,3 +5,5 @@
 !language-configuration.json
 !syntaxes/
 !syntaxes/**
+!src/
+!src/**

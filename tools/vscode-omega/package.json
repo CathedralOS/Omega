@@ -1,8 +1,8 @@
 {
   "name": "omega-syntax",
-  "displayName": "Omega Syntax",
-  "description": "Syntax highlighting for the Omega systems language (.omg).",
-  "version": "0.2.0",
+  "displayName": "Omega",
+  "description": "Syntax highlighting and Go to Definition for the Omega systems language (.omg).",
+  "version": "0.3.0",
   "publisher": "cathedralos",
   "license": "MIT",
   "engines": {
@@ -22,6 +22,10 @@
     "url": "https://github.com/CathedralOS/Omega.git",
     "directory": "tools/vscode-omega"
   },
+  "main": "./src/extension.js",
+  "activationEvents": [
+    "onLanguage:omega"
+  ],
   "extensionKind": [
     "ui"
   ],
