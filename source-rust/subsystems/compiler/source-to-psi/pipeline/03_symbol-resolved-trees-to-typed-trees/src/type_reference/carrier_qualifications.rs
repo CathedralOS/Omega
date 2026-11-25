@@ -61,6 +61,38 @@ impl DomainUse<'_> {
         )
     }
 
+    /// A membership expression asks about the actual value. Only its existing
+    /// qualifications can satisfy the selected declaration's carrier.
+    pub(crate) fn on_operand(
+        &self,
+        source: &SymbolResolvedTrees,
+        program: &mut TypedTrees,
+        carrier: TypeReferenceHandle,
+    ) -> Vec<DomainDefinition> {
+        let plain = program
+            .type_reference_table
+            .unconstrained_type_reference(carrier);
+        let mut candidates = self.candidates(source, program, plain);
+        if self.reference.is_none() && self.retained.is_valid() {
+            candidates.retain(|domain| {
+                domain_accepts_underlying_carrier(program, domain, plain, self.arguments)
+            });
+        }
+        if candidates.iter().any(|domain| {
+            domain.target_type.is_valid()
+                && matches!(
+                    program
+                        .type_reference_table
+                        .type_reference(domain.target_type),
+                    TypeReferenceNode::Constrained { .. }
+                )
+        }) {
+            let available = CarrierQualifications::for_type(source, program, carrier, plain);
+            available.retain_possible(source, program, &mut candidates, self.arguments);
+        }
+        candidates
+    }
+
     fn members(
         &self,
         source: &SymbolResolvedTrees,

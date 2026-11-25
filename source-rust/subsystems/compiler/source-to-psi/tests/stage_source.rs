@@ -1301,6 +1301,12 @@ fn competing_domain_families_use_the_qualifications_on_each_side() {
              }",
             None,
         ),
+        ("machine f(x: Left) requires x in Op<u8> {}", None),
+        ("machine f(x: Right) requires x in Op<u8> {}", None),
+        (
+            "machine f(x: Word in Mark<u16> & Mark<u32>) requires x in Op<u8> {}",
+            Some("ambiguous domain `Op`"),
+        ),
         (
             "machine f(x: Word in Mark<u16> & Mark<u32> & Op<u8>) {}",
             Some("ambiguous domain `Op`"),
